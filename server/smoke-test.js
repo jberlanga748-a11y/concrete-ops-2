@@ -17,7 +17,7 @@ function sleep(ms) {
 async function waitForServer() {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
-      const response = await fetch(`${baseUrl}/api/health`);
+      const response = await fetch(`${baseUrl}/api/ready`);
       if (response.ok) return;
     } catch {
       // Keep polling until the server is ready.
@@ -72,6 +72,16 @@ async function run() {
 
   try {
     await waitForServer();
+
+    const health = await request("/api/health");
+    if (health.status !== "healthy") {
+      throw new Error(`Expected /api/health to report healthy, received ${health.status}.`);
+    }
+
+    const ready = await request("/api/ready");
+    if (ready.status !== "ready" || ready.checks?.database !== "ok") {
+      throw new Error("Expected /api/ready to confirm database readiness.");
+    }
 
     const login = await request("/api/auth/login", {
       method: "POST",

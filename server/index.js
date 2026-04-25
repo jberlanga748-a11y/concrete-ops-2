@@ -11,6 +11,7 @@ import {
   createSeedState,
   ensureDb,
   generateToken,
+  getDataPaths,
   hashToken,
   leadProjectName,
   makeId,
@@ -30,6 +31,7 @@ const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
 const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
 const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
+const serverStartedAt = Date.now();
 
 const app = express();
 
@@ -190,9 +192,43 @@ async function requireAuth(req, res, next) {
   return next();
 }
 
-app.get("/api/health", asyncRoute(async (_req, res) => {
-  await ensureDb();
-  res.json({ ok: true });
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+    status: "healthy",
+    service: "concrete-ops-api",
+    environment: serverConfig.nodeEnv,
+    uptimeSeconds: Math.round((Date.now() - serverStartedAt) / 1000),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/api/ready", asyncRoute(async (_req, res) => {
+  try {
+    await ensureDb();
+    const { dataDir, sqliteFile } = getDataPaths();
+
+    res.json({
+      ok: true,
+      status: "ready",
+      checks: {
+        database: "ok",
+      },
+      dataDir,
+      sqliteFile,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      status: "not_ready",
+      checks: {
+        database: "error",
+      },
+      error: error instanceof Error ? error.message : "Unknown readiness failure.",
+      timestamp: new Date().toISOString(),
+    });
+  }
 }));
 
 app.post("/api/auth/login", asyncRoute(async (req, res) => {

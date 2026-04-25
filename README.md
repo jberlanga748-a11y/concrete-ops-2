@@ -53,6 +53,13 @@ The backend now reads its runtime settings from a shared validated config module
 - `SMOKE_TEST_PORT`: port used by `npm run verify:server`, defaults to `4100`
 - `NODE_ENV`: `development`, `test`, or `production`
 
+## Health checks
+
+The backend exposes two operational endpoints:
+
+- `GET /api/health`: liveness check for the Node process
+- `GET /api/ready`: readiness check that verifies SQLite can be initialized and used
+
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
