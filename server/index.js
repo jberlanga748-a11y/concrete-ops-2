@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 
 import { DEMO_CREDENTIALS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
+import { logger, serializeError } from "./logger.js";
 import {
   cleanupExpiredSessions,
   createSeedState,
@@ -219,6 +220,9 @@ app.get("/api/ready", asyncRoute(async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    logger.error("Readiness check failed", {
+      error: serializeError(error),
+    });
     res.status(503).json({
       ok: false,
       status: "not_ready",
@@ -478,7 +482,7 @@ app.use(async (req, res, next) => {
   }
 });
 
-app.use((error, _req, res, next) => {
+app.use((error, req, res, next) => {
   if (res.headersSent) {
     return next(error);
   }
@@ -491,12 +495,20 @@ app.use((error, _req, res, next) => {
     return res.status(error.status).json({ error: error.message });
   }
 
-  console.error(error);
+  logger.error("Unhandled request error", {
+    method: req.method,
+    path: req.path,
+    error: serializeError(error),
+  });
   return res.status(500).json({ error: "Internal server error." });
 });
 
 await ensureDb();
 
 app.listen(port, () => {
-  console.log(`Concrete Ops API listening on http://localhost:${port}`);
+  logger.info("Concrete Ops API listening", {
+    environment: serverConfig.nodeEnv,
+    port,
+    dataDir: getDataPaths().dataDir,
+  });
 });

@@ -52,6 +52,7 @@ The backend now reads its runtime settings from a shared validated config module
 - `SESSION_TTL_HOURS`: rolling auth session lifetime, defaults to `168`
 - `SMOKE_TEST_PORT`: port used by `npm run verify:server`, defaults to `4100`
 - `NODE_ENV`: `development`, `test`, or `production`
+- `LOG_LEVEL`: `debug`, `info`, `warn`, or `error`, defaults to `info`
 
 ## Health checks
 
@@ -59,6 +60,8 @@ The backend exposes two operational endpoints:
 
 - `GET /api/health`: liveness check for the Node process
 - `GET /api/ready`: readiness check that verifies SQLite can be initialized and used
+
+Server logs are now emitted as structured JSON so they are easier to filter in local terminals and deployment platforms.
 
 ## Storage
 

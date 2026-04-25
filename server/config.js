@@ -9,6 +9,7 @@ const DEFAULT_PORT = 4000;
 const DEFAULT_SMOKE_TEST_PORT = 4100;
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7;
 const ALLOWED_NODE_ENVS = new Set(["development", "test", "production"]);
+const ALLOWED_LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
 
 function parseInteger(value, fieldName, fallback) {
   if (value == null || value === "") {
@@ -24,13 +25,17 @@ function parseInteger(value, fieldName, fallback) {
 }
 
 function parseNodeEnv(value) {
+  return parseChoice(value, "NODE_ENV", ALLOWED_NODE_ENVS, "development");
+}
+
+function parseChoice(value, fieldName, allowedValues, fallback) {
   if (value == null || value === "") {
-    return "development";
+    return fallback;
   }
 
   const normalized = String(value).trim();
-  if (!ALLOWED_NODE_ENVS.has(normalized)) {
-    throw new Error(`NODE_ENV must be one of: ${Array.from(ALLOWED_NODE_ENVS).join(", ")}.`);
+  if (!allowedValues.has(normalized)) {
+    throw new Error(`${fieldName} must be one of: ${Array.from(allowedValues).join(", ")}.`);
   }
 
   return normalized;
@@ -54,9 +59,11 @@ export function createServerConfig(env = process.env) {
   const port = parseInteger(env.PORT, "PORT", DEFAULT_PORT);
   const smokeTestPort = parseInteger(env.SMOKE_TEST_PORT, "SMOKE_TEST_PORT", DEFAULT_SMOKE_TEST_PORT);
   const sessionTtlHours = parseInteger(env.SESSION_TTL_HOURS, "SESSION_TTL_HOURS", DEFAULT_SESSION_TTL_HOURS);
+  const logLevel = parseChoice(env.LOG_LEVEL, "LOG_LEVEL", ALLOWED_LOG_LEVELS, "info");
 
   return Object.freeze({
     nodeEnv,
+    logLevel,
     port,
     smokeTestPort,
     dataDir: parseDataDir(env.DATA_DIR),
