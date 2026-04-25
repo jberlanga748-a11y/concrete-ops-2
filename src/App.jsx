@@ -1,0 +1,1424 @@
+import { useEffect, useMemo, useState } from "react";
+
+import {
+  convertLead,
+  createJob,
+  createLead,
+  createQueueItem,
+  getBootstrap,
+  login,
+  logout,
+  resetWorkspace,
+  toggleQueueItem,
+  updateJob,
+  updateLead,
+} from "./api";
+
+const APP_NAME = "Concrete Ops";
+const COMPANY_NAME = "Last Yard Concrete";
+const SESSION_TOKEN_KEY = "concrete-ops/session-token";
+
+const TOKENS = {
+  colors: [
+    ["Navy", "#0F172A", "Primary text, dark headers, footer surfaces"],
+    ["Blue", "#1D4ED8", "Primary actions, active nav, selected states"],
+    ["Soft Blue", "#EFF6FF", "Section backgrounds and low emphasis panels"],
+    ["Border", "#DBEAFE", "Dividers, table borders, input borders"],
+    ["Page", "#F8FBFF", "Application background"],
+    ["Muted", "#64748B", "Secondary text and metadata"],
+  ],
+  density: [
+    ["Sidebar item", "40px", "Compact enough for long module lists"],
+    ["Table row", "56px", "Readable field data without wasting vertical space"],
+    ["Card padding", "16-20px", "Dense, operational, not landing-page spacing"],
+    ["Header height", "64px", "Persistent utility bar with stable page context"],
+  ],
+};
+
+const NAV_GROUPS = [
+  {
+    label: "Field",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: "grid" },
+      { id: "jobs", label: "Jobs", icon: "briefcase" },
+      { id: "time", label: "Time", icon: "clock" },
+      { id: "reports", label: "Reports", icon: "document" },
+      { id: "uploads", label: "Uploads", icon: "upload" },
+    ],
+  },
+  {
+    label: "Office",
+    items: [
+      { id: "leads", label: "Leads", icon: "inbox" },
+      { id: "customers", label: "Customers", icon: "users" },
+      { id: "estimates", label: "Estimates", icon: "quote" },
+      { id: "changeOrders", label: "Change Orders", icon: "refresh" },
+    ],
+  },
+  {
+    label: "Safety",
+    items: [
+      { id: "incidents", label: "Incidents", icon: "alert" },
+      { id: "toolbox", label: "Toolbox Talks", icon: "clipboard" },
+      { id: "ppe", label: "PPE", icon: "hardhat" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { id: "calculator", label: "Calculator", icon: "calculator" },
+      { id: "copilot", label: "Ops Copilot", icon: "spark" },
+      { id: "design", label: "Design System", icon: "layers" },
+      { id: "settings", label: "Settings", icon: "settings" },
+    ],
+  },
+];
+
+const EMPTY_APP_STATE = {
+  user: null,
+  leads: [],
+  jobs: [],
+  queueItems: [],
+  activity: [],
+  stats: {
+    newLeads: 0,
+    highPriorityLeads: 0,
+    pipelineValue: 0,
+    activeJobs: 0,
+    scheduledJobs: 0,
+    reportsDue: 0,
+    queueBlocked: 0,
+  },
+};
+
+const INITIAL_LEAD_FORM = {
+  customer: "",
+  city: "",
+  project: "",
+  priority: "Normal",
+  owner: "Office",
+  value: "",
+  nextStep: "",
+  notes: "",
+};
+
+const INITIAL_JOB_FORM = {
+  customer: "",
+  job: "",
+  crew: "",
+  stage: "Scheduled",
+  due: "",
+  progress: 15,
+  next: "",
+  notes: "",
+};
+
+const INITIAL_TASK_FORM = {
+  title: "",
+  meta: "",
+  status: "Due today",
+};
+
+function runDesignSystemChecks() {
+  const failures = [];
+  const navIds = new Set(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id)));
+
+  ["dashboard", "leads", "jobs", "reports", "calculator", "copilot", "design"].forEach((id) => {
+    if (!navIds.has(id)) failures.push(`Missing nav item: ${id}`);
+  });
+
+  if (TOKENS.colors.length < 6) failures.push("Design tokens need enough color primitives.");
+
+  if (failures.length > 0) {
+    throw new Error(`Design system checks failed:\n- ${failures.join("\n- ")}`);
+  }
+}
+
+runDesignSystemChecks();
+
+function currency(value) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0);
+}
+
+function iconStrokeProps(className) {
+  return {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.1",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    className,
+    "aria-hidden": "true",
+  };
+}
+
+function Icon({ name, className = "h-4 w-4" }) {
+  const common = iconStrokeProps(className);
+  const paths = {
+    grid: [<path key="1" d="M4 4h7v7H4z" />, <path key="2" d="M13 4h7v7h-7z" />, <path key="3" d="M4 13h7v7H4z" />, <path key="4" d="M13 13h7v7h-7z" />],
+    briefcase: [<path key="1" d="M10 6V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1" />, <path key="2" d="M3 8h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z" />, <path key="3" d="M3 13h18" />],
+    clock: [<circle key="1" cx="12" cy="12" r="9" />, <path key="2" d="M12 7v5l3 2" />],
+    document: [<path key="1" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />, <path key="2" d="M14 2v6h6" />, <path key="3" d="M8 13h8M8 17h6" />],
+    upload: [<path key="1" d="M12 16V4" />, <path key="2" d="m7 9 5-5 5 5" />, <path key="3" d="M20 16v4H4v-4" />],
+    inbox: [<path key="1" d="M4 4h16l2 10v6H2v-6Z" />, <path key="2" d="M2 14h6l2 3h4l2-3h6" />],
+    users: [<path key="1" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />, <circle key="2" cx="9" cy="7" r="4" />, <path key="3" d="M22 21v-2a4 4 0 0 0-3-3.87" />],
+    quote: [<path key="1" d="M6 3h12a2 2 0 0 1 2 2v16l-4-3H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />, <path key="2" d="M8 8h8M8 12h6" />],
+    refresh: [<path key="1" d="M21 12a9 9 0 0 1-15.5 6.3L3 16" />, <path key="2" d="M3 12A9 9 0 0 1 18.5 5.7L21 8" />, <path key="3" d="M3 16h5v-5M21 8h-5v5" />],
+    alert: [<path key="1" d="m12 2 10 18H2Z" />, <path key="2" d="M12 8v5" />, <path key="3" d="M12 17h.01" />],
+    clipboard: [<path key="1" d="M9 3h6l1 2h3v17H5V5h3Z" />, <path key="2" d="M9 3h6v4H9z" />, <path key="3" d="M8 12h8M8 16h6" />],
+    hardhat: [<path key="1" d="M3 18h18" />, <path key="2" d="M5 18a7 7 0 0 1 14 0" />, <path key="3" d="M9 10V6h6v4" />],
+    calculator: [<path key="1" d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" />, <path key="2" d="M8 6h8v4H8z" />, <path key="3" d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />],
+    spark: [<path key="1" d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5Z" />],
+    layers: [<path key="1" d="m12 2 9 5-9 5-9-5Z" />, <path key="2" d="m3 12 9 5 9-5" />, <path key="3" d="m3 17 9 5 9-5" />],
+    settings: [<circle key="1" cx="12" cy="12" r="3" />, <path key="2" d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7.1 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1Z" />],
+    plus: [<path key="1" d="M12 5v14" />, <path key="2" d="M5 12h14" />],
+    check: [<path key="1" d="m5 13 4 4L19 7" />],
+    arrowUpRight: [<path key="1" d="M7 17 17 7" />, <path key="2" d="M9 7h8v8" />],
+    database: [<ellipse key="1" cx="12" cy="5" rx="7" ry="3" />, <path key="2" d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5" />, <path key="3" d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />],
+    lock: [<rect key="1" x="4" y="11" width="16" height="10" rx="2" />, <path key="2" d="M8 11V7a4 4 0 1 1 8 0v4" />],
+  };
+
+  return <svg {...common}>{paths[name] || paths.grid}</svg>;
+}
+
+function Button({ children, variant = "primary", size = "md", className = "", ...props }) {
+  const variants = {
+    primary: "bg-blue-700 text-white hover:bg-blue-800 shadow-sm shadow-blue-700/20",
+    secondary: "border border-blue-100 bg-white text-slate-700 hover:bg-blue-50",
+    ghost: "text-slate-600 hover:bg-blue-50 hover:text-blue-700",
+    danger: "bg-red-600 text-white hover:bg-red-700",
+  };
+  const sizes = {
+    sm: "px-3 py-2 text-xs",
+    md: "px-4 py-2.5 text-sm",
+    lg: "px-5 py-3 text-sm",
+  };
+
+  return (
+    <button className={`inline-flex items-center justify-center gap-2 rounded-2xl font-black transition ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+      {children}
+    </button>
+  );
+}
+
+function Badge({ children, tone = "blue" }) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-700 ring-blue-100",
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    amber: "bg-amber-50 text-amber-700 ring-amber-100",
+    red: "bg-red-50 text-red-700 ring-red-100",
+    violet: "bg-violet-50 text-violet-700 ring-violet-100",
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+  };
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ring-1 ${tones[tone] || tones.blue}`}>{children}</span>;
+}
+
+function StatusBadge({ status }) {
+  const normalized = status.toLowerCase();
+  let tone = "slate";
+  if (["approved", "ready", "done", "complete"].includes(normalized)) tone = "green";
+  if (["new", "in progress", "estimate sent"].includes(normalized)) tone = "blue";
+  if (["blocked"].includes(normalized)) tone = "red";
+  if (["due today", "site visit", "waiting"].includes(normalized)) tone = "amber";
+  if (["scheduled", "ready to bill"].includes(normalized)) tone = "violet";
+  return <Badge tone={tone}>{status}</Badge>;
+}
+
+function Card({ children, className = "" }) {
+  return <div className={`panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel ${className}`}>{children}</div>;
+}
+
+function PageHeader({ eyebrow, title, description, actions, tabs }) {
+  return (
+    <div className="mb-5 border-b border-blue-100/80 bg-white/80 px-5 py-5 backdrop-blur sm:px-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
+          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
+          {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
+        </div>
+        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      </div>
+      {tabs ? <div className="mt-5 flex gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
+    </div>
+  );
+}
+
+function SectionHeader({ title, description, action }) {
+  return (
+    <div className="mb-3 flex items-start justify-between gap-4">
+      <div>
+        <h2 className="text-base font-black text-slate-950">{title}</h2>
+        {description ? <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p> : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex gap-2 overflow-x-auto">
+        {filters.map((filter) => (
+          <button
+            key={filter}
+            type="button"
+            onClick={() => setActive(filter)}
+            className={`rounded-2xl px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+          >
+            {filter}
+          </button>
+        ))}
+      </div>
+      <input className="field-input w-full md:w-72" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
+    </div>
+  );
+}
+
+function InputField({ label, ...props }) {
+  return (
+    <label className="field-label">
+      <span>{label}</span>
+      <input className="field-input" {...props} />
+    </label>
+  );
+}
+
+function SelectField({ label, children, ...props }) {
+  return (
+    <label className="field-label">
+      <span>{label}</span>
+      <select className="field-input" {...props}>
+        {children}
+      </select>
+    </label>
+  );
+}
+
+function TextAreaField({ label, ...props }) {
+  return (
+    <label className="field-label">
+      <span>{label}</span>
+      <textarea className="field-input min-h-28 resize-y" {...props} />
+    </label>
+  );
+}
+
+function ErrorBanner({ message, onDismiss }) {
+  if (!message) return null;
+  return (
+    <div className="mx-5 mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6 lg:mx-8">
+      <div className="flex items-start justify-between gap-3">
+        <p>{message}</p>
+        <button type="button" className="font-black" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LoadingScreen({ label = "Loading workspace..." }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
+      <Card className="w-full max-w-md p-6 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-700 text-white">
+          <Icon name="database" className="h-6 w-6" />
+        </div>
+        <p className="mt-4 text-lg font-black text-slate-950">{label}</p>
+        <p className="mt-2 text-sm text-slate-500">Reconnecting to the Concrete Ops API.</p>
+      </Card>
+    </div>
+  );
+}
+
+function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
+      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card className="overflow-hidden p-8">
+          <Badge tone="blue">API-backed workspace</Badge>
+          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950">Concrete operations that actually persist.</h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+            This version runs with a real Node API, token auth, and server-backed records for leads, jobs, queue items, and activity.
+          </p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="rounded-3xl border border-blue-100 bg-white p-4">
+              <p className="text-sm font-black text-slate-950">Auth</p>
+              <p className="mt-2 text-sm text-slate-500">Login and logout are backed by authenticated API requests.</p>
+            </div>
+            <div className="rounded-3xl border border-blue-100 bg-white p-4">
+              <p className="text-sm font-black text-slate-950">Persistence</p>
+              <p className="mt-2 text-sm text-slate-500">Data now lives in a server-side JSON store under the workspace.</p>
+            </div>
+            <div className="rounded-3xl border border-blue-100 bg-white p-4">
+              <p className="text-sm font-black text-slate-950">Next-ready</p>
+              <p className="mt-2 text-sm text-slate-500">This is a clean stepping stone toward a database and real multi-user auth.</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-700 text-white">
+              <Icon name="lock" className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-950">Sign in</p>
+              <p className="text-sm text-slate-500">Use the seeded demo account.</p>
+            </div>
+          </div>
+          <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+            <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
+            <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
+            {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+            <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+              {loading ? "Signing in..." : "Enter workspace"}
+            </Button>
+          </form>
+          <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+            <p className="font-black text-slate-950">Demo credentials</p>
+            <p className="mt-2">
+              Email: <span className="font-black text-blue-700">ops@lastyard.test</span>
+            </p>
+            <p>
+              Password: <span className="font-black text-blue-700">concrete123</span>
+            </p>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ active, setActive, counts }) {
+  return (
+    <aside className="hidden h-screen w-72 shrink-0 border-r border-blue-100 bg-white/90 backdrop-blur lg:sticky lg:top-0 lg:block">
+      <div className="border-b border-blue-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-sm font-black text-white">CO</div>
+          <div>
+            <p className="text-sm font-black leading-none text-slate-950">{APP_NAME}</p>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Authenticated Workspace</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex h-[calc(100vh-76px)] flex-col justify-between overflow-y-auto p-3">
+        <div>
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="mb-4">
+              <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.label}</p>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive = active === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActive(item.id)}
+                      className={`flex w-full items-center justify-between gap-2.5 rounded-2xl px-3 py-2.5 text-left text-sm font-bold transition ${isActive ? "bg-blue-700 text-white" : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"}`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <Icon name={item.icon} className="h-4 w-4" />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      {counts[item.id] ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isActive ? "bg-white/20 text-white" : "bg-blue-50 text-blue-700"}`}>{counts[item.id]}</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Card className="p-4">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Server-backed mode</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Records and auth now round-trip through the local API instead of living only in the browser.</p>
+        </Card>
+      </div>
+    </aside>
+  );
+}
+
+function TopBar({ active, setActive, stats, user, onLogout, syncing }) {
+  const current = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === active);
+  return (
+    <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
+      <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{COMPANY_NAME}</p>
+          <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
+        </div>
+        <div className="hidden items-center gap-2 md:flex">
+          <Badge tone="blue">{stats.newLeads} new leads</Badge>
+          <Badge tone="amber">{stats.reportsDue} reports due</Badge>
+          <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
+          <Button variant="ghost" size="sm" onClick={onLogout}>
+            Log out
+          </Button>
+        </div>
+        <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-40 py-2 text-xs font-black text-blue-700 md:hidden">
+          {NAV_GROUPS.flatMap((group) => group.items).map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {syncing ? <div className="h-1 bg-gradient-to-r from-blue-200 via-blue-600 to-blue-200" /> : null}
+    </div>
+  );
+}
+
+function KpiCard({ item }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">{item.label}</p>
+          <p className="mt-2 text-3xl font-black text-slate-950">{item.value}</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">{item.helper}</p>
+        </div>
+        <div className="rounded-2xl bg-blue-50 p-2.5 text-blue-700">
+          <Icon name={item.icon} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function LeadsTable({ rows, selectedId, onSelect }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[860px] text-left">
+        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Lead</th>
+            <th className="px-4 py-3">Project</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Priority</th>
+            <th className="px-4 py-3">Value</th>
+            <th className="px-4 py-3">Owner</th>
+            <th className="px-4 py-3">Next step</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50">
+          {rows.map((row) => {
+            const selected = row.id === selectedId;
+            return (
+              <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+                <td className="px-4 py-3">
+                  <p className="font-black text-slate-950">{row.customer}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project}</td>
+                <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
+                <td className="px-4 py-3"><Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge></td>
+                <td className="px-4 py-3 text-sm font-black text-slate-950">{currency(row.value)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.owner}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.nextStep}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function JobsTable({ rows, selectedId, onSelect }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[860px] text-left">
+        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Job</th>
+            <th className="px-4 py-3">Customer</th>
+            <th className="px-4 py-3">Stage</th>
+            <th className="px-4 py-3">Crew</th>
+            <th className="px-4 py-3">Next step</th>
+            <th className="px-4 py-3">Due</th>
+            <th className="px-4 py-3">Progress</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50">
+          {rows.map((row) => {
+            const selected = row.id === selectedId;
+            return (
+              <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+                <td className="px-4 py-3">
+                  <p className="font-black text-slate-950">{row.job}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id}</p>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.customer}</td>
+                <td className="px-4 py-3"><StatusBadge status={row.stage} /></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.crew}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.next}</td>
+                <td className="px-4 py-3 text-sm font-black text-slate-950">{row.due}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-28 overflow-hidden rounded-full bg-blue-50">
+                      <div className="h-full rounded-full bg-blue-700" style={{ width: `${row.progress}%` }} />
+                    </div>
+                    <span className="text-xs font-black text-slate-500">{row.progress}%</span>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, disabled }) {
+  return (
+    <Card className="p-4">
+      <SectionHeader title="Today's Queue" description="Only work that actually needs motion right now." />
+      <div className="space-y-2">
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onToggleTask(item.id)}
+            disabled={disabled}
+            className={`flex w-full items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${item.done ? "border-emerald-100 bg-emerald-50/60" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}
+          >
+            <div className="flex items-start gap-3">
+              <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${item.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-blue-200 bg-white text-transparent"}`}>
+                <Icon name="check" className="h-3.5 w-3.5" />
+              </span>
+              <div>
+                <p className={`text-sm font-black ${item.done ? "text-emerald-800 line-through" : "text-slate-950"}`}>{item.title}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
+              </div>
+            </div>
+            <StatusBadge status={item.done ? "Done" : item.status} />
+          </button>
+        ))}
+      </div>
+      <form className="mt-4 grid gap-3" onSubmit={onAddTask}>
+        <InputField label="Add queue item" value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send concrete order" />
+        <InputField label="Context" value={taskDraft.meta} onChange={(event) => setTaskDraft((current) => ({ ...current, meta: event.target.value }))} placeholder="Job, customer, or blocker" />
+        <div className="flex items-end gap-3">
+          <SelectField label="Status" value={taskDraft.status} onChange={(event) => setTaskDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option>Due today</option>
+            <option>Ready</option>
+            <option>This week</option>
+            <option>Blocked</option>
+          </SelectField>
+          <Button className="mb-0.5 shrink-0" type="submit" disabled={disabled}>
+            <Icon name="plus" />
+            Add task
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
+  if (!lead) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Lead details" description="Select a lead to edit ownership, next steps, and notes." />
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Pick a lead from the table to inspect and update it.</div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title={lead.customer}
+        description={`${lead.id} · ${lead.city}`}
+        action={
+          <Button size="sm" onClick={onCreateJob} disabled={disabled}>
+            <Icon name="arrowUpRight" />
+            Create job
+          </Button>
+        }
+      />
+      <div className="grid gap-3">
+        <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Status" value={lead.status} onChange={(event) => onFieldChange("status", event.target.value)}>
+            <option>New</option>
+            <option>Contacted</option>
+            <option>Site Visit</option>
+            <option>Estimate Sent</option>
+            <option>Approved</option>
+          </SelectField>
+          <SelectField label="Priority" value={lead.priority} onChange={(event) => onFieldChange("priority", event.target.value)}>
+            <option>Low</option>
+            <option>Normal</option>
+            <option>High</option>
+          </SelectField>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Owner" value={lead.owner} onChange={(event) => onFieldChange("owner", event.target.value)} />
+          <InputField label="Value" type="number" value={lead.value} onChange={(event) => onFieldChange("value", Number(event.target.value))} />
+        </div>
+        <InputField label="Next step" value={lead.nextStep} onChange={(event) => onFieldChange("nextStep", event.target.value)} />
+        <TextAreaField label="Notes" value={lead.notes} onChange={(event) => onFieldChange("notes", event.target.value)} />
+      </div>
+    </Card>
+  );
+}
+
+function JobDetailPanel({ job, onFieldChange }) {
+  if (!job) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Job details" description="Select a job to update stage, progress, and field notes." />
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Choose a job from the table to keep the field and office teams aligned.</div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title={job.job} description={`${job.id} · ${job.customer}`} />
+      <div className="grid gap-3">
+        <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} />
+        <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Stage" value={job.stage} onChange={(event) => onFieldChange("stage", event.target.value)}>
+            <option>Scheduled</option>
+            <option>In Progress</option>
+            <option>Waiting</option>
+            <option>Ready to Bill</option>
+            <option>Complete</option>
+          </SelectField>
+          <InputField label="Due" value={job.due} onChange={(event) => onFieldChange("due", event.target.value)} />
+        </div>
+        <label className="field-label">
+          <span>Progress ({job.progress}%)</span>
+          <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} />
+        </label>
+        <InputField label="Next step" value={job.next} onChange={(event) => onFieldChange("next", event.target.value)} />
+        <TextAreaField label="Notes" value={job.notes} onChange={(event) => onFieldChange("notes", event.target.value)} />
+      </div>
+    </Card>
+  );
+}
+
+function ActivityPanel({ activity }) {
+  return (
+    <Card className="p-4">
+      <SectionHeader title="Recent Activity" description="Live changes land here so the office can keep pace with the field." />
+      <div className="space-y-3">
+        {activity.map((item) => (
+          <div key={item.id} className="border-l-2 border-blue-200 pl-3">
+            <p className="text-xs font-black uppercase tracking-widest text-blue-700">{item.time}</p>
+            <p className="mt-1 text-sm font-black text-slate-950">{item.title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title="New lead intake" description="Create a real record in the API-backed queue." />
+      <form className="grid gap-3" onSubmit={onCreateLead}>
+        <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Dana Martinez" />
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Albany" />
+          <InputField label="Project" value={draft.project} onChange={(event) => setDraft((current) => ({ ...current, project: event.target.value }))} placeholder="Front walkway replacement" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <SelectField label="Priority" value={draft.priority} onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value }))}>
+            <option>Low</option>
+            <option>Normal</option>
+            <option>High</option>
+          </SelectField>
+          <InputField label="Owner" value={draft.owner} onChange={(event) => setDraft((current) => ({ ...current, owner: event.target.value }))} />
+          <InputField label="Value" type="number" value={draft.value} onChange={(event) => setDraft((current) => ({ ...current, value: event.target.value }))} placeholder="8200" />
+        </div>
+        <InputField label="Next step" value={draft.nextStep} onChange={(event) => setDraft((current) => ({ ...current, nextStep: event.target.value }))} placeholder="Schedule site measure" />
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Gate access, finish details, timing notes..." />
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Add lead
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function JobPlannerCard({ draft, setDraft, onCreateJob, disabled }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Create job" description="Promote approved work into a scheduled field record." />
+      <form className="grid gap-3" onSubmit={onCreateJob}>
+        <InputField label="Job name" value={draft.job} onChange={(event) => setDraft((current) => ({ ...current, job: event.target.value }))} placeholder="Martinez Front Walk" />
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} />
+          <InputField label="Crew" value={draft.crew} onChange={(event) => setDraft((current) => ({ ...current, crew: event.target.value }))} placeholder="Juan + 3" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <SelectField label="Stage" value={draft.stage} onChange={(event) => setDraft((current) => ({ ...current, stage: event.target.value }))}>
+            <option>Scheduled</option>
+            <option>In Progress</option>
+            <option>Waiting</option>
+            <option>Ready to Bill</option>
+          </SelectField>
+          <InputField label="Due" value={draft.due} onChange={(event) => setDraft((current) => ({ ...current, due: event.target.value }))} placeholder="Wed" />
+          <InputField label="Progress" type="number" min="0" max="100" value={draft.progress} onChange={(event) => setDraft((current) => ({ ...current, progress: Number(event.target.value) }))} />
+        </div>
+        <InputField label="Next step" value={draft.next} onChange={(event) => setDraft((current) => ({ ...current, next: event.target.value }))} placeholder="Confirm mix and pump truck" />
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Add job
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function DashboardPage({
+  stats,
+  leads,
+  jobs,
+  queueItems,
+  activity,
+  leadFilter,
+  setLeadFilter,
+  leadSearch,
+  setLeadSearch,
+  selectedLeadId,
+  onSelectLead,
+  selectedLead,
+  onLeadFieldChange,
+  onCreateJobFromLead,
+  taskDraft,
+  setTaskDraft,
+  onAddTask,
+  onToggleTask,
+  setActive,
+  busy,
+}) {
+  const tabs = ["Today", "This Week", "Needs Action", "Ready to Bill"].map((tab, index) => (
+    <button key={tab} type="button" className={`rounded-2xl px-3 py-2 text-xs font-black ${index === 0 ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+      {tab}
+    </button>
+  ));
+
+  const visibleLeads = leads.filter((lead) => {
+    const matchesFilter = leadFilter === "All" || lead.status === leadFilter;
+    const searchValue = leadSearch.toLowerCase();
+    const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(searchValue));
+    return matchesFilter && matchesSearch;
+  });
+
+  const kpis = [
+    { label: "Leads needing review", value: `${stats.newLeads}`, helper: `${stats.highPriorityLeads} high priority`, icon: "inbox" },
+    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${leads.length} active opportunities`, icon: "quote" },
+    { label: "Jobs active today", value: `${stats.activeJobs}`, helper: `${stats.scheduledJobs} scheduled next`, icon: "briefcase" },
+    { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Operations Command"
+        title="Daily workspace"
+        description="The prototype now authenticates to a real API. Leads, jobs, queue actions, and activity all load from the server and stay synchronized."
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
+            <Button onClick={() => setActive("jobs")}>Open jobs</Button>
+          </>
+        }
+        tabs={tabs}
+      />
+      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="overflow-hidden">
+            <div className="p-4">
+              <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
+            </div>
+            <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
+            <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
+          </Card>
+          <div className="space-y-4">
+            <QueueList items={queueItems.slice(0, 5)} onToggleTask={onToggleTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} />
+          </div>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <Card className="overflow-hidden">
+            <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
+            <JobsTable rows={jobs.slice(0, 5)} selectedId={null} onSelect={() => setActive("jobs")} />
+          </Card>
+          <ActivityPanel activity={activity} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, busy }) {
+  return (
+    <div>
+      <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
+          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
+          <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
+        </Card>
+        <div className="space-y-4">
+          <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, busy }) {
+  return (
+    <div>
+      <PageHeader eyebrow="Field Ops" title="Jobs" description="Create jobs from scratch or from approved leads, then keep field progress and next-step accountability current through the API." actions={<Badge tone="violet">{rows.length} active jobs</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
+          <FilterBar filters={["All", "Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, crew..." />
+          <JobsTable rows={rows} selectedId={selectedJobId} onSelect={onSelectJob} />
+        </Card>
+        <div className="space-y-4">
+          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy} />
+          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StateExamples() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <Card className="p-5">
+        <SectionHeader title="Empty state" />
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center">
+          <p className="font-black text-slate-950">No change orders yet</p>
+          <p className="mt-2 text-sm text-slate-500">Create one when scope changes, price changes, or extra work is approved.</p>
+          <Button className="mt-4" size="sm">Create Change Order</Button>
+        </div>
+      </Card>
+      <Card className="p-5">
+        <SectionHeader title="Loading state" />
+        <div className="space-y-3">{[1, 2, 3].map((item) => <div key={item} className="h-12 animate-pulse rounded-2xl bg-blue-50" />)}</div>
+      </Card>
+      <Card className="p-5">
+        <SectionHeader title="Error state" />
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+          <p className="font-black text-red-700">Could not load uploads</p>
+          <p className="mt-1 text-sm text-red-600">Check the storage connection and try again.</p>
+          <Button variant="secondary" size="sm" className="mt-3">Retry</Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function DesignSystemPage() {
+  return (
+    <div>
+      <PageHeader eyebrow="Design System" title="Production UI standards" description="The visual system stayed intact while the app moved to real authenticated backend flows." actions={<Badge tone="blue">Live spec</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+        <Card className="p-5">
+          <SectionHeader title="Tokens" description="Calm blue and white system with practical density and restrained surfaces." />
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {TOKENS.colors.map(([name, value, use]) => (
+              <div key={name} className="rounded-2xl border border-blue-100 p-3">
+                <div className="h-10 rounded-xl border border-blue-100" style={{ background: value }} />
+                <p className="mt-2 text-xs font-black uppercase text-slate-500">{name}</p>
+                <p className="text-xs font-bold text-slate-700">{value}</p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-500">{use}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card className="p-5">
+            <SectionHeader title="Button hierarchy" description="Primary actions move records. Utilities stay secondary." />
+            <div className="flex flex-wrap gap-2">
+              <Button>Primary Action</Button>
+              <Button variant="secondary">Secondary</Button>
+              <Button variant="ghost">Ghost</Button>
+              <Button variant="danger">Danger</Button>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Density guidelines" description="Operational software should feel compact without feeling cramped." />
+            <div className="space-y-2">
+              {TOKENS.density.map(([name, value, use]) => (
+                <div key={name} className="rounded-2xl border border-blue-100 p-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="font-black text-slate-950">{name}</p>
+                    <Badge tone="slate">{value}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">{use}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+        <StateExamples />
+      </div>
+    </div>
+  );
+}
+
+function CalculatorPage() {
+  const [length, setLength] = useState(40);
+  const [width, setWidth] = useState(20);
+  const [thickness, setThickness] = useState(4);
+  const [resultCopied, setResultCopied] = useState(false);
+  const yards = useMemo(() => ((length * width * (thickness / 12)) / 27) * 1.1, [length, width, thickness]);
+
+  async function copyResult() {
+    try {
+      await navigator.clipboard.writeText(`${yards.toFixed(2)} cubic yards`);
+      setResultCopied(true);
+      window.setTimeout(() => setResultCopied(false), 1500);
+    } catch {
+      setResultCopied(false);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Tools" title="Concrete Calculator" description="Large inputs, clear units, and a one-click copyable result for quick field use." />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[420px_1fr] lg:px-8">
+        <Card className="p-5">
+          <SectionHeader title="Slab input" description="Includes a 10% waste factor." />
+          <div className="grid gap-3">
+            <InputField label="Length (ft)" type="number" value={length} onChange={(event) => setLength(Number(event.target.value))} />
+            <InputField label="Width (ft)" type="number" value={width} onChange={(event) => setWidth(Number(event.target.value))} />
+            <InputField label="Thickness (in)" type="number" value={thickness} onChange={(event) => setThickness(Number(event.target.value))} />
+          </div>
+        </Card>
+        <Card className="overflow-hidden">
+          <div className="bg-blue-950 p-6 text-white">
+            <p className="text-xs font-black uppercase tracking-widest text-blue-200">Recommended order</p>
+            <p className="mt-3 text-6xl font-black">{yards.toFixed(2)}</p>
+            <p className="text-lg font-black text-blue-100">cubic yards</p>
+            <Button className="mt-5" variant="secondary" onClick={copyResult}>{resultCopied ? "Copied" : "Copy result"}</Button>
+          </div>
+          <div className="grid gap-3 p-6 text-sm text-slate-600 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Square feet</p>
+              <p className="mt-1 text-lg font-black text-slate-950">{length * width}</p>
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Volume</p>
+              <p className="mt-1 text-lg font-black text-slate-950">{((length * width * (thickness / 12)) / 27).toFixed(2)} yd^3</p>
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Waste factor</p>
+              <p className="mt-1 text-lg font-black text-slate-950">10%</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function CopilotPage({ stats, leads, jobs, queueItems }) {
+  const suggestions = [
+    stats.queueBlocked > 0 ? `Clear ${stats.queueBlocked} blocked queue item${stats.queueBlocked > 1 ? "s" : ""} before closeout slips.` : "Queue is clear enough to keep crews moving.",
+    stats.newLeads > 0 ? `Assign callbacks for ${stats.newLeads} new lead${stats.newLeads > 1 ? "s" : ""} to keep response times tight.` : "No new leads are waiting for first contact.",
+    jobs.some((job) => job.stage === "Waiting") ? "Waiting jobs need a concrete next step or owner handoff." : "No jobs are currently stalled in a waiting state.",
+    leads.some((lead) => lead.status === "Approved") ? "Approved leads can be promoted into jobs directly from the lead detail panel." : "No approved leads are waiting on job creation.",
+  ];
+
+  return (
+    <div>
+      <PageHeader eyebrow="System" title="Ops Copilot" description="A lightweight operations summary page derived from live backend state." />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
+        <Card className="p-5">
+          <SectionHeader title="Suggested actions" description="Derived from the current state of leads, jobs, and the queue." />
+          <div className="space-y-3">
+            {suggestions.map((item) => <div key={item} className="rounded-2xl border border-blue-100 bg-white p-4"><p className="text-sm font-bold text-slate-700">{item}</p></div>)}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <SectionHeader title="Snapshot" description="Quick counts for the modules doing real work." />
+          <div className="space-y-3 text-sm text-slate-600">
+            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Leads</span><strong className="text-slate-950">{leads.length}</strong></div>
+            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Jobs</span><strong className="text-slate-950">{jobs.length}</strong></div>
+            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Queue items</span><strong className="text-slate-950">{queueItems.length}</strong></div>
+            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Open pipeline</span><strong className="text-slate-950">{currency(stats.pipelineValue)}</strong></div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SettingsPage({ user, onReset, busy }) {
+  return (
+    <div>
+      <PageHeader eyebrow="System" title="Settings" description="This workspace now uses authenticated server state with a seeded demo account." />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
+        <Card className="p-5">
+          <SectionHeader title="Account" description="Current signed-in operator." />
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Name:</span> {user?.name}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
+          </div>
+          <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button>
+        </Card>
+        <Card className="p-5">
+          <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
+          <div className="space-y-3 text-sm text-slate-600">
+            <div className="rounded-2xl border border-blue-100 p-4">Move from JSON storage to Postgres or SQLite.</div>
+            <div className="rounded-2xl border border-blue-100 p-4">Replace demo token auth with proper user management and hashed refresh sessions.</div>
+            <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports and uploads into their own resource APIs.</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
+  const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
+  const previews = [
+    selectedLead ? `${selectedLead.customer} · ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
+    selectedJob ? `${selectedJob.job} · ${selectedJob.next}` : "Select a job to keep next steps visible.",
+    queueItems[0] ? `${queueItems[0].title} · ${queueItems[0].status}` : "Queue items will appear here as they are added.",
+  ];
+
+  return (
+    <div>
+      <PageHeader eyebrow="Module" title={item?.label || "Module"} description="This module is scaffolded with the same production primitives and can now plug into real backend state." actions={<Badge tone="slate">Scaffolded</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
+        <Card className="p-5">
+          <SectionHeader title="Work queue" description="These sections are connected to live app data even before a dedicated workflow is built." />
+          <div className="space-y-3">{previews.map((preview) => <div key={preview} className="rounded-2xl border border-blue-100 p-4 text-sm text-slate-600">{preview}</div>)}</div>
+        </Card>
+        <Card className="p-5">
+          <SectionHeader title="Next build step" description="A good placeholder should tell us exactly what to build next." />
+          <p className="text-sm leading-6 text-slate-600">If we keep going, this module should get its own record list, detail panel, and real status model, just like leads and jobs already do.</p>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function MainContent(props) {
+  const { active } = props;
+  if (active === "dashboard") return <DashboardPage {...props} />;
+  if (active === "leads") return <LeadsPage {...props} rows={props.visibleLeads} />;
+  if (active === "jobs") return <JobsPage {...props} rows={props.visibleJobs} />;
+  if (active === "calculator") return <CalculatorPage />;
+  if (active === "design") return <DesignSystemPage />;
+  if (active === "copilot") return <CopilotPage {...props} />;
+  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} />;
+  return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
+}
+
+export default function App() {
+  const [active, setActive] = useState("dashboard");
+  const [sessionToken, setSessionToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) || "");
+  const [authStatus, setAuthStatus] = useState(sessionToken ? "checking" : "loggedOut");
+  const [appState, setAppState] = useState(EMPTY_APP_STATE);
+  const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [credentials, setCredentials] = useState({ email: "ops@lastyard.test", password: "concrete123" });
+  const [leadFilter, setLeadFilter] = useState("All");
+  const [leadSearch, setLeadSearch] = useState("");
+  const [jobFilter, setJobFilter] = useState("All");
+  const [jobSearch, setJobSearch] = useState("");
+  const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
+  const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
+  const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
+
+  function applyBootstrap(nextState) {
+    setAppState({
+      user: nextState.user,
+      leads: nextState.leads,
+      jobs: nextState.jobs,
+      queueItems: nextState.queueItems,
+      activity: nextState.activity,
+      stats: nextState.stats,
+    });
+  }
+
+  function clearSession() {
+    window.localStorage.removeItem(SESSION_TOKEN_KEY);
+    setSessionToken("");
+    setAuthStatus("loggedOut");
+    setAppState(EMPTY_APP_STATE);
+    setSelectedLeadId("");
+    setSelectedJobId("");
+  }
+
+  async function bootstrap(token) {
+    setBusy(true);
+    try {
+      const data = await getBootstrap(token);
+      applyBootstrap(data);
+      setAuthStatus("authenticated");
+      setErrorMessage("");
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    bootstrap(sessionToken);
+  }, [sessionToken]);
+
+  useEffect(() => {
+    if (!selectedLeadId && appState.leads[0]) setSelectedLeadId(appState.leads[0].id);
+    if (selectedLeadId && !appState.leads.some((lead) => lead.id === selectedLeadId) && appState.leads[0]) setSelectedLeadId(appState.leads[0].id);
+  }, [appState.leads, selectedLeadId]);
+
+  useEffect(() => {
+    if (!selectedJobId && appState.jobs[0]) setSelectedJobId(appState.jobs[0].id);
+    if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId) && appState.jobs[0]) setSelectedJobId(appState.jobs[0].id);
+  }, [appState.jobs, selectedJobId]);
+
+  const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
+  const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
+
+  const visibleLeads = useMemo(() => {
+    const query = leadSearch.toLowerCase();
+    return appState.leads.filter((lead) => {
+      const matchesFilter = leadFilter === "All" || lead.status === leadFilter;
+      const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(query));
+      return matchesFilter && matchesSearch;
+    });
+  }, [appState.leads, leadFilter, leadSearch]);
+
+  const visibleJobs = useMemo(() => {
+    const query = jobSearch.toLowerCase();
+    return appState.jobs.filter((job) => {
+      const matchesFilter = jobFilter === "All" || job.stage === jobFilter;
+      const matchesSearch = [job.job, job.customer, job.crew, job.next].some((value) => value.toLowerCase().includes(query));
+      return matchesFilter && matchesSearch;
+    });
+  }, [appState.jobs, jobFilter, jobSearch]);
+
+  const counts = {
+    leads: appState.leads.length,
+    jobs: appState.jobs.length,
+    reports: appState.stats.reportsDue || null,
+    copilot: 1,
+  };
+
+  async function runMutation(task) {
+    if (!sessionToken) return;
+    setBusy(true);
+    try {
+      const nextState = await task();
+      if (nextState) applyBootstrap(nextState);
+      setErrorMessage("");
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleLogin(event) {
+    event.preventDefault();
+    setBusy(true);
+    setLoginError("");
+    try {
+      const result = await login(credentials);
+      window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+      setSessionToken(result.token);
+      setAuthStatus("checking");
+    } catch (error) {
+      setLoginError(error.message);
+      setBusy(false);
+    }
+  }
+
+  async function handleLogout() {
+    if (sessionToken) {
+      try {
+        await logout(sessionToken);
+      } catch {
+        // Ignore logout failures; local cleanup still matters.
+      }
+    }
+    clearSession();
+  }
+
+  function handleLeadFieldChange(field, value) {
+    if (!selectedLead) return;
+    applyBootstrap({
+      ...appState,
+      leads: appState.leads.map((lead) => (lead.id === selectedLead.id ? { ...lead, [field]: value } : lead)),
+    });
+    runMutation(() => updateLead(sessionToken, selectedLead.id, { [field]: value }));
+  }
+
+  function handleJobFieldChange(field, value) {
+    if (!selectedJob) return;
+    applyBootstrap({
+      ...appState,
+      jobs: appState.jobs.map((job) => (job.id === selectedJob.id ? { ...job, [field]: value } : job)),
+    });
+    runMutation(() => updateJob(sessionToken, selectedJob.id, { [field]: value }));
+  }
+
+  function handleCreateLead(event) {
+    event.preventDefault();
+    runMutation(async () => {
+      const nextState = await createLead(sessionToken, leadDraft);
+      setLeadDraft(INITIAL_LEAD_FORM);
+      return nextState;
+    });
+  }
+
+  function handleCreateJob(event) {
+    event.preventDefault();
+    runMutation(async () => {
+      const nextState = await createJob(sessionToken, jobDraft);
+      setJobDraft(INITIAL_JOB_FORM);
+      return nextState;
+    });
+  }
+
+  function handleCreateJobFromLead() {
+    if (!selectedLead) return;
+    runMutation(async () => {
+      const nextState = await convertLead(sessionToken, selectedLead.id);
+      setActive("jobs");
+      return nextState;
+    });
+  }
+
+  function handleAddTask(event) {
+    event.preventDefault();
+    runMutation(async () => {
+      const nextState = await createQueueItem(sessionToken, taskDraft);
+      setTaskDraft(INITIAL_TASK_FORM);
+      return nextState;
+    });
+  }
+
+  function handleToggleTask(taskId) {
+    runMutation(() => toggleQueueItem(sessionToken, taskId));
+  }
+
+  function handleReset() {
+    if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
+    runMutation(() => resetWorkspace(sessionToken));
+  }
+
+  if (authStatus === "checking") {
+    return <LoadingScreen label="Loading authenticated workspace..." />;
+  }
+
+  if (authStatus === "loggedOut") {
+    return <LoginScreen credentials={credentials} setCredentials={setCredentials} onSubmit={handleLogin} loading={busy} error={loginError} />;
+  }
+
+  const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];
+  const allItems = NAV_GROUPS.flatMap((group) => group.items);
+
+  return (
+    <div className="min-h-screen bg-transparent text-slate-950">
+      <div className="flex">
+        <Sidebar active={active} setActive={setActive} counts={counts} />
+        <div className="min-w-0 flex-1 pb-20 lg:pb-0">
+          <TopBar active={active} setActive={setActive} stats={appState.stats} user={appState.user} onLogout={handleLogout} syncing={busy} />
+          <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
+          <main className="py-0">
+            <MainContent
+              active={active}
+              setActive={setActive}
+              user={appState.user}
+              stats={appState.stats}
+              leads={appState.leads}
+              jobs={appState.jobs}
+              queueItems={appState.queueItems}
+              activity={appState.activity}
+              leadFilter={leadFilter}
+              setLeadFilter={setLeadFilter}
+              leadSearch={leadSearch}
+              setLeadSearch={setLeadSearch}
+              jobFilter={jobFilter}
+              setJobFilter={setJobFilter}
+              jobSearch={jobSearch}
+              setJobSearch={setJobSearch}
+              selectedLeadId={selectedLeadId}
+              onSelectLead={setSelectedLeadId}
+              selectedLead={selectedLead}
+              onLeadFieldChange={handleLeadFieldChange}
+              leadDraft={leadDraft}
+              setLeadDraft={setLeadDraft}
+              onCreateLead={handleCreateLead}
+              onCreateJobFromLead={handleCreateJobFromLead}
+              selectedJobId={selectedJobId}
+              onSelectJob={setSelectedJobId}
+              selectedJob={selectedJob}
+              onJobFieldChange={handleJobFieldChange}
+              jobDraft={jobDraft}
+              setJobDraft={setJobDraft}
+              onCreateJob={handleCreateJob}
+              taskDraft={taskDraft}
+              setTaskDraft={setTaskDraft}
+              onAddTask={handleAddTask}
+              onToggleTask={handleToggleTask}
+              visibleLeads={visibleLeads}
+              visibleJobs={visibleJobs}
+              onReset={handleReset}
+              busy={busy}
+            />
+          </main>
+        </div>
+      </div>
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
+        <div className="grid grid-cols-5 gap-1">
+          {mobileItems.map((id) => {
+            const item = allItems.find((nav) => nav.id === id);
+            const isActive = active === id;
+            return (
+              <button key={id} type="button" onClick={() => setActive(id)} className={`rounded-2xl px-1.5 py-2 text-[11px] font-black ${isActive ? "bg-blue-700 text-white" : "text-slate-500"}`}>
+                <Icon name={item?.icon || "grid"} className="mx-auto h-4 w-4" />
+                <span className="mt-1 block truncate">{item?.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+}
