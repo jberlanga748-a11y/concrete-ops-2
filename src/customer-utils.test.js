@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { filterCustomers, relatedCustomerRecords } from "./customer-utils.js";
+import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils.js";
 
 const CUSTOMERS = [
   {
@@ -65,6 +65,23 @@ test("customer filtering supports each status tab and combined search", () => {
   assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Prospect", query: "corvallis" }).map((customer) => customer.id), ["C-1003"]);
   assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Inactive", query: "northside" }).map((customer) => customer.id), ["C-1004"]);
   assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Archived", query: "harris" }).map((customer) => customer.id), ["C-1002"]);
+});
+
+test("customer page derived state uses the same filtered collection for filtered and rendered rows", () => {
+  const derived = deriveCustomerListState(CUSTOMERS, {
+    status: "Prospect",
+    query: "alicia",
+  });
+
+  assert.equal(derived.totalCount, 4);
+  assert.equal(derived.filterValue, "Prospect");
+  assert.equal(derived.searchValue, "alicia");
+  assert.equal(derived.filteredCount, 1);
+  assert.equal(derived.renderedRowCount, 1);
+  assert.deepEqual(derived.filteredCustomers.map((customer) => customer.id), ["C-1003"]);
+  assert.deepEqual(derived.renderedRows.map((customer) => customer.id), ["C-1003"]);
+  assert.deepEqual(derived.filteredPreview, [{ name: "Alicia Nguyen", status: "Prospect" }]);
+  assert.deepEqual(derived.renderedPreview, [{ name: "Alicia Nguyen", status: "Prospect" }]);
 });
 
 test("related customer records include linked leads, jobs, and activity mentions", () => {

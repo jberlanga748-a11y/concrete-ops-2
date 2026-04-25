@@ -31,7 +31,7 @@ import {
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
-import { filterCustomers, relatedCustomerRecords } from "./customer-utils";
+import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
@@ -367,6 +367,34 @@ function CustomerFilterHeader({ filters, active, setActive, search, setSearch, p
       </div>
       <div className={layout.searchRow}>
         <input className={layout.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
+      </div>
+    </div>
+  );
+}
+
+function CustomerDebugPanel({ debugState }) {
+  return (
+    <div className="border-b border-blue-100 bg-slate-50/90 px-4 py-3 text-xs text-slate-600">
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        <p><span className="font-black text-slate-950">Total customers:</span> {debugState.totalCount}</p>
+        <p><span className="font-black text-slate-950">Selected filter:</span> {String(debugState.filterValue || "(empty)")}</p>
+        <p><span className="font-black text-slate-950">Search value:</span> {String(debugState.searchValue || "(empty)")}</p>
+        <p><span className="font-black text-slate-950">Filtered customer count:</span> {debugState.filteredCount}</p>
+        <p><span className="font-black text-slate-950">Rendered row count:</span> {debugState.renderedRowCount}</p>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div>
+          <p className="font-black text-slate-950">First 5 rendered customers</p>
+          <div className="mt-1 space-y-1">
+            {debugState.renderedPreview.length === 0 ? <p>(none)</p> : debugState.renderedPreview.map((entry) => <p key={`rendered-${entry.name}`}>{entry.name} - {entry.status}</p>)}
+          </div>
+        </div>
+        <div>
+          <p className="font-black text-slate-950">First 5 filtered customers</p>
+          <div className="mt-1 space-y-1">
+            {debugState.filteredPreview.length === 0 ? <p>(none)</p> : debugState.filteredPreview.map((entry) => <p key={`filtered-${entry.name}`}>{entry.name} - {entry.status}</p>)}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1455,7 +1483,7 @@ function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, o
 }
 
 function CustomersPage({
-  rows,
+  customers,
   filter,
   setFilter,
   search,
@@ -1481,10 +1509,11 @@ function CustomersPage({
   const canView = permissions.customers.canView;
   const canManage = permissions.customers.canManage;
   const layout = getCustomerFilterLayoutClasses();
-  const visibleRows = useMemo(() => filterCustomers(rows, {
+  const debugState = useMemo(() => deriveCustomerListState(customers, {
     status: filter,
     query: search,
-  }), [filter, rows, search]);
+  }), [customers, filter, search]);
+  const visibleRows = debugState.renderedRows;
 
   return (
     <div>
@@ -1494,6 +1523,7 @@ function CustomersPage({
           {canView ? (
             <>
               <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
+              <CustomerDebugPanel debugState={debugState} />
               {busy && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records from the API." /></div>
               ) : errorMessage && visibleRows.length === 0 ? (
@@ -1764,7 +1794,18 @@ function MainContent(props) {
   const { active } = props;
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "leads") return <LeadsPage {...props} rows={props.visibleLeads} />;
-  if (active === "customers") return <CustomersPage {...props} rows={props.visibleCustomers} />;
+  if (active === "customers") {
+    return (
+      <CustomersPage
+        {...props}
+        customers={props.customers}
+        filter={props.customerFilter}
+        setFilter={props.setCustomerFilter}
+        search={props.customerSearch}
+        setSearch={props.setCustomerSearch}
+      />
+    );
+  }
   if (active === "jobs") return <JobsPage {...props} rows={props.visibleJobs} />;
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;

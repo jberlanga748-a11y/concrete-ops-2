@@ -22,6 +22,26 @@ export function filterCustomers(customers, { status = "All", query = "" } = {}) 
   });
 }
 
+export function deriveCustomerListState(customers, { status = "All", query = "" } = {}) {
+  const filteredCustomers = filterCustomers(customers, { status, query });
+  const preview = filteredCustomers.slice(0, 5).map((customer) => ({
+    name: customer.name,
+    status: customer.archivedAt ? "Archived" : customer.status,
+  }));
+
+  return {
+    totalCount: customers.length,
+    filterValue: status,
+    searchValue: query,
+    filteredCustomers,
+    filteredCount: filteredCustomers.length,
+    renderedRows: filteredCustomers,
+    renderedRowCount: filteredCustomers.length,
+    filteredPreview: preview,
+    renderedPreview: preview,
+  };
+}
+
 export function relatedCustomerRecords(customer, leads, jobs, activity) {
   if (!customer) {
     return {
