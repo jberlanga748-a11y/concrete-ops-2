@@ -1,5 +1,5 @@
 app = "concrete-ops-2"
-primary_region = "sea"
+primary_region = "sjc"
 
 [build]
   dockerfile = "Dockerfile"
@@ -34,6 +34,6 @@ primary_region = "sea"
     X-Forwarded-Proto = "https"
 
 [[mounts]]
-  source = "data"
+  source = "concrete_ops_data"
   destination = "/app/data"
   initial_size = "1gb"

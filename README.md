@@ -45,9 +45,19 @@ The SQLite database stays persistent by mounting `./data` into `/app/data` in th
 
 The repo now includes a [fly.toml](C:/Users/jberl/Documents/Codex/2026-04-25-import-react-usememo-usestate-from-react/fly.toml) wired for the existing Dockerfile, SQLite volume storage, and readiness checks.
 
+Successful production deploy:
+
+- Production URL: [https://concrete-ops-2.fly.dev/](https://concrete-ops-2.fly.dev/)
+- Fly app: `concrete-ops-2`
+- Active region: `sjc`
+- Mounted volume: `concrete_ops_data`
+- SQLite path: `/app/data/app-data.sqlite`
+- Readiness endpoint: `GET /api/ready`
+
 Important notes:
 
 - `fly.toml` currently uses `app = "concrete-ops-2"` as a starting point; change that if the name is unavailable in your Fly account
+- Fly's older `sea` examples are deprecated for this app; the config now uses `sjc`
 - production deploys set `SEED_DEMO_DATA=false`
 - runtime SQLite data is mounted at `/app/data`
 - Fly health checks call `GET /api/ready`
@@ -56,12 +66,20 @@ Typical first deploy flow:
 
 ```bash
 fly launch --no-deploy
-fly volumes create data --size 1 --region sea
+fly volumes create concrete_ops_data --size 1 --region sjc
 fly secrets set BOOTSTRAP_ADMIN_EMAIL=admin@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-now
 fly deploy
 ```
 
 After the first admin is created, you can remove the bootstrap password secret if you prefer to manage users only through the app later.
+
+Deployment checkpoint:
+
+- Machine started successfully in `sjc`
+- Health and readiness checks are passing
+- `/api/ready` returns `200` with `database: ok`
+- The first admin was created successfully through `POST /api/setup/bootstrap-admin`
+- Production logs confirm successful requests to `/`, `/api/health`, `/api/ready`, `/api/setup/status`, `/api/setup/bootstrap-admin`, and `/api/bootstrap`
 
 ## Data directory
 
