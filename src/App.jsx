@@ -6,6 +6,7 @@ import {
   createLead,
   createQueueItem,
   getBootstrap,
+  getHealth,
   login,
   logout,
   resetWorkspace,
@@ -355,7 +356,9 @@ function LoadingScreen({ label = "Loading workspace..." }) {
   );
 }
 
-function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) {
+function LoginScreen({ credentials, setCredentials, onSubmit, loading, error, backendStatus }) {
+  const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
+  const backendLabel = backendStatus === "online" ? "API online" : backendStatus === "offline" ? "API offline" : "Checking API";
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -390,6 +393,10 @@ function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) 
               <p className="text-sm text-slate-500">Use the seeded demo account.</p>
             </div>
           </div>
+          <div className="mt-5 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
+            <span>If login fails with a connection error, the frontend cannot see the Node API.</span>
+            <Badge tone={backendTone}>{backendLabel}</Badge>
+          </div>
           <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
             <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
             <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
@@ -398,6 +405,11 @@ function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) 
               {loading ? "Signing in..." : "Enter workspace"}
             </Button>
           </form>
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-600">
+            <p className="font-black text-slate-950">How to run it</p>
+            <p className="mt-2">Use `npm run dev` while developing, or `npm run build` then `npm run serve` for the production build.</p>
+            <p className="mt-2">A static frontend alone cannot handle login because this app needs the bundled Node API.</p>
+          </div>
           <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
             <p className="font-black text-slate-950">Demo credentials</p>
             <p className="mt-2">
@@ -1174,6 +1186,7 @@ export default function App() {
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
+  const [backendStatus, setBackendStatus] = useState("checking");
   const [recordSaveState, setRecordSaveState] = useState({
     lead: { id: "", status: "idle", message: "Autosave ready" },
     job: { id: "", status: "idle", message: "Autosave ready" },
@@ -1263,6 +1276,24 @@ export default function App() {
   useEffect(() => () => {
     clearAutosaveTimer("lead");
     clearAutosaveTimer("job");
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkHealth() {
+      try {
+        await getHealth();
+        if (!cancelled) setBackendStatus("online");
+      } catch {
+        if (!cancelled) setBackendStatus("offline");
+      }
+    }
+
+    checkHealth();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function bootstrap(token) {
@@ -1380,10 +1411,14 @@ export default function App() {
     setLoginError("");
     try {
       const result = await login(credentials);
+      setBackendStatus("online");
       window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
       setSessionToken(result.token);
       setAuthStatus("checking");
     } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
       setLoginError(error.message);
       setBusy(false);
     }
@@ -1528,7 +1563,7 @@ export default function App() {
   }
 
   if (authStatus === "loggedOut") {
-    return <LoginScreen credentials={credentials} setCredentials={setCredentials} onSubmit={handleLogin} loading={busy} error={loginError} />;
+    return <LoginScreen credentials={credentials} setCredentials={setCredentials} onSubmit={handleLogin} loading={busy} error={loginError} backendStatus={backendStatus} />;
   }
 
   const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];

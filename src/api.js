@@ -1,22 +1,41 @@
+function backendUnavailableMessage() {
+  return "Cannot reach the Concrete Ops API. Start the app with `npm run dev` or `npm run serve`.";
+}
+
 async function request(path, { method = "GET", token, body } = {}) {
-  const response = await fetch(path, {
-    method,
-    headers: {
-      ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response;
+
+  try {
+    response = await fetch(path, {
+      method,
+      headers: {
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    const error = new Error(backendUnavailableMessage());
+    error.status = 0;
+    error.code = "BACKEND_UNAVAILABLE";
+    throw error;
+  }
 
   if (response.status === 204) {
     return null;
   }
 
+  const contentType = response.headers.get("content-type") || "";
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(payload.error || "Request failed.");
+    const isApiPath = path.startsWith("/api");
+    const missingBackendResponse = isApiPath && (!contentType.includes("application/json") || response.status >= 500);
+    const error = new Error(payload.error || (missingBackendResponse ? backendUnavailableMessage() : "Request failed."));
     error.status = response.status;
+    if (missingBackendResponse) {
+      error.code = "BACKEND_UNAVAILABLE";
+    }
     throw error;
   }
 
@@ -65,4 +84,8 @@ export function toggleQueueItem(token, id) {
 
 export function resetWorkspace(token) {
   return request("/api/reset", { method: "POST", token });
+}
+
+export function getHealth() {
+  return request("/api/health");
 }

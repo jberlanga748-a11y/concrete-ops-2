@@ -18,6 +18,8 @@ Concrete Ops is a full-stack operations workspace for a concrete contractor. It 
 - `npm run build` builds the frontend
 - `npm run serve` serves the built app with the Node server
 
+If you open only the static frontend without the Node server, login will not work because authentication depends on the local `/api` backend.
+
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
