@@ -5,6 +5,7 @@ import {
   canManageCustomers,
   canManageEstimates,
   canManageLeads,
+  canManageUsers,
   canUseCalculator,
   canUseToolChecklist,
   canViewCustomers,
@@ -22,8 +23,17 @@ test("owner has full office access and export rights", () => {
   assert.equal(canManageLeads(owner), true);
   assert.equal(canManageCustomers(owner), true);
   assert.equal(canManageEstimates(owner), true);
+  assert.equal(canManageUsers(owner), true);
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
+});
+
+test("operations manager can manage users and see employees module", () => {
+  const operations = { role: "Operations Manager" };
+  const modules = getAllowedModuleIds(operations, { toolChecklistEnabled: true });
+
+  assert.equal(canManageUsers(operations), true);
+  assert.equal(modules.has("employees"), true);
 });
 
 test("estimator gets sales access without settings access", () => {

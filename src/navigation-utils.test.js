@@ -18,6 +18,7 @@ const NAV_GROUPS = [
     items: [
       { id: "leads", label: "Leads" },
       { id: "customers", label: "Customers" },
+      { id: "employees", label: "Employees" },
     ],
   },
   {
@@ -38,7 +39,7 @@ test("office roles keep full office navigation and dashboard default", () => {
   assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "reports", "leads", "customers", "calculator", "toolChecklist", "settings"],
+    ["dashboard", "jobs", "reports", "leads", "customers", "employees", "calculator", "toolChecklist", "settings"],
   );
 });
 

@@ -46,12 +46,28 @@ function passwordHash(password, salt = crypto.randomBytes(16).toString("hex")) {
   return `${salt}:${derivedKey}`;
 }
 
-export function createUserRecord({ email, password, name, role, id = makeId("U") }) {
+export function createUserRecord({
+  email,
+  password,
+  name,
+  role,
+  phone = "",
+  status = "active",
+  createdAt = isoNow(),
+  updatedAt = createdAt,
+  lastLoginAt = null,
+  id = makeId("U"),
+}) {
   return {
     id,
     email: String(email).trim().toLowerCase(),
     name: String(name).trim(),
+    phone: String(phone ?? "").trim(),
     role: String(role).trim(),
+    status: String(status || "active").trim().toLowerCase(),
+    createdAt,
+    updatedAt,
+    lastLoginAt,
     passwordHash: passwordHash(password),
   };
 }
@@ -414,7 +430,12 @@ export function publicUser(user) {
     id: user.id,
     email: user.email,
     name: user.name,
+    phone: user.phone || "",
     role: user.role,
+    status: user.status || "active",
+    createdAt: user.createdAt || "",
+    updatedAt: user.updatedAt || "",
+    lastLoginAt: user.lastLoginAt || null,
   };
 }
 
@@ -481,6 +502,11 @@ const MIGRATIONS = [
           email TEXT NOT NULL UNIQUE,
           name TEXT NOT NULL,
           role TEXT NOT NULL,
+          phone TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'active',
+          created_at TEXT NOT NULL DEFAULT '',
+          updated_at TEXT NOT NULL DEFAULT '',
+          last_login_at TEXT,
           password_hash TEXT NOT NULL
         );
 
@@ -1074,6 +1100,64 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 16,
+    description: "Add managed user profile fields and login status tracking.",
+    up(database) {
+      if (!columnExists(database, "users", "phone")) {
+        database.exec(`
+          ALTER TABLE users
+          ADD COLUMN phone TEXT NOT NULL DEFAULT ''
+        `);
+      }
+
+      if (!columnExists(database, "users", "status")) {
+        database.exec(`
+          ALTER TABLE users
+          ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
+        `);
+      }
+
+      if (!columnExists(database, "users", "created_at")) {
+        database.exec(`
+          ALTER TABLE users
+          ADD COLUMN created_at TEXT NOT NULL DEFAULT ''
+        `);
+      }
+
+      if (!columnExists(database, "users", "updated_at")) {
+        database.exec(`
+          ALTER TABLE users
+          ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''
+        `);
+      }
+
+      if (!columnExists(database, "users", "last_login_at")) {
+        database.exec(`
+          ALTER TABLE users
+          ADD COLUMN last_login_at TEXT
+        `);
+      }
+
+      const now = isoNow();
+      database.prepare(`
+        UPDATE users
+        SET phone = COALESCE(phone, ''),
+            status = CASE
+              WHEN status IS NULL OR trim(status) = '' THEN 'active'
+              ELSE lower(trim(status))
+            END,
+            created_at = CASE
+              WHEN created_at IS NULL OR created_at = '' THEN ?
+              ELSE created_at
+            END,
+            updated_at = CASE
+              WHEN updated_at IS NULL OR updated_at = '' THEN ?
+              ELSE updated_at
+            END
+      `).run(now, now);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1108,8 +1192,8 @@ function writeStateToDb(state) {
   runMigrations(database);
 
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, password_hash)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertSession = database.prepare(`
@@ -1173,7 +1257,18 @@ function writeStateToDb(state) {
     `);
 
     state.users.forEach((user) => {
-      insertUser.run(user.id, user.email, user.name, user.role, user.passwordHash);
+      insertUser.run(
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.phone || "",
+        user.status || "active",
+        user.createdAt || isoNow(),
+        user.updatedAt || user.createdAt || isoNow(),
+        user.lastLoginAt || null,
+        user.passwordHash,
+      );
     });
 
     state.sessions.forEach((session) => {
@@ -1328,7 +1423,7 @@ function readTableState() {
   const database = createDatabaseConnection();
 
   const users = database.prepare(`
-    SELECT id, email, name, role, password_hash AS passwordHash
+    SELECT id, email, name, phone, role, status, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
     ORDER BY email
   `).all();
