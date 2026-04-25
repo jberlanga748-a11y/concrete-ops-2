@@ -18,7 +18,8 @@
     "verify:leads": "node --test --test-concurrency=1 server/lead-workflow.test.js src/lead-utils.test.js src/navigation-utils.test.js",
     "verify:roles": "node --test --test-concurrency=1 server/role-permissions.test.js shared/permissions.test.js",
     "verify:crew": "node --test --test-concurrency=1 server/crew-assignments.test.js",
-    "verify:users": "node --test --test-concurrency=1 server/users-management.test.js src/user-utils.test.js"
+    "verify:users": "node --test --test-concurrency=1 server/users-management.test.js src/user-utils.test.js",
+    "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

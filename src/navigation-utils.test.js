@@ -58,6 +58,8 @@ test("employees do not see leads in navigation and default to field workspace", 
   assert.equal(getDefaultModuleId(employee), "jobs");
   assert.equal(canAccessModule("leads", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("employees", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("customers", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("settings", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("dashboard", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
@@ -72,7 +74,22 @@ test("foreman also stays in field-only navigation for now", () => {
   assert.equal(canAccessModule("leads", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("customers", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("employees", foreman, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("settings", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(getDefaultModuleId(foreman), "jobs");
+});
+
+test("field roles are redirected away from office-only modules by access rules", () => {
+  const foreman = { role: "Foreman" };
+  const employee = { role: "Employee" };
+  const blockedModules = ["dashboard", "leads", "customers", "employees", "settings"];
+
+  blockedModules.forEach((moduleId) => {
+    assert.equal(canAccessModule(moduleId, foreman, { toolChecklistEnabled: true }), false);
+    assert.equal(canAccessModule(moduleId, employee, { toolChecklistEnabled: true }), false);
+  });
+
+  assert.equal(getDefaultModuleId(foreman), "jobs");
+  assert.equal(getDefaultModuleId(employee), "jobs");
 });
 
 test("estimators keep sales navigation but not settings", () => {

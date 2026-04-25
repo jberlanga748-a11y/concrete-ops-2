@@ -38,6 +38,7 @@ import {
 import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
+import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
@@ -1421,6 +1422,273 @@ function StateCard({ title, description, tone = "blue" }) {
   );
 }
 
+function formatJobScheduleDetail(job) {
+  if (!job?.scheduledStart) return "Schedule pending";
+  const startLabel = formatDateTime(job.scheduledStart);
+  if (!job?.scheduledEnd) {
+    return job?.estimatedDuration ? `${startLabel} · ${job.estimatedDuration}` : startLabel;
+  }
+  return `${startLabel} to ${formatDateTime(job.scheduledEnd)}`;
+}
+
+function humanizeAssignmentRole(roleOnJob = "") {
+  const normalized = String(roleOnJob || "").replaceAll("_", " ").trim().toLowerCase();
+  if (!normalized) return "Crew";
+  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function FieldActionGrid({ actions, onOpen }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {actions.map((action) => (
+        <button
+          key={action.title}
+          type="button"
+          onClick={() => action.moduleId ? onOpen(action.moduleId) : undefined}
+          className="rounded-3xl border border-blue-100 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+              <Icon name={action.icon} className="h-5 w-5" />
+            </div>
+            <Badge tone={action.tone || "slate"}>{action.badge || "Ready"}</Badge>
+          </div>
+          <p className="mt-4 text-base font-black text-slate-950">{action.title}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{action.description}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
+  const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(job.id)}
+      className={`w-full rounded-3xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-black text-slate-950">{jobTitle(job)}</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">{job.customer || "Assigned site"}</p>
+        </div>
+        <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Schedule</p>
+          <p className="mt-1 text-sm font-bold text-slate-700">{formatJobScheduleDetail(job)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
+          <p className="mt-1 text-sm font-bold text-slate-700">{job.address || "Address pending"}</p>
+        </div>
+      </div>
+      <p className="mt-4 text-sm leading-6 text-slate-600">{job.scopeSummary || "Scope summary pending."}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {note ? <Badge tone="blue">{note}</Badge> : null}
+        <Badge tone="slate">{crewCount} crew</Badge>
+        {job.siteContact ? <Badge tone="violet">Site contact ready</Badge> : null}
+      </div>
+    </button>
+  );
+}
+
+function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelectModule }) {
+  if (!job) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Field focus" description="Assigned work will appear here once the office schedules it." />
+        <StateCard title="No assigned jobs yet" description="Contact office if this is wrong or if a job should already be on your phone." tone="slate" />
+      </Card>
+    );
+  }
+
+  const canManageField = Boolean(job.canManageField || permissions.jobs.canManageField);
+  const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
+  const quickActions = permissions.jobs.canManageField
+    ? [
+      { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
+      { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
+      { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+      { title: "Tool Checklist", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
+      { title: "Concrete Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
+      { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
+    ]
+    : [
+      { title: "Clock In / Out", description: "Time tracking groundwork stays simple for now.", icon: "clock", moduleId: "time", badge: "Placeholder", tone: "blue" },
+      { title: "My Time", description: "Review your own time only.", icon: "clock", moduleId: "time", badge: "Placeholder", tone: "violet" },
+      { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
+      { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
+      { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+      { title: "Tool Checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
+      { title: "Concrete Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
+    ];
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader title={jobTitle(job)} description={`${job.id} · ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Schedule</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Site contact</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.siteContact || "Contact pending"}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3">
+          <div className="rounded-2xl border border-blue-100 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Scope summary</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">{job.scopeSummary || "Scope summary pending."}</p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            <div className="rounded-2xl border border-blue-100 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety notes</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment notes</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Material notes</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
+            </div>
+          </div>
+        </div>
+        {canManageField ? (
+          <div className="mt-4 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <SelectField label="Field status" value={normalizeJobStatus(job.status || job.stage)} onChange={(event) => onFieldChange("status", event.target.value)} disabled={disabled}>
+                <option value="planned">Planned</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="in_progress">In Progress</option>
+                <option value="field_complete">Field Complete</option>
+                <option value="completed">Completed</option>
+              </SelectField>
+              <InputField label="Next step" value={job.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={disabled} />
+            </div>
+            <label className="field-label">
+              <span>Progress ({job.progress}%)</span>
+              <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} disabled={disabled} />
+            </label>
+            <TextAreaField label="Field notes" value={job.fieldNotes || ""} onChange={(event) => onFieldChange("fieldNotes", event.target.value)} disabled={disabled} />
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
+          </div>
+        )}
+      </Card>
+      <Card className="p-5">
+        <SectionHeader title={permissions.jobs.canManageField ? "Assigned crew" : "Crew on site"} description="Only field-safe crew info appears here." />
+        {crewAssignments.length > 0 ? (
+          <div className="space-y-2">
+            {crewAssignments.map((assignment) => (
+              <div key={assignment.id || `${assignment.userId}-${assignment.roleOnJob}`} className="flex items-center justify-between rounded-2xl border border-blue-100 bg-white p-3">
+                <div>
+                  <p className="text-sm font-black text-slate-950">{assignment.userName || assignment.userId}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{humanizeAssignmentRole(assignment.roleOnJob)}</p>
+                </div>
+                <Badge tone="slate">{assignment.userRole || "Crew"}</Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <StateCard title="No crew assigned yet" description="Contact office if this crew list looks incomplete." tone="slate" />
+        )}
+      </Card>
+      <Card className="p-5">
+        <SectionHeader title="Quick actions" description="Big targets for the most common field tasks." />
+        <FieldActionGrid actions={quickActions} onOpen={onSelectModule} />
+      </Card>
+    </div>
+  );
+}
+
+function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, busy, permissions, setActive }) {
+  const workspace = useMemo(() => deriveForemanWorkspace(rows, user?.id), [rows, user?.id]);
+  const focusJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob;
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Workspace" title="My Crew" description="Assigned jobs, upcoming planning work, and safe crew details without office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-5">
+            <SectionHeader title="Assigned jobs" description="These are the jobs you are currently responsible for in the field." />
+            {workspace.assignedJobs.length > 0 ? (
+              <div className="space-y-3">
+                {workspace.assignedJobs.map((job) => (
+                  <FieldJobSummaryCard key={job.id} job={job} selected={focusJob?.id === job.id} onSelect={onSelectJob} note="Assigned" />
+                ))}
+              </div>
+            ) : (
+              <StateCard title="No assigned jobs yet" description="Contact office if this is wrong or if a scheduled job is missing from your workspace." tone="slate" />
+            )}
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Upcoming planning jobs" description="Future jobs marked field-visible so you can prepare crew, tools, and site approach." />
+            {workspace.upcomingJobs.length > 0 ? (
+              <div className="space-y-3">
+                {workspace.upcomingJobs.map((job) => (
+                  <FieldJobSummaryCard key={job.id} job={job} selected={focusJob?.id === job.id} onSelect={onSelectJob} note="Upcoming" />
+                ))}
+              </div>
+            ) : (
+              <StateCard title="No upcoming field-visible jobs" description="Once office planning flags future work for field visibility, it will appear here." tone="slate" />
+            )}
+          </Card>
+        </div>
+        <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} onSelectModule={setActive} />
+      </div>
+    </div>
+  );
+}
+
+function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive }) {
+  const workspace = useMemo(() => deriveEmployeeWorkspace(rows, user?.id), [rows, user?.id]);
+  const fallbackJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || rows[0] || null;
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Workspace" title="My Job" description="Simple assigned-work view with only the job details and tools needed in the field." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-5">
+            <SectionHeader title="Assigned work" description="Only your assigned jobs appear here. Contact office if something looks wrong." />
+            {workspace.assignedJobs.length > 0 ? (
+              <div className="space-y-3">
+                {workspace.assignedJobs.map((job) => (
+                  <FieldJobSummaryCard key={job.id} job={job} selected={fallbackJob?.id === job.id} onSelect={onSelectJob} note="Assigned" />
+                ))}
+              </div>
+            ) : (
+              <StateCard title="No assigned jobs yet" description="Contact office if you expected a job to be assigned to you today." tone="slate" />
+            )}
+          </Card>
+        </div>
+        <FieldJobFocusCard job={fallbackJob} permissions={permissions} onFieldChange={() => {}} disabled onSelectModule={setActive} />
+      </div>
+    </div>
+  );
+}
+
 function CustomersTable({ rows, selectedId, onSelect }) {
   return (
     <table className="w-full min-w-[980px] text-left">
@@ -2037,6 +2305,7 @@ function LeadsPage({
 
 function JobsPage({
   rows,
+  user,
   filter,
   setFilter,
   search,
@@ -2065,10 +2334,43 @@ function JobsPage({
   busy,
   jobSaveState,
   permissions,
+  setActive,
 }) {
-  const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : permissions.jobs.canManageField ? "field execution" : "assigned field work";
-  const pageTitle = permissions.jobs.canManageAll ? "Jobs" : permissions.jobs.canManageField ? "My Crew" : "My Job";
-  const pageEyebrow = permissions.jobs.canManageAll ? "Field Ops" : "Field Workspace";
+  const isFieldWorkspace = !permissions.jobs.canManageAll && !permissions.leads.canView;
+
+  if (isFieldWorkspace && permissions.jobs.canManageField) {
+    return (
+      <ForemanWorkspacePage
+        rows={rows}
+        user={user}
+        selectedJobId={selectedJobId}
+        onSelectJob={onSelectJob}
+        selectedJob={selectedJob}
+        onJobFieldChange={onJobFieldChange}
+        busy={busy}
+        permissions={permissions}
+        setActive={setActive}
+      />
+    );
+  }
+
+  if (isFieldWorkspace) {
+    return (
+      <EmployeeWorkspacePage
+        rows={rows}
+        user={user}
+        selectedJobId={selectedJobId}
+        onSelectJob={onSelectJob}
+        selectedJob={selectedJob}
+        permissions={permissions}
+        setActive={setActive}
+      />
+    );
+  }
+
+  const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : "scope review";
+  const pageTitle = "Jobs";
+  const pageEyebrow = permissions.jobs.canManageAll ? "Field Ops" : "Job Scope";
   const jobListState = useMemo(() => deriveJobListState(rows, {
     status: filter,
     query: search,
