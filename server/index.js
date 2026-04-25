@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
@@ -54,6 +55,19 @@ function asyncRoute(handler) {
       next(error);
     }
   };
+}
+
+function requestLoggerForStatus(statusCode) {
+  if (statusCode >= 500) return logger.error;
+  if (statusCode >= 400) return logger.warn;
+  return logger.info;
+}
+
+function jsonError(res, status, message) {
+  return res.status(status).json({
+    error: message,
+    requestId: res.locals.requestId,
+  });
 }
 
 function requiredString(value, fieldName) {
@@ -144,13 +158,37 @@ function sanitizeBootstrap(state, user) {
   };
 }
 
+app.use((req, res, next) => {
+  const requestIdHeader = req.headers["x-request-id"];
+  const requestId = typeof requestIdHeader === "string" && requestIdHeader.trim()
+    ? requestIdHeader.trim()
+    : crypto.randomUUID();
+  const startedAt = Date.now();
+
+  req.requestId = requestId;
+  res.locals.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+
+  res.on("finish", () => {
+    requestLoggerForStatus(res.statusCode)("Request completed", {
+      requestId,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+
+  next();
+});
+
 async function requireAuth(req, res, next) {
   const now = new Date().toISOString();
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
   if (!token) {
-    return res.status(401).json({ error: "Authentication required." });
+    return jsonError(res, 401, "Authentication required.");
   }
 
   await cleanupExpiredSessions(now);
@@ -159,7 +197,7 @@ async function requireAuth(req, res, next) {
   const session = state.sessions.find((entry) => entry.tokenHash === tokenHash);
 
   if (!session) {
-    return res.status(401).json({ error: "Session expired." });
+    return jsonError(res, 401, "Session expired.");
   }
 
   if (session.expiresAt && session.expiresAt <= now) {
@@ -167,12 +205,12 @@ async function requireAuth(req, res, next) {
       draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== tokenHash);
       return draft;
     });
-    return res.status(401).json({ error: "Session expired." });
+    return jsonError(res, 401, "Session expired.");
   }
 
   const user = state.users.find((entry) => entry.id === session.userId);
   if (!user) {
-    return res.status(401).json({ error: "Account missing." });
+    return jsonError(res, 401, "Account missing.");
   }
 
   req.auth = {
@@ -201,6 +239,7 @@ app.get("/api/health", (_req, res) => {
     environment: serverConfig.nodeEnv,
     uptimeSeconds: Math.round((Date.now() - serverStartedAt) / 1000),
     timestamp: new Date().toISOString(),
+    requestId: res.locals.requestId,
   });
 });
 
@@ -218,9 +257,11 @@ app.get("/api/ready", asyncRoute(async (_req, res) => {
       dataDir,
       sqliteFile,
       timestamp: new Date().toISOString(),
+      requestId: res.locals.requestId,
     });
   } catch (error) {
     logger.error("Readiness check failed", {
+      requestId: res.locals.requestId,
       error: serializeError(error),
     });
     res.status(503).json({
@@ -231,6 +272,7 @@ app.get("/api/ready", asyncRoute(async (_req, res) => {
       },
       error: error instanceof Error ? error.message : "Unknown readiness failure.",
       timestamp: new Date().toISOString(),
+      requestId: res.locals.requestId,
     });
   }
 }));
@@ -243,7 +285,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   const user = state.users.find((entry) => entry.email.toLowerCase() === email);
 
   if (!user || !verifyPassword(password, user.passwordHash)) {
-    return res.status(401).json({ error: "Invalid email or password." });
+    return jsonError(res, 401, "Invalid email or password.");
   }
 
   const token = generateToken();
@@ -488,19 +530,20 @@ app.use((error, req, res, next) => {
   }
 
   if (error instanceof SyntaxError && "body" in error) {
-    return res.status(400).json({ error: "Request body must be valid JSON." });
+    return jsonError(res, 400, "Request body must be valid JSON.");
   }
 
   if (error instanceof ApiError) {
-    return res.status(error.status).json({ error: error.message });
+    return jsonError(res, error.status, error.message);
   }
 
   logger.error("Unhandled request error", {
+    requestId: res.locals.requestId,
     method: req.method,
     path: req.path,
     error: serializeError(error),
   });
-  return res.status(500).json({ error: "Internal server error." });
+  return jsonError(res, 500, "Internal server error.");
 });
 
 await ensureDb();

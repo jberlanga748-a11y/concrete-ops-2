@@ -73,14 +73,24 @@ async function run() {
   try {
     await waitForServer();
 
-    const health = await request("/api/health");
+    const healthResponse = await rawRequest("/api/health");
+    const health = await healthResponse.json();
     if (health.status !== "healthy") {
       throw new Error(`Expected /api/health to report healthy, received ${health.status}.`);
     }
+    const healthRequestId = healthResponse.headers.get("x-request-id");
+    if (!healthRequestId || health.requestId !== healthRequestId) {
+      throw new Error("Expected /api/health to return a matching request ID header and payload.");
+    }
 
-    const ready = await request("/api/ready");
+    const readyResponse = await rawRequest("/api/ready");
+    const ready = await readyResponse.json();
     if (ready.status !== "ready" || ready.checks?.database !== "ok") {
       throw new Error("Expected /api/ready to confirm database readiness.");
+    }
+    const readyRequestId = readyResponse.headers.get("x-request-id");
+    if (!readyRequestId || ready.requestId !== readyRequestId) {
+      throw new Error("Expected /api/ready to return a matching request ID header and payload.");
     }
 
     const login = await request("/api/auth/login", {
@@ -149,6 +159,10 @@ async function run() {
     const expiredResponse = await rawRequest("/api/bootstrap", { headers });
     if (expiredResponse.status !== 401) {
       throw new Error(`Expected expired session to return 401, received ${expiredResponse.status}.`);
+    }
+    const expiredPayload = await expiredResponse.json();
+    if (!expiredPayload.requestId || expiredResponse.headers.get("x-request-id") !== expiredPayload.requestId) {
+      throw new Error("Expected expired session errors to include a matching request ID.");
     }
 
     console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, validation and expired sessions verified`);

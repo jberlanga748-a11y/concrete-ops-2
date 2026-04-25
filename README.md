@@ -63,6 +63,8 @@ The backend exposes two operational endpoints:
 
 Server logs are now emitted as structured JSON so they are easier to filter in local terminals and deployment platforms.
 
+Each HTTP response also includes an `X-Request-Id` header, and API error payloads include the same request ID for easier troubleshooting.
+
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
