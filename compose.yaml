@@ -1,0 +1,11 @@
+services:
+  concrete-ops:
+    build:
+      context: .
+    image: concrete-ops:local
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+    volumes:
+      - ./data:/app/data

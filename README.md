@@ -20,6 +20,25 @@ Concrete Ops is a full-stack operations workspace for a concrete contractor. It 
 
 If you open only the static frontend without the Node server, login will not work because authentication depends on the local `/api` backend.
 
+## Docker
+
+The app can also run as a single container because the Node server already serves the built frontend and the API together.
+
+### Build and run
+
+```bash
+docker build -t concrete-ops .
+docker run --rm -p 4000:4000 -v "$(pwd)/data:/app/data" concrete-ops
+```
+
+### Compose
+
+```bash
+docker compose up --build
+```
+
+The SQLite database stays persistent by mounting `./data` into `/app/data` in the container.
+
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
