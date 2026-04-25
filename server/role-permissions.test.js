@@ -124,7 +124,9 @@ function configureJobVisibility(sqliteFile, { foremanId, employeeId }) {
       SET assigned_foreman_id = ?,
           assigned_user_id = ?,
           field_planning_visible = 0,
-          visible_to_foreman = 0
+          visible_to_foreman = 0,
+          scheduled_start = '2026-04-25T07:30',
+          status = 'in_progress'
       WHERE id = 'J-2201'
     `).run(foremanId, employeeId);
 
@@ -133,7 +135,9 @@ function configureJobVisibility(sqliteFile, { foremanId, employeeId }) {
       SET assigned_foreman_id = ?,
           assigned_user_id = '',
           field_planning_visible = 1,
-          visible_to_foreman = 1
+          visible_to_foreman = 1,
+          scheduled_start = '2026-05-03T08:00',
+          status = 'scheduled'
       WHERE id = 'J-2198'
     `).run(foremanId);
 

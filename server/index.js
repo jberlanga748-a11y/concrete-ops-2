@@ -69,7 +69,7 @@ const { port } = serverConfig;
 const CUSTOMER_STATUSES = new Set(["Prospect", "Active", "Inactive"]);
 const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
 const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
-const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
+const JOB_STATUSES = new Set(["draft", "planned", "scheduled", "in_progress", "field_complete", "completed", "billing_ready", "closed"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
 const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
 const serverStartedAt = Date.now();
@@ -174,6 +174,75 @@ function optionalDateString(value, fieldName, fallback = "") {
   return normalized;
 }
 
+function optionalDateTimeString(value, fieldName, fallback = "") {
+  if (value == null || value === "") return fallback;
+  const normalized = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{3})?)?(Z)?$/.test(normalized)) {
+    throw new ApiError(400, `${fieldName} must be in YYYY-MM-DDTHH:mm format.`);
+  }
+  if (Number.isNaN(new Date(normalized).getTime())) {
+    throw new ApiError(400, `${fieldName} must be a valid date/time.`);
+  }
+  return normalized;
+}
+
+function normalizeJobStatusValue(value, fallback = "scheduled") {
+  if (value == null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  const legacyMap = {
+    scheduled: "scheduled",
+    "in progress": "in_progress",
+    "field complete": "field_complete",
+    waiting: "planned",
+    "billing ready": "billing_ready",
+    "ready to bill": "billing_ready",
+    complete: "completed",
+  };
+  const canonical = legacyMap[normalized] || normalized;
+  if (!JOB_STATUSES.has(canonical)) {
+    throw new ApiError(400, `Job status must be one of: ${Array.from(JOB_STATUSES).join(", ")}.`);
+  }
+  return canonical;
+}
+
+function jobStatusLabel(status) {
+  const labels = {
+    draft: "Draft",
+    planned: "Planned",
+    scheduled: "Scheduled",
+    in_progress: "In Progress",
+    field_complete: "Field Complete",
+    completed: "Completed",
+    billing_ready: "Billing Ready",
+    closed: "Closed",
+  };
+
+  return labels[normalizeJobStatusValue(status, "scheduled")] || "Scheduled";
+}
+
+function jobDueLabel(job) {
+  return job.scheduledStart || job.due || "";
+}
+
+function normalizeJobRecord(job) {
+  const status = normalizeJobStatusValue(job.status || job.stage, "scheduled");
+  const title = optionalString(job.title || job.job, "Untitled job");
+  const nextStep = optionalString(job.nextStep || job.next, "");
+  return {
+    ...job,
+    leadId: optionalString(job.leadId, ""),
+    title,
+    job: title,
+    status,
+    stage: jobStatusLabel(status),
+    scheduledStart: optionalString(job.scheduledStart, ""),
+    scheduledEnd: optionalString(job.scheduledEnd, ""),
+    nextStep,
+    next: nextStep,
+    due: jobDueLabel(job),
+  };
+}
+
 function findRequiredRecord(records, id, resourceName) {
   const record = records.find((entry) => entry.id === id);
   if (!record) {
@@ -197,43 +266,50 @@ function visibleUsers(state, user) {
 
 function sanitizeJobForUser(job, user) {
   if (!job) return null;
+  const normalizedJob = normalizeJobRecord(job);
 
   if (canViewAllJobs(user) || isEstimator(user)) {
     return {
-      ...job,
-      canManageField: canManageJobFieldUpdates(user, job),
+      ...normalizedJob,
+      canManageField: canManageJobFieldUpdates(user, normalizedJob),
       canManageAll: canViewAllJobs(user),
       canViewMoney: canViewJobMoney(user),
     };
   }
 
   return {
-    id: job.id,
-    customerId: job.customerId || "",
-    job: job.job,
-    customer: job.customer,
-    address: job.address || "",
-    siteContact: job.siteContact || "",
-    scopeSummary: job.scopeSummary || "",
-    estimatedDuration: job.estimatedDuration || "",
-    crewSizeNeeded: Number(job.crewSizeNeeded || 0),
-    equipmentNotes: job.equipmentNotes || "",
-    safetyNotes: job.safetyNotes || "",
-    materialNotes: job.materialNotes || "",
-    fieldNotes: job.fieldNotes || "",
-    assignedForemanId: job.assignedForemanId || "",
-    assignedUserId: job.assignedUserId || "",
-    fieldPlanningVisible: Boolean(job.fieldPlanningVisible),
-    visibleToForeman: Boolean(job.visibleToForeman),
-    stage: job.stage,
-    crew: job.crew,
-    next: job.next,
-    due: job.due,
-    progress: job.progress,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    archivedAt: job.archivedAt || null,
-    canManageField: canManageJobFieldUpdates(user, job),
+    id: normalizedJob.id,
+    customerId: normalizedJob.customerId || "",
+    leadId: normalizedJob.leadId || "",
+    title: normalizedJob.title,
+    job: normalizedJob.title,
+    customer: normalizedJob.customer,
+    address: normalizedJob.address || "",
+    siteContact: normalizedJob.siteContact || "",
+    scopeSummary: normalizedJob.scopeSummary || "",
+    scheduledStart: normalizedJob.scheduledStart || "",
+    scheduledEnd: normalizedJob.scheduledEnd || "",
+    estimatedDuration: normalizedJob.estimatedDuration || "",
+    crewSizeNeeded: Number(normalizedJob.crewSizeNeeded || 0),
+    equipmentNotes: normalizedJob.equipmentNotes || "",
+    safetyNotes: normalizedJob.safetyNotes || "",
+    materialNotes: normalizedJob.materialNotes || "",
+    fieldNotes: normalizedJob.fieldNotes || "",
+    assignedForemanId: normalizedJob.assignedForemanId || "",
+    assignedUserId: normalizedJob.assignedUserId || "",
+    fieldPlanningVisible: Boolean(normalizedJob.fieldPlanningVisible),
+    visibleToForeman: Boolean(normalizedJob.visibleToForeman),
+    status: normalizedJob.status,
+    stage: normalizedJob.stage,
+    crew: normalizedJob.crew,
+    nextStep: normalizedJob.nextStep,
+    next: normalizedJob.nextStep,
+    due: normalizedJob.due,
+    progress: normalizedJob.progress,
+    createdAt: normalizedJob.createdAt,
+    updatedAt: normalizedJob.updatedAt,
+    archivedAt: normalizedJob.archivedAt || null,
+    canManageField: canManageJobFieldUpdates(user, normalizedJob),
     canManageAll: false,
     canViewMoney: false,
   };
@@ -594,8 +670,8 @@ function statsFromState(state) {
   const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
   const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
-  const activeJobs = liveJobs.filter((job) => job.stage === "In Progress").length;
-  const scheduledJobs = liveJobs.filter((job) => job.stage === "Scheduled").length;
+  const activeJobs = liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "in_progress").length;
+  const scheduledJobs = liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "scheduled").length;
   const reportsDue = liveQueueItems.filter((item) => !item.done && item.status === "Due today").length;
   const queueBlocked = liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length;
 
@@ -622,8 +698,8 @@ function statsForUser(state, user) {
     newLeads: 0,
     highPriorityLeads: 0,
     pipelineValue: 0,
-    activeJobs: liveJobs.filter((job) => job.stage === "In Progress").length,
-    scheduledJobs: liveJobs.filter((job) => job.stage === "Scheduled").length,
+    activeJobs: liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "in_progress").length,
+    scheduledJobs: liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "scheduled").length,
     reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
     queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
   };
@@ -1340,14 +1416,17 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       status: "Active",
     }, req.auth.user, { fallbackStatus: "Active" });
 
-    const newJob = {
+    const newJob = normalizeJobRecord({
       id: makeId("J"),
       customerId: customer.id,
-      job: leadProjectName(lead),
+      leadId: lead.id,
+      title: leadProjectName(lead),
       customer: lead.customer,
       address: "",
       siteContact: "",
       scopeSummary: lead.project,
+      scheduledStart: "",
+      scheduledEnd: "",
       estimatedDuration: "",
       crewSizeNeeded: 0,
       equipmentNotes: "",
@@ -1358,15 +1437,15 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       assignedUserId: "",
       fieldPlanningVisible: false,
       visibleToForeman: false,
-      stage: "Scheduled",
+      status: "scheduled",
       crew: "Assign crew",
-      next: lead.nextStep || "Confirm start date",
-      due: "This week",
+      nextStep: lead.nextStep || "Confirm start date",
       progress: 10,
       notes: lead.notes,
       createdAt: changedAt,
       updatedAt: changedAt,
-    };
+      archivedAt: null,
+    });
 
     draft.jobs.unshift(newJob);
     lead.customerId = customer.id;
@@ -1381,13 +1460,13 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       note: "Lead converted into a scheduled job.",
       createdAt: changedAt,
     });
-    appendActivity(draft, "Lead converted to job", `${lead.customer} moved into ${newJob.job}.`);
+    appendActivity(draft, "Lead converted to job", `${lead.customer} moved into ${newJob.title}.`);
     appendAuditEvent(draft, {
       entityType: "lead",
       entityId: lead.id,
       action: "converted",
       summary: "Lead converted",
-      detail: `${lead.customer} moved into ${newJob.job}.`,
+      detail: `${lead.customer} moved into ${newJob.title}.`,
       actor: req.auth.user,
       changedFields: ["status", "nextStep"],
     });
@@ -1396,7 +1475,7 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       entityId: newJob.id,
       action: "created",
       summary: "Job created from lead",
-      detail: `${newJob.job} opened from approved lead ${lead.id}.`,
+      detail: `${newJob.title} opened from approved lead ${lead.id}.`,
       actor: req.auth.user,
     });
     return draft;
@@ -1452,14 +1531,17 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   assertCanCreateJobs(req.auth.user);
   const payload = req.body || {};
   const createdAt = new Date().toISOString();
-  const newJob = {
+  const newJob = normalizeJobRecord({
     id: makeId("J"),
     customerId: "",
-    job: requiredString(payload.job, "Job name"),
+    leadId: optionalString(payload.leadId, ""),
+    title: requiredString(payload.title ?? payload.job, "Job name"),
     customer: requiredString(payload.customer, "Customer"),
     address: optionalString(payload.address, ""),
     siteContact: optionalString(payload.siteContact, ""),
     scopeSummary: optionalString(payload.scopeSummary, optionalString(payload.notes, "Field scope pending.")),
+    scheduledStart: optionalDateTimeString(payload.scheduledStart, "Scheduled start", ""),
+    scheduledEnd: optionalDateTimeString(payload.scheduledEnd, "Scheduled end", ""),
     estimatedDuration: optionalString(payload.estimatedDuration, ""),
     crewSizeNeeded: optionalNonNegativeNumber(payload.crewSizeNeeded, "Crew size needed", 0),
     equipmentNotes: optionalString(payload.equipmentNotes, ""),
@@ -1470,15 +1552,15 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     assignedUserId: "",
     fieldPlanningVisible: optionalBoolean(payload.fieldPlanningVisible, false),
     visibleToForeman: optionalBoolean(payload.visibleToForeman, false),
-    stage: optionalEnum(payload.stage, JOB_STAGES, "Stage", "Scheduled"),
+    status: normalizeJobStatusValue(payload.status ?? payload.stage, "scheduled"),
     crew: optionalString(payload.crew, "Assign crew"),
-    next: optionalString(payload.next, "Set field kickoff"),
-    due: optionalString(payload.due, "TBD"),
+    nextStep: optionalString(payload.nextStep ?? payload.next, "Set field kickoff"),
     progress: optionalProgressNumber(payload.progress, 0),
     notes: optionalString(payload.notes, "No notes yet."),
     createdAt,
     updatedAt: createdAt,
-  };
+    archivedAt: null,
+  });
 
   const nextState = await updateDb((draft) => {
     newJob.assignedForemanId = resolveOptionalUserId(draft, payload.assignedForemanId, "Assigned foreman");
@@ -1491,15 +1573,26 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     }, req.auth.user, { fallbackStatus: "Active" });
     newJob.customerId = customer.id;
     draft.jobs.unshift(newJob);
-    appendActivity(draft, "Job created", `${newJob.job} added for ${newJob.customer}.`);
+    appendActivity(draft, "Job created", `${newJob.title} added for ${newJob.customer}.`);
     appendAuditEvent(draft, {
       entityType: "job",
       entityId: newJob.id,
       action: "created",
       summary: "Job created",
-      detail: `${newJob.job} added for ${newJob.customer}.`,
+      detail: `${newJob.title} added for ${newJob.customer}.`,
       actor: req.auth.user,
     });
+    if (newJob.assignedForemanId || newJob.assignedUserId) {
+      appendAuditEvent(draft, {
+        entityType: "job",
+        entityId: newJob.id,
+        action: "assigned",
+        summary: "Job assigned",
+        detail: `${newJob.title} received field assignments.`,
+        actor: req.auth.user,
+        changedFields: ["assignedForemanId", "assignedUserId"],
+      });
+    }
     return draft;
   });
 
@@ -1513,15 +1606,16 @@ app.post("/api/jobs/:id/archive", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    const { title } = normalizeJobRecord(job);
     job.archivedAt = changedAt;
     markUpdated(job, changedAt);
-    appendActivity(draft, "Job archived", `${job.job} was archived.`);
+    appendActivity(draft, "Job archived", `${title} was archived.`);
     appendAuditEvent(draft, {
       entityType: "job",
       entityId: job.id,
       action: "archived",
       summary: "Job archived",
-      detail: `${job.job} was archived.`,
+      detail: `${title} was archived.`,
       actor: req.auth.user,
       changedFields: ["archivedAt"],
     });
@@ -1538,15 +1632,16 @@ app.post("/api/jobs/:id/restore", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    const { title } = normalizeJobRecord(job);
     job.archivedAt = null;
     markUpdated(job, changedAt);
-    appendActivity(draft, "Job restored", `${job.job} was restored.`);
+    appendActivity(draft, "Job restored", `${title} was restored.`);
     appendAuditEvent(draft, {
       entityType: "job",
       entityId: job.id,
       action: "restored",
       summary: "Job restored",
-      detail: `${job.job} was restored.`,
+      detail: `${title} was restored.`,
       actor: req.auth.user,
       changedFields: ["archivedAt"],
     });
@@ -1563,6 +1658,7 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    const normalizedBefore = normalizeJobRecord(job);
     const changedFields = [];
     const isFullManager = canViewAllJobs(req.auth.user);
     const canManageFieldJob = canManageJobFieldUpdates(req.auth.user, job);
@@ -1582,11 +1678,15 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
       const nextAssignedUserId = updates.assignedUserId == null ? job.assignedUserId || "" : resolveOptionalUserId(draft, updates.assignedUserId, "Assigned user");
 
       Object.assign(job, {
+        leadId: updates.leadId == null ? job.leadId || "" : optionalString(updates.leadId, ""),
+        title: updates.title == null ? normalizedBefore.title : requiredString(updates.title, "Job name"),
         customerId: customer.id,
         customer: nextCustomerName,
         address: updates.address == null ? job.address || "" : optionalString(updates.address, ""),
         siteContact: updates.siteContact == null ? job.siteContact || "" : optionalString(updates.siteContact, ""),
         scopeSummary: updates.scopeSummary == null ? job.scopeSummary || "" : optionalString(updates.scopeSummary, ""),
+        scheduledStart: updates.scheduledStart == null ? normalizedBefore.scheduledStart : optionalDateTimeString(updates.scheduledStart, "Scheduled start", normalizedBefore.scheduledStart),
+        scheduledEnd: updates.scheduledEnd == null ? normalizedBefore.scheduledEnd : optionalDateTimeString(updates.scheduledEnd, "Scheduled end", normalizedBefore.scheduledEnd),
         estimatedDuration: updates.estimatedDuration == null ? job.estimatedDuration || "" : optionalString(updates.estimatedDuration, ""),
         crewSizeNeeded: updates.crewSizeNeeded == null ? Number(job.crewSizeNeeded || 0) : optionalNonNegativeNumber(updates.crewSizeNeeded, "Crew size needed", Number(job.crewSizeNeeded || 0)),
         equipmentNotes: updates.equipmentNotes == null ? job.equipmentNotes || "" : optionalString(updates.equipmentNotes, ""),
@@ -1598,38 +1698,69 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
         fieldPlanningVisible: updates.fieldPlanningVisible == null ? Boolean(job.fieldPlanningVisible) : optionalBoolean(updates.fieldPlanningVisible, Boolean(job.fieldPlanningVisible)),
         visibleToForeman: updates.visibleToForeman == null ? Boolean(job.visibleToForeman) : optionalBoolean(updates.visibleToForeman, Boolean(job.visibleToForeman)),
         crew: updates.crew == null ? job.crew : requiredString(updates.crew, "Crew"),
-        stage: updates.stage == null ? job.stage : optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage),
-        due: updates.due == null ? job.due : requiredString(updates.due, "Due"),
+        status: updates.status == null && updates.stage == null ? normalizedBefore.status : normalizeJobStatusValue(updates.status ?? updates.stage, normalizedBefore.status),
         progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
-        next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
+        nextStep: updates.nextStep == null && updates.next == null ? normalizedBefore.nextStep : requiredString(updates.nextStep ?? updates.next, "Next step"),
         notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
       });
     } else {
       Object.assign(job, {
         progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
-        next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
+        nextStep: updates.nextStep == null && updates.next == null ? normalizedBefore.nextStep : requiredString(updates.nextStep ?? updates.next, "Next step"),
         fieldNotes: updates.fieldNotes == null ? job.fieldNotes || "" : optionalString(updates.fieldNotes, ""),
       });
-      if (updates.stage != null) {
-        job.stage = optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage);
+      if (updates.status != null || updates.stage != null) {
+        const requestedStatus = normalizeJobStatusValue(updates.status ?? updates.stage, normalizedBefore.status);
+        const allowedFieldStatuses = new Set(["planned", "scheduled", "in_progress", "field_complete", "completed"]);
+        if (!allowedFieldStatuses.has(requestedStatus)) {
+          throw new ApiError(403, "Foremen can only set field execution statuses.");
+        }
+        job.status = requestedStatus;
       }
     }
 
     Object.keys(updates).forEach((field) => {
       if (updates[field] != null) changedFields.push(field);
     });
+    const normalizedAfter = normalizeJobRecord(job);
+    job.job = normalizedAfter.title;
+    job.stage = normalizedAfter.stage;
+    job.next = normalizedAfter.nextStep;
+    job.due = normalizedAfter.due;
     markUpdated(job, changedAt);
 
-    appendActivity(draft, "Job updated", `${job.job} field details were updated.`);
+    appendActivity(draft, "Job updated", `${normalizedAfter.title} field details were updated.`);
     appendAuditEvent(draft, {
       entityType: "job",
       entityId: job.id,
       action: "updated",
       summary: "Job updated",
-      detail: `${job.job} field details were updated.`,
+      detail: `${normalizedAfter.title} field details were updated.`,
       actor: req.auth.user,
       changedFields,
     });
+    if (normalizedBefore.status !== normalizedAfter.status) {
+      appendAuditEvent(draft, {
+        entityType: "job",
+        entityId: job.id,
+        action: "status_changed",
+        summary: "Job status changed",
+        detail: `${normalizedAfter.title} moved from ${jobStatusLabel(normalizedBefore.status)} to ${jobStatusLabel(normalizedAfter.status)}.`,
+        actor: req.auth.user,
+        changedFields: ["status"],
+      });
+    }
+    if (normalizedBefore.assignedForemanId !== normalizedAfter.assignedForemanId || normalizedBefore.assignedUserId !== normalizedAfter.assignedUserId) {
+      appendAuditEvent(draft, {
+        entityType: "job",
+        entityId: job.id,
+        action: "assigned",
+        summary: "Job assignments updated",
+        detail: `${normalizedAfter.title} assignment details changed.`,
+        actor: req.auth.user,
+        changedFields: ["assignedForemanId", "assignedUserId"],
+      });
+    }
     return draft;
   });
 
@@ -1642,15 +1773,16 @@ app.delete("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    const { title } = normalizeJobRecord(job);
     assertArchived(job, "Job");
     draft.jobs = draft.jobs.filter((entry) => entry.id !== id);
-    appendActivity(draft, "Job deleted", `${job.job} was permanently deleted.`);
+    appendActivity(draft, "Job deleted", `${title} was permanently deleted.`);
     appendAuditEvent(draft, {
       entityType: "job",
       entityId: job.id,
       action: "deleted",
       summary: "Job deleted",
-      detail: `${job.job} was permanently deleted.`,
+      detail: `${title} was permanently deleted.`,
       actor: req.auth.user,
     });
     return draft;

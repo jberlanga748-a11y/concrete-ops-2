@@ -14,6 +14,7 @@
     "backup:data": "node server/backup-export.js",
     "verify:backup": "node server/backup-export-test.js",
     "verify:customers": "node --test --test-concurrency=1 server/customer-api.test.js src/app-routing.test.js src/customer-utils.test.js src/customer-filter-layout.test.js",
+    "verify:jobs": "node --test --test-concurrency=1 server/jobs-workflow.test.js src/job-utils.test.js src/app-routing.test.js",
     "verify:leads": "node --test --test-concurrency=1 server/lead-workflow.test.js src/lead-utils.test.js src/navigation-utils.test.js",
     "verify:roles": "node --test --test-concurrency=1 server/role-permissions.test.js shared/permissions.test.js"
   },

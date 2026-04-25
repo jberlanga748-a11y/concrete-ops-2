@@ -33,6 +33,7 @@ import {
 import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
+import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 
@@ -183,13 +184,29 @@ const INITIAL_LEAD_FORM = {
 };
 
 const INITIAL_JOB_FORM = {
+  customerId: "",
+  leadId: "",
   customer: "",
-  job: "",
+  title: "",
+  address: "",
+  siteContact: "",
+  scopeSummary: "",
+  scheduledStart: "",
+  scheduledEnd: "",
+  estimatedDuration: "",
+  assignedForemanId: "",
+  assignedUserId: "",
+  crewSizeNeeded: 0,
+  fieldPlanningVisible: false,
+  visibleToForeman: false,
   crew: "",
-  stage: "Scheduled",
-  due: "",
+  status: "scheduled",
   progress: 15,
-  next: "",
+  nextStep: "",
+  equipmentNotes: "",
+  safetyNotes: "",
+  materialNotes: "",
+  fieldNotes: "",
   notes: "",
 };
 
@@ -341,10 +358,10 @@ function StatusBadge({ status }) {
   const normalized = status.toLowerCase();
   let tone = "slate";
   if (["approved", "ready", "done", "complete"].includes(normalized)) tone = "green";
-  if (["new", "in progress", "estimate sent"].includes(normalized)) tone = "blue";
+  if (["new", "in progress", "in_progress", "estimate sent"].includes(normalized)) tone = "blue";
   if (["blocked"].includes(normalized)) tone = "red";
-  if (["due today", "site visit", "waiting"].includes(normalized)) tone = "amber";
-  if (["scheduled", "ready to bill"].includes(normalized)) tone = "violet";
+  if (["due today", "site visit", "waiting", "planned", "field complete", "field_complete"].includes(normalized)) tone = "amber";
+  if (["scheduled", "ready to bill", "billing_ready"].includes(normalized)) tone = "violet";
   return <Badge tone={tone}>{status}</Badge>;
 }
 
@@ -771,15 +788,15 @@ function LeadsTable({ rows, selectedId, onSelect }) {
 function JobsTable({ rows, selectedId, onSelect }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] text-left">
+      <table className="w-full min-w-[980px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
             <th className="px-4 py-3">Job</th>
             <th className="px-4 py-3">Customer</th>
-            <th className="px-4 py-3">Stage</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Scheduled</th>
+            <th className="px-4 py-3">Foreman</th>
             <th className="px-4 py-3">Crew</th>
-            <th className="px-4 py-3">Next step</th>
-            <th className="px-4 py-3">Due</th>
             <th className="px-4 py-3">Progress</th>
           </tr>
         </thead>
@@ -789,14 +806,14 @@ function JobsTable({ rows, selectedId, onSelect }) {
             return (
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
                 <td className="px-4 py-3">
-                  <p className="font-black text-slate-950">{row.job}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id}</p>
+                  <p className="font-black text-slate-950">{jobTitle(row)}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.customer}</td>
-                <td className="px-4 py-3"><StatusBadge status={row.stage} /></td>
+                <td className="px-4 py-3"><StatusBadge status={jobStatusLabel(row.status || row.stage)} /></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{jobScheduleLabel(row)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.assignedForemanName || row.assignedForemanId || "Unassigned"}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.crew}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.next}</td>
-                <td className="px-4 py-3 text-sm font-black text-slate-950">{row.due}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-28 overflow-hidden rounded-full bg-blue-50">
@@ -1028,7 +1045,7 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
   if (!job) {
     return (
       <Card className="p-5">
-        <SectionHeader title="Job details" description="Select a job to update stage, progress, and field notes." />
+        <SectionHeader title="Job details" description="Select a job to update scheduling, field progress, and execution notes." />
         <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Choose a job from the table to keep the field and office teams aligned.</div>
       </Card>
     );
@@ -1039,11 +1056,12 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
   const canEditField = Boolean(canManageField);
   const canArchive = Boolean(canManageAll);
   const notesValue = canManageAll ? (job.notes || "") : (job.fieldNotes || "");
+  const statusValue = normalizeJobStatus(job.status || job.stage);
 
   return (
     <Card className="p-5">
       <SectionHeader
-        title={job.job}
+        title={jobTitle(job)}
         description={`${job.id} · ${job.customer}`}
         action={
           <div className="flex flex-wrap gap-2">
@@ -1063,26 +1081,64 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={job.createdAt} updatedAt={job.updatedAt} />
-        <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} disabled={!canManageAll || disabled} />
-        <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} disabled={!canManageAll || disabled} />
         <div className="grid gap-3 md:grid-cols-2">
-          <SelectField label="Stage" value={job.stage} onChange={(event) => onFieldChange("stage", event.target.value)} disabled={!canEditField || disabled}>
-            <option>Scheduled</option>
-            <option>In Progress</option>
-            <option>Waiting</option>
-            <option>Ready to Bill</option>
-            <option>Complete</option>
-          </SelectField>
-          <InputField label="Due" value={job.due} onChange={(event) => onFieldChange("due", event.target.value)} disabled={!canManageAll || disabled} />
+          <InputField label="Job name" value={jobTitle(job)} onChange={(event) => onFieldChange("title", event.target.value)} disabled={!canManageAll || disabled} />
+          <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} disabled={!canManageAll || disabled} />
         </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Status" value={statusValue} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canEditField || disabled}>
+            <option value="draft">Draft</option>
+            <option value="planned">Planned</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="in_progress">In Progress</option>
+            <option value="field_complete">Field Complete</option>
+            <option value="completed">Completed</option>
+            {canManageAll ? <option value="billing_ready">Billing Ready</option> : null}
+            {canManageAll ? <option value="closed">Closed</option> : null}
+          </SelectField>
+          <InputField label="Scheduled start" type="datetime-local" value={job.scheduledStart || ""} onChange={(event) => onFieldChange("scheduledStart", event.target.value)} disabled={!canManageAll || disabled} />
+        </div>
+        {canManageAll ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <InputField label="Scheduled end" type="datetime-local" value={job.scheduledEnd || ""} onChange={(event) => onFieldChange("scheduledEnd", event.target.value)} disabled={disabled} />
+            <InputField label="Estimated duration" value={job.estimatedDuration || ""} onChange={(event) => onFieldChange("estimatedDuration", event.target.value)} disabled={disabled} />
+          </div>
+        ) : null}
         <label className="field-label">
           <span>Progress ({job.progress}%)</span>
           <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} disabled={!canEditField || disabled} />
         </label>
-        <InputField label="Next step" value={job.next} onChange={(event) => onFieldChange("next", event.target.value)} disabled={!canEditField || disabled} />
-        {!canManageAll && job.scopeSummary ? <InputField label="Scope summary" value={job.scopeSummary} disabled /> : null}
-        {!canManageAll && job.address ? <InputField label="Job address" value={job.address} disabled /> : null}
-        {!canManageAll && job.siteContact ? <InputField label="Site contact" value={job.siteContact} disabled /> : null}
+        <InputField label="Next step" value={jobNextStep(job)} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canEditField || disabled} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Address" value={job.address || ""} onChange={(event) => onFieldChange("address", event.target.value)} disabled={!canManageAll || disabled} />
+          <InputField label="Site contact" value={job.siteContact || ""} onChange={(event) => onFieldChange("siteContact", event.target.value)} disabled={!canManageAll || disabled} />
+        </div>
+        <TextAreaField label="Scope summary" value={job.scopeSummary || ""} onChange={(event) => onFieldChange("scopeSummary", event.target.value)} disabled={!canManageAll || disabled} />
+        {canManageAll ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-2">
+              <InputField label="Assigned foreman" value={job.assignedForemanId || ""} onChange={(event) => onFieldChange("assignedForemanId", event.target.value)} disabled={disabled} />
+              <InputField label="Assigned employee" value={job.assignedUserId || ""} onChange={(event) => onFieldChange("assignedUserId", event.target.value)} disabled={disabled} />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <InputField label="Crew" value={job.crew || ""} onChange={(event) => onFieldChange("crew", event.target.value)} disabled={disabled} />
+              <InputField label="Crew size needed" type="number" min="0" value={job.crewSizeNeeded || 0} onChange={(event) => onFieldChange("crewSizeNeeded", Number(event.target.value))} disabled={disabled} />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="field-label">
+                <span>Foreman planning visible</span>
+                <input type="checkbox" checked={Boolean(job.fieldPlanningVisible)} onChange={(event) => onFieldChange("fieldPlanningVisible", event.target.checked)} disabled={disabled} />
+              </label>
+              <label className="field-label">
+                <span>Visible to foreman</span>
+                <input type="checkbox" checked={Boolean(job.visibleToForeman)} onChange={(event) => onFieldChange("visibleToForeman", event.target.checked)} disabled={disabled} />
+              </label>
+            </div>
+            <TextAreaField label="Equipment notes" value={job.equipmentNotes || ""} onChange={(event) => onFieldChange("equipmentNotes", event.target.value)} disabled={disabled} />
+          </>
+        ) : null}
+        <TextAreaField label="Safety notes" value={job.safetyNotes || ""} onChange={(event) => onFieldChange("safetyNotes", event.target.value)} disabled={!canManageAll || disabled} />
+        <TextAreaField label="Material notes" value={job.materialNotes || ""} onChange={(event) => onFieldChange("materialNotes", event.target.value)} disabled={!canManageAll || disabled} />
         <TextAreaField label={canManageAll ? "Office notes" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
       </div>
     </Card>
@@ -1307,10 +1363,10 @@ function CustomerDetailPanel({
           <button key={job.id} type="button" onClick={() => onSelectJob(job.id)} className="w-full rounded-2xl border border-blue-100 bg-white p-4 text-left hover:bg-blue-50/60">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-black text-slate-950">{job.job}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} · {job.next}</p>
+                <p className="font-black text-slate-950">{jobTitle(job)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} · {jobNextStep(job)}</p>
               </div>
-              <StatusBadge status={job.stage} />
+              <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
             </div>
           </button>
         )}
@@ -1478,27 +1534,59 @@ function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, cu
   );
 }
 
-function JobPlannerCard({ draft, setDraft, onCreateJob, disabled }) {
+function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users }) {
   return (
     <Card className="p-5">
-      <SectionHeader title="Create job" description="Promote approved work into a scheduled field record." />
+      <SectionHeader title="Create job" description="Create a schedulable field record with safe planning details only." />
       <form className="grid gap-3" onSubmit={onCreateJob}>
-        <InputField label="Job name" value={draft.job} onChange={(event) => setDraft((current) => ({ ...current, job: event.target.value }))} placeholder="Martinez Front Walk" />
         <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Job name" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez Front Walk" />
           <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option value="draft">Draft</option>
+            <option value="planned">Planned</option>
+            <option value="scheduled">Scheduled</option>
+          </SelectField>
+          <InputField label="Scheduled start" type="datetime-local" value={draft.scheduledStart} onChange={(event) => setDraft((current) => ({ ...current, scheduledStart: event.target.value }))} />
+          <InputField label="Estimated duration" value={draft.estimatedDuration} onChange={(event) => setDraft((current) => ({ ...current, estimatedDuration: event.target.value }))} placeholder="2 days" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="Address" value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} placeholder="1452 Orchard View Dr" />
+          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins · 503-555-0187" />
           <InputField label="Crew" value={draft.crew} onChange={(event) => setDraft((current) => ({ ...current, crew: event.target.value }))} placeholder="Juan + 3" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          <SelectField label="Stage" value={draft.stage} onChange={(event) => setDraft((current) => ({ ...current, stage: event.target.value }))}>
-            <option>Scheduled</option>
-            <option>In Progress</option>
-            <option>Waiting</option>
-            <option>Ready to Bill</option>
+          <SelectField label="Assigned foreman" value={draft.assignedForemanId} onChange={(event) => setDraft((current) => ({ ...current, assignedForemanId: event.target.value }))}>
+            <option value="">Unassigned</option>
+            {users.filter((user) => user.role === "Foreman").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
-          <InputField label="Due" value={draft.due} onChange={(event) => setDraft((current) => ({ ...current, due: event.target.value }))} placeholder="Wed" />
-          <InputField label="Progress" type="number" min="0" max="100" value={draft.progress} onChange={(event) => setDraft((current) => ({ ...current, progress: Number(event.target.value) }))} />
+          <SelectField label="Assigned employee" value={draft.assignedUserId} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value }))}>
+            <option value="">Unassigned</option>
+            {users.filter((user) => user.role === "Employee").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </SelectField>
+          <InputField label="Crew size needed" type="number" min="0" value={draft.crewSizeNeeded} onChange={(event) => setDraft((current) => ({ ...current, crewSizeNeeded: Number(event.target.value) }))} />
         </div>
-        <InputField label="Next step" value={draft.next} onChange={(event) => setDraft((current) => ({ ...current, next: event.target.value }))} placeholder="Confirm mix and pump truck" />
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="field-label">
+            <span>Foreman planning visible</span>
+            <input type="checkbox" checked={Boolean(draft.fieldPlanningVisible)} onChange={(event) => setDraft((current) => ({ ...current, fieldPlanningVisible: event.target.checked }))} />
+          </label>
+          <label className="field-label">
+            <span>Visible to foreman</span>
+            <input type="checkbox" checked={Boolean(draft.visibleToForeman)} onChange={(event) => setDraft((current) => ({ ...current, visibleToForeman: event.target.checked }))} />
+          </label>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Progress" type="number" min="0" max="100" value={draft.progress} onChange={(event) => setDraft((current) => ({ ...current, progress: Number(event.target.value) }))} />
+          <InputField label="Next step" value={draft.nextStep} onChange={(event) => setDraft((current) => ({ ...current, nextStep: event.target.value }))} placeholder="Confirm mix and pump truck" />
+        </div>
+        <TextAreaField label="Scope summary" value={draft.scopeSummary} onChange={(event) => setDraft((current) => ({ ...current, scopeSummary: event.target.value }))} />
+        <TextAreaField label="Equipment notes" value={draft.equipmentNotes} onChange={(event) => setDraft((current) => ({ ...current, equipmentNotes: event.target.value }))} />
+        <TextAreaField label="Safety notes" value={draft.safetyNotes} onChange={(event) => setDraft((current) => ({ ...current, safetyNotes: event.target.value }))} />
+        <TextAreaField label="Material notes" value={draft.materialNotes} onChange={(event) => setDraft((current) => ({ ...current, materialNotes: event.target.value }))} />
+        <TextAreaField label="Field notes" value={draft.fieldNotes} onChange={(event) => setDraft((current) => ({ ...current, fieldNotes: event.target.value }))} />
         <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
         <Button type="submit" disabled={disabled}>
           <Icon name="plus" />
@@ -1674,17 +1762,70 @@ function LeadsPage({
   );
 }
 
-function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, onArchiveJob, onRestoreJob, onDeleteJob, busy, jobSaveState, permissions }) {
+function JobsPage({
+  rows,
+  filter,
+  setFilter,
+  search,
+  setSearch,
+  customerFilter,
+  setCustomerFilter,
+  foremanFilter,
+  setForemanFilter,
+  dateFilter,
+  setDateFilter,
+  users,
+  selectedJobId,
+  onSelectJob,
+  selectedJob,
+  onJobFieldChange,
+  jobDraft,
+  setJobDraft,
+  onCreateJob,
+  onArchiveJob,
+  onRestoreJob,
+  onDeleteJob,
+  busy,
+  jobSaveState,
+  permissions,
+}) {
+  const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : permissions.jobs.canManageField ? "field execution" : "assigned field work";
+  const jobListState = useMemo(() => deriveJobListState(rows, {
+    status: filter,
+    query: search,
+    customer: customerFilter,
+    foremanId: foremanFilter,
+    date: dateFilter,
+  }, users), [customerFilter, dateFilter, filter, foremanFilter, rows, search, users]);
+  const visibleRows = jobListState.filteredJobs;
+
   return (
     <div>
-      <PageHeader eyebrow="Field Ops" title="Jobs" description="Create jobs from scratch or from approved leads, then keep field progress and next-step accountability current through the API." actions={<Badge tone="violet">{rows.length} active jobs</Badge>} />
+      <PageHeader eyebrow="Field Ops" title="Jobs" description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
-          <FilterBar filters={["All", "Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, crew..." />
-          <JobsTable rows={rows} selectedId={selectedJobId} onSelect={onSelectJob} />
+          <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
+          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
+            <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
+              <option>All customers</option>
+              {jobListState.customerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectField>
+            <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+              <option>All foremen</option>
+              {jobListState.foremanOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectField>
+            <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+              <option>All dates</option>
+              <option>Today</option>
+              <option>Upcoming</option>
+              <option>Overdue</option>
+              <option>Unscheduled</option>
+            </SelectField>
+          </div>
+          <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
         <div className="space-y-4">
-          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} />
+          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} />
           <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} onArchive={onArchiveJob} onRestore={onRestoreJob} onDelete={onDeleteJob} saveState={jobSaveState} disabled={busy} permissions={permissions} />
         </div>
       </div>
@@ -1916,7 +2057,7 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   const suggestions = [
     stats.queueBlocked > 0 ? `Clear ${stats.queueBlocked} blocked queue item${stats.queueBlocked > 1 ? "s" : ""} before closeout slips.` : "Queue is clear enough to keep crews moving.",
     stats.newLeads > 0 ? `Assign callbacks for ${stats.newLeads} new lead${stats.newLeads > 1 ? "s" : ""} to keep response times tight.` : "No new leads are waiting for first contact.",
-    jobs.some((job) => job.stage === "Waiting") ? "Waiting jobs need a concrete next step or owner handoff." : "No jobs are currently stalled in a waiting state.",
+          jobs.some((job) => normalizeJobStatus(job.status || job.stage) === "planned") ? "Planned jobs need a concrete next step or owner handoff." : "No jobs are currently stalled in a planning state.",
     leads.some((lead) => lead.status === "Approved") ? "Approved leads can be promoted into jobs directly from the lead detail panel." : "No approved leads are waiting on job creation.",
   ];
 
@@ -1978,7 +2119,7 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
   const previews = [
     selectedLead ? `${selectedLead.customer} · ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
-    selectedJob ? `${selectedJob.job} · ${selectedJob.next}` : "Select a job to keep next steps visible.",
+          selectedJob ? `${jobTitle(selectedJob)} · ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
     queueItems[0] ? `${queueItems[0].title} · ${queueItems[0].status}` : "Queue items will appear here as they are added.",
   ];
 
@@ -2033,7 +2174,24 @@ function MainContent(props) {
       />
     );
   }
-  if (active === "jobs") return <JobsPage {...props} rows={props.visibleJobs} />;
+  if (active === "jobs") {
+    return (
+      <JobsPage
+        {...props}
+        rows={props.visibleJobs}
+        filter={props.jobFilter}
+        setFilter={props.setJobFilter}
+        search={props.jobSearch}
+        setSearch={props.setJobSearch}
+        customerFilter={props.jobCustomerFilter}
+        setCustomerFilter={props.setJobCustomerFilter}
+        foremanFilter={props.jobForemanFilter}
+        setForemanFilter={props.setJobForemanFilter}
+        dateFilter={props.jobDateFilter}
+        setDateFilter={props.setJobDateFilter}
+      />
+    );
+  }
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
@@ -2061,6 +2219,9 @@ export default function App() {
   const [leadDueFilter, setLeadDueFilter] = useState("All due dates");
   const [jobFilter, setJobFilter] = useState("All");
   const [jobSearch, setJobSearch] = useState("");
+  const [jobCustomerFilter, setJobCustomerFilter] = useState("All customers");
+  const [jobForemanFilter, setJobForemanFilter] = useState("All foremen");
+  const [jobDateFilter, setJobDateFilter] = useState("All dates");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -2394,15 +2555,18 @@ export default function App() {
   }), [appState.leads, leadDueFilter, leadFilter, leadOwnerFilter, leadSearch, leadSourceFilter]);
   const visibleLeads = leadListState.filteredLeads;
 
-  const visibleJobs = useMemo(() => {
-    const query = jobSearch.toLowerCase();
-    return appState.jobs.filter((job) => {
-      const matchesArchive = jobFilter === "Archived" ? Boolean(job.archivedAt) : !job.archivedAt;
-      const matchesFilter = jobFilter === "All" || jobFilter === "Archived" ? true : job.stage === jobFilter;
-      const matchesSearch = [job.job, job.customer, job.crew, job.next].some((value) => value.toLowerCase().includes(query));
-      return matchesArchive && matchesFilter && matchesSearch;
-    });
-  }, [appState.jobs, jobFilter, jobSearch]);
+  const enrichedJobs = useMemo(() => appState.jobs.map((job) => ({
+    ...job,
+    assignedForemanName: appState.users.find((user) => user.id === job.assignedForemanId)?.name || "",
+  })), [appState.jobs, appState.users]);
+
+  const visibleJobs = useMemo(() => deriveJobListState(enrichedJobs, {
+    status: jobFilter,
+    query: jobSearch,
+    customer: jobCustomerFilter,
+    foremanId: jobForemanFilter,
+    date: jobDateFilter,
+  }, appState.users).filteredJobs, [appState.users, enrichedJobs, jobCustomerFilter, jobDateFilter, jobFilter, jobForemanFilter, jobSearch]);
 
   const stats = useMemo(() => {
     const liveLeads = appState.leads.filter((lead) => !lead.archivedAt);
@@ -2411,8 +2575,8 @@ export default function App() {
     const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
     const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
     const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
-    const activeJobs = liveJobs.filter((job) => job.stage === "In Progress").length;
-    const scheduledJobs = liveJobs.filter((job) => job.stage === "Scheduled").length;
+    const activeJobs = liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length;
+    const scheduledJobs = liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "scheduled").length;
     const reportsDue = liveQueueItems.filter((item) => !item.done && item.status === "Due today").length;
     const queueBlocked = liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length;
     return {
@@ -2745,7 +2909,7 @@ export default function App() {
   }
 
   function handleDeleteJob() {
-    if (!selectedJob || !appState.permissions.jobs.canManageAll || !window.confirm(`Delete ${selectedJob.job} permanently? This cannot be undone.`)) return;
+    if (!selectedJob || !appState.permissions.jobs.canManageAll || !window.confirm(`Delete ${jobTitle(selectedJob)} permanently? This cannot be undone.`)) return;
     resetRecordAutosave("job", selectedJob.id);
     runMutation(() => deleteJob(sessionToken, selectedJob.id));
   }
@@ -2848,6 +3012,12 @@ export default function App() {
               setJobFilter={setJobFilter}
               jobSearch={jobSearch}
               setJobSearch={setJobSearch}
+              jobCustomerFilter={jobCustomerFilter}
+              setJobCustomerFilter={setJobCustomerFilter}
+              jobForemanFilter={jobForemanFilter}
+              setJobForemanFilter={setJobForemanFilter}
+              jobDateFilter={jobDateFilter}
+              setJobDateFilter={setJobDateFilter}
               selectedLeadId={selectedLeadId}
               onSelectLead={navigateToLead}
               selectedLead={selectedLead}
@@ -2882,7 +3052,7 @@ export default function App() {
               onDeleteTask={handleDeleteTask}
               visibleCustomers={visibleCustomers}
               visibleLeads={visibleLeads}
-              visibleJobs={visibleJobs}
+              visibleJobs={enrichedJobs}
               onReset={handleReset}
               busy={busy}
             />
