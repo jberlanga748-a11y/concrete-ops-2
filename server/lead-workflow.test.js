@@ -235,7 +235,7 @@ test("lead workflow supports assignment, status history, customer linking, archi
   }
 });
 
-test("lead permissions allow office management roles and block employees from lead mutation routes", async () => {
+test("lead permissions keep office access while hiding lead data from employees and foremen", async () => {
   const fixture = await startServer();
 
   try {
@@ -257,6 +257,12 @@ test("lead permissions allow office management roles and block employees from le
         password: "concrete123",
         name: "Employee User",
         role: "Employee",
+      }),
+      createUserRecord({
+        email: "foreman@lastyard.test",
+        password: "concrete123",
+        name: "Foreman User",
+        role: "Foreman",
       }),
     ]);
 
@@ -298,8 +304,13 @@ test("lead permissions allow office management roles and block employees from le
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: employeeHeaders });
-    assert.equal(employeeBootstrap.permissions.leads.canView, true);
+    assert.equal(employeeBootstrap.permissions.leads.canView, false);
     assert.equal(employeeBootstrap.permissions.leads.canManage, false);
+    assert.equal(employeeBootstrap.leads.length, 0);
+    assert.equal(employeeBootstrap.leadStatusHistory.length, 0);
+    assert.equal(employeeBootstrap.customers.length, 0);
+    assert.equal(employeeBootstrap.stats.newLeads, 0);
+    assert.equal(employeeBootstrap.stats.pipelineValue, 0);
 
     const createDenied = await requestJson(fixture.baseUrl, "/api/leads", {
       method: "POST",
@@ -339,6 +350,21 @@ test("lead permissions allow office management roles and block employees from le
       headers: employeeHeaders,
     });
     assert.equal(convertDenied.response.status, 403);
+
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: "foreman@lastyard.test",
+      password: "concrete123",
+    });
+    const foremanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(foremanLogin.token),
+    });
+    assert.equal(foremanBootstrap.permissions.leads.canView, false);
+    assert.equal(foremanBootstrap.permissions.leads.canManage, false);
+    assert.equal(foremanBootstrap.permissions.customers.canView, false);
+    assert.equal(foremanBootstrap.leads.length, 0);
+    assert.equal(foremanBootstrap.customers.length, 0);
+    assert.equal(foremanBootstrap.stats.newLeads, 0);
+    assert.equal(foremanBootstrap.stats.pipelineValue, 0);
   } finally {
     await fixture.stop();
   }

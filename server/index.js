@@ -161,16 +161,73 @@ function isLeadManager(user) {
   return OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role));
 }
 
-function customerAssignmentIdsForUser(state, user) {
-  if (normalizeRole(user?.role) !== "foreman") {
-    return new Set();
+function canViewCustomers(user) {
+  return isCustomerManager(user);
+}
+
+function canViewLeads(user) {
+  return isLeadManager(user);
+}
+
+function visibleJobsForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.jobs;
   }
 
-  return new Set(
-    state.jobs
-      .filter((job) => !job.archivedAt && job.assignedUserId === user.id && job.customerId)
-      .map((job) => job.customerId),
-  );
+  return state.jobs.filter((job) => !job.archivedAt && job.assignedUserId === user.id);
+}
+
+function visibleQueueItemsForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.queueItems;
+  }
+
+  return state.queueItems.filter((item) => !item.archivedAt && item.assignedUserId === user.id);
+}
+
+function visibleActivityForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.activity;
+  }
+
+  return [];
+}
+
+function visibleAuditEventsForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.auditEvents;
+  }
+
+  return [];
+}
+
+function visibleUsers(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.users.map((entry) => publicUser(entry));
+  }
+
+  return [publicUser(user)];
+}
+
+function visibleLeadsForUser(state, user) {
+  if (!canViewLeads(user)) {
+    return [];
+  }
+
+  return state.leads;
+}
+
+function visibleLeadStatusHistoryForUser(state, user) {
+  if (!canViewLeads(user)) {
+    return [];
+  }
+
+  return state.leadStatusHistory;
 }
 
 function customerPermissionsForUser(state, user) {
@@ -178,25 +235,20 @@ function customerPermissionsForUser(state, user) {
     return { canView: false, canManage: false };
   }
 
-  if (isCustomerManager(user)) {
+  if (canViewCustomers(user)) {
     return { canView: true, canManage: true };
   }
 
-  const assignmentIds = customerAssignmentIdsForUser(state, user);
-  return {
-    canView: assignmentIds.size > 0,
-    canManage: false,
-  };
+  return { canView: false, canManage: false };
 }
 
 function visibleCustomersForUser(state, user) {
   if (!user) return [];
-  if (isCustomerManager(user)) {
+  if (canViewCustomers(user)) {
     return state.customers;
   }
 
-  const assignmentIds = customerAssignmentIdsForUser(state, user);
-  return state.customers.filter((customer) => assignmentIds.has(customer.id));
+  return [];
 }
 
 function assertCanManageCustomers(user) {
@@ -211,7 +263,7 @@ function leadPermissionsForUser(user) {
   }
 
   return {
-    canView: true,
+    canView: canViewLeads(user),
     canManage: isLeadManager(user),
   };
 }
@@ -251,10 +303,6 @@ function syncCustomerNameReferences(state, customer) {
       job.customer = customer.name;
     }
   });
-}
-
-function visibleUsers(state) {
-  return state.users.map((user) => publicUser(user));
 }
 
 function findUserById(state, userId) {
@@ -469,20 +517,39 @@ function statsFromState(state) {
   };
 }
 
+function statsForUser(state, user) {
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role))) {
+    return statsFromState(state);
+  }
+
+  const liveJobs = visibleJobsForUser(state, user).filter((job) => !job.archivedAt);
+  const liveQueueItems = visibleQueueItemsForUser(state, user).filter((item) => !item.archivedAt);
+
+  return {
+    newLeads: 0,
+    highPriorityLeads: 0,
+    pipelineValue: 0,
+    activeJobs: liveJobs.filter((job) => job.stage === "In Progress").length,
+    scheduledJobs: liveJobs.filter((job) => job.stage === "Scheduled").length,
+    reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
+    queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
+  };
+}
+
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
   return {
     user: publicUser(user),
-    users: visibleUsers(state),
+    users: visibleUsers(state, user),
     customers: visibleCustomersForUser(state, user),
-    leads: state.leads,
-    leadStatusHistory: state.leadStatusHistory,
-    jobs: state.jobs,
-    queueItems: state.queueItems,
-    activity: state.activity,
-    auditEvents: state.auditEvents,
-    stats: statsFromState(state),
+    leads: visibleLeadsForUser(state, user),
+    leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
+    jobs: visibleJobsForUser(state, user),
+    queueItems: visibleQueueItemsForUser(state, user),
+    activity: visibleActivityForUser(state, user),
+    auditEvents: visibleAuditEventsForUser(state, user),
+    stats: statsForUser(state, user),
     permissions: {
       customers: customerPermissions,
       leads: leadPermissions,

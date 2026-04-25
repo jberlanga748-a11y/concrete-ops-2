@@ -34,6 +34,7 @@ import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normaliz
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
+import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
@@ -592,7 +593,7 @@ function LoginScreen({
   );
 }
 
-function Sidebar({ active, setActive, counts }) {
+function Sidebar({ active, setActive, counts, navGroups }) {
   return (
     <aside className="hidden h-screen w-72 shrink-0 border-r border-blue-100 bg-white/90 backdrop-blur lg:sticky lg:top-0 lg:block">
       <div className="border-b border-blue-100 p-4">
@@ -606,7 +607,7 @@ function Sidebar({ active, setActive, counts }) {
       </div>
       <div className="flex h-[calc(100vh-76px)] flex-col justify-between overflow-y-auto p-3">
         <div>
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label} className="mb-4">
               <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.label}</p>
               <div className="space-y-1">
@@ -642,8 +643,8 @@ function Sidebar({ active, setActive, counts }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary }) {
-  const current = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === active);
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions }) {
+  const current = navItems.find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -653,7 +654,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
         </div>
         <div className="hidden items-center gap-2 md:flex">
           {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
-          <Badge tone="blue">{stats.newLeads} new leads</Badge>
+          {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
           <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
           <Button variant="ghost" size="sm" onClick={onLogout}>
@@ -661,7 +662,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           </Button>
         </div>
         <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-40 py-2 text-xs font-black text-blue-700 md:hidden">
-          {NAV_GROUPS.flatMap((group) => group.items).map((item) => (
+          {navItems.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
             </option>
@@ -1952,6 +1953,7 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
 
 function MainContent(props) {
   const { active } = props;
+  if (!canAccessModule(active, props.user)) return null;
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "leads") {
     return (
@@ -2029,6 +2031,9 @@ export default function App() {
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
+  const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user), [appState.user]);
+  const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
+  const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
 
   function navigateTo(nextPath, { replace = false } = {}) {
     const normalized = normalizePathname(nextPath);
@@ -2254,6 +2259,12 @@ export default function App() {
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
+    if (canAccessModule(active, appState.user)) return;
+    navigateTo(getModulePath(defaultModuleId), { replace: true });
+  }, [active, appState.user, authStatus, defaultModuleId]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
 
     const fallbackCustomerId = appState.customers[0]?.id || "";
 
@@ -2376,7 +2387,7 @@ export default function App() {
 
   const counts = {
     customers: appState.permissions.customers.canView ? appState.customers.filter((customer) => !customer.archivedAt).length : null,
-    leads: appState.leads.filter((lead) => !lead.archivedAt).length,
+    leads: appState.permissions.leads.canView ? appState.leads.filter((lead) => !lead.archivedAt).length : null,
     jobs: appState.jobs.filter((job) => !job.archivedAt).length,
     reports: stats.reportsDue || null,
     copilot: 1,
@@ -2726,17 +2737,17 @@ export default function App() {
     );
   }
 
-  const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];
-  const allItems = NAV_GROUPS.flatMap((group) => group.items);
+  const mobileItems = visibleNavItems.slice(0, 5).map((item) => item.id);
+  const allItems = visibleNavItems;
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
   return (
     <div className="min-h-screen bg-transparent text-slate-950">
       <div className="flex">
-        <Sidebar active={active} setActive={setActive} counts={counts} />
+        <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} />
+          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="py-0">
             <MainContent
