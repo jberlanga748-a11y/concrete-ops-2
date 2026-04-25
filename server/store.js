@@ -129,6 +129,93 @@ function jobStatusLabel(status = "scheduled") {
   return labels[normalized] || "Scheduled";
 }
 
+function normalizeAssignmentRole(role = "crew") {
+  const normalized = String(role || "").trim().toLowerCase();
+  return normalized || "crew";
+}
+
+function buildDerivedJobAssignments(jobs, jobAssignments = []) {
+  const explicitAssignments = (jobAssignments || []).map((assignment) => ({
+    ...assignment,
+    roleOnJob: normalizeAssignmentRole(assignment.roleOnJob),
+    notes: assignment.notes || "",
+    removedAt: assignment.removedAt || null,
+    createdAt: assignment.createdAt || assignment.assignedAt || isoNow(),
+    updatedAt: assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
+    assignedAt: assignment.assignedAt || assignment.createdAt || isoNow(),
+  }));
+  const mergedAssignments = [...explicitAssignments];
+  const activeKeys = new Set(
+    explicitAssignments
+      .filter((assignment) => !assignment.removedAt)
+      .map((assignment) => `${assignment.jobId}:${assignment.userId}:${assignment.roleOnJob}`),
+  );
+
+  for (const job of jobs || []) {
+    const baseStamp = job.updatedAt || job.createdAt || isoNow();
+
+    if (job.assignedForemanId) {
+      const key = `${job.id}:${job.assignedForemanId}:foreman`;
+      if (!activeKeys.has(key)) {
+        mergedAssignments.push({
+          id: `JA-LEGACY-${job.id}-foreman`,
+          jobId: job.id,
+          userId: job.assignedForemanId,
+          roleOnJob: "foreman",
+          assignedBy: "",
+          assignedAt: baseStamp,
+          removedAt: null,
+          notes: "",
+          createdAt: baseStamp,
+          updatedAt: baseStamp,
+        });
+        activeKeys.add(key);
+      }
+    }
+
+    if (job.assignedUserId) {
+      const key = `${job.id}:${job.assignedUserId}:crew`;
+      if (!activeKeys.has(key)) {
+        mergedAssignments.push({
+          id: `JA-LEGACY-${job.id}-crew`,
+          jobId: job.id,
+          userId: job.assignedUserId,
+          roleOnJob: "crew",
+          assignedBy: "",
+          assignedAt: baseStamp,
+          removedAt: null,
+          notes: "",
+          createdAt: baseStamp,
+          updatedAt: baseStamp,
+        });
+        activeKeys.add(key);
+      }
+    }
+  }
+
+  const hydratedJobs = (jobs || []).map((job) => {
+    const assignments = mergedAssignments.filter((assignment) => assignment.jobId === job.id && !assignment.removedAt);
+    const foremanAssignment = assignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
+    const crewAssignments = assignments.filter((assignment) => assignment.roleOnJob !== "foreman");
+
+    return {
+      ...job,
+      assignments,
+      foremanAssignment,
+      crewAssignments,
+      activeAssignmentUserIds: assignments.map((assignment) => assignment.userId),
+      activeCrewUserIds: crewAssignments.map((assignment) => assignment.userId),
+      assignedForemanId: foremanAssignment?.userId || job.assignedForemanId || "",
+      assignedUserId: crewAssignments[0]?.userId || job.assignedUserId || "",
+    };
+  });
+
+  return {
+    jobAssignments: mergedAssignments,
+    jobs: hydratedJobs,
+  };
+}
+
 function normalizeStoredJob(job) {
   const title = job.title || job.job || "Untitled job";
   const status = jobStatusValue(job.status || job.stage);
@@ -256,6 +343,7 @@ export function createEmptyState() {
     leads: [],
     leadStatusHistory: [],
     jobs: [],
+    jobAssignments: [],
     queueItems: [],
     activity: [],
     auditEvents: [],
@@ -289,6 +377,7 @@ export function createSeedState() {
     leads,
     leadStatusHistory,
     jobs,
+    jobAssignments: [],
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
     auditEvents: createSeedAuditEvents(seedUser, customers, leads, jobs, queueItems),
@@ -430,6 +519,22 @@ const MIGRATIONS = [
           due TEXT NOT NULL,
           progress INTEGER NOT NULL,
           notes TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS job_assignments (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          role_on_job TEXT NOT NULL,
+          assigned_by TEXT,
+          assigned_at TEXT NOT NULL,
+          removed_at TEXT,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS queue_items (
@@ -919,6 +1024,56 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 15,
+    description: "Add crew assignment records for jobs.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS job_assignments (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          role_on_job TEXT NOT NULL,
+          assigned_by TEXT,
+          assigned_at TEXT NOT NULL,
+          removed_at TEXT,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_job_assignments_job_id ON job_assignments(job_id);
+        CREATE INDEX IF NOT EXISTS idx_job_assignments_user_id ON job_assignments(user_id);
+        CREATE INDEX IF NOT EXISTS idx_job_assignments_role_on_job ON job_assignments(role_on_job);
+      `);
+
+      const legacyJobs = database.prepare(`
+        SELECT id, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, created_at AS createdAt, updated_at AS updatedAt
+        FROM jobs
+      `).all();
+
+      const insertAssignment = database.prepare(`
+        INSERT OR IGNORE INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      let sortIndex = 0;
+      for (const job of legacyJobs) {
+        const stamp = job.updatedAt || job.createdAt || isoNow();
+        if (job.assignedForemanId) {
+          insertAssignment.run(`JA-MIG-${job.id}-foreman`, sortIndex, job.id, job.assignedForemanId, "foreman", "", stamp, null, "", stamp, stamp);
+          sortIndex += 1;
+        }
+        if (job.assignedUserId) {
+          insertAssignment.run(`JA-MIG-${job.id}-crew`, sortIndex, job.id, job.assignedUserId, "crew", "", stamp, null, "", stamp, stamp);
+          sortIndex += 1;
+        }
+      }
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -982,6 +1137,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertJobAssignment = database.prepare(`
+    INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertQueueItem = database.prepare(`
     INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -998,12 +1158,14 @@ function writeStateToDb(state) {
   `);
 
   runInTransaction(database, () => {
+    const derivedAssignmentState = buildDerivedJobAssignments(state.jobs, state.jobAssignments);
     database.exec(`
       DELETE FROM sessions;
       DELETE FROM users;
       DELETE FROM customers;
       DELETE FROM lead_status_history;
       DELETE FROM leads;
+      DELETE FROM job_assignments;
       DELETE FROM jobs;
       DELETE FROM queue_items;
       DELETE FROM activity;
@@ -1081,7 +1243,7 @@ function writeStateToDb(state) {
       );
     });
 
-    state.jobs.forEach((job, index) => {
+    derivedAssignmentState.jobs.forEach((job, index) => {
       const normalizedJob = normalizeStoredJob(job);
       insertJob.run(
         normalizedJob.id,
@@ -1117,6 +1279,22 @@ function writeStateToDb(state) {
         normalizedJob.createdAt || isoNow(),
         normalizedJob.updatedAt || normalizedJob.createdAt || isoNow(),
         normalizedJob.archivedAt || null,
+      );
+    });
+
+    derivedAssignmentState.jobAssignments.forEach((assignment, index) => {
+      insertJobAssignment.run(
+        assignment.id,
+        index,
+        assignment.jobId,
+        assignment.userId,
+        normalizeAssignmentRole(assignment.roleOnJob),
+        assignment.assignedBy || "",
+        assignment.assignedAt || assignment.createdAt || isoNow(),
+        assignment.removedAt || null,
+        assignment.notes || "",
+        assignment.createdAt || assignment.assignedAt || isoNow(),
+        assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
       );
     });
 
@@ -1189,6 +1367,13 @@ function readTableState() {
     visibleToForeman: Boolean(job.visibleToForeman),
   }));
 
+  const rawJobAssignments = database.prepare(`
+    SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes, created_at AS createdAt, updated_at AS updatedAt
+    FROM job_assignments
+    ORDER BY sort_index ASC
+  `).all();
+  const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
+
   const queueItems = database.prepare(`
     SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM queue_items
@@ -1210,7 +1395,7 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, customers, leads, leadStatusHistory, jobs, queueItems, activity, auditEvents };
+  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, queueItems, activity, auditEvents };
 }
 
 async function loadInitialState() {

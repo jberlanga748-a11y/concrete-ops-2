@@ -9,9 +9,11 @@ import {
   convertLead,
   convertLeadToCustomer,
   createCustomer,
+  createJobAssignment,
   createJob,
   createLead,
   createQueueItem,
+  deleteJobAssignment,
   deleteJob,
   deleteLead,
   deleteQueueItem,
@@ -27,6 +29,7 @@ import {
   restoreQueueItem,
   toggleQueueItem,
   updateCustomer,
+  updateJobAssignment,
   updateJob,
   updateLead,
 } from "./api";
@@ -130,6 +133,7 @@ const EMPTY_APP_STATE = {
       canCreate: false,
       canManageAll: false,
       canManageField: false,
+      canManageAssignments: false,
       canViewMoney: false,
     },
     safety: {
@@ -1041,7 +1045,174 @@ function LeadDetailPanel({
   );
 }
 
-function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, saveState, disabled, permissions }) {
+const JOB_ASSIGNMENT_ROLE_OPTIONS = [
+  { value: "crew", label: "Crew" },
+  { value: "operator", label: "Operator" },
+  { value: "finisher", label: "Finisher" },
+  { value: "laborer", label: "Laborer" },
+  { value: "driver", label: "Driver" },
+  { value: "other", label: "Other" },
+];
+
+function jobAssignmentRoleLabel(role) {
+  const matched = JOB_ASSIGNMENT_ROLE_OPTIONS.find((option) => option.value === role);
+  if (matched) return matched.label;
+  if (role === "foreman") return "Foreman";
+  return role || "Crew";
+}
+
+function JobCrewSection({
+  job,
+  users,
+  disabled,
+  canManageAssignments,
+  onChangeForeman,
+  onAddAssignment,
+  onUpdateAssignment,
+  onRemoveAssignment,
+}) {
+  const [foremanDraft, setForemanDraft] = useState(job?.foremanAssignment?.userId || job?.assignedForemanId || "");
+  const [crewDraft, setCrewDraft] = useState({
+    userId: "",
+    roleOnJob: "crew",
+    notes: "",
+  });
+
+  useEffect(() => {
+    setForemanDraft(job?.foremanAssignment?.userId || job?.assignedForemanId || "");
+    setCrewDraft({
+      userId: "",
+      roleOnJob: "crew",
+      notes: "",
+    });
+  }, [job?.assignedForemanId, job?.foremanAssignment?.userId, job?.id]);
+
+  const foremen = users.filter((user) => user.role === "Foreman");
+  const crewUsers = users.filter((user) => user.role === "Employee");
+  const visibleCrew = job?.crewAssignments || [];
+  const foremanAssignment = job?.foremanAssignment || null;
+
+  function handleAddAssignment(event) {
+    event.preventDefault();
+    if (!crewDraft.userId) return;
+    onAddAssignment(crewDraft);
+    setCrewDraft({
+      userId: "",
+      roleOnJob: "crew",
+      notes: "",
+    });
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-slate-950">Crew assignments</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {canManageAssignments ? "Assign one foreman and multiple crew members to the job." : "View the field-safe crew assigned to this job."}
+          </p>
+        </div>
+        <Badge tone={visibleCrew.length > 0 || foremanAssignment ? "blue" : "slate"}>
+          {foremanAssignment ? `${visibleCrew.length} crew + foreman` : `${visibleCrew.length} crew`}
+        </Badge>
+      </div>
+
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Assigned foreman</p>
+        {canManageAssignments ? (
+          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
+            <SelectField label="Foreman" value={foremanDraft} onChange={(event) => setForemanDraft(event.target.value)} className="w-full">
+              <option value="">Unassigned</option>
+              {foremen.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            </SelectField>
+            <Button
+              type="button"
+              size="sm"
+              className="md:mb-0.5"
+              onClick={() => onChangeForeman(foremanDraft)}
+              disabled={disabled || foremanDraft === (foremanAssignment?.userId || "")}
+            >
+              Save foreman
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+            <p className="font-black text-slate-950">{foremanAssignment?.userName || "No foreman assigned"}</p>
+            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} · ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Assigned crew</p>
+        <p className="mt-1 text-xs text-slate-500">Crew roles stay field-safe for foremen and employees.</p>
+
+        {visibleCrew.length === 0 ? (
+          <div className="mt-3 rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-4 text-sm text-slate-500">No crew assigned yet.</div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {visibleCrew.map((assignment) => (
+              <div key={assignment.id} className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-black text-slate-950">{assignment.userName}</p>
+                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} · Assigned {formatDateTime(assignment.assignedAt)}</p>
+                  </div>
+                  {canManageAssignments ? (
+                    <div className="flex flex-col gap-2 md:flex-row md:items-end">
+                      <SelectField label="Role" value={assignment.roleOnJob} onChange={(event) => onUpdateAssignment(assignment.id, { roleOnJob: event.target.value })}>
+                        {JOB_ASSIGNMENT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        <option value="foreman">Foreman</option>
+                      </SelectField>
+                      <Button type="button" variant="ghost" size="sm" className="md:mb-0.5" onClick={() => onRemoveAssignment(assignment.id)} disabled={disabled}>Remove</Button>
+                    </div>
+                  ) : (
+                    <Badge tone="slate">{jobAssignmentRoleLabel(assignment.roleOnJob)}</Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {canManageAssignments ? (
+          <form className="mt-4 grid gap-3 border-t border-blue-100 pt-4" onSubmit={handleAddAssignment}>
+            <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
+              <SelectField label="Crew member" value={crewDraft.userId} onChange={(event) => setCrewDraft((current) => ({ ...current, userId: event.target.value }))}>
+                <option value="">Select employee</option>
+                {crewUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </SelectField>
+              <SelectField label="Role on job" value={crewDraft.roleOnJob} onChange={(event) => setCrewDraft((current) => ({ ...current, roleOnJob: event.target.value }))}>
+                {JOB_ASSIGNMENT_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </SelectField>
+            </div>
+            <TextAreaField label="Assignment note" value={crewDraft.notes} onChange={(event) => setCrewDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional staging or specialty detail." />
+            <Button type="submit" disabled={disabled || !crewDraft.userId}>
+              <Icon name="plus" />
+              Add crew member
+            </Button>
+          </form>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function JobDetailPanel({
+  job,
+  users,
+  onFieldChange,
+  onArchive,
+  onRestore,
+  onDelete,
+  onChangeForeman,
+  onAddAssignment,
+  onUpdateAssignment,
+  onRemoveAssignment,
+  saveState,
+  disabled,
+  permissions,
+}) {
   if (!job) {
     return (
       <Card className="p-5">
@@ -1055,6 +1226,7 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
   const canManageField = job.canManageField || canManageAll;
   const canEditField = Boolean(canManageField);
   const canArchive = Boolean(canManageAll);
+  const canManageAssignments = Boolean(permissions?.jobs?.canManageAssignments);
   const notesValue = canManageAll ? (job.notes || "") : (job.fieldNotes || "");
   const statusValue = normalizeJobStatus(job.status || job.stage);
 
@@ -1117,10 +1289,6 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
         {canManageAll ? (
           <>
             <div className="grid gap-3 md:grid-cols-2">
-              <InputField label="Assigned foreman" value={job.assignedForemanId || ""} onChange={(event) => onFieldChange("assignedForemanId", event.target.value)} disabled={disabled} />
-              <InputField label="Assigned employee" value={job.assignedUserId || ""} onChange={(event) => onFieldChange("assignedUserId", event.target.value)} disabled={disabled} />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
               <InputField label="Crew" value={job.crew || ""} onChange={(event) => onFieldChange("crew", event.target.value)} disabled={disabled} />
               <InputField label="Crew size needed" type="number" min="0" value={job.crewSizeNeeded || 0} onChange={(event) => onFieldChange("crewSizeNeeded", Number(event.target.value))} disabled={disabled} />
             </div>
@@ -1140,6 +1308,16 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
         <TextAreaField label="Safety notes" value={job.safetyNotes || ""} onChange={(event) => onFieldChange("safetyNotes", event.target.value)} disabled={!canManageAll || disabled} />
         <TextAreaField label="Material notes" value={job.materialNotes || ""} onChange={(event) => onFieldChange("materialNotes", event.target.value)} disabled={!canManageAll || disabled} />
         <TextAreaField label={canManageAll ? "Office notes" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
+        <JobCrewSection
+          job={job}
+          users={users}
+          disabled={disabled}
+          canManageAssignments={canManageAssignments}
+          onChangeForeman={onChangeForeman}
+          onAddAssignment={onAddAssignment}
+          onUpdateAssignment={onUpdateAssignment}
+          onRemoveAssignment={onRemoveAssignment}
+        />
       </div>
     </Card>
   );
@@ -1534,7 +1712,16 @@ function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, cu
   );
 }
 
-function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users }) {
+function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCreate }) {
+  if (!canCreate) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Scheduling" description="Job creation stays with office scheduling roles." />
+        <StateCard title="Read-only planning" description="Foremen and employees can review assigned work here, but only office/admin roles can create or reschedule jobs." tone="slate" />
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-5">
       <SectionHeader title="Create job" description="Create a schedulable field record with safe planning details only." />
@@ -1562,7 +1749,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users }) {
             <option value="">Unassigned</option>
             {users.filter((user) => user.role === "Foreman").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
-          <SelectField label="Assigned employee" value={draft.assignedUserId} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value }))}>
+          <SelectField label="Initial crew member" value={draft.assignedUserId} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value }))}>
             <option value="">Unassigned</option>
             {users.filter((user) => user.role === "Employee").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
@@ -1785,11 +1972,17 @@ function JobsPage({
   onArchiveJob,
   onRestoreJob,
   onDeleteJob,
+  onChangeForeman,
+  onAddAssignment,
+  onUpdateAssignment,
+  onRemoveAssignment,
   busy,
   jobSaveState,
   permissions,
 }) {
   const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : permissions.jobs.canManageField ? "field execution" : "assigned field work";
+  const pageTitle = permissions.jobs.canManageAll ? "Jobs" : permissions.jobs.canManageField ? "My Crew" : "My Job";
+  const pageEyebrow = permissions.jobs.canManageAll ? "Field Ops" : "Field Workspace";
   const jobListState = useMemo(() => deriveJobListState(rows, {
     status: filter,
     query: search,
@@ -1801,7 +1994,7 @@ function JobsPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Field Ops" title="Jobs" description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
+      <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
@@ -1825,8 +2018,22 @@ function JobsPage({
           <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
         <div className="space-y-4">
-          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} />
-          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} onArchive={onArchiveJob} onRestore={onRestoreJob} onDelete={onDeleteJob} saveState={jobSaveState} disabled={busy} permissions={permissions} />
+          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
+          <JobDetailPanel
+            job={selectedJob}
+            users={users}
+            onFieldChange={onJobFieldChange}
+            onArchive={onArchiveJob}
+            onRestore={onRestoreJob}
+            onDelete={onDeleteJob}
+            onChangeForeman={onChangeForeman}
+            onAddAssignment={onAddAssignment}
+            onUpdateAssignment={onUpdateAssignment}
+            onRemoveAssignment={onRemoveAssignment}
+            saveState={jobSaveState}
+            disabled={busy}
+            permissions={permissions}
+          />
         </div>
       </div>
     </div>
@@ -2785,6 +2992,37 @@ export default function App() {
     scheduleRecordSave("job", selectedJob.id, { [field]: value });
   }
 
+  function handleChangeJobForeman(nextForemanId) {
+    if (!selectedJob || !appState.permissions.jobs.canManageAssignments) return;
+    const currentForemanId = selectedJob.foremanAssignment?.userId || "";
+    if (nextForemanId === currentForemanId) return;
+
+    runMutation(() => {
+      if (!nextForemanId && selectedJob.foremanAssignment?.id) {
+        return deleteJobAssignment(sessionToken, selectedJob.id, selectedJob.foremanAssignment.id);
+      }
+      return createJobAssignment(sessionToken, selectedJob.id, {
+        userId: nextForemanId,
+        roleOnJob: "foreman",
+      });
+    });
+  }
+
+  function handleAddJobAssignment(assignment) {
+    if (!selectedJob || !appState.permissions.jobs.canManageAssignments) return;
+    runMutation(() => createJobAssignment(sessionToken, selectedJob.id, assignment));
+  }
+
+  function handleUpdateJobAssignmentRole(assignmentId, patch) {
+    if (!selectedJob || !appState.permissions.jobs.canManageAssignments) return;
+    runMutation(() => updateJobAssignment(sessionToken, selectedJob.id, assignmentId, patch));
+  }
+
+  function handleRemoveJobAssignment(assignmentId) {
+    if (!selectedJob || !appState.permissions.jobs.canManageAssignments) return;
+    runMutation(() => deleteJobAssignment(sessionToken, selectedJob.id, assignmentId));
+  }
+
   function handleCreateLead(event) {
     event.preventDefault();
     if (!appState.permissions.leads.canManage) return;
@@ -3036,6 +3274,10 @@ export default function App() {
               onSelectJob={navigateToJob}
               selectedJob={selectedJob}
               onJobFieldChange={handleJobFieldChange}
+              onChangeForeman={handleChangeJobForeman}
+              onAddAssignment={handleAddJobAssignment}
+              onUpdateAssignment={handleUpdateJobAssignmentRole}
+              onRemoveAssignment={handleRemoveJobAssignment}
               jobSaveState={jobSaveState}
               onArchiveJob={handleArchiveJob}
               onRestoreJob={handleRestoreJob}

@@ -94,6 +94,23 @@ export function canViewJobMoney(user) {
   return isOfficeManager(user) || isEstimator(user);
 }
 
+function hasJobAssignment(job, userId, roleOnJob = null) {
+  if (!job || !userId) return false;
+  const assignments = Array.isArray(job.assignments) ? job.assignments.filter((assignment) => !assignment.removedAt) : [];
+  if (roleOnJob) {
+    return assignments.some((assignment) => assignment.userId === userId && assignment.roleOnJob === roleOnJob);
+  }
+  if (assignments.length > 0) {
+    return assignments.some((assignment) => assignment.userId === userId);
+  }
+
+  if (roleOnJob === "foreman") {
+    return job.assignedForemanId === userId;
+  }
+
+  return job.assignedUserId === userId || job.assignedForemanId === userId;
+}
+
 function isFutureScheduledJob(job) {
   if (!job?.scheduledStart) return false;
   const parsed = new Date(job.scheduledStart);
@@ -105,12 +122,11 @@ export function canViewJob(job, user) {
   if (!user || !job) return false;
   if (canViewAllJobs(user) || isEstimator(user)) return true;
   if (isForeman(user)) {
-    return job.assignedForemanId === user.id
-      || job.assignedUserId === user.id
+    return hasJobAssignment(job, user.id)
       || ((Boolean(job.fieldPlanningVisible) || Boolean(job.visibleToForeman)) && isFutureScheduledJob(job));
   }
   if (isEmployee(user)) {
-    return job.assignedUserId === user.id;
+    return hasJobAssignment(job, user.id);
   }
   return false;
 }
@@ -119,7 +135,7 @@ export function canManageJob(user, job) {
   if (!user || !job) return false;
   if (canViewAllJobs(user)) return true;
   if (isForeman(user)) {
-    return job.assignedForemanId === user.id || job.assignedUserId === user.id;
+    return hasJobAssignment(job, user.id, "foreman");
   }
   return false;
 }
