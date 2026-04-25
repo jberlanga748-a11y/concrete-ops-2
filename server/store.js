@@ -27,9 +27,18 @@ function getLegacyJsonFile() {
 export function getDataPaths() {
   return {
     dataDir: getDataDir(),
+    backupDir: serverConfig.backupDir,
     sqliteFile: getSqliteFile(),
     legacyJsonFile: getLegacyJsonFile(),
   };
+}
+
+function backupTimestamp() {
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z").replace("T", "-");
+}
+
+function sqliteStringLiteral(value) {
+  return value.replaceAll("'", "''");
 }
 
 function passwordHash(password, salt = crypto.randomBytes(16).toString("hex")) {
@@ -464,4 +473,33 @@ export async function resetDb() {
   const next = createSeedState();
   writeStateToDb(next);
   return readTableState();
+}
+
+export async function createBackupArtifacts() {
+  await ensureDb();
+  const database = createDatabaseConnection();
+  const exportedAt = new Date().toISOString();
+  const stamp = backupTimestamp();
+  const { backupDir } = getDataPaths();
+  const sqliteBackupFile = path.join(backupDir, `app-data-${stamp}.sqlite`);
+  const jsonExportFile = path.join(backupDir, `app-data-${stamp}.json`);
+  const exportPayload = {
+    exportedAt,
+    source: getDataPaths(),
+    state: readTableState(),
+  };
+
+  await fs.mkdir(backupDir, { recursive: true });
+  await fs.rm(sqliteBackupFile, { force: true });
+  await fs.rm(jsonExportFile, { force: true });
+
+  database.exec(`VACUUM INTO '${sqliteStringLiteral(sqliteBackupFile)}'`);
+  await fs.writeFile(jsonExportFile, `${JSON.stringify(exportPayload, null, 2)}\n`, "utf8");
+
+  return {
+    exportedAt,
+    backupDir,
+    sqliteBackupFile,
+    jsonExportFile,
+  };
 }

@@ -49,6 +49,7 @@ The backend now reads its runtime settings from a shared validated config module
 
 - `PORT`: API/server port, defaults to `4000`
 - `DATA_DIR`: directory for SQLite files, defaults to `./data`
+- `BACKUP_DIR`: directory for generated backup/export artifacts, defaults to `./data/backups`
 - `SESSION_TTL_HOURS`: rolling auth session lifetime, defaults to `168`
 - `SMOKE_TEST_PORT`: port used by `npm run verify:server`, defaults to `4100`
 - `NODE_ENV`: `development`, `test`, or `production`
@@ -68,6 +69,15 @@ Each HTTP response also includes an `X-Request-Id` header, and API error payload
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
+
+## Backup and export
+
+Run `npm run backup:data` to create two timestamped artifacts:
+
+- a consistent SQLite backup created with SQLite's `VACUUM INTO`
+- a JSON export of the current application state
+
+By default those files are written under `data/backups`. The JSON export includes operational data, users, sessions, and password hashes, so treat it as sensitive local backup material.
 
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 

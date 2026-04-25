@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 const DEFAULT_DATA_DIR = path.join(rootDir, "data");
+const DEFAULT_BACKUP_DIR = path.join(DEFAULT_DATA_DIR, "backups");
 const DEFAULT_PORT = 4000;
 const DEFAULT_SMOKE_TEST_PORT = 4100;
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7;
@@ -41,14 +42,14 @@ function parseChoice(value, fieldName, allowedValues, fallback) {
   return normalized;
 }
 
-function parseDataDir(value) {
+function parseDirectory(value, fallback, fieldName) {
   if (value == null || value === "") {
-    return DEFAULT_DATA_DIR;
+    return fallback;
   }
 
   const normalized = String(value).trim();
   if (!normalized) {
-    throw new Error("DATA_DIR must not be empty.");
+    throw new Error(`${fieldName} must not be empty.`);
   }
 
   return path.isAbsolute(normalized) ? normalized : path.join(rootDir, normalized);
@@ -66,7 +67,8 @@ export function createServerConfig(env = process.env) {
     logLevel,
     port,
     smokeTestPort,
-    dataDir: parseDataDir(env.DATA_DIR),
+    dataDir: parseDirectory(env.DATA_DIR, DEFAULT_DATA_DIR, "DATA_DIR"),
+    backupDir: parseDirectory(env.BACKUP_DIR, DEFAULT_BACKUP_DIR, "BACKUP_DIR"),
     sessionTtlHours,
     sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,
   });
