@@ -79,6 +79,8 @@ Run `npm run backup:data` to create two timestamped artifacts:
 
 By default those files are written under `data/backups`. The JSON export includes operational data, users, sessions, and password hashes, so treat it as sensitive local backup material.
 
+Leads, jobs, queue items, and activity entries now also carry `createdAt` and `updatedAt` timestamps so record detail views and future audit history can rely on durable backend timestamps instead of client-only timing guesses.
+
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 
 Demo sessions now use rolling expiration and are cleaned up when they expire.

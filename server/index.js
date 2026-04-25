@@ -117,12 +117,22 @@ function findRequiredRecord(records, id, resourceName) {
   return record;
 }
 
+function markUpdated(record, changedAt = new Date().toISOString()) {
+  if (!record.createdAt) {
+    record.createdAt = changedAt;
+  }
+  record.updatedAt = changedAt;
+}
+
 function appendActivity(state, title, detail) {
+  const createdAt = new Date().toISOString();
   state.activity.unshift({
     id: makeId("A"),
     time: timestamp(),
     title,
     detail,
+    createdAt,
+    updatedAt: createdAt,
   });
   state.activity = state.activity.slice(0, 12);
 }
@@ -331,6 +341,7 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
+  const createdAt = new Date().toISOString();
   const newLead = {
     id: makeId("L"),
     customer: requiredString(payload.customer, "Customer"),
@@ -343,6 +354,8 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
     age: "Just now",
     nextStep: optionalString(payload.nextStep, "Initial call"),
     notes: optionalString(payload.notes, "No notes yet."),
+    createdAt,
+    updatedAt: createdAt,
   };
 
   const nextState = await updateDb((draft) => {
@@ -353,6 +366,8 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
       meta: `${newLead.project} - ${newLead.city}`,
       status: "Due today",
       done: false,
+      createdAt,
+      updatedAt: createdAt,
     });
     appendActivity(draft, "Lead created", `${newLead.customer} entered for ${newLead.project}.`);
     return draft;
@@ -364,6 +379,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
 app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
+  const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
@@ -377,6 +393,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
       nextStep: updates.nextStep == null ? lead.nextStep : requiredString(updates.nextStep, "Next step"),
       notes: updates.notes == null ? lead.notes : requiredString(updates.notes, "Notes"),
     });
+    markUpdated(lead, changedAt);
 
     appendActivity(draft, "Lead updated", `${lead.customer} details were updated.`);
     return draft;
@@ -387,6 +404,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
+  const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
@@ -401,11 +419,14 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       due: "This week",
       progress: 10,
       notes: lead.notes,
+      createdAt: changedAt,
+      updatedAt: changedAt,
     };
 
     draft.jobs.unshift(newJob);
     lead.status = "Approved";
     lead.nextStep = "Moved into job schedule";
+    markUpdated(lead, changedAt);
     appendActivity(draft, "Lead converted to job", `${lead.customer} moved into ${newJob.job}.`);
     return draft;
   });
@@ -415,6 +436,7 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
+  const createdAt = new Date().toISOString();
   const newJob = {
     id: makeId("J"),
     job: requiredString(payload.job, "Job name"),
@@ -425,6 +447,8 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     due: optionalString(payload.due, "TBD"),
     progress: optionalProgressNumber(payload.progress, 0),
     notes: optionalString(payload.notes, "No notes yet."),
+    createdAt,
+    updatedAt: createdAt,
   };
 
   const nextState = await updateDb((draft) => {
@@ -439,6 +463,7 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
 app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
+  const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
@@ -452,6 +477,7 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
       next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
       notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
     });
+    markUpdated(job, changedAt);
 
     appendActivity(draft, "Job updated", `${job.job} field details were updated.`);
     return draft;
@@ -462,12 +488,15 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
+  const createdAt = new Date().toISOString();
   const newTask = {
     id: makeId("Q"),
     title: requiredString(payload.title, "Task title"),
     meta: optionalString(payload.meta, "General operations follow-up"),
     status: optionalEnum(payload.status, QUEUE_STATUSES, "Status", "Due today"),
     done: false,
+    createdAt,
+    updatedAt: createdAt,
   };
 
   const nextState = await updateDb((draft) => {
@@ -481,10 +510,12 @@ app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
 
 app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
+  const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     const task = findRequiredRecord(draft.queueItems, id, "Queue item");
     task.done = !task.done;
+    markUpdated(task, changedAt);
     appendActivity(draft, task.done ? "Queue item completed" : "Queue item reopened", task.title);
     return draft;
   });

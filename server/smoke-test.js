@@ -125,9 +125,27 @@ async function run() {
     });
 
     const after = await request("/api/bootstrap", { headers });
+    const createdLead = after.leads[0];
 
     if (after.leads.length !== before.leads.length + 1) {
       throw new Error("Expected the smoke test to create exactly one lead.");
+    }
+    if (!createdLead?.createdAt || !createdLead?.updatedAt || createdLead.createdAt !== createdLead.updatedAt) {
+      throw new Error("Expected newly created leads to include matching createdAt and updatedAt timestamps.");
+    }
+
+    await request(`/api/leads/${createdLead.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        notes: "Timestamp verification update",
+      }),
+    });
+
+    const updated = await request("/api/bootstrap", { headers });
+    const updatedLead = updated.leads.find((lead) => lead.id === createdLead.id);
+    if (!updatedLead?.createdAt || !updatedLead?.updatedAt || updatedLead.createdAt === updatedLead.updatedAt) {
+      throw new Error("Expected lead updates to preserve createdAt and advance updatedAt.");
     }
 
     await expectStatus("/api/leads", 400, {

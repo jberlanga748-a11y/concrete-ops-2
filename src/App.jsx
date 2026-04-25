@@ -146,6 +146,18 @@ function currency(value) {
   }).format(Number(value) || 0);
 }
 
+function formatDateTime(value) {
+  if (!value) return "Not recorded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
 function iconStrokeProps(className) {
   return {
     viewBox: "0 0 24 24",
@@ -339,6 +351,21 @@ function SaveStateText({ saveState, align = "left" }) {
     <p className={`text-xs font-black uppercase tracking-[0.14em] ${palette[saveState.status] || palette.idle} ${align === "right" ? "text-right" : ""}`}>
       {saveState.message}
     </p>
+  );
+}
+
+function TimestampMeta({ createdAt, updatedAt }) {
+  return (
+    <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-slate-600 md:grid-cols-2">
+      <div>
+        <p className="font-black uppercase tracking-[0.14em] text-slate-400">Created</p>
+        <p className="mt-1 font-bold text-slate-700">{formatDateTime(createdAt)}</p>
+      </div>
+      <div>
+        <p className="font-black uppercase tracking-[0.14em] text-slate-400">Last updated</p>
+        <p className="mt-1 font-bold text-slate-700">{formatDateTime(updatedAt)}</p>
+      </div>
+    </div>
   );
 }
 
@@ -628,6 +655,7 @@ function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, di
               <div>
                 <p className={`text-sm font-black ${item.done ? "text-emerald-800 line-through" : "text-slate-950"}`}>{item.title}</p>
                 <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Updated {formatDateTime(item.updatedAt)}</p>
               </div>
             </div>
             <StatusBadge status={item.done ? "Done" : item.status} />
@@ -678,6 +706,7 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled, saveState
       />
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
+        <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
         <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Status" value={lead.status} onChange={(event) => onFieldChange("status", event.target.value)}>
@@ -719,6 +748,7 @@ function JobDetailPanel({ job, onFieldChange, saveState }) {
       <SectionHeader title={job.job} description={`${job.id} · ${job.customer}`} />
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
+        <TimestampMeta createdAt={job.createdAt} updatedAt={job.updatedAt} />
         <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} />
         <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -752,6 +782,7 @@ function ActivityPanel({ activity }) {
             <p className="text-xs font-black uppercase tracking-widest text-blue-700">{item.time}</p>
             <p className="mt-1 text-sm font-black text-slate-950">{item.title}</p>
             <p className="mt-1 text-xs leading-5 text-slate-500">{item.detail}</p>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.createdAt)}</p>
           </div>
         ))}
       </div>
