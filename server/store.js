@@ -10,6 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
 const sqliteFile = path.join(dataDir, "app-data.sqlite");
 const legacyJsonFile = path.join(dataDir, "app-data.json");
+const SCHEMA_VERSION_KEY = "schema_version";
+const CURRENT_SCHEMA_VERSION = 2;
 
 let db;
 let writeChain = Promise.resolve();
@@ -86,66 +88,9 @@ function createDatabaseConnection() {
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
 
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      role TEXT NOT NULL,
-      password_hash TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token_hash TEXT NOT NULL UNIQUE,
-      created_at TEXT NOT NULL,
-      last_seen_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS leads (
-      id TEXT PRIMARY KEY,
-      sort_index INTEGER NOT NULL,
-      customer TEXT NOT NULL,
-      city TEXT NOT NULL,
-      project TEXT NOT NULL,
-      status TEXT NOT NULL,
-      priority TEXT NOT NULL,
-      value INTEGER NOT NULL,
-      owner TEXT NOT NULL,
-      age TEXT NOT NULL,
-      next_step TEXT NOT NULL,
-      notes TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS jobs (
-      id TEXT PRIMARY KEY,
-      sort_index INTEGER NOT NULL,
-      job TEXT NOT NULL,
-      customer TEXT NOT NULL,
-      stage TEXT NOT NULL,
-      crew TEXT NOT NULL,
-      next_step TEXT NOT NULL,
-      due TEXT NOT NULL,
-      progress INTEGER NOT NULL,
-      notes TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS queue_items (
-      id TEXT PRIMARY KEY,
-      sort_index INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      meta TEXT NOT NULL,
-      status TEXT NOT NULL,
-      done INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS activity (
-      id TEXT PRIMARY KEY,
-      sort_index INTEGER NOT NULL,
-      time TEXT NOT NULL,
-      title TEXT NOT NULL,
-      detail TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
   `);
 
@@ -160,8 +105,141 @@ function jsonExists() {
   return fs.access(legacyJsonFile).then(() => true).catch(() => false);
 }
 
+function readSchemaVersion(database) {
+  const row = database.prepare(`
+    SELECT value
+    FROM app_meta
+    WHERE key = ?
+  `).get(SCHEMA_VERSION_KEY);
+
+  return row ? Number(row.value) : 0;
+}
+
+function setSchemaVersion(database, version) {
+  database.prepare(`
+    INSERT INTO app_meta (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(SCHEMA_VERSION_KEY, String(version));
+}
+
+const MIGRATIONS = [
+  {
+    version: 1,
+    description: "Create the base application tables.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          email TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          password_hash TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          token_hash TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS leads (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          customer TEXT NOT NULL,
+          city TEXT NOT NULL,
+          project TEXT NOT NULL,
+          status TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          value INTEGER NOT NULL,
+          owner TEXT NOT NULL,
+          age TEXT NOT NULL,
+          next_step TEXT NOT NULL,
+          notes TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS jobs (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job TEXT NOT NULL,
+          customer TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          crew TEXT NOT NULL,
+          next_step TEXT NOT NULL,
+          due TEXT NOT NULL,
+          progress INTEGER NOT NULL,
+          notes TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS queue_items (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          meta TEXT NOT NULL,
+          status TEXT NOT NULL,
+          done INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS activity (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          time TEXT NOT NULL,
+          title TEXT NOT NULL,
+          detail TEXT NOT NULL
+        );
+      `);
+    },
+  },
+  {
+    version: 2,
+    description: "Add indexes and schema metadata for future migrations.",
+    up(database) {
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_last_seen_at ON sessions(last_seen_at);
+        CREATE INDEX IF NOT EXISTS idx_leads_sort_index ON leads(sort_index);
+        CREATE INDEX IF NOT EXISTS idx_jobs_sort_index ON jobs(sort_index);
+        CREATE INDEX IF NOT EXISTS idx_queue_items_sort_index ON queue_items(sort_index);
+        CREATE INDEX IF NOT EXISTS idx_activity_sort_index ON activity(sort_index);
+      `);
+    },
+  },
+];
+
+function runInTransaction(database, work) {
+  try {
+    database.exec("BEGIN");
+    const result = work();
+    database.exec("COMMIT");
+    return result;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function runMigrations(database) {
+  let version = readSchemaVersion(database);
+
+  for (const migration of MIGRATIONS) {
+    if (migration.version <= version) continue;
+
+    runInTransaction(database, () => {
+      migration.up(database);
+      setSchemaVersion(database, migration.version);
+    });
+
+    version = migration.version;
+  }
+}
+
 function writeStateToDb(state) {
   const database = createDatabaseConnection();
+  runMigrations(database);
+
   const insertUser = database.prepare(`
     INSERT INTO users (id, email, name, role, password_hash)
     VALUES (?, ?, ?, ?, ?)
@@ -192,8 +270,7 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?)
   `);
 
-  try {
-    database.exec("BEGIN");
+  runInTransaction(database, () => {
     database.exec(`
       DELETE FROM sessions;
       DELETE FROM users;
@@ -226,12 +303,7 @@ function writeStateToDb(state) {
     state.activity.forEach((item, index) => {
       insertActivity.run(item.id, index, item.time, item.title, item.detail);
     });
-
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  });
 }
 
 function readTableState() {
@@ -287,17 +359,24 @@ async function loadInitialState() {
 
 export async function ensureDb() {
   await fs.mkdir(dataDir, { recursive: true });
+  createDatabaseConnection();
+  runMigrations(db);
 
-  if (!(await dbExists())) {
-    createDatabaseConnection();
+  const hasSqlite = await dbExists();
+  const hasLegacyJson = await jsonExists();
+  const currentState = readTableState();
+
+  if (hasSqlite && currentState.users.length > 0) {
+    return;
+  }
+
+  if (hasLegacyJson) {
     writeStateToDb(await loadInitialState());
     return;
   }
 
-  createDatabaseConnection();
-  const existingState = readTableState();
-  if (existingState.users.length === 0) {
-    writeStateToDb(await loadInitialState());
+  if (currentState.users.length === 0) {
+    writeStateToDb(createSeedState());
   }
 }
 
