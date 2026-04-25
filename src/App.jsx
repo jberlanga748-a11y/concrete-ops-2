@@ -179,6 +179,52 @@ const EMPTY_APP_STATE = {
   },
 };
 
+function mergePermissionScope(defaults, incoming) {
+  return {
+    ...defaults,
+    ...(incoming || {}),
+  };
+}
+
+function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
+  const source = nextState || {};
+  const fallback = fallbackState || EMPTY_APP_STATE;
+  return {
+    user: source.user || null,
+    companySettings: {
+      ...EMPTY_APP_STATE.companySettings,
+      ...(fallback.companySettings || {}),
+      ...(source.companySettings || {}),
+    },
+    users: Array.isArray(source.users) ? source.users : Array.isArray(fallback.users) ? fallback.users : EMPTY_APP_STATE.users,
+    customers: Array.isArray(source.customers) ? source.customers : Array.isArray(fallback.customers) ? fallback.customers : EMPTY_APP_STATE.customers,
+    leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
+    leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
+    jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
+    queueItems: Array.isArray(source.queueItems) ? source.queueItems : Array.isArray(fallback.queueItems) ? fallback.queueItems : EMPTY_APP_STATE.queueItems,
+    activity: Array.isArray(source.activity) ? source.activity : Array.isArray(fallback.activity) ? fallback.activity : EMPTY_APP_STATE.activity,
+    auditEvents: Array.isArray(source.auditEvents) ? source.auditEvents : Array.isArray(fallback.auditEvents) ? fallback.auditEvents : EMPTY_APP_STATE.auditEvents,
+    permissions: {
+      users: mergePermissionScope(EMPTY_APP_STATE.permissions.users, source.permissions?.users || fallback.permissions?.users),
+      customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
+      leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
+      estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
+      jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
+      safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
+      calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
+      toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
+      settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
+      changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
+      audit: mergePermissionScope(EMPTY_APP_STATE.permissions.audit, source.permissions?.audit || fallback.permissions?.audit),
+    },
+    stats: {
+      ...EMPTY_APP_STATE.stats,
+      ...(fallback.stats || {}),
+      ...(source.stats || {}),
+    },
+  };
+}
+
 const INITIAL_LEAD_FORM = {
   customer: "",
   customerId: "",
@@ -561,6 +607,26 @@ function LoadingScreen({ label = "Loading workspace..." }) {
         </div>
         <p className="mt-4 text-lg font-black text-slate-950">{label}</p>
         <p className="mt-2 text-sm text-slate-500">Reconnecting to the Concrete Ops API.</p>
+      </Card>
+    </div>
+  );
+}
+
+function StartupFallbackScreen({ message, onRetry, onClearSession }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
+      <Card className="w-full max-w-lg p-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-red-100 text-red-700">
+          <Icon name="alert" className="h-6 w-6" />
+        </div>
+        <p className="mt-4 text-lg font-black text-slate-950">Workspace startup failed</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {message || "Concrete Ops hit a startup problem before the workspace could render."}
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={onRetry}>Retry startup</Button>
+          <Button variant="ghost" onClick={onClearSession}>Return to login</Button>
+        </div>
       </Card>
     </div>
   );
@@ -2671,6 +2737,7 @@ export default function App() {
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
   const [userProvisionNotice, setUserProvisionNotice] = useState(null);
   const [backendStatus, setBackendStatus] = useState("checking");
+  const [startupError, setStartupError] = useState("");
   const [recordSaveState, setRecordSaveState] = useState({
     customer: { id: "", status: "idle", message: "Autosave ready" },
     lead: { id: "", status: "idle", message: "Autosave ready" },
@@ -2717,20 +2784,7 @@ export default function App() {
   }
 
   function applyBootstrap(nextState) {
-    setAppState({
-      user: nextState.user,
-      companySettings: nextState.companySettings || EMPTY_APP_STATE.companySettings,
-      users: nextState.users,
-      customers: nextState.customers,
-      leads: nextState.leads,
-      leadStatusHistory: nextState.leadStatusHistory,
-      jobs: nextState.jobs,
-      queueItems: nextState.queueItems,
-      activity: nextState.activity,
-      auditEvents: nextState.auditEvents,
-      permissions: nextState.permissions,
-      stats: nextState.stats,
-    });
+    setAppState(normalizeAppState(nextState));
   }
 
   function clearAutosaveTimer(kind) {
@@ -2763,22 +2817,23 @@ export default function App() {
 
   function mergeAutosaveResponse(kind, recordId, version, nextState) {
     setAppState((current) => {
+      const normalizedNextState = normalizeAppState(nextState, current);
       const currentVersion = getAutosaveVersion(kind, recordId);
       const shouldReplaceRecord = currentVersion === version;
 
       return {
         ...current,
-        companySettings: nextState.companySettings || current.companySettings,
-        users: nextState.users,
-        customers: kind === "customer" && !shouldReplaceRecord ? current.customers : nextState.customers,
-        activity: nextState.activity,
-        auditEvents: nextState.auditEvents,
-        permissions: nextState.permissions,
-        leads: kind === "lead" && !shouldReplaceRecord ? current.leads : nextState.leads,
-        leadStatusHistory: nextState.leadStatusHistory,
-        jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : nextState.jobs,
-        queueItems: nextState.queueItems,
-        stats: nextState.stats,
+        companySettings: normalizedNextState.companySettings,
+        users: normalizedNextState.users,
+        customers: kind === "customer" && !shouldReplaceRecord ? current.customers : normalizedNextState.customers,
+        activity: normalizedNextState.activity,
+        auditEvents: normalizedNextState.auditEvents,
+        permissions: normalizedNextState.permissions,
+        leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
+        leadStatusHistory: normalizedNextState.leadStatusHistory,
+        jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
+        queueItems: normalizedNextState.queueItems,
+        stats: normalizedNextState.stats,
       };
     });
   }
@@ -2817,6 +2872,7 @@ export default function App() {
     setSessionToken("");
     setAuthStatus("loggedOut");
     setAppState(EMPTY_APP_STATE);
+    setStartupError("");
     setSelectedCustomerId("");
     setSelectedLeadId("");
     setSelectedJobId("");
@@ -2904,15 +2960,18 @@ export default function App() {
 
   async function bootstrap(token) {
     setBusy(true);
+    setStartupError("");
     try {
       const data = await getBootstrap(token);
       applyBootstrap(data);
       setAuthStatus("authenticated");
       setErrorMessage("");
     } catch (error) {
-      if (error.status === 401) {
+      if (error.status === 401 || error.status === 403) {
+        setLoginError(error.message || "Your session is no longer valid. Sign in again.");
         clearSession();
       } else {
+        setStartupError(error.message || "Could not load the authenticated workspace.");
         setErrorMessage(error.message);
       }
     } finally {
@@ -3100,6 +3159,7 @@ export default function App() {
       setBackendStatus("online");
       window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
       setSessionToken(result.token);
+      setStartupError("");
       setAuthStatus("checking");
     } catch (error) {
       if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
@@ -3129,6 +3189,7 @@ export default function App() {
       applyBootstrap(result);
       window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
       setSessionToken(result.token);
+      setStartupError("");
       setAuthStatus("authenticated");
       setSetupDraft(INITIAL_SETUP_FORM);
       setLoginError("");
@@ -3452,6 +3513,9 @@ export default function App() {
   }
 
   if (authStatus === "checking") {
+    if (startupError) {
+      return <StartupFallbackScreen message={startupError} onRetry={() => bootstrap(sessionToken)} onClearSession={clearSession} />;
+    }
     return <LoadingScreen label="Loading authenticated workspace..." />;
   }
 
