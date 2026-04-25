@@ -36,7 +36,6 @@ import {
   canManageChangeOrders,
   canManageCustomers,
   canManageEstimates,
-  canManageJob,
   canManageJobFieldUpdates,
   canManageLeads,
   canManageSafety,
@@ -54,6 +53,7 @@ import {
   canViewSettings,
   canViewSafety,
   canViewAllJobs,
+  normalizeRole,
   isAdministrator,
   isEmployee,
   isEstimator,
@@ -70,6 +70,7 @@ const CUSTOMER_STATUSES = new Set(["Prospect", "Active", "Inactive"]);
 const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
 const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
 const JOB_STATUSES = new Set(["draft", "planned", "scheduled", "in_progress", "field_complete", "completed", "billing_ready", "closed"]);
+const JOB_ASSIGNMENT_ROLES = new Set(["foreman", "crew", "operator", "finisher", "laborer", "driver", "other"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
 const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
 const serverStartedAt = Date.now();
@@ -243,6 +244,61 @@ function normalizeJobRecord(job) {
   };
 }
 
+function normalizeAssignmentRoleValue(value, fallback = "crew") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!JOB_ASSIGNMENT_ROLES.has(normalized)) {
+    throw new ApiError(400, `Assignment role must be one of: ${Array.from(JOB_ASSIGNMENT_ROLES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function activeAssignmentsForJob(job) {
+  return (job.assignments || []).filter((assignment) => !assignment.removedAt);
+}
+
+function assignmentUser(state, assignment) {
+  return state.users.find((user) => user.id === assignment.userId) || null;
+}
+
+function sanitizeJobAssignments(job, state, user, { includeNotes = false } = {}) {
+  const activeAssignments = activeAssignmentsForJob(job);
+  const sanitizedAssignments = activeAssignments.map((assignment) => {
+    const user = assignmentUser(state, assignment);
+    return {
+      id: assignment.id,
+      jobId: assignment.jobId,
+      userId: assignment.userId,
+      userName: user?.name || assignment.userId,
+      userRole: user?.role || "",
+      roleOnJob: assignment.roleOnJob,
+      assignedBy: assignment.assignedBy || "",
+      assignedAt: assignment.assignedAt,
+      createdAt: assignment.createdAt,
+      updatedAt: assignment.updatedAt,
+      ...(includeNotes ? { notes: assignment.notes || "" } : {}),
+    };
+  });
+  const foremanAssignment = sanitizedAssignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
+  const allCrewAssignments = sanitizedAssignments.filter((assignment) => assignment.roleOnJob !== "foreman");
+
+  if (isEmployee(user)) {
+    const ownAssignments = allCrewAssignments.filter((assignment) => assignment.userId === user.id);
+    return {
+      assignments: [...(foremanAssignment ? [foremanAssignment] : []), ...ownAssignments],
+      foremanAssignment,
+      crewAssignments: ownAssignments,
+    };
+  }
+
+  const crewAssignments = allCrewAssignments;
+
+  return {
+    assignments: sanitizedAssignments,
+    foremanAssignment,
+    crewAssignments,
+  };
+}
+
 function findRequiredRecord(records, id, resourceName) {
   const record = records.find((entry) => entry.id === id);
   if (!record) {
@@ -264,13 +320,17 @@ function visibleUsers(state, user) {
   return [publicUser(user)];
 }
 
-function sanitizeJobForUser(job, user) {
+function sanitizeJobForUser(job, user, state) {
   if (!job) return null;
   const normalizedJob = normalizeJobRecord(job);
+  const assignmentPayload = sanitizeJobAssignments(normalizedJob, state, user, {
+    includeNotes: canViewAllJobs(user),
+  });
 
   if (canViewAllJobs(user) || isEstimator(user)) {
     return {
       ...normalizedJob,
+      ...assignmentPayload,
       canManageField: canManageJobFieldUpdates(user, normalizedJob),
       canManageAll: canViewAllJobs(user),
       canViewMoney: canViewJobMoney(user),
@@ -297,6 +357,9 @@ function sanitizeJobForUser(job, user) {
     fieldNotes: normalizedJob.fieldNotes || "",
     assignedForemanId: normalizedJob.assignedForemanId || "",
     assignedUserId: normalizedJob.assignedUserId || "",
+    foremanAssignment: assignmentPayload.foremanAssignment,
+    crewAssignments: assignmentPayload.crewAssignments,
+    assignments: assignmentPayload.assignments,
     fieldPlanningVisible: Boolean(normalizedJob.fieldPlanningVisible),
     visibleToForeman: Boolean(normalizedJob.visibleToForeman),
     status: normalizedJob.status,
@@ -317,7 +380,7 @@ function sanitizeJobForUser(job, user) {
 
 function visibleJobsForUser(state, user) {
   if (!user) return [];
-  return state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user));
+  return state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state));
 }
 
 function visibleQueueItemsForUser(state, user) {
@@ -428,6 +491,12 @@ function assertCanDeleteJobs(user) {
   }
 }
 
+function assertCanManageJobAssignments(user) {
+  if (!canViewAllJobs(user)) {
+    throw new ApiError(403, "You do not have permission to manage crew assignments.");
+  }
+}
+
 function assertArchived(record, resourceName) {
   if (!record.archivedAt) {
     throw new ApiError(409, `${resourceName} must be archived before it can be deleted.`);
@@ -476,6 +545,155 @@ function resolveOptionalUserId(state, value, fieldName) {
     throw new ApiError(404, `${fieldName} not found.`);
   }
   return user.id;
+}
+
+function activeJobAssignments(state, jobId) {
+  return (state.jobAssignments || []).filter((assignment) => assignment.jobId === jobId && !assignment.removedAt);
+}
+
+function syncJobAssignmentAliases(state, job) {
+  const assignments = activeJobAssignments(state, job.id);
+  const foremanAssignment = assignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
+  const crewAssignments = assignments.filter((assignment) => assignment.roleOnJob !== "foreman");
+  job.assignedForemanId = foremanAssignment?.userId || "";
+  job.assignedUserId = crewAssignments[0]?.userId || "";
+  return { foremanAssignment, crewAssignments };
+}
+
+function createJobAssignmentRecord(jobId, userId, roleOnJob, actor, notes = "", assignedAt = new Date().toISOString()) {
+  return {
+    id: makeId("JA"),
+    jobId,
+    userId,
+    roleOnJob: normalizeAssignmentRoleValue(roleOnJob),
+    assignedBy: actor?.id || "",
+    assignedAt,
+    removedAt: null,
+    notes: optionalString(notes, ""),
+    createdAt: assignedAt,
+    updatedAt: assignedAt,
+  };
+}
+
+function removeActiveAssignment(assignment, changedAt = new Date().toISOString()) {
+  assignment.removedAt = changedAt;
+  assignment.updatedAt = changedAt;
+}
+
+function findActiveAssignmentRecord(state, jobId, assignmentId) {
+  const assignment = (state.jobAssignments || []).find((entry) => entry.id === assignmentId && entry.jobId === jobId && !entry.removedAt);
+  if (!assignment) {
+    throw new ApiError(404, "Crew assignment not found.");
+  }
+  return assignment;
+}
+
+function assertJobCanReceiveAssignments(job) {
+  if (job.archivedAt) {
+    throw new ApiError(409, "Archived jobs cannot receive crew assignments.");
+  }
+}
+
+function assertAssignmentUserIsValid(user, roleOnJob) {
+  const normalizedUserRole = normalizeRole(user?.role);
+  if (roleOnJob === "foreman" && normalizedUserRole !== "foreman") {
+    throw new ApiError(400, "Foreman assignments must use a foreman user.");
+  }
+
+  if (roleOnJob !== "foreman" && !["employee", "foreman"].includes(normalizedUserRole)) {
+    throw new ApiError(400, "Crew assignments must use a field user.");
+  }
+}
+
+function activeAssignmentForUser(state, jobId, userId) {
+  return activeJobAssignments(state, jobId).find((assignment) => assignment.userId === userId) || null;
+}
+
+function activeForemanAssignment(state, jobId) {
+  return activeJobAssignments(state, jobId).find((assignment) => assignment.roleOnJob === "foreman") || null;
+}
+
+function buildJobCrewLabel(state, job) {
+  const assignments = activeJobAssignments(state, job.id);
+  const foremanCount = assignments.filter((assignment) => assignment.roleOnJob === "foreman").length;
+  const crewCount = assignments.filter((assignment) => assignment.roleOnJob !== "foreman").length;
+
+  if (foremanCount === 0 && crewCount === 0) return "Unassigned";
+  if (foremanCount === 0) return `${crewCount} crew assigned`;
+  if (crewCount === 0) return `Foreman + 0`;
+  return `Foreman + ${crewCount}`;
+}
+
+function syncJobAssignments(state, job, changedAt = new Date().toISOString()) {
+  const normalizedJob = normalizeJobRecord(job);
+  const activeAssignments = activeJobAssignments(state, job.id);
+  const foremanAssignment = activeAssignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
+  const crewAssignments = activeAssignments.filter((assignment) => assignment.roleOnJob !== "foreman");
+
+  job.assignedForemanId = foremanAssignment?.userId || "";
+  job.assignedUserId = crewAssignments[0]?.userId || "";
+  job.crew = buildJobCrewLabel(state, job);
+  job.job = normalizedJob.title;
+  job.stage = normalizedJob.stage;
+  job.next = normalizedJob.nextStep;
+  job.due = normalizedJob.due;
+  markUpdated(job, changedAt);
+
+  return { foremanAssignment, crewAssignments };
+}
+
+function replaceForemanAssignment(state, job, userId, actor, changedAt, notes = "") {
+  const currentForeman = activeForemanAssignment(state, job.id);
+  let action = "foreman_assigned";
+
+  if (currentForeman && currentForeman.userId === userId) {
+    if (currentForeman.notes !== optionalString(notes, currentForeman.notes || "")) {
+      currentForeman.notes = optionalString(notes, currentForeman.notes || "");
+      currentForeman.updatedAt = changedAt;
+    }
+    syncJobAssignments(state, job, changedAt);
+    return { assignment: currentForeman, action };
+  }
+
+  if (currentForeman) {
+    removeActiveAssignment(currentForeman, changedAt);
+    action = userId ? "foreman_changed" : "foreman_changed";
+  }
+
+  if (!userId) {
+    syncJobAssignments(state, job, changedAt);
+    return { assignment: null, action };
+  }
+
+  const assignment = createJobAssignmentRecord(job.id, userId, "foreman", actor, notes, changedAt);
+  state.jobAssignments.unshift(assignment);
+  syncJobAssignments(state, job, changedAt);
+  return { assignment, action };
+}
+
+function reconcileLegacyAssignmentAliases(state, job, actor, changedAt) {
+  const activeAssignments = activeJobAssignments(state, job.id);
+
+  if (job.assignedForemanId) {
+    replaceForemanAssignment(state, job, job.assignedForemanId, actor, changedAt);
+  } else {
+    activeAssignments.filter((assignment) => assignment.roleOnJob === "foreman").forEach((assignment) => removeActiveAssignment(assignment, changedAt));
+  }
+
+  const currentPrimaryCrew = activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman") || null;
+  if (job.assignedUserId) {
+    const matchingCrew = activeAssignmentForUser(state, job.id, job.assignedUserId);
+    if (!matchingCrew) {
+      state.jobAssignments.unshift(createJobAssignmentRecord(job.id, job.assignedUserId, "crew", actor, "", changedAt));
+    }
+    if (currentPrimaryCrew && currentPrimaryCrew.userId !== job.assignedUserId) {
+      removeActiveAssignment(currentPrimaryCrew, changedAt);
+    }
+  } else if (currentPrimaryCrew) {
+    removeActiveAssignment(currentPrimaryCrew, changedAt);
+  }
+
+  syncJobAssignments(state, job, changedAt);
 }
 
 function resolveLeadOwner(state, payload, fallbackUser) {
@@ -733,6 +951,7 @@ function sanitizeBootstrap(state, user) {
         canCreate: canCreateJobs(user),
         canManageAll: canViewAllJobs(user),
         canManageField: isForeman(user),
+        canManageAssignments: canViewAllJobs(user),
         canViewMoney: canViewJobMoney(user),
       },
       safety: {
@@ -1563,6 +1782,7 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   });
 
   const nextState = await updateDb((draft) => {
+    draft.jobAssignments ||= [];
     newJob.assignedForemanId = resolveOptionalUserId(draft, payload.assignedForemanId, "Assigned foreman");
     newJob.assignedUserId = resolveOptionalUserId(draft, payload.assignedUserId, "Assigned user");
     const customer = ensureCustomerRecord(draft, {
@@ -1573,6 +1793,13 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     }, req.auth.user, { fallbackStatus: "Active" });
     newJob.customerId = customer.id;
     draft.jobs.unshift(newJob);
+    if (newJob.assignedForemanId) {
+      draft.jobAssignments.unshift(createJobAssignmentRecord(newJob.id, newJob.assignedForemanId, "foreman", req.auth.user, "", createdAt));
+    }
+    if (newJob.assignedUserId) {
+      draft.jobAssignments.unshift(createJobAssignmentRecord(newJob.id, newJob.assignedUserId, "crew", req.auth.user, "", createdAt));
+    }
+    syncJobAssignments(draft, newJob, createdAt);
     appendActivity(draft, "Job created", `${newJob.title} added for ${newJob.customer}.`);
     appendAuditEvent(draft, {
       entityType: "job",
@@ -1703,6 +1930,10 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
         nextStep: updates.nextStep == null && updates.next == null ? normalizedBefore.nextStep : requiredString(updates.nextStep ?? updates.next, "Next step"),
         notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
       });
+      if (updates.assignedForemanId != null || updates.assignedUserId != null) {
+        draft.jobAssignments ||= [];
+        reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
+      }
     } else {
       Object.assign(job, {
         progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
@@ -1727,7 +1958,9 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
     job.stage = normalizedAfter.stage;
     job.next = normalizedAfter.nextStep;
     job.due = normalizedAfter.due;
-    markUpdated(job, changedAt);
+    if (!(updates.assignedForemanId != null || updates.assignedUserId != null)) {
+      markUpdated(job, changedAt);
+    }
 
     appendActivity(draft, "Job updated", `${normalizedAfter.title} field details were updated.`);
     appendAuditEvent(draft, {
@@ -1776,6 +2009,7 @@ app.delete("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
     const { title } = normalizeJobRecord(job);
     assertArchived(job, "Job");
     draft.jobs = draft.jobs.filter((entry) => entry.id !== id);
+    draft.jobAssignments = (draft.jobAssignments || []).filter((assignment) => assignment.jobId !== id);
     appendActivity(draft, "Job deleted", `${title} was permanently deleted.`);
     appendAuditEvent(draft, {
       entityType: "job",
@@ -1784,6 +2018,139 @@ app.delete("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
       summary: "Job deleted",
       detail: `${title} was permanently deleted.`,
       actor: req.auth.user,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/jobs/:id/assignments", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageJobAssignments(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.jobAssignments ||= [];
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    assertJobCanReceiveAssignments(job);
+
+    const userId = resolveOptionalUserId(draft, payload.userId, "Assigned user");
+    const assignmentUserRecord = findUserById(draft, userId);
+    const roleOnJob = normalizeAssignmentRoleValue(payload.roleOnJob, "crew");
+    assertAssignmentUserIsValid(assignmentUserRecord, roleOnJob);
+
+    if (activeAssignmentForUser(draft, job.id, userId)) {
+      throw new ApiError(409, "That user is already assigned to the job.");
+    }
+
+    let assignment = null;
+    let action = "crew_assigned";
+    if (roleOnJob === "foreman") {
+      ({ assignment, action } = replaceForemanAssignment(draft, job, userId, req.auth.user, changedAt, payload.notes));
+    } else {
+      assignment = createJobAssignmentRecord(job.id, userId, roleOnJob, req.auth.user, payload.notes, changedAt);
+      draft.jobAssignments.unshift(assignment);
+      syncJobAssignments(draft, job, changedAt);
+    }
+
+    const title = normalizeJobRecord(job).title;
+    const userLabel = assignmentUserRecord?.name || userId;
+    appendActivity(draft, "Crew assignment updated", `${userLabel} was assigned to ${title}.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action,
+      summary: roleOnJob === "foreman" ? "Foreman assigned" : "Crew member assigned",
+      detail: `${userLabel} was assigned to ${title} as ${roleOnJob}.`,
+      actor: req.auth.user,
+      changedFields: roleOnJob === "foreman" ? ["assignedForemanId"] : ["assignments"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageJobAssignments(req.auth.user);
+  const { id, assignmentId } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.jobAssignments ||= [];
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
+    const nextRole = payload.roleOnJob == null ? assignment.roleOnJob : normalizeAssignmentRoleValue(payload.roleOnJob, assignment.roleOnJob);
+    const nextNotes = payload.notes == null ? assignment.notes || "" : optionalString(payload.notes, "");
+    const changedFields = [];
+
+    if (nextRole !== assignment.roleOnJob) {
+      changedFields.push("roleOnJob");
+      const assignmentUserRecord = findUserById(draft, assignment.userId);
+      assertAssignmentUserIsValid(assignmentUserRecord, nextRole);
+      if (nextRole === "foreman") {
+        const currentForeman = activeForemanAssignment(draft, id);
+        if (currentForeman && currentForeman.id !== assignment.id) {
+          removeActiveAssignment(currentForeman, changedAt);
+        }
+      }
+      assignment.roleOnJob = nextRole;
+    }
+
+    if (nextNotes !== (assignment.notes || "")) {
+      changedFields.push("notes");
+      assignment.notes = nextNotes;
+    }
+
+    assignment.updatedAt = changedAt;
+    syncJobAssignments(draft, job, changedAt);
+
+    if (changedFields.length > 0) {
+      const title = normalizeJobRecord(job).title;
+      const userLabel = findUserById(draft, assignment.userId)?.name || assignment.userId;
+      appendActivity(draft, "Crew assignment updated", `${userLabel}'s assignment changed on ${title}.`);
+      appendAuditEvent(draft, {
+        entityType: "job",
+        entityId: job.id,
+        action: changedFields.includes("roleOnJob") ? "assignment_role_changed" : "assignment_updated",
+        summary: changedFields.includes("roleOnJob") ? "Assignment role changed" : "Assignment updated",
+        detail: `${userLabel}'s assignment changed on ${title}.`,
+        actor: req.auth.user,
+        changedFields,
+      });
+    }
+
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.delete("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageJobAssignments(req.auth.user);
+  const { id, assignmentId } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
+    const userLabel = findUserById(draft, assignment.userId)?.name || assignment.userId;
+    const title = normalizeJobRecord(job).title;
+
+    removeActiveAssignment(assignment, changedAt);
+    syncJobAssignments(draft, job, changedAt);
+    appendActivity(draft, "Crew assignment removed", `${userLabel} was removed from ${title}.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: assignment.roleOnJob === "foreman" ? "foreman_changed" : "crew_removed",
+      summary: assignment.roleOnJob === "foreman" ? "Foreman changed" : "Crew member removed",
+      detail: `${userLabel} was removed from ${title}.`,
+      actor: req.auth.user,
+      changedFields: assignment.roleOnJob === "foreman" ? ["assignedForemanId"] : ["assignments"],
     });
     return draft;
   });

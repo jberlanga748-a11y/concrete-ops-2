@@ -126,6 +126,18 @@ export function deleteJob(token, id) {
   return request(`/api/jobs/${id}`, { method: "DELETE", token });
 }
 
+export function createJobAssignment(token, jobId, assignment) {
+  return request(`/api/jobs/${jobId}/assignments`, { method: "POST", token, body: assignment });
+}
+
+export function updateJobAssignment(token, jobId, assignmentId, assignment) {
+  return request(`/api/jobs/${jobId}/assignments/${assignmentId}`, { method: "PATCH", token, body: assignment });
+}
+
+export function deleteJobAssignment(token, jobId, assignmentId) {
+  return request(`/api/jobs/${jobId}/assignments/${assignmentId}`, { method: "DELETE", token });
+}
+
 export function createQueueItem(token, task) {
   return request("/api/queue-items", { method: "POST", token, body: task });
 }
