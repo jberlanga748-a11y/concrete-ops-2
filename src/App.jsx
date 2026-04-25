@@ -1,14 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  archiveJob,
+  archiveLead,
+  archiveQueueItem,
+  bootstrapAdminAccount,
   convertLead,
   createJob,
   createLead,
   createQueueItem,
+  deleteJob,
+  deleteLead,
+  deleteQueueItem,
   getBootstrap,
+  getHealth,
+  getSetupStatus,
   login,
   logout,
   resetWorkspace,
+  restoreJob,
+  restoreLead,
+  restoreQueueItem,
   toggleQueueItem,
   updateJob,
   updateLead,
@@ -17,6 +29,25 @@ import {
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
+const AUTOSAVE_DELAY_MS = 700;
+const MODULE_PATHS = {
+  dashboard: "/",
+  leads: "/leads",
+  jobs: "/jobs",
+  time: "/time",
+  reports: "/reports",
+  uploads: "/uploads",
+  customers: "/customers",
+  estimates: "/estimates",
+  changeOrders: "/changeOrders",
+  incidents: "/incidents",
+  toolbox: "/toolbox",
+  ppe: "/ppe",
+  calculator: "/calculator",
+  copilot: "/copilot",
+  design: "/design",
+  settings: "/settings",
+};
 
 const TOKENS = {
   colors: [
@@ -80,6 +111,7 @@ const EMPTY_APP_STATE = {
   jobs: [],
   queueItems: [],
   activity: [],
+  auditEvents: [],
   stats: {
     newLeads: 0,
     highPriorityLeads: 0,
@@ -119,6 +151,22 @@ const INITIAL_TASK_FORM = {
   status: "Due today",
 };
 
+const INITIAL_SETUP_FORM = {
+  name: "",
+  email: "",
+  password: "",
+  role: "Administrator",
+};
+
+const INITIAL_SETUP_STATUS = {
+  checked: false,
+  needsSetup: false,
+  hasUsers: false,
+  demoMode: false,
+  demoUserExists: false,
+  environmentBootstrap: false,
+};
+
 function runDesignSystemChecks() {
   const failures = [];
   const navIds = new Set(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id)));
@@ -142,6 +190,55 @@ function currency(value) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(Number(value) || 0);
+}
+
+function normalizePathname(pathname = "/") {
+  const prefixed = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return prefixed.length > 1 && prefixed.endsWith("/") ? prefixed.slice(0, -1) : prefixed;
+}
+
+function getModulePath(active) {
+  return MODULE_PATHS[active] || `/${active}`;
+}
+
+function buildLeadPath(id) {
+  return `/leads/${encodeURIComponent(id)}`;
+}
+
+function buildJobPath(id) {
+  return `/jobs/${encodeURIComponent(id)}`;
+}
+
+function parseAppPath(pathname) {
+  const normalized = normalizePathname(pathname);
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (segments[0] === "leads" && segments[1]) {
+    return { active: "leads", leadId: decodeURIComponent(segments[1]), jobId: "" };
+  }
+
+  if (segments[0] === "jobs" && segments[1]) {
+    return { active: "jobs", leadId: "", jobId: decodeURIComponent(segments[1]) };
+  }
+
+  const exactMatch = Object.entries(MODULE_PATHS).find(([, path]) => path === normalized);
+  return {
+    active: exactMatch?.[0] || "dashboard",
+    leadId: "",
+    jobId: "",
+  };
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not recorded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 function iconStrokeProps(className) {
@@ -324,6 +421,53 @@ function ErrorBanner({ message, onDismiss }) {
   );
 }
 
+function SaveStateText({ saveState, align = "left" }) {
+  const palette = {
+    idle: "text-slate-400",
+    pending: "text-amber-600",
+    saving: "text-blue-700",
+    saved: "text-emerald-700",
+    error: "text-red-700",
+  };
+
+  return (
+    <p className={`text-xs font-black uppercase tracking-[0.14em] ${palette[saveState.status] || palette.idle} ${align === "right" ? "text-right" : ""}`}>
+      {saveState.message}
+    </p>
+  );
+}
+
+function TimestampMeta({ createdAt, updatedAt }) {
+  return (
+    <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-slate-600 md:grid-cols-2">
+      <div>
+        <p className="font-black uppercase tracking-[0.14em] text-slate-400">Created</p>
+        <p className="mt-1 font-bold text-slate-700">{formatDateTime(createdAt)}</p>
+      </div>
+      <div>
+        <p className="font-black uppercase tracking-[0.14em] text-slate-400">Last updated</p>
+        <p className="mt-1 font-bold text-slate-700">{formatDateTime(updatedAt)}</p>
+      </div>
+    </div>
+  );
+}
+
+function AuditActionBadge({ action }) {
+  const tones = {
+    created: "green",
+    updated: "blue",
+    converted: "violet",
+    completed: "green",
+    reopened: "amber",
+    archived: "slate",
+    restored: "blue",
+    deleted: "red",
+    reset: "red",
+  };
+
+  return <Badge tone={tones[action] || "slate"}>{action}</Badge>;
+}
+
 function LoadingScreen({ label = "Loading workspace..." }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
@@ -338,7 +482,22 @@ function LoadingScreen({ label = "Loading workspace..." }) {
   );
 }
 
-function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) {
+function LoginScreen({
+  credentials,
+  setCredentials,
+  onSubmit,
+  loading,
+  error,
+  backendStatus,
+  setupStatus,
+  setupDraft,
+  setSetupDraft,
+  onSetupSubmit,
+}) {
+  const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
+  const backendLabel = backendStatus === "online" ? "API online" : backendStatus === "offline" ? "API offline" : "Checking API";
+  const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
+  const canShowDemoCredentials = setupStatus.demoUserExists && !isSetupMode;
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -351,15 +510,15 @@ function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
               <p className="text-sm font-black text-slate-950">Auth</p>
-              <p className="mt-2 text-sm text-slate-500">Login and logout are backed by authenticated API requests.</p>
+              <p className="mt-2 text-sm text-slate-500">Login, logout, and first-run admin setup are backed by API requests.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
               <p className="text-sm font-black text-slate-950">Persistence</p>
-              <p className="mt-2 text-sm text-slate-500">Data now lives in a server-side JSON store under the workspace.</p>
+              <p className="mt-2 text-sm text-slate-500">Data lives in SQLite with migrations, backups, and request tracing.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Next-ready</p>
-              <p className="mt-2 text-sm text-slate-500">This is a clean stepping stone toward a database and real multi-user auth.</p>
+              <p className="text-sm font-black text-slate-950">Deployment-ready</p>
+              <p className="mt-2 text-sm text-slate-500">Fresh production installs can now bootstrap a real admin without shipping a default demo user.</p>
             </div>
           </div>
         </Card>
@@ -369,27 +528,57 @@ function LoginScreen({ credentials, setCredentials, onSubmit, loading, error }) 
               <Icon name="lock" className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-black text-slate-950">Sign in</p>
-              <p className="text-sm text-slate-500">Use the seeded demo account.</p>
+              <p className="text-sm font-black text-slate-950">{isSetupMode ? "Set up workspace" : "Sign in"}</p>
+              <p className="text-sm text-slate-500">
+                {isSetupMode ? "Create the first admin account for this deployment." : canShowDemoCredentials ? "Use the seeded demo account or your own admin user." : "Enter the admin account for this workspace."}
+              </p>
             </div>
           </div>
-          <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
-            <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
-            <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
-            {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-            <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
-              {loading ? "Signing in..." : "Enter workspace"}
-            </Button>
-          </form>
-          <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-            <p className="font-black text-slate-950">Demo credentials</p>
-            <p className="mt-2">
-              Email: <span className="font-black text-blue-700">ops@lastyard.test</span>
-            </p>
-            <p>
-              Password: <span className="font-black text-blue-700">concrete123</span>
-            </p>
+          <div className="mt-5 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
+            <span>
+              {backendStatus === "online" && !setupStatus.checked
+                ? "Checking workspace setup state."
+                : "If login fails with a connection error, the frontend cannot see the Node API."}
+            </span>
+            <Badge tone={backendTone}>{backendLabel}</Badge>
           </div>
+          {isSetupMode ? (
+            <form className="mt-6 grid gap-4" onSubmit={onSetupSubmit}>
+              <InputField label="Full name" value={setupDraft.name} onChange={(event) => setSetupDraft((current) => ({ ...current, name: event.target.value }))} />
+              <InputField label="Email" type="email" value={setupDraft.email} onChange={(event) => setSetupDraft((current) => ({ ...current, email: event.target.value }))} />
+              <InputField label="Password" type="password" value={setupDraft.password} onChange={(event) => setSetupDraft((current) => ({ ...current, password: event.target.value }))} />
+              <InputField label="Role" value={setupDraft.role} onChange={(event) => setSetupDraft((current) => ({ ...current, role: event.target.value }))} />
+              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+                {loading ? "Creating admin..." : "Create admin and enter workspace"}
+              </Button>
+            </form>
+          ) : (
+            <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+              <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
+              <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
+              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+                {loading ? "Signing in..." : "Enter workspace"}
+              </Button>
+            </form>
+          )}
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-600">
+            <p className="font-black text-slate-950">How to run it</p>
+            <p className="mt-2">Use `npm run dev` while developing, or `npm run build` then `npm run serve` for the production build.</p>
+            <p className="mt-2">A static frontend alone cannot handle login because this app needs the bundled Node API.</p>
+          </div>
+          {canShowDemoCredentials ? (
+            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+              <p className="font-black text-slate-950">Demo credentials</p>
+              <p className="mt-2">
+                Email: <span className="font-black text-blue-700">ops@lastyard.test</span>
+              </p>
+              <p>
+                Password: <span className="font-black text-blue-700">concrete123</span>
+              </p>
+            </div>
+          ) : null}
         </Card>
       </div>
     </div>
@@ -446,7 +635,7 @@ function Sidebar({ active, setActive, counts }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary }) {
   const current = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
@@ -456,6 +645,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing }) {
           <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
+          {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
           <Badge tone="blue">{stats.newLeads} new leads</Badge>
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
           <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
@@ -578,32 +768,54 @@ function JobsTable({ rows, selectedId, onSelect }) {
   );
 }
 
-function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, disabled }) {
+function QueueList({ items, onToggleTask, onArchiveTask, onRestoreTask, onDeleteTask, taskDraft, setTaskDraft, onAddTask, disabled }) {
+  const activeItems = items.filter((item) => !item.archivedAt);
+  const archivedItems = items.filter((item) => item.archivedAt);
   return (
     <Card className="p-4">
       <SectionHeader title="Today's Queue" description="Only work that actually needs motion right now." />
       <div className="space-y-2">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onToggleTask(item.id)}
-            disabled={disabled}
-            className={`flex w-full items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${item.done ? "border-emerald-100 bg-emerald-50/60" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}
-          >
-            <div className="flex items-start gap-3">
-              <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${item.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-blue-200 bg-white text-transparent"}`}>
-                <Icon name="check" className="h-3.5 w-3.5" />
-              </span>
-              <div>
-                <p className={`text-sm font-black ${item.done ? "text-emerald-800 line-through" : "text-slate-950"}`}>{item.title}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
-              </div>
+        {activeItems.map((item) => (
+          <div key={item.id} className={`rounded-2xl border p-3 transition ${item.done ? "border-emerald-100 bg-emerald-50/60" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+            <div className="flex items-start justify-between gap-3">
+              <button type="button" onClick={() => onToggleTask(item.id)} disabled={disabled} className="flex min-w-0 flex-1 items-start gap-3 text-left">
+                <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${item.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-blue-200 bg-white text-transparent"}`}>
+                  <Icon name="check" className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className={`text-sm font-black ${item.done ? "text-emerald-800 line-through" : "text-slate-950"}`}>{item.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Updated {formatDateTime(item.updatedAt)}</p>
+                </div>
+              </button>
+              <StatusBadge status={item.done ? "Done" : item.status} />
             </div>
-            <StatusBadge status={item.done ? "Done" : item.status} />
-          </button>
+            <div className="mt-3 flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => onArchiveTask(item.id)} disabled={disabled}>Archive</Button>
+            </div>
+          </div>
         ))}
       </div>
+      {archivedItems.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Archived queue</p>
+          {archivedItems.slice(0, 3).map((item) => (
+            <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-700">{item.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
+                </div>
+                <Badge tone="slate">Archived</Badge>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => onRestoreTask(item.id)} disabled={disabled}>Restore</Button>
+                <Button variant="ghost" size="sm" onClick={() => onDeleteTask(item.id)} disabled={disabled}>Delete</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <form className="mt-4 grid gap-3" onSubmit={onAddTask}>
         <InputField label="Add queue item" value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send concrete order" />
         <InputField label="Context" value={taskDraft.meta} onChange={(event) => setTaskDraft((current) => ({ ...current, meta: event.target.value }))} placeholder="Job, customer, or blocker" />
@@ -624,7 +836,7 @@ function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, di
   );
 }
 
-function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
+function LeadDetailPanel({ lead, onFieldChange, onCreateJob, onArchive, onRestore, onDelete, disabled, saveState }) {
   if (!lead) {
     return (
       <Card className="p-5">
@@ -640,13 +852,26 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
         title={lead.customer}
         description={`${lead.id} · ${lead.city}`}
         action={
-          <Button size="sm" onClick={onCreateJob} disabled={disabled}>
-            <Icon name="arrowUpRight" />
-            Create job
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {lead.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+            <Button size="sm" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt)}>
+              <Icon name="arrowUpRight" />
+              Create job
+            </Button>
+            {lead.archivedAt ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
+                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled}>Delete</Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+            )}
+          </div>
         }
       />
+      <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
+        <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
         <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Status" value={lead.status} onChange={(event) => onFieldChange("status", event.target.value)}>
@@ -673,7 +898,7 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
   );
 }
 
-function JobDetailPanel({ job, onFieldChange }) {
+function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, saveState, disabled }) {
   if (!job) {
     return (
       <Card className="p-5">
@@ -685,8 +910,26 @@ function JobDetailPanel({ job, onFieldChange }) {
 
   return (
     <Card className="p-5">
-      <SectionHeader title={job.job} description={`${job.id} · ${job.customer}`} />
+      <SectionHeader
+        title={job.job}
+        description={`${job.id} · ${job.customer}`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            {job.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+            {job.archivedAt ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
+                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled}>Delete</Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+            )}
+          </div>
+        }
+      />
+      <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
+        <TimestampMeta createdAt={job.createdAt} updatedAt={job.updatedAt} />
         <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} />
         <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -720,9 +963,48 @@ function ActivityPanel({ activity }) {
             <p className="text-xs font-black uppercase tracking-widest text-blue-700">{item.time}</p>
             <p className="mt-1 text-sm font-black text-slate-950">{item.title}</p>
             <p className="mt-1 text-xs leading-5 text-slate-500">{item.detail}</p>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.createdAt)}</p>
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+function AuditTrailPanel({ auditEvents }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Audit trail" description="Durable backend history for record changes and resets." />
+      {auditEvents.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, bootstrapped, converted, and reset.</div>
+      ) : (
+        <div className="space-y-3">
+          {auditEvents.slice(0, 10).map((event) => (
+            <div key={event.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-950">{event.summary}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{event.detail}</p>
+                </div>
+                <AuditActionBadge action={event.action} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                <span>{event.entityType}</span>
+                {event.entityId ? <span>{event.entityId}</span> : null}
+                <span>{event.actorName}</span>
+                <span>{formatDateTime(event.createdAt)}</span>
+              </div>
+              {event.changedFields.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {event.changedFields.map((field) => (
+                    <Badge key={`${event.id}-${field}`} tone="slate">{field}</Badge>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -800,13 +1082,22 @@ function DashboardPage({
   setLeadSearch,
   selectedLeadId,
   onSelectLead,
+  selectedJobId,
+  onSelectJob,
   selectedLead,
   onLeadFieldChange,
   onCreateJobFromLead,
+  onArchiveLead,
+  onRestoreLead,
+  onDeleteLead,
+  leadSaveState,
   taskDraft,
   setTaskDraft,
   onAddTask,
   onToggleTask,
+  onArchiveTask,
+  onRestoreTask,
+  onDeleteTask,
   setActive,
   busy,
 }) {
@@ -817,15 +1108,16 @@ function DashboardPage({
   ));
 
   const visibleLeads = leads.filter((lead) => {
-    const matchesFilter = leadFilter === "All" || lead.status === leadFilter;
+    const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
+    const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
     const searchValue = leadSearch.toLowerCase();
     const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(searchValue));
-    return matchesFilter && matchesSearch;
+    return matchesArchive && matchesFilter && matchesSearch;
   });
 
   const kpis = [
     { label: "Leads needing review", value: `${stats.newLeads}`, helper: `${stats.highPriorityLeads} high priority`, icon: "inbox" },
-    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${leads.length} active opportunities`, icon: "quote" },
+    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${leads.filter((lead) => !lead.archivedAt).length} active opportunities`, icon: "quote" },
     { label: "Jobs active today", value: `${stats.activeJobs}`, helper: `${stats.scheduledJobs} scheduled next`, icon: "briefcase" },
     { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
   ];
@@ -851,18 +1143,18 @@ function DashboardPage({
             <div className="p-4">
               <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
             </div>
-            <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
+            <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
             <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
           </Card>
           <div className="space-y-4">
-            <QueueList items={queueItems.slice(0, 5)} onToggleTask={onToggleTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} />
+            <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} disabled={busy} saveState={leadSaveState} />
           </div>
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card className="overflow-hidden">
             <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
-            <JobsTable rows={jobs.slice(0, 5)} selectedId={null} onSelect={() => setActive("jobs")} />
+            <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={selectedJobId} onSelect={onSelectJob} />
           </Card>
           <ActivityPanel activity={activity} />
         </div>
@@ -871,36 +1163,36 @@ function DashboardPage({
   );
 }
 
-function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, busy }) {
+function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, onArchiveLead, onRestoreLead, onDeleteLead, busy, leadSaveState }) {
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
-          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
+          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
           <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
         </Card>
         <div className="space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} disabled={busy} saveState={leadSaveState} />
         </div>
       </div>
     </div>
   );
 }
 
-function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, busy }) {
+function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, onArchiveJob, onRestoreJob, onDeleteJob, busy, jobSaveState }) {
   return (
     <div>
       <PageHeader eyebrow="Field Ops" title="Jobs" description="Create jobs from scratch or from approved leads, then keep field progress and next-step accountability current through the API." actions={<Badge tone="violet">{rows.length} active jobs</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
-          <FilterBar filters={["All", "Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, crew..." />
+          <FilterBar filters={["All", "Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, crew..." />
           <JobsTable rows={rows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
         <div className="space-y-4">
           <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy} />
-          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} />
+          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} onArchive={onArchiveJob} onRestore={onRestoreJob} onDelete={onDeleteJob} saveState={jobSaveState} disabled={busy} />
         </div>
       </div>
     </div>
@@ -1071,28 +1363,31 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   );
 }
 
-function SettingsPage({ user, onReset, busy }) {
+function SettingsPage({ user, onReset, busy, auditEvents, demoMode }) {
   return (
     <div>
-      <PageHeader eyebrow="System" title="Settings" description="This workspace now uses authenticated server state with a seeded demo account." />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
-        <Card className="p-5">
-          <SectionHeader title="Account" description="Current signed-in operator." />
-          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-            <p><span className="font-black text-slate-950">Name:</span> {user?.name}</p>
-            <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
-            <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
-          </div>
-          <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button>
-        </Card>
-        <Card className="p-5">
-          <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="rounded-2xl border border-blue-100 p-4">Move from JSON storage to Postgres or SQLite.</div>
-            <div className="rounded-2xl border border-blue-100 p-4">Replace demo token auth with proper user management and hashed refresh sessions.</div>
-            <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports and uploads into their own resource APIs.</div>
-          </div>
-        </Card>
+      <PageHeader eyebrow="System" title="Settings" description={demoMode ? "This workspace uses authenticated server state with optional seeded demo data." : "This workspace uses authenticated server state with production-style admin setup."} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+          <Card className="p-5">
+            <SectionHeader title="Account" description="Current signed-in operator." />
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+              <p><span className="font-black text-slate-950">Name:</span> {user?.name}</p>
+              <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
+              <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
+            </div>
+            {demoMode ? <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button> : null}
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="rounded-2xl border border-blue-100 p-4">Add role-based permissions and password rotation for multiple office users.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Deploy the Docker build with persistent storage and a real production domain.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports, uploads, and estimates into their own resource APIs.</div>
+            </div>
+          </Card>
+        </div>
+        <AuditTrailPanel auditEvents={auditEvents} />
       </div>
     </div>
   );
@@ -1131,19 +1426,21 @@ function MainContent(props) {
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
-  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} />;
+  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} />;
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 
 export default function App() {
-  const [active, setActive] = useState("dashboard");
+  const [pathname, setPathname] = useState(() => normalizePathname(window.location.pathname));
   const [sessionToken, setSessionToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) || "");
   const [authStatus, setAuthStatus] = useState(sessionToken ? "checking" : "loggedOut");
   const [appState, setAppState] = useState(EMPTY_APP_STATE);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [credentials, setCredentials] = useState({ email: "ops@lastyard.test", password: "concrete123" });
+  const [credentials, setCredentials] = useState({ email: "", password: "" });
+  const [setupDraft, setSetupDraft] = useState(INITIAL_SETUP_FORM);
+  const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
   const [leadFilter, setLeadFilter] = useState("All");
   const [leadSearch, setLeadSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("All");
@@ -1153,6 +1450,42 @@ export default function App() {
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
+  const [backendStatus, setBackendStatus] = useState("checking");
+  const [recordSaveState, setRecordSaveState] = useState({
+    lead: { id: "", status: "idle", message: "Autosave ready" },
+    job: { id: "", status: "idle", message: "Autosave ready" },
+  });
+  const autosaveTimeoutsRef = useRef({ lead: null, job: null });
+  const autosaveVersionsRef = useRef({ lead: new Map(), job: new Map() });
+  const pendingAutosavePatchesRef = useRef({ lead: new Map(), job: new Map() });
+  const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
+  const active = routeState.active;
+
+  function navigateTo(nextPath, { replace = false } = {}) {
+    const normalized = normalizePathname(nextPath);
+    if (window.location.pathname !== normalized) {
+      if (replace) {
+        window.history.replaceState({}, "", normalized);
+      } else {
+        window.history.pushState({}, "", normalized);
+      }
+    }
+    setPathname(normalized);
+  }
+
+  function setActive(nextActive) {
+    navigateTo(getModulePath(nextActive));
+  }
+
+  function navigateToLead(id) {
+    setSelectedLeadId(id);
+    navigateTo(buildLeadPath(id));
+  }
+
+  function navigateToJob(id) {
+    setSelectedJobId(id);
+    navigateTo(buildJobPath(id));
+  }
 
   function applyBootstrap(nextState) {
     setAppState({
@@ -1161,11 +1494,82 @@ export default function App() {
       jobs: nextState.jobs,
       queueItems: nextState.queueItems,
       activity: nextState.activity,
+      auditEvents: nextState.auditEvents,
       stats: nextState.stats,
     });
   }
 
+  function clearAutosaveTimer(kind) {
+    if (autosaveTimeoutsRef.current[kind]) {
+      window.clearTimeout(autosaveTimeoutsRef.current[kind]);
+      autosaveTimeoutsRef.current[kind] = null;
+    }
+  }
+
+  function setSaveState(kind, nextState) {
+    setRecordSaveState((current) => ({
+      ...current,
+      [kind]: {
+        ...current[kind],
+        ...nextState,
+      },
+    }));
+  }
+
+  function bumpAutosaveVersion(kind, recordId) {
+    const versions = autosaveVersionsRef.current[kind];
+    const nextVersion = (versions.get(recordId) || 0) + 1;
+    versions.set(recordId, nextVersion);
+    return nextVersion;
+  }
+
+  function getAutosaveVersion(kind, recordId) {
+    return autosaveVersionsRef.current[kind].get(recordId) || 0;
+  }
+
+  function mergeAutosaveResponse(kind, recordId, version, nextState) {
+    setAppState((current) => {
+      const currentVersion = getAutosaveVersion(kind, recordId);
+      const shouldReplaceRecord = currentVersion === version;
+      const nextLead = shouldReplaceRecord ? nextState.leads.find((lead) => lead.id === recordId) : null;
+      const nextJob = shouldReplaceRecord ? nextState.jobs.find((job) => job.id === recordId) : null;
+
+      return {
+        ...current,
+        activity: nextState.activity,
+        auditEvents: nextState.auditEvents,
+        leads: kind === "lead" && nextLead ? current.leads.map((lead) => (lead.id === recordId ? nextLead : lead)) : current.leads,
+        jobs: kind === "job" && nextJob ? current.jobs.map((job) => (job.id === recordId ? nextJob : job)) : current.jobs,
+      };
+    });
+  }
+
+  function resetAutosaveState() {
+    clearAutosaveTimer("lead");
+    clearAutosaveTimer("job");
+    autosaveVersionsRef.current.lead.clear();
+    autosaveVersionsRef.current.job.clear();
+    pendingAutosavePatchesRef.current.lead.clear();
+    pendingAutosavePatchesRef.current.job.clear();
+    setRecordSaveState({
+      lead: { id: "", status: "idle", message: "Autosave ready" },
+      job: { id: "", status: "idle", message: "Autosave ready" },
+    });
+  }
+
+  function resetRecordAutosave(kind, recordId) {
+    clearAutosaveTimer(kind);
+    autosaveVersionsRef.current[kind].delete(recordId);
+    pendingAutosavePatchesRef.current[kind].delete(recordId);
+    setSaveState(kind, {
+      id: recordId,
+      status: "idle",
+      message: "Autosave ready",
+    });
+  }
+
   function clearSession() {
+    resetAutosaveState();
     window.localStorage.removeItem(SESSION_TOKEN_KEY);
     setSessionToken("");
     setAuthStatus("loggedOut");
@@ -1173,6 +1577,64 @@ export default function App() {
     setSelectedLeadId("");
     setSelectedJobId("");
   }
+
+  useEffect(() => () => {
+    clearAutosaveTimer("lead");
+    clearAutosaveTimer("job");
+  }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      setPathname(normalizePathname(window.location.pathname));
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPublicStatus() {
+      try {
+        await getHealth();
+        if (cancelled) return;
+        setBackendStatus("online");
+
+        const nextSetupStatus = await getSetupStatus();
+        if (cancelled) return;
+        setSetupStatus({
+          checked: true,
+          needsSetup: nextSetupStatus.needsSetup,
+          hasUsers: nextSetupStatus.hasUsers,
+          demoMode: nextSetupStatus.demoMode,
+          demoUserExists: nextSetupStatus.demoUserExists,
+          environmentBootstrap: nextSetupStatus.environmentBootstrap,
+        });
+      } catch {
+        if (!cancelled) {
+          setBackendStatus("offline");
+          setSetupStatus((current) => ({ ...current, checked: true }));
+        }
+      }
+    }
+
+    loadPublicStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!setupStatus.demoUserExists) return;
+    if (credentials.email || credentials.password) return;
+    setCredentials({
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+  }, [credentials.email, credentials.password, setupStatus.demoUserExists]);
 
   async function bootstrap(token) {
     setBusy(true);
@@ -1198,40 +1660,109 @@ export default function App() {
   }, [sessionToken]);
 
   useEffect(() => {
-    if (!selectedLeadId && appState.leads[0]) setSelectedLeadId(appState.leads[0].id);
-    if (selectedLeadId && !appState.leads.some((lead) => lead.id === selectedLeadId) && appState.leads[0]) setSelectedLeadId(appState.leads[0].id);
-  }, [appState.leads, selectedLeadId]);
+    if (authStatus !== "authenticated") return;
+
+    const fallbackLeadId = appState.leads[0]?.id || "";
+
+    if (routeState.leadId) {
+      if (!appState.leads.some((lead) => lead.id === routeState.leadId)) {
+        setSelectedLeadId(fallbackLeadId);
+        navigateTo(getModulePath("leads"), { replace: true });
+        return;
+      }
+
+      if (selectedLeadId !== routeState.leadId) {
+        setSelectedLeadId(routeState.leadId);
+      }
+      return;
+    }
+
+    if (!selectedLeadId && fallbackLeadId) setSelectedLeadId(fallbackLeadId);
+    if (selectedLeadId && !appState.leads.some((lead) => lead.id === selectedLeadId)) setSelectedLeadId(fallbackLeadId);
+  }, [appState.leads, authStatus, routeState.leadId, selectedLeadId]);
 
   useEffect(() => {
-    if (!selectedJobId && appState.jobs[0]) setSelectedJobId(appState.jobs[0].id);
-    if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId) && appState.jobs[0]) setSelectedJobId(appState.jobs[0].id);
-  }, [appState.jobs, selectedJobId]);
+    if (authStatus !== "authenticated") return;
+
+    const fallbackJobId = appState.jobs[0]?.id || "";
+
+    if (routeState.jobId) {
+      if (!appState.jobs.some((job) => job.id === routeState.jobId)) {
+        setSelectedJobId(fallbackJobId);
+        navigateTo(getModulePath("jobs"), { replace: true });
+        return;
+      }
+
+      if (selectedJobId !== routeState.jobId) {
+        setSelectedJobId(routeState.jobId);
+      }
+      return;
+    }
+
+    if (!selectedJobId && fallbackJobId) setSelectedJobId(fallbackJobId);
+    if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId)) setSelectedJobId(fallbackJobId);
+  }, [appState.jobs, authStatus, routeState.jobId, selectedJobId]);
 
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
+  const leadSaveState = recordSaveState.lead.id === selectedLeadId ? recordSaveState.lead : { id: selectedLeadId, status: "idle", message: "Autosave ready" };
+  const jobSaveState = recordSaveState.job.id === selectedJobId ? recordSaveState.job : { id: selectedJobId, status: "idle", message: "Autosave ready" };
 
   const visibleLeads = useMemo(() => {
     const query = leadSearch.toLowerCase();
     return appState.leads.filter((lead) => {
-      const matchesFilter = leadFilter === "All" || lead.status === leadFilter;
+      const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
+      const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
       const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(query));
-      return matchesFilter && matchesSearch;
+      return matchesArchive && matchesFilter && matchesSearch;
     });
   }, [appState.leads, leadFilter, leadSearch]);
 
   const visibleJobs = useMemo(() => {
     const query = jobSearch.toLowerCase();
     return appState.jobs.filter((job) => {
-      const matchesFilter = jobFilter === "All" || job.stage === jobFilter;
+      const matchesArchive = jobFilter === "Archived" ? Boolean(job.archivedAt) : !job.archivedAt;
+      const matchesFilter = jobFilter === "All" || jobFilter === "Archived" ? true : job.stage === jobFilter;
       const matchesSearch = [job.job, job.customer, job.crew, job.next].some((value) => value.toLowerCase().includes(query));
-      return matchesFilter && matchesSearch;
+      return matchesArchive && matchesFilter && matchesSearch;
     });
   }, [appState.jobs, jobFilter, jobSearch]);
 
+  const stats = useMemo(() => {
+    const liveLeads = appState.leads.filter((lead) => !lead.archivedAt);
+    const liveJobs = appState.jobs.filter((job) => !job.archivedAt);
+    const liveQueueItems = appState.queueItems.filter((item) => !item.archivedAt);
+    const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
+    const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
+    const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
+    const activeJobs = liveJobs.filter((job) => job.stage === "In Progress").length;
+    const scheduledJobs = liveJobs.filter((job) => job.stage === "Scheduled").length;
+    const reportsDue = liveQueueItems.filter((item) => !item.done && item.status === "Due today").length;
+    const queueBlocked = liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length;
+    return {
+      newLeads,
+      highPriorityLeads,
+      pipelineValue,
+      activeJobs,
+      scheduledJobs,
+      reportsDue,
+      queueBlocked,
+    };
+  }, [appState.jobs, appState.leads, appState.queueItems]);
+
+  const saveSummary = useMemo(() => {
+    const relevantStates = [recordSaveState.lead, recordSaveState.job];
+    if (relevantStates.some((item) => item.status === "error")) return { tone: "red", label: "Save error" };
+    if (relevantStates.some((item) => item.status === "saving")) return { tone: "blue", label: "Saving changes" };
+    if (relevantStates.some((item) => item.status === "pending")) return { tone: "amber", label: "Unsaved changes" };
+    if (relevantStates.some((item) => item.status === "saved")) return { tone: "green", label: "All changes saved" };
+    return null;
+  }, [recordSaveState.job, recordSaveState.lead]);
+
   const counts = {
-    leads: appState.leads.length,
-    jobs: appState.jobs.length,
-    reports: appState.stats.reportsDue || null,
+    leads: appState.leads.filter((lead) => !lead.archivedAt).length,
+    jobs: appState.jobs.filter((job) => !job.archivedAt).length,
+    reports: stats.reportsDue || null,
     copilot: 1,
   };
 
@@ -1259,11 +1790,47 @@ export default function App() {
     setLoginError("");
     try {
       const result = await login(credentials);
+      setBackendStatus("online");
       window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
       setSessionToken(result.token);
       setAuthStatus("checking");
     } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
       setLoginError(error.message);
+      setBusy(false);
+    }
+  }
+
+  async function handleBootstrapAdmin(event) {
+    event.preventDefault();
+    setBusy(true);
+    setLoginError("");
+
+    try {
+      const result = await bootstrapAdminAccount(setupDraft);
+      setBackendStatus("online");
+      setSetupStatus({
+        checked: true,
+        needsSetup: false,
+        hasUsers: true,
+        demoMode: setupStatus.demoMode,
+        demoUserExists: false,
+        environmentBootstrap: false,
+      });
+      applyBootstrap(result);
+      window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+      setSessionToken(result.token);
+      setAuthStatus("authenticated");
+      setSetupDraft(INITIAL_SETUP_FORM);
+      setLoginError("");
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setLoginError(error.message);
+    } finally {
       setBusy(false);
     }
   }
@@ -1279,28 +1846,93 @@ export default function App() {
     clearSession();
   }
 
+  function scheduleRecordSave(kind, recordId, patch) {
+    if (!sessionToken) return;
+
+    const version = bumpAutosaveVersion(kind, recordId);
+    const pendingPatches = pendingAutosavePatchesRef.current[kind];
+    pendingPatches.set(recordId, {
+      ...(pendingPatches.get(recordId) || {}),
+      ...patch,
+    });
+    clearAutosaveTimer(kind);
+    setSaveState(kind, {
+      id: recordId,
+      status: "pending",
+      message: "Changes pending",
+    });
+
+    autosaveTimeoutsRef.current[kind] = window.setTimeout(async () => {
+      const pendingPatch = pendingAutosavePatchesRef.current[kind].get(recordId);
+      if (!pendingPatch) return;
+
+      setSaveState(kind, {
+        id: recordId,
+        status: "saving",
+        message: "Saving...",
+      });
+
+      try {
+        const nextState = kind === "lead"
+          ? await updateLead(sessionToken, recordId, pendingPatch)
+          : await updateJob(sessionToken, recordId, pendingPatch);
+
+        setErrorMessage("");
+        mergeAutosaveResponse(kind, recordId, version, nextState);
+
+        if (getAutosaveVersion(kind, recordId) === version) {
+          pendingAutosavePatchesRef.current[kind].delete(recordId);
+          setSaveState(kind, {
+            id: recordId,
+            status: "saved",
+            message: "All changes saved",
+          });
+        }
+      } catch (error) {
+        if (error.status === 401) {
+          clearSession();
+          return;
+        }
+
+        setErrorMessage(error.message);
+        if (getAutosaveVersion(kind, recordId) === version) {
+          setSaveState(kind, {
+            id: recordId,
+            status: "error",
+            message: error.message,
+          });
+        }
+      }
+    }, AUTOSAVE_DELAY_MS);
+  }
+
   function handleLeadFieldChange(field, value) {
     if (!selectedLead) return;
-    applyBootstrap({
-      ...appState,
-      leads: appState.leads.map((lead) => (lead.id === selectedLead.id ? { ...lead, [field]: value } : lead)),
-    });
-    runMutation(() => updateLead(sessionToken, selectedLead.id, { [field]: value }));
+    setAppState((current) => ({
+      ...current,
+      leads: current.leads.map((lead) => (lead.id === selectedLead.id ? { ...lead, [field]: value } : lead)),
+    }));
+    scheduleRecordSave("lead", selectedLead.id, { [field]: value });
   }
 
   function handleJobFieldChange(field, value) {
     if (!selectedJob) return;
-    applyBootstrap({
-      ...appState,
-      jobs: appState.jobs.map((job) => (job.id === selectedJob.id ? { ...job, [field]: value } : job)),
-    });
-    runMutation(() => updateJob(sessionToken, selectedJob.id, { [field]: value }));
+    setAppState((current) => ({
+      ...current,
+      jobs: current.jobs.map((job) => (job.id === selectedJob.id ? { ...job, [field]: value } : job)),
+    }));
+    scheduleRecordSave("job", selectedJob.id, { [field]: value });
   }
 
   function handleCreateLead(event) {
     event.preventDefault();
+    const existingLeadIds = new Set(appState.leads.map((lead) => lead.id));
     runMutation(async () => {
       const nextState = await createLead(sessionToken, leadDraft);
+      const createdLead = nextState.leads.find((lead) => !existingLeadIds.has(lead.id));
+      if (createdLead) {
+        navigateToLead(createdLead.id);
+      }
       setLeadDraft(INITIAL_LEAD_FORM);
       return nextState;
     });
@@ -1308,8 +1940,13 @@ export default function App() {
 
   function handleCreateJob(event) {
     event.preventDefault();
+    const existingJobIds = new Set(appState.jobs.map((job) => job.id));
     runMutation(async () => {
       const nextState = await createJob(sessionToken, jobDraft);
+      const createdJob = nextState.jobs.find((job) => !existingJobIds.has(job.id));
+      if (createdJob) {
+        navigateToJob(createdJob.id);
+      }
       setJobDraft(INITIAL_JOB_FORM);
       return nextState;
     });
@@ -1317,9 +1954,15 @@ export default function App() {
 
   function handleCreateJobFromLead() {
     if (!selectedLead) return;
+    const existingJobIds = new Set(appState.jobs.map((job) => job.id));
     runMutation(async () => {
       const nextState = await convertLead(sessionToken, selectedLead.id);
-      setActive("jobs");
+      const createdJob = nextState.jobs.find((job) => !existingJobIds.has(job.id));
+      if (createdJob) {
+        navigateToJob(createdJob.id);
+      } else {
+        setActive("jobs");
+      }
       return nextState;
     });
   }
@@ -1337,6 +1980,56 @@ export default function App() {
     runMutation(() => toggleQueueItem(sessionToken, taskId));
   }
 
+  function handleArchiveLead() {
+    if (!selectedLead) return;
+    resetRecordAutosave("lead", selectedLead.id);
+    runMutation(() => archiveLead(sessionToken, selectedLead.id));
+  }
+
+  function handleRestoreLead() {
+    if (!selectedLead) return;
+    resetRecordAutosave("lead", selectedLead.id);
+    runMutation(() => restoreLead(sessionToken, selectedLead.id));
+  }
+
+  function handleDeleteLead() {
+    if (!selectedLead || !window.confirm(`Delete ${selectedLead.customer} permanently? This cannot be undone.`)) return;
+    resetRecordAutosave("lead", selectedLead.id);
+    runMutation(() => deleteLead(sessionToken, selectedLead.id));
+  }
+
+  function handleArchiveJob() {
+    if (!selectedJob) return;
+    resetRecordAutosave("job", selectedJob.id);
+    runMutation(() => archiveJob(sessionToken, selectedJob.id));
+  }
+
+  function handleRestoreJob() {
+    if (!selectedJob) return;
+    resetRecordAutosave("job", selectedJob.id);
+    runMutation(() => restoreJob(sessionToken, selectedJob.id));
+  }
+
+  function handleDeleteJob() {
+    if (!selectedJob || !window.confirm(`Delete ${selectedJob.job} permanently? This cannot be undone.`)) return;
+    resetRecordAutosave("job", selectedJob.id);
+    runMutation(() => deleteJob(sessionToken, selectedJob.id));
+  }
+
+  function handleArchiveTask(taskId) {
+    runMutation(() => archiveQueueItem(sessionToken, taskId));
+  }
+
+  function handleRestoreTask(taskId) {
+    runMutation(() => restoreQueueItem(sessionToken, taskId));
+  }
+
+  function handleDeleteTask(taskId) {
+    const task = appState.queueItems.find((item) => item.id === taskId);
+    if (!task || !window.confirm(`Delete "${task.title}" permanently? This cannot be undone.`)) return;
+    runMutation(() => deleteQueueItem(sessionToken, taskId));
+  }
+
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
@@ -1347,7 +2040,20 @@ export default function App() {
   }
 
   if (authStatus === "loggedOut") {
-    return <LoginScreen credentials={credentials} setCredentials={setCredentials} onSubmit={handleLogin} loading={busy} error={loginError} />;
+    return (
+      <LoginScreen
+        credentials={credentials}
+        setCredentials={setCredentials}
+        onSubmit={handleLogin}
+        loading={busy}
+        error={loginError}
+        backendStatus={backendStatus}
+        setupStatus={setupStatus}
+        setupDraft={setupDraft}
+        setSetupDraft={setSetupDraft}
+        onSetupSubmit={handleBootstrapAdmin}
+      />
+    );
   }
 
   const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];
@@ -1358,18 +2064,20 @@ export default function App() {
       <div className="flex">
         <Sidebar active={active} setActive={setActive} counts={counts} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={appState.stats} user={appState.user} onLogout={handleLogout} syncing={busy} />
+          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="py-0">
             <MainContent
               active={active}
               setActive={setActive}
               user={appState.user}
-              stats={appState.stats}
+              stats={stats}
               leads={appState.leads}
               jobs={appState.jobs}
               queueItems={appState.queueItems}
               activity={appState.activity}
+              auditEvents={appState.auditEvents}
+              demoMode={setupStatus.demoMode}
               leadFilter={leadFilter}
               setLeadFilter={setLeadFilter}
               leadSearch={leadSearch}
@@ -1379,17 +2087,25 @@ export default function App() {
               jobSearch={jobSearch}
               setJobSearch={setJobSearch}
               selectedLeadId={selectedLeadId}
-              onSelectLead={setSelectedLeadId}
+              onSelectLead={navigateToLead}
               selectedLead={selectedLead}
               onLeadFieldChange={handleLeadFieldChange}
+              leadSaveState={leadSaveState}
+              onArchiveLead={handleArchiveLead}
+              onRestoreLead={handleRestoreLead}
+              onDeleteLead={handleDeleteLead}
               leadDraft={leadDraft}
               setLeadDraft={setLeadDraft}
               onCreateLead={handleCreateLead}
               onCreateJobFromLead={handleCreateJobFromLead}
               selectedJobId={selectedJobId}
-              onSelectJob={setSelectedJobId}
+              onSelectJob={navigateToJob}
               selectedJob={selectedJob}
               onJobFieldChange={handleJobFieldChange}
+              jobSaveState={jobSaveState}
+              onArchiveJob={handleArchiveJob}
+              onRestoreJob={handleRestoreJob}
+              onDeleteJob={handleDeleteJob}
               jobDraft={jobDraft}
               setJobDraft={setJobDraft}
               onCreateJob={handleCreateJob}
@@ -1397,6 +2113,9 @@ export default function App() {
               setTaskDraft={setTaskDraft}
               onAddTask={handleAddTask}
               onToggleTask={handleToggleTask}
+              onArchiveTask={handleArchiveTask}
+              onRestoreTask={handleRestoreTask}
+              onDeleteTask={handleDeleteTask}
               visibleLeads={visibleLeads}
               visibleJobs={visibleJobs}
               onReset={handleReset}
