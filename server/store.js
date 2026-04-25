@@ -99,6 +99,58 @@ export function leadProjectName(lead) {
   return `${lastName} ${lead.project}`;
 }
 
+function jobStatusValue(status = "scheduled") {
+  const normalized = String(status || "").trim().toLowerCase();
+  const legacyMap = {
+    "scheduled": "scheduled",
+    "in progress": "in_progress",
+    "waiting": "planned",
+    "ready to bill": "billing_ready",
+    "complete": "completed",
+  };
+
+  return legacyMap[normalized] || normalized || "scheduled";
+}
+
+function jobStatusLabel(status = "scheduled") {
+  const normalized = jobStatusValue(status);
+  const labels = {
+    draft: "Draft",
+    planned: "Planned",
+    scheduled: "Scheduled",
+    in_progress: "In Progress",
+    field_complete: "Field Complete",
+    completed: "Completed",
+    billing_ready: "Billing Ready",
+    closed: "Closed",
+    archived: "Archived",
+  };
+
+  return labels[normalized] || "Scheduled";
+}
+
+function normalizeStoredJob(job) {
+  const title = job.title || job.job || "Untitled job";
+  const status = jobStatusValue(job.status || job.stage);
+  const scheduledStart = job.scheduledStart || "";
+  const scheduledEnd = job.scheduledEnd || "";
+  const nextStep = job.nextStep || job.next || "";
+
+  return {
+    ...job,
+    leadId: job.leadId || "",
+    title,
+    job: title,
+    status,
+    stage: jobStatusLabel(status),
+    scheduledStart,
+    scheduledEnd,
+    nextStep,
+    next: nextStep,
+    due: scheduledStart || job.due || "",
+  };
+}
+
 function isoNow() {
   return new Date().toISOString();
 }
@@ -150,13 +202,14 @@ function createSeedAuditEvents(user, customers, leads, jobs, queueItems) {
   });
 
   jobs.forEach((job) => {
+    const normalizedJob = normalizeStoredJob(job);
     events.push({
       id: makeAuditId(`seed-job-${job.id}`),
       entityType: "job",
       entityId: job.id,
       action: "created",
       summary: "Job seeded",
-      detail: `${job.job} prepared for ${job.customer}.`,
+      detail: `${normalizedJob.title} prepared for ${normalizedJob.customer}.`,
       actorUserId,
       actorName,
       changedFields: [],
@@ -813,6 +866,59 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 14,
+    description: "Add canonical job workflow fields.",
+    up(database) {
+      const columns = [
+        ["lead_id", "TEXT"],
+        ["title", "TEXT"],
+        ["status", "TEXT"],
+        ["scheduled_start", "TEXT"],
+        ["scheduled_end", "TEXT"],
+        ["next_step_v2", "TEXT"],
+      ];
+
+      columns.forEach(([columnName, columnType]) => {
+        if (!columnExists(database, "jobs", columnName)) {
+          database.exec(`
+            ALTER TABLE jobs
+            ADD COLUMN ${columnName} ${columnType}
+          `);
+        }
+      });
+
+      database.prepare(`
+        UPDATE jobs
+        SET lead_id = COALESCE(lead_id, ''),
+            title = COALESCE(title, job, ''),
+            status = CASE LOWER(COALESCE(status, stage, 'scheduled'))
+              WHEN 'scheduled' THEN 'scheduled'
+              WHEN 'in progress' THEN 'in_progress'
+              WHEN 'waiting' THEN 'planned'
+              WHEN 'ready to bill' THEN 'billing_ready'
+              WHEN 'complete' THEN 'completed'
+              WHEN 'draft' THEN 'draft'
+              WHEN 'planned' THEN 'planned'
+              WHEN 'in_progress' THEN 'in_progress'
+              WHEN 'field_complete' THEN 'field_complete'
+              WHEN 'completed' THEN 'completed'
+              WHEN 'billing_ready' THEN 'billing_ready'
+              WHEN 'closed' THEN 'closed'
+              ELSE 'scheduled'
+            END,
+            scheduled_start = COALESCE(scheduled_start, ''),
+            scheduled_end = COALESCE(scheduled_end, ''),
+            next_step_v2 = COALESCE(next_step_v2, next_step, '')
+      `).run();
+
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_jobs_lead_id ON jobs(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+        CREATE INDEX IF NOT EXISTS idx_jobs_scheduled_start ON jobs(scheduled_start);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -872,8 +978,8 @@ function writeStateToDb(state) {
   `);
 
   const insertJob = database.prepare(`
-    INSERT INTO jobs (id, sort_index, customer_id, job, customer, address, site_contact, scope_summary, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, stage, crew, next_step, due, progress, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQueueItem = database.prepare(`
@@ -976,34 +1082,41 @@ function writeStateToDb(state) {
     });
 
     state.jobs.forEach((job, index) => {
+      const normalizedJob = normalizeStoredJob(job);
       insertJob.run(
-        job.id,
+        normalizedJob.id,
         index,
-        job.customerId || null,
-        job.job,
-        job.customer,
-        job.address || "",
-        job.siteContact || "",
-        job.scopeSummary || "",
-        job.estimatedDuration || "",
-        Number(job.crewSizeNeeded || 0),
-        job.equipmentNotes || "",
-        job.safetyNotes || "",
-        job.materialNotes || "",
-        job.fieldNotes || "",
-        job.assignedForemanId || "",
-        job.assignedUserId || "",
-        job.fieldPlanningVisible ? 1 : 0,
-        job.visibleToForeman ? 1 : 0,
-        job.stage,
-        job.crew,
-        job.next,
-        job.due,
-        Number(job.progress || 0),
-        job.notes,
-        job.createdAt || isoNow(),
-        job.updatedAt || job.createdAt || isoNow(),
-        job.archivedAt || null,
+        normalizedJob.customerId || null,
+        normalizedJob.leadId || null,
+        normalizedJob.title,
+        normalizedJob.title,
+        normalizedJob.customer,
+        normalizedJob.address || "",
+        normalizedJob.siteContact || "",
+        normalizedJob.scopeSummary || "",
+        normalizedJob.scheduledStart || "",
+        normalizedJob.scheduledEnd || "",
+        normalizedJob.estimatedDuration || "",
+        Number(normalizedJob.crewSizeNeeded || 0),
+        normalizedJob.equipmentNotes || "",
+        normalizedJob.safetyNotes || "",
+        normalizedJob.materialNotes || "",
+        normalizedJob.fieldNotes || "",
+        normalizedJob.assignedForemanId || "",
+        normalizedJob.assignedUserId || "",
+        normalizedJob.fieldPlanningVisible ? 1 : 0,
+        normalizedJob.visibleToForeman ? 1 : 0,
+        normalizedJob.status,
+        normalizedJob.stage,
+        normalizedJob.crew || "",
+        normalizedJob.nextStep || "",
+        normalizedJob.nextStep || "",
+        normalizedJob.due || normalizedJob.scheduledStart || "",
+        Number(normalizedJob.progress || 0),
+        normalizedJob.notes || "",
+        normalizedJob.createdAt || isoNow(),
+        normalizedJob.updatedAt || normalizedJob.createdAt || isoNow(),
+        normalizedJob.archivedAt || null,
       );
     });
 
@@ -1067,11 +1180,11 @@ function readTableState() {
   `).all();
 
   const jobs = database.prepare(`
-    SELECT id, customer_id AS customerId, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
     ORDER BY sort_index ASC
   `).all().map((job) => ({
-    ...job,
+    ...normalizeStoredJob(job),
     fieldPlanningVisible: Boolean(job.fieldPlanningVisible),
     visibleToForeman: Boolean(job.visibleToForeman),
   }));

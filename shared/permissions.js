@@ -94,14 +94,20 @@ export function canViewJobMoney(user) {
   return isOfficeManager(user) || isEstimator(user);
 }
 
+function isFutureScheduledJob(job) {
+  if (!job?.scheduledStart) return false;
+  const parsed = new Date(job.scheduledStart);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.getTime() > Date.now();
+}
+
 export function canViewJob(job, user) {
   if (!user || !job) return false;
   if (canViewAllJobs(user) || isEstimator(user)) return true;
   if (isForeman(user)) {
     return job.assignedForemanId === user.id
       || job.assignedUserId === user.id
-      || Boolean(job.fieldPlanningVisible)
-      || Boolean(job.visibleToForeman);
+      || ((Boolean(job.fieldPlanningVisible) || Boolean(job.visibleToForeman)) && isFutureScheduledJob(job));
   }
   if (isEmployee(user)) {
     return job.assignedUserId === user.id;
