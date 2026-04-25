@@ -87,6 +87,15 @@ Leads, jobs, and queue items now support archive-first deletion: records can be 
 
 Lead and job detail views now use durable browser URLs like `/leads/:id` and `/jobs/:id`, so selected records survive refreshes and can be opened directly as long as the app is running through the bundled Node server.
 
+## CI
+
+GitHub Actions now runs on pushes and pull requests via `.github/workflows/ci.yml` and executes:
+
+- `npm ci`
+- `npm run build`
+- `npm run verify:server`
+- `npm run verify:backup`
+
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 
 Demo sessions now use rolling expiration and are cleaned up when they expire.
