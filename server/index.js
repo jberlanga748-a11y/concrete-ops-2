@@ -37,7 +37,8 @@ const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
 const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
 const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
-const CUSTOMER_MANAGE_ROLES = new Set(["administrator", "owner", "operations manager"]);
+const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
+const OFFICE_MANAGE_ROLES = new Set(["administrator", "owner", "operations manager"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -131,6 +132,15 @@ function optionalEmail(value, fallback = "") {
   return normalized || fallback;
 }
 
+function optionalDateString(value, fieldName, fallback = "") {
+  if (value == null || value === "") return fallback;
+  const normalized = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new ApiError(400, `${fieldName} must be in YYYY-MM-DD format.`);
+  }
+  return normalized;
+}
+
 function findRequiredRecord(records, id, resourceName) {
   const record = records.find((entry) => entry.id === id);
   if (!record) {
@@ -144,19 +154,80 @@ function normalizeRole(role) {
 }
 
 function isCustomerManager(user) {
-  return CUSTOMER_MANAGE_ROLES.has(normalizeRole(user?.role));
+  return OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role));
 }
 
-function customerAssignmentIdsForUser(state, user) {
-  if (normalizeRole(user?.role) !== "foreman") {
-    return new Set();
+function isLeadManager(user) {
+  return OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role));
+}
+
+function canViewCustomers(user) {
+  return isCustomerManager(user);
+}
+
+function canViewLeads(user) {
+  return isLeadManager(user);
+}
+
+function visibleJobsForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.jobs;
   }
 
-  return new Set(
-    state.jobs
-      .filter((job) => !job.archivedAt && job.assignedUserId === user.id && job.customerId)
-      .map((job) => job.customerId),
-  );
+  return state.jobs.filter((job) => !job.archivedAt && job.assignedUserId === user.id);
+}
+
+function visibleQueueItemsForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.queueItems;
+  }
+
+  return state.queueItems.filter((item) => !item.archivedAt && item.assignedUserId === user.id);
+}
+
+function visibleActivityForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.activity;
+  }
+
+  return [];
+}
+
+function visibleAuditEventsForUser(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.auditEvents;
+  }
+
+  return [];
+}
+
+function visibleUsers(state, user) {
+  if (!user) return [];
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+    return state.users.map((entry) => publicUser(entry));
+  }
+
+  return [publicUser(user)];
+}
+
+function visibleLeadsForUser(state, user) {
+  if (!canViewLeads(user)) {
+    return [];
+  }
+
+  return state.leads;
+}
+
+function visibleLeadStatusHistoryForUser(state, user) {
+  if (!canViewLeads(user)) {
+    return [];
+  }
+
+  return state.leadStatusHistory;
 }
 
 function customerPermissionsForUser(state, user) {
@@ -164,30 +235,42 @@ function customerPermissionsForUser(state, user) {
     return { canView: false, canManage: false };
   }
 
-  if (isCustomerManager(user)) {
+  if (canViewCustomers(user)) {
     return { canView: true, canManage: true };
   }
 
-  const assignmentIds = customerAssignmentIdsForUser(state, user);
-  return {
-    canView: assignmentIds.size > 0,
-    canManage: false,
-  };
+  return { canView: false, canManage: false };
 }
 
 function visibleCustomersForUser(state, user) {
   if (!user) return [];
-  if (isCustomerManager(user)) {
+  if (canViewCustomers(user)) {
     return state.customers;
   }
 
-  const assignmentIds = customerAssignmentIdsForUser(state, user);
-  return state.customers.filter((customer) => assignmentIds.has(customer.id));
+  return [];
 }
 
 function assertCanManageCustomers(user) {
   if (!isCustomerManager(user)) {
     throw new ApiError(403, "You do not have permission to manage customers.");
+  }
+}
+
+function leadPermissionsForUser(user) {
+  if (!user) {
+    return { canView: false, canManage: false };
+  }
+
+  return {
+    canView: canViewLeads(user),
+    canManage: isLeadManager(user),
+  };
+}
+
+function assertCanManageLeads(user) {
+  if (!isLeadManager(user)) {
+    throw new ApiError(403, "You do not have permission to manage leads.");
   }
 }
 
@@ -220,6 +303,81 @@ function syncCustomerNameReferences(state, customer) {
       job.customer = customer.name;
     }
   });
+}
+
+function findUserById(state, userId) {
+  return state.users.find((user) => user.id === userId) || null;
+}
+
+function resolveLeadOwner(state, payload, fallbackUser) {
+  const fallbackOwnerName = fallbackUser?.name || "Office";
+  const ownerId = payload.ownerId != null
+    ? optionalString(payload.ownerId, "")
+    : fallbackUser?.id || "";
+
+  if (ownerId) {
+    const ownerUser = findUserById(state, ownerId);
+    if (!ownerUser) {
+      throw new ApiError(404, "Lead owner not found.");
+    }
+    return {
+      ownerId: ownerUser.id,
+      owner: ownerUser.name,
+    };
+  }
+
+  return {
+    ownerId: "",
+    owner: payload.owner == null ? fallbackOwnerName : requiredString(payload.owner, "Owner"),
+  };
+}
+
+function appendLeadStatusHistory(state, { leadId, fromStatus, toStatus, actor, note = "", createdAt = new Date().toISOString() }) {
+  state.leadStatusHistory.unshift({
+    id: makeAuditId(),
+    leadId,
+    fromStatus: fromStatus || null,
+    toStatus,
+    note,
+    actorUserId: actor?.id || "",
+    actorName: actor?.name || "Unknown user",
+    createdAt,
+  });
+}
+
+function relateLeadToCustomer(state, lead, actor, payload = {}) {
+  const explicitCustomerStatus = [payload.customerStatus, payload.status]
+    .map((value) => String(value ?? "").trim())
+    .find((value) => CUSTOMER_STATUSES.has(value));
+
+  if (payload.customerId != null && payload.customerId !== "") {
+    const customer = findRequiredRecord(state.customers, payload.customerId, "Customer");
+    if (customer.archivedAt) {
+      customer.archivedAt = null;
+      markUpdated(customer);
+    }
+    lead.customerId = customer.id;
+    lead.customer = customer.name;
+    lead.city = payload.city == null ? customer.city || lead.city : requiredString(payload.city, "City");
+    return customer;
+  }
+
+  const customer = ensureCustomerRecord(state, {
+    name: payload.customer ?? lead.customer,
+    city: payload.city ?? lead.city,
+    serviceArea: payload.serviceArea ?? payload.city ?? lead.city,
+    company: payload.company,
+    phone: payload.phone,
+    email: payload.email,
+    status: explicitCustomerStatus ?? (lead.status === "Approved" ? "Active" : "Prospect"),
+  }, actor, { fallbackStatus: lead.status === "Approved" ? "Active" : "Prospect" });
+
+  lead.customerId = customer.id;
+  lead.customer = customer.name;
+  if (!lead.city && customer.city) {
+    lead.city = customer.city;
+  }
+  return customer;
 }
 
 function createCustomerShape(payload, fallbackStatus = "Prospect") {
@@ -359,19 +517,42 @@ function statsFromState(state) {
   };
 }
 
+function statsForUser(state, user) {
+  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role))) {
+    return statsFromState(state);
+  }
+
+  const liveJobs = visibleJobsForUser(state, user).filter((job) => !job.archivedAt);
+  const liveQueueItems = visibleQueueItemsForUser(state, user).filter((item) => !item.archivedAt);
+
+  return {
+    newLeads: 0,
+    highPriorityLeads: 0,
+    pipelineValue: 0,
+    activeJobs: liveJobs.filter((job) => job.stage === "In Progress").length,
+    scheduledJobs: liveJobs.filter((job) => job.stage === "Scheduled").length,
+    reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
+    queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
+  };
+}
+
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
+  const leadPermissions = leadPermissionsForUser(user);
   return {
     user: publicUser(user),
+    users: visibleUsers(state, user),
     customers: visibleCustomersForUser(state, user),
-    leads: state.leads,
-    jobs: state.jobs,
-    queueItems: state.queueItems,
-    activity: state.activity,
-    auditEvents: state.auditEvents,
-    stats: statsFromState(state),
+    leads: visibleLeadsForUser(state, user),
+    leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
+    jobs: visibleJobsForUser(state, user),
+    queueItems: visibleQueueItemsForUser(state, user),
+    activity: visibleActivityForUser(state, user),
+    auditEvents: visibleAuditEventsForUser(state, user),
+    stats: statsForUser(state, user),
     permissions: {
       customers: customerPermissions,
+      leads: leadPermissions,
     },
   };
 }
@@ -755,18 +936,23 @@ app.post("/api/customers/:id/restore", requireAuth, asyncRoute(async (req, res) 
 }));
 
 app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
   const payload = req.body || {};
   const createdAt = new Date().toISOString();
+  const initialStatus = optionalEnum(payload.status, LEAD_STATUSES, "Status", "New");
   const newLead = {
     id: makeId("L"),
     customerId: "",
     customer: requiredString(payload.customer, "Customer"),
     city: requiredString(payload.city, "City"),
     project: requiredString(payload.project, "Project"),
-    status: "New",
+    status: initialStatus,
     priority: optionalEnum(payload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
     value: optionalNonNegativeNumber(payload.value, "Value"),
-    owner: optionalString(payload.owner, "Office"),
+    owner: "",
+    ownerId: "",
+    source: optionalEnum(payload.source, LEAD_SOURCES, "Lead source", "Call-in"),
+    followUpDueAt: optionalDateString(payload.followUpDueAt, "Follow-up due date", ""),
     age: "Just now",
     nextStep: optionalString(payload.nextStep, "Initial call"),
     notes: optionalString(payload.notes, "No notes yet."),
@@ -775,19 +961,22 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   };
 
   const nextState = await updateDb((draft) => {
-    const customer = ensureCustomerRecord(draft, {
-      name: newLead.customer,
-      city: newLead.city,
-      serviceArea: newLead.city,
-      status: "Prospect",
-    }, req.auth.user, { fallbackStatus: "Prospect" });
-
-    newLead.customerId = customer.id;
+    const ownerInfo = resolveLeadOwner(draft, payload, req.auth.user);
+    Object.assign(newLead, ownerInfo);
+    relateLeadToCustomer(draft, newLead, req.auth.user, payload);
     draft.leads.unshift(newLead);
+    appendLeadStatusHistory(draft, {
+      leadId: newLead.id,
+      fromStatus: null,
+      toStatus: newLead.status,
+      actor: req.auth.user,
+      note: "Lead created.",
+      createdAt,
+    });
     draft.queueItems.unshift({
       id: makeId("Q"),
-      title: `Call ${newLead.customer}`,
-      meta: `${newLead.project} - ${newLead.city}`,
+      title: `Follow up ${newLead.customer}`,
+      meta: `${newLead.project} - ${newLead.followUpDueAt || newLead.city}`,
       status: "Due today",
       done: false,
       createdAt,
@@ -801,6 +990,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
       summary: "Lead created",
       detail: `${newLead.customer} entered for ${newLead.project}.`,
       actor: req.auth.user,
+      changedFields: ["status", "owner", "source", "followUpDueAt"],
     });
     return draft;
   });
@@ -809,6 +999,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/leads/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
@@ -833,6 +1024,7 @@ app.post("/api/leads/:id/archive", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/leads/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
@@ -857,33 +1049,85 @@ app.post("/api/leads/:id/restore", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
   const { id } = req.params;
   const updates = req.body || {};
   const changedAt = new Date().toISOString();
-  const changedFields = Object.keys(updates).filter((field) => updates[field] != null);
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const changedFields = [];
+    const previousStatus = lead.status;
+    const nextProject = updates.project == null ? lead.project : requiredString(updates.project, "Project");
+    const nextStatus = updates.status == null ? lead.status : optionalEnum(updates.status, LEAD_STATUSES, "Status", lead.status);
+    const nextPriority = updates.priority == null ? lead.priority : optionalEnum(updates.priority, LEAD_PRIORITIES, "Priority", lead.priority);
+    const nextValue = updates.value == null ? lead.value : optionalNonNegativeNumber(updates.value, "Value", lead.value);
+    const ownerInfo = updates.ownerId != null || updates.owner != null
+      ? resolveLeadOwner(draft, updates, req.auth.user)
+      : { owner: lead.owner, ownerId: lead.ownerId || "" };
+    const nextSource = updates.source == null ? lead.source || "Call-in" : optionalEnum(updates.source, LEAD_SOURCES, "Lead source", lead.source || "Call-in");
+    const nextFollowUpDueAt = updates.followUpDueAt == null ? lead.followUpDueAt || "" : optionalDateString(updates.followUpDueAt, "Follow-up due date", "");
+    const nextNextStep = updates.nextStep == null ? lead.nextStep : requiredString(updates.nextStep, "Next step");
+    const nextNotes = updates.notes == null ? lead.notes : requiredString(updates.notes, "Notes");
+    const nextCity = updates.city == null ? lead.city : requiredString(updates.city, "City");
+
+    if (lead.project !== nextProject) changedFields.push("project");
+    if (lead.status !== nextStatus) changedFields.push("status");
+    if (lead.priority !== nextPriority) changedFields.push("priority");
+    if (Number(lead.value) !== Number(nextValue)) changedFields.push("value");
+    if (lead.owner !== ownerInfo.owner) changedFields.push("owner");
+    if ((lead.ownerId || "") !== ownerInfo.ownerId) changedFields.push("ownerId");
+    if ((lead.source || "Call-in") !== nextSource) changedFields.push("source");
+    if ((lead.followUpDueAt || "") !== nextFollowUpDueAt) changedFields.push("followUpDueAt");
+    if (lead.nextStep !== nextNextStep) changedFields.push("nextStep");
+    if (lead.notes !== nextNotes) changedFields.push("notes");
+    if (lead.city !== nextCity) changedFields.push("city");
 
     Object.assign(lead, {
-      project: updates.project == null ? lead.project : requiredString(updates.project, "Project"),
-      status: updates.status == null ? lead.status : optionalEnum(updates.status, LEAD_STATUSES, "Status", lead.status),
-      priority: updates.priority == null ? lead.priority : optionalEnum(updates.priority, LEAD_PRIORITIES, "Priority", lead.priority),
-      value: updates.value == null ? lead.value : optionalNonNegativeNumber(updates.value, "Value", lead.value),
-      owner: updates.owner == null ? lead.owner : requiredString(updates.owner, "Owner"),
-      nextStep: updates.nextStep == null ? lead.nextStep : requiredString(updates.nextStep, "Next step"),
-      notes: updates.notes == null ? lead.notes : requiredString(updates.notes, "Notes"),
+      project: nextProject,
+      status: nextStatus,
+      priority: nextPriority,
+      value: nextValue,
+      owner: ownerInfo.owner,
+      ownerId: ownerInfo.ownerId,
+      source: nextSource,
+      followUpDueAt: nextFollowUpDueAt,
+      nextStep: nextNextStep,
+      notes: nextNotes,
+      city: nextCity,
     });
-    if (!lead.customerId) {
-      const customer = ensureCustomerRecord(draft, {
-        name: lead.customer,
+    if (updates.customerId != null || updates.customer != null || !lead.customerId) {
+      if (updates.customer != null) {
+        lead.customer = requiredString(updates.customer, "Customer");
+        if (!changedFields.includes("customer")) changedFields.push("customer");
+      }
+      relateLeadToCustomer(draft, lead, req.auth.user, {
+        customerId: updates.customerId,
+        customer: lead.customer,
         city: lead.city,
-        serviceArea: lead.city,
-        status: lead.status === "Approved" ? "Active" : "Prospect",
-      }, req.auth.user, { fallbackStatus: lead.status === "Approved" ? "Active" : "Prospect" });
-      lead.customerId = customer.id;
+      });
     }
     markUpdated(lead, changedAt);
+
+    if (previousStatus !== lead.status) {
+      appendLeadStatusHistory(draft, {
+        leadId: lead.id,
+        fromStatus: previousStatus,
+        toStatus: lead.status,
+        actor: req.auth.user,
+        note: `Status changed to ${lead.status}.`,
+        createdAt: changedAt,
+      });
+      appendAuditEvent(draft, {
+        entityType: "lead",
+        entityId: lead.id,
+        action: "status_changed",
+        summary: "Lead status changed",
+        detail: `${lead.customer} moved from ${previousStatus} to ${lead.status}.`,
+        actor: req.auth.user,
+        changedFields: ["status"],
+      });
+    }
 
     appendActivity(draft, "Lead updated", `${lead.customer} details were updated.`);
     appendAuditEvent(draft, {
@@ -902,12 +1146,14 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.delete("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
     assertArchived(lead, "Lead");
     draft.leads = draft.leads.filter((entry) => entry.id !== id);
+    draft.leadStatusHistory = draft.leadStatusHistory.filter((event) => event.leadId !== id);
     appendActivity(draft, "Lead deleted", `${lead.customer} was permanently deleted.`);
     appendAuditEvent(draft, {
       entityType: "lead",
@@ -924,11 +1170,13 @@ app.delete("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const previousStatus = lead.status;
     const customer = ensureCustomerRecord(draft, {
       name: lead.customer,
       city: lead.city,
@@ -956,6 +1204,14 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
     lead.status = "Approved";
     lead.nextStep = "Moved into job schedule";
     markUpdated(lead, changedAt);
+    appendLeadStatusHistory(draft, {
+      leadId: lead.id,
+      fromStatus: previousStatus,
+      toStatus: lead.status,
+      actor: req.auth.user,
+      note: "Lead converted into a scheduled job.",
+      createdAt: changedAt,
+    });
     appendActivity(draft, "Lead converted to job", `${lead.customer} moved into ${newJob.job}.`);
     appendAuditEvent(draft, {
       entityType: "lead",
@@ -973,6 +1229,49 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       summary: "Job created from lead",
       detail: `${newJob.job} opened from approved lead ${lead.id}.`,
       actor: req.auth.user,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/leads/:id/convert-to-customer", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const previousStatus = lead.status;
+    const customer = relateLeadToCustomer(draft, lead, req.auth.user, {
+      customerId: lead.customerId,
+      customer: lead.customer,
+      city: lead.city,
+      status: "Active",
+    });
+
+    lead.customerId = customer.id;
+    lead.status = "Approved";
+    lead.nextStep = "Converted into customer record";
+    markUpdated(lead, changedAt);
+    appendLeadStatusHistory(draft, {
+      leadId: lead.id,
+      fromStatus: previousStatus,
+      toStatus: lead.status,
+      actor: req.auth.user,
+      note: "Lead converted into a customer.",
+      createdAt: changedAt,
+    });
+    appendActivity(draft, "Lead converted to customer", `${lead.customer} was linked to the customer workspace.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "converted",
+      summary: "Lead converted to customer",
+      detail: `${lead.customer} was linked to customer ${customer.id}.`,
+      actor: req.auth.user,
+      changedFields: ["customerId", "status", "nextStep"],
     });
     return draft;
   });

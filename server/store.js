@@ -182,12 +182,26 @@ function createSeedAuditEvents(user, customers, leads, jobs, queueItems) {
   return events.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+function createSeedLeadStatusHistory(user, leads) {
+  return leads.map((lead) => ({
+    id: makeAuditId(`lead-status-${lead.id}`),
+    leadId: lead.id,
+    fromStatus: null,
+    toStatus: lead.status,
+    note: "Lead entered into the seeded pipeline.",
+    actorUserId: user.id,
+    actorName: user.name,
+    createdAt: lead.createdAt,
+  }));
+}
+
 export function createEmptyState() {
   return {
     users: [],
     sessions: [],
     customers: [],
     leads: [],
+    leadStatusHistory: [],
     jobs: [],
     queueItems: [],
     activity: [],
@@ -205,9 +219,13 @@ export function createSeedState() {
     role: DEMO_CREDENTIALS.role,
   });
   const customers = withSeedTimestamps(INITIAL_CUSTOMERS, seededAt, 220);
-  const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180);
+  const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180).map((lead) => ({
+    ...lead,
+    ownerId: seedUser.id,
+  }));
   const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240);
   const queueItems = withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90);
+  const leadStatusHistory = createSeedLeadStatusHistory(seedUser, leads);
 
   return {
     users: [
@@ -216,6 +234,7 @@ export function createSeedState() {
     sessions: [],
     customers,
     leads,
+    leadStatusHistory,
     jobs,
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
@@ -230,6 +249,7 @@ function createBootstrapAdminState(adminConfig) {
   return {
     ...createEmptyState(),
     users: [adminUser],
+    leadStatusHistory: [],
     auditEvents: [
       {
         id: makeAuditId("bootstrap-admin"),
@@ -622,6 +642,124 @@ const MIGRATIONS = [
       });
     },
   },
+  {
+    version: 10,
+    description: "Add lead assignment, follow-up, and source metadata.",
+    up(database) {
+      if (!columnExists(database, "leads", "owner_id")) {
+        database.exec(`
+          ALTER TABLE leads
+          ADD COLUMN owner_id TEXT
+        `);
+      }
+
+      if (!columnExists(database, "leads", "follow_up_due_at")) {
+        database.exec(`
+          ALTER TABLE leads
+          ADD COLUMN follow_up_due_at TEXT
+        `);
+      }
+
+      if (!columnExists(database, "leads", "source")) {
+        database.exec(`
+          ALTER TABLE leads
+          ADD COLUMN source TEXT
+        `);
+      }
+
+      database.prepare(`
+        UPDATE leads
+        SET source = COALESCE(source, 'Call-in')
+      `).run();
+
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_leads_owner_id ON leads(owner_id);
+        CREATE INDEX IF NOT EXISTS idx_leads_follow_up_due_at ON leads(follow_up_due_at);
+        CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
+      `);
+    },
+  },
+  {
+    version: 11,
+    description: "Add lead status history.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS lead_status_history (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          lead_id TEXT NOT NULL,
+          from_status TEXT,
+          to_status TEXT NOT NULL,
+          note TEXT NOT NULL,
+          actor_user_id TEXT,
+          actor_name TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_lead_status_history_lead_id ON lead_status_history(lead_id);
+        CREATE INDEX IF NOT EXISTS idx_lead_status_history_sort_index ON lead_status_history(sort_index);
+      `);
+    },
+  },
+  {
+    version: 12,
+    description: "Backfill lead metadata and initial status history.",
+    up(database) {
+      const firstUser = database.prepare(`
+        SELECT id, name
+        FROM users
+        ORDER BY email ASC
+        LIMIT 1
+      `).get();
+
+      if (firstUser) {
+        database.prepare(`
+          UPDATE leads
+          SET owner_id = COALESCE(owner_id, ?)
+        `).run(firstUser.id);
+      }
+
+      database.prepare(`
+        UPDATE leads
+        SET source = COALESCE(source, 'Call-in')
+      `).run();
+
+      const existingHistoryCount = database.prepare(`
+        SELECT COUNT(*) AS count
+        FROM lead_status_history
+      `).get();
+
+      if (Number(existingHistoryCount?.count || 0) > 0) {
+        return;
+      }
+
+      const leads = database.prepare(`
+        SELECT id, status, created_at AS createdAt
+        FROM leads
+        ORDER BY sort_index ASC
+      `).all();
+
+      const insertHistory = database.prepare(`
+        INSERT INTO lead_status_history (id, sort_index, lead_id, from_status, to_status, note, actor_user_id, actor_name, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      leads.forEach((lead, index) => {
+        insertHistory.run(
+          makeAuditId(`lead-history-backfill-${lead.id}`),
+          index,
+          lead.id,
+          null,
+          lead.status,
+          "Lead entered into the pipeline.",
+          firstUser?.id || null,
+          firstUser?.name || "System",
+          lead.createdAt || isoNow(),
+        );
+      });
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -671,8 +809,13 @@ function writeStateToDb(state) {
   `);
 
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, age, next_step, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertLeadStatusHistory = database.prepare(`
+    INSERT INTO lead_status_history (id, sort_index, lead_id, from_status, to_status, note, actor_user_id, actor_name, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJob = database.prepare(`
@@ -700,6 +843,7 @@ function writeStateToDb(state) {
       DELETE FROM sessions;
       DELETE FROM users;
       DELETE FROM customers;
+      DELETE FROM lead_status_history;
       DELETE FROM leads;
       DELETE FROM jobs;
       DELETE FROM queue_items;
@@ -741,7 +885,41 @@ function writeStateToDb(state) {
     });
 
     state.leads.forEach((lead, index) => {
-      insertLead.run(lead.id, index, lead.customerId || null, lead.customer, lead.city, lead.project, lead.status, lead.priority, Number(lead.value || 0), lead.owner, lead.age, lead.nextStep, lead.notes, lead.createdAt || isoNow(), lead.updatedAt || lead.createdAt || isoNow(), lead.archivedAt || null);
+      insertLead.run(
+        lead.id,
+        index,
+        lead.customerId || null,
+        lead.customer,
+        lead.city,
+        lead.project,
+        lead.status,
+        lead.priority,
+        Number(lead.value || 0),
+        lead.owner,
+        lead.ownerId || null,
+        lead.age,
+        lead.source || "Call-in",
+        lead.followUpDueAt || null,
+        lead.nextStep,
+        lead.notes,
+        lead.createdAt || isoNow(),
+        lead.updatedAt || lead.createdAt || isoNow(),
+        lead.archivedAt || null,
+      );
+    });
+
+    (state.leadStatusHistory || []).forEach((event, index) => {
+      insertLeadStatusHistory.run(
+        event.id,
+        index,
+        event.leadId,
+        event.fromStatus || null,
+        event.toStatus,
+        event.note || "",
+        event.actorUserId || null,
+        event.actorName,
+        event.createdAt || isoNow(),
+      );
     });
 
     state.jobs.forEach((job, index) => {
@@ -796,8 +974,14 @@ function readTableState() {
   `).all();
 
   const leads = database.prepare(`
-    SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, age, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM leads
+    ORDER BY sort_index ASC
+  `).all();
+
+  const leadStatusHistory = database.prepare(`
+    SELECT id, lead_id AS leadId, from_status AS fromStatus, to_status AS toStatus, note, actor_user_id AS actorUserId, actor_name AS actorName, created_at AS createdAt
+    FROM lead_status_history
     ORDER BY sort_index ASC
   `).all();
 
@@ -828,7 +1012,7 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, customers, leads, jobs, queueItems, activity, auditEvents };
+  return { users, sessions, customers, leads, leadStatusHistory, jobs, queueItems, activity, auditEvents };
 }
 
 async function loadInitialState() {

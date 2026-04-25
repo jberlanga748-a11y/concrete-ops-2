@@ -102,6 +102,10 @@ export function convertLead(token, id) {
   return request(`/api/leads/${id}/convert`, { method: "POST", token });
 }
 
+export function convertLeadToCustomer(token, id) {
+  return request(`/api/leads/${id}/convert-to-customer`, { method: "POST", token });
+}
+
 export function createJob(token, job) {
   return request("/api/jobs", { method: "POST", token, body: job });
 }

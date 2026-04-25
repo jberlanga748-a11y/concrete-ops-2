@@ -7,6 +7,7 @@ import {
   archiveQueueItem,
   bootstrapAdminAccount,
   convertLead,
+  convertLeadToCustomer,
   createCustomer,
   createJob,
   createLead,
@@ -32,6 +33,8 @@ import {
 import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
+import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
+import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
@@ -96,14 +99,20 @@ const NAV_GROUPS = [
 
 const EMPTY_APP_STATE = {
   user: null,
+  users: [],
   customers: [],
   leads: [],
+  leadStatusHistory: [],
   jobs: [],
   queueItems: [],
   activity: [],
   auditEvents: [],
   permissions: {
     customers: {
+      canView: false,
+      canManage: false,
+    },
+    leads: {
       canView: false,
       canManage: false,
     },
@@ -121,10 +130,15 @@ const EMPTY_APP_STATE = {
 
 const INITIAL_LEAD_FORM = {
   customer: "",
+  customerId: "",
   city: "",
   project: "",
+  status: "New",
   priority: "Normal",
-  owner: "Office",
+  owner: "",
+  ownerId: "",
+  source: "Call-in",
+  followUpDueAt: "",
   value: "",
   nextStep: "",
   notes: "",
@@ -579,7 +593,7 @@ function LoginScreen({
   );
 }
 
-function Sidebar({ active, setActive, counts }) {
+function Sidebar({ active, setActive, counts, navGroups }) {
   return (
     <aside className="hidden h-screen w-72 shrink-0 border-r border-blue-100 bg-white/90 backdrop-blur lg:sticky lg:top-0 lg:block">
       <div className="border-b border-blue-100 p-4">
@@ -593,7 +607,7 @@ function Sidebar({ active, setActive, counts }) {
       </div>
       <div className="flex h-[calc(100vh-76px)] flex-col justify-between overflow-y-auto p-3">
         <div>
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label} className="mb-4">
               <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.label}</p>
               <div className="space-y-1">
@@ -629,8 +643,8 @@ function Sidebar({ active, setActive, counts }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary }) {
-  const current = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === active);
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions }) {
+  const current = navItems.find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -640,7 +654,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
         </div>
         <div className="hidden items-center gap-2 md:flex">
           {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
-          <Badge tone="blue">{stats.newLeads} new leads</Badge>
+          {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
           <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
           <Button variant="ghost" size="sm" onClick={onLogout}>
@@ -648,7 +662,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           </Button>
         </div>
         <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-40 py-2 text-xs font-black text-blue-700 md:hidden">
-          {NAV_GROUPS.flatMap((group) => group.items).map((item) => (
+          {navItems.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
             </option>
@@ -830,7 +844,22 @@ function QueueList({ items, onToggleTask, onArchiveTask, onRestoreTask, onDelete
   );
 }
 
-function LeadDetailPanel({ lead, onFieldChange, onCreateJob, onArchive, onRestore, onDelete, disabled, saveState }) {
+function LeadDetailPanel({
+  lead,
+  onFieldChange,
+  onCreateJob,
+  onConvertToCustomer = () => {},
+  onArchive,
+  onRestore,
+  onDelete,
+  onSelectCustomer = () => {},
+  related = { customer: null, activity: [], statusHistory: [] },
+  users = [],
+  customers = [],
+  disabled,
+  saveState,
+  canManage = true,
+}) {
   if (!lead) {
     return (
       <Card className="p-5">
@@ -847,18 +876,23 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, onArchive, onRestor
         description={`${lead.id} · ${lead.city}`}
         action={
           <div className="flex flex-wrap gap-2">
+            {!canManage ? <Badge tone="slate">Read only</Badge> : null}
             {lead.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
-            <Button size="sm" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt)}>
+            <Button size="sm" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
+              <Icon name="users" />
+              Convert to customer
+            </Button>
+            <Button size="sm" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
               <Icon name="arrowUpRight" />
               Create job
             </Button>
             {lead.archivedAt ? (
               <>
-                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
-                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled}>Delete</Button>
+                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled || !canManage}>Restore</Button>
+                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled || !canManage}>Delete</Button>
               </>
             ) : (
-              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled || !canManage}>Archive</Button>
             )}
           </div>
         }
@@ -866,27 +900,87 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, onArchive, onRestor
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
-        <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} />
-        <div className="grid gap-3 md:grid-cols-2">
-          <SelectField label="Status" value={lead.status} onChange={(event) => onFieldChange("status", event.target.value)}>
+        <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} disabled={!canManage || disabled} />
+        <div className="grid gap-3 md:grid-cols-3">
+          <SelectField label="Status" value={lead.status} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
             <option>New</option>
             <option>Contacted</option>
             <option>Site Visit</option>
             <option>Estimate Sent</option>
             <option>Approved</option>
           </SelectField>
-          <SelectField label="Priority" value={lead.priority} onChange={(event) => onFieldChange("priority", event.target.value)}>
+          <SelectField label="Priority" value={lead.priority} onChange={(event) => onFieldChange("priority", event.target.value)} disabled={!canManage || disabled}>
             <option>Low</option>
             <option>Normal</option>
             <option>High</option>
           </SelectField>
+          <SelectField label="Lead source" value={lead.source || "Call-in"} onChange={(event) => onFieldChange("source", event.target.value)} disabled={!canManage || disabled}>
+            <option>Website</option>
+            <option>Referral</option>
+            <option>Call-in</option>
+            <option>Drive-by</option>
+            <option>Repeat Customer</option>
+            <option>Partner</option>
+          </SelectField>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <SelectField label="Owner" value={lead.ownerId || ""} onChange={(event) => onFieldChange("ownerId", event.target.value)} disabled={!canManage || disabled}>
+            <option value="">Unassigned</option>
+            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </SelectField>
+          <InputField label="Follow-up due" type="date" value={lead.followUpDueAt || ""} onChange={(event) => onFieldChange("followUpDueAt", event.target.value)} disabled={!canManage || disabled} />
+          <InputField label="Value" type="number" value={lead.value} onChange={(event) => onFieldChange("value", Number(event.target.value))} disabled={!canManage || disabled} />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <InputField label="Owner" value={lead.owner} onChange={(event) => onFieldChange("owner", event.target.value)} />
-          <InputField label="Value" type="number" value={lead.value} onChange={(event) => onFieldChange("value", Number(event.target.value))} />
+          <SelectField label="Linked customer" value={lead.customerId || ""} onChange={(event) => onFieldChange("customerId", event.target.value)} disabled={!canManage || disabled}>
+            <option value="">Create or match automatically</option>
+            {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+          </SelectField>
+          <InputField label="City" value={lead.city} onChange={(event) => onFieldChange("city", event.target.value)} disabled={!canManage || disabled} />
         </div>
-        <InputField label="Next step" value={lead.nextStep} onChange={(event) => onFieldChange("nextStep", event.target.value)} />
-        <TextAreaField label="Notes" value={lead.notes} onChange={(event) => onFieldChange("notes", event.target.value)} />
+        <InputField label="Next step" value={lead.nextStep} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canManage || disabled} />
+        <TextAreaField label="Notes" value={lead.notes} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} />
+        <Card className="p-4">
+          <SectionHeader title="Related customer" description="Keep the lead connected to the right customer record." />
+          {related.customer ? (
+            <button type="button" onClick={() => onSelectCustomer(related.customer.id)} className="w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-left hover:bg-blue-50">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-slate-950">{related.customer.name}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{related.customer.city || "No city"} · {related.customer.id}</p>
+                </div>
+                <StatusBadge status={related.customer.archivedAt ? "Archived" : related.customer.status} />
+              </div>
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-4 text-sm text-slate-500">This lead is not linked to a customer record yet.</div>
+          )}
+        </Card>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card className="p-4">
+            <SectionHeader title="Status history" description="Track how the opportunity moved through the pipeline." />
+            <div className="space-y-3">
+              {related.statusHistory.length === 0 ? <p className="text-sm text-slate-500">No status changes yet.</p> : related.statusHistory.slice(0, 6).map((entry) => (
+                <div key={entry.id} className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-sm font-black text-slate-950">{entry.fromStatus ? `${entry.fromStatus} -> ${entry.toStatus}` : entry.toStatus}</p>
+                  <p className="mt-1 text-xs text-slate-500">{entry.note || "No note"}</p>
+                  <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(entry.createdAt)}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card className="p-4">
+            <SectionHeader title="Recent activity" description="Customer and lead activity tied to this opportunity." />
+            <div className="space-y-3">
+              {related.activity.length === 0 ? <p className="text-sm text-slate-500">No recent activity.</p> : related.activity.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-sm font-black text-slate-950">{item.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </Card>
   );
@@ -1264,23 +1358,65 @@ function AuditTrailPanel({ auditEvents }) {
   );
 }
 
-function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled }) {
+function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, customers, users }) {
+  if (!canManage) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="New lead intake" description="Lead creation is restricted to office management roles." />
+        <StateCard title="Read-only access" description="You can review the pipeline, but only owner/admin/operations roles can create or update leads." tone="slate" />
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-5">
       <SectionHeader title="New lead intake" description="Create a real record in the API-backed queue." />
       <form className="grid gap-3" onSubmit={onCreateLead}>
-        <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Dana Martinez" />
         <div className="grid gap-3 md:grid-cols-2">
-          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Albany" />
-          <InputField label="Project" value={draft.project} onChange={(event) => setDraft((current) => ({ ...current, project: event.target.value }))} placeholder="Front walkway replacement" />
+          <SelectField label="Existing customer" value={draft.customerId} onChange={(event) => {
+            const selectedCustomer = customers.find((customer) => customer.id === event.target.value);
+            setDraft((current) => ({
+              ...current,
+              customerId: event.target.value,
+              customer: selectedCustomer?.name || current.customer,
+              city: selectedCustomer?.city || current.city,
+            }));
+          }}>
+            <option value="">Create or match automatically</option>
+            {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+          </SelectField>
+          <InputField label="Customer" value={draft.customer} onChange={(event) => setDraft((current) => ({ ...current, customer: event.target.value }))} placeholder="Dana Martinez" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Albany" />
+          <InputField label="Project" value={draft.project} onChange={(event) => setDraft((current) => ({ ...current, project: event.target.value }))} placeholder="Front walkway replacement" />
+          <InputField label="Follow-up due" type="date" value={draft.followUpDueAt} onChange={(event) => setDraft((current) => ({ ...current, followUpDueAt: event.target.value }))} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-4">
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option>New</option>
+            <option>Contacted</option>
+            <option>Site Visit</option>
+            <option>Estimate Sent</option>
+            <option>Approved</option>
+          </SelectField>
           <SelectField label="Priority" value={draft.priority} onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value }))}>
             <option>Low</option>
             <option>Normal</option>
             <option>High</option>
           </SelectField>
-          <InputField label="Owner" value={draft.owner} onChange={(event) => setDraft((current) => ({ ...current, owner: event.target.value }))} />
+          <SelectField label="Owner" value={draft.ownerId} onChange={(event) => setDraft((current) => ({ ...current, ownerId: event.target.value }))}>
+            <option value="">Unassigned</option>
+            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </SelectField>
+          <SelectField label="Lead source" value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value }))}>
+            <option>Website</option>
+            <option>Referral</option>
+            <option>Call-in</option>
+            <option>Drive-by</option>
+            <option>Repeat Customer</option>
+            <option>Partner</option>
+          </SelectField>
           <InputField label="Value" type="number" value={draft.value} onChange={(event) => setDraft((current) => ({ ...current, value: event.target.value }))} placeholder="8200" />
         </div>
         <InputField label="Next step" value={draft.nextStep} onChange={(event) => setDraft((current) => ({ ...current, nextStep: event.target.value }))} placeholder="Schedule site measure" />
@@ -1342,10 +1478,16 @@ function DashboardPage({
   selectedLead,
   onLeadFieldChange,
   onCreateJobFromLead,
+  onConvertLeadToCustomer,
   onArchiveLead,
   onRestoreLead,
   onDeleteLead,
   leadSaveState,
+  users,
+  customers,
+  permissions,
+  onSelectCustomer,
+  relatedLeadRecords,
   taskDraft,
   setTaskDraft,
   onAddTask,
@@ -1403,7 +1545,7 @@ function DashboardPage({
           </Card>
           <div className="space-y-4">
             <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} disabled={busy} saveState={leadSaveState} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
           </div>
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -1418,18 +1560,66 @@ function DashboardPage({
   );
 }
 
-function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, onArchiveLead, onRestoreLead, onDeleteLead, busy, leadSaveState }) {
+function LeadsPage({
+  rows,
+  filter,
+  setFilter,
+  search,
+  setSearch,
+  ownerFilter,
+  setOwnerFilter,
+  sourceFilter,
+  setSourceFilter,
+  dueFilter,
+  setDueFilter,
+  users,
+  customers,
+  permissions,
+  selectedLeadId,
+  onSelectLead,
+  onSelectCustomer,
+  selectedLead,
+  onLeadFieldChange,
+  leadDraft,
+  setLeadDraft,
+  onCreateLead,
+  onCreateJobFromLead,
+  onConvertLeadToCustomer,
+  onArchiveLead,
+  onRestoreLead,
+  onDeleteLead,
+  relatedLeadRecords,
+  busy,
+  leadSaveState,
+}) {
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
+          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
+            <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+              <option>All owners</option>
+              {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
+            </SelectField>
+            <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+              <option>All sources</option>
+              {["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"].map((source) => <option key={source}>{source}</option>)}
+            </SelectField>
+            <SelectField label="Follow-up due" value={dueFilter} onChange={(event) => setDueFilter(event.target.value)}>
+              <option>All due dates</option>
+              <option>Overdue</option>
+              <option>Due today</option>
+              <option>Due soon</option>
+              <option>No due date</option>
+            </SelectField>
+          </div>
           <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
         </Card>
         <div className="space-y-4">
-          <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} disabled={busy} saveState={leadSaveState} />
+          <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
         </div>
       </div>
     </div>
@@ -1763,8 +1953,26 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
 
 function MainContent(props) {
   const { active } = props;
+  if (!canAccessModule(active, props.user)) return null;
   if (active === "dashboard") return <DashboardPage {...props} />;
-  if (active === "leads") return <LeadsPage {...props} rows={props.visibleLeads} />;
+  if (active === "leads") {
+    return (
+      <LeadsPage
+        {...props}
+        rows={props.visibleLeads}
+        filter={props.leadFilter}
+        setFilter={props.setLeadFilter}
+        search={props.leadSearch}
+        setSearch={props.setLeadSearch}
+        ownerFilter={props.leadOwnerFilter}
+        setOwnerFilter={props.setLeadOwnerFilter}
+        sourceFilter={props.leadSourceFilter}
+        setSourceFilter={props.setLeadSourceFilter}
+        dueFilter={props.leadDueFilter}
+        setDueFilter={props.setLeadDueFilter}
+      />
+    );
+  }
   if (active === "customers") {
     return (
       <CustomersPage
@@ -1800,6 +2008,9 @@ export default function App() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [leadFilter, setLeadFilter] = useState("All");
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadOwnerFilter, setLeadOwnerFilter] = useState("All owners");
+  const [leadSourceFilter, setLeadSourceFilter] = useState("All sources");
+  const [leadDueFilter, setLeadDueFilter] = useState("All due dates");
   const [jobFilter, setJobFilter] = useState("All");
   const [jobSearch, setJobSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -1820,6 +2031,9 @@ export default function App() {
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
+  const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user), [appState.user]);
+  const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
+  const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
 
   function navigateTo(nextPath, { replace = false } = {}) {
     const normalized = normalizePathname(nextPath);
@@ -1855,8 +2069,10 @@ export default function App() {
   function applyBootstrap(nextState) {
     setAppState({
       user: nextState.user,
+      users: nextState.users,
       customers: nextState.customers,
       leads: nextState.leads,
+      leadStatusHistory: nextState.leadStatusHistory,
       jobs: nextState.jobs,
       queueItems: nextState.queueItems,
       activity: nextState.activity,
@@ -1901,11 +2117,13 @@ export default function App() {
 
       return {
         ...current,
+        users: nextState.users,
         customers: kind === "customer" && !shouldReplaceRecord ? current.customers : nextState.customers,
         activity: nextState.activity,
         auditEvents: nextState.auditEvents,
         permissions: nextState.permissions,
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : nextState.leads,
+        leadStatusHistory: nextState.leadStatusHistory,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : nextState.jobs,
         queueItems: nextState.queueItems,
         stats: nextState.stats,
@@ -2011,6 +2229,11 @@ export default function App() {
     });
   }, [credentials.email, credentials.password, setupStatus.demoUserExists]);
 
+  useEffect(() => {
+    if (!appState.user?.id) return;
+    setLeadDraft((current) => (current.ownerId ? current : { ...current, ownerId: appState.user.id, owner: appState.user.name }));
+  }, [appState.user]);
+
   async function bootstrap(token) {
     setBusy(true);
     try {
@@ -2033,6 +2256,12 @@ export default function App() {
     if (!sessionToken) return;
     bootstrap(sessionToken);
   }, [sessionToken]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    if (canAccessModule(active, appState.user)) return;
+    navigateTo(getModulePath(defaultModuleId), { replace: true });
+  }, [active, appState.user, authStatus, defaultModuleId]);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -2106,15 +2335,14 @@ export default function App() {
     query: customerSearch,
   }), [appState.customers, customerFilter, customerSearch]);
 
-  const visibleLeads = useMemo(() => {
-    const query = leadSearch.toLowerCase();
-    return appState.leads.filter((lead) => {
-      const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
-      const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
-      const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(query));
-      return matchesArchive && matchesFilter && matchesSearch;
-    });
-  }, [appState.leads, leadFilter, leadSearch]);
+  const leadListState = useMemo(() => deriveLeadListState(appState.leads, {
+    status: leadFilter,
+    query: leadSearch,
+    owner: leadOwnerFilter,
+    source: leadSourceFilter,
+    due: leadDueFilter,
+  }), [appState.leads, leadDueFilter, leadFilter, leadOwnerFilter, leadSearch, leadSourceFilter]);
+  const visibleLeads = leadListState.filteredLeads;
 
   const visibleJobs = useMemo(() => {
     const query = jobSearch.toLowerCase();
@@ -2159,7 +2387,7 @@ export default function App() {
 
   const counts = {
     customers: appState.permissions.customers.canView ? appState.customers.filter((customer) => !customer.archivedAt).length : null,
-    leads: appState.leads.filter((lead) => !lead.archivedAt).length,
+    leads: appState.permissions.leads.canView ? appState.leads.filter((lead) => !lead.archivedAt).length : null,
     jobs: appState.jobs.filter((job) => !job.archivedAt).length,
     reports: stats.reportsDue || null,
     copilot: 1,
@@ -2308,10 +2536,17 @@ export default function App() {
   }
 
   function handleLeadFieldChange(field, value) {
-    if (!selectedLead) return;
+    if (!selectedLead || !appState.permissions.leads.canManage) return;
+    const nextOwner = field === "ownerId" ? appState.users.find((user) => user.id === value) : null;
+    const nextCustomer = field === "customerId" ? appState.customers.find((customer) => customer.id === value) : null;
     setAppState((current) => ({
       ...current,
-      leads: current.leads.map((lead) => (lead.id === selectedLead.id ? { ...lead, [field]: value } : lead)),
+      leads: current.leads.map((lead) => (lead.id === selectedLead.id ? {
+        ...lead,
+        [field]: value,
+        ...(field === "ownerId" ? { owner: nextOwner?.name || lead.owner } : {}),
+        ...(field === "customerId" && nextCustomer ? { customer: nextCustomer.name, city: nextCustomer.city || lead.city } : {}),
+      } : lead)),
     }));
     scheduleRecordSave("lead", selectedLead.id, { [field]: value });
   }
@@ -2336,6 +2571,7 @@ export default function App() {
 
   function handleCreateLead(event) {
     event.preventDefault();
+    if (!appState.permissions.leads.canManage) return;
     const existingLeadIds = new Set(appState.leads.map((lead) => lead.id));
     runMutation(async () => {
       const nextState = await createLead(sessionToken, leadDraft);
@@ -2343,7 +2579,11 @@ export default function App() {
       if (createdLead) {
         navigateToLead(createdLead.id);
       }
-      setLeadDraft(INITIAL_LEAD_FORM);
+      setLeadDraft({
+        ...INITIAL_LEAD_FORM,
+        ownerId: appState.user?.id || "",
+        owner: appState.user?.name || "",
+      });
       return nextState;
     });
   }
@@ -2377,7 +2617,7 @@ export default function App() {
   }
 
   function handleCreateJobFromLead() {
-    if (!selectedLead) return;
+    if (!selectedLead || !appState.permissions.leads.canManage) return;
     const existingJobIds = new Set(appState.jobs.map((job) => job.id));
     runMutation(async () => {
       const nextState = await convertLead(sessionToken, selectedLead.id);
@@ -2389,6 +2629,11 @@ export default function App() {
       }
       return nextState;
     });
+  }
+
+  function handleConvertLeadToCustomer() {
+    if (!selectedLead || !appState.permissions.leads.canManage) return;
+    runMutation(() => convertLeadToCustomer(sessionToken, selectedLead.id));
   }
 
   function handleAddTask(event) {
@@ -2405,7 +2650,7 @@ export default function App() {
   }
 
   function handleArchiveLead() {
-    if (!selectedLead) return;
+    if (!selectedLead || !appState.permissions.leads.canManage) return;
     resetRecordAutosave("lead", selectedLead.id);
     runMutation(() => archiveLead(sessionToken, selectedLead.id));
   }
@@ -2423,13 +2668,13 @@ export default function App() {
   }
 
   function handleRestoreLead() {
-    if (!selectedLead) return;
+    if (!selectedLead || !appState.permissions.leads.canManage) return;
     resetRecordAutosave("lead", selectedLead.id);
     runMutation(() => restoreLead(sessionToken, selectedLead.id));
   }
 
   function handleDeleteLead() {
-    if (!selectedLead || !window.confirm(`Delete ${selectedLead.customer} permanently? This cannot be undone.`)) return;
+    if (!selectedLead || !appState.permissions.leads.canManage || !window.confirm(`Delete ${selectedLead.customer} permanently? This cannot be undone.`)) return;
     resetRecordAutosave("lead", selectedLead.id);
     runMutation(() => deleteLead(sessionToken, selectedLead.id));
   }
@@ -2492,16 +2737,17 @@ export default function App() {
     );
   }
 
-  const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];
-  const allItems = NAV_GROUPS.flatMap((group) => group.items);
+  const mobileItems = visibleNavItems.slice(0, 5).map((item) => item.id);
+  const allItems = visibleNavItems;
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
+  const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
   return (
     <div className="min-h-screen bg-transparent text-slate-950">
       <div className="flex">
-        <Sidebar active={active} setActive={setActive} counts={counts} />
+        <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} />
+          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="py-0">
             <MainContent
@@ -2517,6 +2763,7 @@ export default function App() {
               auditEvents={appState.auditEvents}
               demoMode={setupStatus.demoMode}
               permissions={appState.permissions}
+              users={appState.users}
               customerFilter={customerFilter}
               setCustomerFilter={setCustomerFilter}
               customerSearch={customerSearch}
@@ -2537,6 +2784,12 @@ export default function App() {
               setLeadFilter={setLeadFilter}
               leadSearch={leadSearch}
               setLeadSearch={setLeadSearch}
+              leadOwnerFilter={leadOwnerFilter}
+              setLeadOwnerFilter={setLeadOwnerFilter}
+              leadSourceFilter={leadSourceFilter}
+              setLeadSourceFilter={setLeadSourceFilter}
+              leadDueFilter={leadDueFilter}
+              setLeadDueFilter={setLeadDueFilter}
               jobFilter={jobFilter}
               setJobFilter={setJobFilter}
               jobSearch={jobSearch}
@@ -2549,6 +2802,8 @@ export default function App() {
               onArchiveLead={handleArchiveLead}
               onRestoreLead={handleRestoreLead}
               onDeleteLead={handleDeleteLead}
+              onConvertLeadToCustomer={handleConvertLeadToCustomer}
+              relatedLeadRecords={leadRelated}
               leadDraft={leadDraft}
               setLeadDraft={setLeadDraft}
               onCreateLead={handleCreateLead}
