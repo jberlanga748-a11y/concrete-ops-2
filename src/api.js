@@ -66,6 +66,18 @@ export function createCustomer(token, customer) {
   return request("/api/customers", { method: "POST", token, body: customer });
 }
 
+export function getUsers(token) {
+  return request("/api/users", { token });
+}
+
+export function createUser(token, payload) {
+  return request("/api/users", { method: "POST", token, body: payload });
+}
+
+export function updateUser(token, id, payload) {
+  return request(`/api/users/${id}`, { method: "PATCH", token, body: payload });
+}
+
 export function updateCustomer(token, id, customer) {
   return request(`/api/customers/${id}`, { method: "PATCH", token, body: customer });
 }

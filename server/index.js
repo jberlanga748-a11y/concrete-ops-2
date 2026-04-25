@@ -52,6 +52,7 @@ import {
   canViewLeads,
   canViewSettings,
   canViewSafety,
+  canViewUsers,
   canViewAllJobs,
   normalizeRole,
   isAdministrator,
@@ -73,6 +74,8 @@ const JOB_STATUSES = new Set(["draft", "planned", "scheduled", "in_progress", "f
 const JOB_ASSIGNMENT_ROLES = new Set(["foreman", "crew", "operator", "finisher", "laborer", "driver", "other"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
 const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
+const USER_STATUSES = new Set(["active", "inactive"]);
+const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -166,6 +169,10 @@ function optionalEmail(value, fallback = "") {
   return normalized || fallback;
 }
 
+function temporaryPassword() {
+  return crypto.randomBytes(9).toString("base64url");
+}
+
 function optionalDateString(value, fieldName, fallback = "") {
   if (value == null || value === "") return fallback;
   const normalized = String(value).trim();
@@ -183,6 +190,22 @@ function optionalDateTimeString(value, fieldName, fallback = "") {
   }
   if (Number.isNaN(new Date(normalized).getTime())) {
     throw new ApiError(400, `${fieldName} must be a valid date/time.`);
+  }
+  return normalized;
+}
+
+function optionalUserRole(value, fallback = "Employee") {
+  const normalized = value == null ? fallback : String(value).trim();
+  if (!USER_ROLES.has(normalized)) {
+    throw new ApiError(400, `Role must be one of: ${Array.from(USER_ROLES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalUserStatus(value, fallback = "active") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!USER_STATUSES.has(normalized)) {
+    throw new ApiError(400, `User status must be one of: ${Array.from(USER_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -320,6 +343,17 @@ function visibleUsers(state, user) {
   return [publicUser(user)];
 }
 
+function userPermissionsForUser(user) {
+  if (!user) {
+    return { canView: false, canManage: false };
+  }
+
+  return {
+    canView: canViewUsers(user),
+    canManage: canManageUsers(user),
+  };
+}
+
 function sanitizeJobForUser(job, user, state) {
   if (!job) return null;
   const normalizedJob = normalizeJobRecord(job);
@@ -444,6 +478,18 @@ function assertCanManageCustomers(user) {
   }
 }
 
+function assertCanViewUsers(user) {
+  if (!canViewUsers(user)) {
+    throw new ApiError(403, "You do not have permission to view users.");
+  }
+}
+
+function assertCanManageUsers(user) {
+  if (!canManageUsers(user)) {
+    throw new ApiError(403, "You do not have permission to manage users.");
+  }
+}
+
 function assertCanViewCustomers(user) {
   if (!canViewCustomers(user)) {
     throw new ApiError(403, "You do not have permission to view customers.");
@@ -532,6 +578,11 @@ function findUserById(state, userId) {
   return state.users.find((user) => user.id === userId) || null;
 }
 
+function findUserByEmail(state, email, excludingUserId = "") {
+  const normalized = optionalEmail(email, "");
+  return state.users.find((user) => user.id !== excludingUserId && user.email.toLowerCase() === normalized) || null;
+}
+
 function optionalBoolean(value, fallback = false) {
   if (value == null || value === "") return fallback;
   return Boolean(value);
@@ -596,6 +647,9 @@ function assertJobCanReceiveAssignments(job) {
 
 function assertAssignmentUserIsValid(user, roleOnJob) {
   const normalizedUserRole = normalizeRole(user?.role);
+  if (optionalUserStatus(user?.status, "active") !== "active") {
+    throw new ApiError(400, "Only active users can be assigned to jobs.");
+  }
   if (roleOnJob === "foreman" && normalizedUserRole !== "foreman") {
     throw new ApiError(400, "Foreman assignments must use a foreman user.");
   }
@@ -926,6 +980,7 @@ function statsForUser(state, user) {
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
+  const userPermissions = userPermissionsForUser(user);
   const settings = companySettingsForState();
   return {
     user: publicUser(user),
@@ -940,6 +995,7 @@ function sanitizeBootstrap(state, user) {
     auditEvents: visibleAuditEventsForUser(state, user),
     stats: statsForUser(state, user),
     permissions: {
+      users: userPermissions,
       customers: customerPermissions,
       leads: leadPermissions,
       estimates: {
@@ -990,6 +1046,19 @@ function sanitizeSetupStatus(state) {
     demoUserExists,
     environmentBootstrap: Boolean(serverConfig.bootstrapAdmin),
   };
+}
+
+function activeOwnerCount(state, excludingUserId = "") {
+  return state.users.filter((user) => user.id !== excludingUserId && normalizeRole(user.role) === "owner" && optionalUserStatus(user.status, "active") === "active").length;
+}
+
+function ensureOwnerProtection(state, targetUser, nextRole, nextStatus) {
+  const isCurrentOwner = normalizeRole(targetUser.role) === "owner";
+  const isStayingActiveOwner = normalizeRole(nextRole) === "owner" && nextStatus === "active";
+
+  if (isCurrentOwner && !isStayingActiveOwner && activeOwnerCount(state, targetUser.id) === 0) {
+    throw new ApiError(409, "At least one active owner must remain on the account.");
+  }
 }
 
 function appendAuditEvent(state, { entityType, entityId, action, summary, detail, actor, changedFields = [] }) {
@@ -1060,6 +1129,14 @@ async function requireAuth(req, res, next) {
   const user = state.users.find((entry) => entry.id === session.userId);
   if (!user) {
     return jsonError(res, 401, "Account missing.");
+  }
+
+  if (optionalUserStatus(user.status, "active") !== "active") {
+    await updateDb((draft) => {
+      draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== tokenHash);
+      return draft;
+    });
+    return jsonError(res, 403, "Account inactive.");
   }
 
   req.auth = {
@@ -1143,11 +1220,11 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
   const email = requiredString(req.body?.email, "Email").toLowerCase();
   const password = requiredPassword(req.body?.password, "Password");
   const name = optionalString(req.body?.name, "Operations Admin");
-  const role = optionalString(req.body?.role, "Administrator");
+  const role = optionalUserRole(req.body?.role, "Administrator");
   const token = generateToken();
   const tokenHash = hashToken(token);
   const createdAt = new Date().toISOString();
-  const createdUser = createUserRecord({ email, password, name, role });
+  const createdUser = createUserRecord({ email, password, name, role, status: "active", createdAt, updatedAt: createdAt, lastLoginAt: createdAt });
 
   const nextState = await updateDb((draft) => {
     if (draft.users.length > 0) {
@@ -1192,8 +1269,13 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
     return jsonError(res, 401, "Invalid email or password.");
   }
 
+  if (optionalUserStatus(user.status, "active") !== "active") {
+    return jsonError(res, 403, "Account inactive.");
+  }
+
   const token = generateToken();
   const tokenHash = hashToken(token);
+  const loginAt = new Date().toISOString();
 
   await updateDb((draft) => {
     draft.sessions = draft.sessions.filter((entry) => entry.userId !== user.id);
@@ -1201,10 +1283,15 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
       id: makeId("S"),
       userId: user.id,
       tokenHash,
-      createdAt: new Date().toISOString(),
-      lastSeenAt: new Date().toISOString(),
+      createdAt: loginAt,
+      lastSeenAt: loginAt,
       expiresAt: nextSessionExpiry(),
     });
+    const liveUser = draft.users.find((entry) => entry.id === user.id);
+    if (liveUser) {
+      liveUser.lastLoginAt = loginAt;
+      liveUser.updatedAt = loginAt;
+    }
     return draft;
   });
 
@@ -1258,6 +1345,135 @@ app.get("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     jobs: visibleJobsForUser(state, req.auth.user),
     requestId: res.locals.requestId,
   });
+}));
+
+app.get("/api/users", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewUsers(req.auth.user);
+  const state = await readDb();
+  res.json({
+    users: visibleUsers(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageUsers(req.auth.user);
+  const payload = req.body || {};
+  const createdAt = new Date().toISOString();
+  const email = requiredString(payload.email, "Email").toLowerCase();
+  const password = payload.password ? requiredPassword(payload.password, "Password") : temporaryPassword();
+  const role = optionalUserRole(payload.role, "Employee");
+  const status = optionalUserStatus(payload.status, "active");
+  const userRecord = createUserRecord({
+    email,
+    password,
+    name: requiredString(payload.name, "Name"),
+    phone: optionalString(payload.phone, ""),
+    role,
+    status,
+    createdAt,
+    updatedAt: createdAt,
+  });
+
+  const nextState = await updateDb((draft) => {
+    if (findUserByEmail(draft, email)) {
+      throw new ApiError(409, "A user with that email already exists.");
+    }
+
+    draft.users.push(userRecord);
+    appendActivity(draft, "User created", `${userRecord.name} was added as ${userRecord.role}.`);
+    appendAuditEvent(draft, {
+      entityType: "user",
+      entityId: userRecord.id,
+      action: "created",
+      summary: "User created",
+      detail: `${userRecord.name} was added as ${userRecord.role}.`,
+      actor: req.auth.user,
+      changedFields: ["email", "role", "status"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    provisionedUser: {
+      id: userRecord.id,
+      email: userRecord.email,
+      temporaryPassword: payload.password ? null : password,
+    },
+  });
+}));
+
+app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageUsers(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const targetUser = findRequiredRecord(draft.users, id, "User");
+    const nextName = payload.name == null ? targetUser.name : requiredString(payload.name, "Name");
+    const nextEmail = payload.email == null ? targetUser.email : requiredString(payload.email, "Email").toLowerCase();
+    const nextPhone = payload.phone == null ? targetUser.phone || "" : optionalString(payload.phone, "");
+    const nextRole = payload.role == null ? targetUser.role : optionalUserRole(payload.role, targetUser.role);
+    const nextStatus = payload.status == null ? optionalUserStatus(targetUser.status, "active") : optionalUserStatus(payload.status, targetUser.status || "active");
+    const nextPassword = payload.password ? requiredPassword(payload.password, "Password") : "";
+    const changedFields = [];
+
+    const conflict = findUserByEmail(draft, nextEmail, id);
+    if (conflict) {
+      throw new ApiError(409, "A user with that email already exists.");
+    }
+
+    ensureOwnerProtection(draft, targetUser, nextRole, nextStatus);
+
+    if (targetUser.name !== nextName) changedFields.push("name");
+    if (targetUser.email !== nextEmail) changedFields.push("email");
+    if ((targetUser.phone || "") !== nextPhone) changedFields.push("phone");
+    if (targetUser.role !== nextRole) changedFields.push("role");
+    if (optionalUserStatus(targetUser.status, "active") !== nextStatus) changedFields.push("status");
+    if (nextPassword) changedFields.push("password");
+
+    targetUser.name = nextName;
+    targetUser.email = nextEmail;
+    targetUser.phone = nextPhone;
+    targetUser.role = nextRole;
+    targetUser.status = nextStatus;
+    targetUser.updatedAt = changedAt;
+    if (nextPassword) {
+      const replacement = createUserRecord({
+        email: nextEmail,
+        password: nextPassword,
+        name: nextName,
+        phone: nextPhone,
+        role: nextRole,
+        status: nextStatus,
+        createdAt: targetUser.createdAt || changedAt,
+        updatedAt: changedAt,
+        lastLoginAt: targetUser.lastLoginAt || null,
+        id: targetUser.id,
+      });
+      targetUser.passwordHash = replacement.passwordHash;
+    }
+
+    if (nextStatus !== "active") {
+      draft.sessions = draft.sessions.filter((session) => session.userId !== targetUser.id);
+    }
+
+    appendActivity(draft, "User updated", `${targetUser.name} account details were updated.`);
+    appendAuditEvent(draft, {
+      entityType: "user",
+      entityId: targetUser.id,
+      action: "updated",
+      summary: "User updated",
+      detail: `${targetUser.name} account details were updated.`,
+      actor: req.auth.user,
+      changedFields,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.post("/api/customers", requireAuth, asyncRoute(async (req, res) => {

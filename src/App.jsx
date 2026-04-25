@@ -13,6 +13,7 @@ import {
   createJob,
   createLead,
   createQueueItem,
+  createUser,
   deleteJobAssignment,
   deleteJob,
   deleteLead,
@@ -32,6 +33,7 @@ import {
   updateJobAssignment,
   updateJob,
   updateLead,
+  updateUser,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
@@ -39,6 +41,7 @@ import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
+import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
@@ -80,6 +83,7 @@ const NAV_GROUPS = [
       { id: "customers", label: "Customers", icon: "users" },
       { id: "estimates", label: "Estimates", icon: "quote" },
       { id: "changeOrders", label: "Change Orders", icon: "refresh" },
+      { id: "employees", label: "Employees", icon: "users" },
     ],
   },
   {
@@ -116,6 +120,10 @@ const EMPTY_APP_STATE = {
   activity: [],
   auditEvents: [],
   permissions: {
+    users: {
+      canView: false,
+      canManage: false,
+    },
     customers: {
       canView: false,
       canManage: false,
@@ -229,6 +237,15 @@ const INITIAL_CUSTOMER_FORM = {
   serviceArea: "",
   status: "Prospect",
   notes: "",
+};
+
+const INITIAL_USER_FORM = {
+  name: "",
+  email: "",
+  phone: "",
+  role: "Employee",
+  status: "active",
+  password: "",
 };
 
 const INITIAL_SETUP_FORM = {
@@ -1087,8 +1104,8 @@ function JobCrewSection({
     });
   }, [job?.assignedForemanId, job?.foremanAssignment?.userId, job?.id]);
 
-  const foremen = users.filter((user) => user.role === "Foreman");
-  const crewUsers = users.filter((user) => user.role === "Employee");
+  const foremen = getForemanAssignmentOptions(users);
+  const crewUsers = getCrewAssignmentOptions(users);
   const visibleCrew = job?.crewAssignments || [];
   const foremanAssignment = job?.foremanAssignment || null;
 
@@ -1713,6 +1730,9 @@ function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, cu
 }
 
 function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCreate }) {
+  const foremanUsers = getForemanAssignmentOptions(users);
+  const crewUsers = getCrewAssignmentOptions(users);
+
   if (!canCreate) {
     return (
       <Card className="p-5">
@@ -1747,11 +1767,11 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
         <div className="grid gap-3 md:grid-cols-3">
           <SelectField label="Assigned foreman" value={draft.assignedForemanId} onChange={(event) => setDraft((current) => ({ ...current, assignedForemanId: event.target.value }))}>
             <option value="">Unassigned</option>
-            {users.filter((user) => user.role === "Foreman").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            {foremanUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
           <SelectField label="Initial crew member" value={draft.assignedUserId} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value }))}>
             <option value="">Unassigned</option>
-            {users.filter((user) => user.role === "Employee").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+            {crewUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
           <InputField label="Crew size needed" type="number" min="0" value={draft.crewSizeNeeded} onChange={(event) => setDraft((current) => ({ ...current, crewSizeNeeded: Number(event.target.value) }))} />
         </div>
@@ -2204,6 +2224,192 @@ function DesignSystemPage() {
   );
 }
 
+function UserStatusBadge({ status }) {
+  return <Badge tone={status === "active" ? "green" : "slate"}>{status === "active" ? "Active" : "Inactive"}</Badge>;
+}
+
+function UsersTable({ rows, selectedId, onSelect }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[820px] text-left">
+        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <tr>
+            <th className="px-4 py-3">User</th>
+            <th className="px-4 py-3">Role</th>
+            <th className="px-4 py-3">Phone</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Last login</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50">
+          {rows.map((user) => {
+            const selected = user.id === selectedId;
+            return (
+              <tr key={user.id} onClick={() => onSelect(user.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+                <td className="px-4 py-3">
+                  <p className="font-black text-slate-950">{user.name}</p>
+                  <p className="text-xs font-bold text-slate-500">{user.email}</p>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{user.role}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{user.phone || "Not set"}</td>
+                <td className="px-4 py-3"><UserStatusBadge status={user.status} /></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function UserCreateCard({ draft, setDraft, onCreateUser, disabled, provisionedNotice }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Create user" description="Create a login for office, foreman, or employee access." />
+      {provisionedNotice ? (
+        <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <p className="font-black text-emerald-900">Temporary password ready</p>
+          <p className="mt-1">{provisionedNotice.email}</p>
+          <p className="mt-2 font-mono text-xs">{provisionedNotice.temporaryPassword}</p>
+        </div>
+      ) : null}
+      <form className="grid gap-3" onSubmit={onCreateUser}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Full name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+          <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} />
+          <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>
+            {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+          </SelectField>
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </SelectField>
+        </div>
+        <InputField label="Password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to generate a temporary password" />
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Add user
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function UserDetailPanel({ user, draft, setDraft, onSaveUser, busy, canManage, notFound }) {
+  if (notFound) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="User details" description="The selected user is no longer available." />
+        <StateCard title="User not found" description="Choose another user from the list or create a new login." tone="red" />
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="User details" description="Select a user to edit their account." />
+        <StateCard title="No user selected" description="Choose a user from the list to edit role, status, or login details." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title={user.name} description={`${user.id} · ${user.email}`} action={<UserStatusBadge status={user.status} />} />
+      <div className="grid gap-3">
+        <TimestampMeta createdAt={user.createdAt} updatedAt={user.updatedAt} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Full name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} disabled={!canManage || busy} />
+          <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} disabled={!canManage || busy} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} disabled={!canManage || busy} />
+          <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))} disabled={!canManage || busy}>
+            {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+          </SelectField>
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))} disabled={!canManage || busy}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </SelectField>
+        </div>
+        <InputField label="Reset password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to keep the current password" disabled={!canManage || busy} />
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-slate-600">
+          <p><span className="font-black text-slate-950">Last login:</span> {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</p>
+        </div>
+        <Button onClick={onSaveUser} disabled={!canManage || busy}>Save user</Button>
+      </div>
+    </Card>
+  );
+}
+
+function EmployeesPage({
+  users,
+  filter,
+  setFilter,
+  statusFilter,
+  setStatusFilter,
+  search,
+  setSearch,
+  selectedUserId,
+  onSelectUser,
+  selectedUser,
+  userDraft,
+  setUserDraft,
+  createDraft,
+  setCreateDraft,
+  onCreateUser,
+  onSaveUser,
+  busy,
+  errorMessage,
+  permissions,
+  provisionedNotice,
+}) {
+  const canManage = permissions.users.canManage;
+  const listState = useMemo(() => deriveUserListState(users, {
+    query: search,
+    role: filter,
+    status: statusFilter,
+  }), [filter, search, statusFilter, users]);
+  const visibleRows = listState.filteredUsers;
+  const notFound = Boolean(selectedUserId) && !selectedUser;
+
+  return (
+    <div>
+      <PageHeader eyebrow="Office" title="Employees" description="Create and manage office, foreman, and employee logins so crew assignments stay usable." actions={<Badge tone="blue">{visibleRows.length} users</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
+          <FilterBar filters={["All roles", ...USER_ROLE_OPTIONS]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, email, phone..." />
+          <div className="border-b border-blue-100 bg-blue-50/40 p-3">
+            <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option>All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </SelectField>
+          </div>
+          {busy && visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="Loading users" description="Pulling employee and office accounts from the API." /></div>
+          ) : errorMessage && visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="Users unavailable" description={errorMessage} tone="red" /></div>
+          ) : visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="No users yet" description="Create the first foreman or employee login to power assignments." /></div>
+          ) : (
+            <UsersTable rows={visibleRows} selectedId={selectedUserId} onSelect={onSelectUser} />
+          )}
+        </Card>
+        <div className="space-y-4">
+          <UserCreateCard draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} />
+          <UserDetailPanel user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CalculatorPage() {
   const [length, setLength] = useState(40);
   const [width, setWidth] = useState(20);
@@ -2399,6 +2605,27 @@ function MainContent(props) {
       />
     );
   }
+  if (active === "employees") {
+    return (
+      <EmployeesPage
+        {...props}
+        users={props.users}
+        filter={props.userRoleFilter}
+        setFilter={props.setUserRoleFilter}
+        statusFilter={props.userStatusFilter}
+        setStatusFilter={props.setUserStatusFilter}
+        search={props.userSearch}
+        setSearch={props.setUserSearch}
+        createDraft={props.createUserDraft}
+        setCreateDraft={props.setCreateUserDraft}
+        userDraft={props.userEditDraft}
+        setUserDraft={props.setUserEditDraft}
+        onCreateUser={props.onCreateUser}
+        onSaveUser={props.onSaveUser}
+        provisionedNotice={props.userProvisionNotice}
+      />
+    );
+  }
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
@@ -2419,6 +2646,9 @@ export default function App() {
   const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
   const [customerFilter, setCustomerFilter] = useState("All");
   const [customerSearch, setCustomerSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("All roles");
+  const [userStatusFilter, setUserStatusFilter] = useState("All statuses");
+  const [userSearch, setUserSearch] = useState("");
   const [leadFilter, setLeadFilter] = useState("All");
   const [leadSearch, setLeadSearch] = useState("");
   const [leadOwnerFilter, setLeadOwnerFilter] = useState("All owners");
@@ -2430,12 +2660,16 @@ export default function App() {
   const [jobForemanFilter, setJobForemanFilter] = useState("All foremen");
   const [jobDateFilter, setJobDateFilter] = useState("All dates");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
+  const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
+  const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
+  const [userProvisionNotice, setUserProvisionNotice] = useState(null);
   const [backendStatus, setBackendStatus] = useState("checking");
   const [recordSaveState, setRecordSaveState] = useState({
     customer: { id: "", status: "idle", message: "Autosave ready" },
@@ -2652,6 +2886,22 @@ export default function App() {
     setLeadDraft((current) => (current.ownerId ? current : { ...current, ownerId: appState.user.id, owner: appState.user.name }));
   }, [appState.user]);
 
+  useEffect(() => {
+    if (!selectedUser) {
+      setUserEditDraft(INITIAL_USER_FORM);
+      return;
+    }
+
+    setUserEditDraft({
+      name: selectedUser.name || "",
+      email: selectedUser.email || "",
+      phone: selectedUser.phone || "",
+      role: selectedUser.role || "Employee",
+      status: selectedUser.status || "active",
+      password: "",
+    });
+  }, [selectedUser]);
+
   async function bootstrap(token) {
     setBusy(true);
     try {
@@ -2741,7 +2991,15 @@ export default function App() {
     if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId)) setSelectedJobId(fallbackJobId);
   }, [appState.jobs, authStatus, routeState.jobId, selectedJobId]);
 
+  useEffect(() => {
+    const fallbackUserId = appState.permissions.users.canView ? appState.users[0]?.id || "" : "";
+    if (!selectedUserId || !appState.users.some((user) => user.id === selectedUserId)) {
+      setSelectedUserId(fallbackUserId);
+    }
+  }, [appState.permissions.users.canView, appState.users, selectedUserId]);
+
   const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
+  const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
   const customerSaveState = recordSaveState.customer.id === selectedCustomerId ? recordSaveState.customer : { id: selectedCustomerId, status: "idle", message: "Autosave ready" };
@@ -2807,6 +3065,7 @@ export default function App() {
   }, [recordSaveState.customer, recordSaveState.job, recordSaveState.lead]);
 
   const counts = {
+    employees: appState.permissions.users.canView ? appState.users.filter((user) => user.status === "active").length : null,
     customers: appState.permissions.customers.canView ? appState.customers.filter((customer) => !customer.archivedAt).length : null,
     leads: appState.permissions.leads.canView ? appState.leads.filter((lead) => !lead.archivedAt).length : null,
     jobs: appState.jobs.filter((job) => !job.archivedAt).length,
@@ -3056,6 +3315,27 @@ export default function App() {
     });
   }
 
+  function handleCreateUser(event) {
+    event.preventDefault();
+    if (!appState.permissions.users.canManage) return;
+    const existingUserIds = new Set(appState.users.map((user) => user.id));
+    runMutation(async () => {
+      const nextState = await createUser(sessionToken, createUserDraft);
+      const createdUser = nextState.users.find((user) => !existingUserIds.has(user.id));
+      if (createdUser) {
+        setSelectedUserId(createdUser.id);
+      }
+      setCreateUserDraft(INITIAL_USER_FORM);
+      setUserProvisionNotice(nextState.provisionedUser?.temporaryPassword ? nextState.provisionedUser : null);
+      return nextState;
+    });
+  }
+
+  function handleSaveUser() {
+    if (!selectedUser || !appState.permissions.users.canManage) return;
+    runMutation(() => updateUser(sessionToken, selectedUser.id, userEditDraft));
+  }
+
   function handleCreateJob(event) {
     event.preventDefault();
     if (!appState.permissions.jobs.canCreate) return;
@@ -3224,6 +3504,22 @@ export default function App() {
               setCustomerFilter={setCustomerFilter}
               customerSearch={customerSearch}
               setCustomerSearch={setCustomerSearch}
+              userRoleFilter={userRoleFilter}
+              setUserRoleFilter={setUserRoleFilter}
+              userStatusFilter={userStatusFilter}
+              setUserStatusFilter={setUserStatusFilter}
+              userSearch={userSearch}
+              setUserSearch={setUserSearch}
+              selectedUserId={selectedUserId}
+              onSelectUser={setSelectedUserId}
+              selectedUser={selectedUser}
+              createUserDraft={createUserDraft}
+              setCreateUserDraft={setCreateUserDraft}
+              userEditDraft={userEditDraft}
+              setUserEditDraft={setUserEditDraft}
+              onCreateUser={handleCreateUser}
+              onSaveUser={handleSaveUser}
+              userProvisionNotice={userProvisionNotice}
               selectedCustomerId={selectedCustomerId}
               onSelectCustomer={navigateToCustomer}
               selectedCustomer={selectedCustomer}

@@ -34,8 +34,12 @@ export function isOfficeManager(user) {
   return isOwner(user) || isAdministrator(user) || isOperationsManager(user);
 }
 
+export function canViewUsers(user) {
+  return isOfficeManager(user);
+}
+
 export function canManageUsers(user) {
-  return isOwner(user) || isAdministrator(user);
+  return isOfficeManager(user);
 }
 
 export function canViewLeads(user) {
@@ -182,7 +186,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   const modules = new Set();
 
   if (isOwner(user) || isAdministrator(user) || isOperationsManager(user)) {
-    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "calculator", "settings", "copilot"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "reports", "uploads", "changeOrders", "employees", "incidents", "toolbox", "ppe", "calculator", "settings", "copilot"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEstimator(user)) {
     ["dashboard", "leads", "customers", "estimates", "jobs", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {
