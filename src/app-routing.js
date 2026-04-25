@@ -6,6 +6,7 @@ export const MODULE_PATHS = {
   reports: "/reports",
   uploads: "/uploads",
   customers: "/customers",
+  employees: "/employees",
   estimates: "/estimates",
   changeOrders: "/changeOrders",
   incidents: "/incidents",

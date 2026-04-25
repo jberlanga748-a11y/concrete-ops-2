@@ -41,6 +41,15 @@ test("office roles keep full office navigation and dashboard default", () => {
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
     ["dashboard", "jobs", "reports", "leads", "customers", "employees", "calculator", "toolChecklist", "settings"],
   );
+  assert.equal(canAccessModule("employees", owner, { toolChecklistEnabled: true }), true);
+});
+
+test("administrators and operations managers can access employees", () => {
+  const administrator = { role: "Administrator" };
+  const operationsManager = { role: "Operations Manager" };
+
+  assert.equal(canAccessModule("employees", administrator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("employees", operationsManager, { toolChecklistEnabled: true }), true);
 });
 
 test("employees do not see leads in navigation and default to field workspace", () => {
@@ -48,6 +57,7 @@ test("employees do not see leads in navigation and default to field workspace", 
 
   assert.equal(getDefaultModuleId(employee), "jobs");
   assert.equal(canAccessModule("leads", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("employees", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("dashboard", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
@@ -61,6 +71,7 @@ test("foreman also stays in field-only navigation for now", () => {
 
   assert.equal(canAccessModule("leads", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("customers", foreman, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("employees", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(getDefaultModuleId(foreman), "jobs");
 });
 
@@ -70,6 +81,7 @@ test("estimators keep sales navigation but not settings", () => {
   assert.equal(isEstimator(estimator), true);
   assert.equal(canAccessModule("leads", estimator, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("customers", estimator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("employees", estimator, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("settings", estimator, { toolChecklistEnabled: true }), false);
 });
 

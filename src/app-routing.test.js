@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCustomerPath, buildJobPath, normalizePathname, parseAppPath } from "./app-routing.js";
+import { buildCustomerPath, buildJobPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
 
 test("customer routes build and parse durable detail paths", () => {
   assert.equal(buildCustomerPath("C-1001"), "/customers/C-1001");
@@ -29,6 +29,16 @@ test("job routes build and parse durable detail paths", () => {
     active: "jobs",
     leadId: "",
     jobId: "J-2201",
+    customerId: "",
+  });
+});
+
+test("employees module route resolves directly instead of falling back to dashboard", () => {
+  assert.equal(getModulePath("employees"), "/employees");
+  assert.deepEqual(parseAppPath("/employees"), {
+    active: "employees",
+    leadId: "",
+    jobId: "",
     customerId: "",
   });
 });
