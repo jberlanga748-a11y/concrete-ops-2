@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  archiveCustomer,
   archiveJob,
   archiveLead,
   archiveQueueItem,
   bootstrapAdminAccount,
   convertLead,
+  createCustomer,
   createJob,
   createLead,
   createQueueItem,
@@ -18,36 +20,22 @@ import {
   login,
   logout,
   resetWorkspace,
+  restoreCustomer,
   restoreJob,
   restoreLead,
   restoreQueueItem,
   toggleQueueItem,
+  updateCustomer,
   updateJob,
   updateLead,
 } from "./api";
+import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
+import { filterCustomers, relatedCustomerRecords } from "./customer-utils";
 
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
-const MODULE_PATHS = {
-  dashboard: "/",
-  leads: "/leads",
-  jobs: "/jobs",
-  time: "/time",
-  reports: "/reports",
-  uploads: "/uploads",
-  customers: "/customers",
-  estimates: "/estimates",
-  changeOrders: "/changeOrders",
-  incidents: "/incidents",
-  toolbox: "/toolbox",
-  ppe: "/ppe",
-  calculator: "/calculator",
-  copilot: "/copilot",
-  design: "/design",
-  settings: "/settings",
-};
 
 const TOKENS = {
   colors: [
@@ -107,11 +95,18 @@ const NAV_GROUPS = [
 
 const EMPTY_APP_STATE = {
   user: null,
+  customers: [],
   leads: [],
   jobs: [],
   queueItems: [],
   activity: [],
   auditEvents: [],
+  permissions: {
+    customers: {
+      canView: false,
+      canManage: false,
+    },
+  },
   stats: {
     newLeads: 0,
     highPriorityLeads: 0,
@@ -149,6 +144,17 @@ const INITIAL_TASK_FORM = {
   title: "",
   meta: "",
   status: "Due today",
+};
+
+const INITIAL_CUSTOMER_FORM = {
+  name: "",
+  company: "",
+  phone: "",
+  email: "",
+  city: "",
+  serviceArea: "",
+  status: "Prospect",
+  notes: "",
 };
 
 const INITIAL_SETUP_FORM = {
@@ -190,43 +196,6 @@ function currency(value) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(Number(value) || 0);
-}
-
-function normalizePathname(pathname = "/") {
-  const prefixed = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  return prefixed.length > 1 && prefixed.endsWith("/") ? prefixed.slice(0, -1) : prefixed;
-}
-
-function getModulePath(active) {
-  return MODULE_PATHS[active] || `/${active}`;
-}
-
-function buildLeadPath(id) {
-  return `/leads/${encodeURIComponent(id)}`;
-}
-
-function buildJobPath(id) {
-  return `/jobs/${encodeURIComponent(id)}`;
-}
-
-function parseAppPath(pathname) {
-  const normalized = normalizePathname(pathname);
-  const segments = normalized.split("/").filter(Boolean);
-
-  if (segments[0] === "leads" && segments[1]) {
-    return { active: "leads", leadId: decodeURIComponent(segments[1]), jobId: "" };
-  }
-
-  if (segments[0] === "jobs" && segments[1]) {
-    return { active: "jobs", leadId: "", jobId: decodeURIComponent(segments[1]) };
-  }
-
-  const exactMatch = Object.entries(MODULE_PATHS).find(([, path]) => path === normalized);
-  return {
-    active: exactMatch?.[0] || "dashboard",
-    leadId: "",
-    jobId: "",
-  };
 }
 
 function formatDateTime(value) {
@@ -953,6 +922,269 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
   );
 }
 
+function StateCard({ title, description, tone = "blue" }) {
+  const tones = {
+    blue: "border-blue-200 bg-blue-50 text-slate-600",
+    red: "border-red-100 bg-red-50 text-red-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-600",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-6 text-center ${tones[tone] || tones.blue}`}>
+      <p className="font-black text-slate-950">{title}</p>
+      <p className="mt-2 text-sm">{description}</p>
+    </div>
+  );
+}
+
+function CustomersTable({ rows, selectedId, onSelect }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[980px] text-left">
+        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Customer</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Phone</th>
+            <th className="px-4 py-3">Email</th>
+            <th className="px-4 py-3">City</th>
+            <th className="px-4 py-3">Service area</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50">
+          {rows.map((customer) => {
+            const selected = customer.id === selectedId;
+            return (
+              <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+                <td className="px-4 py-3">
+                  <p className="font-black text-slate-950">{customer.name}</p>
+                  <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                </td>
+                <td className="px-4 py-3"><StatusBadge status={customer.archivedAt ? "Archived" : customer.status} /></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.phone || "Not set"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.email || "Not set"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.city || "Not set"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.serviceArea || "Not set"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CustomerIntakeCard({ draft, setDraft, onCreateCustomer, disabled, canManage }) {
+  if (!canManage) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="New customer" description="Customer creation is restricted to owner/admin roles." />
+        <StateCard title="Read-only access" description="You can review linked customers here, but only office leadership can create or update them." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="New customer" description="Create a durable customer record with contact and service-area details." />
+      <form className="grid gap-3" onSubmit={onCreateCustomer}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Customer name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Dana Martinez" />
+          <InputField label="Company" value={draft.company} onChange={(event) => setDraft((current) => ({ ...current, company: event.target.value }))} placeholder="Optional" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="503-555-0199" />
+          <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="dana@example.com" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <InputField label="City" value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="Salem" />
+          <InputField label="Service area" value={draft.serviceArea} onChange={(event) => setDraft((current) => ({ ...current, serviceArea: event.target.value }))} placeholder="Mid-Valley" />
+          <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option>Prospect</option>
+            <option>Active</option>
+            <option>Inactive</option>
+          </SelectField>
+        </div>
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Preferred finish, scheduling constraints, gate access..." />
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Add customer
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function RelatedRecordsCard({ title, description, emptyLabel, items, renderItem }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title={title} description={description} />
+      {items.length === 0 ? (
+        <StateCard title={emptyLabel} description={`No ${title.toLowerCase()} are linked yet.`} tone="slate" />
+      ) : (
+        <div className="space-y-3">
+          {items.map(renderItem)}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CustomerDetailPanel({
+  customer,
+  canView,
+  canManage,
+  notFound,
+  disabled,
+  saveState,
+  onFieldChange,
+  onArchive,
+  onRestore,
+  related,
+  onSelectLead,
+  onSelectJob,
+}) {
+  if (!canView) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Customer details" description="Customer access follows role permissions." />
+        <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace right now." tone="slate" />
+      </Card>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Customer details" description="The requested customer route does not match an available record." />
+        <StateCard title="Customer not found" description="The customer may have been archived, removed from your access scope, or never existed." tone="red" />
+      </Card>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Customer details" description="Select a customer to view contact details and linked work." />
+        <StateCard title="No customer selected" description="Pick a customer from the list to inspect their activity, leads, and jobs." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader
+          title={customer.name}
+          description={`${customer.id} · ${customer.city || customer.serviceArea || "No service area yet"}`}
+          action={
+            <div className="flex flex-wrap gap-2">
+              {!canManage ? <Badge tone="slate">Read only</Badge> : null}
+              {customer.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+              {canManage ? (
+                customer.archivedAt ? (
+                  <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+                )
+              ) : null}
+            </div>
+          }
+        />
+        <SaveStateText saveState={saveState} />
+        <div className="grid gap-3">
+          <TimestampMeta createdAt={customer.createdAt} updatedAt={customer.updatedAt} />
+          <div className="grid gap-3 md:grid-cols-2">
+            <InputField label="Customer name" value={customer.name} onChange={(event) => onFieldChange("name", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Company" value={customer.company} onChange={(event) => onFieldChange("company", event.target.value)} disabled={!canManage || disabled} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <InputField label="Phone" value={customer.phone} onChange={(event) => onFieldChange("phone", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Email" value={customer.email} onChange={(event) => onFieldChange("email", event.target.value)} disabled={!canManage || disabled} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <InputField label="City" value={customer.city} onChange={(event) => onFieldChange("city", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Service area" value={customer.serviceArea} onChange={(event) => onFieldChange("serviceArea", event.target.value)} disabled={!canManage || disabled} />
+            <SelectField label="Status" value={customer.status} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
+              <option>Prospect</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </SelectField>
+          </div>
+          <TextAreaField label="Notes" value={customer.notes} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} />
+        </div>
+      </Card>
+
+      <RelatedRecordsCard
+        title="Related leads"
+        description="Open opportunities connected to this customer."
+        emptyLabel="No linked leads"
+        items={related.leads}
+        renderItem={(lead) => (
+          <button key={lead.id} type="button" onClick={() => onSelectLead(lead.id)} className="w-full rounded-2xl border border-blue-100 bg-white p-4 text-left hover:bg-blue-50/60">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-black text-slate-950">{lead.project}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{lead.id} · {lead.city}</p>
+              </div>
+              <StatusBadge status={lead.status} />
+            </div>
+          </button>
+        )}
+      />
+
+      <RelatedRecordsCard
+        title="Related jobs"
+        description="Scheduled or active work linked to this customer."
+        emptyLabel="No linked jobs"
+        items={related.jobs}
+        renderItem={(job) => (
+          <button key={job.id} type="button" onClick={() => onSelectJob(job.id)} className="w-full rounded-2xl border border-blue-100 bg-white p-4 text-left hover:bg-blue-50/60">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-black text-slate-950">{job.job}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} · {job.next}</p>
+              </div>
+              <StatusBadge status={job.stage} />
+            </div>
+          </button>
+        )}
+      />
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <RelatedRecordsCard
+          title="Estimates"
+          description="Estimate records will appear here once that module is built."
+          emptyLabel="No linked estimates"
+          items={[]}
+          renderItem={() => null}
+        />
+        <RelatedRecordsCard
+          title="Change orders"
+          description="Approved scope changes will appear here when available."
+          emptyLabel="No linked change orders"
+          items={[]}
+          renderItem={() => null}
+        />
+      </div>
+
+      <RelatedRecordsCard
+        title="Activity"
+        description="Recent activity mentioning this customer."
+        emptyLabel="No customer activity yet"
+        items={related.activity.slice(0, 5)}
+        renderItem={(item) => (
+          <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+            <p className="text-sm font-black text-slate-950">{item.title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{item.detail}</p>
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.createdAt)}</p>
+          </div>
+        )}
+      />
+    </div>
+  );
+}
+
 function ActivityPanel({ activity }) {
   return (
     <Card className="p-4">
@@ -1199,6 +1431,84 @@ function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, o
   );
 }
 
+function CustomersPage({
+  rows,
+  filter,
+  setFilter,
+  search,
+  setSearch,
+  selectedCustomerId,
+  onSelectCustomer,
+  selectedCustomer,
+  onCustomerFieldChange,
+  customerDraft,
+  setCustomerDraft,
+  onCreateCustomer,
+  onArchiveCustomer,
+  onRestoreCustomer,
+  busy,
+  customerSaveState,
+  permissions,
+  errorMessage,
+  relatedRecords,
+  onSelectLead,
+  onSelectJob,
+  customerRouteRequested,
+}) {
+  const canView = permissions.customers.canView;
+  const canManage = permissions.customers.canManage;
+
+  return (
+    <div>
+      <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? rows.length : 0} visible customers</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
+          {canView ? (
+            <>
+              <FilterBar filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
+              {busy && rows.length === 0 ? (
+                <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records from the API." /></div>
+              ) : errorMessage && rows.length === 0 ? (
+                <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
+              ) : rows.length === 0 ? (
+                <div className="p-5">
+                  <StateCard
+                    title={search || filter !== "All" ? "No matching customers" : "No customers yet"}
+                    description={search || filter !== "All" ? "Try a different search or status filter." : "Create the first customer record to start linking leads and jobs."}
+                  />
+                </div>
+              ) : (
+                <CustomersTable rows={rows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+              )}
+            </>
+          ) : (
+            <div className="p-5">
+              <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace until customer-specific assignments exist." tone="slate" />
+            </div>
+          )}
+        </Card>
+        <div className="space-y-4">
+          <CustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
+          <CustomerDetailPanel
+            customer={selectedCustomer}
+            canView={canView}
+            canManage={canManage}
+            notFound={canView && customerRouteRequested && !selectedCustomer}
+            disabled={busy}
+            saveState={customerSaveState}
+            onFieldChange={onCustomerFieldChange}
+            onArchive={onArchiveCustomer}
+            onRestore={onRestoreCustomer}
+            related={relatedRecords}
+            onSelectLead={onSelectLead}
+            onSelectJob={onSelectJob}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StateExamples() {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -1422,6 +1732,7 @@ function MainContent(props) {
   const { active } = props;
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "leads") return <LeadsPage {...props} rows={props.visibleLeads} />;
+  if (active === "customers") return <CustomersPage {...props} rows={props.visibleCustomers} />;
   if (active === "jobs") return <JobsPage {...props} rows={props.visibleJobs} />;
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
@@ -1441,23 +1752,28 @@ export default function App() {
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [setupDraft, setSetupDraft] = useState(INITIAL_SETUP_FORM);
   const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
+  const [customerFilter, setCustomerFilter] = useState("All");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [leadFilter, setLeadFilter] = useState("All");
   const [leadSearch, setLeadSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("All");
   const [jobSearch, setJobSearch] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
   const [backendStatus, setBackendStatus] = useState("checking");
   const [recordSaveState, setRecordSaveState] = useState({
+    customer: { id: "", status: "idle", message: "Autosave ready" },
     lead: { id: "", status: "idle", message: "Autosave ready" },
     job: { id: "", status: "idle", message: "Autosave ready" },
   });
-  const autosaveTimeoutsRef = useRef({ lead: null, job: null });
-  const autosaveVersionsRef = useRef({ lead: new Map(), job: new Map() });
-  const pendingAutosavePatchesRef = useRef({ lead: new Map(), job: new Map() });
+  const autosaveTimeoutsRef = useRef({ customer: null, lead: null, job: null });
+  const autosaveVersionsRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
+  const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
 
@@ -1487,14 +1803,21 @@ export default function App() {
     navigateTo(buildJobPath(id));
   }
 
+  function navigateToCustomer(id) {
+    setSelectedCustomerId(id);
+    navigateTo(buildCustomerPath(id));
+  }
+
   function applyBootstrap(nextState) {
     setAppState({
       user: nextState.user,
+      customers: nextState.customers,
       leads: nextState.leads,
       jobs: nextState.jobs,
       queueItems: nextState.queueItems,
       activity: nextState.activity,
       auditEvents: nextState.auditEvents,
+      permissions: nextState.permissions,
       stats: nextState.stats,
     });
   }
@@ -1531,27 +1854,33 @@ export default function App() {
     setAppState((current) => {
       const currentVersion = getAutosaveVersion(kind, recordId);
       const shouldReplaceRecord = currentVersion === version;
-      const nextLead = shouldReplaceRecord ? nextState.leads.find((lead) => lead.id === recordId) : null;
-      const nextJob = shouldReplaceRecord ? nextState.jobs.find((job) => job.id === recordId) : null;
 
       return {
         ...current,
+        customers: kind === "customer" && !shouldReplaceRecord ? current.customers : nextState.customers,
         activity: nextState.activity,
         auditEvents: nextState.auditEvents,
-        leads: kind === "lead" && nextLead ? current.leads.map((lead) => (lead.id === recordId ? nextLead : lead)) : current.leads,
-        jobs: kind === "job" && nextJob ? current.jobs.map((job) => (job.id === recordId ? nextJob : job)) : current.jobs,
+        permissions: nextState.permissions,
+        leads: kind === "lead" && !shouldReplaceRecord ? current.leads : nextState.leads,
+        jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : nextState.jobs,
+        queueItems: nextState.queueItems,
+        stats: nextState.stats,
       };
     });
   }
 
   function resetAutosaveState() {
+    clearAutosaveTimer("customer");
     clearAutosaveTimer("lead");
     clearAutosaveTimer("job");
+    autosaveVersionsRef.current.customer.clear();
     autosaveVersionsRef.current.lead.clear();
     autosaveVersionsRef.current.job.clear();
+    pendingAutosavePatchesRef.current.customer.clear();
     pendingAutosavePatchesRef.current.lead.clear();
     pendingAutosavePatchesRef.current.job.clear();
     setRecordSaveState({
+      customer: { id: "", status: "idle", message: "Autosave ready" },
       lead: { id: "", status: "idle", message: "Autosave ready" },
       job: { id: "", status: "idle", message: "Autosave ready" },
     });
@@ -1574,11 +1903,13 @@ export default function App() {
     setSessionToken("");
     setAuthStatus("loggedOut");
     setAppState(EMPTY_APP_STATE);
+    setSelectedCustomerId("");
     setSelectedLeadId("");
     setSelectedJobId("");
   }
 
   useEffect(() => () => {
+    clearAutosaveTimer("customer");
     clearAutosaveTimer("lead");
     clearAutosaveTimer("job");
   }, []);
@@ -1662,6 +1993,22 @@ export default function App() {
   useEffect(() => {
     if (authStatus !== "authenticated") return;
 
+    const fallbackCustomerId = appState.customers[0]?.id || "";
+
+    if (routeState.customerId) {
+      if (selectedCustomerId !== routeState.customerId) {
+        setSelectedCustomerId(routeState.customerId);
+      }
+      return;
+    }
+
+    if (!selectedCustomerId && fallbackCustomerId) setSelectedCustomerId(fallbackCustomerId);
+    if (selectedCustomerId && !appState.customers.some((customer) => customer.id === selectedCustomerId)) setSelectedCustomerId(fallbackCustomerId);
+  }, [appState.customers, authStatus, routeState.customerId, selectedCustomerId]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+
     const fallbackLeadId = appState.leads[0]?.id || "";
 
     if (routeState.leadId) {
@@ -1703,10 +2050,17 @@ export default function App() {
     if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId)) setSelectedJobId(fallbackJobId);
   }, [appState.jobs, authStatus, routeState.jobId, selectedJobId]);
 
+  const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
+  const customerSaveState = recordSaveState.customer.id === selectedCustomerId ? recordSaveState.customer : { id: selectedCustomerId, status: "idle", message: "Autosave ready" };
   const leadSaveState = recordSaveState.lead.id === selectedLeadId ? recordSaveState.lead : { id: selectedLeadId, status: "idle", message: "Autosave ready" };
   const jobSaveState = recordSaveState.job.id === selectedJobId ? recordSaveState.job : { id: selectedJobId, status: "idle", message: "Autosave ready" };
+
+  const visibleCustomers = useMemo(() => filterCustomers(appState.customers, {
+    status: customerFilter,
+    query: customerSearch,
+  }), [appState.customers, customerFilter, customerSearch]);
 
   const visibleLeads = useMemo(() => {
     const query = leadSearch.toLowerCase();
@@ -1751,15 +2105,16 @@ export default function App() {
   }, [appState.jobs, appState.leads, appState.queueItems]);
 
   const saveSummary = useMemo(() => {
-    const relevantStates = [recordSaveState.lead, recordSaveState.job];
+    const relevantStates = [recordSaveState.customer, recordSaveState.lead, recordSaveState.job];
     if (relevantStates.some((item) => item.status === "error")) return { tone: "red", label: "Save error" };
     if (relevantStates.some((item) => item.status === "saving")) return { tone: "blue", label: "Saving changes" };
     if (relevantStates.some((item) => item.status === "pending")) return { tone: "amber", label: "Unsaved changes" };
     if (relevantStates.some((item) => item.status === "saved")) return { tone: "green", label: "All changes saved" };
     return null;
-  }, [recordSaveState.job, recordSaveState.lead]);
+  }, [recordSaveState.customer, recordSaveState.job, recordSaveState.lead]);
 
   const counts = {
+    customers: appState.permissions.customers.canView ? appState.customers.filter((customer) => !customer.archivedAt).length : null,
     leads: appState.leads.filter((lead) => !lead.archivedAt).length,
     jobs: appState.jobs.filter((job) => !job.archivedAt).length,
     reports: stats.reportsDue || null,
@@ -1873,9 +2228,11 @@ export default function App() {
       });
 
       try {
-        const nextState = kind === "lead"
-          ? await updateLead(sessionToken, recordId, pendingPatch)
-          : await updateJob(sessionToken, recordId, pendingPatch);
+        const nextState = kind === "customer"
+          ? await updateCustomer(sessionToken, recordId, pendingPatch)
+          : kind === "lead"
+            ? await updateLead(sessionToken, recordId, pendingPatch)
+            : await updateJob(sessionToken, recordId, pendingPatch);
 
         setErrorMessage("");
         mergeAutosaveResponse(kind, recordId, version, nextState);
@@ -1915,6 +2272,15 @@ export default function App() {
     scheduleRecordSave("lead", selectedLead.id, { [field]: value });
   }
 
+  function handleCustomerFieldChange(field, value) {
+    if (!selectedCustomer || !appState.permissions.customers.canManage) return;
+    setAppState((current) => ({
+      ...current,
+      customers: current.customers.map((customer) => (customer.id === selectedCustomer.id ? { ...customer, [field]: value } : customer)),
+    }));
+    scheduleRecordSave("customer", selectedCustomer.id, { [field]: value });
+  }
+
   function handleJobFieldChange(field, value) {
     if (!selectedJob) return;
     setAppState((current) => ({
@@ -1934,6 +2300,20 @@ export default function App() {
         navigateToLead(createdLead.id);
       }
       setLeadDraft(INITIAL_LEAD_FORM);
+      return nextState;
+    });
+  }
+
+  function handleCreateCustomer(event) {
+    event.preventDefault();
+    const existingCustomerIds = new Set(appState.customers.map((customer) => customer.id));
+    runMutation(async () => {
+      const nextState = await createCustomer(sessionToken, customerDraft);
+      const createdCustomer = nextState.customers.find((customer) => !existingCustomerIds.has(customer.id));
+      if (createdCustomer) {
+        navigateToCustomer(createdCustomer.id);
+      }
+      setCustomerDraft(INITIAL_CUSTOMER_FORM);
       return nextState;
     });
   }
@@ -1984,6 +2364,18 @@ export default function App() {
     if (!selectedLead) return;
     resetRecordAutosave("lead", selectedLead.id);
     runMutation(() => archiveLead(sessionToken, selectedLead.id));
+  }
+
+  function handleArchiveCustomer() {
+    if (!selectedCustomer) return;
+    resetRecordAutosave("customer", selectedCustomer.id);
+    runMutation(() => archiveCustomer(sessionToken, selectedCustomer.id));
+  }
+
+  function handleRestoreCustomer() {
+    if (!selectedCustomer) return;
+    resetRecordAutosave("customer", selectedCustomer.id);
+    runMutation(() => restoreCustomer(sessionToken, selectedCustomer.id));
   }
 
   function handleRestoreLead() {
@@ -2058,6 +2450,7 @@ export default function App() {
 
   const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];
   const allItems = NAV_GROUPS.flatMap((group) => group.items);
+  const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
 
   return (
     <div className="min-h-screen bg-transparent text-slate-950">
@@ -2072,12 +2465,30 @@ export default function App() {
               setActive={setActive}
               user={appState.user}
               stats={stats}
+              customers={appState.customers}
               leads={appState.leads}
               jobs={appState.jobs}
               queueItems={appState.queueItems}
               activity={appState.activity}
               auditEvents={appState.auditEvents}
               demoMode={setupStatus.demoMode}
+              permissions={appState.permissions}
+              customerFilter={customerFilter}
+              setCustomerFilter={setCustomerFilter}
+              customerSearch={customerSearch}
+              setCustomerSearch={setCustomerSearch}
+              selectedCustomerId={selectedCustomerId}
+              onSelectCustomer={navigateToCustomer}
+              selectedCustomer={selectedCustomer}
+              onCustomerFieldChange={handleCustomerFieldChange}
+              customerSaveState={customerSaveState}
+              customerDraft={customerDraft}
+              setCustomerDraft={setCustomerDraft}
+              onCreateCustomer={handleCreateCustomer}
+              onArchiveCustomer={handleArchiveCustomer}
+              onRestoreCustomer={handleRestoreCustomer}
+              relatedRecords={customerRelated}
+              customerRouteRequested={Boolean(routeState.customerId)}
               leadFilter={leadFilter}
               setLeadFilter={setLeadFilter}
               leadSearch={leadSearch}
@@ -2116,6 +2527,7 @@ export default function App() {
               onArchiveTask={handleArchiveTask}
               onRestoreTask={handleRestoreTask}
               onDeleteTask={handleDeleteTask}
+              visibleCustomers={visibleCustomers}
               visibleLeads={visibleLeads}
               visibleJobs={visibleJobs}
               onReset={handleReset}
