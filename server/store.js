@@ -7,15 +7,34 @@ import { DatabaseSync } from "node:sqlite";
 import { DEMO_CREDENTIALS, INITIAL_ACTIVITY, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "..", "data");
-const sqliteFile = path.join(dataDir, "app-data.sqlite");
-const legacyJsonFile = path.join(dataDir, "app-data.json");
 const SCHEMA_VERSION_KEY = "schema_version";
 const CURRENT_SCHEMA_VERSION = 3;
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 let db;
 let writeChain = Promise.resolve();
+
+function getDataDir() {
+  return process.env.DATA_DIR
+    ? path.resolve(process.env.DATA_DIR)
+    : path.join(__dirname, "..", "data");
+}
+
+function getSqliteFile() {
+  return path.join(getDataDir(), "app-data.sqlite");
+}
+
+function getLegacyJsonFile() {
+  return path.join(getDataDir(), "app-data.json");
+}
+
+export function getDataPaths() {
+  return {
+    dataDir: getDataDir(),
+    sqliteFile: getSqliteFile(),
+    legacyJsonFile: getLegacyJsonFile(),
+  };
+}
 
 function passwordHash(password, salt = crypto.randomBytes(16).toString("hex")) {
   const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
@@ -84,7 +103,7 @@ export function publicUser(user) {
 function createDatabaseConnection() {
   if (db) return db;
 
-  db = new DatabaseSync(sqliteFile);
+  db = new DatabaseSync(getSqliteFile());
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -99,11 +118,11 @@ function createDatabaseConnection() {
 }
 
 function dbExists() {
-  return fs.access(sqliteFile).then(() => true).catch(() => false);
+  return fs.access(getSqliteFile()).then(() => true).catch(() => false);
 }
 
 function jsonExists() {
-  return fs.access(legacyJsonFile).then(() => true).catch(() => false);
+  return fs.access(getLegacyJsonFile()).then(() => true).catch(() => false);
 }
 
 function readSchemaVersion(database) {
@@ -388,7 +407,7 @@ function readTableState() {
 
 async function loadInitialState() {
   if (await jsonExists()) {
-    const raw = await fs.readFile(legacyJsonFile, "utf8");
+    const raw = await fs.readFile(getLegacyJsonFile(), "utf8");
     return JSON.parse(raw);
   }
 
@@ -396,7 +415,7 @@ async function loadInitialState() {
 }
 
 export async function ensureDb() {
-  await fs.mkdir(dataDir, { recursive: true });
+  await fs.mkdir(getDataDir(), { recursive: true });
   createDatabaseConnection();
   runMigrations(db);
 

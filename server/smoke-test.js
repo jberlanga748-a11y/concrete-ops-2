@@ -1,13 +1,12 @@
 import { spawn } from "node:child_process";
-import path from "node:path";
+import fs from "node:fs/promises";
+import os from "node:os";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 const port = process.env.SMOKE_TEST_PORT || "4100";
 const baseUrl = `http://localhost:${port}`;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sqliteFile = path.join(__dirname, "..", "data", "app-data.sqlite");
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,14 +49,24 @@ async function expectStatus(path, expectedStatus, options = {}) {
   return response;
 }
 
+function waitForExit(childProcess) {
+  return new Promise((resolve) => {
+    childProcess.once("exit", resolve);
+  });
+}
+
 async function run() {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-smoke-"));
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
   const server = spawn(process.execPath, ["server/index.js"], {
     stdio: "inherit",
     env: {
       ...process.env,
       PORT: port,
+      DATA_DIR: tempDataDir,
     },
   });
+  let database;
 
   try {
     await waitForServer();
@@ -118,7 +127,7 @@ async function run() {
       }),
     });
 
-    const database = new DatabaseSync(sqliteFile);
+    database = new DatabaseSync(sqliteFile);
     database.prepare(`
       UPDATE sessions
       SET expires_at = ?
@@ -132,7 +141,10 @@ async function run() {
 
     console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, validation and expired sessions verified`);
   } finally {
+    database?.close();
     server.kill("SIGTERM");
+    await waitForExit(server);
+    await fs.rm(tempDataDir, { recursive: true, force: true });
   }
 }
 

@@ -39,6 +39,10 @@ docker compose up --build
 
 The SQLite database stays persistent by mounting `./data` into `/app/data` in the container.
 
+## Data directory
+
+By default the server stores SQLite data in `./data`. You can override that with the `DATA_DIR` environment variable, which is useful for isolated test runs and alternate deploy layouts.
+
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
