@@ -150,6 +150,30 @@ export function deleteJobAssignment(token, jobId, assignmentId) {
   return request(`/api/jobs/${jobId}/assignments/${assignmentId}`, { method: "DELETE", token });
 }
 
+export function getTimeEntries(token) {
+  return request("/api/time-entries", { token });
+}
+
+export function clockIn(token, payload) {
+  return request("/api/time-entries/clock-in", { method: "POST", token, body: payload });
+}
+
+export function startBreak(token, id) {
+  return request(`/api/time-entries/${id}/break-start`, { method: "POST", token });
+}
+
+export function endBreak(token, id) {
+  return request(`/api/time-entries/${id}/break-end`, { method: "POST", token });
+}
+
+export function clockOut(token, id) {
+  return request(`/api/time-entries/${id}/clock-out`, { method: "POST", token });
+}
+
+export function correctTimeEntry(token, id, payload) {
+  return request(`/api/time-entries/${id}`, { method: "PATCH", token, body: payload });
+}
+
 export function createQueueItem(token, task) {
   return request("/api/queue-items", { method: "POST", token, body: task });
 }

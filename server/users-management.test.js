@@ -14,7 +14,7 @@ function sleep(ms) {
 }
 
 function createPort() {
-  return 5900 + Math.floor(Math.random() * 1000);
+  return 7200 + Math.floor(Math.random() * 1000);
 }
 
 async function waitForServer(baseUrl, serverOutput) {

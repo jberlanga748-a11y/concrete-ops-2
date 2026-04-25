@@ -5,9 +5,12 @@ import {
   canManageCustomers,
   canManageEstimates,
   canManageLeads,
+  canManageOwnTime,
   canManageUsers,
   canUseCalculator,
   canUseToolChecklist,
+  canViewAllTime,
+  canViewCrewTime,
   canViewCustomers,
   canViewEstimates,
   canViewLeads,
@@ -33,6 +36,7 @@ test("operations manager can manage users and see employees module", () => {
   const modules = getAllowedModuleIds(operations, { toolChecklistEnabled: true });
 
   assert.equal(canManageUsers(operations), true);
+  assert.equal(canViewAllTime(operations), true);
   assert.equal(modules.has("employees"), true);
 });
 
@@ -54,6 +58,7 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canViewLeads(foreman), false);
   assert.equal(canViewCustomers(foreman), false);
   assert.equal(canViewEstimates(foreman), false);
+  assert.equal(canViewCrewTime(foreman), true);
   assert.equal(canUseCalculator(foreman), true);
   assert.equal(canViewSafety(foreman), true);
   assert.equal(canUseToolChecklist(foreman, { toolChecklistEnabled: true }), true);
@@ -67,6 +72,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canViewLeads(employee), false);
   assert.equal(canViewCustomers(employee), false);
   assert.equal(canViewEstimates(employee), false);
+  assert.equal(canManageOwnTime(employee), true);
   assert.equal(canUseCalculator(employee), true);
   assert.equal(canViewSafety(employee), true);
   assert.equal(modules.has("leads"), false);

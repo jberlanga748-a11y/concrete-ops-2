@@ -360,6 +360,7 @@ export function createEmptyState() {
     leadStatusHistory: [],
     jobs: [],
     jobAssignments: [],
+    timeEntries: [],
     queueItems: [],
     activity: [],
     auditEvents: [],
@@ -394,6 +395,7 @@ export function createSeedState() {
     leadStatusHistory,
     jobs,
     jobAssignments: [],
+    timeEntries: [],
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
     auditEvents: createSeedAuditEvents(seedUser, customers, leads, jobs, queueItems),
@@ -408,6 +410,7 @@ function createBootstrapAdminState(adminConfig) {
     ...createEmptyState(),
     users: [adminUser],
     leadStatusHistory: [],
+    timeEntries: [],
     auditEvents: [
       {
         id: makeAuditId("bootstrap-admin"),
@@ -1158,6 +1161,37 @@ const MIGRATIONS = [
       `).run(now, now);
     },
   },
+  {
+    version: 17,
+    description: "Add time entries for field time tracking.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS time_entries (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          user_id TEXT NOT NULL,
+          job_id TEXT NOT NULL,
+          clock_in_at TEXT NOT NULL,
+          clock_out_at TEXT,
+          break_start_at TEXT,
+          break_end_at TEXT,
+          total_minutes INTEGER NOT NULL DEFAULT 0,
+          break_minutes INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_time_entries_user_id ON time_entries(user_id);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_job_id ON time_entries(job_id);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_status ON time_entries(status);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_sort_index ON time_entries(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1226,6 +1260,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertTimeEntry = database.prepare(`
+    INSERT INTO time_entries (id, sort_index, user_id, job_id, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertQueueItem = database.prepare(`
     INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1251,6 +1290,7 @@ function writeStateToDb(state) {
       DELETE FROM leads;
       DELETE FROM job_assignments;
       DELETE FROM jobs;
+      DELETE FROM time_entries;
       DELETE FROM queue_items;
       DELETE FROM activity;
       DELETE FROM audit_events;
@@ -1393,6 +1433,25 @@ function writeStateToDb(state) {
       );
     });
 
+    (state.timeEntries || []).forEach((entry, index) => {
+      insertTimeEntry.run(
+        entry.id,
+        index,
+        entry.userId,
+        entry.jobId,
+        entry.clockInAt,
+        entry.clockOutAt || null,
+        entry.breakStartAt || null,
+        entry.breakEndAt || null,
+        Number(entry.totalMinutes || 0),
+        Number(entry.breakMinutes || 0),
+        entry.status || "active",
+        entry.notes || "",
+        entry.createdAt || entry.clockInAt || isoNow(),
+        entry.updatedAt || entry.createdAt || entry.clockInAt || isoNow(),
+      );
+    });
+
     state.queueItems.forEach((item, index) => {
       insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
     });
@@ -1469,6 +1528,14 @@ function readTableState() {
   `).all();
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
+  const timeEntries = database.prepare(`
+    SELECT id, user_id AS userId, job_id AS jobId, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
+           break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
+           break_minutes AS breakMinutes, status, notes, created_at AS createdAt, updated_at AS updatedAt
+    FROM time_entries
+    ORDER BY sort_index ASC
+  `).all();
+
   const queueItems = database.prepare(`
     SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM queue_items
@@ -1490,7 +1557,7 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, queueItems, activity, auditEvents };
+  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, timeEntries, queueItems, activity, auditEvents };
 }
 
 async function loadInitialState() {
