@@ -65,6 +65,10 @@ export function makeId(prefix) {
   return `${prefix}-${Math.floor(Date.now() / 1000).toString().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
 }
 
+export function makeAuditId(suffix = crypto.randomUUID()) {
+  return `AU-${suffix}`;
+}
+
 export function timestamp() {
   return formatTime(new Date());
 }
@@ -96,23 +100,82 @@ function withSeedTimestamps(records, startedAt, spacingMinutes) {
   });
 }
 
+function createSeedAuditEvents(user, leads, jobs, queueItems) {
+  const actorUserId = user.id;
+  const actorName = user.name;
+  const events = [];
+
+  leads.forEach((lead) => {
+    events.push({
+      id: makeAuditId(`seed-lead-${lead.id}`),
+      entityType: "lead",
+      entityId: lead.id,
+      action: "created",
+      summary: "Lead seeded",
+      detail: `${lead.customer} entered for ${lead.project}.`,
+      actorUserId,
+      actorName,
+      changedFields: [],
+      createdAt: lead.createdAt,
+    });
+  });
+
+  jobs.forEach((job) => {
+    events.push({
+      id: makeAuditId(`seed-job-${job.id}`),
+      entityType: "job",
+      entityId: job.id,
+      action: "created",
+      summary: "Job seeded",
+      detail: `${job.job} prepared for ${job.customer}.`,
+      actorUserId,
+      actorName,
+      changedFields: [],
+      createdAt: job.createdAt,
+    });
+  });
+
+  queueItems.forEach((item) => {
+    events.push({
+      id: makeAuditId(`seed-queue-${item.id}`),
+      entityType: "queueItem",
+      entityId: item.id,
+      action: "created",
+      summary: "Queue item seeded",
+      detail: item.title,
+      actorUserId,
+      actorName,
+      changedFields: [],
+      createdAt: item.createdAt,
+    });
+  });
+
+  return events.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 export function createSeedState() {
   const seededAt = new Date();
+  const seedUser = {
+    id: "U-001",
+    email: DEMO_CREDENTIALS.email,
+    name: DEMO_CREDENTIALS.name,
+    role: DEMO_CREDENTIALS.role,
+    passwordHash: passwordHash(DEMO_CREDENTIALS.password),
+  };
+  const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180);
+  const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240);
+  const queueItems = withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90);
+
   return {
     users: [
-      {
-        id: "U-001",
-        email: DEMO_CREDENTIALS.email,
-        name: DEMO_CREDENTIALS.name,
-        role: DEMO_CREDENTIALS.role,
-        passwordHash: passwordHash(DEMO_CREDENTIALS.password),
-      },
+      seedUser,
     ],
     sessions: [],
-    leads: withSeedTimestamps(INITIAL_LEADS, seededAt, 180),
-    jobs: withSeedTimestamps(INITIAL_JOBS, seededAt, 240),
-    queueItems: withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90),
+    leads,
+    jobs,
+    queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
+    auditEvents: createSeedAuditEvents(seedUser, leads, jobs, queueItems),
   };
 }
 
@@ -312,6 +375,30 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 5,
+    description: "Add audit history for durable record mutations.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS audit_events (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT,
+          action TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          actor_user_id TEXT,
+          actor_name TEXT NOT NULL,
+          changed_fields TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_events_sort_index ON audit_events(sort_index);
+        CREATE INDEX IF NOT EXISTS idx_audit_events_entity ON audit_events(entity_type, entity_id);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -375,6 +462,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertAuditEvent = database.prepare(`
+    INSERT INTO audit_events (id, sort_index, entity_type, entity_id, action, summary, detail, actor_user_id, actor_name, changed_fields, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   runInTransaction(database, () => {
     database.exec(`
       DELETE FROM sessions;
@@ -383,6 +475,7 @@ function writeStateToDb(state) {
       DELETE FROM jobs;
       DELETE FROM queue_items;
       DELETE FROM activity;
+      DELETE FROM audit_events;
     `);
 
     state.users.forEach((user) => {
@@ -414,6 +507,22 @@ function writeStateToDb(state) {
 
     state.activity.forEach((item, index) => {
       insertActivity.run(item.id, index, item.time, item.title, item.detail, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow());
+    });
+
+    (state.auditEvents || []).forEach((event, index) => {
+      insertAuditEvent.run(
+        event.id,
+        index,
+        event.entityType,
+        event.entityId || null,
+        event.action,
+        event.summary,
+        event.detail,
+        event.actorUserId || null,
+        event.actorName,
+        JSON.stringify(event.changedFields || []),
+        event.createdAt || isoNow(),
+      );
     });
   });
 }
@@ -457,7 +566,16 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
-  return { users, sessions, leads, jobs, queueItems, activity };
+  const auditEvents = database.prepare(`
+    SELECT id, entity_type AS entityType, entity_id AS entityId, action, summary, detail, actor_user_id AS actorUserId, actor_name AS actorName, changed_fields AS changedFields, created_at AS createdAt
+    FROM audit_events
+    ORDER BY sort_index ASC
+  `).all().map((event) => ({
+    ...event,
+    changedFields: JSON.parse(event.changedFields || "[]"),
+  }));
+
+  return { users, sessions, leads, jobs, queueItems, activity, auditEvents };
 }
 
 async function loadInitialState() {

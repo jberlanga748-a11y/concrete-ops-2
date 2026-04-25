@@ -81,6 +81,8 @@ By default those files are written under `data/backups`. The JSON export include
 
 Leads, jobs, queue items, and activity entries now also carry `createdAt` and `updatedAt` timestamps so record detail views and future audit history can rely on durable backend timestamps instead of client-only timing guesses.
 
+The workspace also keeps a durable audit history for record creates, updates, conversions, queue toggles, and demo resets, and surfaces the latest entries in the Settings screen.
+
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 
 Demo sessions now use rolling expiration and are cleaned up when they expire.

@@ -16,6 +16,7 @@ import {
   getDataPaths,
   hashToken,
   leadProjectName,
+  makeAuditId,
   makeId,
   publicUser,
   readDb,
@@ -164,8 +165,24 @@ function sanitizeBootstrap(state, user) {
     jobs: state.jobs,
     queueItems: state.queueItems,
     activity: state.activity,
+    auditEvents: state.auditEvents,
     stats: statsFromState(state),
   };
+}
+
+function appendAuditEvent(state, { entityType, entityId, action, summary, detail, actor, changedFields = [] }) {
+  state.auditEvents.unshift({
+    id: makeAuditId(),
+    entityType,
+    entityId: entityId || "",
+    action,
+    summary,
+    detail,
+    actorUserId: actor?.id || "",
+    actorName: actor?.name || "Unknown user",
+    changedFields,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 app.use((req, res, next) => {
@@ -370,6 +387,14 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
       updatedAt: createdAt,
     });
     appendActivity(draft, "Lead created", `${newLead.customer} entered for ${newLead.project}.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: newLead.id,
+      action: "created",
+      summary: "Lead created",
+      detail: `${newLead.customer} entered for ${newLead.project}.`,
+      actor: req.auth.user,
+    });
     return draft;
   });
 
@@ -380,6 +405,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
   const changedAt = new Date().toISOString();
+  const changedFields = Object.keys(updates).filter((field) => updates[field] != null);
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
@@ -396,6 +422,15 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
     markUpdated(lead, changedAt);
 
     appendActivity(draft, "Lead updated", `${lead.customer} details were updated.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "updated",
+      summary: "Lead updated",
+      detail: `${lead.customer} details were updated.`,
+      actor: req.auth.user,
+      changedFields,
+    });
     return draft;
   });
 
@@ -428,6 +463,23 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
     lead.nextStep = "Moved into job schedule";
     markUpdated(lead, changedAt);
     appendActivity(draft, "Lead converted to job", `${lead.customer} moved into ${newJob.job}.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "converted",
+      summary: "Lead converted",
+      detail: `${lead.customer} moved into ${newJob.job}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "nextStep"],
+    });
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: newJob.id,
+      action: "created",
+      summary: "Job created from lead",
+      detail: `${newJob.job} opened from approved lead ${lead.id}.`,
+      actor: req.auth.user,
+    });
     return draft;
   });
 
@@ -454,6 +506,14 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.jobs.unshift(newJob);
     appendActivity(draft, "Job created", `${newJob.job} added for ${newJob.customer}.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: newJob.id,
+      action: "created",
+      summary: "Job created",
+      detail: `${newJob.job} added for ${newJob.customer}.`,
+      actor: req.auth.user,
+    });
     return draft;
   });
 
@@ -464,6 +524,7 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
   const changedAt = new Date().toISOString();
+  const changedFields = Object.keys(updates).filter((field) => updates[field] != null);
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
@@ -480,6 +541,15 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
     markUpdated(job, changedAt);
 
     appendActivity(draft, "Job updated", `${job.job} field details were updated.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: "updated",
+      summary: "Job updated",
+      detail: `${job.job} field details were updated.`,
+      actor: req.auth.user,
+      changedFields,
+    });
     return draft;
   });
 
@@ -502,6 +572,14 @@ app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.queueItems.unshift(newTask);
     appendActivity(draft, "Queue item added", newTask.title);
+    appendAuditEvent(draft, {
+      entityType: "queueItem",
+      entityId: newTask.id,
+      action: "created",
+      summary: "Queue item created",
+      detail: newTask.title,
+      actor: req.auth.user,
+    });
     return draft;
   });
 
@@ -517,6 +595,15 @@ app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res
     task.done = !task.done;
     markUpdated(task, changedAt);
     appendActivity(draft, task.done ? "Queue item completed" : "Queue item reopened", task.title);
+    appendAuditEvent(draft, {
+      entityType: "queueItem",
+      entityId: task.id,
+      action: task.done ? "completed" : "reopened",
+      summary: task.done ? "Queue item completed" : "Queue item reopened",
+      detail: task.title,
+      actor: req.auth.user,
+      changedFields: ["done"],
+    });
     return draft;
   });
 
@@ -536,6 +623,14 @@ app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
         expiresAt: nextSessionExpiry(),
       },
     ];
+    appendAuditEvent(seed, {
+      entityType: "workspace",
+      entityId: "demo",
+      action: "reset",
+      summary: "Workspace reset",
+      detail: "Demo data was restored to the seeded state.",
+      actor: req.auth.user,
+    });
     return seed;
   });
   const user = nextState.users.find((entry) => entry.id === req.auth.user.id) || nextState.users.find((entry) => entry.email === DEMO_CREDENTIALS.email);

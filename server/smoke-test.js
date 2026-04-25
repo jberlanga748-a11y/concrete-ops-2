@@ -108,6 +108,7 @@ async function run() {
     };
 
     const before = await request("/api/bootstrap", { headers });
+    const beforeAuditCount = before.auditEvents.length;
 
     await request("/api/leads", {
       method: "POST",
@@ -130,8 +131,15 @@ async function run() {
     if (after.leads.length !== before.leads.length + 1) {
       throw new Error("Expected the smoke test to create exactly one lead.");
     }
+    if (after.auditEvents.length <= beforeAuditCount) {
+      throw new Error("Expected lead creation to append an audit event.");
+    }
     if (!createdLead?.createdAt || !createdLead?.updatedAt || createdLead.createdAt !== createdLead.updatedAt) {
       throw new Error("Expected newly created leads to include matching createdAt and updatedAt timestamps.");
+    }
+    const createAudit = after.auditEvents.find((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "created");
+    if (!createAudit) {
+      throw new Error("Expected lead creation to be captured in audit history.");
     }
 
     await request(`/api/leads/${createdLead.id}`, {
@@ -146,6 +154,10 @@ async function run() {
     const updatedLead = updated.leads.find((lead) => lead.id === createdLead.id);
     if (!updatedLead?.createdAt || !updatedLead?.updatedAt || updatedLead.createdAt === updatedLead.updatedAt) {
       throw new Error("Expected lead updates to preserve createdAt and advance updatedAt.");
+    }
+    const updateAudit = updated.auditEvents.find((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "updated");
+    if (!updateAudit || !updateAudit.changedFields.includes("notes")) {
+      throw new Error("Expected lead updates to capture changed fields in audit history.");
     }
 
     await expectStatus("/api/leads", 400, {

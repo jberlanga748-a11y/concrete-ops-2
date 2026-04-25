@@ -82,6 +82,7 @@ const EMPTY_APP_STATE = {
   jobs: [],
   queueItems: [],
   activity: [],
+  auditEvents: [],
   stats: {
     newLeads: 0,
     highPriorityLeads: 0,
@@ -367,6 +368,19 @@ function TimestampMeta({ createdAt, updatedAt }) {
       </div>
     </div>
   );
+}
+
+function AuditActionBadge({ action }) {
+  const tones = {
+    created: "green",
+    updated: "blue",
+    converted: "violet",
+    completed: "green",
+    reopened: "amber",
+    reset: "red",
+  };
+
+  return <Badge tone={tones[action] || "slate"}>{action}</Badge>;
 }
 
 function LoadingScreen({ label = "Loading workspace..." }) {
@@ -790,6 +804,44 @@ function ActivityPanel({ activity }) {
   );
 }
 
+function AuditTrailPanel({ auditEvents }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Audit trail" description="Durable backend history for record changes and resets." />
+      {auditEvents.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, converted, and reset.</div>
+      ) : (
+        <div className="space-y-3">
+          {auditEvents.slice(0, 10).map((event) => (
+            <div key={event.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-950">{event.summary}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{event.detail}</p>
+                </div>
+                <AuditActionBadge action={event.action} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                <span>{event.entityType}</span>
+                {event.entityId ? <span>{event.entityId}</span> : null}
+                <span>{event.actorName}</span>
+                <span>{formatDateTime(event.createdAt)}</span>
+              </div>
+              {event.changedFields.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {event.changedFields.map((field) => (
+                    <Badge key={`${event.id}-${field}`} tone="slate">{field}</Badge>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled }) {
   return (
     <Card className="p-5">
@@ -1135,28 +1187,31 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   );
 }
 
-function SettingsPage({ user, onReset, busy }) {
+function SettingsPage({ user, onReset, busy, auditEvents }) {
   return (
     <div>
       <PageHeader eyebrow="System" title="Settings" description="This workspace now uses authenticated server state with a seeded demo account." />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
-        <Card className="p-5">
-          <SectionHeader title="Account" description="Current signed-in operator." />
-          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-            <p><span className="font-black text-slate-950">Name:</span> {user?.name}</p>
-            <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
-            <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
-          </div>
-          <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button>
-        </Card>
-        <Card className="p-5">
-          <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="rounded-2xl border border-blue-100 p-4">Move from JSON storage to Postgres or SQLite.</div>
-            <div className="rounded-2xl border border-blue-100 p-4">Replace demo token auth with proper user management and hashed refresh sessions.</div>
-            <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports and uploads into their own resource APIs.</div>
-          </div>
-        </Card>
+      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+          <Card className="p-5">
+            <SectionHeader title="Account" description="Current signed-in operator." />
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+              <p><span className="font-black text-slate-950">Name:</span> {user?.name}</p>
+              <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
+              <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
+            </div>
+            <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button>
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="rounded-2xl border border-blue-100 p-4">Move from JSON storage to Postgres or SQLite.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Replace demo token auth with proper user management and hashed refresh sessions.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports and uploads into their own resource APIs.</div>
+            </div>
+          </Card>
+        </div>
+        <AuditTrailPanel auditEvents={auditEvents} />
       </div>
     </div>
   );
@@ -1195,7 +1250,7 @@ function MainContent(props) {
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
-  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} />;
+  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} />;
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 
@@ -1233,6 +1288,7 @@ export default function App() {
       jobs: nextState.jobs,
       queueItems: nextState.queueItems,
       activity: nextState.activity,
+      auditEvents: nextState.auditEvents,
       stats: nextState.stats,
     });
   }
@@ -1275,6 +1331,7 @@ export default function App() {
       return {
         ...current,
         activity: nextState.activity,
+        auditEvents: nextState.auditEvents,
         leads: kind === "lead" && nextLead ? current.leads.map((lead) => (lead.id === recordId ? nextLead : lead)) : current.leads,
         jobs: kind === "job" && nextJob ? current.jobs.map((job) => (job.id === recordId ? nextJob : job)) : current.jobs,
       };
@@ -1617,6 +1674,7 @@ export default function App() {
               jobs={appState.jobs}
               queueItems={appState.queueItems}
               activity={appState.activity}
+              auditEvents={appState.auditEvents}
               leadFilter={leadFilter}
               setLeadFilter={setLeadFilter}
               leadSearch={leadSearch}
