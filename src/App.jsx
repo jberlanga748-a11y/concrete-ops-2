@@ -372,34 +372,6 @@ function CustomerFilterHeader({ filters, active, setActive, search, setSearch, p
   );
 }
 
-function CustomerDebugPanel({ debugState }) {
-  return (
-    <div className="border-b border-blue-100 bg-slate-50/90 px-4 py-3 text-xs text-slate-600">
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        <p><span className="font-black text-slate-950">Total customers:</span> {debugState.totalCount}</p>
-        <p><span className="font-black text-slate-950">Selected filter:</span> {String(debugState.filterValue || "(empty)")}</p>
-        <p><span className="font-black text-slate-950">Search value:</span> {String(debugState.searchValue || "(empty)")}</p>
-        <p><span className="font-black text-slate-950">Filtered customer count:</span> {debugState.filteredCount}</p>
-        <p><span className="font-black text-slate-950">Rendered row count:</span> {debugState.renderedRowCount}</p>
-      </div>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <div>
-          <p className="font-black text-slate-950">First 5 rendered customers</p>
-          <div className="mt-1 space-y-1">
-            {debugState.renderedPreview.length === 0 ? <p>(none)</p> : debugState.renderedPreview.map((entry) => <p key={`rendered-${entry.name}`}>{entry.name} - {entry.status}</p>)}
-          </div>
-        </div>
-        <div>
-          <p className="font-black text-slate-950">First 5 filtered customers</p>
-          <div className="mt-1 space-y-1">
-            {debugState.filteredPreview.length === 0 ? <p>(none)</p> : debugState.filteredPreview.map((entry) => <p key={`filtered-${entry.name}`}>{entry.name} - {entry.status}</p>)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function InputField({ label, ...props }) {
   return (
     <label className="field-label">
@@ -1523,7 +1495,6 @@ function CustomersPage({
           {canView ? (
             <>
               <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
-              <CustomerDebugPanel debugState={debugState} />
               {busy && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records from the API." /></div>
               ) : errorMessage && visibleRows.length === 0 ? (
