@@ -21,6 +21,9 @@ RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
+COPY --from=build /app/shared ./shared
+
+RUN test -f /app/shared/permissions.js
 
 RUN mkdir -p /app/data
 
