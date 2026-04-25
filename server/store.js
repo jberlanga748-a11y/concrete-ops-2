@@ -1,23 +1,19 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
 import { DEMO_CREDENTIALS, INITIAL_ACTIVITY, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
+import { serverConfig } from "./config.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_VERSION_KEY = "schema_version";
-const CURRENT_SCHEMA_VERSION = 3;
-export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
 
 let db;
 let writeChain = Promise.resolve();
 
 function getDataDir() {
-  return process.env.DATA_DIR
-    ? path.resolve(process.env.DATA_DIR)
-    : path.join(__dirname, "..", "data");
+  return serverConfig.dataDir;
 }
 
 function getSqliteFile() {

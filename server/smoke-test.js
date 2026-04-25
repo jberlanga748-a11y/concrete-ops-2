@@ -4,8 +4,10 @@ import os from "node:os";
 import process from "node:process";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { createServerConfig } from "./config.js";
 
-const port = process.env.SMOKE_TEST_PORT || "4100";
+const config = createServerConfig(process.env);
+const port = String(config.smokeTestPort);
 const baseUrl = `http://localhost:${port}`;
 
 function sleep(ms) {

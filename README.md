@@ -43,6 +43,16 @@ The SQLite database stays persistent by mounting `./data` into `/app/data` in th
 
 By default the server stores SQLite data in `./data`. You can override that with the `DATA_DIR` environment variable, which is useful for isolated test runs and alternate deploy layouts.
 
+## Environment config
+
+The backend now reads its runtime settings from a shared validated config module and loads `.env` automatically when present. Copy `.env.example` to `.env` if you want a local starting point.
+
+- `PORT`: API/server port, defaults to `4000`
+- `DATA_DIR`: directory for SQLite files, defaults to `./data`
+- `SESSION_TTL_HOURS`: rolling auth session lifetime, defaults to `168`
+- `SMOKE_TEST_PORT`: port used by `npm run verify:server`, defaults to `4100`
+- `NODE_ENV`: `development`, `test`, or `production`
+
 ## Storage
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.

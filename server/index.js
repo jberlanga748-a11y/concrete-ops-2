@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
 
 import { DEMO_CREDENTIALS } from "./seed-data.js";
+import { serverConfig } from "./config.js";
 import {
   cleanupExpiredSessions,
   createSeedState,
@@ -24,7 +25,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
-const port = Number(process.env.PORT || 4000);
+const { port } = serverConfig;
 const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
 const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
 const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
