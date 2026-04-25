@@ -13,7 +13,7 @@
     "verify:server": "node server/smoke-test.js",
     "backup:data": "node server/backup-export.js",
     "verify:backup": "node server/backup-export-test.js",
-    "verify:customers": "node --test --test-concurrency=1 server/customer-api.test.js src/app-routing.test.js src/customer-utils.test.js"
+    "verify:customers": "node --test --test-concurrency=1 server/customer-api.test.js src/app-routing.test.js src/customer-utils.test.js src/customer-filter-layout.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -30,6 +30,7 @@ import {
   updateLead,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
+import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { filterCustomers, relatedCustomerRecords } from "./customer-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -343,6 +344,30 @@ function FilterBar({ filters, active, setActive, search, setSearch, placeholder 
         ))}
       </div>
       <input className="field-input w-full md:w-72" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
+    </div>
+  );
+}
+
+function CustomerFilterHeader({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
+  const layout = getCustomerFilterLayoutClasses();
+
+  return (
+    <div className={layout.header}>
+      <div className={layout.pillsRow}>
+        {filters.map((filter) => (
+          <button
+            key={filter}
+            type="button"
+            onClick={() => setActive(filter)}
+            className={`rounded-2xl px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+          >
+            {filter}
+          </button>
+        ))}
+      </div>
+      <div className={layout.searchRow}>
+        <input className={layout.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
+      </div>
     </div>
   );
 }
@@ -939,38 +964,36 @@ function StateCard({ title, description, tone = "blue" }) {
 
 function CustomersTable({ rows, selectedId, onSelect }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] text-left">
-        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
-          <tr>
-            <th className="px-4 py-3">Customer</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Phone</th>
-            <th className="px-4 py-3">Email</th>
-            <th className="px-4 py-3">City</th>
-            <th className="px-4 py-3">Service area</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-blue-50">
-          {rows.map((customer) => {
-            const selected = customer.id === selectedId;
-            return (
-              <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
-                <td className="px-4 py-3">
-                  <p className="font-black text-slate-950">{customer.name}</p>
-                  <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
-                </td>
-                <td className="px-4 py-3"><StatusBadge status={customer.archivedAt ? "Archived" : customer.status} /></td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.phone || "Not set"}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.email || "Not set"}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.city || "Not set"}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.serviceArea || "Not set"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <table className="w-full min-w-[980px] text-left">
+      <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+        <tr>
+          <th className="px-4 py-3">Customer</th>
+          <th className="px-4 py-3">Status</th>
+          <th className="px-4 py-3">Phone</th>
+          <th className="px-4 py-3">Email</th>
+          <th className="px-4 py-3">City</th>
+          <th className="px-4 py-3">Service area</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-blue-50">
+        {rows.map((customer) => {
+          const selected = customer.id === selectedId;
+          return (
+            <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+              <td className="px-4 py-3">
+                <p className="font-black text-slate-950">{customer.name}</p>
+                <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+              </td>
+              <td className="px-4 py-3"><StatusBadge status={customer.archivedAt ? "Archived" : customer.status} /></td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.phone || "Not set"}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.email || "Not set"}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.city || "Not set"}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.serviceArea || "Not set"}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -1457,6 +1480,7 @@ function CustomersPage({
 }) {
   const canView = permissions.customers.canView;
   const canManage = permissions.customers.canManage;
+  const layout = getCustomerFilterLayoutClasses();
 
   return (
     <div>
@@ -1465,7 +1489,7 @@ function CustomersPage({
         <Card className="overflow-hidden">
           {canView ? (
             <>
-              <FilterBar filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
+              <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
               {busy && rows.length === 0 ? (
                 <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records from the API." /></div>
               ) : errorMessage && rows.length === 0 ? (
@@ -1478,7 +1502,11 @@ function CustomersPage({
                   />
                 </div>
               ) : (
-                <CustomersTable rows={rows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+                <div className={layout.tableSection}>
+                  <div className={layout.tableScroller}>
+                    <CustomersTable rows={rows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+                  </div>
+                </div>
               )}
             </>
           ) : (
