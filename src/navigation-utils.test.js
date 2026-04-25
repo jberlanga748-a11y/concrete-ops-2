@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, getDefaultModuleId, getVisibleNavGroups, isOfficeUser } from "./navigation-utils.js";
+import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils.js";
+import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
   {
@@ -23,6 +24,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { id: "calculator", label: "Calculator" },
+      { id: "toolChecklist", label: "Tool Checklist" },
       { id: "settings", label: "Settings" },
     ],
   },
@@ -31,34 +33,55 @@ const NAV_GROUPS = [
 test("office roles keep full office navigation and dashboard default", () => {
   const owner = { role: "Owner" };
 
-  assert.equal(isOfficeUser(owner), true);
+  assert.equal(isOfficeManager(owner), true);
   assert.equal(getDefaultModuleId(owner), "dashboard");
-  assert.equal(canAccessModule("leads", owner), true);
+  assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
-    getVisibleNavGroups(NAV_GROUPS, owner).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "reports", "leads", "customers", "calculator", "settings"],
+    getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
+    ["dashboard", "jobs", "reports", "leads", "customers", "calculator", "toolChecklist", "settings"],
   );
 });
 
 test("employees do not see leads in navigation and default to field workspace", () => {
   const employee = { role: "Employee" };
 
-  assert.equal(isOfficeUser(employee), false);
   assert.equal(getDefaultModuleId(employee), "jobs");
-  assert.equal(canAccessModule("leads", employee), false);
-  assert.equal(canAccessModule("dashboard", employee), false);
-  assert.equal(canAccessModule("jobs", employee), true);
+  assert.equal(canAccessModule("leads", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("dashboard", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
-    getVisibleNavGroups(NAV_GROUPS, employee).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "reports", "calculator", "settings"],
+    getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
+    ["jobs", "reports", "calculator", "toolChecklist"],
   );
 });
 
 test("foreman also stays in field-only navigation for now", () => {
   const foreman = { role: "Foreman" };
 
-  assert.equal(isOfficeUser(foreman), false);
-  assert.equal(canAccessModule("leads", foreman), false);
-  assert.equal(canAccessModule("customers", foreman), false);
+  assert.equal(canAccessModule("leads", foreman, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("customers", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(getDefaultModuleId(foreman), "jobs");
+});
+
+test("estimators keep sales navigation but not settings", () => {
+  const estimator = { role: "Estimator" };
+
+  assert.equal(isEstimator(estimator), true);
+  assert.equal(canAccessModule("leads", estimator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("customers", estimator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("settings", estimator, { toolChecklistEnabled: true }), false);
+});
+
+test("tool checklist hides from field roles when disabled", () => {
+  const employee = { role: "Employee" };
+  const foreman = { role: "Foreman" };
+
+  assert.equal(canUseToolChecklist(employee, { toolChecklistEnabled: false }), false);
+  assert.equal(canUseToolChecklist(foreman, { toolChecklistEnabled: false }), false);
+  assert.equal(canAccessModule("toolChecklist", employee, { toolChecklistEnabled: false }), false);
+  assert.equal(canAccessModule("toolChecklist", foreman, { toolChecklistEnabled: false }), false);
+  assert.deepEqual(
+    getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: false }).flatMap((group) => group.items.map((item) => item.id)),
+    ["jobs", "reports", "calculator"],
+  );
 });

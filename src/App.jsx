@@ -84,6 +84,7 @@ const NAV_GROUPS = [
       { id: "incidents", label: "Incidents", icon: "alert" },
       { id: "toolbox", label: "Toolbox Talks", icon: "clipboard" },
       { id: "ppe", label: "PPE", icon: "hardhat" },
+      { id: "toolChecklist", label: "Tool Checklist", icon: "clipboard" },
     ],
   },
   {
@@ -99,6 +100,9 @@ const NAV_GROUPS = [
 
 const EMPTY_APP_STATE = {
   user: null,
+  companySettings: {
+    toolChecklistEnabled: true,
+  },
   users: [],
   customers: [],
   leads: [],
@@ -115,6 +119,40 @@ const EMPTY_APP_STATE = {
     leads: {
       canView: false,
       canManage: false,
+    },
+    estimates: {
+      canView: false,
+      canManage: false,
+    },
+    jobs: {
+      canView: false,
+      canCreate: false,
+      canManageAll: false,
+      canManageField: false,
+      canViewMoney: false,
+    },
+    safety: {
+      canView: false,
+      canManage: false,
+    },
+    calculator: {
+      canUse: false,
+    },
+    toolChecklist: {
+      canUse: false,
+      canManage: false,
+    },
+    settings: {
+      canView: false,
+      canManageUsers: false,
+      canExport: false,
+    },
+    changeOrders: {
+      canView: false,
+      canManage: false,
+    },
+    audit: {
+      canView: false,
     },
   },
   stats: {
@@ -986,7 +1024,7 @@ function LeadDetailPanel({
   );
 }
 
-function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, saveState, disabled }) {
+function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, saveState, disabled, permissions }) {
   if (!job) {
     return (
       <Card className="p-5">
@@ -996,6 +1034,12 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
     );
   }
 
+  const canManageAll = permissions?.jobs?.canManageAll;
+  const canManageField = job.canManageField || canManageAll;
+  const canEditField = Boolean(canManageField);
+  const canArchive = Boolean(canManageAll);
+  const notesValue = canManageAll ? (job.notes || "") : (job.fieldNotes || "");
+
   return (
     <Card className="p-5">
       <SectionHeader
@@ -1003,14 +1047,15 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
         description={`${job.id} · ${job.customer}`}
         action={
           <div className="flex flex-wrap gap-2">
+            {!canManageAll ? <Badge tone="slate">Field view</Badge> : null}
             {job.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
             {job.archivedAt ? (
               <>
-                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
-                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled}>Delete</Button>
+                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled || !canArchive}>Restore</Button>
+                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled || !canArchive}>Delete</Button>
               </>
             ) : (
-              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled || !canArchive}>Archive</Button>
             )}
           </div>
         }
@@ -1018,24 +1063,27 @@ function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, sa
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={job.createdAt} updatedAt={job.updatedAt} />
-        <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} />
-        <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} />
+        <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} disabled={!canManageAll || disabled} />
+        <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} disabled={!canManageAll || disabled} />
         <div className="grid gap-3 md:grid-cols-2">
-          <SelectField label="Stage" value={job.stage} onChange={(event) => onFieldChange("stage", event.target.value)}>
+          <SelectField label="Stage" value={job.stage} onChange={(event) => onFieldChange("stage", event.target.value)} disabled={!canEditField || disabled}>
             <option>Scheduled</option>
             <option>In Progress</option>
             <option>Waiting</option>
             <option>Ready to Bill</option>
             <option>Complete</option>
           </SelectField>
-          <InputField label="Due" value={job.due} onChange={(event) => onFieldChange("due", event.target.value)} />
+          <InputField label="Due" value={job.due} onChange={(event) => onFieldChange("due", event.target.value)} disabled={!canManageAll || disabled} />
         </div>
         <label className="field-label">
           <span>Progress ({job.progress}%)</span>
-          <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} />
+          <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} disabled={!canEditField || disabled} />
         </label>
-        <InputField label="Next step" value={job.next} onChange={(event) => onFieldChange("next", event.target.value)} />
-        <TextAreaField label="Notes" value={job.notes} onChange={(event) => onFieldChange("notes", event.target.value)} />
+        <InputField label="Next step" value={job.next} onChange={(event) => onFieldChange("next", event.target.value)} disabled={!canEditField || disabled} />
+        {!canManageAll && job.scopeSummary ? <InputField label="Scope summary" value={job.scopeSummary} disabled /> : null}
+        {!canManageAll && job.address ? <InputField label="Job address" value={job.address} disabled /> : null}
+        {!canManageAll && job.siteContact ? <InputField label="Site contact" value={job.siteContact} disabled /> : null}
+        <TextAreaField label={canManageAll ? "Office notes" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
       </div>
     </Card>
   );
@@ -1626,7 +1674,7 @@ function LeadsPage({
   );
 }
 
-function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, onArchiveJob, onRestoreJob, onDeleteJob, busy, jobSaveState }) {
+function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, onArchiveJob, onRestoreJob, onDeleteJob, busy, jobSaveState, permissions }) {
   return (
     <div>
       <PageHeader eyebrow="Field Ops" title="Jobs" description="Create jobs from scratch or from approved leads, then keep field progress and next-step accountability current through the API." actions={<Badge tone="violet">{rows.length} active jobs</Badge>} />
@@ -1636,8 +1684,8 @@ function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, o
           <JobsTable rows={rows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
         <div className="space-y-4">
-          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy} />
-          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} onArchive={onArchiveJob} onRestore={onRestoreJob} onDelete={onDeleteJob} saveState={jobSaveState} disabled={busy} />
+          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} />
+          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} onArchive={onArchiveJob} onRestore={onRestoreJob} onDelete={onDeleteJob} saveState={jobSaveState} disabled={busy} permissions={permissions} />
         </div>
       </div>
     </div>
@@ -1953,7 +2001,7 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
 
 function MainContent(props) {
   const { active } = props;
-  if (!canAccessModule(active, props.user)) return null;
+  if (!canAccessModule(active, props.user, props.companySettings)) return null;
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "leads") {
     return (
@@ -2031,7 +2079,7 @@ export default function App() {
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
-  const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user), [appState.user]);
+  const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings), [appState.companySettings, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
 
@@ -2069,6 +2117,7 @@ export default function App() {
   function applyBootstrap(nextState) {
     setAppState({
       user: nextState.user,
+      companySettings: nextState.companySettings || EMPTY_APP_STATE.companySettings,
       users: nextState.users,
       customers: nextState.customers,
       leads: nextState.leads,
@@ -2117,6 +2166,7 @@ export default function App() {
 
       return {
         ...current,
+        companySettings: nextState.companySettings || current.companySettings,
         users: nextState.users,
         customers: kind === "customer" && !shouldReplaceRecord ? current.customers : nextState.customers,
         activity: nextState.activity,
@@ -2259,9 +2309,9 @@ export default function App() {
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
-    if (canAccessModule(active, appState.user)) return;
+    if (canAccessModule(active, appState.user, appState.companySettings)) return;
     navigateTo(getModulePath(defaultModuleId), { replace: true });
-  }, [active, appState.user, authStatus, defaultModuleId]);
+  }, [active, appState.companySettings, appState.user, authStatus, defaultModuleId]);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -2562,6 +2612,8 @@ export default function App() {
 
   function handleJobFieldChange(field, value) {
     if (!selectedJob) return;
+    const canManageField = appState.permissions.jobs.canManageAll || selectedJob.canManageField;
+    if (!canManageField) return;
     setAppState((current) => ({
       ...current,
       jobs: current.jobs.map((job) => (job.id === selectedJob.id ? { ...job, [field]: value } : job)),
@@ -2604,6 +2656,7 @@ export default function App() {
 
   function handleCreateJob(event) {
     event.preventDefault();
+    if (!appState.permissions.jobs.canCreate) return;
     const existingJobIds = new Set(appState.jobs.map((job) => job.id));
     runMutation(async () => {
       const nextState = await createJob(sessionToken, jobDraft);
@@ -2680,19 +2733,19 @@ export default function App() {
   }
 
   function handleArchiveJob() {
-    if (!selectedJob) return;
+    if (!selectedJob || !appState.permissions.jobs.canManageAll) return;
     resetRecordAutosave("job", selectedJob.id);
     runMutation(() => archiveJob(sessionToken, selectedJob.id));
   }
 
   function handleRestoreJob() {
-    if (!selectedJob) return;
+    if (!selectedJob || !appState.permissions.jobs.canManageAll) return;
     resetRecordAutosave("job", selectedJob.id);
     runMutation(() => restoreJob(sessionToken, selectedJob.id));
   }
 
   function handleDeleteJob() {
-    if (!selectedJob || !window.confirm(`Delete ${selectedJob.job} permanently? This cannot be undone.`)) return;
+    if (!selectedJob || !appState.permissions.jobs.canManageAll || !window.confirm(`Delete ${selectedJob.job} permanently? This cannot be undone.`)) return;
     resetRecordAutosave("job", selectedJob.id);
     runMutation(() => deleteJob(sessionToken, selectedJob.id));
   }
@@ -2754,6 +2807,7 @@ export default function App() {
               active={active}
               setActive={setActive}
               user={appState.user}
+              companySettings={appState.companySettings}
               stats={stats}
               customers={appState.customers}
               leads={appState.leads}

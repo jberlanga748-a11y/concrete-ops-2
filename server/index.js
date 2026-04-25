@@ -27,6 +27,40 @@ import {
   updateDb,
   verifyPassword,
 } from "./store.js";
+import {
+  DEFAULT_COMPANY_SETTINGS,
+  canArchiveJobs,
+  canCreateJobs,
+  canDeleteJobs,
+  canExportData,
+  canManageChangeOrders,
+  canManageCustomers,
+  canManageEstimates,
+  canManageJob,
+  canManageJobFieldUpdates,
+  canManageLeads,
+  canManageSafety,
+  canManageToolChecklist,
+  canManageUsers,
+  canUseCalculator,
+  canUseToolChecklist,
+  canViewAudit,
+  canViewChangeOrders,
+  canViewCustomers,
+  canViewEstimates,
+  canViewJob,
+  canViewJobMoney,
+  canViewLeads,
+  canViewSettings,
+  canViewSafety,
+  canViewAllJobs,
+  isAdministrator,
+  isEmployee,
+  isEstimator,
+  isForeman,
+  isOfficeManager,
+  isOwner,
+} from "../shared/permissions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
@@ -38,7 +72,6 @@ const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent"
 const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
 const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
-const OFFICE_MANAGE_ROLES = new Set(["administrator", "owner", "operations manager"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -149,84 +182,99 @@ function findRequiredRecord(records, id, resourceName) {
   return record;
 }
 
-function normalizeRole(role) {
-  return String(role ?? "").trim().toLowerCase();
-}
-
-function isCustomerManager(user) {
-  return OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role));
-}
-
-function isLeadManager(user) {
-  return OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role));
-}
-
-function canViewCustomers(user) {
-  return isCustomerManager(user);
-}
-
-function canViewLeads(user) {
-  return isLeadManager(user);
-}
-
-function visibleJobsForUser(state, user) {
-  if (!user) return [];
-  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
-    return state.jobs;
-  }
-
-  return state.jobs.filter((job) => !job.archivedAt && job.assignedUserId === user.id);
-}
-
-function visibleQueueItemsForUser(state, user) {
-  if (!user) return [];
-  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
-    return state.queueItems;
-  }
-
-  return state.queueItems.filter((item) => !item.archivedAt && item.assignedUserId === user.id);
-}
-
-function visibleActivityForUser(state, user) {
-  if (!user) return [];
-  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
-    return state.activity;
-  }
-
-  return [];
-}
-
-function visibleAuditEventsForUser(state, user) {
-  if (!user) return [];
-  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
-    return state.auditEvents;
-  }
-
-  return [];
+function companySettingsForState() {
+  return DEFAULT_COMPANY_SETTINGS;
 }
 
 function visibleUsers(state, user) {
   if (!user) return [];
-  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user.role))) {
+  if (isOfficeManager(user) || isEstimator(user)) {
     return state.users.map((entry) => publicUser(entry));
   }
 
   return [publicUser(user)];
 }
 
-function visibleLeadsForUser(state, user) {
-  if (!canViewLeads(user)) {
-    return [];
+function sanitizeJobForUser(job, user) {
+  if (!job) return null;
+
+  if (canViewAllJobs(user) || isEstimator(user)) {
+    return {
+      ...job,
+      canManageField: canManageJobFieldUpdates(user, job),
+      canManageAll: canViewAllJobs(user),
+      canViewMoney: canViewJobMoney(user),
+    };
   }
 
+  return {
+    id: job.id,
+    customerId: job.customerId || "",
+    job: job.job,
+    customer: job.customer,
+    address: job.address || "",
+    siteContact: job.siteContact || "",
+    scopeSummary: job.scopeSummary || "",
+    estimatedDuration: job.estimatedDuration || "",
+    crewSizeNeeded: Number(job.crewSizeNeeded || 0),
+    equipmentNotes: job.equipmentNotes || "",
+    safetyNotes: job.safetyNotes || "",
+    materialNotes: job.materialNotes || "",
+    fieldNotes: job.fieldNotes || "",
+    assignedForemanId: job.assignedForemanId || "",
+    assignedUserId: job.assignedUserId || "",
+    fieldPlanningVisible: Boolean(job.fieldPlanningVisible),
+    visibleToForeman: Boolean(job.visibleToForeman),
+    stage: job.stage,
+    crew: job.crew,
+    next: job.next,
+    due: job.due,
+    progress: job.progress,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    archivedAt: job.archivedAt || null,
+    canManageField: canManageJobFieldUpdates(user, job),
+    canManageAll: false,
+    canViewMoney: false,
+  };
+}
+
+function visibleJobsForUser(state, user) {
+  if (!user) return [];
+  return state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user));
+}
+
+function visibleQueueItemsForUser(state, user) {
+  if (!user) return [];
+  if (isOfficeManager(user)) {
+    return state.queueItems;
+  }
+  return [];
+}
+
+function visibleActivityForUser(state, user) {
+  if (!user) return [];
+  if (canViewAudit(user)) {
+    return state.activity;
+  }
+  return [];
+}
+
+function visibleAuditEventsForUser(state, user) {
+  if (!user) return [];
+  if (canViewAudit(user)) {
+    return state.auditEvents;
+  }
+  return [];
+}
+
+function visibleLeadsForUser(state, user) {
+  if (!canViewLeads(user)) return [];
   return state.leads;
 }
 
 function visibleLeadStatusHistoryForUser(state, user) {
-  if (!canViewLeads(user)) {
-    return [];
-  }
-
+  if (!canViewLeads(user)) return [];
   return state.leadStatusHistory;
 }
 
@@ -252,8 +300,14 @@ function visibleCustomersForUser(state, user) {
 }
 
 function assertCanManageCustomers(user) {
-  if (!isCustomerManager(user)) {
+  if (!canManageCustomers(user)) {
     throw new ApiError(403, "You do not have permission to manage customers.");
+  }
+}
+
+function assertCanViewCustomers(user) {
+  if (!canViewCustomers(user)) {
+    throw new ApiError(403, "You do not have permission to view customers.");
   }
 }
 
@@ -264,13 +318,37 @@ function leadPermissionsForUser(user) {
 
   return {
     canView: canViewLeads(user),
-    canManage: isLeadManager(user),
+    canManage: canManageLeads(user),
   };
 }
 
 function assertCanManageLeads(user) {
-  if (!isLeadManager(user)) {
+  if (!canManageLeads(user)) {
     throw new ApiError(403, "You do not have permission to manage leads.");
+  }
+}
+
+function assertCanViewLeads(user) {
+  if (!canViewLeads(user)) {
+    throw new ApiError(403, "You do not have permission to view leads.");
+  }
+}
+
+function assertCanCreateJobs(user) {
+  if (!canCreateJobs(user)) {
+    throw new ApiError(403, "You do not have permission to create jobs.");
+  }
+}
+
+function assertCanArchiveJobs(user) {
+  if (!canArchiveJobs(user)) {
+    throw new ApiError(403, "You do not have permission to archive jobs.");
+  }
+}
+
+function assertCanDeleteJobs(user) {
+  if (!canDeleteJobs(user)) {
+    throw new ApiError(403, "You do not have permission to delete jobs.");
   }
 }
 
@@ -307,6 +385,21 @@ function syncCustomerNameReferences(state, customer) {
 
 function findUserById(state, userId) {
   return state.users.find((user) => user.id === userId) || null;
+}
+
+function optionalBoolean(value, fallback = false) {
+  if (value == null || value === "") return fallback;
+  return Boolean(value);
+}
+
+function resolveOptionalUserId(state, value, fieldName) {
+  const normalized = optionalString(value, "");
+  if (!normalized) return "";
+  const user = findUserById(state, normalized);
+  if (!user) {
+    throw new ApiError(404, `${fieldName} not found.`);
+  }
+  return user.id;
 }
 
 function resolveLeadOwner(state, payload, fallbackUser) {
@@ -518,7 +611,7 @@ function statsFromState(state) {
 }
 
 function statsForUser(state, user) {
-  if (OFFICE_MANAGE_ROLES.has(normalizeRole(user?.role))) {
+  if (canViewLeads(user)) {
     return statsFromState(state);
   }
 
@@ -539,8 +632,10 @@ function statsForUser(state, user) {
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
+  const settings = companySettingsForState();
   return {
     user: publicUser(user),
+    companySettings: settings,
     users: visibleUsers(state, user),
     customers: visibleCustomersForUser(state, user),
     leads: visibleLeadsForUser(state, user),
@@ -553,6 +648,40 @@ function sanitizeBootstrap(state, user) {
     permissions: {
       customers: customerPermissions,
       leads: leadPermissions,
+      estimates: {
+        canView: canViewEstimates(user),
+        canManage: canManageEstimates(user),
+      },
+      jobs: {
+        canView: Boolean(user),
+        canCreate: canCreateJobs(user),
+        canManageAll: canViewAllJobs(user),
+        canManageField: isForeman(user),
+        canViewMoney: canViewJobMoney(user),
+      },
+      safety: {
+        canView: canViewSafety(user),
+        canManage: canManageSafety(user),
+      },
+      calculator: {
+        canUse: canUseCalculator(user),
+      },
+      toolChecklist: {
+        canUse: canUseToolChecklist(user, settings),
+        canManage: canManageToolChecklist(user, settings),
+      },
+      settings: {
+        canView: canViewSettings(user),
+        canManageUsers: canManageUsers(user),
+        canExport: canExportData(user),
+      },
+      changeOrders: {
+        canView: canViewChangeOrders(user),
+        canManage: canManageChangeOrders(user),
+      },
+      audit: {
+        canView: canViewAudit(user),
+      },
     },
   };
 }
@@ -807,6 +936,33 @@ app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
 app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json(sanitizeBootstrap(state, req.auth.user));
+}));
+
+app.get("/api/leads", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewLeads(req.auth.user);
+  const state = await readDb();
+  res.json({
+    leads: visibleLeadsForUser(state, req.auth.user),
+    leadStatusHistory: visibleLeadStatusHistoryForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewCustomers(req.auth.user);
+  const state = await readDb();
+  res.json({
+    customers: visibleCustomersForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  res.json({
+    jobs: visibleJobsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
 }));
 
 app.post("/api/customers", requireAuth, asyncRoute(async (req, res) => {
@@ -1189,6 +1345,19 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
       customerId: customer.id,
       job: leadProjectName(lead),
       customer: lead.customer,
+      address: "",
+      siteContact: "",
+      scopeSummary: lead.project,
+      estimatedDuration: "",
+      crewSizeNeeded: 0,
+      equipmentNotes: "",
+      safetyNotes: "",
+      materialNotes: "",
+      fieldNotes: lead.notes,
+      assignedForemanId: "",
+      assignedUserId: "",
+      fieldPlanningVisible: false,
+      visibleToForeman: false,
       stage: "Scheduled",
       crew: "Assign crew",
       next: lead.nextStep || "Confirm start date",
@@ -1280,6 +1449,7 @@ app.post("/api/leads/:id/convert-to-customer", requireAuth, asyncRoute(async (re
 }));
 
 app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateJobs(req.auth.user);
   const payload = req.body || {};
   const createdAt = new Date().toISOString();
   const newJob = {
@@ -1287,6 +1457,19 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     customerId: "",
     job: requiredString(payload.job, "Job name"),
     customer: requiredString(payload.customer, "Customer"),
+    address: optionalString(payload.address, ""),
+    siteContact: optionalString(payload.siteContact, ""),
+    scopeSummary: optionalString(payload.scopeSummary, optionalString(payload.notes, "Field scope pending.")),
+    estimatedDuration: optionalString(payload.estimatedDuration, ""),
+    crewSizeNeeded: optionalNonNegativeNumber(payload.crewSizeNeeded, "Crew size needed", 0),
+    equipmentNotes: optionalString(payload.equipmentNotes, ""),
+    safetyNotes: optionalString(payload.safetyNotes, ""),
+    materialNotes: optionalString(payload.materialNotes, ""),
+    fieldNotes: optionalString(payload.fieldNotes, ""),
+    assignedForemanId: "",
+    assignedUserId: "",
+    fieldPlanningVisible: optionalBoolean(payload.fieldPlanningVisible, false),
+    visibleToForeman: optionalBoolean(payload.visibleToForeman, false),
     stage: optionalEnum(payload.stage, JOB_STAGES, "Stage", "Scheduled"),
     crew: optionalString(payload.crew, "Assign crew"),
     next: optionalString(payload.next, "Set field kickoff"),
@@ -1298,6 +1481,8 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   };
 
   const nextState = await updateDb((draft) => {
+    newJob.assignedForemanId = resolveOptionalUserId(draft, payload.assignedForemanId, "Assigned foreman");
+    newJob.assignedUserId = resolveOptionalUserId(draft, payload.assignedUserId, "Assigned user");
     const customer = ensureCustomerRecord(draft, {
       name: newJob.customer,
       city: optionalString(payload.city, ""),
@@ -1322,6 +1507,7 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/jobs/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanArchiveJobs(req.auth.user);
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
@@ -1346,6 +1532,7 @@ app.post("/api/jobs/:id/archive", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/jobs/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  assertCanArchiveJobs(req.auth.user);
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
@@ -1373,25 +1560,63 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
   const changedAt = new Date().toISOString();
-  const changedFields = Object.keys(updates).filter((field) => updates[field] != null);
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
-    const nextCustomerName = updates.customer == null ? job.customer : requiredString(updates.customer, "Customer");
-    const customer = ensureCustomerRecord(draft, {
-      name: nextCustomerName,
-      status: "Active",
-    }, req.auth.user, { fallbackStatus: "Active" });
+    const changedFields = [];
+    const isFullManager = canViewAllJobs(req.auth.user);
+    const canManageFieldJob = canManageJobFieldUpdates(req.auth.user, job);
 
-    Object.assign(job, {
-      customerId: customer.id,
-      customer: nextCustomerName,
-      crew: updates.crew == null ? job.crew : requiredString(updates.crew, "Crew"),
-      stage: updates.stage == null ? job.stage : optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage),
-      due: updates.due == null ? job.due : requiredString(updates.due, "Due"),
-      progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
-      next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
-      notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
+    if (!isFullManager && !canManageFieldJob) {
+      throw new ApiError(403, "You do not have permission to update this job.");
+    }
+
+    if (isFullManager) {
+      const nextCustomerName = updates.customer == null ? job.customer : requiredString(updates.customer, "Customer");
+      const customer = ensureCustomerRecord(draft, {
+        name: nextCustomerName,
+        status: "Active",
+      }, req.auth.user, { fallbackStatus: "Active" });
+
+      const nextAssignedForemanId = updates.assignedForemanId == null ? job.assignedForemanId || "" : resolveOptionalUserId(draft, updates.assignedForemanId, "Assigned foreman");
+      const nextAssignedUserId = updates.assignedUserId == null ? job.assignedUserId || "" : resolveOptionalUserId(draft, updates.assignedUserId, "Assigned user");
+
+      Object.assign(job, {
+        customerId: customer.id,
+        customer: nextCustomerName,
+        address: updates.address == null ? job.address || "" : optionalString(updates.address, ""),
+        siteContact: updates.siteContact == null ? job.siteContact || "" : optionalString(updates.siteContact, ""),
+        scopeSummary: updates.scopeSummary == null ? job.scopeSummary || "" : optionalString(updates.scopeSummary, ""),
+        estimatedDuration: updates.estimatedDuration == null ? job.estimatedDuration || "" : optionalString(updates.estimatedDuration, ""),
+        crewSizeNeeded: updates.crewSizeNeeded == null ? Number(job.crewSizeNeeded || 0) : optionalNonNegativeNumber(updates.crewSizeNeeded, "Crew size needed", Number(job.crewSizeNeeded || 0)),
+        equipmentNotes: updates.equipmentNotes == null ? job.equipmentNotes || "" : optionalString(updates.equipmentNotes, ""),
+        safetyNotes: updates.safetyNotes == null ? job.safetyNotes || "" : optionalString(updates.safetyNotes, ""),
+        materialNotes: updates.materialNotes == null ? job.materialNotes || "" : optionalString(updates.materialNotes, ""),
+        fieldNotes: updates.fieldNotes == null ? job.fieldNotes || "" : optionalString(updates.fieldNotes, ""),
+        assignedForemanId: nextAssignedForemanId,
+        assignedUserId: nextAssignedUserId,
+        fieldPlanningVisible: updates.fieldPlanningVisible == null ? Boolean(job.fieldPlanningVisible) : optionalBoolean(updates.fieldPlanningVisible, Boolean(job.fieldPlanningVisible)),
+        visibleToForeman: updates.visibleToForeman == null ? Boolean(job.visibleToForeman) : optionalBoolean(updates.visibleToForeman, Boolean(job.visibleToForeman)),
+        crew: updates.crew == null ? job.crew : requiredString(updates.crew, "Crew"),
+        stage: updates.stage == null ? job.stage : optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage),
+        due: updates.due == null ? job.due : requiredString(updates.due, "Due"),
+        progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
+        next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
+        notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
+      });
+    } else {
+      Object.assign(job, {
+        progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
+        next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
+        fieldNotes: updates.fieldNotes == null ? job.fieldNotes || "" : optionalString(updates.fieldNotes, ""),
+      });
+      if (updates.stage != null) {
+        job.stage = optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage);
+      }
+    }
+
+    Object.keys(updates).forEach((field) => {
+      if (updates[field] != null) changedFields.push(field);
     });
     markUpdated(job, changedAt);
 
@@ -1412,6 +1637,7 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.delete("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanDeleteJobs(req.auth.user);
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {

@@ -194,12 +194,21 @@ test("customer permissions allow administrators and block employees from managem
   try {
     insertUsers(fixture.sqliteFile, [
       createUserRecord({
+        id: "U-ADMIN-CUSTOMERS",
         email: "admin@lastyard.test",
         password: "concrete123",
         name: "Admin User",
         role: "Administrator",
       }),
       createUserRecord({
+        id: "U-ESTIMATOR-CUSTOMERS",
+        email: "estimator@lastyard.test",
+        password: "concrete123",
+        name: "Estimator User",
+        role: "Estimator",
+      }),
+      createUserRecord({
+        id: "U-EMPLOYEE-CUSTOMERS",
         email: "employee@lastyard.test",
         password: "concrete123",
         name: "Employee User",
@@ -217,6 +226,17 @@ test("customer permissions allow administrators and block employees from managem
     assert.equal(adminBootstrap.permissions.customers.canView, true);
     assert.equal(adminBootstrap.permissions.customers.canManage, true);
 
+    const estimatorLogin = await login(fixture.baseUrl, {
+      email: "estimator@lastyard.test",
+      password: "concrete123",
+    });
+    const estimatorHeaders = authHeaders(estimatorLogin.token);
+    const estimatorBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: estimatorHeaders });
+    assert.equal(estimatorBootstrap.permissions.customers.canView, true);
+    assert.equal(estimatorBootstrap.permissions.customers.canManage, true);
+    const estimatorCustomers = await assertOk(fixture.baseUrl, "/api/customers", { headers: estimatorHeaders });
+    assert.ok(Array.isArray(estimatorCustomers.customers));
+
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee@lastyard.test",
       password: "concrete123",
@@ -226,6 +246,11 @@ test("customer permissions allow administrators and block employees from managem
     assert.equal(employeeBootstrap.permissions.customers.canView, false);
     assert.equal(employeeBootstrap.permissions.customers.canManage, false);
     assert.equal(employeeBootstrap.customers.length, 0);
+
+    const listDenied = await requestJson(fixture.baseUrl, "/api/customers", {
+      headers: employeeHeaders,
+    });
+    assert.equal(listDenied.response.status, 403);
 
     const createDenied = await requestJson(fixture.baseUrl, "/api/customers", {
       method: "POST",

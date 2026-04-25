@@ -760,6 +760,59 @@ const MIGRATIONS = [
       });
     },
   },
+  {
+    version: 13,
+    description: "Add field planning and assignment details to jobs.",
+    up(database) {
+      const columns = [
+        ["address", "TEXT"],
+        ["site_contact", "TEXT"],
+        ["scope_summary", "TEXT"],
+        ["estimated_duration", "TEXT"],
+        ["crew_size_needed", "INTEGER"],
+        ["equipment_notes", "TEXT"],
+        ["safety_notes", "TEXT"],
+        ["material_notes", "TEXT"],
+        ["field_notes", "TEXT"],
+        ["assigned_foreman_id", "TEXT"],
+        ["assigned_user_id", "TEXT"],
+        ["field_planning_visible", "INTEGER"],
+        ["visible_to_foreman", "INTEGER"],
+      ];
+
+      columns.forEach(([columnName, columnType]) => {
+        if (!columnExists(database, "jobs", columnName)) {
+          database.exec(`
+            ALTER TABLE jobs
+            ADD COLUMN ${columnName} ${columnType}
+          `);
+        }
+      });
+
+      database.prepare(`
+        UPDATE jobs
+        SET address = COALESCE(address, ''),
+            site_contact = COALESCE(site_contact, ''),
+            scope_summary = COALESCE(scope_summary, notes, ''),
+            estimated_duration = COALESCE(estimated_duration, ''),
+            crew_size_needed = COALESCE(crew_size_needed, 0),
+            equipment_notes = COALESCE(equipment_notes, ''),
+            safety_notes = COALESCE(safety_notes, ''),
+            material_notes = COALESCE(material_notes, ''),
+            field_notes = COALESCE(field_notes, ''),
+            assigned_foreman_id = COALESCE(assigned_foreman_id, ''),
+            assigned_user_id = COALESCE(assigned_user_id, ''),
+            field_planning_visible = COALESCE(field_planning_visible, 0),
+            visible_to_foreman = COALESCE(visible_to_foreman, 0)
+      `).run();
+
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_jobs_assigned_foreman_id ON jobs(assigned_foreman_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_assigned_user_id ON jobs(assigned_user_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_field_planning_visible ON jobs(field_planning_visible);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -819,8 +872,8 @@ function writeStateToDb(state) {
   `);
 
   const insertJob = database.prepare(`
-    INSERT INTO jobs (id, sort_index, customer_id, job, customer, stage, crew, next_step, due, progress, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, sort_index, customer_id, job, customer, address, site_contact, scope_summary, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, stage, crew, next_step, due, progress, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQueueItem = database.prepare(`
@@ -923,7 +976,35 @@ function writeStateToDb(state) {
     });
 
     state.jobs.forEach((job, index) => {
-      insertJob.run(job.id, index, job.customerId || null, job.job, job.customer, job.stage, job.crew, job.next, job.due, Number(job.progress || 0), job.notes, job.createdAt || isoNow(), job.updatedAt || job.createdAt || isoNow(), job.archivedAt || null);
+      insertJob.run(
+        job.id,
+        index,
+        job.customerId || null,
+        job.job,
+        job.customer,
+        job.address || "",
+        job.siteContact || "",
+        job.scopeSummary || "",
+        job.estimatedDuration || "",
+        Number(job.crewSizeNeeded || 0),
+        job.equipmentNotes || "",
+        job.safetyNotes || "",
+        job.materialNotes || "",
+        job.fieldNotes || "",
+        job.assignedForemanId || "",
+        job.assignedUserId || "",
+        job.fieldPlanningVisible ? 1 : 0,
+        job.visibleToForeman ? 1 : 0,
+        job.stage,
+        job.crew,
+        job.next,
+        job.due,
+        Number(job.progress || 0),
+        job.notes,
+        job.createdAt || isoNow(),
+        job.updatedAt || job.createdAt || isoNow(),
+        job.archivedAt || null,
+      );
     });
 
     state.queueItems.forEach((item, index) => {
@@ -986,10 +1067,14 @@ function readTableState() {
   `).all();
 
   const jobs = database.prepare(`
-    SELECT id, customer_id AS customerId, job, customer, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((job) => ({
+    ...job,
+    fieldPlanningVisible: Boolean(job.fieldPlanningVisible),
+    visibleToForeman: Boolean(job.visibleToForeman),
+  }));
 
   const queueItems = database.prepare(`
     SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt

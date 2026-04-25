@@ -1,41 +1,14 @@
-const FIELD_NAV_IDS = new Set([
-  "jobs",
-  "time",
-  "reports",
-  "uploads",
-  "incidents",
-  "toolbox",
-  "ppe",
-  "calculator",
-  "copilot",
-  "settings",
-]);
+import { DEFAULT_COMPANY_SETTINGS, canAccessModule, getAllowedModuleIds, getDefaultModuleId } from "../shared/permissions.js";
 
-function normalizeRole(role) {
-  return String(role || "").trim().toLowerCase();
-}
+export { canAccessModule, getDefaultModuleId };
 
-export function isOfficeUser(user) {
-  return new Set(["owner", "administrator", "operations manager"]).has(normalizeRole(user?.role));
-}
-
-export function getDefaultModuleId(user) {
-  return isOfficeUser(user) ? "dashboard" : "jobs";
-}
-
-export function canAccessModule(moduleId, user) {
-  return isOfficeUser(user) || FIELD_NAV_IDS.has(moduleId);
-}
-
-export function getVisibleNavGroups(navGroups, user) {
-  if (isOfficeUser(user)) {
-    return navGroups;
-  }
+export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  const allowedModules = getAllowedModuleIds(user, companySettings);
 
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => FIELD_NAV_IDS.has(item.id)),
+      items: group.items.filter((item) => allowedModules.has(item.id)),
     }))
     .filter((group) => group.items.length > 0);
 }

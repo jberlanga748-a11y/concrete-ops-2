@@ -241,24 +241,35 @@ test("lead permissions keep office access while hiding lead data from employees 
   try {
     insertUsers(fixture.sqliteFile, [
       createUserRecord({
+        id: "U-ADMIN-LEADS",
         email: "admin@lastyard.test",
         password: "concrete123",
         name: "Admin User",
         role: "Administrator",
       }),
       createUserRecord({
+        id: "U-OPS-LEADS",
         email: "ops-manager@lastyard.test",
         password: "concrete123",
         name: "Ops Manager",
         role: "Operations Manager",
       }),
       createUserRecord({
+        id: "U-ESTIMATOR-LEADS",
+        email: "estimator@lastyard.test",
+        password: "concrete123",
+        name: "Estimator User",
+        role: "Estimator",
+      }),
+      createUserRecord({
+        id: "U-EMPLOYEE-LEADS",
         email: "employee@lastyard.test",
         password: "concrete123",
         name: "Employee User",
         role: "Employee",
       }),
       createUserRecord({
+        id: "U-FOREMAN-LEADS",
         email: "foreman@lastyard.test",
         password: "concrete123",
         name: "Foreman User",
@@ -298,6 +309,17 @@ test("lead permissions keep office access while hiding lead data from employees 
     const opsLead = opsCreate.leads.find((lead) => lead.customer === "Managed by Ops");
     assert.ok(opsLead, "Expected operations manager to create a lead.");
 
+    const estimatorLogin = await login(fixture.baseUrl, {
+      email: "estimator@lastyard.test",
+      password: "concrete123",
+    });
+    const estimatorHeaders = authHeaders(estimatorLogin.token);
+    const estimatorBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: estimatorHeaders });
+    assert.equal(estimatorBootstrap.permissions.leads.canView, true);
+    assert.equal(estimatorBootstrap.permissions.leads.canManage, true);
+    const estimatorLeads = await assertOk(fixture.baseUrl, "/api/leads", { headers: estimatorHeaders });
+    assert.ok(Array.isArray(estimatorLeads.leads));
+
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee@lastyard.test",
       password: "concrete123",
@@ -323,6 +345,11 @@ test("lead permissions keep office access while hiding lead data from employees 
     });
     assert.equal(createDenied.response.status, 403);
     assert.match(createDenied.payload.error, /permission/i);
+
+    const listDenied = await requestJson(fixture.baseUrl, "/api/leads", {
+      headers: employeeHeaders,
+    });
+    assert.equal(listDenied.response.status, 403);
 
     const patchDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}`, {
       method: "PATCH",
@@ -365,6 +392,11 @@ test("lead permissions keep office access while hiding lead data from employees 
     assert.equal(foremanBootstrap.customers.length, 0);
     assert.equal(foremanBootstrap.stats.newLeads, 0);
     assert.equal(foremanBootstrap.stats.pipelineValue, 0);
+
+    const foremanLeadList = await requestJson(fixture.baseUrl, "/api/leads", {
+      headers: authHeaders(foremanLogin.token),
+    });
+    assert.equal(foremanLeadList.response.status, 403);
   } finally {
     await fixture.stop();
   }
