@@ -39,7 +39,29 @@ docker run --rm -p 4000:4000 -v "$(pwd)/data:/app/data" concrete-ops
 docker compose up --build
 ```
 
-The SQLite database stays persistent by mounting `./data` into `/app/data` in the container.
+The SQLite database stays persistent by mounting `./data` into `/app/data` in the container. The local compose setup explicitly keeps `SEED_DEMO_DATA=true` so the demo login remains available inside the containerized development flow.
+
+## Fly.io deployment
+
+The repo now includes a [fly.toml](C:/Users/jberl/Documents/Codex/2026-04-25-import-react-usememo-usestate-from-react/fly.toml) wired for the existing Dockerfile, SQLite volume storage, and readiness checks.
+
+Important notes:
+
+- `fly.toml` currently uses `app = "concrete-ops-2"` as a starting point; change that if the name is unavailable in your Fly account
+- production deploys set `SEED_DEMO_DATA=false`
+- runtime SQLite data is mounted at `/app/data`
+- Fly health checks call `GET /api/ready`
+
+Typical first deploy flow:
+
+```bash
+fly launch --no-deploy
+fly volumes create data --size 1 --region sea
+fly secrets set BOOTSTRAP_ADMIN_EMAIL=admin@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-now
+fly deploy
+```
+
+After the first admin is created, you can remove the bootstrap password secret if you prefer to manage users only through the app later.
 
 ## Data directory
 
