@@ -4,6 +4,7 @@ import {
   archiveJob,
   archiveLead,
   archiveQueueItem,
+  bootstrapAdminAccount,
   convertLead,
   createJob,
   createLead,
@@ -13,6 +14,7 @@ import {
   deleteQueueItem,
   getBootstrap,
   getHealth,
+  getSetupStatus,
   login,
   logout,
   resetWorkspace,
@@ -147,6 +149,22 @@ const INITIAL_TASK_FORM = {
   title: "",
   meta: "",
   status: "Due today",
+};
+
+const INITIAL_SETUP_FORM = {
+  name: "",
+  email: "",
+  password: "",
+  role: "Administrator",
+};
+
+const INITIAL_SETUP_STATUS = {
+  checked: false,
+  needsSetup: false,
+  hasUsers: false,
+  demoMode: false,
+  demoUserExists: false,
+  environmentBootstrap: false,
 };
 
 function runDesignSystemChecks() {
@@ -464,9 +482,22 @@ function LoadingScreen({ label = "Loading workspace..." }) {
   );
 }
 
-function LoginScreen({ credentials, setCredentials, onSubmit, loading, error, backendStatus }) {
+function LoginScreen({
+  credentials,
+  setCredentials,
+  onSubmit,
+  loading,
+  error,
+  backendStatus,
+  setupStatus,
+  setupDraft,
+  setSetupDraft,
+  onSetupSubmit,
+}) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
   const backendLabel = backendStatus === "online" ? "API online" : backendStatus === "offline" ? "API offline" : "Checking API";
+  const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
+  const canShowDemoCredentials = setupStatus.demoUserExists && !isSetupMode;
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -479,15 +510,15 @@ function LoginScreen({ credentials, setCredentials, onSubmit, loading, error, ba
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
               <p className="text-sm font-black text-slate-950">Auth</p>
-              <p className="mt-2 text-sm text-slate-500">Login and logout are backed by authenticated API requests.</p>
+              <p className="mt-2 text-sm text-slate-500">Login, logout, and first-run admin setup are backed by API requests.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
               <p className="text-sm font-black text-slate-950">Persistence</p>
-              <p className="mt-2 text-sm text-slate-500">Data now lives in a server-side JSON store under the workspace.</p>
+              <p className="mt-2 text-sm text-slate-500">Data lives in SQLite with migrations, backups, and request tracing.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Next-ready</p>
-              <p className="mt-2 text-sm text-slate-500">This is a clean stepping stone toward a database and real multi-user auth.</p>
+              <p className="text-sm font-black text-slate-950">Deployment-ready</p>
+              <p className="mt-2 text-sm text-slate-500">Fresh production installs can now bootstrap a real admin without shipping a default demo user.</p>
             </div>
           </div>
         </Card>
@@ -497,36 +528,57 @@ function LoginScreen({ credentials, setCredentials, onSubmit, loading, error, ba
               <Icon name="lock" className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-black text-slate-950">Sign in</p>
-              <p className="text-sm text-slate-500">Use the seeded demo account.</p>
+              <p className="text-sm font-black text-slate-950">{isSetupMode ? "Set up workspace" : "Sign in"}</p>
+              <p className="text-sm text-slate-500">
+                {isSetupMode ? "Create the first admin account for this deployment." : canShowDemoCredentials ? "Use the seeded demo account or your own admin user." : "Enter the admin account for this workspace."}
+              </p>
             </div>
           </div>
           <div className="mt-5 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
-            <span>If login fails with a connection error, the frontend cannot see the Node API.</span>
+            <span>
+              {backendStatus === "online" && !setupStatus.checked
+                ? "Checking workspace setup state."
+                : "If login fails with a connection error, the frontend cannot see the Node API."}
+            </span>
             <Badge tone={backendTone}>{backendLabel}</Badge>
           </div>
-          <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
-            <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
-            <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
-            {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-            <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
-              {loading ? "Signing in..." : "Enter workspace"}
-            </Button>
-          </form>
+          {isSetupMode ? (
+            <form className="mt-6 grid gap-4" onSubmit={onSetupSubmit}>
+              <InputField label="Full name" value={setupDraft.name} onChange={(event) => setSetupDraft((current) => ({ ...current, name: event.target.value }))} />
+              <InputField label="Email" type="email" value={setupDraft.email} onChange={(event) => setSetupDraft((current) => ({ ...current, email: event.target.value }))} />
+              <InputField label="Password" type="password" value={setupDraft.password} onChange={(event) => setSetupDraft((current) => ({ ...current, password: event.target.value }))} />
+              <InputField label="Role" value={setupDraft.role} onChange={(event) => setSetupDraft((current) => ({ ...current, role: event.target.value }))} />
+              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+                {loading ? "Creating admin..." : "Create admin and enter workspace"}
+              </Button>
+            </form>
+          ) : (
+            <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+              <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
+              <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
+              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+                {loading ? "Signing in..." : "Enter workspace"}
+              </Button>
+            </form>
+          )}
           <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-600">
             <p className="font-black text-slate-950">How to run it</p>
             <p className="mt-2">Use `npm run dev` while developing, or `npm run build` then `npm run serve` for the production build.</p>
             <p className="mt-2">A static frontend alone cannot handle login because this app needs the bundled Node API.</p>
           </div>
-          <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-            <p className="font-black text-slate-950">Demo credentials</p>
-            <p className="mt-2">
-              Email: <span className="font-black text-blue-700">ops@lastyard.test</span>
-            </p>
-            <p>
-              Password: <span className="font-black text-blue-700">concrete123</span>
-            </p>
-          </div>
+          {canShowDemoCredentials ? (
+            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+              <p className="font-black text-slate-950">Demo credentials</p>
+              <p className="mt-2">
+                Email: <span className="font-black text-blue-700">ops@lastyard.test</span>
+              </p>
+              <p>
+                Password: <span className="font-black text-blue-700">concrete123</span>
+              </p>
+            </div>
+          ) : null}
         </Card>
       </div>
     </div>
@@ -924,7 +976,7 @@ function AuditTrailPanel({ auditEvents }) {
     <Card className="p-5">
       <SectionHeader title="Audit trail" description="Durable backend history for record changes and resets." />
       {auditEvents.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, converted, and reset.</div>
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, bootstrapped, converted, and reset.</div>
       ) : (
         <div className="space-y-3">
           {auditEvents.slice(0, 10).map((event) => (
@@ -1311,10 +1363,10 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   );
 }
 
-function SettingsPage({ user, onReset, busy, auditEvents }) {
+function SettingsPage({ user, onReset, busy, auditEvents, demoMode }) {
   return (
     <div>
-      <PageHeader eyebrow="System" title="Settings" description="This workspace now uses authenticated server state with a seeded demo account." />
+      <PageHeader eyebrow="System" title="Settings" description={demoMode ? "This workspace uses authenticated server state with optional seeded demo data." : "This workspace uses authenticated server state with production-style admin setup."} />
       <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
           <Card className="p-5">
@@ -1324,14 +1376,14 @@ function SettingsPage({ user, onReset, busy, auditEvents }) {
               <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
               <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
             </div>
-            <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button>
+            {demoMode ? <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button> : null}
           </Card>
           <Card className="p-5">
             <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
             <div className="space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl border border-blue-100 p-4">Move from JSON storage to Postgres or SQLite.</div>
-              <div className="rounded-2xl border border-blue-100 p-4">Replace demo token auth with proper user management and hashed refresh sessions.</div>
-              <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports and uploads into their own resource APIs.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Add role-based permissions and password rotation for multiple office users.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Deploy the Docker build with persistent storage and a real production domain.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports, uploads, and estimates into their own resource APIs.</div>
             </div>
           </Card>
         </div>
@@ -1374,7 +1426,7 @@ function MainContent(props) {
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
-  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} />;
+  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} />;
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 
@@ -1386,7 +1438,9 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [credentials, setCredentials] = useState({ email: "ops@lastyard.test", password: "concrete123" });
+  const [credentials, setCredentials] = useState({ email: "", password: "" });
+  const [setupDraft, setSetupDraft] = useState(INITIAL_SETUP_FORM);
+  const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
   const [leadFilter, setLeadFilter] = useState("All");
   const [leadSearch, setLeadSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("All");
@@ -1543,20 +1597,44 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    async function checkHealth() {
+    async function loadPublicStatus() {
       try {
         await getHealth();
-        if (!cancelled) setBackendStatus("online");
+        if (cancelled) return;
+        setBackendStatus("online");
+
+        const nextSetupStatus = await getSetupStatus();
+        if (cancelled) return;
+        setSetupStatus({
+          checked: true,
+          needsSetup: nextSetupStatus.needsSetup,
+          hasUsers: nextSetupStatus.hasUsers,
+          demoMode: nextSetupStatus.demoMode,
+          demoUserExists: nextSetupStatus.demoUserExists,
+          environmentBootstrap: nextSetupStatus.environmentBootstrap,
+        });
       } catch {
-        if (!cancelled) setBackendStatus("offline");
+        if (!cancelled) {
+          setBackendStatus("offline");
+          setSetupStatus((current) => ({ ...current, checked: true }));
+        }
       }
     }
 
-    checkHealth();
+    loadPublicStatus();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!setupStatus.demoUserExists) return;
+    if (credentials.email || credentials.password) return;
+    setCredentials({
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+  }, [credentials.email, credentials.password, setupStatus.demoUserExists]);
 
   async function bootstrap(token) {
     setBusy(true);
@@ -1721,6 +1799,38 @@ export default function App() {
         setBackendStatus("offline");
       }
       setLoginError(error.message);
+      setBusy(false);
+    }
+  }
+
+  async function handleBootstrapAdmin(event) {
+    event.preventDefault();
+    setBusy(true);
+    setLoginError("");
+
+    try {
+      const result = await bootstrapAdminAccount(setupDraft);
+      setBackendStatus("online");
+      setSetupStatus({
+        checked: true,
+        needsSetup: false,
+        hasUsers: true,
+        demoMode: setupStatus.demoMode,
+        demoUserExists: false,
+        environmentBootstrap: false,
+      });
+      applyBootstrap(result);
+      window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+      setSessionToken(result.token);
+      setAuthStatus("authenticated");
+      setSetupDraft(INITIAL_SETUP_FORM);
+      setLoginError("");
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setLoginError(error.message);
+    } finally {
       setBusy(false);
     }
   }
@@ -1930,7 +2040,20 @@ export default function App() {
   }
 
   if (authStatus === "loggedOut") {
-    return <LoginScreen credentials={credentials} setCredentials={setCredentials} onSubmit={handleLogin} loading={busy} error={loginError} backendStatus={backendStatus} />;
+    return (
+      <LoginScreen
+        credentials={credentials}
+        setCredentials={setCredentials}
+        onSubmit={handleLogin}
+        loading={busy}
+        error={loginError}
+        backendStatus={backendStatus}
+        setupStatus={setupStatus}
+        setupDraft={setupDraft}
+        setSetupDraft={setSetupDraft}
+        onSetupSubmit={handleBootstrapAdmin}
+      />
+    );
   }
 
   const mobileItems = ["dashboard", "leads", "jobs", "calculator", "design"];
@@ -1954,6 +2077,7 @@ export default function App() {
               queueItems={appState.queueItems}
               activity={appState.activity}
               auditEvents={appState.auditEvents}
+              demoMode={setupStatus.demoMode}
               leadFilter={leadFilter}
               setLeadFilter={setLeadFilter}
               leadSearch={leadSearch}

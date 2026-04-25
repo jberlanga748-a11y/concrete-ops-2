@@ -46,6 +46,14 @@ export function login(credentials) {
   return request("/api/auth/login", { method: "POST", body: credentials });
 }
 
+export function getSetupStatus() {
+  return request("/api/setup/status");
+}
+
+export function bootstrapAdminAccount(payload) {
+  return request("/api/setup/bootstrap-admin", { method: "POST", body: payload });
+}
+
 export function logout(token) {
   return request("/api/auth/logout", { method: "POST", token });
 }

@@ -12,6 +12,8 @@ Concrete Ops is a full-stack operations workspace for a concrete contractor. It 
 - Email: `ops@lastyard.test`
 - Password: `concrete123`
 
+The demo account is available by default in development. In production, demo data is disabled by default and the first admin can be created through the setup screen or environment bootstrap variables.
+
 ## Scripts
 
 - `npm run dev` starts the API and frontend together
@@ -50,6 +52,11 @@ The backend now reads its runtime settings from a shared validated config module
 - `PORT`: API/server port, defaults to `4000`
 - `DATA_DIR`: directory for SQLite files, defaults to `./data`
 - `BACKUP_DIR`: directory for generated backup/export artifacts, defaults to `./data/backups`
+- `SEED_DEMO_DATA`: whether to seed the demo workspace automatically, defaults to `true` outside production and `false` in production
+- `BOOTSTRAP_ADMIN_EMAIL`: optional first admin email for environment-based bootstrap
+- `BOOTSTRAP_ADMIN_PASSWORD`: optional first admin password for environment-based bootstrap
+- `BOOTSTRAP_ADMIN_NAME`: display name for the bootstrapped admin, defaults to `Operations Admin`
+- `BOOTSTRAP_ADMIN_ROLE`: role label for the bootstrapped admin, defaults to `Administrator`
 - `SESSION_TTL_HOURS`: rolling auth session lifetime, defaults to `168`
 - `SMOKE_TEST_PORT`: port used by `npm run verify:server`, defaults to `4100`
 - `NODE_ENV`: `development`, `test`, or `production`
@@ -70,6 +77,15 @@ Each HTTP response also includes an `X-Request-Id` header, and API error payload
 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
 
+## First-run admin setup
+
+Fresh production installs no longer create the demo user automatically. You now have two supported setup paths:
+
+- Interactive setup: start with `NODE_ENV=production` and no users in the database, then open the app and create the first admin from the setup screen
+- Environment bootstrap: set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` before first boot to create the first admin automatically
+
+The backend exposes `GET /api/setup/status` to detect whether a workspace still needs its first admin, and `POST /api/setup/bootstrap-admin` to create that first admin when no users exist yet.
+
 ## Backup and export
 
 Run `npm run backup:data` to create two timestamped artifacts:
@@ -81,11 +97,13 @@ By default those files are written under `data/backups`. The JSON export include
 
 Leads, jobs, queue items, and activity entries now also carry `createdAt` and `updatedAt` timestamps so record detail views and future audit history can rely on durable backend timestamps instead of client-only timing guesses.
 
-The workspace also keeps a durable audit history for record creates, updates, conversions, queue toggles, and demo resets, and surfaces the latest entries in the Settings screen.
+The workspace also keeps a durable audit history for record creates, updates, conversions, queue toggles, first-run admin setup, and demo resets, and surfaces the latest entries in the Settings screen.
 
 Leads, jobs, and queue items now support archive-first deletion: records can be archived from the UI, restored if needed, and only permanently deleted after they have been archived, with each lifecycle step recorded in audit history.
 
 Lead and job detail views now use durable browser URLs like `/leads/:id` and `/jobs/:id`, so selected records survive refreshes and can be opened directly as long as the app is running through the bundled Node server.
+
+Workspace reset stays available only when demo data seeding is enabled.
 
 ## CI
 

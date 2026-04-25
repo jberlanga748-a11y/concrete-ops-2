@@ -10,6 +10,7 @@ import { serverConfig } from "./config.js";
 import { logger, serializeError } from "./logger.js";
 import {
   cleanupExpiredSessions,
+  createUserRecord,
   createSeedState,
   ensureDb,
   generateToken,
@@ -83,6 +84,14 @@ function requiredString(value, fieldName) {
 function optionalString(value, fallback) {
   const normalized = String(value ?? "").trim();
   return normalized || fallback;
+}
+
+function requiredPassword(value, fieldName = "Password") {
+  const normalized = requiredString(value, fieldName);
+  if (normalized.length < 8) {
+    throw new ApiError(400, `${fieldName} must be at least 8 characters.`);
+  }
+  return normalized;
 }
 
 function optionalEnum(value, allowedValues, fieldName, fallback) {
@@ -177,6 +186,17 @@ function sanitizeBootstrap(state, user) {
     activity: state.activity,
     auditEvents: state.auditEvents,
     stats: statsFromState(state),
+  };
+}
+
+function sanitizeSetupStatus(state) {
+  const demoUserExists = state.users.some((user) => user.email.toLowerCase() === DEMO_CREDENTIALS.email.toLowerCase());
+  return {
+    needsSetup: state.users.length === 0,
+    hasUsers: state.users.length > 0,
+    demoMode: serverConfig.seedDemoData,
+    demoUserExists,
+    environmentBootstrap: Boolean(serverConfig.bootstrapAdmin),
   };
 }
 
@@ -312,6 +332,61 @@ app.get("/api/ready", asyncRoute(async (_req, res) => {
       requestId: res.locals.requestId,
     });
   }
+}));
+
+app.get("/api/setup/status", asyncRoute(async (_req, res) => {
+  const state = await readDb();
+  const payload = sanitizeSetupStatus(state);
+  res.json({
+    ...payload,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
+  if (serverConfig.bootstrapAdmin) {
+    throw new ApiError(409, "Initial admin setup is managed by environment configuration.");
+  }
+
+  const email = requiredString(req.body?.email, "Email").toLowerCase();
+  const password = requiredPassword(req.body?.password, "Password");
+  const name = optionalString(req.body?.name, "Operations Admin");
+  const role = optionalString(req.body?.role, "Administrator");
+  const token = generateToken();
+  const tokenHash = hashToken(token);
+  const createdAt = new Date().toISOString();
+  const createdUser = createUserRecord({ email, password, name, role });
+
+  const nextState = await updateDb((draft) => {
+    if (draft.users.length > 0) {
+      throw new ApiError(409, "Workspace has already been set up.");
+    }
+
+    draft.users.push(createdUser);
+    draft.sessions.push({
+      id: makeId("S"),
+      userId: createdUser.id,
+      tokenHash,
+      createdAt,
+      lastSeenAt: createdAt,
+      expiresAt: nextSessionExpiry(),
+    });
+    appendActivity(draft, "Workspace initialized", `${createdUser.name} created the first admin account.`);
+    appendAuditEvent(draft, {
+      entityType: "user",
+      entityId: createdUser.id,
+      action: "created",
+      summary: "Admin account created",
+      detail: `${createdUser.email} created the first admin account.`,
+      actor: createdUser,
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    token,
+    ...sanitizeBootstrap(nextState, createdUser),
+  });
 }));
 
 app.post("/api/auth/login", asyncRoute(async (req, res) => {
@@ -831,6 +906,10 @@ app.delete("/api/queue-items/:id", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
+  if (!serverConfig.seedDemoData) {
+    throw new ApiError(403, "Workspace reset is only available when demo data is enabled.");
+  }
+
   const nextState = await updateDb(() => {
     const seed = createSeedState();
     seed.sessions = [

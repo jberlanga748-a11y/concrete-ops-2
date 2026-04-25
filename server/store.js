@@ -46,6 +46,16 @@ function passwordHash(password, salt = crypto.randomBytes(16).toString("hex")) {
   return `${salt}:${derivedKey}`;
 }
 
+export function createUserRecord({ email, password, name, role, id = makeId("U") }) {
+  return {
+    id,
+    email: String(email).trim().toLowerCase(),
+    name: String(name).trim(),
+    role: String(role).trim(),
+    passwordHash: passwordHash(password),
+  };
+}
+
 export function verifyPassword(password, storedHash) {
   const [salt, hashed] = storedHash.split(":");
   const supplied = crypto.scryptSync(password, salt, 64);
@@ -157,15 +167,27 @@ function createSeedAuditEvents(user, leads, jobs, queueItems) {
   return events.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export function createEmptyState() {
+  return {
+    users: [],
+    sessions: [],
+    leads: [],
+    jobs: [],
+    queueItems: [],
+    activity: [],
+    auditEvents: [],
+  };
+}
+
 export function createSeedState() {
   const seededAt = new Date();
-  const seedUser = {
+  const seedUser = createUserRecord({
     id: "U-001",
     email: DEMO_CREDENTIALS.email,
+    password: DEMO_CREDENTIALS.password,
     name: DEMO_CREDENTIALS.name,
     role: DEMO_CREDENTIALS.role,
-    passwordHash: passwordHash(DEMO_CREDENTIALS.password),
-  };
+  });
   const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180);
   const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240);
   const queueItems = withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90);
@@ -180,6 +202,30 @@ export function createSeedState() {
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
     auditEvents: createSeedAuditEvents(seedUser, leads, jobs, queueItems),
+  };
+}
+
+function createBootstrapAdminState(adminConfig) {
+  const createdAt = isoNow();
+  const adminUser = createUserRecord(adminConfig);
+
+  return {
+    ...createEmptyState(),
+    users: [adminUser],
+    auditEvents: [
+      {
+        id: makeAuditId("bootstrap-admin"),
+        entityType: "user",
+        entityId: adminUser.id,
+        action: "created",
+        summary: "Admin account bootstrapped",
+        detail: `${adminUser.email} was created from environment bootstrap configuration.`,
+        actorUserId: adminUser.id,
+        actorName: adminUser.name,
+        changedFields: [],
+        createdAt,
+      },
+    ],
   };
 }
 
@@ -626,7 +672,17 @@ export async function ensureDb() {
   }
 
   if (currentState.users.length === 0) {
-    writeStateToDb(createSeedState());
+    if (serverConfig.bootstrapAdmin) {
+      writeStateToDb(createBootstrapAdminState(serverConfig.bootstrapAdmin));
+      return;
+    }
+
+    if (serverConfig.seedDemoData) {
+      writeStateToDb(createSeedState());
+      return;
+    }
+
+    writeStateToDb(createEmptyState());
   }
 }
 

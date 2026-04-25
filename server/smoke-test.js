@@ -57,6 +57,102 @@ function waitForExit(childProcess) {
   });
 }
 
+async function runProductionSetupBootstrapTest() {
+  const setupPort = String(Number(port) + 1);
+  const setupBaseUrl = `http://localhost:${setupPort}`;
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-setup-"));
+  const server = spawn(process.execPath, ["server/index.js"], {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      PORT: setupPort,
+      DATA_DIR: tempDataDir,
+      SEED_DEMO_DATA: "false",
+      LOG_LEVEL: "warn",
+    },
+  });
+
+  async function setupRequest(pathname, options = {}) {
+    const response = await fetch(`${setupBaseUrl}${pathname}`, options);
+    const payload = response.status === 204 ? null : await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload?.error || `Request failed for ${pathname}`);
+    }
+
+    return payload;
+  }
+
+  try {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        const response = await fetch(`${setupBaseUrl}/api/ready`);
+        if (response.ok) break;
+      } catch {
+        // Keep polling until the setup server is ready.
+      }
+      await sleep(500);
+
+      if (attempt === 19) {
+        throw new Error("Production setup server did not become ready.");
+      }
+    }
+
+    const setupStatus = await setupRequest("/api/setup/status");
+    if (!setupStatus.needsSetup || setupStatus.demoMode || setupStatus.hasUsers) {
+      throw new Error("Expected production setup mode to start without users or demo data.");
+    }
+
+    const demoLoginResponse = await fetch(`${setupBaseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "ops@lastyard.test",
+        password: "concrete123",
+      }),
+    });
+    if (demoLoginResponse.status !== 401) {
+      throw new Error(`Expected demo login to fail in production setup mode, received ${demoLoginResponse.status}.`);
+    }
+
+    const bootstrap = await setupRequest("/api/setup/bootstrap-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Production Admin",
+        email: "admin@example.com",
+        password: "pouring123",
+        role: "Administrator",
+      }),
+    });
+
+    if (!bootstrap.token || bootstrap.user?.email !== "admin@example.com") {
+      throw new Error("Expected bootstrap-admin to create and sign in the first admin.");
+    }
+
+    const bootstrapHeaders = {
+      Authorization: `Bearer ${bootstrap.token}`,
+    };
+    const workspace = await setupRequest("/api/bootstrap", { headers: bootstrapHeaders });
+    if (workspace.user?.email !== "admin@example.com") {
+      throw new Error("Expected bootstrapped admin session to access the workspace.");
+    }
+
+    const resetResponse = await fetch(`${setupBaseUrl}/api/reset`, {
+      method: "POST",
+      headers: bootstrapHeaders,
+    });
+    if (resetResponse.status !== 403) {
+      throw new Error(`Expected reset to be disabled when demo data is off, received ${resetResponse.status}.`);
+    }
+  } finally {
+    server.kill("SIGTERM");
+    await waitForExit(server);
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+}
+
 async function run() {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-smoke-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
@@ -229,7 +325,9 @@ async function run() {
       throw new Error("Expected expired session errors to include a matching request ID.");
     }
 
-    console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, validation and expired sessions verified`);
+    await runProductionSetupBootstrapTest();
+
+    console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, validation, expired sessions, and production setup verified`);
   } finally {
     database?.close();
     server.kill("SIGTERM");
