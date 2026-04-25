@@ -2751,6 +2751,10 @@ export default function App() {
   const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings), [appState.companySettings, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
+  const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
+  const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
+  const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
+  const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
 
   function navigateTo(nextPath, { replace = false } = {}) {
     const normalized = normalizePathname(nextPath);
@@ -3057,10 +3061,6 @@ export default function App() {
     }
   }, [appState.permissions.users.canView, appState.users, selectedUserId]);
 
-  const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
-  const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
-  const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
-  const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
   const customerSaveState = recordSaveState.customer.id === selectedCustomerId ? recordSaveState.customer : { id: selectedCustomerId, status: "idle", message: "Autosave ready" };
   const leadSaveState = recordSaveState.lead.id === selectedLeadId ? recordSaveState.lead : { id: selectedLeadId, status: "idle", message: "Autosave ready" };
   const jobSaveState = recordSaveState.job.id === selectedJobId ? recordSaveState.job : { id: selectedJobId, status: "idle", message: "Autosave ready" };
