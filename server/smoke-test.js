@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 
-const baseUrl = "http://localhost:4000";
+const port = process.env.SMOKE_TEST_PORT || "4100";
+const baseUrl = `http://localhost:${port}`;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const sqliteFile = path.join(__dirname, "..", "data", "app-data.sqlite");
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,10 +38,17 @@ async function request(path, options = {}) {
   return payload;
 }
 
+async function rawRequest(path, options = {}) {
+  return fetch(`${baseUrl}${path}`, options);
+}
+
 async function run() {
   const server = spawn(process.execPath, ["server/index.js"], {
     stdio: "inherit",
-    env: process.env,
+    env: {
+      ...process.env,
+      PORT: port,
+    },
   });
 
   try {
@@ -78,7 +91,19 @@ async function run() {
       throw new Error("Expected the smoke test to create exactly one lead.");
     }
 
-    console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads`);
+    const database = new DatabaseSync(sqliteFile);
+    database.prepare(`
+      UPDATE sessions
+      SET expires_at = ?
+      WHERE user_id = ?
+    `).run(new Date(Date.now() - 60_000).toISOString(), login.user.id);
+
+    const expiredResponse = await rawRequest("/api/bootstrap", { headers });
+    if (expiredResponse.status !== 401) {
+      throw new Error(`Expected expired session to return 401, received ${expiredResponse.status}.`);
+    }
+
+    console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, expired sessions rejected`);
   } finally {
     server.kill("SIGTERM");
   }

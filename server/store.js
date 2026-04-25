@@ -11,7 +11,8 @@ const dataDir = path.join(__dirname, "..", "data");
 const sqliteFile = path.join(dataDir, "app-data.sqlite");
 const legacyJsonFile = path.join(dataDir, "app-data.json");
 const SCHEMA_VERSION_KEY = "schema_version";
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
+export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 let db;
 let writeChain = Promise.resolve();
@@ -123,6 +124,15 @@ function setSchemaVersion(database, version) {
   `).run(SCHEMA_VERSION_KEY, String(version));
 }
 
+function columnExists(database, tableName, columnName) {
+  const columns = database.prepare(`PRAGMA table_info(${tableName})`).all();
+  return columns.some((column) => column.name === columnName);
+}
+
+export function nextSessionExpiry(now = Date.now()) {
+  return new Date(now + SESSION_TTL_MS).toISOString();
+}
+
 const MIGRATIONS = [
   {
     version: 1,
@@ -207,6 +217,27 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 3,
+    description: "Add session expiration and cleanup indexes.",
+    up(database) {
+      if (!columnExists(database, "sessions", "expires_at")) {
+        database.exec(`
+          ALTER TABLE sessions
+          ADD COLUMN expires_at TEXT
+        `);
+      }
+
+      database.prepare(`
+        UPDATE sessions
+        SET expires_at = COALESCE(expires_at, ?)
+      `).run(nextSessionExpiry());
+
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -246,8 +277,8 @@ function writeStateToDb(state) {
   `);
 
   const insertSession = database.prepare(`
-    INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const insertLead = database.prepare(`
@@ -285,7 +316,14 @@ function writeStateToDb(state) {
     });
 
     state.sessions.forEach((session) => {
-      insertSession.run(session.id, session.userId, session.tokenHash, session.createdAt, session.lastSeenAt);
+      insertSession.run(
+        session.id,
+        session.userId,
+        session.tokenHash,
+        session.createdAt,
+        session.lastSeenAt,
+        session.expiresAt || nextSessionExpiry(),
+      );
     });
 
     state.leads.forEach((lead, index) => {
@@ -316,7 +354,7 @@ function readTableState() {
   `).all();
 
   const sessions = database.prepare(`
-    SELECT id, user_id AS userId, token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt
+    SELECT id, user_id AS userId, token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt
     FROM sessions
     ORDER BY created_at DESC
   `).all();
@@ -378,6 +416,17 @@ export async function ensureDb() {
   if (currentState.users.length === 0) {
     writeStateToDb(createSeedState());
   }
+}
+
+export async function cleanupExpiredSessions(now = new Date().toISOString()) {
+  await ensureDb();
+  const database = createDatabaseConnection();
+
+  database.prepare(`
+    DELETE FROM sessions
+    WHERE expires_at IS NOT NULL
+      AND expires_at <= ?
+  `).run(now);
 }
 
 export async function readDb() {

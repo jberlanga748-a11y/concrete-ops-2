@@ -23,3 +23,5 @@ Concrete Ops is a full-stack operations workspace for a concrete contractor. It 
 Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
 
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
+
+Demo sessions now use rolling expiration and are cleaned up when they expire.

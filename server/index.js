@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 
 import { DEMO_CREDENTIALS } from "./seed-data.js";
 import {
+  cleanupExpiredSessions,
   createSeedState,
   ensureDb,
   generateToken,
@@ -14,6 +15,7 @@ import {
   makeId,
   publicUser,
   readDb,
+  nextSessionExpiry,
   timestamp,
   updateDb,
   verifyPassword,
@@ -71,6 +73,7 @@ function sanitizeBootstrap(state, user) {
 }
 
 async function requireAuth(req, res, next) {
+  const now = new Date().toISOString();
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
@@ -78,11 +81,20 @@ async function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Authentication required." });
   }
 
+  await cleanupExpiredSessions(now);
   const state = await readDb();
   const tokenHash = hashToken(token);
   const session = state.sessions.find((entry) => entry.tokenHash === tokenHash);
 
   if (!session) {
+    return res.status(401).json({ error: "Session expired." });
+  }
+
+  if (session.expiresAt && session.expiresAt <= now) {
+    await updateDb((draft) => {
+      draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== tokenHash);
+      return draft;
+    });
     return res.status(401).json({ error: "Session expired." });
   }
 
@@ -100,7 +112,8 @@ async function requireAuth(req, res, next) {
   await updateDb((draft) => {
     const liveSession = draft.sessions.find((entry) => entry.tokenHash === tokenHash);
     if (liveSession) {
-      liveSession.lastSeenAt = new Date().toISOString();
+      liveSession.lastSeenAt = now;
+      liveSession.expiresAt = nextSessionExpiry();
     }
     return draft;
   });
@@ -114,6 +127,7 @@ app.get("/api/health", async (_req, res) => {
 });
 
 app.post("/api/auth/login", async (req, res) => {
+  await cleanupExpiredSessions();
   const email = String(req.body?.email || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
   const state = await readDb();
@@ -134,6 +148,7 @@ app.post("/api/auth/login", async (req, res) => {
       tokenHash,
       createdAt: new Date().toISOString(),
       lastSeenAt: new Date().toISOString(),
+      expiresAt: nextSessionExpiry(),
     });
     return draft;
   });
@@ -352,6 +367,7 @@ app.post("/api/reset", requireAuth, async (req, res) => {
         tokenHash: req.auth.tokenHash,
         createdAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
+        expiresAt: nextSessionExpiry(),
       },
     ];
     return seed;
