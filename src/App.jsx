@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   convertLead,
@@ -17,6 +17,7 @@ import {
 const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
+const AUTOSAVE_DELAY_MS = 700;
 
 const TOKENS = {
   colors: [
@@ -324,6 +325,22 @@ function ErrorBanner({ message, onDismiss }) {
   );
 }
 
+function SaveStateText({ saveState, align = "left" }) {
+  const palette = {
+    idle: "text-slate-400",
+    pending: "text-amber-600",
+    saving: "text-blue-700",
+    saved: "text-emerald-700",
+    error: "text-red-700",
+  };
+
+  return (
+    <p className={`text-xs font-black uppercase tracking-[0.14em] ${palette[saveState.status] || palette.idle} ${align === "right" ? "text-right" : ""}`}>
+      {saveState.message}
+    </p>
+  );
+}
+
 function LoadingScreen({ label = "Loading workspace..." }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
@@ -446,7 +463,7 @@ function Sidebar({ active, setActive, counts }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary }) {
   const current = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
@@ -456,6 +473,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing }) {
           <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
+          {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
           <Badge tone="blue">{stats.newLeads} new leads</Badge>
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
           <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
@@ -624,7 +642,7 @@ function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, di
   );
 }
 
-function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
+function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled, saveState }) {
   if (!lead) {
     return (
       <Card className="p-5">
@@ -646,6 +664,7 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
           </Button>
         }
       />
+      <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -673,7 +692,7 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled }) {
   );
 }
 
-function JobDetailPanel({ job, onFieldChange }) {
+function JobDetailPanel({ job, onFieldChange, saveState }) {
   if (!job) {
     return (
       <Card className="p-5">
@@ -686,6 +705,7 @@ function JobDetailPanel({ job, onFieldChange }) {
   return (
     <Card className="p-5">
       <SectionHeader title={job.job} description={`${job.id} · ${job.customer}`} />
+      <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} />
         <InputField label="Crew" value={job.crew} onChange={(event) => onFieldChange("crew", event.target.value)} />
@@ -803,6 +823,7 @@ function DashboardPage({
   selectedLead,
   onLeadFieldChange,
   onCreateJobFromLead,
+  leadSaveState,
   taskDraft,
   setTaskDraft,
   onAddTask,
@@ -856,7 +877,7 @@ function DashboardPage({
           </Card>
           <div className="space-y-4">
             <QueueList items={queueItems.slice(0, 5)} onToggleTask={onToggleTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} saveState={leadSaveState} />
           </div>
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -871,7 +892,7 @@ function DashboardPage({
   );
 }
 
-function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, busy }) {
+function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, busy, leadSaveState }) {
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
@@ -882,14 +903,14 @@ function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId,
         </Card>
         <div className="space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} saveState={leadSaveState} />
         </div>
       </div>
     </div>
   );
 }
 
-function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, busy }) {
+function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, busy, jobSaveState }) {
   return (
     <div>
       <PageHeader eyebrow="Field Ops" title="Jobs" description="Create jobs from scratch or from approved leads, then keep field progress and next-step accountability current through the API." actions={<Badge tone="violet">{rows.length} active jobs</Badge>} />
@@ -900,7 +921,7 @@ function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, o
         </Card>
         <div className="space-y-4">
           <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy} />
-          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} />
+          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} saveState={jobSaveState} />
         </div>
       </div>
     </div>
@@ -1153,6 +1174,13 @@ export default function App() {
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
+  const [recordSaveState, setRecordSaveState] = useState({
+    lead: { id: "", status: "idle", message: "Autosave ready" },
+    job: { id: "", status: "idle", message: "Autosave ready" },
+  });
+  const autosaveTimeoutsRef = useRef({ lead: null, job: null });
+  const autosaveVersionsRef = useRef({ lead: new Map(), job: new Map() });
+  const pendingAutosavePatchesRef = useRef({ lead: new Map(), job: new Map() });
 
   function applyBootstrap(nextState) {
     setAppState({
@@ -1165,7 +1193,65 @@ export default function App() {
     });
   }
 
+  function clearAutosaveTimer(kind) {
+    if (autosaveTimeoutsRef.current[kind]) {
+      window.clearTimeout(autosaveTimeoutsRef.current[kind]);
+      autosaveTimeoutsRef.current[kind] = null;
+    }
+  }
+
+  function setSaveState(kind, nextState) {
+    setRecordSaveState((current) => ({
+      ...current,
+      [kind]: {
+        ...current[kind],
+        ...nextState,
+      },
+    }));
+  }
+
+  function bumpAutosaveVersion(kind, recordId) {
+    const versions = autosaveVersionsRef.current[kind];
+    const nextVersion = (versions.get(recordId) || 0) + 1;
+    versions.set(recordId, nextVersion);
+    return nextVersion;
+  }
+
+  function getAutosaveVersion(kind, recordId) {
+    return autosaveVersionsRef.current[kind].get(recordId) || 0;
+  }
+
+  function mergeAutosaveResponse(kind, recordId, version, nextState) {
+    setAppState((current) => {
+      const currentVersion = getAutosaveVersion(kind, recordId);
+      const shouldReplaceRecord = currentVersion === version;
+      const nextLead = shouldReplaceRecord ? nextState.leads.find((lead) => lead.id === recordId) : null;
+      const nextJob = shouldReplaceRecord ? nextState.jobs.find((job) => job.id === recordId) : null;
+
+      return {
+        ...current,
+        activity: nextState.activity,
+        leads: kind === "lead" && nextLead ? current.leads.map((lead) => (lead.id === recordId ? nextLead : lead)) : current.leads,
+        jobs: kind === "job" && nextJob ? current.jobs.map((job) => (job.id === recordId ? nextJob : job)) : current.jobs,
+      };
+    });
+  }
+
+  function resetAutosaveState() {
+    clearAutosaveTimer("lead");
+    clearAutosaveTimer("job");
+    autosaveVersionsRef.current.lead.clear();
+    autosaveVersionsRef.current.job.clear();
+    pendingAutosavePatchesRef.current.lead.clear();
+    pendingAutosavePatchesRef.current.job.clear();
+    setRecordSaveState({
+      lead: { id: "", status: "idle", message: "Autosave ready" },
+      job: { id: "", status: "idle", message: "Autosave ready" },
+    });
+  }
+
   function clearSession() {
+    resetAutosaveState();
     window.localStorage.removeItem(SESSION_TOKEN_KEY);
     setSessionToken("");
     setAuthStatus("loggedOut");
@@ -1173,6 +1259,11 @@ export default function App() {
     setSelectedLeadId("");
     setSelectedJobId("");
   }
+
+  useEffect(() => () => {
+    clearAutosaveTimer("lead");
+    clearAutosaveTimer("job");
+  }, []);
 
   async function bootstrap(token) {
     setBusy(true);
@@ -1209,6 +1300,8 @@ export default function App() {
 
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
+  const leadSaveState = recordSaveState.lead.id === selectedLeadId ? recordSaveState.lead : { id: selectedLeadId, status: "idle", message: "Autosave ready" };
+  const jobSaveState = recordSaveState.job.id === selectedJobId ? recordSaveState.job : { id: selectedJobId, status: "idle", message: "Autosave ready" };
 
   const visibleLeads = useMemo(() => {
     const query = leadSearch.toLowerCase();
@@ -1228,10 +1321,38 @@ export default function App() {
     });
   }, [appState.jobs, jobFilter, jobSearch]);
 
+  const stats = useMemo(() => {
+    const newLeads = appState.leads.filter((lead) => lead.status === "New").length;
+    const highPriorityLeads = appState.leads.filter((lead) => lead.priority === "High").length;
+    const pipelineValue = appState.leads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
+    const activeJobs = appState.jobs.filter((job) => job.stage === "In Progress").length;
+    const scheduledJobs = appState.jobs.filter((job) => job.stage === "Scheduled").length;
+    const reportsDue = appState.queueItems.filter((item) => !item.done && item.status === "Due today").length;
+    const queueBlocked = appState.queueItems.filter((item) => !item.done && item.status === "Blocked").length;
+    return {
+      newLeads,
+      highPriorityLeads,
+      pipelineValue,
+      activeJobs,
+      scheduledJobs,
+      reportsDue,
+      queueBlocked,
+    };
+  }, [appState.jobs, appState.leads, appState.queueItems]);
+
+  const saveSummary = useMemo(() => {
+    const relevantStates = [recordSaveState.lead, recordSaveState.job];
+    if (relevantStates.some((item) => item.status === "error")) return { tone: "red", label: "Save error" };
+    if (relevantStates.some((item) => item.status === "saving")) return { tone: "blue", label: "Saving changes" };
+    if (relevantStates.some((item) => item.status === "pending")) return { tone: "amber", label: "Unsaved changes" };
+    if (relevantStates.some((item) => item.status === "saved")) return { tone: "green", label: "All changes saved" };
+    return null;
+  }, [recordSaveState.job, recordSaveState.lead]);
+
   const counts = {
     leads: appState.leads.length,
     jobs: appState.jobs.length,
-    reports: appState.stats.reportsDue || null,
+    reports: stats.reportsDue || null,
     copilot: 1,
   };
 
@@ -1279,22 +1400,82 @@ export default function App() {
     clearSession();
   }
 
+  function scheduleRecordSave(kind, recordId, patch) {
+    if (!sessionToken) return;
+
+    const version = bumpAutosaveVersion(kind, recordId);
+    const pendingPatches = pendingAutosavePatchesRef.current[kind];
+    pendingPatches.set(recordId, {
+      ...(pendingPatches.get(recordId) || {}),
+      ...patch,
+    });
+    clearAutosaveTimer(kind);
+    setSaveState(kind, {
+      id: recordId,
+      status: "pending",
+      message: "Changes pending",
+    });
+
+    autosaveTimeoutsRef.current[kind] = window.setTimeout(async () => {
+      const pendingPatch = pendingAutosavePatchesRef.current[kind].get(recordId);
+      if (!pendingPatch) return;
+
+      setSaveState(kind, {
+        id: recordId,
+        status: "saving",
+        message: "Saving...",
+      });
+
+      try {
+        const nextState = kind === "lead"
+          ? await updateLead(sessionToken, recordId, pendingPatch)
+          : await updateJob(sessionToken, recordId, pendingPatch);
+
+        setErrorMessage("");
+        mergeAutosaveResponse(kind, recordId, version, nextState);
+
+        if (getAutosaveVersion(kind, recordId) === version) {
+          pendingAutosavePatchesRef.current[kind].delete(recordId);
+          setSaveState(kind, {
+            id: recordId,
+            status: "saved",
+            message: "All changes saved",
+          });
+        }
+      } catch (error) {
+        if (error.status === 401) {
+          clearSession();
+          return;
+        }
+
+        setErrorMessage(error.message);
+        if (getAutosaveVersion(kind, recordId) === version) {
+          setSaveState(kind, {
+            id: recordId,
+            status: "error",
+            message: error.message,
+          });
+        }
+      }
+    }, AUTOSAVE_DELAY_MS);
+  }
+
   function handleLeadFieldChange(field, value) {
     if (!selectedLead) return;
-    applyBootstrap({
-      ...appState,
-      leads: appState.leads.map((lead) => (lead.id === selectedLead.id ? { ...lead, [field]: value } : lead)),
-    });
-    runMutation(() => updateLead(sessionToken, selectedLead.id, { [field]: value }));
+    setAppState((current) => ({
+      ...current,
+      leads: current.leads.map((lead) => (lead.id === selectedLead.id ? { ...lead, [field]: value } : lead)),
+    }));
+    scheduleRecordSave("lead", selectedLead.id, { [field]: value });
   }
 
   function handleJobFieldChange(field, value) {
     if (!selectedJob) return;
-    applyBootstrap({
-      ...appState,
-      jobs: appState.jobs.map((job) => (job.id === selectedJob.id ? { ...job, [field]: value } : job)),
-    });
-    runMutation(() => updateJob(sessionToken, selectedJob.id, { [field]: value }));
+    setAppState((current) => ({
+      ...current,
+      jobs: current.jobs.map((job) => (job.id === selectedJob.id ? { ...job, [field]: value } : job)),
+    }));
+    scheduleRecordSave("job", selectedJob.id, { [field]: value });
   }
 
   function handleCreateLead(event) {
@@ -1358,14 +1539,14 @@ export default function App() {
       <div className="flex">
         <Sidebar active={active} setActive={setActive} counts={counts} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={appState.stats} user={appState.user} onLogout={handleLogout} syncing={busy} />
+          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="py-0">
             <MainContent
               active={active}
               setActive={setActive}
               user={appState.user}
-              stats={appState.stats}
+              stats={stats}
               leads={appState.leads}
               jobs={appState.jobs}
               queueItems={appState.queueItems}
@@ -1382,6 +1563,7 @@ export default function App() {
               onSelectLead={setSelectedLeadId}
               selectedLead={selectedLead}
               onLeadFieldChange={handleLeadFieldChange}
+              leadSaveState={leadSaveState}
               leadDraft={leadDraft}
               setLeadDraft={setLeadDraft}
               onCreateLead={handleCreateLead}
@@ -1390,6 +1572,7 @@ export default function App() {
               onSelectJob={setSelectedJobId}
               selectedJob={selectedJob}
               onJobFieldChange={handleJobFieldChange}
+              jobSaveState={jobSaveState}
               jobDraft={jobDraft}
               setJobDraft={setJobDraft}
               onCreateJob={handleCreateJob}

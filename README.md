@@ -27,3 +27,5 @@ The SQLite store includes schema version tracking so future backend changes can 
 Demo sessions now use rolling expiration and are cleaned up when they expire.
 
 The API now validates enum fields and numeric ranges and returns `404` for missing records instead of silently succeeding.
+
+Record detail edits use debounced autosave on the frontend so typing does not generate one API request per keystroke.
