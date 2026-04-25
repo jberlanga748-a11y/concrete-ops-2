@@ -42,6 +42,14 @@ async function rawRequest(path, options = {}) {
   return fetch(`${baseUrl}${path}`, options);
 }
 
+async function expectStatus(path, expectedStatus, options = {}) {
+  const response = await rawRequest(path, options);
+  if (response.status !== expectedStatus) {
+    throw new Error(`Expected ${path} to return ${expectedStatus}, received ${response.status}.`);
+  }
+  return response;
+}
+
 async function run() {
   const server = spawn(process.execPath, ["server/index.js"], {
     stdio: "inherit",
@@ -91,6 +99,25 @@ async function run() {
       throw new Error("Expected the smoke test to create exactly one lead.");
     }
 
+    await expectStatus("/api/leads", 400, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        customer: "Invalid Lead",
+        city: "Salem",
+        project: "Bad enum check",
+        priority: "Urgent",
+      }),
+    });
+
+    await expectStatus("/api/jobs/J-DOES-NOT-EXIST", 404, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        stage: "Waiting",
+      }),
+    });
+
     const database = new DatabaseSync(sqliteFile);
     database.prepare(`
       UPDATE sessions
@@ -103,7 +130,7 @@ async function run() {
       throw new Error(`Expected expired session to return 401, received ${expiredResponse.status}.`);
     }
 
-    console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, expired sessions rejected`);
+    console.log(`Smoke test passed: ${before.leads.length} -> ${after.leads.length} leads, validation and expired sessions verified`);
   } finally {
     server.kill("SIGTERM");
   }

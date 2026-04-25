@@ -25,3 +25,5 @@ Runtime data is stored locally in SQLite at `data/app-data.sqlite`.
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 
 Demo sessions now use rolling expiration and are cleaned up when they expire.
+
+The API now validates enum fields and numeric ranges and returns `404` for missing records instead of silently succeeding.

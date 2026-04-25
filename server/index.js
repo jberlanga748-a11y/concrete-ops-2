@@ -25,11 +25,79 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const port = Number(process.env.PORT || 4000);
+const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
+const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
+const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
+const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+class ApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function asyncRoute(handler) {
+  return async function routeHandler(req, res, next) {
+    try {
+      await handler(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+function requiredString(value, fieldName) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    throw new ApiError(400, `${fieldName} is required.`);
+  }
+  return normalized;
+}
+
+function optionalString(value, fallback) {
+  const normalized = String(value ?? "").trim();
+  return normalized || fallback;
+}
+
+function optionalEnum(value, allowedValues, fieldName, fallback) {
+  const normalized = value == null ? fallback : String(value).trim();
+  if (!allowedValues.has(normalized)) {
+    throw new ApiError(400, `${fieldName} must be one of: ${Array.from(allowedValues).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalNonNegativeNumber(value, fieldName, fallback = 0) {
+  if (value == null || value === "") return fallback;
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized) || normalized < 0) {
+    throw new ApiError(400, `${fieldName} must be a non-negative number.`);
+  }
+  return normalized;
+}
+
+function optionalProgressNumber(value, fallback = 0) {
+  if (value == null || value === "") return fallback;
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized) || normalized < 0 || normalized > 100) {
+    throw new ApiError(400, "Progress must be a number between 0 and 100.");
+  }
+  return normalized;
+}
+
+function findRequiredRecord(records, id, resourceName) {
+  const record = records.find((entry) => entry.id === id);
+  if (!record) {
+    throw new ApiError(404, `${resourceName} not found.`);
+  }
+  return record;
+}
 
 function appendActivity(state, title, detail) {
   state.activity.unshift({
@@ -121,15 +189,15 @@ async function requireAuth(req, res, next) {
   return next();
 }
 
-app.get("/api/health", async (_req, res) => {
+app.get("/api/health", asyncRoute(async (_req, res) => {
   await ensureDb();
   res.json({ ok: true });
-});
+}));
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", asyncRoute(async (req, res) => {
   await cleanupExpiredSessions();
-  const email = String(req.body?.email || "").trim().toLowerCase();
-  const password = String(req.body?.password || "");
+  const email = requiredString(req.body?.email, "Email").toLowerCase();
+  const password = requiredString(req.body?.password, "Password");
   const state = await readDb();
   const user = state.users.find((entry) => entry.email.toLowerCase() === email);
 
@@ -158,45 +226,41 @@ app.post("/api/auth/login", async (req, res) => {
     user: publicUser(user),
     demoCredentials: DEMO_CREDENTIALS,
   });
-});
+}));
 
-app.get("/api/auth/me", requireAuth, async (req, res) => {
+app.get("/api/auth/me", requireAuth, asyncRoute(async (req, res) => {
   res.json({ user: publicUser(req.auth.user) });
-});
+}));
 
-app.post("/api/auth/logout", requireAuth, async (req, res) => {
+app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
   await updateDb((draft) => {
     draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== req.auth.tokenHash);
     return draft;
   });
 
   res.status(204).end();
-});
+}));
 
-app.get("/api/bootstrap", requireAuth, async (req, res) => {
+app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json(sanitizeBootstrap(state, req.auth.user));
-});
+}));
 
-app.post("/api/leads", requireAuth, async (req, res) => {
+app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
   const newLead = {
     id: makeId("L"),
-    customer: String(payload.customer || "").trim(),
-    city: String(payload.city || "").trim(),
-    project: String(payload.project || "").trim(),
+    customer: requiredString(payload.customer, "Customer"),
+    city: requiredString(payload.city, "City"),
+    project: requiredString(payload.project, "Project"),
     status: "New",
-    priority: payload.priority || "Normal",
-    value: Number(payload.value) || 0,
-    owner: String(payload.owner || "").trim() || "Office",
+    priority: optionalEnum(payload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
+    value: optionalNonNegativeNumber(payload.value, "Value"),
+    owner: optionalString(payload.owner, "Office"),
     age: "Just now",
-    nextStep: String(payload.nextStep || "").trim() || "Initial call",
-    notes: String(payload.notes || "").trim() || "No notes yet.",
+    nextStep: optionalString(payload.nextStep, "Initial call"),
+    notes: optionalString(payload.notes, "No notes yet."),
   };
-
-  if (!newLead.customer || !newLead.city || !newLead.project) {
-    return res.status(400).json({ error: "Customer, city, and project are required." });
-  }
 
   const nextState = await updateDb((draft) => {
     draft.leads.unshift(newLead);
@@ -212,24 +276,23 @@ app.post("/api/leads", requireAuth, async (req, res) => {
   });
 
   return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.patch("/api/leads/:id", requireAuth, async (req, res) => {
+app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
 
   const nextState = await updateDb((draft) => {
-    const lead = draft.leads.find((entry) => entry.id === id);
-    if (!lead) return draft;
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
 
     Object.assign(lead, {
-      project: updates.project ?? lead.project,
-      status: updates.status ?? lead.status,
-      priority: updates.priority ?? lead.priority,
-      value: updates.value ?? lead.value,
-      owner: updates.owner ?? lead.owner,
-      nextStep: updates.nextStep ?? lead.nextStep,
-      notes: updates.notes ?? lead.notes,
+      project: updates.project == null ? lead.project : requiredString(updates.project, "Project"),
+      status: updates.status == null ? lead.status : optionalEnum(updates.status, LEAD_STATUSES, "Status", lead.status),
+      priority: updates.priority == null ? lead.priority : optionalEnum(updates.priority, LEAD_PRIORITIES, "Priority", lead.priority),
+      value: updates.value == null ? lead.value : optionalNonNegativeNumber(updates.value, "Value", lead.value),
+      owner: updates.owner == null ? lead.owner : requiredString(updates.owner, "Owner"),
+      nextStep: updates.nextStep == null ? lead.nextStep : requiredString(updates.nextStep, "Next step"),
+      notes: updates.notes == null ? lead.notes : requiredString(updates.notes, "Notes"),
     });
 
     appendActivity(draft, "Lead updated", `${lead.customer} details were updated.`);
@@ -237,14 +300,13 @@ app.patch("/api/leads/:id", requireAuth, async (req, res) => {
   });
 
   return res.json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.post("/api/leads/:id/convert", requireAuth, async (req, res) => {
+app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {
-    const lead = draft.leads.find((entry) => entry.id === id);
-    if (!lead) return draft;
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
 
     const newJob = {
       id: makeId("J"),
@@ -266,25 +328,21 @@ app.post("/api/leads/:id/convert", requireAuth, async (req, res) => {
   });
 
   return res.json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.post("/api/jobs", requireAuth, async (req, res) => {
+app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
   const newJob = {
     id: makeId("J"),
-    job: String(payload.job || "").trim(),
-    customer: String(payload.customer || "").trim(),
-    stage: payload.stage || "Scheduled",
-    crew: String(payload.crew || "").trim() || "Assign crew",
-    next: String(payload.next || "").trim() || "Set field kickoff",
-    due: String(payload.due || "").trim() || "TBD",
-    progress: Number(payload.progress) || 0,
-    notes: String(payload.notes || "").trim() || "No notes yet.",
+    job: requiredString(payload.job, "Job name"),
+    customer: requiredString(payload.customer, "Customer"),
+    stage: optionalEnum(payload.stage, JOB_STAGES, "Stage", "Scheduled"),
+    crew: optionalString(payload.crew, "Assign crew"),
+    next: optionalString(payload.next, "Set field kickoff"),
+    due: optionalString(payload.due, "TBD"),
+    progress: optionalProgressNumber(payload.progress, 0),
+    notes: optionalString(payload.notes, "No notes yet."),
   };
-
-  if (!newJob.job || !newJob.customer) {
-    return res.status(400).json({ error: "Job name and customer are required." });
-  }
 
   const nextState = await updateDb((draft) => {
     draft.jobs.unshift(newJob);
@@ -293,24 +351,23 @@ app.post("/api/jobs", requireAuth, async (req, res) => {
   });
 
   return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.patch("/api/jobs/:id", requireAuth, async (req, res) => {
+app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
 
   const nextState = await updateDb((draft) => {
-    const job = draft.jobs.find((entry) => entry.id === id);
-    if (!job) return draft;
+    const job = findRequiredRecord(draft.jobs, id, "Job");
 
     Object.assign(job, {
-      customer: updates.customer ?? job.customer,
-      crew: updates.crew ?? job.crew,
-      stage: updates.stage ?? job.stage,
-      due: updates.due ?? job.due,
-      progress: updates.progress ?? job.progress,
-      next: updates.next ?? job.next,
-      notes: updates.notes ?? job.notes,
+      customer: updates.customer == null ? job.customer : requiredString(updates.customer, "Customer"),
+      crew: updates.crew == null ? job.crew : requiredString(updates.crew, "Crew"),
+      stage: updates.stage == null ? job.stage : optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage),
+      due: updates.due == null ? job.due : requiredString(updates.due, "Due"),
+      progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
+      next: updates.next == null ? job.next : requiredString(updates.next, "Next step"),
+      notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
     });
 
     appendActivity(draft, "Job updated", `${job.job} field details were updated.`);
@@ -318,21 +375,17 @@ app.patch("/api/jobs/:id", requireAuth, async (req, res) => {
   });
 
   return res.json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.post("/api/queue-items", requireAuth, async (req, res) => {
+app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
   const newTask = {
     id: makeId("Q"),
-    title: String(payload.title || "").trim(),
-    meta: String(payload.meta || "").trim() || "General operations follow-up",
-    status: payload.status || "Due today",
+    title: requiredString(payload.title, "Task title"),
+    meta: optionalString(payload.meta, "General operations follow-up"),
+    status: optionalEnum(payload.status, QUEUE_STATUSES, "Status", "Due today"),
     done: false,
   };
-
-  if (!newTask.title) {
-    return res.status(400).json({ error: "Task title is required." });
-  }
 
   const nextState = await updateDb((draft) => {
     draft.queueItems.unshift(newTask);
@@ -341,23 +394,22 @@ app.post("/api/queue-items", requireAuth, async (req, res) => {
   });
 
   return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.patch("/api/queue-items/:id/toggle", requireAuth, async (req, res) => {
+app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {
-    const task = draft.queueItems.find((entry) => entry.id === id);
-    if (!task) return draft;
+    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
     task.done = !task.done;
     appendActivity(draft, task.done ? "Queue item completed" : "Queue item reopened", task.title);
     return draft;
   });
 
   return res.json(sanitizeBootstrap(nextState, req.auth.user));
-});
+}));
 
-app.post("/api/reset", requireAuth, async (req, res) => {
+app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb(() => {
     const seed = createSeedState();
     seed.sessions = [
@@ -374,7 +426,7 @@ app.post("/api/reset", requireAuth, async (req, res) => {
   });
   const user = nextState.users.find((entry) => entry.id === req.auth.user.id) || nextState.users.find((entry) => entry.email === DEMO_CREDENTIALS.email);
   res.json(sanitizeBootstrap(nextState, user));
-});
+}));
 
 app.use("/assets", express.static(path.join(distDir, "assets")));
 
@@ -387,6 +439,23 @@ app.use(async (req, res, next) => {
   } catch {
     return res.status(404).send("Build the client first with `npm run build`.");
   }
+});
+
+app.use((error, _req, res, next) => {
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  if (error instanceof SyntaxError && "body" in error) {
+    return res.status(400).json({ error: "Request body must be valid JSON." });
+  }
+
+  if (error instanceof ApiError) {
+    return res.status(error.status).json({ error: error.message });
+  }
+
+  console.error(error);
+  return res.status(500).json({ error: "Internal server error." });
 });
 
 await ensureDb();
