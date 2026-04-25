@@ -32,12 +32,14 @@ import {
   canArchiveJobs,
   canCreateJobs,
   canDeleteJobs,
+  canCorrectTimeEntries,
   canExportData,
   canManageChangeOrders,
   canManageCustomers,
   canManageEstimates,
   canManageJobFieldUpdates,
   canManageLeads,
+  canManageOwnTime,
   canManageSafety,
   canManageToolChecklist,
   canManageUsers,
@@ -52,6 +54,8 @@ import {
   canViewLeads,
   canViewSettings,
   canViewSafety,
+  canViewAllTime,
+  canViewCrewTime,
   canViewUsers,
   canViewAllJobs,
   normalizeRole,
@@ -76,6 +80,7 @@ const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
 const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
 const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
+const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -206,6 +211,14 @@ function optionalUserStatus(value, fallback = "active") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!USER_STATUSES.has(normalized)) {
     throw new ApiError(400, `User status must be one of: ${Array.from(USER_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalTimeEntryStatus(value, fallback = "active") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!TIME_ENTRY_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Time entry status must be one of: ${Array.from(TIME_ENTRY_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -431,6 +444,190 @@ function visibleActivityForUser(state, user) {
     return state.activity;
   }
   return [];
+}
+
+function canViewTimeEntries(user) {
+  return canViewAllTime(user) || canViewCrewTime(user) || canManageOwnTime(user);
+}
+
+function timePermissionsForUser(user) {
+  return {
+    canView: canViewTimeEntries(user),
+    canManageOwn: canManageOwnTime(user),
+    canViewCrew: canViewCrewTime(user),
+    canViewAll: canViewAllTime(user),
+    canCorrect: canCorrectTimeEntries(user),
+  };
+}
+
+function assertCanViewTimeEntries(user) {
+  if (!canViewTimeEntries(user)) {
+    throw new ApiError(403, "You do not have permission to view time entries.");
+  }
+}
+
+function assertCanManageOwnTime(user) {
+  if (!canManageOwnTime(user)) {
+    throw new ApiError(403, "You do not have permission to manage your own time.");
+  }
+}
+
+function assertCanCorrectTimeEntries(user) {
+  if (!canCorrectTimeEntries(user)) {
+    throw new ApiError(403, "You do not have permission to correct time entries.");
+  }
+}
+
+function minutesBetween(startAt, endAt) {
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new ApiError(400, "Time entry contains an invalid date.");
+  }
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+}
+
+function calculateBreakMinutes(breakStartAt, breakEndAt) {
+  if (!breakStartAt || !breakEndAt) return 0;
+  return minutesBetween(breakStartAt, breakEndAt);
+}
+
+function deriveTimeEntryStatus(entry) {
+  if (entry.clockOutAt) return "completed";
+  if (entry.breakStartAt && !entry.breakEndAt) return "on_break";
+  return "active";
+}
+
+function validateTimeEntryTimeline({
+  clockInAt,
+  clockOutAt = "",
+  breakStartAt = "",
+  breakEndAt = "",
+}) {
+  const clockInTime = new Date(clockInAt);
+  if (Number.isNaN(clockInTime.getTime())) {
+    throw new ApiError(400, "Clock-in time must be valid.");
+  }
+
+  if (clockOutAt) {
+    const clockOutTime = new Date(clockOutAt);
+    if (Number.isNaN(clockOutTime.getTime())) {
+      throw new ApiError(400, "Clock-out time must be valid.");
+    }
+    if (clockOutTime.getTime() < clockInTime.getTime()) {
+      throw new ApiError(400, "Clock-out time cannot be before clock-in time.");
+    }
+  }
+
+  if (breakEndAt && !breakStartAt) {
+    throw new ApiError(400, "Break end requires a break start time.");
+  }
+
+  if (breakStartAt) {
+    const breakStartTime = new Date(breakStartAt);
+    if (Number.isNaN(breakStartTime.getTime())) {
+      throw new ApiError(400, "Break start time must be valid.");
+    }
+    if (breakStartTime.getTime() < clockInTime.getTime()) {
+      throw new ApiError(400, "Break start cannot be before clock-in time.");
+    }
+    if (clockOutAt && breakStartTime.getTime() > new Date(clockOutAt).getTime()) {
+      throw new ApiError(400, "Break start cannot be after clock-out time.");
+    }
+  }
+
+  if (breakEndAt) {
+    const breakStartTime = new Date(breakStartAt);
+    const breakEndTime = new Date(breakEndAt);
+    if (Number.isNaN(breakEndTime.getTime())) {
+      throw new ApiError(400, "Break end time must be valid.");
+    }
+    if (breakEndTime.getTime() < breakStartTime.getTime()) {
+      throw new ApiError(400, "Break end cannot be before break start.");
+    }
+    if (clockOutAt && breakEndTime.getTime() > new Date(clockOutAt).getTime()) {
+      throw new ApiError(400, "Break end cannot be after clock-out time.");
+    }
+  }
+}
+
+function applyTimeEntryTotals(entry) {
+  validateTimeEntryTimeline(entry);
+  const breakMinutes = calculateBreakMinutes(entry.breakStartAt, entry.breakEndAt);
+  const totalMinutes = entry.clockOutAt
+    ? Math.max(0, minutesBetween(entry.clockInAt, entry.clockOutAt) - breakMinutes)
+    : 0;
+
+  entry.breakMinutes = breakMinutes;
+  entry.totalMinutes = totalMinutes;
+  entry.status = deriveTimeEntryStatus(entry);
+  return entry;
+}
+
+function activeTimeEntryForUser(state, userId) {
+  return (state.timeEntries || []).find((entry) => entry.userId === userId && deriveTimeEntryStatus(entry) !== "completed") || null;
+}
+
+function findRequiredTimeEntry(state, entryId) {
+  return findRequiredRecord(state.timeEntries || [], entryId, "Time entry");
+}
+
+function assertJobAssignedToEmployee(job, user) {
+  if (!canViewJob(job, user)) {
+    throw new ApiError(403, "You can only clock time against an assigned job.");
+  }
+}
+
+function sanitizeTimeEntry(entry, state, user) {
+  const job = state.jobs.find((item) => item.id === entry.jobId) || null;
+  const entryUser = findUserById(state, entry.userId);
+  const fieldSafeJob = job ? sanitizeJobForUser(job, user, state) : null;
+  const normalizedJob = job ? normalizeJobRecord(job) : null;
+  const totalMinutes = Number(entry.totalMinutes || 0);
+  const breakMinutes = Number(entry.breakMinutes || 0);
+
+  return {
+    id: entry.id,
+    userId: entry.userId,
+    userName: entryUser?.name || entry.userId,
+    userRole: entryUser?.role || "",
+    jobId: entry.jobId,
+    jobTitle: normalizedJob?.title || fieldSafeJob?.title || "",
+    customer: fieldSafeJob?.customer || "",
+    address: fieldSafeJob?.address || "",
+    scheduledStart: fieldSafeJob?.scheduledStart || "",
+    foremanAssignment: fieldSafeJob?.foremanAssignment || null,
+    clockInAt: entry.clockInAt,
+    clockOutAt: entry.clockOutAt || "",
+    breakStartAt: entry.breakStartAt || "",
+    breakEndAt: entry.breakEndAt || "",
+    totalMinutes,
+    breakMinutes,
+    status: deriveTimeEntryStatus(entry),
+    notes: entry.notes || "",
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  };
+}
+
+function visibleTimeEntriesForUser(state, user) {
+  if (!user) return [];
+
+  let entries = [];
+  if (canViewAllTime(user)) {
+    entries = state.timeEntries || [];
+  } else if (canViewCrewTime(user)) {
+    entries = (state.timeEntries || []).filter((entry) => {
+      const job = state.jobs.find((item) => item.id === entry.jobId);
+      return job && canViewJob(job, user);
+    });
+  } else if (canManageOwnTime(user)) {
+    entries = (state.timeEntries || []).filter((entry) => entry.userId === user.id);
+  }
+
+  return [...entries]
+    .sort((left, right) => new Date(right.clockInAt).getTime() - new Date(left.clockInAt).getTime())
+    .map((entry) => sanitizeTimeEntry(entry, state, user));
 }
 
 function visibleAuditEventsForUser(state, user) {
@@ -990,6 +1187,7 @@ function sanitizeBootstrap(state, user) {
     leads: visibleLeadsForUser(state, user),
     leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
     jobs: visibleJobsForUser(state, user),
+    timeEntries: visibleTimeEntriesForUser(state, user),
     queueItems: visibleQueueItemsForUser(state, user),
     activity: visibleActivityForUser(state, user),
     auditEvents: visibleAuditEventsForUser(state, user),
@@ -1010,6 +1208,7 @@ function sanitizeBootstrap(state, user) {
         canManageAssignments: canViewAllJobs(user),
         canViewMoney: canViewJobMoney(user),
       },
+      time: timePermissionsForUser(user),
       safety: {
         canView: canViewSafety(user),
         canManage: canManageSafety(user),
@@ -1347,6 +1546,15 @@ app.get("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get("/api/time-entries", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewTimeEntries(req.auth.user);
+  const state = await readDb();
+  res.json({
+    timeEntries: visibleTimeEntriesForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/users", requireAuth, asyncRoute(async (req, res) => {
   assertCanViewUsers(req.auth.user);
   const state = await readDb();
@@ -1354,6 +1562,224 @@ app.get("/api/users", requireAuth, asyncRoute(async (req, res) => {
     users: visibleUsers(state, req.auth.user),
     requestId: res.locals.requestId,
   });
+}));
+
+app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageOwnTime(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const activeEntry = activeTimeEntryForUser(draft, req.auth.user.id);
+    if (activeEntry) {
+      throw new ApiError(409, "You are already clocked in.");
+    }
+
+    const jobId = requiredString(payload.jobId, "Job");
+    const job = findRequiredRecord(draft.jobs, jobId, "Job");
+    assertJobAssignedToEmployee(job, req.auth.user);
+
+    const entry = applyTimeEntryTotals({
+      id: makeId("T"),
+      userId: req.auth.user.id,
+      jobId: job.id,
+      clockInAt: changedAt,
+      clockOutAt: "",
+      breakStartAt: "",
+      breakEndAt: "",
+      totalMinutes: 0,
+      breakMinutes: 0,
+      status: "active",
+      notes: optionalString(payload.notes, ""),
+      createdAt: changedAt,
+      updatedAt: changedAt,
+    });
+
+    draft.timeEntries.unshift(entry);
+    appendActivity(draft, "Time clocked in", `${req.auth.user.name} clocked in to ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "clocked_in",
+      summary: "Time clocked in",
+      detail: `${req.auth.user.name} clocked in to ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["clockInAt", "status"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/time-entries/:id/break-start", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageOwnTime(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id);
+    if (entry.userId !== req.auth.user.id) {
+      throw new ApiError(403, "You can only manage your own active time.");
+    }
+    if (deriveTimeEntryStatus(entry) !== "active") {
+      throw new ApiError(409, "You can only start a break from an active time entry.");
+    }
+    if (entry.breakStartAt || entry.breakMinutes > 0) {
+      throw new ApiError(409, "Break already recorded for this time entry.");
+    }
+
+    entry.breakStartAt = changedAt;
+    entry.breakEndAt = "";
+    entry.updatedAt = changedAt;
+    applyTimeEntryTotals(entry);
+
+    const job = draft.jobs.find((item) => item.id === entry.jobId);
+    appendActivity(draft, "Break started", `${req.auth.user.name} started break on ${job ? normalizeJobRecord(job).title : "assigned work"}.`);
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "break_started",
+      summary: "Break started",
+      detail: `${req.auth.user.name} started break.`,
+      actor: req.auth.user,
+      changedFields: ["breakStartAt", "status"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/time-entries/:id/break-end", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageOwnTime(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id);
+    if (entry.userId !== req.auth.user.id) {
+      throw new ApiError(403, "You can only manage your own active time.");
+    }
+    if (deriveTimeEntryStatus(entry) !== "on_break") {
+      throw new ApiError(409, "You are not currently on break.");
+    }
+
+    entry.breakEndAt = changedAt;
+    entry.updatedAt = changedAt;
+    applyTimeEntryTotals(entry);
+
+    appendActivity(draft, "Break ended", `${req.auth.user.name} ended break.`);
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "break_ended",
+      summary: "Break ended",
+      detail: `${req.auth.user.name} ended break.`,
+      actor: req.auth.user,
+      changedFields: ["breakEndAt", "breakMinutes", "status"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageOwnTime(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id);
+    if (entry.userId !== req.auth.user.id) {
+      throw new ApiError(403, "You can only manage your own active time.");
+    }
+    if (deriveTimeEntryStatus(entry) === "completed") {
+      throw new ApiError(409, "This time entry is already clocked out.");
+    }
+
+    if (deriveTimeEntryStatus(entry) === "on_break" && entry.breakStartAt && !entry.breakEndAt) {
+      entry.breakEndAt = changedAt;
+    }
+
+    entry.clockOutAt = changedAt;
+    entry.updatedAt = changedAt;
+    applyTimeEntryTotals(entry);
+
+    const job = draft.jobs.find((item) => item.id === entry.jobId);
+    appendActivity(draft, "Time clocked out", `${req.auth.user.name} clocked out of ${job ? normalizeJobRecord(job).title : "assigned work"}.`);
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "clocked_out",
+      summary: "Time clocked out",
+      detail: `${req.auth.user.name} clocked out.`,
+      actor: req.auth.user,
+      changedFields: ["clockOutAt", "totalMinutes", "status"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCorrectTimeEntries(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.timeEntries ||= [];
+    const entry = findRequiredTimeEntry(draft, id);
+    const changedFields = [];
+    const nextClockInAt = payload.clockInAt == null ? entry.clockInAt : optionalDateTimeString(payload.clockInAt, "Clock-in time", entry.clockInAt);
+    const nextClockOutAt = payload.clockOutAt == null ? entry.clockOutAt || "" : optionalDateTimeString(payload.clockOutAt, "Clock-out time", "");
+    const nextBreakStartAt = payload.breakStartAt == null ? entry.breakStartAt || "" : optionalDateTimeString(payload.breakStartAt, "Break start time", "");
+    const nextBreakEndAt = payload.breakEndAt == null ? entry.breakEndAt || "" : optionalDateTimeString(payload.breakEndAt, "Break end time", "");
+    const nextNotes = payload.notes == null ? entry.notes || "" : optionalString(payload.notes, "");
+
+    if (entry.clockInAt !== nextClockInAt) changedFields.push("clockInAt");
+    if ((entry.clockOutAt || "") !== nextClockOutAt) changedFields.push("clockOutAt");
+    if ((entry.breakStartAt || "") !== nextBreakStartAt) changedFields.push("breakStartAt");
+    if ((entry.breakEndAt || "") !== nextBreakEndAt) changedFields.push("breakEndAt");
+    if ((entry.notes || "") !== nextNotes) changedFields.push("notes");
+
+    Object.assign(entry, {
+      clockInAt: nextClockInAt,
+      clockOutAt: nextClockOutAt,
+      breakStartAt: nextBreakStartAt,
+      breakEndAt: nextBreakEndAt,
+      notes: nextNotes,
+      updatedAt: changedAt,
+    });
+
+    if (payload.status != null) {
+      optionalTimeEntryStatus(payload.status, deriveTimeEntryStatus(entry));
+    }
+
+    applyTimeEntryTotals(entry);
+    changedFields.push("totalMinutes", "breakMinutes", "status");
+
+    appendActivity(draft, "Time entry corrected", `${req.auth.user.name} corrected a time entry.`);
+    appendAuditEvent(draft, {
+      entityType: "timeEntry",
+      entityId: entry.id,
+      action: "corrected",
+      summary: "Time entry corrected",
+      detail: `${req.auth.user.name} corrected a time entry.`,
+      actor: req.auth.user,
+      changedFields: [...new Set(changedFields)],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {

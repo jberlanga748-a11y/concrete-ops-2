@@ -82,6 +82,22 @@ export function canViewAllJobs(user) {
   return isOfficeManager(user);
 }
 
+export function canViewAllTime(user) {
+  return isOfficeManager(user);
+}
+
+export function canCorrectTimeEntries(user) {
+  return isOfficeManager(user);
+}
+
+export function canViewCrewTime(user) {
+  return isForeman(user);
+}
+
+export function canManageOwnTime(user) {
+  return isEmployee(user);
+}
+
 export function canCreateJobs(user) {
   return isOfficeManager(user);
 }
@@ -190,7 +206,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   } else if (isEstimator(user)) {
     ["dashboard", "leads", "customers", "estimates", "jobs", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {
-    ["jobs", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["jobs", "time", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEmployee(user)) {
     ["jobs", "time", "reports", "uploads", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
   }

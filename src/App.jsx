@@ -14,10 +14,14 @@ import {
   createLead,
   createQueueItem,
   createUser,
+  clockIn,
+  clockOut,
+  correctTimeEntry,
   deleteJobAssignment,
   deleteJob,
   deleteLead,
   deleteQueueItem,
+  endBreak,
   getBootstrap,
   getHealth,
   getSetupStatus,
@@ -28,6 +32,7 @@ import {
   restoreJob,
   restoreLead,
   restoreQueueItem,
+  startBreak,
   toggleQueueItem,
   updateCustomer,
   updateJobAssignment,
@@ -42,6 +47,7 @@ import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspa
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
+import { deriveTimeWorkspace, findActiveTimeEntry, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -117,6 +123,7 @@ const EMPTY_APP_STATE = {
   leads: [],
   leadStatusHistory: [],
   jobs: [],
+  timeEntries: [],
   queueItems: [],
   activity: [],
   auditEvents: [],
@@ -144,6 +151,13 @@ const EMPTY_APP_STATE = {
       canManageField: false,
       canManageAssignments: false,
       canViewMoney: false,
+    },
+    time: {
+      canView: false,
+      canManageOwn: false,
+      canViewCrew: false,
+      canViewAll: false,
+      canCorrect: false,
     },
     safety: {
       canView: false,
@@ -202,6 +216,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
     jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
+    timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
     queueItems: Array.isArray(source.queueItems) ? source.queueItems : Array.isArray(fallback.queueItems) ? fallback.queueItems : EMPTY_APP_STATE.queueItems,
     activity: Array.isArray(source.activity) ? source.activity : Array.isArray(fallback.activity) ? fallback.activity : EMPTY_APP_STATE.activity,
     auditEvents: Array.isArray(source.auditEvents) ? source.auditEvents : Array.isArray(fallback.auditEvents) ? fallback.auditEvents : EMPTY_APP_STATE.auditEvents,
@@ -211,6 +226,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
       jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
+      time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
       safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
       calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
       toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
@@ -302,6 +318,14 @@ const INITIAL_SETUP_FORM = {
   role: "Administrator",
 };
 
+const INITIAL_TIME_CORRECTION_FORM = {
+  clockInAt: "",
+  clockOutAt: "",
+  breakStartAt: "",
+  breakEndAt: "",
+  notes: "",
+};
+
 const INITIAL_SETUP_STATUS = {
   checked: false,
   needsSetup: false,
@@ -346,6 +370,14 @@ function formatDateTime(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(parsed);
+}
+
+function toDateTimeInputValue(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const localOffsetMs = parsed.getTimezoneOffset() * 60000;
+  return new Date(parsed.getTime() - localOffsetMs).toISOString().slice(0, 16);
 }
 
 function iconStrokeProps(className) {
@@ -1519,8 +1551,8 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
       { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
     ]
     : [
-      { title: "Clock In / Out", description: "Time tracking groundwork stays simple for now.", icon: "clock", moduleId: "time", badge: "Placeholder", tone: "blue" },
-      { title: "My Time", description: "Review your own time only.", icon: "clock", moduleId: "time", badge: "Placeholder", tone: "violet" },
+      { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
+      { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
       { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
       { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
       { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
@@ -1661,15 +1693,25 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
   );
 }
 
-function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive }) {
+function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, busy }) {
   const workspace = useMemo(() => deriveEmployeeWorkspace(rows, user?.id), [rows, user?.id]);
   const fallbackJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || rows[0] || null;
+  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id), [timeEntries, user?.id, workspace.assignedJobs]);
 
   return (
     <div>
       <PageHeader eyebrow="Field Workspace" title="My Job" description="Simple assigned-work view with only the job details and tools needed in the field." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="space-y-4">
+          <ActiveTimeCard
+            activeEntry={timeWorkspace.activeEntry}
+            availableJobs={timeWorkspace.availableJobs}
+            onClockIn={onClockIn}
+            onClockOut={onClockOut}
+            onStartBreak={onStartBreak}
+            onEndBreak={onEndBreak}
+            disabled={busy}
+          />
           <Card className="p-5">
             <SectionHeader title="Assigned work" description="Only your assigned jobs appear here. Contact office if something looks wrong." />
             {workspace.assignedJobs.length > 0 ? (
@@ -1684,6 +1726,250 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
           </Card>
         </div>
         <FieldJobFocusCard job={fallbackJob} permissions={permissions} onFieldChange={() => {}} disabled onSelectModule={setActive} />
+      </div>
+    </div>
+  );
+}
+
+function TimeStatusBadge({ status }) {
+  return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
+}
+
+function TimeEntryCard({ entry, showUser = false, compact = false }) {
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-slate-950">{entry.jobTitle || entry.jobId}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{entry.address || "Jobsite details pending"}</p>
+          {showUser ? <p className="mt-1 text-xs font-bold text-slate-500">{entry.userName}</p> : null}
+        </div>
+        <TimeStatusBadge status={entry.status} />
+      </div>
+      <div className={`mt-3 grid gap-3 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clock in</p>
+          <p className="mt-1 text-sm font-bold text-slate-700">{formatDateTime(entry.clockInAt)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clock out</p>
+          <p className="mt-1 text-sm font-bold text-slate-700">{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still active"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Total</p>
+          <p className="mt-1 text-sm font-bold text-slate-700">{entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
+        {entry.scheduledStart ? <Badge tone="blue">{formatDateTime(entry.scheduledStart)}</Badge> : null}
+      </div>
+      {entry.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{entry.notes}</p> : null}
+    </div>
+  );
+}
+
+function ActiveTimeCard({ activeEntry, availableJobs, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled }) {
+  const [jobId, setJobId] = useState(availableJobs[0]?.id || "");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (activeEntry) return;
+    if (availableJobs.some((job) => job.id === jobId)) return;
+    setJobId(availableJobs[0]?.id || "");
+  }, [activeEntry, availableJobs, jobId]);
+
+  if (activeEntry) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Active clock" description="Keep your current time entry accurate before heading back to the job." />
+        <TimeEntryCard entry={activeEntry} compact />
+        <div className="mt-4 flex flex-wrap gap-2">
+          {activeEntry.status === "active" ? <Button onClick={() => onStartBreak(activeEntry.id)} disabled={disabled}>Start break</Button> : null}
+          {activeEntry.status === "on_break" ? <Button onClick={() => onEndBreak(activeEntry.id)} disabled={disabled}>End break</Button> : null}
+          <Button variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={disabled}>Clock out</Button>
+        </div>
+        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+          {activeEntry.status === "on_break" ? "You are currently on break." : "You are already clocked in."}
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Clock in" description="Start time on one of your assigned jobs. Contact office if the right job is missing." />
+      {availableJobs.length === 0 ? (
+        <StateCard title="No assigned jobs yet" description="Contact office if you expected a job to be assigned to you today." tone="slate" />
+      ) : (
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!jobId) return;
+            onClockIn({ jobId, notes });
+            setNotes("");
+          }}
+        >
+          <SelectField label="Assigned job" value={jobId} onChange={(event) => setJobId(event.target.value)}>
+            {availableJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+          </SelectField>
+          <TextAreaField label="Clock-in note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional note for the office or foreman." />
+          <Button type="submit" disabled={disabled || !jobId}>
+            <Icon name="clock" />
+            Clock in
+          </Button>
+        </form>
+      )}
+    </Card>
+  );
+}
+
+function TimeEntriesTable({ rows, selectedId, onSelect }) {
+  return (
+    <table className="w-full min-w-[960px] text-left">
+      <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+        <tr>
+          <th className="px-4 py-3">User</th>
+          <th className="px-4 py-3">Job</th>
+          <th className="px-4 py-3">Clock in</th>
+          <th className="px-4 py-3">Clock out</th>
+          <th className="px-4 py-3">Break</th>
+          <th className="px-4 py-3">Total</th>
+          <th className="px-4 py-3">Status</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-blue-50">
+        {rows.map((entry) => {
+          const selected = entry.id === selectedId;
+          return (
+            <tr key={entry.id} onClick={() => onSelect(entry.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+              <td className="px-4 py-3">
+                <p className="font-black text-slate-950">{entry.userName}</p>
+                <p className="text-xs font-bold text-slate-500">{entry.userRole || "Field user"}</p>
+              </td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{entry.jobTitle || entry.jobId}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatDateTime(entry.clockInAt)}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still active"}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatMinutes(entry.breakMinutes)}</td>
+              <td className="px-4 py-3 text-sm font-bold text-slate-700">{entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</td>
+              <td className="px-4 py-3"><TimeStatusBadge status={entry.status} /></td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorrect }) {
+  if (!entry) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Time details" description="Select a time entry to review or correct it." />
+        <StateCard title="No time entry selected" description="Choose an entry from the table to inspect its timestamps and notes." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} · ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
+      <div className="grid gap-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Clock in" type="datetime-local" value={draft.clockInAt} onChange={(event) => setDraft((current) => ({ ...current, clockInAt: event.target.value }))} disabled={!canCorrect || disabled} />
+          <InputField label="Clock out" type="datetime-local" value={draft.clockOutAt} onChange={(event) => setDraft((current) => ({ ...current, clockOutAt: event.target.value }))} disabled={!canCorrect || disabled} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Break start" type="datetime-local" value={draft.breakStartAt} onChange={(event) => setDraft((current) => ({ ...current, breakStartAt: event.target.value }))} disabled={!canCorrect || disabled} />
+          <InputField label="Break end" type="datetime-local" value={draft.breakEndAt} onChange={(event) => setDraft((current) => ({ ...current, breakEndAt: event.target.value }))} disabled={!canCorrect || disabled} />
+        </div>
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={!canCorrect || disabled} />
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
+          <Badge tone="slate">Total {entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</Badge>
+        </div>
+        {canCorrect ? <Button onClick={onSave} disabled={disabled}>Save correction</Button> : <StateCard title="Read-only" description="Only office leadership can correct time entries." tone="slate" />}
+      </div>
+    </Card>
+  );
+}
+
+function TimePage({
+  user,
+  permissions,
+  rows,
+  jobs,
+  selectedTimeEntryId,
+  onSelectTimeEntry,
+  selectedTimeEntry,
+  timeEditDraft,
+  setTimeEditDraft,
+  onSaveTimeEntry,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+  busy,
+}) {
+  const workspace = useMemo(() => deriveTimeWorkspace(rows, jobs, user?.id), [jobs, rows, user?.id]);
+  const activeEntry = workspace.activeEntry;
+
+  if (permissions.time.canViewAll) {
+    return (
+      <div>
+        <PageHeader eyebrow="Time" title="Time Entries" description="Review all field time entries and correct timestamps when needed." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
+        <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
+          <Card className="overflow-hidden">
+            <div className="p-4"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
+            {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
+          </Card>
+          <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} />
+        </div>
+      </div>
+    );
+  }
+
+  if (permissions.time.canViewCrew) {
+    return (
+      <div>
+        <PageHeader eyebrow="Field Time" title="Crew Time" description="Assigned crew time only, without payroll, rates, or office-only business data." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
+        <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+          {rows.length === 0 ? (
+            <StateCard title="No crew time yet" description="Crew time will appear here once assigned field users clock into your jobs." tone="slate" />
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {rows.map((entry) => <TimeEntryCard key={entry.id} entry={entry} showUser />)}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="My Time" title="My Time" description="Track only your assigned work. Contact office if your job assignment looks wrong." actions={activeEntry ? <TimeStatusBadge status={activeEntry.status} /> : <Badge tone="slate">Ready to clock in</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[380px_1fr] lg:px-8">
+        <ActiveTimeCard
+          activeEntry={activeEntry}
+          availableJobs={workspace.availableJobs}
+          onClockIn={onClockIn}
+          onClockOut={onClockOut}
+          onStartBreak={onStartBreak}
+          onEndBreak={onEndBreak}
+          disabled={busy}
+        />
+        <Card className="p-5">
+          <SectionHeader title="Recent entries" description="Only your own time entries are visible here." />
+          {workspace.sortedEntries.length === 0 ? (
+            <StateCard title="No time entries yet" description="Clock in on an assigned job to start your first time entry." tone="slate" />
+          ) : (
+            <div className="space-y-3">
+              {workspace.sortedEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} compact />)}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
@@ -2335,6 +2621,11 @@ function JobsPage({
   jobSaveState,
   permissions,
   setActive,
+  timeEntries,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
 }) {
   const isFieldWorkspace = !permissions.jobs.canManageAll && !permissions.leads.canView;
 
@@ -2364,6 +2655,12 @@ function JobsPage({
         selectedJob={selectedJob}
         permissions={permissions}
         setActive={setActive}
+        timeEntries={timeEntries}
+        onClockIn={onClockIn}
+        onClockOut={onClockOut}
+        onStartBreak={onStartBreak}
+        onEndBreak={onEndBreak}
+        busy={busy}
       />
     );
   }
@@ -2973,6 +3270,9 @@ function MainContent(props) {
       />
     );
   }
+  if (active === "time") {
+    return <TimePage {...props} rows={props.timeEntries} />;
+  }
   if (active === "employees") {
     return (
       <EmployeesPage
@@ -3031,12 +3331,14 @@ export default function App() {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
+  const [timeEditDraft, setTimeEditDraft] = useState(INITIAL_TIME_CORRECTION_FORM);
   const [userProvisionNotice, setUserProvisionNotice] = useState(null);
   const [backendStatus, setBackendStatus] = useState("checking");
   const [startupError, setStartupError] = useState("");
@@ -3057,6 +3359,7 @@ export default function App() {
   const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
+  const selectedTimeEntry = appState.timeEntries.find((entry) => entry.id === selectedTimeEntryId) || null;
 
   function navigateTo(nextPath, { replace = false } = {}) {
     const normalized = normalizePathname(nextPath);
@@ -3138,6 +3441,7 @@ export default function App() {
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
+        timeEntries: normalizedNextState.timeEntries,
         queueItems: normalizedNextState.queueItems,
         stats: normalizedNextState.stats,
       };
@@ -3182,6 +3486,7 @@ export default function App() {
     setSelectedCustomerId("");
     setSelectedLeadId("");
     setSelectedJobId("");
+    setSelectedTimeEntryId("");
   }
 
   useEffect(() => () => {
@@ -3263,6 +3568,21 @@ export default function App() {
       password: "",
     });
   }, [selectedUser]);
+
+  useEffect(() => {
+    if (!selectedTimeEntry) {
+      setTimeEditDraft(INITIAL_TIME_CORRECTION_FORM);
+      return;
+    }
+
+    setTimeEditDraft({
+      clockInAt: toDateTimeInputValue(selectedTimeEntry.clockInAt),
+      clockOutAt: toDateTimeInputValue(selectedTimeEntry.clockOutAt),
+      breakStartAt: toDateTimeInputValue(selectedTimeEntry.breakStartAt),
+      breakEndAt: toDateTimeInputValue(selectedTimeEntry.breakEndAt),
+      notes: selectedTimeEntry.notes || "",
+    });
+  }, [selectedTimeEntry]);
 
   async function bootstrap(token) {
     setBusy(true);
@@ -3362,6 +3682,13 @@ export default function App() {
       setSelectedUserId(fallbackUserId);
     }
   }, [appState.permissions.users.canView, appState.users, selectedUserId]);
+
+  useEffect(() => {
+    const fallbackTimeEntryId = appState.permissions.time.canView ? appState.timeEntries[0]?.id || "" : "";
+    if (!selectedTimeEntryId || !appState.timeEntries.some((entry) => entry.id === selectedTimeEntryId)) {
+      setSelectedTimeEntryId(fallbackTimeEntryId);
+    }
+  }, [appState.permissions.time.canView, appState.timeEntries, selectedTimeEntryId]);
 
   const customerSaveState = recordSaveState.customer.id === selectedCustomerId ? recordSaveState.customer : { id: selectedCustomerId, status: "idle", message: "Autosave ready" };
   const leadSaveState = recordSaveState.lead.id === selectedLeadId ? recordSaveState.lead : { id: selectedLeadId, status: "idle", message: "Autosave ready" };
@@ -3645,6 +3972,31 @@ export default function App() {
     runMutation(() => deleteJobAssignment(sessionToken, selectedJob.id, assignmentId));
   }
 
+  function handleClockIn(payload) {
+    if (!appState.permissions.time.canManageOwn) return;
+    runMutation(() => clockIn(sessionToken, payload));
+  }
+
+  function handleStartBreak(timeEntryId) {
+    if (!appState.permissions.time.canManageOwn) return;
+    runMutation(() => startBreak(sessionToken, timeEntryId));
+  }
+
+  function handleEndBreak(timeEntryId) {
+    if (!appState.permissions.time.canManageOwn) return;
+    runMutation(() => endBreak(sessionToken, timeEntryId));
+  }
+
+  function handleClockOut(timeEntryId) {
+    if (!appState.permissions.time.canManageOwn) return;
+    runMutation(() => clockOut(sessionToken, timeEntryId));
+  }
+
+  function handleSaveTimeEntry() {
+    if (!selectedTimeEntry || !appState.permissions.time.canCorrect) return;
+    runMutation(() => correctTimeEntry(sessionToken, selectedTimeEntry.id, timeEditDraft));
+  }
+
   function handleCreateLead(event) {
     event.preventDefault();
     if (!appState.permissions.leads.canManage) return;
@@ -3860,6 +4212,7 @@ export default function App() {
               customers={appState.customers}
               leads={appState.leads}
               jobs={appState.jobs}
+              timeEntries={appState.timeEntries}
               queueItems={appState.queueItems}
               activity={appState.activity}
               auditEvents={appState.auditEvents}
@@ -3935,6 +4288,16 @@ export default function App() {
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}
               selectedJob={selectedJob}
+              selectedTimeEntryId={selectedTimeEntryId}
+              onSelectTimeEntry={setSelectedTimeEntryId}
+              selectedTimeEntry={selectedTimeEntry}
+              timeEditDraft={timeEditDraft}
+              setTimeEditDraft={setTimeEditDraft}
+              onSaveTimeEntry={handleSaveTimeEntry}
+              onClockIn={handleClockIn}
+              onClockOut={handleClockOut}
+              onStartBreak={handleStartBreak}
+              onEndBreak={handleEndBreak}
               onJobFieldChange={handleJobFieldChange}
               onChangeForeman={handleChangeJobForeman}
               onAddAssignment={handleAddJobAssignment}
