@@ -1481,20 +1481,24 @@ function CustomersPage({
   const canView = permissions.customers.canView;
   const canManage = permissions.customers.canManage;
   const layout = getCustomerFilterLayoutClasses();
+  const visibleRows = useMemo(() => filterCustomers(rows, {
+    status: filter,
+    query: search,
+  }), [filter, rows, search]);
 
   return (
     <div>
-      <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? rows.length : 0} visible customers</Badge>} />
+      <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} visible customers</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           {canView ? (
             <>
               <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
-              {busy && rows.length === 0 ? (
+              {busy && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records from the API." /></div>
-              ) : errorMessage && rows.length === 0 ? (
+              ) : errorMessage && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
-              ) : rows.length === 0 ? (
+              ) : visibleRows.length === 0 ? (
                 <div className="p-5">
                   <StateCard
                     title={search || filter !== "All" ? "No matching customers" : "No customers yet"}
@@ -1504,7 +1508,7 @@ function CustomersPage({
               ) : (
                 <div className={layout.tableSection}>
                   <div className={layout.tableScroller}>
-                    <CustomersTable rows={rows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+                    <CustomersTable rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
                   </div>
                 </div>
               )}

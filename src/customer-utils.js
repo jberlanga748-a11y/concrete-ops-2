@@ -3,10 +3,12 @@ function containsQuery(value, query) {
 }
 
 export function filterCustomers(customers, { status = "All", query = "" } = {}) {
+  const normalizedStatus = String(status).trim().toLowerCase();
   const normalizedQuery = String(query).trim().toLowerCase();
   return customers.filter((customer) => {
-    const matchesArchive = status === "Archived" ? Boolean(customer.archivedAt) : !customer.archivedAt;
-    const matchesStatus = status === "All" || status === "Archived" ? true : customer.status === status;
+    const customerStatus = String(customer.status || "").trim().toLowerCase();
+    const matchesArchive = normalizedStatus === "archived" ? Boolean(customer.archivedAt) : !customer.archivedAt;
+    const matchesStatus = normalizedStatus === "all" || normalizedStatus === "archived" ? true : customerStatus === normalizedStatus;
     const matchesQuery = !normalizedQuery || [
       customer.name,
       customer.company,

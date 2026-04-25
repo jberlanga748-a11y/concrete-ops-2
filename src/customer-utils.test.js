@@ -16,6 +16,17 @@ const CUSTOMERS = [
     archivedAt: null,
   },
   {
+    id: "C-1003",
+    name: "Alicia Nguyen",
+    company: "",
+    phone: "503-555-0103",
+    email: "alicia@example.com",
+    city: "Corvallis",
+    serviceArea: "Benton County",
+    status: "Prospect",
+    archivedAt: null,
+  },
+  {
     id: "C-1002",
     name: "Harris Auto",
     company: "Harris Auto",
@@ -26,6 +37,17 @@ const CUSTOMERS = [
     status: "Inactive",
     archivedAt: "2026-04-24T12:00:00.000Z",
   },
+  {
+    id: "C-1004",
+    name: "Northside Storage",
+    company: "Northside Storage",
+    phone: "503-555-0104",
+    email: "ops@northside.example.com",
+    city: "Keizer",
+    serviceArea: "North Salem",
+    status: "Inactive",
+    archivedAt: null,
+  },
 ];
 
 test("customer filtering matches contact, geography, and status", () => {
@@ -33,6 +55,16 @@ test("customer filtering matches contact, geography, and status", () => {
   assert.deepEqual(filterCustomers(CUSTOMERS, { query: "503-555-0101" }).map((customer) => customer.id), ["C-1001"]);
   assert.deepEqual(filterCustomers(CUSTOMERS, { query: "shop@example.com", status: "Archived" }).map((customer) => customer.id), ["C-1002"]);
   assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Active" }).map((customer) => customer.id), ["C-1001"]);
+});
+
+test("customer filtering supports each status tab and combined search", () => {
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Prospect" }).map((customer) => customer.id), ["C-1003"]);
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Active" }).map((customer) => customer.id), ["C-1001"]);
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Inactive" }).map((customer) => customer.id), ["C-1004"]);
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Archived" }).map((customer) => customer.id), ["C-1002"]);
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Prospect", query: "corvallis" }).map((customer) => customer.id), ["C-1003"]);
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Inactive", query: "northside" }).map((customer) => customer.id), ["C-1004"]);
+  assert.deepEqual(filterCustomers(CUSTOMERS, { status: "Archived", query: "harris" }).map((customer) => customer.id), ["C-1002"]);
 });
 
 test("related customer records include linked leads, jobs, and activity mentions", () => {
