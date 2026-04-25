@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { DEMO_CREDENTIALS, INITIAL_ACTIVITY, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
+import { DEMO_CREDENTIALS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
 
 const SCHEMA_VERSION_KEY = "schema_version";
@@ -114,10 +114,25 @@ function withSeedTimestamps(records, startedAt, spacingMinutes) {
   });
 }
 
-function createSeedAuditEvents(user, leads, jobs, queueItems) {
+function createSeedAuditEvents(user, customers, leads, jobs, queueItems) {
   const actorUserId = user.id;
   const actorName = user.name;
   const events = [];
+
+  customers.forEach((customer) => {
+    events.push({
+      id: makeAuditId(`seed-customer-${customer.id}`),
+      entityType: "customer",
+      entityId: customer.id,
+      action: "created",
+      summary: "Customer seeded",
+      detail: `${customer.name} was added to the customer workspace.`,
+      actorUserId,
+      actorName,
+      changedFields: [],
+      createdAt: customer.createdAt,
+    });
+  });
 
   leads.forEach((lead) => {
     events.push({
@@ -171,6 +186,7 @@ export function createEmptyState() {
   return {
     users: [],
     sessions: [],
+    customers: [],
     leads: [],
     jobs: [],
     queueItems: [],
@@ -188,6 +204,7 @@ export function createSeedState() {
     name: DEMO_CREDENTIALS.name,
     role: DEMO_CREDENTIALS.role,
   });
+  const customers = withSeedTimestamps(INITIAL_CUSTOMERS, seededAt, 220);
   const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180);
   const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240);
   const queueItems = withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90);
@@ -197,11 +214,12 @@ export function createSeedState() {
       seedUser,
     ],
     sessions: [],
+    customers,
     leads,
     jobs,
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
-    auditEvents: createSeedAuditEvents(seedUser, leads, jobs, queueItems),
+    auditEvents: createSeedAuditEvents(seedUser, customers, leads, jobs, queueItems),
   };
 }
 
@@ -465,6 +483,145 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 7,
+    description: "Add customers and customer indexes.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS customers (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          company TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          email TEXT NOT NULL,
+          city TEXT NOT NULL,
+          service_area TEXT NOT NULL,
+          status TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_customers_sort_index ON customers(sort_index);
+        CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+        CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
+      `);
+    },
+  },
+  {
+    version: 8,
+    description: "Link leads and jobs to customers.",
+    up(database) {
+      if (!columnExists(database, "leads", "customer_id")) {
+        database.exec(`
+          ALTER TABLE leads
+          ADD COLUMN customer_id TEXT
+        `);
+      }
+
+      if (!columnExists(database, "jobs", "customer_id")) {
+        database.exec(`
+          ALTER TABLE jobs
+          ADD COLUMN customer_id TEXT
+        `);
+      }
+
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_leads_customer_id ON leads(customer_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_customer_id ON jobs(customer_id);
+      `);
+    },
+  },
+  {
+    version: 9,
+    description: "Backfill customer records and links for existing leads and jobs.",
+    up(database) {
+      const existingCustomers = database.prepare(`
+        SELECT id, name, city
+        FROM customers
+        ORDER BY sort_index ASC
+      `).all();
+      const customerKeyToId = new Map(existingCustomers.map((customer) => [`${String(customer.name).toLowerCase()}::${String(customer.city || "").toLowerCase()}`, customer.id]));
+      const leads = database.prepare(`
+        SELECT id, customer, city, customer_id AS customerId
+        FROM leads
+        ORDER BY sort_index ASC
+      `).all();
+      const jobs = database.prepare(`
+        SELECT id, customer, customer_id AS customerId
+        FROM jobs
+        ORDER BY sort_index ASC
+      `).all();
+      const insertCustomer = database.prepare(`
+        INSERT INTO customers (id, sort_index, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const updateLeadCustomer = database.prepare(`
+        UPDATE leads
+        SET customer_id = ?
+        WHERE id = ?
+      `);
+      const updateJobCustomer = database.prepare(`
+        UPDATE jobs
+        SET customer_id = ?
+        WHERE id = ?
+      `);
+      let nextSortIndex = existingCustomers.length;
+      const now = isoNow();
+
+      function ensureBackfilledCustomer(name, city, status) {
+        const normalizedName = String(name || "").trim();
+        const normalizedCity = String(city || "").trim();
+        if (!normalizedName) {
+          return null;
+        }
+
+        const key = `${normalizedName.toLowerCase()}::${normalizedCity.toLowerCase()}`;
+        if (customerKeyToId.has(key)) {
+          return customerKeyToId.get(key);
+        }
+
+        const customerId = makeId("C");
+        insertCustomer.run(
+          customerId,
+          nextSortIndex,
+          normalizedName,
+          "",
+          "",
+          "",
+          normalizedCity,
+          normalizedCity,
+          status,
+          "",
+          now,
+          now,
+          null,
+        );
+        nextSortIndex += 1;
+        customerKeyToId.set(key, customerId);
+        return customerId;
+      }
+
+      leads.forEach((lead) => {
+        if (lead.customerId) return;
+        const customerId = ensureBackfilledCustomer(lead.customer, lead.city, "Prospect");
+        if (customerId) {
+          updateLeadCustomer.run(customerId, lead.id);
+        }
+      });
+
+      jobs.forEach((job) => {
+        if (job.customerId) return;
+        const matchingLead = leads.find((lead) => String(lead.customer).toLowerCase() === String(job.customer).toLowerCase());
+        const customerId = ensureBackfilledCustomer(job.customer, matchingLead?.city || "", "Active");
+        if (customerId) {
+          updateJobCustomer.run(customerId, job.id);
+        }
+      });
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -508,14 +665,19 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
+  const insertCustomer = database.prepare(`
+    INSERT INTO customers (id, sort_index, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, customer, city, project, status, priority, value, owner, age, next_step, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, age, next_step, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJob = database.prepare(`
-    INSERT INTO jobs (id, sort_index, job, customer, stage, crew, next_step, due, progress, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, sort_index, customer_id, job, customer, stage, crew, next_step, due, progress, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQueueItem = database.prepare(`
@@ -537,6 +699,7 @@ function writeStateToDb(state) {
     database.exec(`
       DELETE FROM sessions;
       DELETE FROM users;
+      DELETE FROM customers;
       DELETE FROM leads;
       DELETE FROM jobs;
       DELETE FROM queue_items;
@@ -559,12 +722,30 @@ function writeStateToDb(state) {
       );
     });
 
+    (state.customers || []).forEach((customer, index) => {
+      insertCustomer.run(
+        customer.id,
+        index,
+        customer.name,
+        customer.company || "",
+        customer.phone || "",
+        customer.email || "",
+        customer.city || "",
+        customer.serviceArea || "",
+        customer.status || "Prospect",
+        customer.notes || "",
+        customer.createdAt || isoNow(),
+        customer.updatedAt || customer.createdAt || isoNow(),
+        customer.archivedAt || null,
+      );
+    });
+
     state.leads.forEach((lead, index) => {
-      insertLead.run(lead.id, index, lead.customer, lead.city, lead.project, lead.status, lead.priority, Number(lead.value || 0), lead.owner, lead.age, lead.nextStep, lead.notes, lead.createdAt || isoNow(), lead.updatedAt || lead.createdAt || isoNow(), lead.archivedAt || null);
+      insertLead.run(lead.id, index, lead.customerId || null, lead.customer, lead.city, lead.project, lead.status, lead.priority, Number(lead.value || 0), lead.owner, lead.age, lead.nextStep, lead.notes, lead.createdAt || isoNow(), lead.updatedAt || lead.createdAt || isoNow(), lead.archivedAt || null);
     });
 
     state.jobs.forEach((job, index) => {
-      insertJob.run(job.id, index, job.job, job.customer, job.stage, job.crew, job.next, job.due, Number(job.progress || 0), job.notes, job.createdAt || isoNow(), job.updatedAt || job.createdAt || isoNow(), job.archivedAt || null);
+      insertJob.run(job.id, index, job.customerId || null, job.job, job.customer, job.stage, job.crew, job.next, job.due, Number(job.progress || 0), job.notes, job.createdAt || isoNow(), job.updatedAt || job.createdAt || isoNow(), job.archivedAt || null);
     });
 
     state.queueItems.forEach((item, index) => {
@@ -608,14 +789,20 @@ function readTableState() {
     ORDER BY created_at DESC
   `).all();
 
+  const customers = database.prepare(`
+    SELECT id, name, company, phone, email, city, service_area AS serviceArea, status, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM customers
+    ORDER BY sort_index ASC
+  `).all();
+
   const leads = database.prepare(`
-    SELECT id, customer, city, project, status, priority, value, owner, age, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, age, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM leads
     ORDER BY sort_index ASC
   `).all();
 
   const jobs = database.prepare(`
-    SELECT id, job, customer, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, job, customer, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
     ORDER BY sort_index ASC
   `).all();
@@ -641,7 +828,7 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, leads, jobs, queueItems, activity, auditEvents };
+  return { users, sessions, customers, leads, jobs, queueItems, activity, auditEvents };
 }
 
 async function loadInitialState() {

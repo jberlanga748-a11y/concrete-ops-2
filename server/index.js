@@ -32,10 +32,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const { port } = serverConfig;
+const CUSTOMER_STATUSES = new Set(["Prospect", "Active", "Inactive"]);
 const LEAD_PRIORITIES = new Set(["Low", "Normal", "High"]);
 const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]);
 const JOB_STAGES = new Set(["Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
+const CUSTOMER_MANAGE_ROLES = new Set(["administrator", "owner", "operations manager"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -86,6 +88,10 @@ function optionalString(value, fallback) {
   return normalized || fallback;
 }
 
+function normalizeLookup(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function requiredPassword(value, fieldName = "Password") {
   const normalized = requiredString(value, fieldName);
   if (normalized.length < 8) {
@@ -120,6 +126,11 @@ function optionalProgressNumber(value, fallback = 0) {
   return normalized;
 }
 
+function optionalEmail(value, fallback = "") {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized || fallback;
+}
+
 function findRequiredRecord(records, id, resourceName) {
   const record = records.find((entry) => entry.id === id);
   if (!record) {
@@ -128,10 +139,181 @@ function findRequiredRecord(records, id, resourceName) {
   return record;
 }
 
+function normalizeRole(role) {
+  return String(role ?? "").trim().toLowerCase();
+}
+
+function isCustomerManager(user) {
+  return CUSTOMER_MANAGE_ROLES.has(normalizeRole(user?.role));
+}
+
+function customerAssignmentIdsForUser(state, user) {
+  if (normalizeRole(user?.role) !== "foreman") {
+    return new Set();
+  }
+
+  return new Set(
+    state.jobs
+      .filter((job) => !job.archivedAt && job.assignedUserId === user.id && job.customerId)
+      .map((job) => job.customerId),
+  );
+}
+
+function customerPermissionsForUser(state, user) {
+  if (!user) {
+    return { canView: false, canManage: false };
+  }
+
+  if (isCustomerManager(user)) {
+    return { canView: true, canManage: true };
+  }
+
+  const assignmentIds = customerAssignmentIdsForUser(state, user);
+  return {
+    canView: assignmentIds.size > 0,
+    canManage: false,
+  };
+}
+
+function visibleCustomersForUser(state, user) {
+  if (!user) return [];
+  if (isCustomerManager(user)) {
+    return state.customers;
+  }
+
+  const assignmentIds = customerAssignmentIdsForUser(state, user);
+  return state.customers.filter((customer) => assignmentIds.has(customer.id));
+}
+
+function assertCanManageCustomers(user) {
+  if (!isCustomerManager(user)) {
+    throw new ApiError(403, "You do not have permission to manage customers.");
+  }
+}
+
 function assertArchived(record, resourceName) {
   if (!record.archivedAt) {
     throw new ApiError(409, `${resourceName} must be archived before it can be deleted.`);
   }
+}
+
+function customerLookupKey(name, city = "") {
+  return `${normalizeLookup(name)}::${normalizeLookup(city)}`;
+}
+
+function findMatchingCustomer(state, { name, city = "" }) {
+  const exactKey = customerLookupKey(name, city);
+  const exact = state.customers.find((customer) => customerLookupKey(customer.name, customer.city) === exactKey);
+  if (exact) return exact;
+  return state.customers.find((customer) => normalizeLookup(customer.name) === normalizeLookup(name));
+}
+
+function syncCustomerNameReferences(state, customer) {
+  state.leads.forEach((lead) => {
+    if (lead.customerId === customer.id) {
+      lead.customer = customer.name;
+    }
+  });
+
+  state.jobs.forEach((job) => {
+    if (job.customerId === customer.id) {
+      job.customer = customer.name;
+    }
+  });
+}
+
+function createCustomerShape(payload, fallbackStatus = "Prospect") {
+  const createdAt = new Date().toISOString();
+  return {
+    id: makeId("C"),
+    name: requiredString(payload.name, "Customer name"),
+    company: optionalString(payload.company, ""),
+    phone: optionalString(payload.phone, ""),
+    email: optionalEmail(payload.email, ""),
+    city: optionalString(payload.city, ""),
+    serviceArea: optionalString(payload.serviceArea, optionalString(payload.city, "")),
+    status: optionalEnum(payload.status, CUSTOMER_STATUSES, "Customer status", fallbackStatus),
+    notes: optionalString(payload.notes, ""),
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt: null,
+  };
+}
+
+function ensureCustomerRecord(state, payload, actor, { fallbackStatus = "Prospect" } = {}) {
+  const name = requiredString(payload.name, "Customer name");
+  const city = optionalString(payload.city, "");
+  const serviceArea = optionalString(payload.serviceArea, city);
+  const matchingCustomer = findMatchingCustomer(state, { name, city });
+
+  if (matchingCustomer) {
+    const changedFields = [];
+    const changedAt = new Date().toISOString();
+    const nextStatus = optionalEnum(payload.status, CUSTOMER_STATUSES, "Customer status", matchingCustomer.status || fallbackStatus);
+
+    if (!matchingCustomer.company && payload.company) {
+      matchingCustomer.company = optionalString(payload.company, "");
+      changedFields.push("company");
+    }
+    if (!matchingCustomer.phone && payload.phone) {
+      matchingCustomer.phone = optionalString(payload.phone, "");
+      changedFields.push("phone");
+    }
+    if (!matchingCustomer.email && payload.email) {
+      matchingCustomer.email = optionalEmail(payload.email, "");
+      changedFields.push("email");
+    }
+    if (!matchingCustomer.city && city) {
+      matchingCustomer.city = city;
+      changedFields.push("city");
+    }
+    if (!matchingCustomer.serviceArea && serviceArea) {
+      matchingCustomer.serviceArea = serviceArea;
+      changedFields.push("serviceArea");
+    }
+    if (matchingCustomer.status !== "Active" && nextStatus === "Active") {
+      matchingCustomer.status = "Active";
+      changedFields.push("status");
+    }
+    if (matchingCustomer.archivedAt) {
+      matchingCustomer.archivedAt = null;
+      changedFields.push("archivedAt");
+    }
+
+    if (changedFields.length > 0) {
+      markUpdated(matchingCustomer, changedAt);
+      appendAuditEvent(state, {
+        entityType: "customer",
+        entityId: matchingCustomer.id,
+        action: "updated",
+        summary: "Customer updated",
+        detail: `${matchingCustomer.name} details were refreshed from related work.`,
+        actor,
+        changedFields,
+      });
+    }
+
+    return matchingCustomer;
+  }
+
+  const customer = createCustomerShape({
+    ...payload,
+    name,
+    city,
+    serviceArea,
+    status: payload.status || fallbackStatus,
+  }, fallbackStatus);
+  state.customers.unshift(customer);
+  appendActivity(state, "Customer created", `${customer.name} was added to the customer workspace.`);
+  appendAuditEvent(state, {
+    entityType: "customer",
+    entityId: customer.id,
+    action: "created",
+    summary: "Customer created",
+    detail: `${customer.name} was added to the customer workspace.`,
+    actor,
+  });
+  return customer;
 }
 
 function markUpdated(record, changedAt = new Date().toISOString()) {
@@ -178,14 +360,19 @@ function statsFromState(state) {
 }
 
 function sanitizeBootstrap(state, user) {
+  const customerPermissions = customerPermissionsForUser(state, user);
   return {
     user: publicUser(user),
+    customers: visibleCustomersForUser(state, user),
     leads: state.leads,
     jobs: state.jobs,
     queueItems: state.queueItems,
     activity: state.activity,
     auditEvents: state.auditEvents,
     stats: statsFromState(state),
+    permissions: {
+      customers: customerPermissions,
+    },
   };
 }
 
@@ -441,11 +628,138 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
   res.json(sanitizeBootstrap(state, req.auth.user));
 }));
 
+app.post("/api/customers", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageCustomers(req.auth.user);
+  const payload = req.body || {};
+  const nextState = await updateDb((draft) => {
+    if (findMatchingCustomer(draft, { name: payload.name, city: payload.city })) {
+      throw new ApiError(409, "A customer with that name already exists.");
+    }
+
+    ensureCustomerRecord(draft, payload, req.auth.user);
+    return draft;
+  });
+
+  return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/customers/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageCustomers(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const changedFields = [];
+
+  const nextState = await updateDb((draft) => {
+    const customer = findRequiredRecord(draft.customers, id, "Customer");
+    const nextName = payload.name == null ? customer.name : requiredString(payload.name, "Customer name");
+    const nextCompany = payload.company == null ? customer.company : optionalString(payload.company, "");
+    const nextPhone = payload.phone == null ? customer.phone : optionalString(payload.phone, "");
+    const nextEmail = payload.email == null ? customer.email : optionalEmail(payload.email, "");
+    const nextCity = payload.city == null ? customer.city : optionalString(payload.city, "");
+    const nextServiceArea = payload.serviceArea == null ? customer.serviceArea : optionalString(payload.serviceArea, nextCity);
+    const nextStatus = payload.status == null ? customer.status : optionalEnum(payload.status, CUSTOMER_STATUSES, "Customer status", customer.status);
+    const nextNotes = payload.notes == null ? customer.notes : optionalString(payload.notes, "");
+
+    const conflict = draft.customers.find((entry) => entry.id !== id && customerLookupKey(entry.name, entry.city) === customerLookupKey(nextName, nextCity));
+    if (conflict) {
+      throw new ApiError(409, "A customer with that name already exists.");
+    }
+
+    if (customer.name !== nextName) changedFields.push("name");
+    if (customer.company !== nextCompany) changedFields.push("company");
+    if (customer.phone !== nextPhone) changedFields.push("phone");
+    if (customer.email !== nextEmail) changedFields.push("email");
+    if (customer.city !== nextCity) changedFields.push("city");
+    if (customer.serviceArea !== nextServiceArea) changedFields.push("serviceArea");
+    if (customer.status !== nextStatus) changedFields.push("status");
+    if (customer.notes !== nextNotes) changedFields.push("notes");
+
+    Object.assign(customer, {
+      name: nextName,
+      company: nextCompany,
+      phone: nextPhone,
+      email: nextEmail,
+      city: nextCity,
+      serviceArea: nextServiceArea,
+      status: nextStatus,
+      notes: nextNotes,
+    });
+    markUpdated(customer, changedAt);
+    syncCustomerNameReferences(draft, customer);
+
+    appendActivity(draft, "Customer updated", `${customer.name} details were updated.`);
+    appendAuditEvent(draft, {
+      entityType: "customer",
+      entityId: customer.id,
+      action: "updated",
+      summary: "Customer updated",
+      detail: `${customer.name} details were updated.`,
+      actor: req.auth.user,
+      changedFields,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/customers/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageCustomers(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const customer = findRequiredRecord(draft.customers, id, "Customer");
+    customer.archivedAt = changedAt;
+    markUpdated(customer, changedAt);
+    appendActivity(draft, "Customer archived", `${customer.name} was archived.`);
+    appendAuditEvent(draft, {
+      entityType: "customer",
+      entityId: customer.id,
+      action: "archived",
+      summary: "Customer archived",
+      detail: `${customer.name} was archived.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/customers/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageCustomers(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const customer = findRequiredRecord(draft.customers, id, "Customer");
+    customer.archivedAt = null;
+    markUpdated(customer, changedAt);
+    appendActivity(draft, "Customer restored", `${customer.name} was restored.`);
+    appendAuditEvent(draft, {
+      entityType: "customer",
+      entityId: customer.id,
+      action: "restored",
+      summary: "Customer restored",
+      detail: `${customer.name} was restored.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
 app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
   const createdAt = new Date().toISOString();
   const newLead = {
     id: makeId("L"),
+    customerId: "",
     customer: requiredString(payload.customer, "Customer"),
     city: requiredString(payload.city, "City"),
     project: requiredString(payload.project, "Project"),
@@ -461,6 +775,14 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   };
 
   const nextState = await updateDb((draft) => {
+    const customer = ensureCustomerRecord(draft, {
+      name: newLead.customer,
+      city: newLead.city,
+      serviceArea: newLead.city,
+      status: "Prospect",
+    }, req.auth.user, { fallbackStatus: "Prospect" });
+
+    newLead.customerId = customer.id;
     draft.leads.unshift(newLead);
     draft.queueItems.unshift({
       id: makeId("Q"),
@@ -552,6 +874,15 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
       nextStep: updates.nextStep == null ? lead.nextStep : requiredString(updates.nextStep, "Next step"),
       notes: updates.notes == null ? lead.notes : requiredString(updates.notes, "Notes"),
     });
+    if (!lead.customerId) {
+      const customer = ensureCustomerRecord(draft, {
+        name: lead.customer,
+        city: lead.city,
+        serviceArea: lead.city,
+        status: lead.status === "Approved" ? "Active" : "Prospect",
+      }, req.auth.user, { fallbackStatus: lead.status === "Approved" ? "Active" : "Prospect" });
+      lead.customerId = customer.id;
+    }
     markUpdated(lead, changedAt);
 
     appendActivity(draft, "Lead updated", `${lead.customer} details were updated.`);
@@ -598,9 +929,16 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const customer = ensureCustomerRecord(draft, {
+      name: lead.customer,
+      city: lead.city,
+      serviceArea: lead.city,
+      status: "Active",
+    }, req.auth.user, { fallbackStatus: "Active" });
 
     const newJob = {
       id: makeId("J"),
+      customerId: customer.id,
       job: leadProjectName(lead),
       customer: lead.customer,
       stage: "Scheduled",
@@ -614,6 +952,7 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
     };
 
     draft.jobs.unshift(newJob);
+    lead.customerId = customer.id;
     lead.status = "Approved";
     lead.nextStep = "Moved into job schedule";
     markUpdated(lead, changedAt);
@@ -646,6 +985,7 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   const createdAt = new Date().toISOString();
   const newJob = {
     id: makeId("J"),
+    customerId: "",
     job: requiredString(payload.job, "Job name"),
     customer: requiredString(payload.customer, "Customer"),
     stage: optionalEnum(payload.stage, JOB_STAGES, "Stage", "Scheduled"),
@@ -659,6 +999,13 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   };
 
   const nextState = await updateDb((draft) => {
+    const customer = ensureCustomerRecord(draft, {
+      name: newJob.customer,
+      city: optionalString(payload.city, ""),
+      serviceArea: optionalString(payload.serviceArea, optionalString(payload.city, "")),
+      status: "Active",
+    }, req.auth.user, { fallbackStatus: "Active" });
+    newJob.customerId = customer.id;
     draft.jobs.unshift(newJob);
     appendActivity(draft, "Job created", `${newJob.job} added for ${newJob.customer}.`);
     appendAuditEvent(draft, {
@@ -731,9 +1078,15 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    const nextCustomerName = updates.customer == null ? job.customer : requiredString(updates.customer, "Customer");
+    const customer = ensureCustomerRecord(draft, {
+      name: nextCustomerName,
+      status: "Active",
+    }, req.auth.user, { fallbackStatus: "Active" });
 
     Object.assign(job, {
-      customer: updates.customer == null ? job.customer : requiredString(updates.customer, "Customer"),
+      customerId: customer.id,
+      customer: nextCustomerName,
       crew: updates.crew == null ? job.crew : requiredString(updates.crew, "Crew"),
       stage: updates.stage == null ? job.stage : optionalEnum(updates.stage, JOB_STAGES, "Stage", job.stage),
       due: updates.due == null ? job.due : requiredString(updates.due, "Due"),

@@ -5,9 +5,68 @@ export const DEMO_CREDENTIALS = {
   role: "Operations Manager",
 };
 
+export const INITIAL_CUSTOMERS = [
+  {
+    id: "C-1001",
+    name: "Megan Carter",
+    company: "",
+    phone: "541-555-0148",
+    email: "megan.carter@example.test",
+    city: "Albany",
+    serviceArea: "Mid-Valley",
+    status: "Active",
+    notes: "Prefers text updates before crew arrival.",
+  },
+  {
+    id: "C-1002",
+    name: "Rob Jenkins",
+    company: "",
+    phone: "503-555-0187",
+    email: "rob.jenkins@example.test",
+    city: "Salem",
+    serviceArea: "Salem",
+    status: "Active",
+    notes: "Wants stamped finish samples with any proposal revision.",
+  },
+  {
+    id: "C-1003",
+    name: "Alicia Nguyen",
+    company: "",
+    phone: "541-555-0106",
+    email: "alicia.nguyen@example.test",
+    city: "Corvallis",
+    serviceArea: "Benton County",
+    status: "Prospect",
+    notes: "Best reached after 3 PM.",
+  },
+  {
+    id: "C-1004",
+    name: "Harris Auto",
+    company: "Harris Auto",
+    phone: "541-555-0119",
+    email: "facilities@harrisauto.example.test",
+    city: "Lebanon",
+    serviceArea: "East Valley",
+    status: "Active",
+    notes: "Commercial customer with trench drain and rebar requirements.",
+  },
+  {
+    id: "C-1005",
+    name: "C. Wallace",
+    company: "",
+    phone: "503-555-0162",
+    email: "c.wallace@example.test",
+    city: "Keizer",
+    serviceArea: "North Salem",
+    status: "Prospect",
+    notes: "Tight side-yard access noted during intake.",
+  },
+];
+
 export const INITIAL_LEADS = [
   {
     id: "L-1048",
+    customerId: "C-1001",
     customer: "Megan Carter",
     city: "Albany",
     project: "Driveway replacement",
@@ -21,6 +80,7 @@ export const INITIAL_LEADS = [
   },
   {
     id: "L-1047",
+    customerId: "C-1002",
     customer: "Rob Jenkins",
     city: "Salem",
     project: "Stamped patio",
@@ -34,6 +94,7 @@ export const INITIAL_LEADS = [
   },
   {
     id: "L-1046",
+    customerId: "C-1003",
     customer: "Alicia Nguyen",
     city: "Corvallis",
     project: "Walkway repair",
@@ -47,6 +108,7 @@ export const INITIAL_LEADS = [
   },
   {
     id: "L-1045",
+    customerId: "C-1004",
     customer: "Harris Auto",
     city: "Lebanon",
     project: "Shop slab",
@@ -60,6 +122,7 @@ export const INITIAL_LEADS = [
   },
   {
     id: "L-1044",
+    customerId: "C-1005",
     customer: "C. Wallace",
     city: "Keizer",
     project: "Concrete removal",
@@ -76,6 +139,7 @@ export const INITIAL_LEADS = [
 export const INITIAL_JOBS = [
   {
     id: "J-2201",
+    customerId: "C-1002",
     job: "North Salem Patio",
     customer: "Rob Jenkins",
     stage: "In Progress",
@@ -87,6 +151,7 @@ export const INITIAL_JOBS = [
   },
   {
     id: "J-2198",
+    customerId: "C-1001",
     job: "Carter Driveway",
     customer: "Megan Carter",
     stage: "Scheduled",
@@ -98,6 +163,7 @@ export const INITIAL_JOBS = [
   },
   {
     id: "J-2192",
+    customerId: "C-1004",
     job: "Lebanon Shop Pad",
     customer: "Harris Auto",
     stage: "Waiting",

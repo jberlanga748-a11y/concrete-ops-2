@@ -62,6 +62,22 @@ export function getBootstrap(token) {
   return request("/api/bootstrap", { token });
 }
 
+export function createCustomer(token, customer) {
+  return request("/api/customers", { method: "POST", token, body: customer });
+}
+
+export function updateCustomer(token, id, customer) {
+  return request(`/api/customers/${id}`, { method: "PATCH", token, body: customer });
+}
+
+export function archiveCustomer(token, id) {
+  return request(`/api/customers/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreCustomer(token, id) {
+  return request(`/api/customers/${id}/restore`, { method: "POST", token });
+}
+
 export function createLead(token, lead) {
   return request("/api/leads", { method: "POST", token, body: lead });
 }
