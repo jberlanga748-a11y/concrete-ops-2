@@ -118,6 +118,12 @@ function findRequiredRecord(records, id, resourceName) {
   return record;
 }
 
+function assertArchived(record, resourceName) {
+  if (!record.archivedAt) {
+    throw new ApiError(409, `${resourceName} must be archived before it can be deleted.`);
+  }
+}
+
 function markUpdated(record, changedAt = new Date().toISOString()) {
   if (!record.createdAt) {
     record.createdAt = changedAt;
@@ -139,13 +145,16 @@ function appendActivity(state, title, detail) {
 }
 
 function statsFromState(state) {
-  const newLeads = state.leads.filter((lead) => lead.status === "New").length;
-  const highPriorityLeads = state.leads.filter((lead) => lead.priority === "High").length;
-  const pipelineValue = state.leads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
-  const activeJobs = state.jobs.filter((job) => job.stage === "In Progress").length;
-  const scheduledJobs = state.jobs.filter((job) => job.stage === "Scheduled").length;
-  const reportsDue = state.queueItems.filter((item) => !item.done && item.status === "Due today").length;
-  const queueBlocked = state.queueItems.filter((item) => !item.done && item.status === "Blocked").length;
+  const liveLeads = state.leads.filter((lead) => !lead.archivedAt);
+  const liveJobs = state.jobs.filter((job) => !job.archivedAt);
+  const liveQueueItems = state.queueItems.filter((item) => !item.archivedAt);
+  const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
+  const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
+  const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
+  const activeJobs = liveJobs.filter((job) => job.stage === "In Progress").length;
+  const scheduledJobs = liveJobs.filter((job) => job.stage === "Scheduled").length;
+  const reportsDue = liveQueueItems.filter((item) => !item.done && item.status === "Due today").length;
+  const queueBlocked = liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length;
 
   return {
     newLeads,
@@ -401,6 +410,54 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+app.post("/api/leads/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    lead.archivedAt = changedAt;
+    markUpdated(lead, changedAt);
+    appendActivity(draft, "Lead archived", `${lead.customer} was archived.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "archived",
+      summary: "Lead archived",
+      detail: `${lead.customer} was archived.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/leads/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    lead.archivedAt = null;
+    markUpdated(lead, changedAt);
+    appendActivity(draft, "Lead restored", `${lead.customer} was restored.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "restored",
+      summary: "Lead restored",
+      detail: `${lead.customer} was restored.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
 app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
@@ -430,6 +487,28 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
       detail: `${lead.customer} details were updated.`,
       actor: req.auth.user,
       changedFields,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.delete("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+
+  const nextState = await updateDb((draft) => {
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    assertArchived(lead, "Lead");
+    draft.leads = draft.leads.filter((entry) => entry.id !== id);
+    appendActivity(draft, "Lead deleted", `${lead.customer} was permanently deleted.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "deleted",
+      summary: "Lead deleted",
+      detail: `${lead.customer} was permanently deleted.`,
+      actor: req.auth.user,
     });
     return draft;
   });
@@ -520,6 +599,54 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+app.post("/api/jobs/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    job.archivedAt = changedAt;
+    markUpdated(job, changedAt);
+    appendActivity(draft, "Job archived", `${job.job} was archived.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: "archived",
+      summary: "Job archived",
+      detail: `${job.job} was archived.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/jobs/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    job.archivedAt = null;
+    markUpdated(job, changedAt);
+    appendActivity(draft, "Job restored", `${job.job} was restored.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: "restored",
+      summary: "Job restored",
+      detail: `${job.job} was restored.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
 app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
@@ -549,6 +676,28 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
       detail: `${job.job} field details were updated.`,
       actor: req.auth.user,
       changedFields,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.delete("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+
+  const nextState = await updateDb((draft) => {
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    assertArchived(job, "Job");
+    draft.jobs = draft.jobs.filter((entry) => entry.id !== id);
+    appendActivity(draft, "Job deleted", `${job.job} was permanently deleted.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: "deleted",
+      summary: "Job deleted",
+      detail: `${job.job} was permanently deleted.`,
+      actor: req.auth.user,
     });
     return draft;
   });
@@ -586,6 +735,54 @@ app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
   return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
+app.post("/api/queue-items/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    task.archivedAt = changedAt;
+    markUpdated(task, changedAt);
+    appendActivity(draft, "Queue item archived", task.title);
+    appendAuditEvent(draft, {
+      entityType: "queueItem",
+      entityId: task.id,
+      action: "archived",
+      summary: "Queue item archived",
+      detail: task.title,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/queue-items/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    task.archivedAt = null;
+    markUpdated(task, changedAt);
+    appendActivity(draft, "Queue item restored", task.title);
+    appendAuditEvent(draft, {
+      entityType: "queueItem",
+      entityId: task.id,
+      action: "restored",
+      summary: "Queue item restored",
+      detail: task.title,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
 app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
   const changedAt = new Date().toISOString();
@@ -603,6 +800,28 @@ app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res
       detail: task.title,
       actor: req.auth.user,
       changedFields: ["done"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.delete("/api/queue-items/:id", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+
+  const nextState = await updateDb((draft) => {
+    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    assertArchived(task, "Queue item");
+    draft.queueItems = draft.queueItems.filter((entry) => entry.id !== id);
+    appendActivity(draft, "Queue item deleted", task.title);
+    appendAuditEvent(draft, {
+      entityType: "queueItem",
+      entityId: task.id,
+      action: "deleted",
+      summary: "Queue item deleted",
+      detail: task.title,
+      actor: req.auth.user,
     });
     return draft;
   });

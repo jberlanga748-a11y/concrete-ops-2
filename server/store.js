@@ -399,6 +399,22 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 6,
+    description: "Add archive support for operational records.",
+    up(database) {
+      const tables = ["leads", "jobs", "queue_items"];
+
+      for (const tableName of tables) {
+        if (!columnExists(database, tableName, "archived_at")) {
+          database.exec(`
+            ALTER TABLE ${tableName}
+            ADD COLUMN archived_at TEXT
+          `);
+        }
+      }
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -443,18 +459,18 @@ function writeStateToDb(state) {
   `);
 
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, customer, city, project, status, priority, value, owner, age, next_step, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, customer, city, project, status, priority, value, owner, age, next_step, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJob = database.prepare(`
-    INSERT INTO jobs (id, sort_index, job, customer, stage, crew, next_step, due, progress, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, sort_index, job, customer, stage, crew, next_step, due, progress, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQueueItem = database.prepare(`
-    INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertActivity = database.prepare(`
@@ -494,15 +510,15 @@ function writeStateToDb(state) {
     });
 
     state.leads.forEach((lead, index) => {
-      insertLead.run(lead.id, index, lead.customer, lead.city, lead.project, lead.status, lead.priority, Number(lead.value || 0), lead.owner, lead.age, lead.nextStep, lead.notes, lead.createdAt || isoNow(), lead.updatedAt || lead.createdAt || isoNow());
+      insertLead.run(lead.id, index, lead.customer, lead.city, lead.project, lead.status, lead.priority, Number(lead.value || 0), lead.owner, lead.age, lead.nextStep, lead.notes, lead.createdAt || isoNow(), lead.updatedAt || lead.createdAt || isoNow(), lead.archivedAt || null);
     });
 
     state.jobs.forEach((job, index) => {
-      insertJob.run(job.id, index, job.job, job.customer, job.stage, job.crew, job.next, job.due, Number(job.progress || 0), job.notes, job.createdAt || isoNow(), job.updatedAt || job.createdAt || isoNow());
+      insertJob.run(job.id, index, job.job, job.customer, job.stage, job.crew, job.next, job.due, Number(job.progress || 0), job.notes, job.createdAt || isoNow(), job.updatedAt || job.createdAt || isoNow(), job.archivedAt || null);
     });
 
     state.queueItems.forEach((item, index) => {
-      insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow());
+      insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
     });
 
     state.activity.forEach((item, index) => {
@@ -543,19 +559,19 @@ function readTableState() {
   `).all();
 
   const leads = database.prepare(`
-    SELECT id, customer, city, project, status, priority, value, owner, age, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, customer, city, project, status, priority, value, owner, age, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM leads
     ORDER BY sort_index ASC
   `).all();
 
   const jobs = database.prepare(`
-    SELECT id, job, customer, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, job, customer, stage, crew, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
     ORDER BY sort_index ASC
   `).all();
 
   const queueItems = database.prepare(`
-    SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM queue_items
     ORDER BY sort_index ASC
   `).all().map((item) => ({ ...item, done: Boolean(item.done) }));
@@ -627,14 +643,15 @@ export async function readDb() {
 }
 
 export function updateDb(mutator) {
-  writeChain = writeChain.then(async () => {
+  const runUpdate = writeChain.catch(() => undefined).then(async () => {
     const current = await readDb();
     const next = await mutator(structuredClone(current));
     writeStateToDb(next);
     return readTableState();
   });
 
-  return writeChain;
+  writeChain = runUpdate.then(() => undefined, () => undefined);
+  return runUpdate;
 }
 
 export async function resetDb() {

@@ -160,6 +160,40 @@ async function run() {
       throw new Error("Expected lead updates to capture changed fields in audit history.");
     }
 
+    await expectStatus(`/api/leads/${createdLead.id}`, 409, {
+      method: "DELETE",
+      headers,
+    });
+
+    await request(`/api/leads/${createdLead.id}/archive`, {
+      method: "POST",
+      headers,
+    });
+
+    const archived = await request("/api/bootstrap", { headers });
+    const archivedLead = archived.leads.find((lead) => lead.id === createdLead.id);
+    if (!archivedLead?.archivedAt) {
+      throw new Error("Expected archived leads to include archivedAt.");
+    }
+    const archiveAudit = archived.auditEvents.find((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "archived");
+    if (!archiveAudit) {
+      throw new Error("Expected lead archive to be captured in audit history.");
+    }
+
+    await request(`/api/leads/${createdLead.id}`, {
+      method: "DELETE",
+      headers,
+    });
+
+    const deleted = await request("/api/bootstrap", { headers });
+    if (deleted.leads.some((lead) => lead.id === createdLead.id)) {
+      throw new Error("Expected archived leads to be deletable.");
+    }
+    const deleteAudit = deleted.auditEvents.find((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "deleted");
+    if (!deleteAudit) {
+      throw new Error("Expected lead deletion to be captured in audit history.");
+    }
+
     await expectStatus("/api/leads", 400, {
       method: "POST",
       headers,

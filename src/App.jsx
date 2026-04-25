@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  archiveJob,
+  archiveLead,
+  archiveQueueItem,
   convertLead,
   createJob,
   createLead,
   createQueueItem,
+  deleteJob,
+  deleteLead,
+  deleteQueueItem,
   getBootstrap,
   getHealth,
   login,
   logout,
   resetWorkspace,
+  restoreJob,
+  restoreLead,
+  restoreQueueItem,
   toggleQueueItem,
   updateJob,
   updateLead,
@@ -377,6 +386,9 @@ function AuditActionBadge({ action }) {
     converted: "violet",
     completed: "green",
     reopened: "amber",
+    archived: "slate",
+    restored: "blue",
+    deleted: "red",
     reset: "red",
   };
 
@@ -649,33 +661,54 @@ function JobsTable({ rows, selectedId, onSelect }) {
   );
 }
 
-function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, disabled }) {
+function QueueList({ items, onToggleTask, onArchiveTask, onRestoreTask, onDeleteTask, taskDraft, setTaskDraft, onAddTask, disabled }) {
+  const activeItems = items.filter((item) => !item.archivedAt);
+  const archivedItems = items.filter((item) => item.archivedAt);
   return (
     <Card className="p-4">
       <SectionHeader title="Today's Queue" description="Only work that actually needs motion right now." />
       <div className="space-y-2">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onToggleTask(item.id)}
-            disabled={disabled}
-            className={`flex w-full items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${item.done ? "border-emerald-100 bg-emerald-50/60" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}
-          >
-            <div className="flex items-start gap-3">
-              <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${item.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-blue-200 bg-white text-transparent"}`}>
-                <Icon name="check" className="h-3.5 w-3.5" />
-              </span>
-              <div>
-                <p className={`text-sm font-black ${item.done ? "text-emerald-800 line-through" : "text-slate-950"}`}>{item.title}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
-                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Updated {formatDateTime(item.updatedAt)}</p>
-              </div>
+        {activeItems.map((item) => (
+          <div key={item.id} className={`rounded-2xl border p-3 transition ${item.done ? "border-emerald-100 bg-emerald-50/60" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+            <div className="flex items-start justify-between gap-3">
+              <button type="button" onClick={() => onToggleTask(item.id)} disabled={disabled} className="flex min-w-0 flex-1 items-start gap-3 text-left">
+                <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${item.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-blue-200 bg-white text-transparent"}`}>
+                  <Icon name="check" className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className={`text-sm font-black ${item.done ? "text-emerald-800 line-through" : "text-slate-950"}`}>{item.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Updated {formatDateTime(item.updatedAt)}</p>
+                </div>
+              </button>
+              <StatusBadge status={item.done ? "Done" : item.status} />
             </div>
-            <StatusBadge status={item.done ? "Done" : item.status} />
-          </button>
+            <div className="mt-3 flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => onArchiveTask(item.id)} disabled={disabled}>Archive</Button>
+            </div>
+          </div>
         ))}
       </div>
+      {archivedItems.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Archived queue</p>
+          {archivedItems.slice(0, 3).map((item) => (
+            <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-700">{item.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{item.meta}</p>
+                </div>
+                <Badge tone="slate">Archived</Badge>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => onRestoreTask(item.id)} disabled={disabled}>Restore</Button>
+                <Button variant="ghost" size="sm" onClick={() => onDeleteTask(item.id)} disabled={disabled}>Delete</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <form className="mt-4 grid gap-3" onSubmit={onAddTask}>
         <InputField label="Add queue item" value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send concrete order" />
         <InputField label="Context" value={taskDraft.meta} onChange={(event) => setTaskDraft((current) => ({ ...current, meta: event.target.value }))} placeholder="Job, customer, or blocker" />
@@ -696,7 +729,7 @@ function QueueList({ items, onToggleTask, taskDraft, setTaskDraft, onAddTask, di
   );
 }
 
-function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled, saveState }) {
+function LeadDetailPanel({ lead, onFieldChange, onCreateJob, onArchive, onRestore, onDelete, disabled, saveState }) {
   if (!lead) {
     return (
       <Card className="p-5">
@@ -712,10 +745,21 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled, saveState
         title={lead.customer}
         description={`${lead.id} · ${lead.city}`}
         action={
-          <Button size="sm" onClick={onCreateJob} disabled={disabled}>
-            <Icon name="arrowUpRight" />
-            Create job
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {lead.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+            <Button size="sm" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt)}>
+              <Icon name="arrowUpRight" />
+              Create job
+            </Button>
+            {lead.archivedAt ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
+                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled}>Delete</Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+            )}
+          </div>
         }
       />
       <SaveStateText saveState={saveState} />
@@ -747,7 +791,7 @@ function LeadDetailPanel({ lead, onFieldChange, onCreateJob, disabled, saveState
   );
 }
 
-function JobDetailPanel({ job, onFieldChange, saveState }) {
+function JobDetailPanel({ job, onFieldChange, onArchive, onRestore, onDelete, saveState, disabled }) {
   if (!job) {
     return (
       <Card className="p-5">
@@ -759,7 +803,23 @@ function JobDetailPanel({ job, onFieldChange, saveState }) {
 
   return (
     <Card className="p-5">
-      <SectionHeader title={job.job} description={`${job.id} · ${job.customer}`} />
+      <SectionHeader
+        title={job.job}
+        description={`${job.id} · ${job.customer}`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            {job.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+            {job.archivedAt ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
+                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled}>Delete</Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button>
+            )}
+          </div>
+        }
+      />
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={job.createdAt} updatedAt={job.updatedAt} />
@@ -918,11 +978,17 @@ function DashboardPage({
   selectedLead,
   onLeadFieldChange,
   onCreateJobFromLead,
+  onArchiveLead,
+  onRestoreLead,
+  onDeleteLead,
   leadSaveState,
   taskDraft,
   setTaskDraft,
   onAddTask,
   onToggleTask,
+  onArchiveTask,
+  onRestoreTask,
+  onDeleteTask,
   setActive,
   busy,
 }) {
@@ -933,15 +999,16 @@ function DashboardPage({
   ));
 
   const visibleLeads = leads.filter((lead) => {
-    const matchesFilter = leadFilter === "All" || lead.status === leadFilter;
+    const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
+    const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
     const searchValue = leadSearch.toLowerCase();
     const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(searchValue));
-    return matchesFilter && matchesSearch;
+    return matchesArchive && matchesFilter && matchesSearch;
   });
 
   const kpis = [
     { label: "Leads needing review", value: `${stats.newLeads}`, helper: `${stats.highPriorityLeads} high priority`, icon: "inbox" },
-    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${leads.length} active opportunities`, icon: "quote" },
+    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${leads.filter((lead) => !lead.archivedAt).length} active opportunities`, icon: "quote" },
     { label: "Jobs active today", value: `${stats.activeJobs}`, helper: `${stats.scheduledJobs} scheduled next`, icon: "briefcase" },
     { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
   ];
@@ -967,18 +1034,18 @@ function DashboardPage({
             <div className="p-4">
               <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
             </div>
-            <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
+            <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
             <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
           </Card>
           <div className="space-y-4">
-            <QueueList items={queueItems.slice(0, 5)} onToggleTask={onToggleTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} saveState={leadSaveState} />
+            <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} disabled={busy} saveState={leadSaveState} />
           </div>
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card className="overflow-hidden">
             <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
-            <JobsTable rows={jobs.slice(0, 5)} selectedId={null} onSelect={() => setActive("jobs")} />
+            <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={null} onSelect={() => setActive("jobs")} />
           </Card>
           <ActivityPanel activity={activity} />
         </div>
@@ -987,36 +1054,36 @@ function DashboardPage({
   );
 }
 
-function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, busy, leadSaveState }) {
+function LeadsPage({ rows, filter, setFilter, search, setSearch, selectedLeadId, onSelectLead, selectedLead, onLeadFieldChange, leadDraft, setLeadDraft, onCreateLead, onCreateJobFromLead, onArchiveLead, onRestoreLead, onDeleteLead, busy, leadSaveState }) {
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
-          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
+          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
           <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
         </Card>
         <div className="space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} disabled={busy} saveState={leadSaveState} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} disabled={busy} saveState={leadSaveState} />
         </div>
       </div>
     </div>
   );
 }
 
-function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, busy, jobSaveState }) {
+function JobsPage({ rows, filter, setFilter, search, setSearch, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, jobDraft, setJobDraft, onCreateJob, onArchiveJob, onRestoreJob, onDeleteJob, busy, jobSaveState }) {
   return (
     <div>
       <PageHeader eyebrow="Field Ops" title="Jobs" description="Create jobs from scratch or from approved leads, then keep field progress and next-step accountability current through the API." actions={<Badge tone="violet">{rows.length} active jobs</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
-          <FilterBar filters={["All", "Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, crew..." />
+          <FilterBar filters={["All", "Scheduled", "In Progress", "Waiting", "Ready to Bill", "Complete", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, crew..." />
           <JobsTable rows={rows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
         <div className="space-y-4">
           <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy} />
-          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} saveState={jobSaveState} />
+          <JobDetailPanel job={selectedJob} onFieldChange={onJobFieldChange} onArchive={onArchiveJob} onRestore={onRestoreJob} onDelete={onDeleteJob} saveState={jobSaveState} disabled={busy} />
         </div>
       </div>
     </div>
@@ -1351,6 +1418,17 @@ export default function App() {
     });
   }
 
+  function resetRecordAutosave(kind, recordId) {
+    clearAutosaveTimer(kind);
+    autosaveVersionsRef.current[kind].delete(recordId);
+    pendingAutosavePatchesRef.current[kind].delete(recordId);
+    setSaveState(kind, {
+      id: recordId,
+      status: "idle",
+      message: "Autosave ready",
+    });
+  }
+
   function clearSession() {
     resetAutosaveState();
     window.localStorage.removeItem(SESSION_TOKEN_KEY);
@@ -1425,29 +1503,34 @@ export default function App() {
   const visibleLeads = useMemo(() => {
     const query = leadSearch.toLowerCase();
     return appState.leads.filter((lead) => {
-      const matchesFilter = leadFilter === "All" || lead.status === leadFilter;
+      const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
+      const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
       const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(query));
-      return matchesFilter && matchesSearch;
+      return matchesArchive && matchesFilter && matchesSearch;
     });
   }, [appState.leads, leadFilter, leadSearch]);
 
   const visibleJobs = useMemo(() => {
     const query = jobSearch.toLowerCase();
     return appState.jobs.filter((job) => {
-      const matchesFilter = jobFilter === "All" || job.stage === jobFilter;
+      const matchesArchive = jobFilter === "Archived" ? Boolean(job.archivedAt) : !job.archivedAt;
+      const matchesFilter = jobFilter === "All" || jobFilter === "Archived" ? true : job.stage === jobFilter;
       const matchesSearch = [job.job, job.customer, job.crew, job.next].some((value) => value.toLowerCase().includes(query));
-      return matchesFilter && matchesSearch;
+      return matchesArchive && matchesFilter && matchesSearch;
     });
   }, [appState.jobs, jobFilter, jobSearch]);
 
   const stats = useMemo(() => {
-    const newLeads = appState.leads.filter((lead) => lead.status === "New").length;
-    const highPriorityLeads = appState.leads.filter((lead) => lead.priority === "High").length;
-    const pipelineValue = appState.leads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
-    const activeJobs = appState.jobs.filter((job) => job.stage === "In Progress").length;
-    const scheduledJobs = appState.jobs.filter((job) => job.stage === "Scheduled").length;
-    const reportsDue = appState.queueItems.filter((item) => !item.done && item.status === "Due today").length;
-    const queueBlocked = appState.queueItems.filter((item) => !item.done && item.status === "Blocked").length;
+    const liveLeads = appState.leads.filter((lead) => !lead.archivedAt);
+    const liveJobs = appState.jobs.filter((job) => !job.archivedAt);
+    const liveQueueItems = appState.queueItems.filter((item) => !item.archivedAt);
+    const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
+    const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
+    const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
+    const activeJobs = liveJobs.filter((job) => job.stage === "In Progress").length;
+    const scheduledJobs = liveJobs.filter((job) => job.stage === "Scheduled").length;
+    const reportsDue = liveQueueItems.filter((item) => !item.done && item.status === "Due today").length;
+    const queueBlocked = liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length;
     return {
       newLeads,
       highPriorityLeads,
@@ -1469,8 +1552,8 @@ export default function App() {
   }, [recordSaveState.job, recordSaveState.lead]);
 
   const counts = {
-    leads: appState.leads.length,
-    jobs: appState.jobs.length,
+    leads: appState.leads.filter((lead) => !lead.archivedAt).length,
+    jobs: appState.jobs.filter((job) => !job.archivedAt).length,
     reports: stats.reportsDue || null,
     copilot: 1,
   };
@@ -1641,6 +1724,56 @@ export default function App() {
     runMutation(() => toggleQueueItem(sessionToken, taskId));
   }
 
+  function handleArchiveLead() {
+    if (!selectedLead) return;
+    resetRecordAutosave("lead", selectedLead.id);
+    runMutation(() => archiveLead(sessionToken, selectedLead.id));
+  }
+
+  function handleRestoreLead() {
+    if (!selectedLead) return;
+    resetRecordAutosave("lead", selectedLead.id);
+    runMutation(() => restoreLead(sessionToken, selectedLead.id));
+  }
+
+  function handleDeleteLead() {
+    if (!selectedLead || !window.confirm(`Delete ${selectedLead.customer} permanently? This cannot be undone.`)) return;
+    resetRecordAutosave("lead", selectedLead.id);
+    runMutation(() => deleteLead(sessionToken, selectedLead.id));
+  }
+
+  function handleArchiveJob() {
+    if (!selectedJob) return;
+    resetRecordAutosave("job", selectedJob.id);
+    runMutation(() => archiveJob(sessionToken, selectedJob.id));
+  }
+
+  function handleRestoreJob() {
+    if (!selectedJob) return;
+    resetRecordAutosave("job", selectedJob.id);
+    runMutation(() => restoreJob(sessionToken, selectedJob.id));
+  }
+
+  function handleDeleteJob() {
+    if (!selectedJob || !window.confirm(`Delete ${selectedJob.job} permanently? This cannot be undone.`)) return;
+    resetRecordAutosave("job", selectedJob.id);
+    runMutation(() => deleteJob(sessionToken, selectedJob.id));
+  }
+
+  function handleArchiveTask(taskId) {
+    runMutation(() => archiveQueueItem(sessionToken, taskId));
+  }
+
+  function handleRestoreTask(taskId) {
+    runMutation(() => restoreQueueItem(sessionToken, taskId));
+  }
+
+  function handleDeleteTask(taskId) {
+    const task = appState.queueItems.find((item) => item.id === taskId);
+    if (!task || !window.confirm(`Delete "${task.title}" permanently? This cannot be undone.`)) return;
+    runMutation(() => deleteQueueItem(sessionToken, taskId));
+  }
+
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
@@ -1688,6 +1821,9 @@ export default function App() {
               selectedLead={selectedLead}
               onLeadFieldChange={handleLeadFieldChange}
               leadSaveState={leadSaveState}
+              onArchiveLead={handleArchiveLead}
+              onRestoreLead={handleRestoreLead}
+              onDeleteLead={handleDeleteLead}
               leadDraft={leadDraft}
               setLeadDraft={setLeadDraft}
               onCreateLead={handleCreateLead}
@@ -1697,6 +1833,9 @@ export default function App() {
               selectedJob={selectedJob}
               onJobFieldChange={handleJobFieldChange}
               jobSaveState={jobSaveState}
+              onArchiveJob={handleArchiveJob}
+              onRestoreJob={handleRestoreJob}
+              onDeleteJob={handleDeleteJob}
               jobDraft={jobDraft}
               setJobDraft={setJobDraft}
               onCreateJob={handleCreateJob}
@@ -1704,6 +1843,9 @@ export default function App() {
               setTaskDraft={setTaskDraft}
               onAddTask={handleAddTask}
               onToggleTask={handleToggleTask}
+              onArchiveTask={handleArchiveTask}
+              onRestoreTask={handleRestoreTask}
+              onDeleteTask={handleDeleteTask}
               visibleLeads={visibleLeads}
               visibleJobs={visibleJobs}
               onReset={handleReset}

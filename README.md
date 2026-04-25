@@ -83,6 +83,8 @@ Leads, jobs, queue items, and activity entries now also carry `createdAt` and `u
 
 The workspace also keeps a durable audit history for record creates, updates, conversions, queue toggles, and demo resets, and surfaces the latest entries in the Settings screen.
 
+Leads, jobs, and queue items now support archive-first deletion: records can be archived from the UI, restored if needed, and only permanently deleted after they have been archived, with each lifecycle step recorded in audit history.
+
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 
 Demo sessions now use rolling expiration and are cleaned up when they expire.

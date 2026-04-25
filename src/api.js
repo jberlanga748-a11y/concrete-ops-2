@@ -62,6 +62,18 @@ export function updateLead(token, id, lead) {
   return request(`/api/leads/${id}`, { method: "PATCH", token, body: lead });
 }
 
+export function archiveLead(token, id) {
+  return request(`/api/leads/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreLead(token, id) {
+  return request(`/api/leads/${id}/restore`, { method: "POST", token });
+}
+
+export function deleteLead(token, id) {
+  return request(`/api/leads/${id}`, { method: "DELETE", token });
+}
+
 export function convertLead(token, id) {
   return request(`/api/leads/${id}/convert`, { method: "POST", token });
 }
@@ -74,8 +86,32 @@ export function updateJob(token, id, job) {
   return request(`/api/jobs/${id}`, { method: "PATCH", token, body: job });
 }
 
+export function archiveJob(token, id) {
+  return request(`/api/jobs/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreJob(token, id) {
+  return request(`/api/jobs/${id}/restore`, { method: "POST", token });
+}
+
+export function deleteJob(token, id) {
+  return request(`/api/jobs/${id}`, { method: "DELETE", token });
+}
+
 export function createQueueItem(token, task) {
   return request("/api/queue-items", { method: "POST", token, body: task });
+}
+
+export function archiveQueueItem(token, id) {
+  return request(`/api/queue-items/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreQueueItem(token, id) {
+  return request(`/api/queue-items/${id}/restore`, { method: "POST", token });
+}
+
+export function deleteQueueItem(token, id) {
+  return request(`/api/queue-items/${id}`, { method: "DELETE", token });
 }
 
 export function toggleQueueItem(token, id) {
