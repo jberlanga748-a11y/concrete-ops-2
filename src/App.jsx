@@ -28,6 +28,24 @@ const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
+const MODULE_PATHS = {
+  dashboard: "/",
+  leads: "/leads",
+  jobs: "/jobs",
+  time: "/time",
+  reports: "/reports",
+  uploads: "/uploads",
+  customers: "/customers",
+  estimates: "/estimates",
+  changeOrders: "/changeOrders",
+  incidents: "/incidents",
+  toolbox: "/toolbox",
+  ppe: "/ppe",
+  calculator: "/calculator",
+  copilot: "/copilot",
+  design: "/design",
+  settings: "/settings",
+};
 
 const TOKENS = {
   colors: [
@@ -154,6 +172,43 @@ function currency(value) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(Number(value) || 0);
+}
+
+function normalizePathname(pathname = "/") {
+  const prefixed = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return prefixed.length > 1 && prefixed.endsWith("/") ? prefixed.slice(0, -1) : prefixed;
+}
+
+function getModulePath(active) {
+  return MODULE_PATHS[active] || `/${active}`;
+}
+
+function buildLeadPath(id) {
+  return `/leads/${encodeURIComponent(id)}`;
+}
+
+function buildJobPath(id) {
+  return `/jobs/${encodeURIComponent(id)}`;
+}
+
+function parseAppPath(pathname) {
+  const normalized = normalizePathname(pathname);
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (segments[0] === "leads" && segments[1]) {
+    return { active: "leads", leadId: decodeURIComponent(segments[1]), jobId: "" };
+  }
+
+  if (segments[0] === "jobs" && segments[1]) {
+    return { active: "jobs", leadId: "", jobId: decodeURIComponent(segments[1]) };
+  }
+
+  const exactMatch = Object.entries(MODULE_PATHS).find(([, path]) => path === normalized);
+  return {
+    active: exactMatch?.[0] || "dashboard",
+    leadId: "",
+    jobId: "",
+  };
 }
 
 function formatDateTime(value) {
@@ -975,6 +1030,8 @@ function DashboardPage({
   setLeadSearch,
   selectedLeadId,
   onSelectLead,
+  selectedJobId,
+  onSelectJob,
   selectedLead,
   onLeadFieldChange,
   onCreateJobFromLead,
@@ -1045,7 +1102,7 @@ function DashboardPage({
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card className="overflow-hidden">
             <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
-            <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={null} onSelect={() => setActive("jobs")} />
+            <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={selectedJobId} onSelect={onSelectJob} />
           </Card>
           <ActivityPanel activity={activity} />
         </div>
@@ -1322,7 +1379,7 @@ function MainContent(props) {
 }
 
 export default function App() {
-  const [active, setActive] = useState("dashboard");
+  const [pathname, setPathname] = useState(() => normalizePathname(window.location.pathname));
   const [sessionToken, setSessionToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) || "");
   const [authStatus, setAuthStatus] = useState(sessionToken ? "checking" : "loggedOut");
   const [appState, setAppState] = useState(EMPTY_APP_STATE);
@@ -1347,6 +1404,34 @@ export default function App() {
   const autosaveTimeoutsRef = useRef({ lead: null, job: null });
   const autosaveVersionsRef = useRef({ lead: new Map(), job: new Map() });
   const pendingAutosavePatchesRef = useRef({ lead: new Map(), job: new Map() });
+  const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
+  const active = routeState.active;
+
+  function navigateTo(nextPath, { replace = false } = {}) {
+    const normalized = normalizePathname(nextPath);
+    if (window.location.pathname !== normalized) {
+      if (replace) {
+        window.history.replaceState({}, "", normalized);
+      } else {
+        window.history.pushState({}, "", normalized);
+      }
+    }
+    setPathname(normalized);
+  }
+
+  function setActive(nextActive) {
+    navigateTo(getModulePath(nextActive));
+  }
+
+  function navigateToLead(id) {
+    setSelectedLeadId(id);
+    navigateTo(buildLeadPath(id));
+  }
+
+  function navigateToJob(id) {
+    setSelectedJobId(id);
+    navigateTo(buildJobPath(id));
+  }
 
   function applyBootstrap(nextState) {
     setAppState({
@@ -1445,6 +1530,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    function handlePopState() {
+      setPathname(normalizePathname(window.location.pathname));
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function checkHealth() {
@@ -1486,14 +1582,48 @@ export default function App() {
   }, [sessionToken]);
 
   useEffect(() => {
-    if (!selectedLeadId && appState.leads[0]) setSelectedLeadId(appState.leads[0].id);
-    if (selectedLeadId && !appState.leads.some((lead) => lead.id === selectedLeadId) && appState.leads[0]) setSelectedLeadId(appState.leads[0].id);
-  }, [appState.leads, selectedLeadId]);
+    if (authStatus !== "authenticated") return;
+
+    const fallbackLeadId = appState.leads[0]?.id || "";
+
+    if (routeState.leadId) {
+      if (!appState.leads.some((lead) => lead.id === routeState.leadId)) {
+        setSelectedLeadId(fallbackLeadId);
+        navigateTo(getModulePath("leads"), { replace: true });
+        return;
+      }
+
+      if (selectedLeadId !== routeState.leadId) {
+        setSelectedLeadId(routeState.leadId);
+      }
+      return;
+    }
+
+    if (!selectedLeadId && fallbackLeadId) setSelectedLeadId(fallbackLeadId);
+    if (selectedLeadId && !appState.leads.some((lead) => lead.id === selectedLeadId)) setSelectedLeadId(fallbackLeadId);
+  }, [appState.leads, authStatus, routeState.leadId, selectedLeadId]);
 
   useEffect(() => {
-    if (!selectedJobId && appState.jobs[0]) setSelectedJobId(appState.jobs[0].id);
-    if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId) && appState.jobs[0]) setSelectedJobId(appState.jobs[0].id);
-  }, [appState.jobs, selectedJobId]);
+    if (authStatus !== "authenticated") return;
+
+    const fallbackJobId = appState.jobs[0]?.id || "";
+
+    if (routeState.jobId) {
+      if (!appState.jobs.some((job) => job.id === routeState.jobId)) {
+        setSelectedJobId(fallbackJobId);
+        navigateTo(getModulePath("jobs"), { replace: true });
+        return;
+      }
+
+      if (selectedJobId !== routeState.jobId) {
+        setSelectedJobId(routeState.jobId);
+      }
+      return;
+    }
+
+    if (!selectedJobId && fallbackJobId) setSelectedJobId(fallbackJobId);
+    if (selectedJobId && !appState.jobs.some((job) => job.id === selectedJobId)) setSelectedJobId(fallbackJobId);
+  }, [appState.jobs, authStatus, routeState.jobId, selectedJobId]);
 
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
@@ -1686,8 +1816,13 @@ export default function App() {
 
   function handleCreateLead(event) {
     event.preventDefault();
+    const existingLeadIds = new Set(appState.leads.map((lead) => lead.id));
     runMutation(async () => {
       const nextState = await createLead(sessionToken, leadDraft);
+      const createdLead = nextState.leads.find((lead) => !existingLeadIds.has(lead.id));
+      if (createdLead) {
+        navigateToLead(createdLead.id);
+      }
       setLeadDraft(INITIAL_LEAD_FORM);
       return nextState;
     });
@@ -1695,8 +1830,13 @@ export default function App() {
 
   function handleCreateJob(event) {
     event.preventDefault();
+    const existingJobIds = new Set(appState.jobs.map((job) => job.id));
     runMutation(async () => {
       const nextState = await createJob(sessionToken, jobDraft);
+      const createdJob = nextState.jobs.find((job) => !existingJobIds.has(job.id));
+      if (createdJob) {
+        navigateToJob(createdJob.id);
+      }
       setJobDraft(INITIAL_JOB_FORM);
       return nextState;
     });
@@ -1704,9 +1844,15 @@ export default function App() {
 
   function handleCreateJobFromLead() {
     if (!selectedLead) return;
+    const existingJobIds = new Set(appState.jobs.map((job) => job.id));
     runMutation(async () => {
       const nextState = await convertLead(sessionToken, selectedLead.id);
-      setActive("jobs");
+      const createdJob = nextState.jobs.find((job) => !existingJobIds.has(job.id));
+      if (createdJob) {
+        navigateToJob(createdJob.id);
+      } else {
+        setActive("jobs");
+      }
       return nextState;
     });
   }
@@ -1817,7 +1963,7 @@ export default function App() {
               jobSearch={jobSearch}
               setJobSearch={setJobSearch}
               selectedLeadId={selectedLeadId}
-              onSelectLead={setSelectedLeadId}
+              onSelectLead={navigateToLead}
               selectedLead={selectedLead}
               onLeadFieldChange={handleLeadFieldChange}
               leadSaveState={leadSaveState}
@@ -1829,7 +1975,7 @@ export default function App() {
               onCreateLead={handleCreateLead}
               onCreateJobFromLead={handleCreateJobFromLead}
               selectedJobId={selectedJobId}
-              onSelectJob={setSelectedJobId}
+              onSelectJob={navigateToJob}
               selectedJob={selectedJob}
               onJobFieldChange={handleJobFieldChange}
               jobSaveState={jobSaveState}

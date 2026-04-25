@@ -16,6 +16,7 @@ import {
   getDataPaths,
   hashToken,
   leadProjectName,
+  makeActivityId,
   makeAuditId,
   makeId,
   publicUser,
@@ -134,7 +135,7 @@ function markUpdated(record, changedAt = new Date().toISOString()) {
 function appendActivity(state, title, detail) {
   const createdAt = new Date().toISOString();
   state.activity.unshift({
-    id: makeId("A"),
+    id: makeActivityId(),
     time: timestamp(),
     title,
     detail,

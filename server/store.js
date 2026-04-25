@@ -65,6 +65,10 @@ export function makeId(prefix) {
   return `${prefix}-${Math.floor(Date.now() / 1000).toString().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
 }
 
+export function makeActivityId() {
+  return `A-${crypto.randomUUID()}`;
+}
+
 export function makeAuditId(suffix = crypto.randomUUID()) {
   return `AU-${suffix}`;
 }

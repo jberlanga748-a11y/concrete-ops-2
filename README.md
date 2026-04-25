@@ -85,6 +85,8 @@ The workspace also keeps a durable audit history for record creates, updates, co
 
 Leads, jobs, and queue items now support archive-first deletion: records can be archived from the UI, restored if needed, and only permanently deleted after they have been archived, with each lifecycle step recorded in audit history.
 
+Lead and job detail views now use durable browser URLs like `/leads/:id` and `/jobs/:id`, so selected records survive refreshes and can be opened directly as long as the app is running through the bundled Node server.
+
 The SQLite store includes schema version tracking so future backend changes can be applied through migrations instead of one-off rewrites.
 
 Demo sessions now use rolling expiration and are cleaned up when they expire.
