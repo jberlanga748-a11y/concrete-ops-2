@@ -1170,7 +1170,8 @@ const MIGRATIONS = [
           id TEXT PRIMARY KEY,
           sort_index INTEGER NOT NULL,
           user_id TEXT NOT NULL,
-          job_id TEXT NOT NULL,
+          job_id TEXT,
+          work_category TEXT NOT NULL DEFAULT 'job',
           clock_in_at TEXT NOT NULL,
           clock_out_at TEXT,
           break_start_at TEXT,
@@ -1187,6 +1188,82 @@ const MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_time_entries_user_id ON time_entries(user_id);
         CREATE INDEX IF NOT EXISTS idx_time_entries_job_id ON time_entries(job_id);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_work_category ON time_entries(work_category);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_status ON time_entries(status);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_sort_index ON time_entries(sort_index);
+      `);
+    },
+  },
+  {
+    version: 18,
+    description: "Add work category to time entries.",
+    up(database) {
+      const columns = database.prepare(`PRAGMA table_info(time_entries)`).all();
+      const hasWorkCategory = columns.some((column) => column.name === "work_category");
+      if (!hasWorkCategory) {
+        database.exec(`
+          ALTER TABLE time_entries ADD COLUMN work_category TEXT NOT NULL DEFAULT 'job';
+          CREATE INDEX IF NOT EXISTS idx_time_entries_work_category ON time_entries(work_category);
+        `);
+      }
+    },
+  },
+  {
+    version: 19,
+    description: "Allow non-job time entries without a job id.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE time_entries_v19 (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          user_id TEXT NOT NULL,
+          job_id TEXT,
+          work_category TEXT NOT NULL DEFAULT 'job',
+          clock_in_at TEXT NOT NULL,
+          clock_out_at TEXT,
+          break_start_at TEXT,
+          break_end_at TEXT,
+          total_minutes INTEGER NOT NULL DEFAULT 0,
+          break_minutes INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+        );
+      `);
+
+      database.exec(`
+        INSERT INTO time_entries_v19 (
+          id, sort_index, user_id, job_id, work_category, clock_in_at, clock_out_at,
+          break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at
+        )
+        SELECT
+          id,
+          sort_index,
+          user_id,
+          NULLIF(job_id, ''),
+          COALESCE(work_category, 'job'),
+          clock_in_at,
+          clock_out_at,
+          break_start_at,
+          break_end_at,
+          total_minutes,
+          break_minutes,
+          status,
+          notes,
+          created_at,
+          updated_at
+        FROM time_entries;
+      `);
+
+      database.exec(`
+        DROP TABLE time_entries;
+        ALTER TABLE time_entries_v19 RENAME TO time_entries;
+        CREATE INDEX IF NOT EXISTS idx_time_entries_user_id ON time_entries(user_id);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_job_id ON time_entries(job_id);
+        CREATE INDEX IF NOT EXISTS idx_time_entries_work_category ON time_entries(work_category);
         CREATE INDEX IF NOT EXISTS idx_time_entries_status ON time_entries(status);
         CREATE INDEX IF NOT EXISTS idx_time_entries_sort_index ON time_entries(sort_index);
       `);
@@ -1261,8 +1338,8 @@ function writeStateToDb(state) {
   `);
 
   const insertTimeEntry = database.prepare(`
-    INSERT INTO time_entries (id, sort_index, user_id, job_id, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO time_entries (id, sort_index, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQueueItem = database.prepare(`
@@ -1438,7 +1515,8 @@ function writeStateToDb(state) {
         entry.id,
         index,
         entry.userId,
-        entry.jobId,
+        entry.jobId || null,
+        entry.workCategory || "job",
         entry.clockInAt,
         entry.clockOutAt || null,
         entry.breakStartAt || null,
@@ -1529,7 +1607,7 @@ function readTableState() {
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
   const timeEntries = database.prepare(`
-    SELECT id, user_id AS userId, job_id AS jobId, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
+    SELECT id, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
            break_minutes AS breakMinutes, status, notes, created_at AS createdAt, updated_at AS updatedAt
     FROM time_entries

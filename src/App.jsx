@@ -47,7 +47,7 @@ import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspa
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
-import { deriveTimeWorkspace, findActiveTimeEntry, formatMinutes, timeStatusTone } from "./time-utils";
+import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -158,6 +158,7 @@ const EMPTY_APP_STATE = {
       canViewCrew: false,
       canViewAll: false,
       canCorrect: false,
+      allowedCategories: [],
     },
     safety: {
       canView: false,
@@ -319,6 +320,8 @@ const INITIAL_SETUP_FORM = {
 };
 
 const INITIAL_TIME_CORRECTION_FORM = {
+  workCategory: "job",
+  jobId: "",
   clockInAt: "",
   clockOutAt: "",
   breakStartAt: "",
@@ -1653,15 +1656,27 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   );
 }
 
-function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, busy, permissions, setActive }) {
+function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
   const workspace = useMemo(() => deriveForemanWorkspace(rows, user?.id), [rows, user?.id]);
   const focusJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob;
+  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, rows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, rows, timeEntries, user?.id]);
 
   return (
     <div>
       <PageHeader eyebrow="Field Workspace" title="My Crew" description="Assigned jobs, upcoming planning work, and safe crew details without office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="space-y-4">
+          <ActiveTimeCard
+            activeEntry={timeWorkspace.activeEntry}
+            availableJobs={timeWorkspace.availableJobs}
+            allowedCategories={timeWorkspace.allowedCategories}
+            onClockIn={onClockIn}
+            onClockOut={onClockOut}
+            onStartBreak={onStartBreak}
+            onEndBreak={onEndBreak}
+            disabled={busy}
+            description="Clock your own assigned or field-visible work without exposing payroll or pricing data."
+          />
           <Card className="p-5">
             <SectionHeader title="Assigned jobs" description="These are the jobs you are currently responsible for in the field." />
             {workspace.assignedJobs.length > 0 ? (
@@ -1696,7 +1711,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
 function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, busy }) {
   const workspace = useMemo(() => deriveEmployeeWorkspace(rows, user?.id), [rows, user?.id]);
   const fallbackJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || rows[0] || null;
-  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id), [timeEntries, user?.id, workspace.assignedJobs]);
+  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
 
   return (
     <div>
@@ -1735,13 +1750,80 @@ function TimeStatusBadge({ status }) {
   return <Badge tone={timeStatusTone(status)}>{status === "on_break" ? "On Break" : status === "completed" ? "Completed" : "Active"}</Badge>;
 }
 
+function workCategoryLabel(workCategory = "") {
+  const labels = {
+    job: "Job",
+    office_admin: "Office/Admin",
+    estimating: "Estimating",
+    lead_follow_up: "Lead Follow-up",
+    shop_yard: "Shop/Yard",
+    travel: "Travel",
+    training: "Training",
+    meeting: "Meeting",
+    maintenance: "Maintenance",
+    other: "Other",
+  };
+
+  return labels[workCategory] || "Other";
+}
+
+function WeekSummaryCard({ summary, title = "This Week", description, accent = "blue" }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader title={title} description={description} action={summary.activeEntry ? <TimeStatusBadge status={summary.activeEntry.status} /> : null} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Worked</p>
+          <p className="mt-2 text-xl font-black text-slate-950">{formatMinutes(summary.totalMinutes)}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Breaks</p>
+          <p className="mt-2 text-xl font-black text-slate-950">{formatMinutes(summary.breakMinutes)}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Categories</p>
+          <p className="mt-2 text-xl font-black text-slate-950">{summary.groupedBreakdown.length}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-blue-100 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Daily breakdown</p>
+          <div className="mt-3 space-y-2">
+            {summary.dayBreakdown.map((day) => (
+              <div key={day.label} className="flex items-center justify-between text-sm">
+                <span className="font-bold text-slate-600">{day.label}</span>
+                <span className="font-black text-slate-950">{day.minutes ? formatMinutes(day.minutes) : "No time yet"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-blue-100 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Job / category breakdown</p>
+          {summary.groupedBreakdown.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">No time logged this week yet.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {summary.groupedBreakdown.map((group) => (
+                <div key={group.label} className="flex items-center justify-between text-sm">
+                  <span className="font-bold text-slate-600">{group.label}</span>
+                  <span className="font-black text-slate-950">{formatMinutes(group.minutes)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function TimeEntryCard({ entry, showUser = false, compact = false }) {
   return (
     <div className="rounded-2xl border border-blue-100 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-slate-950">{entry.jobTitle || entry.jobId}</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{entry.address || "Jobsite details pending"}</p>
+          <p className="text-sm font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{entry.workCategory === "job" ? (entry.address || "Jobsite details pending") : workCategoryLabel(entry.workCategory)}</p>
           {showUser ? <p className="mt-1 text-xs font-bold text-slate-500">{entry.userName}</p> : null}
         </div>
         <TimeStatusBadge status={entry.status} />
@@ -1761,6 +1843,7 @@ function TimeEntryCard({ entry, showUser = false, compact = false }) {
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
+        <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
         <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
         {entry.scheduledStart ? <Badge tone="blue">{formatDateTime(entry.scheduledStart)}</Badge> : null}
       </div>
@@ -1769,15 +1852,23 @@ function TimeEntryCard({ entry, showUser = false, compact = false }) {
   );
 }
 
-function ActiveTimeCard({ activeEntry, availableJobs, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled }) {
+function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories." }) {
+  const defaultCategory = allowedCategories[0] || "job";
+  const [workCategory, setWorkCategory] = useState(defaultCategory);
   const [jobId, setJobId] = useState(availableJobs[0]?.id || "");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (activeEntry) return;
+    if (workCategory !== "job") return;
     if (availableJobs.some((job) => job.id === jobId)) return;
     setJobId(availableJobs[0]?.id || "");
-  }, [activeEntry, availableJobs, jobId]);
+  }, [activeEntry, availableJobs, jobId, workCategory]);
+
+  useEffect(() => {
+    if (allowedCategories.includes(workCategory)) return;
+    setWorkCategory(defaultCategory);
+  }, [allowedCategories, defaultCategory, workCategory]);
 
   if (activeEntry) {
     return (
@@ -1798,24 +1889,33 @@ function ActiveTimeCard({ activeEntry, availableJobs, onClockIn, onClockOut, onS
 
   return (
     <Card className="p-5">
-      <SectionHeader title="Clock in" description="Start time on one of your assigned jobs. Contact office if the right job is missing." />
-      {availableJobs.length === 0 ? (
-        <StateCard title="No assigned jobs yet" description="Contact office if you expected a job to be assigned to you today." tone="slate" />
+      <SectionHeader title="Clock in" description={description} />
+      {allowedCategories.length === 0 ? (
+        <StateCard title="Clock-in not available" description="This role is not set up for self time tracking right now." tone="slate" />
       ) : (
         <form
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!jobId) return;
-            onClockIn({ jobId, notes });
+            if (workCategory === "job" && !jobId) return;
+            onClockIn({ workCategory, jobId: workCategory === "job" ? jobId : "", notes });
             setNotes("");
           }}
         >
-          <SelectField label="Assigned job" value={jobId} onChange={(event) => setJobId(event.target.value)}>
-            {availableJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+          <SelectField label="Work category" value={workCategory} onChange={(event) => setWorkCategory(event.target.value)}>
+            {allowedCategories.map((category) => <option key={category} value={category}>{workCategoryLabel(category)}</option>)}
           </SelectField>
+          {workCategory === "job" ? (
+            availableJobs.length === 0 ? (
+              <StateCard title="No job options yet" description="Contact office if the right assigned job is missing." tone="slate" />
+            ) : (
+              <SelectField label="Job" value={jobId} onChange={(event) => setJobId(event.target.value)}>
+                {availableJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+              </SelectField>
+            )
+          ) : null}
           <TextAreaField label="Clock-in note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional note for the office or foreman." />
-          <Button type="submit" disabled={disabled || !jobId}>
+          <Button type="submit" disabled={disabled || (workCategory === "job" && !jobId)}>
             <Icon name="clock" />
             Clock in
           </Button>
@@ -1831,7 +1931,7 @@ function TimeEntriesTable({ rows, selectedId, onSelect }) {
       <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
         <tr>
           <th className="px-4 py-3">User</th>
-          <th className="px-4 py-3">Job</th>
+          <th className="px-4 py-3">Work</th>
           <th className="px-4 py-3">Clock in</th>
           <th className="px-4 py-3">Clock out</th>
           <th className="px-4 py-3">Break</th>
@@ -1848,7 +1948,10 @@ function TimeEntriesTable({ rows, selectedId, onSelect }) {
                 <p className="font-black text-slate-950">{entry.userName}</p>
                 <p className="text-xs font-bold text-slate-500">{entry.userRole || "Field user"}</p>
               </td>
-              <td className="px-4 py-3 text-sm font-bold text-slate-700">{entry.jobTitle || entry.jobId}</td>
+              <td className="px-4 py-3">
+                <p className="text-sm font-bold text-slate-700">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+                <p className="text-xs font-bold text-slate-500">{workCategoryLabel(entry.workCategory)}</p>
+              </td>
               <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatDateTime(entry.clockInAt)}</td>
               <td className="px-4 py-3 text-sm font-bold text-slate-700">{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still active"}</td>
               <td className="px-4 py-3 text-sm font-bold text-slate-700">{formatMinutes(entry.breakMinutes)}</td>
@@ -1876,6 +1979,14 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
     <Card className="p-5">
       <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} · ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
       <div className="grid gap-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Work category" value={draft.workCategory} onChange={(event) => setDraft((current) => ({ ...current, workCategory: event.target.value }))} disabled={!canCorrect || disabled}>
+            {["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"].map((category) => (
+              <option key={category} value={category}>{workCategoryLabel(category)}</option>
+            ))}
+          </SelectField>
+          <InputField label="Job ID" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))} disabled={!canCorrect || disabled} />
+        </div>
         <div className="grid gap-3 md:grid-cols-2">
           <InputField label="Clock in" type="datetime-local" value={draft.clockInAt} onChange={(event) => setDraft((current) => ({ ...current, clockInAt: event.target.value }))} disabled={!canCorrect || disabled} />
           <InputField label="Clock out" type="datetime-local" value={draft.clockOutAt} onChange={(event) => setDraft((current) => ({ ...current, clockOutAt: event.target.value }))} disabled={!canCorrect || disabled} />
@@ -1912,18 +2023,36 @@ function TimePage({
   onEndBreak,
   busy,
 }) {
-  const workspace = useMemo(() => deriveTimeWorkspace(rows, jobs, user?.id), [jobs, rows, user?.id]);
+  const workspace = useMemo(() => deriveTimeWorkspace(rows, jobs, user?.id, permissions.time.allowedCategories || []), [jobs, permissions.time.allowedCategories, rows, user?.id]);
   const activeEntry = workspace.activeEntry;
+  const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(rows, { excludeUserId: user?.id }), [rows, user?.id]);
 
   if (permissions.time.canViewAll) {
     return (
       <div>
         <PageHeader eyebrow="Time" title="Time Entries" description="Review all field time entries and correct timestamps when needed." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
         <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-          <Card className="overflow-hidden">
-            <div className="p-4"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
-            {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
-          </Card>
+          <div className="space-y-4">
+            {permissions.time.canManageOwn ? (
+              <ActiveTimeCard
+                activeEntry={activeEntry}
+                availableJobs={workspace.availableJobs}
+                allowedCategories={workspace.allowedCategories}
+                onClockIn={onClockIn}
+                onClockOut={onClockOut}
+                onStartBreak={onStartBreak}
+                onEndBreak={onEndBreak}
+                disabled={busy}
+                description="Clock your own office or field work while keeping payroll data out of this workspace."
+              />
+            ) : null}
+            <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours only." />
+            <WeekSummaryCard summary={deriveCrewWeeklySummary(rows)} title="All Visible Time This Week" description="Role-scoped weekly totals across the time entries you are allowed to view." />
+            <Card className="overflow-hidden">
+              <div className="p-4"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
+              {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
+            </Card>
+          </div>
           <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} />
         </div>
       </div>
@@ -1935,6 +2064,19 @@ function TimePage({
       <div>
         <PageHeader eyebrow="Field Time" title="Crew Time" description="Assigned crew time only, without payroll, rates, or office-only business data." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
         <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+          <ActiveTimeCard
+            activeEntry={activeEntry}
+            availableJobs={workspace.availableJobs}
+            allowedCategories={workspace.allowedCategories}
+            onClockIn={onClockIn}
+            onClockOut={onClockOut}
+            onStartBreak={onStartBreak}
+            onEndBreak={onEndBreak}
+            disabled={busy}
+            description="Clock your own assigned or field-visible work, plus approved non-job categories."
+          />
+          <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your personal weekly hours and categories." />
+          <WeekSummaryCard summary={crewWeeklySummary} title="Crew This Week" description={`Assigned-job crew totals${crewWeeklySummary.activeUserCount ? ` · ${crewWeeklySummary.activeUserCount} active` : ""}.`} />
           {rows.length === 0 ? (
             <StateCard title="No crew time yet" description="Crew time will appear here once assigned field users clock into your jobs." tone="slate" />
           ) : (
@@ -1954,22 +2096,26 @@ function TimePage({
         <ActiveTimeCard
           activeEntry={activeEntry}
           availableJobs={workspace.availableJobs}
+          allowedCategories={workspace.allowedCategories}
           onClockIn={onClockIn}
           onClockOut={onClockOut}
           onStartBreak={onStartBreak}
           onEndBreak={onEndBreak}
           disabled={busy}
         />
-        <Card className="p-5">
-          <SectionHeader title="Recent entries" description="Only your own time entries are visible here." />
-          {workspace.sortedEntries.length === 0 ? (
-            <StateCard title="No time entries yet" description="Clock in on an assigned job to start your first time entry." tone="slate" />
-          ) : (
-            <div className="space-y-3">
-              {workspace.sortedEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} compact />)}
-            </div>
-          )}
-        </Card>
+        <div className="space-y-4">
+          <WeekSummaryCard summary={workspace.weeklySummary} description="Your current-week hours, breaks, and work breakdown." />
+          <Card className="p-5">
+            <SectionHeader title="Recent entries" description="Only your own time entries are visible here." />
+            {workspace.sortedEntries.length === 0 ? (
+              <StateCard title="No time entries yet" description="Clock in on an allowed job or work category to start your first time entry." tone="slate" />
+            ) : (
+              <div className="space-y-3">
+                {workspace.sortedEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} compact />)}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -2641,6 +2787,11 @@ function JobsPage({
         busy={busy}
         permissions={permissions}
         setActive={setActive}
+        timeEntries={timeEntries}
+        onClockIn={onClockIn}
+        onClockOut={onClockOut}
+        onStartBreak={onStartBreak}
+        onEndBreak={onEndBreak}
       />
     );
   }
@@ -3576,6 +3727,8 @@ export default function App() {
     }
 
     setTimeEditDraft({
+      workCategory: selectedTimeEntry.workCategory || "job",
+      jobId: selectedTimeEntry.jobId || "",
       clockInAt: toDateTimeInputValue(selectedTimeEntry.clockInAt),
       clockOutAt: toDateTimeInputValue(selectedTimeEntry.clockOutAt),
       breakStartAt: toDateTimeInputValue(selectedTimeEntry.breakStartAt),

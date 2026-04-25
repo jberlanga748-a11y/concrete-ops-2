@@ -102,12 +102,23 @@ function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
     const insertUser = database.prepare(`
-      INSERT INTO users (id, email, name, role, password_hash)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const user of users) {
-      insertUser.run(user.id, user.email, user.name, user.role, user.passwordHash);
+      insertUser.run(
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.phone || "",
+        user.status || "active",
+        user.createdAt || new Date().toISOString(),
+        user.updatedAt || user.createdAt || new Date().toISOString(),
+        user.lastLoginAt || null,
+        user.passwordHash,
+      );
     }
   } finally {
     database.close();
@@ -129,7 +140,7 @@ function configureJobs(sqliteFile) {
   }
 }
 
-test("employees can track their own time on assigned jobs and foremen plus office get scoped visibility", async () => {
+test("employees and foremen can track field time with proper visibility and break handling", async () => {
   const fixture = await startServer();
 
   try {
@@ -207,15 +218,35 @@ test("employees can track their own time on assigned jobs and foremen plus offic
       method: "POST",
       headers: employeeHeaders,
       body: JSON.stringify({
+        workCategory: "job",
         jobId: "J-2192",
       }),
     });
     assert.equal(deniedClockIn.response.status, 403);
 
+    const missingJob = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+      }),
+    });
+    assert.equal(missingJob.response.status, 400);
+
+    const wrongCategory = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        workCategory: "travel",
+      }),
+    });
+    assert.equal(wrongCategory.response.status, 403);
+
     const clockedInState = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
       method: "POST",
       headers: employeeHeaders,
       body: JSON.stringify({
+        workCategory: "job",
         jobId: "J-2201",
         notes: "Started on site prep",
       }),
@@ -224,11 +255,13 @@ test("employees can track their own time on assigned jobs and foremen plus offic
     assert.ok(activeEntry);
     assert.equal(activeEntry.status, "active");
     assert.equal(activeEntry.jobId, "J-2201");
+    assert.equal(activeEntry.workCategory, "job");
 
     const duplicateClockIn = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
       method: "POST",
       headers: employeeHeaders,
       body: JSON.stringify({
+        workCategory: "job",
         jobId: "J-2201",
       }),
     });
@@ -254,8 +287,8 @@ test("employees can track their own time on assigned jobs and foremen plus offic
     });
     const completedEntry = clockedOutState.timeEntries.find((entry) => entry.id === activeEntry.id);
     assert.equal(completedEntry.status, "completed");
-    assert.ok(typeof completedEntry.totalMinutes === "number");
-    assert.ok(typeof completedEntry.breakMinutes === "number");
+    assert.ok(completedEntry.totalMinutes >= 0);
+    assert.ok(completedEntry.breakMinutes >= 0);
 
     const employeeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
       headers: employeeHeaders,
@@ -277,39 +310,242 @@ test("employees can track their own time on assigned jobs and foremen plus offic
       email: "time-foreman@lastyard.test",
       password: "concrete123",
     });
-    const foremanTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
-      headers: authHeaders(foremanLogin.token),
+    const foremanHeaders = authHeaders(foremanLogin.token);
+    const foremanOwnClock = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: foremanHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2198",
+      }),
     });
-    assert.equal(foremanTime.timeEntries.length, 1);
-    assert.equal(foremanTime.timeEntries[0].userId, employeeUser.id);
+    const foremanOwnEntry = foremanOwnClock.timeEntries.find((entry) => entry.userId === foremanUser.id);
+    assert.ok(foremanOwnEntry);
+
+    const foremanTravel = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: authHeaders(secondEmployeeLogin.token),
+      body: JSON.stringify({
+        workCategory: "travel",
+      }),
+    });
+    assert.equal(foremanTravel.response.status, 403);
+
+    const foremanTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
+      headers: foremanHeaders,
+    });
+    assert.equal(foremanTime.timeEntries.some((entry) => entry.userId === employeeUser.id), true);
+    assert.equal(foremanTime.timeEntries.some((entry) => entry.userId === foremanUser.id), true);
     assert.equal("payRate" in foremanTime.timeEntries[0], false);
     assert.equal("grossPay" in foremanTime.timeEntries[0], false);
 
     const foremanCorrectDenied = await requestJson(fixture.baseUrl, `/api/time-entries/${activeEntry.id}`, {
       method: "PATCH",
-      headers: authHeaders(foremanLogin.token),
+      headers: foremanHeaders,
       body: JSON.stringify({
         notes: "Trying to change office-only time data",
       }),
     });
     assert.equal(foremanCorrectDenied.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
 
-    const correctedState = await assertOk(fixture.baseUrl, `/api/time-entries/${activeEntry.id}`, {
-      method: "PATCH",
+test("estimators, operations, administrators, and owners get the expected role-scoped time access", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerUser = createUserRecord({
+      id: "U-TIME-OWNER",
+      email: "time-owner@lastyard.test",
+      password: "concrete123",
+      name: "Time Owner",
+      role: "Owner",
+    });
+    const adminUser = createUserRecord({
+      id: "U-TIME-ADMIN",
+      email: "time-admin@lastyard.test",
+      password: "concrete123",
+      name: "Time Admin",
+      role: "Administrator",
+    });
+    const opsUser = createUserRecord({
+      id: "U-TIME-OPS",
+      email: "time-ops@lastyard.test",
+      password: "concrete123",
+      name: "Time Ops",
+      role: "Operations Manager",
+    });
+    const estimatorUser = createUserRecord({
+      id: "U-TIME-EST",
+      email: "time-estimator@lastyard.test",
+      password: "concrete123",
+      name: "Time Estimator",
+      role: "Estimator",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-TIME-EMPLOYEE-OFFICE",
+      email: "time-employee-office@lastyard.test",
+      password: "concrete123",
+      name: "Time Employee Office",
+      role: "Employee",
+    });
+
+    insertUsers(fixture.sqliteFile, [ownerUser, adminUser, opsUser, estimatorUser, employeeUser]);
+    configureJobs(fixture.sqliteFile);
+
+    const officeLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const officeHeaders = authHeaders(officeLogin.token);
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
       headers: officeHeaders,
       body: JSON.stringify({
-        notes: "Adjusted by office",
+        userId: employeeUser.id,
+        roleOnJob: "crew",
       }),
     });
-    const correctedEntry = correctedState.timeEntries.find((entry) => entry.id === activeEntry.id);
-    assert.equal(correctedEntry.notes, "Adjusted by office");
+
+    const estimatorLogin = await login(fixture.baseUrl, {
+      email: "time-estimator@lastyard.test",
+      password: "concrete123",
+    });
+    const estimatorHeaders = authHeaders(estimatorLogin.token);
+    const estimatorClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: estimatorHeaders,
+      body: JSON.stringify({
+        workCategory: "estimating",
+        notes: "Proposal review",
+      }),
+    });
+    const estimatorEntry = estimatorClockIn.timeEntries.find((entry) => entry.userId === estimatorUser.id);
+    assert.equal(estimatorEntry.workCategory, "estimating");
+    assert.equal(estimatorEntry.jobId, "");
+
+    const estimatorLeadFollowUp = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: estimatorHeaders,
+      body: JSON.stringify({
+        workCategory: "lead_follow_up",
+      }),
+    });
+    assert.equal(estimatorLeadFollowUp.response.status, 409);
+
+    await assertOk(fixture.baseUrl, `/api/time-entries/${estimatorEntry.id}/clock-out`, {
+      method: "POST",
+      headers: estimatorHeaders,
+    });
+
+    const estimatorAllTimeDenied = await requestJson(fixture.baseUrl, "/api/users", {
+      headers: estimatorHeaders,
+    });
+    assert.equal(estimatorAllTimeDenied.response.status, 403);
+
+    const opsLogin = await login(fixture.baseUrl, {
+      email: "time-ops@lastyard.test",
+      password: "concrete123",
+    });
+    const opsHeaders = authHeaders(opsLogin.token);
+    const opsClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: opsHeaders,
+      body: JSON.stringify({
+        workCategory: "office_admin",
+      }),
+    });
+    const opsEntry = opsClockIn.timeEntries.find((entry) => entry.userId === opsUser.id);
+    assert.equal(opsEntry.workCategory, "office_admin");
+    assert.equal(opsEntry.jobId, "");
+
+    const opsInvalidCategory = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: opsHeaders,
+      body: JSON.stringify({
+        workCategory: "estimating",
+      }),
+    });
+    assert.equal(opsInvalidCategory.response.status, 409);
+
+    await assertOk(fixture.baseUrl, `/api/time-entries/${opsEntry.id}/clock-out`, {
+      method: "POST",
+      headers: opsHeaders,
+    });
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "time-admin@lastyard.test",
+      password: "concrete123",
+    });
+    const adminHeaders = authHeaders(adminLogin.token);
+    const adminClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        workCategory: "meeting",
+      }),
+    });
+    const adminEntry = adminClockIn.timeEntries.find((entry) => entry.userId === adminUser.id);
+    assert.equal(adminEntry.workCategory, "meeting");
+
+    await assertOk(fixture.baseUrl, `/api/time-entries/${adminEntry.id}/clock-out`, {
+      method: "POST",
+      headers: adminHeaders,
+    });
+
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: "time-employee-office@lastyard.test",
+      password: "concrete123",
+    });
+    const employeeHeaders = authHeaders(employeeLogin.token);
+    const employeeClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2201",
+      }),
+    });
+    const employeeEntry = employeeClockIn.timeEntries.find((entry) => entry.userId === employeeUser.id);
+
+    const adminAllTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
+      headers: adminHeaders,
+    });
+    assert.equal(adminAllTime.timeEntries.length >= 4, true);
+
+    const correctedState = await assertOk(fixture.baseUrl, `/api/time-entries/${employeeEntry.id}`, {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        workCategory: "job",
+        jobId: "J-2201",
+        notes: "Corrected by admin",
+      }),
+    });
+    const correctedEntry = correctedState.timeEntries.find((entry) => entry.id === employeeEntry.id);
+    assert.equal(correctedEntry.notes, "Corrected by admin");
     assert.ok(correctedState.auditEvents.some((event) => event.entityType === "timeEntry" && event.action === "corrected"));
 
-    const officeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
-      headers: officeHeaders,
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "time-owner@lastyard.test",
+      password: "concrete123",
     });
-    assert.equal(officeTime.timeEntries.length, 1);
-    assert.equal(officeTime.timeEntries[0].userId, employeeUser.id);
+    const ownerHeaders = authHeaders(ownerLogin.token);
+    const ownerClockDenied = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        workCategory: "meeting",
+      }),
+    });
+    assert.equal(ownerClockDenied.response.status, 403);
+
+    const ownerAllTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
+      headers: ownerHeaders,
+    });
+    assert.equal(ownerAllTime.timeEntries.length >= 4, true);
   } finally {
     await fixture.stop();
   }

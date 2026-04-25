@@ -95,7 +95,7 @@ export function canViewCrewTime(user) {
 }
 
 export function canManageOwnTime(user) {
-  return isEmployee(user);
+  return isAdministrator(user) || isOperationsManager(user) || isEstimator(user) || isForeman(user) || isEmployee(user);
 }
 
 export function canCreateJobs(user) {
@@ -204,7 +204,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   if (isOwner(user) || isAdministrator(user) || isOperationsManager(user)) {
     ["dashboard", "leads", "customers", "estimates", "jobs", "time", "reports", "uploads", "changeOrders", "employees", "incidents", "toolbox", "ppe", "calculator", "settings", "copilot"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEstimator(user)) {
-    ["dashboard", "leads", "customers", "estimates", "jobs", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {
     ["jobs", "time", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEmployee(user)) {

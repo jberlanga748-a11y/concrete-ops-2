@@ -29,6 +29,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canManageUsers(owner), true);
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
+  assert.equal(canManageOwnTime(owner), false);
 });
 
 test("operations manager can manage users and see employees module", () => {
@@ -42,6 +43,7 @@ test("operations manager can manage users and see employees module", () => {
 
 test("estimator gets sales access without settings access", () => {
   const estimator = { role: "Estimator" };
+  const modules = getAllowedModuleIds(estimator, { toolChecklistEnabled: true });
 
   assert.equal(canViewLeads(estimator), true);
   assert.equal(canManageLeads(estimator), true);
@@ -49,6 +51,8 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageCustomers(estimator), true);
   assert.equal(canViewEstimates(estimator), true);
   assert.equal(canManageEstimates(estimator), true);
+  assert.equal(canManageOwnTime(estimator), true);
+  assert.equal(modules.has("time"), true);
   assert.equal(canViewSettings(estimator), false);
 });
 

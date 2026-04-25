@@ -64,6 +64,7 @@ import {
   isEstimator,
   isForeman,
   isOfficeManager,
+  isOperationsManager,
   isOwner,
 } from "../shared/permissions.js";
 
@@ -81,6 +82,7 @@ const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Rep
 const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
+const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -219,6 +221,14 @@ function optionalTimeEntryStatus(value, fallback = "active") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!TIME_ENTRY_STATUSES.has(normalized)) {
     throw new ApiError(400, `Time entry status must be one of: ${Array.from(TIME_ENTRY_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalWorkCategory(value, fallback = "job") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!TIME_WORK_CATEGORIES.has(normalized)) {
+    throw new ApiError(400, `Work category must be one of: ${Array.from(TIME_WORK_CATEGORIES).join(", ")}.`);
   }
   return normalized;
 }
@@ -457,7 +467,36 @@ function timePermissionsForUser(user) {
     canViewCrew: canViewCrewTime(user),
     canViewAll: canViewAllTime(user),
     canCorrect: canCorrectTimeEntries(user),
+    allowedCategories: Array.from(allowedSelfTimeCategories(user)),
   };
+}
+
+function allowedSelfTimeCategories(user) {
+  if (isEmployee(user)) {
+    return new Set(["job"]);
+  }
+
+  if (isForeman(user)) {
+    return new Set(["job", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
+  }
+
+  if (isEstimator(user)) {
+    return new Set(["estimating", "lead_follow_up", "meeting", "travel", "other"]);
+  }
+
+  if (isOperationsManager(user)) {
+    return new Set(["office_admin", "meeting", "training", "other"]);
+  }
+
+  if (isAdministrator(user)) {
+    return new Set(TIME_WORK_CATEGORIES);
+  }
+
+  return new Set();
+}
+
+function canUseSelfTimeCategory(user, workCategory) {
+  return allowedSelfTimeCategories(user).has(workCategory);
 }
 
 function assertCanViewTimeEntries(user) {
@@ -564,6 +603,38 @@ function applyTimeEntryTotals(entry) {
   return entry;
 }
 
+function assertTimeEntryCategoryPayload(user, workCategory, job) {
+  if (!canUseSelfTimeCategory(user, workCategory)) {
+    throw new ApiError(403, "You do not have permission to clock time in that work category.");
+  }
+
+  if (workCategory === "job") {
+    if (!job) {
+      throw new ApiError(400, "A job is required when work category is job.");
+    }
+
+    if (isEmployee(user)) {
+      if (!canViewJob(job, user)) {
+        throw new ApiError(403, "You can only clock time against an assigned job.");
+      }
+      return;
+    }
+
+    if (isForeman(user)) {
+      if (!canViewJob(job, user)) {
+        throw new ApiError(403, "You can only clock time against an assigned or field-visible job.");
+      }
+      return;
+    }
+
+    return;
+  }
+
+  if (job) {
+    throw new ApiError(400, "Non-job work categories cannot include a job.");
+  }
+}
+
 function activeTimeEntryForUser(state, userId) {
   return (state.timeEntries || []).find((entry) => entry.userId === userId && deriveTimeEntryStatus(entry) !== "completed") || null;
 }
@@ -572,14 +643,8 @@ function findRequiredTimeEntry(state, entryId) {
   return findRequiredRecord(state.timeEntries || [], entryId, "Time entry");
 }
 
-function assertJobAssignedToEmployee(job, user) {
-  if (!canViewJob(job, user)) {
-    throw new ApiError(403, "You can only clock time against an assigned job.");
-  }
-}
-
 function sanitizeTimeEntry(entry, state, user) {
-  const job = state.jobs.find((item) => item.id === entry.jobId) || null;
+  const job = entry.jobId ? state.jobs.find((item) => item.id === entry.jobId) || null : null;
   const entryUser = findUserById(state, entry.userId);
   const fieldSafeJob = job ? sanitizeJobForUser(job, user, state) : null;
   const normalizedJob = job ? normalizeJobRecord(job) : null;
@@ -591,7 +656,8 @@ function sanitizeTimeEntry(entry, state, user) {
     userId: entry.userId,
     userName: entryUser?.name || entry.userId,
     userRole: entryUser?.role || "",
-    jobId: entry.jobId,
+    jobId: entry.jobId || "",
+    workCategory: entry.workCategory || "job",
     jobTitle: normalizedJob?.title || fieldSafeJob?.title || "",
     customer: fieldSafeJob?.customer || "",
     address: fieldSafeJob?.address || "",
@@ -618,6 +684,8 @@ function visibleTimeEntriesForUser(state, user) {
     entries = state.timeEntries || [];
   } else if (canViewCrewTime(user)) {
     entries = (state.timeEntries || []).filter((entry) => {
+      if (entry.userId === user.id) return true;
+      if (!entry.jobId) return false;
       const job = state.jobs.find((item) => item.id === entry.jobId);
       return job && canViewJob(job, user);
     });
@@ -1576,14 +1644,16 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
       throw new ApiError(409, "You are already clocked in.");
     }
 
-    const jobId = requiredString(payload.jobId, "Job");
-    const job = findRequiredRecord(draft.jobs, jobId, "Job");
-    assertJobAssignedToEmployee(job, req.auth.user);
+    const workCategory = optionalWorkCategory(payload.workCategory, "job");
+    const jobId = workCategory === "job" ? requiredString(payload.jobId, "Job") : optionalString(payload.jobId, "");
+    const job = jobId ? findRequiredRecord(draft.jobs, jobId, "Job") : null;
+    assertTimeEntryCategoryPayload(req.auth.user, workCategory, job);
 
     const entry = applyTimeEntryTotals({
       id: makeId("T"),
       userId: req.auth.user.id,
-      jobId: job.id,
+      jobId: job?.id || "",
+      workCategory,
       clockInAt: changedAt,
       clockOutAt: "",
       breakStartAt: "",
@@ -1597,15 +1667,15 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
     });
 
     draft.timeEntries.unshift(entry);
-    appendActivity(draft, "Time clocked in", `${req.auth.user.name} clocked in to ${normalizeJobRecord(job).title}.`);
+    appendActivity(draft, "Time clocked in", `${req.auth.user.name} clocked in to ${job ? normalizeJobRecord(job).title : workCategory.replaceAll("_", " ")}.`);
     appendAuditEvent(draft, {
       entityType: "timeEntry",
       entityId: entry.id,
       action: "clocked_in",
       summary: "Time clocked in",
-      detail: `${req.auth.user.name} clocked in to ${normalizeJobRecord(job).title}.`,
+      detail: `${req.auth.user.name} clocked in to ${job ? normalizeJobRecord(job).title : workCategory.replaceAll("_", " ")}.`,
       actor: req.auth.user,
-      changedFields: ["clockInAt", "status"],
+      changedFields: ["clockInAt", "status", "workCategory"],
     });
     return draft;
   });
@@ -1743,14 +1813,21 @@ app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
     const nextBreakStartAt = payload.breakStartAt == null ? entry.breakStartAt || "" : optionalDateTimeString(payload.breakStartAt, "Break start time", "");
     const nextBreakEndAt = payload.breakEndAt == null ? entry.breakEndAt || "" : optionalDateTimeString(payload.breakEndAt, "Break end time", "");
     const nextNotes = payload.notes == null ? entry.notes || "" : optionalString(payload.notes, "");
+    const nextWorkCategory = payload.workCategory == null ? entry.workCategory || "job" : optionalWorkCategory(payload.workCategory, entry.workCategory || "job");
+    const nextJobId = payload.jobId == null ? entry.jobId || "" : optionalString(payload.jobId, "");
+    const nextJob = nextJobId ? findRequiredRecord(draft.jobs, nextJobId, "Job") : null;
 
     if (entry.clockInAt !== nextClockInAt) changedFields.push("clockInAt");
     if ((entry.clockOutAt || "") !== nextClockOutAt) changedFields.push("clockOutAt");
     if ((entry.breakStartAt || "") !== nextBreakStartAt) changedFields.push("breakStartAt");
     if ((entry.breakEndAt || "") !== nextBreakEndAt) changedFields.push("breakEndAt");
     if ((entry.notes || "") !== nextNotes) changedFields.push("notes");
+    if ((entry.workCategory || "job") !== nextWorkCategory) changedFields.push("workCategory");
+    if ((entry.jobId || "") !== nextJobId) changedFields.push("jobId");
 
     Object.assign(entry, {
+      jobId: nextJobId,
+      workCategory: nextWorkCategory,
       clockInAt: nextClockInAt,
       clockOutAt: nextClockOutAt,
       breakStartAt: nextBreakStartAt,
@@ -1761,6 +1838,13 @@ app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
 
     if (payload.status != null) {
       optionalTimeEntryStatus(payload.status, deriveTimeEntryStatus(entry));
+    }
+
+    if (entry.workCategory === "job" && !entry.jobId) {
+      throw new ApiError(400, "A job is required when work category is job.");
+    }
+    if (entry.workCategory !== "job" && entry.jobId) {
+      throw new ApiError(400, "Non-job work categories cannot include a job.");
     }
 
     applyTimeEntryTotals(entry);
