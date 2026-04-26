@@ -123,7 +123,7 @@ const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "public_request_form"];
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
-const PRINT_POPUP_BLOCKED_MESSAGE = "Pop-up blocked. Please allow pop-ups for this site to print packets.";
+const PRINT_VIEW_ERROR_MESSAGE = "Could not open the print view. Please try again or use your browser print command.";
 const uploadPreviewCache = new Map();
 const BRANDING_ACCENT_OPTIONS = [
   { value: "blue", label: "Blue", swatchClassName: "bg-blue-700", buttonClassName: "bg-blue-700 text-white shadow-sm shadow-blue-700/20", badgeClassName: "bg-blue-50 text-blue-700 ring-blue-100", previewClassName: "bg-blue-700 text-white" },
@@ -9324,11 +9324,6 @@ export default function App() {
 
   function handlePrintDailyReport(report = selectedReport) {
     if (!report || !appState.permissions?.reports?.canView) return false;
-    const printWindow = typeof window === "undefined" ? null : window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
-      setErrorMessage(PRINT_POPUP_BLOCKED_MESSAGE);
-      return false;
-    }
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveDailyReportPrintPacket({
       companyName: workspaceCompanyName,
@@ -9340,9 +9335,9 @@ export default function App() {
       uploads: appState.uploads,
       packetMode,
     });
-    const opened = openPrintDocument(packet, printWindow);
+    const opened = openPrintDocument(packet);
     if (!opened) {
-      setErrorMessage(PRINT_POPUP_BLOCKED_MESSAGE);
+      setErrorMessage(PRINT_VIEW_ERROR_MESSAGE);
     } else {
       setErrorMessage("");
     }
@@ -9353,11 +9348,6 @@ export default function App() {
     if (!job) return false;
     const canPrint = appState.permissions.jobs.canManageAll || job.canManageField || appState.permissions.jobs.canViewMoney;
     if (!canPrint) return false;
-    const printWindow = typeof window === "undefined" ? null : window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
-      setErrorMessage(PRINT_POPUP_BLOCKED_MESSAGE);
-      return false;
-    }
 
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveJobPrintPacket({
@@ -9377,9 +9367,9 @@ export default function App() {
       toolChecklists: appState.toolChecklists,
       packetMode,
     });
-    const opened = openPrintDocument(packet, printWindow);
+    const opened = openPrintDocument(packet);
     if (!opened) {
-      setErrorMessage(PRINT_POPUP_BLOCKED_MESSAGE);
+      setErrorMessage(PRINT_VIEW_ERROR_MESSAGE);
     } else {
       setErrorMessage("");
     }
