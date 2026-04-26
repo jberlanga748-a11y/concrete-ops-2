@@ -58,7 +58,7 @@ import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
-import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveSelectedPhotoTakenAt, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
+import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -2553,6 +2553,25 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
 function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation, onFileChange, onSubmit, loading, fileError }) {
   const cameraInputRef = useRef(null);
   const libraryInputRef = useRef(null);
+
+  function handleOpenPicker(event, ref) {
+    event.preventDefault();
+    event.stopPropagation();
+    ref.current?.click();
+  }
+
+  function handleFileInputChange(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    onFileChange(event);
+  }
+
+  function handleRequestLocationClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    onRequestLocation();
+  }
+
   if (!canCreate) {
     return (
       <Card className="p-5">
@@ -2574,21 +2593,21 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
   return (
     <Card className="p-5">
       <SectionHeader title="Upload photo" description="Capture field documentation with optional location metadata. Upload still works if location is denied." />
-      <form className="grid gap-3" onSubmit={onSubmit}>
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
+      <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
+      <form className="grid gap-3" onSubmit={onSubmit} noValidate>
         <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
           {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
         </SelectField>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Button type="button" className="w-full" onClick={() => cameraInputRef.current?.click()} disabled={loading}>
+          <Button type="button" className="w-full" onClick={(event) => handleOpenPicker(event, cameraInputRef)} disabled={loading}>
             <Icon name="upload" />
             Take Photo
           </Button>
-          <Button type="button" variant="secondary" className="w-full" onClick={() => libraryInputRef.current?.click()} disabled={loading}>
+          <Button type="button" variant="secondary" className="w-full" onClick={(event) => handleOpenPicker(event, libraryInputRef)} disabled={loading}>
             <Icon name="document" />
             Upload Existing Photo
           </Button>
-          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={onFileChange} className="hidden" />
-          <input ref={libraryInputRef} type="file" accept="image/*" onChange={onFileChange} className="hidden" />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
@@ -2611,7 +2630,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" onClick={onRequestLocation} disabled={loading}>Capture location</Button>
+          <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
           <Button type="submit" disabled={loading || !draft.jobId || !draft.dataUrl}>Upload evidence</Button>
         </div>
       </form>
@@ -2665,6 +2684,8 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
   }, [selectedUploadId, uploads, visibleRows]);
 
   async function handleFileChange(event) {
+    event.preventDefault();
+    event.stopPropagation();
     const file = event.target.files?.[0] || null;
     event.target.value = "";
     const nextError = validateUploadFile(file);
@@ -2683,15 +2704,13 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
 
     const reader = new FileReader();
     reader.onload = () => {
-      const takenAtIso = deriveSelectedPhotoTakenAt(new Date());
-      setDraft((current) => ({
-        ...current,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        dataUrl: typeof reader.result === "string" ? reader.result : "",
-        takenAt: toDateTimeInputValue(takenAtIso),
-      }));
+      setDraft((current) => {
+        const nextDraft = deriveUploadDraftFromSelection(current, file, reader.result, new Date());
+        return {
+          ...nextDraft,
+          takenAt: toDateTimeInputValue(nextDraft.takenAtIso),
+        };
+      });
     };
     reader.readAsDataURL(file);
   }

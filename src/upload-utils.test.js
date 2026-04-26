@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   deriveAllowedUploadJobs,
   deriveSelectedPhotoTakenAt,
+  deriveUploadDraftFromSelection,
   deriveUploadListState,
   filterUploads,
   gpsStatusLabel,
@@ -31,6 +32,36 @@ test("deriveSelectedPhotoTakenAt uses the selection time when no EXIF time is av
     deriveSelectedPhotoTakenAt(new Date("2026-04-25T18:45:00.000Z")),
     "2026-04-25T18:45:00.000Z",
   );
+});
+
+test("deriveUploadDraftFromSelection preserves draft state and sets file metadata plus takenAt", () => {
+  const nextDraft = deriveUploadDraftFromSelection(
+    {
+      jobId: "J-100",
+      caption: "Before pour",
+      notes: "North edge formwork",
+      latitude: 44.94,
+      longitude: -123.03,
+    },
+    {
+      name: "pour-photo.jpg",
+      type: "image/jpeg",
+      size: 2048,
+    },
+    "data:image/jpeg;base64,abc123",
+    "2026-04-25T19:15:00.000Z",
+  );
+
+  assert.equal(nextDraft.jobId, "J-100");
+  assert.equal(nextDraft.caption, "Before pour");
+  assert.equal(nextDraft.notes, "North edge formwork");
+  assert.equal(nextDraft.latitude, 44.94);
+  assert.equal(nextDraft.longitude, -123.03);
+  assert.equal(nextDraft.fileName, "pour-photo.jpg");
+  assert.equal(nextDraft.fileType, "image/jpeg");
+  assert.equal(nextDraft.fileSize, 2048);
+  assert.equal(nextDraft.dataUrl, "data:image/jpeg;base64,abc123");
+  assert.equal(nextDraft.takenAtIso, "2026-04-25T19:15:00.000Z");
 });
 
 test("validateUploadFile enforces image types and size", () => {

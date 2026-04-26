@@ -22,6 +22,17 @@ export function deriveSelectedPhotoTakenAt(selectedAt = new Date()) {
   return new Date().toISOString();
 }
 
+export function deriveUploadDraftFromSelection(currentDraft, file, dataUrl, selectedAt = new Date()) {
+  return {
+    ...(currentDraft && typeof currentDraft === "object" ? currentDraft : {}),
+    fileName: file?.name || "",
+    fileType: file?.type || "",
+    fileSize: Number(file?.size || 0),
+    dataUrl: typeof dataUrl === "string" ? dataUrl : "",
+    takenAtIso: deriveSelectedPhotoTakenAt(selectedAt),
+  };
+}
+
 export function validateUploadFile(file) {
   if (!file) return "Choose a photo to upload.";
   if (!ALLOWED_UPLOAD_TYPES.includes(String(file.type || "").toLowerCase())) {
