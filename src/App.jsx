@@ -3875,6 +3875,7 @@ function ReportsPage({
   onReviewReport,
   onReopenReport,
   onArchiveReport,
+  onPrintDailyReport,
   busy,
   reportRouteRequested,
 }) {
@@ -3943,7 +3944,7 @@ function ReportsPage({
             canArchive={permissions.reports.canManageAll}
             disabled={busy}
             notFound={notFound}
-            onPrintReport={onPrintDailyReport}
+            onPrintReport={selectedReport ? () => onPrintDailyReport?.(selectedReport) : undefined}
           />
         </div>
       </div>
@@ -4632,6 +4633,7 @@ function JobsPage({
   onClockOut,
   onStartBreak,
   onEndBreak,
+  onPrintJobPacket,
 }) {
   const isFieldWorkspace = !permissions.jobs.canManageAll && !permissions.leads.canView;
 
@@ -4730,7 +4732,7 @@ function JobsPage({
             saveState={jobSaveState}
             disabled={busy}
             permissions={permissions}
-            onPrintPacket={onPrintJobPacket}
+            onPrintPacket={selectedJob ? () => onPrintJobPacket?.(selectedJob) : undefined}
           />
         </div>
       </div>
@@ -8719,12 +8721,12 @@ export default function App() {
     }
   }
 
-  function handlePrintDailyReport() {
-    if (!selectedReport || !appState.permissions.reports.canView) return false;
+  function handlePrintDailyReport(report = selectedReport) {
+    if (!report || !appState.permissions?.reports?.canView) return false;
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveDailyReportPrintPacket({
       companyName: COMPANY_NAME,
-      report: selectedReport,
+      report,
       deliveryTickets: appState.deliveryTickets,
       uploads: appState.uploads,
       packetMode,
@@ -8736,15 +8738,15 @@ export default function App() {
     return opened;
   }
 
-  function handlePrintJobPacket() {
-    if (!selectedJob) return false;
-    const canPrint = appState.permissions.jobs.canManageAll || selectedJob.canManageField || appState.permissions.jobs.canViewMoney;
+  function handlePrintJobPacket(job = selectedJob) {
+    if (!job) return false;
+    const canPrint = appState.permissions.jobs.canManageAll || job.canManageField || appState.permissions.jobs.canViewMoney;
     if (!canPrint) return false;
 
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveJobPrintPacket({
       companyName: COMPANY_NAME,
-      job: selectedJob,
+      job,
       dailyReports: appState.dailyReports,
       uploads: appState.uploads,
       prePourChecklists: appState.prePourChecklists,
