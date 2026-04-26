@@ -64,6 +64,7 @@ import {
   restoreLead,
   restoreQueueItem,
   submitDailyReport,
+  submitPublicEstimateRequest,
   startBreak,
   toggleQueueItem,
   archiveDailyReport,
@@ -116,6 +117,8 @@ const APP_NAME = "Concrete Ops";
 const COMPANY_NAME = "Last Yard Concrete";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
+const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
+const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "public_request_form"];
 
 const TOKENS = {
   colors: [
@@ -638,6 +641,19 @@ const INITIAL_SETUP_STATUS = {
   demoMode: false,
   demoUserExists: false,
   environmentBootstrap: false,
+  publicEstimateRequestEnabled: false,
+};
+
+const INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM = {
+  name: "",
+  phone: "",
+  email: "",
+  projectAddress: "",
+  projectType: "Driveway replacement",
+  projectDetails: "",
+  preferredContactMethod: "Phone",
+  preferredContactTime: "",
+  honeypot: "",
 };
 
 function runDesignSystemChecks() {
@@ -988,6 +1004,7 @@ function LoginScreen({
   setupDraft,
   setSetupDraft,
   onSetupSubmit,
+  onOpenPublicEstimateRequest,
 }) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
   const backendLabel = backendStatus === "online" ? "API online" : backendStatus === "offline" ? "API offline" : "Checking API";
@@ -997,7 +1014,10 @@ function LoginScreen({
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="overflow-hidden p-8">
-          <Badge tone="blue">API-backed workspace</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="blue">API-backed workspace</Badge>
+            {setupStatus.demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
+          </div>
           <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950">Concrete operations that actually persist.</h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
             This version runs with a real Node API, token auth, and server-backed records for leads, jobs, queue items, and activity.
@@ -1025,7 +1045,11 @@ function LoginScreen({
             <div>
               <p className="text-sm font-black text-slate-950">{isSetupMode ? "Set up workspace" : "Sign in"}</p>
               <p className="text-sm text-slate-500">
-                {isSetupMode ? "Create the first admin account for this deployment." : canShowDemoCredentials ? "Use the seeded demo account or your own admin user." : "Enter the admin account for this workspace."}
+                {isSetupMode
+                  ? "Create the first admin account for this deployment."
+                  : canShowDemoCredentials
+                    ? "Use the demo logins for fake company data, or sign in with your own office account."
+                    : "Enter the admin account for this workspace."}
               </p>
             </div>
           </div>
@@ -1063,17 +1087,140 @@ function LoginScreen({
             <p className="mt-2">Use `npm run dev` while developing, or `npm run build` then `npm run serve` for the production build.</p>
             <p className="mt-2">A static frontend alone cannot handle login because this app needs the bundled Node API.</p>
           </div>
-          {canShowDemoCredentials ? (
-            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-              <p className="font-black text-slate-950">Demo credentials</p>
-              <p className="mt-2">
-                Email: <span className="font-black text-blue-700">ops@lastyard.test</span>
-              </p>
-              <p>
-                Password: <span className="font-black text-blue-700">concrete123</span>
-              </p>
+          {setupStatus.publicEstimateRequestEnabled ? (
+            <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-slate-600">
+              <p className="font-black text-slate-950">Public estimate request</p>
+              <p className="mt-2">Want to demo the lead generator flow first? Open the public request form and submit a fake concrete project.</p>
+              <Button type="button" variant="secondary" className="mt-3" onClick={onOpenPublicEstimateRequest}>Open public form</Button>
             </div>
           ) : null}
+          {canShowDemoCredentials ? (
+            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+              <p className="font-black text-slate-950">Demo users</p>
+              <p className="mt-2">
+                Admin: <span className="font-black text-blue-700">demo.admin@concreteops.app</span>
+              </p>
+              <p>
+                Foreman: <span className="font-black text-blue-700">demo.foreman@concreteops.app</span>
+              </p>
+              <p>
+                Employee: <span className="font-black text-blue-700">demo.employee@concreteops.app</span>
+              </p>
+              <p className="mt-2 text-xs text-slate-500">The demo password is deployment-specific and should be shared privately with the demo link.</p>
+            </div>
+          ) : null}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function PublicEstimateRequestPage({
+  draft,
+  setDraft,
+  onSubmit,
+  onBackToLogin,
+  loading,
+  error,
+  successMessage,
+  backendStatus,
+  enabled,
+  demoMode,
+  setupStatus,
+}) {
+  const disabled = !enabled || backendStatus === "offline" || setupStatus.needsSetup;
+  const checkingStatus = backendStatus === "checking" || !setupStatus.checked;
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-transparent p-4 sm:p-6">
+      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <Card className="overflow-hidden p-6 sm:p-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="emerald">Public estimate request</Badge>
+            {demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
+          </div>
+          <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Request a concrete estimate without logging in.</h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+            This public demo flow creates a lead for the office team without exposing customers, jobs, pricing, or internal dashboard data.
+          </p>
+          <div className="mt-8 space-y-3 text-sm text-slate-600">
+            <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
+              <p className="font-black text-slate-950">What happens next</p>
+              <p className="mt-2">The request becomes a new lead with source `public_request_form`, then office users can turn it into an estimate and job.</p>
+            </div>
+            <div className="rounded-3xl border border-blue-100 bg-white p-4">
+              <p className="font-black text-slate-950">Spam protection</p>
+              <p className="mt-2">This form uses a honeypot and a basic rate limit. It never exposes internal records back to public visitors.</p>
+            </div>
+            <div className="rounded-3xl border border-blue-100 bg-white p-4">
+              <p className="font-black text-slate-950">Photos</p>
+              <p className="mt-2">Public photo attachments are intentionally left for a later pass so the public form stays simple and safe.</p>
+            </div>
+          </div>
+          <Button type="button" variant="ghost" className="mt-6" onClick={onBackToLogin}>Back to login</Button>
+        </Card>
+        <Card className="p-6 sm:p-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white">
+              <Icon name="quote" className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-950">Project request</p>
+              <p className="text-sm text-slate-500">Collect the job details the office needs to start the lead.</p>
+            </div>
+          </div>
+          {checkingStatus ? (
+            <div className="mt-6">
+              <StateCard title="Checking request form" description="Confirming whether the public estimate request flow is enabled for this workspace." tone="blue" />
+            </div>
+          ) : backendStatus === "offline" ? (
+            <div className="mt-6">
+              <StateCard title="API unavailable" description="The public estimate request form needs the Concrete Ops API to be online." tone="red" />
+            </div>
+          ) : !enabled ? (
+            <div className="mt-6">
+              <StateCard title="Public requests disabled" description="This deployment has the public estimate request form turned off right now." tone="slate" />
+            </div>
+          ) : setupStatus.needsSetup ? (
+            <div className="mt-6">
+              <StateCard title="Workspace setup required" description="Public requests stay off until the office workspace has an initial admin and lead owner." tone="amber" />
+            </div>
+          ) : (
+            <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+              <div className="sr-only">
+                <label htmlFor="public-request-company-website">Company website</label>
+                <input
+                  id="public-request-company-website"
+                  name="companyWebsite"
+                  autoComplete="off"
+                  tabIndex={-1}
+                  value={draft.honeypot}
+                  onChange={(event) => setDraft((current) => ({ ...current, honeypot: event.target.value }))}
+                />
+              </div>
+              <InputField label="Name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Jordan Martinez" disabled={loading} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="503-555-0123" disabled={loading} />
+                <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="name@example.com" disabled={loading} />
+              </div>
+              <InputField label="Project address" value={draft.projectAddress} onChange={(event) => setDraft((current) => ({ ...current, projectAddress: event.target.value }))} placeholder="843 Creekside Ave NE, Salem, OR" disabled={loading} />
+              <SelectField label="Project type" value={draft.projectType} onChange={(event) => setDraft((current) => ({ ...current, projectType: event.target.value }))} disabled={loading}>
+                {["Driveway replacement", "Patio", "Sidewalk repair", "ADA ramp", "Slab", "Retaining wall", "Other"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <TextAreaField label="Project details" value={draft.projectDetails} onChange={(event) => setDraft((current) => ({ ...current, projectDetails: event.target.value }))} placeholder="Tell us what needs to be poured, repaired, or replaced." disabled={loading} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField label="Preferred contact method" value={draft.preferredContactMethod} onChange={(event) => setDraft((current) => ({ ...current, preferredContactMethod: event.target.value }))} disabled={loading}>
+                  {["Phone", "Text", "Email"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <InputField label="Preferred contact time" value={draft.preferredContactTime} onChange={(event) => setDraft((current) => ({ ...current, preferredContactTime: event.target.value }))} placeholder="Weekday afternoons" disabled={loading} />
+              </div>
+              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+              {successMessage ? <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
+              <Button type="submit" size="lg" disabled={loading || disabled}>
+                {loading ? "Sending request..." : "Request estimate"}
+              </Button>
+            </form>
+          )}
         </Card>
       </div>
     </div>
@@ -1409,14 +1556,9 @@ function LeadDetailPanel({
             <option>Normal</option>
             <option>High</option>
           </SelectField>
-          <SelectField label="Lead source" value={lead.source || "Call-in"} onChange={(event) => onFieldChange("source", event.target.value)} disabled={!canManage || disabled}>
-            <option>Website</option>
-            <option>Referral</option>
-            <option>Call-in</option>
-            <option>Drive-by</option>
-            <option>Repeat Customer</option>
-            <option>Partner</option>
-          </SelectField>
+              <SelectField label="Lead source" value={lead.source || "Call-in"} onChange={(event) => onFieldChange("source", event.target.value)} disabled={!canManage || disabled}>
+                {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
+              </SelectField>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <SelectField label="Owner" value={lead.ownerId || ""} onChange={(event) => onFieldChange("ownerId", event.target.value)} disabled={!canManage || disabled}>
@@ -4129,14 +4271,9 @@ function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, cu
             <option value="">Unassigned</option>
             {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
           </SelectField>
-          <SelectField label="Lead source" value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value }))}>
-            <option>Website</option>
-            <option>Referral</option>
-            <option>Call-in</option>
-            <option>Drive-by</option>
-            <option>Repeat Customer</option>
-            <option>Partner</option>
-          </SelectField>
+                <SelectField label="Lead source" value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value }))}>
+                  {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
+                </SelectField>
           <InputField label="Value" type="number" value={draft.value} onChange={(event) => setDraft((current) => ({ ...current, value: event.target.value }))} placeholder="8200" />
         </div>
         <InputField label="Next step" value={draft.nextStep} onChange={(event) => setDraft((current) => ({ ...current, nextStep: event.target.value }))} placeholder="Schedule site measure" />
@@ -4367,10 +4504,10 @@ function LeadsPage({
               <option>All owners</option>
               {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
             </SelectField>
-            <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
-              <option>All sources</option>
-              {["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"].map((source) => <option key={source}>{source}</option>)}
-            </SelectField>
+                <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+                  <option>All sources</option>
+                  {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
+                </SelectField>
             <SelectField label="Follow-up due" value={dueFilter} onChange={(event) => setDueFilter(event.target.value)}>
               <option>All due dates</option>
               <option>Overdue</option>
@@ -7252,6 +7389,9 @@ export default function App() {
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [setupDraft, setSetupDraft] = useState(INITIAL_SETUP_FORM);
   const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
+  const [publicEstimateRequestDraft, setPublicEstimateRequestDraft] = useState(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
+  const [publicEstimateRequestError, setPublicEstimateRequestError] = useState("");
+  const [publicEstimateRequestSuccess, setPublicEstimateRequestSuccess] = useState("");
   const [customerFilter, setCustomerFilter] = useState("All");
   const [customerSearch, setCustomerSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("All roles");
@@ -7298,6 +7438,7 @@ export default function App() {
   const autosaveTimeoutsRef = useRef({ customer: null, lead: null, job: null });
   const autosaveVersionsRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
+  const publicEstimateRequestRoute = pathname === PUBLIC_ESTIMATE_REQUEST_PATH;
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
   const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings), [appState.companySettings, appState.user]);
@@ -7324,6 +7465,16 @@ export default function App() {
 
   function setActive(nextActive) {
     navigateTo(getModulePath(nextActive));
+  }
+
+  function openPublicEstimateRequest() {
+    setPublicEstimateRequestError("");
+    setPublicEstimateRequestSuccess("");
+    navigateTo(PUBLIC_ESTIMATE_REQUEST_PATH);
+  }
+
+  function navigateToLoginScreen() {
+    navigateTo("/");
   }
 
   function navigateToLead(id) {
@@ -7487,6 +7638,7 @@ export default function App() {
           demoMode: nextSetupStatus.demoMode,
           demoUserExists: nextSetupStatus.demoUserExists,
           environmentBootstrap: nextSetupStatus.environmentBootstrap,
+          publicEstimateRequestEnabled: nextSetupStatus.publicEstimateRequestEnabled,
         });
       } catch {
         if (!cancelled) {
@@ -7506,8 +7658,8 @@ export default function App() {
     if (!setupStatus.demoUserExists) return;
     if (credentials.email || credentials.password) return;
     setCredentials({
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.admin@concreteops.app",
+      password: "",
     });
   }, [credentials.email, credentials.password, setupStatus.demoUserExists]);
 
@@ -7825,6 +7977,7 @@ export default function App() {
         demoMode: setupStatus.demoMode,
         demoUserExists: false,
         environmentBootstrap: false,
+        publicEstimateRequestEnabled: setupStatus.publicEstimateRequestEnabled,
       });
       applyBootstrap(result);
       window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
@@ -7838,6 +7991,27 @@ export default function App() {
         setBackendStatus("offline");
       }
       setLoginError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePublicEstimateRequest(event) {
+    event.preventDefault();
+    setBusy(true);
+    setPublicEstimateRequestError("");
+    setPublicEstimateRequestSuccess("");
+
+    try {
+      const result = await submitPublicEstimateRequest(publicEstimateRequestDraft);
+      setBackendStatus("online");
+      setPublicEstimateRequestDraft(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
+      setPublicEstimateRequestSuccess(result?.message || "Request received. Our team will follow up shortly.");
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setPublicEstimateRequestError(error.message || "Could not submit the estimate request.");
     } finally {
       setBusy(false);
     }
@@ -9011,6 +9185,24 @@ export default function App() {
     runMutation(() => resetWorkspace(sessionToken));
   }
 
+  if (publicEstimateRequestRoute) {
+    return (
+      <PublicEstimateRequestPage
+        draft={publicEstimateRequestDraft}
+        setDraft={setPublicEstimateRequestDraft}
+        onSubmit={handlePublicEstimateRequest}
+        onBackToLogin={navigateToLoginScreen}
+        loading={busy}
+        error={publicEstimateRequestError}
+        successMessage={publicEstimateRequestSuccess}
+        backendStatus={backendStatus}
+        enabled={setupStatus.publicEstimateRequestEnabled}
+        demoMode={setupStatus.demoMode}
+        setupStatus={setupStatus}
+      />
+    );
+  }
+
   if (authStatus === "checking") {
     if (startupError) {
       return <StartupFallbackScreen message={startupError} onRetry={() => bootstrap(sessionToken)} onClearSession={clearSession} />;
@@ -9031,6 +9223,7 @@ export default function App() {
         setupDraft={setupDraft}
         setSetupDraft={setSetupDraft}
         onSetupSubmit={handleBootstrapAdmin}
+        onOpenPublicEstimateRequest={openPublicEstimateRequest}
       />
     );
   }

@@ -618,7 +618,7 @@ export function createSeedState() {
       updatedAt: createdAt,
     });
   });
-  const includeDemoRecords = serverConfig.demoMode;
+  const includeDemoRecords = serverConfig.seedDemoData;
   const demoAdmin = demoUsers.find((user) => user.role === "Administrator") || demoUsers[0];
   const demoForeman = demoUsers.find((user) => user.role === "Foreman") || demoUsers[1];
   const demoEmployee = demoUsers.find((user) => user.role === "Employee") || demoUsers[2];
@@ -1215,6 +1215,128 @@ export function createSeedState() {
       archivedAt: null,
     },
   ];
+  const estimates = [
+    {
+      id: "EST-DEMO-001",
+      customerId: "C-1001",
+      leadId: "L-1048",
+      jobId: "J-2201",
+      title: "Martinez Driveway Replacement Proposal",
+      status: "approved",
+      scopeSummary: "Remove and replace the cracked driveway, widen the apron, and restore broom-finish access.",
+      internalNotes: "Public request lead converted through the demo sales flow. Pricing remains office-only.",
+      customerNotes: "Approved for the scheduled driveway replacement window.",
+      subtotal: 11650,
+      taxRate: 0,
+      taxTotal: 0,
+      feesTotal: 750,
+      grandTotal: 12400,
+      createdBy: demoAdmin.id,
+      sentAt: toIsoMinutesAgo(1600),
+      approvedAt: toIsoMinutesAgo(1320),
+      rejectedAt: "",
+      archivedAt: null,
+      createdAt: toIsoMinutesAgo(1660),
+      updatedAt: toIsoMinutesAgo(1320),
+    },
+    {
+      id: "EST-DEMO-002",
+      customerId: "C-1004",
+      leadId: "L-1047",
+      jobId: "",
+      title: "Keizer Stamped Patio Proposal",
+      status: "sent",
+      scopeSummary: "Stamped backyard patio with charcoal border and broom-safe transition path.",
+      internalNotes: "Waiting on customer color confirmation before approval.",
+      customerNotes: "Review stamp pattern and border notes, then confirm the schedule window.",
+      subtotal: 8400,
+      taxRate: 0,
+      taxTotal: 0,
+      feesTotal: 500,
+      grandTotal: 8900,
+      createdBy: demoAdmin.id,
+      sentAt: toIsoMinutesAgo(880),
+      approvedAt: "",
+      rejectedAt: "",
+      archivedAt: null,
+      createdAt: toIsoMinutesAgo(940),
+      updatedAt: toIsoMinutesAgo(880),
+    },
+  ];
+  const estimateItems = [
+    {
+      id: "ESTI-DEMO-001",
+      estimateId: "EST-DEMO-001",
+      description: "Driveway removal and disposal",
+      quantity: 1,
+      unit: "lot",
+      unitPrice: 2250,
+      lineTotal: 2250,
+      sortOrder: 0,
+      createdAt: toIsoMinutesAgo(1660),
+      updatedAt: toIsoMinutesAgo(1660),
+    },
+    {
+      id: "ESTI-DEMO-002",
+      estimateId: "EST-DEMO-001",
+      description: "Concrete placement",
+      quantity: 9.5,
+      unit: "yd",
+      unitPrice: 625,
+      lineTotal: 5937.5,
+      sortOrder: 1,
+      createdAt: toIsoMinutesAgo(1660),
+      updatedAt: toIsoMinutesAgo(1660),
+    },
+    {
+      id: "ESTI-DEMO-003",
+      estimateId: "EST-DEMO-001",
+      description: "Prep, forms, and finish work",
+      quantity: 1,
+      unit: "lot",
+      unitPrice: 3462.5,
+      lineTotal: 3462.5,
+      sortOrder: 2,
+      createdAt: toIsoMinutesAgo(1660),
+      updatedAt: toIsoMinutesAgo(1660),
+    },
+    {
+      id: "ESTI-DEMO-004",
+      estimateId: "EST-DEMO-002",
+      description: "Stamped patio base prep",
+      quantity: 1,
+      unit: "lot",
+      unitPrice: 2100,
+      lineTotal: 2100,
+      sortOrder: 0,
+      createdAt: toIsoMinutesAgo(940),
+      updatedAt: toIsoMinutesAgo(940),
+    },
+    {
+      id: "ESTI-DEMO-005",
+      estimateId: "EST-DEMO-002",
+      description: "Concrete placement",
+      quantity: 8,
+      unit: "yd",
+      unitPrice: 575,
+      lineTotal: 4600,
+      sortOrder: 1,
+      createdAt: toIsoMinutesAgo(940),
+      updatedAt: toIsoMinutesAgo(940),
+    },
+    {
+      id: "ESTI-DEMO-006",
+      estimateId: "EST-DEMO-002",
+      description: "Stamped finish and border detail",
+      quantity: 1,
+      unit: "lot",
+      unitPrice: 1700,
+      lineTotal: 1700,
+      sortOrder: 2,
+      createdAt: toIsoMinutesAgo(940),
+      updatedAt: toIsoMinutesAgo(940),
+    },
+  ];
   const prePourReviewedId = "PP-DEMO-001";
   const prePourDraftId = "PP-DEMO-002";
   const prePourChecklists = [
@@ -1462,6 +1584,30 @@ export function createSeedState() {
       changedFields: [],
       createdAt: toIsoMinutesAgo(590),
     },
+    {
+      id: makeAuditId("seed-estimate-created"),
+      entityType: "estimate",
+      entityId: "EST-DEMO-001",
+      action: "created",
+      summary: "Estimate created",
+      detail: "Martinez public request estimate was created in the office workflow.",
+      actorUserId: demoAdmin.id,
+      actorName: demoAdmin.name,
+      changedFields: [],
+      createdAt: toIsoMinutesAgo(1660),
+    },
+    {
+      id: makeAuditId("seed-estimate-approved"),
+      entityType: "estimate",
+      entityId: "EST-DEMO-001",
+      action: "approved",
+      summary: "Estimate approved",
+      detail: "Martinez estimate was approved and linked to the active job workflow.",
+      actorUserId: demoAdmin.id,
+      actorName: demoAdmin.name,
+      changedFields: ["status", "approvedAt", "jobId"],
+      createdAt: toIsoMinutesAgo(1320),
+    },
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   return {
@@ -1473,8 +1619,8 @@ export function createSeedState() {
     leadStatusHistory,
     jobs,
     jobAssignments: includeDemoRecords ? jobAssignments : [],
-    estimates: [],
-    estimateItems: [],
+    estimates: includeDemoRecords ? estimates : [],
+    estimateItems: includeDemoRecords ? estimateItems : [],
     safetyPolicies,
     ppeItems,
     safetyAcknowledgments: includeDemoRecords ? safetyAcknowledgments : [],
@@ -4028,7 +4174,7 @@ export async function ensureDb() {
       return;
     }
 
-    if (serverConfig.seedDemoData) {
+    if (serverConfig.seedWorkspaceData || serverConfig.seedDemoData) {
       writeStateToDb(createSeedState());
       return;
     }

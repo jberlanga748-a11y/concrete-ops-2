@@ -101,7 +101,15 @@ export function createServerConfig(env = process.env) {
   const smokeTestPort = parseInteger(env.SMOKE_TEST_PORT, "SMOKE_TEST_PORT", DEFAULT_SMOKE_TEST_PORT);
   const sessionTtlHours = parseInteger(env.SESSION_TTL_HOURS, "SESSION_TTL_HOURS", DEFAULT_SESSION_TTL_HOURS);
   const logLevel = parseChoice(env.LOG_LEVEL, "LOG_LEVEL", ALLOWED_LOG_LEVELS, "info");
-  const seedDemoData = parseBoolean(env.SEED_DEMO_DATA, "SEED_DEMO_DATA", nodeEnv !== "production");
+  const demoMode = parseBoolean(env.DEMO_MODE, "DEMO_MODE", false);
+  const seedWorkspaceData = nodeEnv !== "production";
+  const seedDemoDataRequested = parseBoolean(env.SEED_DEMO_DATA, "SEED_DEMO_DATA", demoMode);
+  const seedDemoData = demoMode || (seedDemoDataRequested && nodeEnv !== "production");
+  const publicEstimateRequestEnabled = parseBoolean(
+    env.PUBLIC_ESTIMATE_REQUEST_ENABLED,
+    "PUBLIC_ESTIMATE_REQUEST_ENABLED",
+    demoMode,
+  );
   const bootstrapAdmin = resolveBootstrapAdmin(env);
 
   return Object.freeze({
@@ -111,7 +119,11 @@ export function createServerConfig(env = process.env) {
     smokeTestPort,
     dataDir: parseDirectory(env.DATA_DIR, DEFAULT_DATA_DIR, "DATA_DIR"),
     backupDir: parseDirectory(env.BACKUP_DIR, DEFAULT_BACKUP_DIR, "BACKUP_DIR"),
+    demoMode,
+    seedWorkspaceData,
     seedDemoData,
+    seedDemoDataRequested,
+    publicEstimateRequestEnabled,
     bootstrapAdmin,
     sessionTtlHours,
     sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,

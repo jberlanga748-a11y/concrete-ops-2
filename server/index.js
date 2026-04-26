@@ -105,7 +105,7 @@ const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent"
 const JOB_STATUSES = new Set(["draft", "planned", "scheduled", "in_progress", "field_complete", "completed", "billing_ready", "closed"]);
 const JOB_ASSIGNMENT_ROLES = new Set(["foreman", "crew", "operator", "finisher", "laborer", "driver", "other"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
-const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner"]);
+const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "public_request_form"]);
 const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
@@ -127,7 +127,10 @@ const POST_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
+const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const PUBLIC_REQUEST_RATE_LIMIT_MAX = 5;
 const serverStartedAt = Date.now();
+const publicEstimateRequestRateLimit = new Map();
 
 const app = express();
 
@@ -236,6 +239,36 @@ function optionalProgressNumber(value, fallback = 0) {
 function optionalEmail(value, fallback = "") {
   const normalized = String(value ?? "").trim().toLowerCase();
   return normalized || fallback;
+}
+
+function requiredContactChannel(phone, email) {
+  const normalizedPhone = optionalString(phone, "");
+  const normalizedEmail = optionalEmail(email, "");
+  if (!normalizedPhone && !normalizedEmail) {
+    throw new ApiError(400, "Phone or email is required.");
+  }
+  return {
+    phone: normalizedPhone,
+    email: normalizedEmail,
+  };
+}
+
+function extractCityFromProjectAddress(projectAddress) {
+  const normalized = optionalString(projectAddress, "");
+  if (!normalized) return "";
+  const segments = normalized.split(",").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length >= 2) {
+    return segments[1];
+  }
+  return "";
+}
+
+function publicRequestActor() {
+  return {
+    id: "",
+    name: "Public request",
+    role: "Public",
+  };
 }
 
 function temporaryPassword() {
@@ -2404,6 +2437,50 @@ function findMatchingCustomer(state, { name, city = "" }) {
   return state.customers.find((customer) => normalizeLookup(customer.name) === normalizeLookup(name));
 }
 
+function resolvePublicRequestOwner(state) {
+  return state.users.find((user) => canManageLeads(user) && optionalUserStatus(user.status, "active") === "active") || null;
+}
+
+function buildPublicRequestLeadNotes({
+  projectAddress,
+  projectType,
+  projectDetails,
+  preferredContactMethod,
+  preferredContactTime,
+}) {
+  const lines = [
+    `Source: public estimate request form`,
+    `Project type: ${projectType}`,
+    `Project address: ${projectAddress}`,
+    `Project details: ${projectDetails}`,
+  ];
+  if (preferredContactMethod) {
+    lines.push(`Preferred contact method: ${preferredContactMethod}`);
+  }
+  if (preferredContactTime) {
+    lines.push(`Preferred contact time: ${preferredContactTime}`);
+  }
+  return lines.join("\n");
+}
+
+function assertPublicEstimateRequestEnabled() {
+  if (!serverConfig.publicEstimateRequestEnabled) {
+    throw new ApiError(404, "Public estimate requests are not enabled.");
+  }
+}
+
+function consumePublicEstimateRequestRateLimit(req) {
+  const now = Date.now();
+  const ipKey = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
+  const existing = publicEstimateRequestRateLimit.get(ipKey) || [];
+  const liveEntries = existing.filter((timestamp) => now - timestamp < PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS);
+  if (liveEntries.length >= PUBLIC_REQUEST_RATE_LIMIT_MAX) {
+    throw new ApiError(429, "Too many estimate requests from this connection. Please wait and try again.");
+  }
+  liveEntries.push(now);
+  publicEstimateRequestRateLimit.set(ipKey, liveEntries);
+}
+
 function syncCustomerNameReferences(state, customer) {
   state.leads.forEach((lead) => {
     if (lead.customerId === customer.id) {
@@ -3335,6 +3412,7 @@ function sanitizeSetupStatus(state) {
     demoMode: serverConfig.demoMode,
     demoUserExists,
     environmentBootstrap: Boolean(serverConfig.bootstrapAdmin),
+    publicEstimateRequestEnabled: serverConfig.publicEstimateRequestEnabled,
   };
 }
 
@@ -3502,6 +3580,118 @@ app.get("/api/setup/status", asyncRoute(async (_req, res) => {
   });
 }));
 
+app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
+  assertPublicEstimateRequestEnabled();
+
+  const payload = req.body || {};
+  const honeypotValue = optionalString(payload.companyWebsite || payload.website || payload.honeypot, "");
+  if (honeypotValue) {
+    return res.status(202).json({
+      ok: true,
+      message: "Request received.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  consumePublicEstimateRequestRateLimit(req);
+
+  const name = requiredString(payload.name, "Name");
+  const { phone, email } = requiredContactChannel(payload.phone, payload.email);
+  const projectAddress = requiredString(payload.projectAddress, "Project address");
+  const projectType = requiredString(payload.projectType, "Project type");
+  const projectDetails = requiredString(payload.projectDetails, "Project details");
+  const preferredContactMethod = optionalString(payload.preferredContactMethod, "");
+  const preferredContactTime = optionalString(payload.preferredContactTime, "");
+  const city = extractCityFromProjectAddress(projectAddress);
+  const createdAt = new Date().toISOString();
+  const projectLabel = `${projectType} estimate request`;
+  const publicActor = publicRequestActor();
+
+  await updateDb((draft) => {
+    if (!Array.isArray(draft.users) || draft.users.length === 0) {
+      throw new ApiError(503, "Public estimate requests are unavailable until the workspace is set up.");
+    }
+
+    const owner = resolvePublicRequestOwner(draft);
+    if (!owner) {
+      throw new ApiError(503, "Public estimate requests are unavailable until an office lead manager is available.");
+    }
+
+    const customer = ensureCustomerRecord(draft, {
+      name,
+      phone,
+      email,
+      city,
+      serviceArea: city,
+      status: "Prospect",
+    }, publicActor, { fallbackStatus: "Prospect" });
+
+    const lead = {
+      id: makeId("L"),
+      customerId: customer.id,
+      customer: customer.name,
+      city: customer.city || city,
+      project: projectLabel,
+      status: "New",
+      priority: "Normal",
+      value: 0,
+      owner: owner.name,
+      ownerId: owner.id,
+      source: "public_request_form",
+      followUpDueAt: "",
+      age: "Just now",
+      nextStep: "Contact new public estimate request",
+      notes: buildPublicRequestLeadNotes({
+        projectAddress,
+        projectType,
+        projectDetails,
+        preferredContactMethod,
+        preferredContactTime,
+      }),
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+    };
+
+    draft.leads.unshift(lead);
+    appendLeadStatusHistory(draft, {
+      leadId: lead.id,
+      fromStatus: null,
+      toStatus: lead.status,
+      actor: owner,
+      note: "Lead created from the public estimate request form.",
+      createdAt,
+    });
+    draft.queueItems.unshift({
+      id: makeId("Q"),
+      title: `Follow up ${lead.customer}`,
+      meta: `${projectType} - ${projectAddress}`,
+      status: "Due today",
+      done: false,
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+    });
+    appendActivity(draft, "Public estimate request received", `${lead.customer} requested an estimate for ${projectType}.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "public_request_created",
+      summary: "Public estimate request received",
+      detail: `${lead.customer} requested an estimate for ${projectType}.`,
+      actor: publicActor,
+      changedFields: ["source", "status", "customerId"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ok: true,
+    message: "Request received. Our team will follow up shortly.",
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
   if (serverConfig.bootstrapAdmin) {
     throw new ApiError(409, "Initial admin setup is managed by environment configuration.");
@@ -3650,7 +3840,6 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   return res.json({
     token,
     user: publicUser(user),
-    demoCredentials: DEMO_CREDENTIALS,
   });
 }));
 
