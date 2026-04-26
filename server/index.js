@@ -1752,6 +1752,50 @@ function sanitizeUploadForUser(upload, state, user) {
   };
 }
 
+function isDemoUploadRecord(upload) {
+  return Boolean(upload?.id) && String(upload.id).startsWith("UPL-DEMO-");
+}
+
+function escapeSvgText(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function createDemoUploadPlaceholder(upload) {
+  const title = escapeSvgText(upload?.caption || upload?.fileName || "Demo Upload");
+  const jobId = escapeSvgText(upload?.jobId || "Unlinked job");
+  const uploader = escapeSvgText(upload?.uploadedBy || "Unknown uploader");
+  const note = escapeSvgText(upload?.locationUnavailableReason || "Demo placeholder image");
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">Demo Upload Placeholder</title>
+  <desc id="desc">${title}</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eff6ff" />
+      <stop offset="100%" stop-color="#dbeafe" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg)" />
+  <rect x="56" y="56" width="1088" height="788" rx="32" fill="#ffffff" stroke="#bfdbfe" stroke-width="4" />
+  <text x="96" y="150" fill="#1e3a8a" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Concrete Ops Demo Upload</text>
+  <text x="96" y="215" fill="#0f172a" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700">${title}</text>
+  <text x="96" y="300" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="26">This is a generated placeholder for seeded demo photo evidence.</text>
+  <text x="96" y="360" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="24">Job: ${jobId}</text>
+  <text x="96" y="408" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="24">Uploaded by: ${uploader}</text>
+  <text x="96" y="456" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="24">Status: ${note}</text>
+  <rect x="96" y="530" width="1008" height="240" rx="24" fill="#eff6ff" stroke="#dbeafe" stroke-width="3" />
+  <text x="600" y="620" text-anchor="middle" fill="#2563eb" font-family="Arial, Helvetica, sans-serif" font-size="140">PHOTO</text>
+  <text x="600" y="695" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="30">Demo-only placeholder content</text>
+</svg>`;
+
+  return Buffer.from(svg, "utf8");
+}
+
 function visibleUploadsForUser(state, user) {
   if (!user || !canViewUploads(user)) return [];
   return (state.uploads || [])
@@ -5614,7 +5658,15 @@ app.get("/api/uploads/:id/content", requireAuth, asyncRoute(async (req, res) => 
   const absolutePath = path.join(getDataPaths().dataDir, upload.storagePath);
   const fileBuffer = await fs.readFile(absolutePath).catch(() => null);
   if (!fileBuffer) {
-    throw new ApiError(404, "Uploaded file not found.");
+    if (!isDemoUploadRecord(upload)) {
+      throw new ApiError(404, "Uploaded file not found.");
+    }
+
+    const placeholderBuffer = createDemoUploadPlaceholder(upload);
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Content-Length", String(placeholderBuffer.length));
+    res.setHeader("Cache-Control", "private, max-age=60");
+    return res.send(placeholderBuffer);
   }
 
   res.setHeader("Content-Type", upload.fileType || "application/octet-stream");

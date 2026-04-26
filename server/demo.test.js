@@ -206,6 +206,49 @@ function insertExistingBusinessRecords(sqliteFile) {
   }
 }
 
+function insertDemoUploadRecord(sqliteFile, upload) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT INTO uploads (
+        id, sort_index, job_id, customer_id, report_id, incident_id, change_order_id, tool_checklist_item_id,
+        uploaded_by, file_name, file_type, file_size, storage_path, caption, notes, taken_at, uploaded_at,
+        latitude, longitude, location_accuracy, location_captured_at, location_unavailable_reason, created_at,
+        updated_at, archived_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      upload.id,
+      upload.sortIndex ?? 0,
+      upload.jobId,
+      upload.customerId ?? null,
+      upload.reportId ?? null,
+      upload.incidentId ?? null,
+      upload.changeOrderId ?? null,
+      upload.toolChecklistItemId ?? null,
+      upload.uploadedBy,
+      upload.fileName,
+      upload.fileType,
+      upload.fileSize ?? 0,
+      upload.storagePath,
+      upload.caption ?? "",
+      upload.notes ?? "",
+      upload.takenAt ?? null,
+      upload.uploadedAt,
+      upload.latitude ?? null,
+      upload.longitude ?? null,
+      upload.locationAccuracy ?? null,
+      upload.locationCapturedAt ?? null,
+      upload.locationUnavailableReason ?? "",
+      upload.createdAt,
+      upload.updatedAt,
+      upload.archivedAt ?? null,
+    );
+  } finally {
+    database.close();
+  }
+}
+
 test("demo config keeps production safe unless demo mode is explicitly enabled", () => {
   const productionExplicitSeed = createServerConfig({
     NODE_ENV: "production",
@@ -250,6 +293,13 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     assert.ok(adminBootstrap.jobs.some((job) => job.id === "J-2201"));
     assert.ok(adminBootstrap.dailyReports.length > 0);
     assert.ok(adminBootstrap.uploads.length > 0);
+    const demoUpload = adminBootstrap.uploads.find((upload) => upload.id === "UPL-DEMO-002") || adminBootstrap.uploads[0];
+    assert.ok(demoUpload);
+    const demoUploadContent = await fetch(`${fixture.baseUrl}${demoUpload.contentUrl}`, {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    assert.equal(demoUploadContent.ok, true);
+    assert.equal(String(demoUploadContent.headers.get("content-type") || "").startsWith("image/"), true);
     assert.ok(adminBootstrap.safetyIncidents.length > 0);
     assert.ok(adminBootstrap.toolChecklists.length > 0);
     assert.ok(adminBootstrap.calculatorResults.length > 0);
@@ -284,6 +334,40 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     assert.equal(employeeBootstrap.estimates.length, 0);
     assert.ok(employeeBootstrap.jobs.length > 0);
     assert.equal(employeeBootstrap.jobs.every((job) => !("grandTotal" in job) && !("subtotal" in job)), true);
+
+    const now = new Date().toISOString();
+    insertDemoUploadRecord(path.join(fixture.dataDir, "app-data.sqlite"), {
+      id: "UPL-DEMO-UNRELATED",
+      sortIndex: 999,
+      jobId: "J-2192",
+      customerId: "C-1003",
+      reportId: null,
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: "DEMO-U-ADMIN",
+      fileName: "unrelated-demo-upload.jpg",
+      fileType: "image/jpeg",
+      fileSize: 12345,
+      storagePath: "uploads/demo-unrelated-missing.jpg",
+      caption: "Unrelated demo upload",
+      notes: "Should stay hidden from unrelated field users.",
+      takenAt: now,
+      uploadedAt: now,
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Not requested",
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    });
+
+    const deniedUploadContent = await fetch(`${fixture.baseUrl}/api/uploads/UPL-DEMO-UNRELATED/content`, {
+      headers: { Authorization: `Bearer ${employeeLogin.token}` },
+    });
+    assert.equal(deniedUploadContent.status, 403);
   } finally {
     await fixture.stop();
   }

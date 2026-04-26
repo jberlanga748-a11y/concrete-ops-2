@@ -144,6 +144,49 @@ function configureFieldVisibleJob(sqliteFile) {
   }
 }
 
+function insertUploadRecord(sqliteFile, upload) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT INTO uploads (
+        id, sort_index, job_id, customer_id, report_id, incident_id, change_order_id, tool_checklist_item_id,
+        uploaded_by, file_name, file_type, file_size, storage_path, caption, notes, taken_at, uploaded_at,
+        latitude, longitude, location_accuracy, location_captured_at, location_unavailable_reason, created_at,
+        updated_at, archived_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      upload.id,
+      upload.sortIndex ?? 0,
+      upload.jobId,
+      upload.customerId ?? null,
+      upload.reportId ?? null,
+      upload.incidentId ?? null,
+      upload.changeOrderId ?? null,
+      upload.toolChecklistItemId ?? null,
+      upload.uploadedBy,
+      upload.fileName,
+      upload.fileType,
+      upload.fileSize ?? 0,
+      upload.storagePath,
+      upload.caption ?? "",
+      upload.notes ?? "",
+      upload.takenAt ?? null,
+      upload.uploadedAt,
+      upload.latitude ?? null,
+      upload.longitude ?? null,
+      upload.locationAccuracy ?? null,
+      upload.locationCapturedAt ?? null,
+      upload.locationUnavailableReason ?? "",
+      upload.createdAt,
+      upload.updatedAt,
+      upload.archivedAt ?? null,
+    );
+  } finally {
+    database.close();
+  }
+}
+
 test("uploads respect job-scoped field permissions, GPS-optional metadata, and persistent storage", async () => {
   const fixture = await startServer();
 
@@ -351,6 +394,86 @@ test("uploads reject unsafe types and oversized payloads", async () => {
       }),
     });
     assert.equal(oversizedUpload.response.status, 400);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("missing demo upload files return a placeholder while missing real upload files still 404", async () => {
+  const fixture = await startServer();
+
+  try {
+    const officeLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const officeHeaders = authHeaders(officeLogin.token);
+
+    const now = new Date().toISOString();
+    insertUploadRecord(fixture.sqliteFile, {
+      id: "UPL-DEMO-MISSING",
+      sortIndex: 999,
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: null,
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: "U-001",
+      fileName: "demo-missing.jpg",
+      fileType: "image/jpeg",
+      fileSize: 12345,
+      storagePath: "uploads/demo-missing-file.jpg",
+      caption: "Missing demo placeholder test",
+      notes: "Synthetic demo upload metadata without a backing file.",
+      takenAt: now,
+      uploadedAt: now,
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Not requested",
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    });
+
+    const demoContentResponse = await fetch(`${fixture.baseUrl}/api/uploads/UPL-DEMO-MISSING/content`, {
+      headers: {
+        Authorization: `Bearer ${officeLogin.token}`,
+      },
+    });
+    assert.equal(demoContentResponse.ok, true);
+    assert.equal(demoContentResponse.headers.get("content-type"), "image/svg+xml; charset=utf-8");
+    const demoContent = await demoContentResponse.text();
+    assert.equal(demoContent.includes("Demo Upload Placeholder"), true);
+
+    const realUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "real-upload.png",
+        fileType: "image/png",
+        dataUrl: PNG_DATA_URL,
+        caption: "Real upload missing file test",
+      }),
+    });
+    const realUpload = realUploadState.uploads.find((upload) => upload.caption === "Real upload missing file test");
+    assert.ok(realUpload);
+
+    const uploadDirectory = path.join(fixture.tempDataDir, "uploads");
+    const storedFiles = await fs.readdir(uploadDirectory);
+    const storedFileName = storedFiles.find((entry) => entry.startsWith(`${realUpload.id}-`));
+    assert.ok(storedFileName);
+    await fs.rm(path.join(uploadDirectory, storedFileName), { force: true });
+
+    const missingRealContent = await fetch(`${fixture.baseUrl}${realUpload.contentUrl}`, {
+      headers: {
+        Authorization: `Bearer ${officeLogin.token}`,
+      },
+    });
+    assert.equal(missingRealContent.status, 404);
   } finally {
     await fixture.stop();
   }
