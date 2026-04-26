@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canAcknowledgeSafety,
   canCreateDailyReports,
   canCreateUploads,
   canManageCustomers,
@@ -9,9 +10,12 @@ import {
   canManageLeads,
   canManageOwnTime,
   canManageReports,
+  canManageSafety,
   canManageUploads,
   canManageUsers,
   canReviewReports,
+  canReviewSafetyIncidents,
+  canSubmitSafetyIncidents,
   canUseCalculator,
   canUseToolChecklist,
   canViewAllTime,
@@ -65,6 +69,7 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageEstimates(estimator), true);
   assert.equal(canManageOwnTime(estimator), true);
   assert.equal(modules.has("time"), true);
+  assert.equal(canViewSafety(estimator), false);
   assert.equal(canViewSettings(estimator), false);
 });
 
@@ -83,6 +88,9 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canViewCrewTime(foreman), true);
   assert.equal(canUseCalculator(foreman), true);
   assert.equal(canViewSafety(foreman), true);
+  assert.equal(canAcknowledgeSafety(foreman), true);
+  assert.equal(canSubmitSafetyIncidents(foreman), true);
+  assert.equal(canManageSafety(foreman), false);
   assert.equal(canUseToolChecklist(foreman, { toolChecklistEnabled: true }), true);
   assert.equal(canUseToolChecklist(foreman, { toolChecklistEnabled: false }), false);
 });
@@ -102,6 +110,9 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canManageOwnTime(employee), true);
   assert.equal(canUseCalculator(employee), true);
   assert.equal(canViewSafety(employee), true);
+  assert.equal(canAcknowledgeSafety(employee), true);
+  assert.equal(canSubmitSafetyIncidents(employee), true);
+  assert.equal(canReviewSafetyIncidents(employee), false);
   assert.equal(modules.has("leads"), false);
   assert.equal(modules.has("customers"), false);
   assert.equal(modules.has("settings"), false);

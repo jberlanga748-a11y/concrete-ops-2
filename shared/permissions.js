@@ -197,10 +197,22 @@ export function canUseCalculator(user) {
 }
 
 export function canViewSafety(user) {
-  return Boolean(user);
+  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
 }
 
 export function canManageSafety(user) {
+  return isOfficeManager(user);
+}
+
+export function canAcknowledgeSafety(user) {
+  return canViewSafety(user);
+}
+
+export function canSubmitSafetyIncidents(user) {
+  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+}
+
+export function canReviewSafetyIncidents(user) {
   return isOfficeManager(user);
 }
 

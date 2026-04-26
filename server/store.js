@@ -92,7 +92,7 @@ export function generateToken() {
 }
 
 export function makeId(prefix) {
-  return `${prefix}-${Math.floor(Date.now() / 1000).toString().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 export function makeActivityId() {
@@ -118,6 +118,48 @@ export function leadProjectName(lead) {
   const lastName = lead.customer.split(" ").slice(-1)[0] || "Customer";
   return `${lastName} ${lead.project}`;
 }
+
+const INITIAL_SAFETY_POLICIES = [
+  {
+    id: "SP-001",
+    title: "General jobsite PPE",
+    body: "Show up ready with the core PPE for the task. If the site conditions change, stop and confirm what extra protection is needed before work continues.",
+    category: "PPE",
+    status: "active",
+  },
+  {
+    id: "SP-002",
+    title: "Silica and dust awareness",
+    body: "Use dust-control steps that fit the task. Slow down, keep visibility clear, and speak up if the crew needs a safer cutting or cleanup plan.",
+    category: "Air quality",
+    status: "active",
+  },
+  {
+    id: "SP-003",
+    title: "Equipment awareness",
+    body: "Keep clear communication around moving equipment. Walk the site before work starts and call out blind spots, pinch points, and access issues early.",
+    category: "Equipment",
+    status: "active",
+  },
+  {
+    id: "SP-004",
+    title: "Incident reporting expectations",
+    body: "Report hazards, near misses, injuries, and property damage as soon as they happen. Quick reporting helps the office and crew respond before the next task starts.",
+    category: "Reporting",
+    status: "active",
+  },
+];
+
+const INITIAL_PPE_ITEMS = [
+  { id: "PPE-001", label: "Hard hat", description: "Wear when overhead or active equipment hazards are present.", requiredByDefault: true, status: "active" },
+  { id: "PPE-002", label: "Safety glasses", description: "Use eye protection during cutting, cleanup, or flying-debris tasks.", requiredByDefault: true, status: "active" },
+  { id: "PPE-003", label: "High-vis vest/shirt", description: "Keep visibility high around vehicles, equipment, and deliveries.", requiredByDefault: true, status: "active" },
+  { id: "PPE-004", label: "Gloves", description: "Use task-appropriate gloves for handling forms, rebar, tools, or material.", requiredByDefault: true, status: "active" },
+  { id: "PPE-005", label: "Work boots", description: "Wear work boots suited to uneven ground, heavy material, and wet conditions.", requiredByDefault: true, status: "active" },
+  { id: "PPE-006", label: "Hearing protection", description: "Use hearing protection around saws, compactors, generators, or loud equipment.", requiredByDefault: true, status: "active" },
+  { id: "PPE-007", label: "Respirator/dust mask when needed", description: "Use when cutting, grinding, or working in dusty conditions that call for respiratory protection.", requiredByDefault: false, status: "active" },
+  { id: "PPE-008", label: "Fall protection when required", description: "Use when task conditions create fall exposure and a protection plan is required.", requiredByDefault: false, status: "active" },
+];
 
 function jobStatusValue(status = "scheduled") {
   const normalized = String(status || "").trim().toLowerCase();
@@ -364,6 +406,10 @@ export function createEmptyState() {
     leadStatusHistory: [],
     jobs: [],
     jobAssignments: [],
+    safetyPolicies: [],
+    ppeItems: [],
+    safetyAcknowledgments: [],
+    safetyIncidents: [],
     dailyReports: [],
     uploads: [],
     timeEntries: [],
@@ -388,6 +434,24 @@ export function createSeedState() {
     ownerId: seedUser.id,
   }));
   const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240);
+  const safetyPolicies = withSeedTimestamps(
+    INITIAL_SAFETY_POLICIES.map((policy) => ({
+      ...policy,
+      createdBy: seedUser.id,
+      archivedAt: null,
+    })),
+    seededAt,
+    60,
+  );
+  const ppeItems = withSeedTimestamps(
+    INITIAL_PPE_ITEMS.map((item) => ({
+      ...item,
+      createdBy: seedUser.id,
+      archivedAt: null,
+    })),
+    seededAt,
+    45,
+  );
   const queueItems = withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90);
   const leadStatusHistory = createSeedLeadStatusHistory(seedUser, leads);
 
@@ -401,6 +465,10 @@ export function createSeedState() {
     leadStatusHistory,
     jobs,
     jobAssignments: [],
+    safetyPolicies,
+    ppeItems,
+    safetyAcknowledgments: [],
+    safetyIncidents: [],
     dailyReports: [],
     uploads: [],
     timeEntries: [],
@@ -413,10 +481,26 @@ export function createSeedState() {
 function createBootstrapAdminState(adminConfig) {
   const createdAt = isoNow();
   const adminUser = createUserRecord(adminConfig);
+  const safetyPolicies = INITIAL_SAFETY_POLICIES.map((policy) => ({
+    ...policy,
+    createdBy: adminUser.id,
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt: null,
+  }));
+  const ppeItems = INITIAL_PPE_ITEMS.map((item) => ({
+    ...item,
+    createdBy: adminUser.id,
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt: null,
+  }));
 
   return {
     ...createEmptyState(),
     users: [adminUser],
+    safetyPolicies,
+    ppeItems,
     leadStatusHistory: [],
     timeEntries: [],
     auditEvents: [
@@ -1367,6 +1451,94 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 22,
+    description: "Add safety policies, PPE items, acknowledgments, and incidents.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS safety_policies (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          category TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_safety_policies_status ON safety_policies(status);
+        CREATE INDEX IF NOT EXISTS idx_safety_policies_sort_index ON safety_policies(sort_index);
+
+        CREATE TABLE IF NOT EXISTS ppe_items (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          label TEXT NOT NULL,
+          description TEXT NOT NULL,
+          required_by_default INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ppe_items_status ON ppe_items(status);
+        CREATE INDEX IF NOT EXISTS idx_ppe_items_sort_index ON ppe_items(sort_index);
+
+        CREATE TABLE IF NOT EXISTS safety_acknowledgments (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          user_id TEXT NOT NULL,
+          job_id TEXT,
+          policy_id TEXT,
+          acknowledged_at TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL,
+          FOREIGN KEY (policy_id) REFERENCES safety_policies(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_safety_acknowledgments_user_id ON safety_acknowledgments(user_id);
+        CREATE INDEX IF NOT EXISTS idx_safety_acknowledgments_job_id ON safety_acknowledgments(job_id);
+        CREATE INDEX IF NOT EXISTS idx_safety_acknowledgments_policy_id ON safety_acknowledgments(policy_id);
+        CREATE INDEX IF NOT EXISTS idx_safety_acknowledgments_acknowledged_at ON safety_acknowledgments(acknowledged_at);
+
+        CREATE TABLE IF NOT EXISTS safety_incidents (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT,
+          submitted_by TEXT NOT NULL,
+          type TEXT NOT NULL,
+          severity TEXT NOT NULL,
+          status TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          immediate_action TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          reviewed_by TEXT,
+          reviewed_at TEXT,
+          resolved_at TEXT,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL,
+          FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_safety_incidents_job_id ON safety_incidents(job_id);
+        CREATE INDEX IF NOT EXISTS idx_safety_incidents_submitted_by ON safety_incidents(submitted_by);
+        CREATE INDEX IF NOT EXISTS idx_safety_incidents_status ON safety_incidents(status);
+        CREATE INDEX IF NOT EXISTS idx_safety_incidents_type ON safety_incidents(type);
+        CREATE INDEX IF NOT EXISTS idx_safety_incidents_created_at ON safety_incidents(created_at);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1435,6 +1607,26 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertSafetyPolicy = database.prepare(`
+    INSERT INTO safety_policies (id, sort_index, title, body, category, status, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertPpeItem = database.prepare(`
+    INSERT INTO ppe_items (id, sort_index, label, description, required_by_default, status, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertSafetyAcknowledgment = database.prepare(`
+    INSERT INTO safety_acknowledgments (id, sort_index, user_id, job_id, policy_id, acknowledged_at, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertSafetyIncident = database.prepare(`
+    INSERT INTO safety_incidents (id, sort_index, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertTimeEntry = database.prepare(`
     INSERT INTO time_entries (id, sort_index, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1475,6 +1667,10 @@ function writeStateToDb(state) {
       DELETE FROM leads;
       DELETE FROM job_assignments;
       DELETE FROM jobs;
+      DELETE FROM safety_acknowledgments;
+      DELETE FROM safety_incidents;
+      DELETE FROM safety_policies;
+      DELETE FROM ppe_items;
       DELETE FROM daily_reports;
       DELETE FROM uploads;
       DELETE FROM time_entries;
@@ -1617,6 +1813,70 @@ function writeStateToDb(state) {
         assignment.notes || "",
         assignment.createdAt || assignment.assignedAt || isoNow(),
         assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
+      );
+    });
+
+    (state.safetyPolicies || []).forEach((policy, index) => {
+      insertSafetyPolicy.run(
+        policy.id,
+        index,
+        policy.title,
+        policy.body || "",
+        policy.category || "",
+        policy.status || "active",
+        policy.createdBy,
+        policy.createdAt || isoNow(),
+        policy.updatedAt || policy.createdAt || isoNow(),
+        policy.archivedAt || null,
+      );
+    });
+
+    (state.ppeItems || []).forEach((item, index) => {
+      insertPpeItem.run(
+        item.id,
+        index,
+        item.label,
+        item.description || "",
+        item.requiredByDefault ? 1 : 0,
+        item.status || "active",
+        item.createdBy,
+        item.createdAt || isoNow(),
+        item.updatedAt || item.createdAt || isoNow(),
+        item.archivedAt || null,
+      );
+    });
+
+    (state.safetyAcknowledgments || []).forEach((acknowledgment, index) => {
+      insertSafetyAcknowledgment.run(
+        acknowledgment.id,
+        index,
+        acknowledgment.userId,
+        acknowledgment.jobId || null,
+        acknowledgment.policyId || null,
+        acknowledgment.acknowledgedAt || acknowledgment.createdAt || isoNow(),
+        acknowledgment.notes || "",
+        acknowledgment.createdAt || acknowledgment.acknowledgedAt || isoNow(),
+      );
+    });
+
+    (state.safetyIncidents || []).forEach((incident, index) => {
+      insertSafetyIncident.run(
+        incident.id,
+        index,
+        incident.jobId || null,
+        incident.submittedBy,
+        incident.type || "concern",
+        incident.severity || "low",
+        incident.status || "open",
+        incident.title || "",
+        incident.description || "",
+        incident.immediateAction || "",
+        incident.createdAt || isoNow(),
+        incident.updatedAt || incident.createdAt || isoNow(),
+        incident.reviewedBy || null,
+        incident.reviewedAt || null,
+        incident.resolvedAt || null,
+        incident.archivedAt || null,
       );
     });
 
@@ -1777,6 +2037,34 @@ function readTableState() {
   `).all();
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
+  const safetyPolicies = database.prepare(`
+    SELECT id, title, body, category, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM safety_policies
+    ORDER BY sort_index ASC
+  `).all();
+
+  const ppeItems = database.prepare(`
+    SELECT id, label, description, required_by_default AS requiredByDefault, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM ppe_items
+    ORDER BY sort_index ASC
+  `).all().map((item) => ({
+    ...item,
+    requiredByDefault: Boolean(item.requiredByDefault),
+  }));
+
+  const safetyAcknowledgments = database.prepare(`
+    SELECT id, user_id AS userId, job_id AS jobId, policy_id AS policyId, acknowledged_at AS acknowledgedAt, notes, created_at AS createdAt
+    FROM safety_acknowledgments
+    ORDER BY sort_index ASC
+  `).all();
+
+  const safetyIncidents = database.prepare(`
+    SELECT id, job_id AS jobId, submitted_by AS submittedBy, type, severity, status, title, description, immediate_action AS immediateAction,
+           created_at AS createdAt, updated_at AS updatedAt, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt, resolved_at AS resolvedAt, archived_at AS archivedAt
+    FROM safety_incidents
+    ORDER BY sort_index ASC
+  `).all();
+
   const timeEntries = database.prepare(`
     SELECT id, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
@@ -1829,7 +2117,58 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, dailyReports, uploads, timeEntries, queueItems, activity, auditEvents };
+  return {
+    users,
+    sessions,
+    customers,
+    leads,
+    leadStatusHistory,
+    jobs: derivedAssignmentState.jobs,
+    jobAssignments: derivedAssignmentState.jobAssignments,
+    safetyPolicies,
+    ppeItems,
+    safetyAcknowledgments,
+    safetyIncidents,
+    dailyReports,
+    uploads,
+    timeEntries,
+    queueItems,
+    activity,
+    auditEvents,
+  };
+}
+
+function withDefaultSafetyContent(state) {
+  const fallbackUserId = state.users[0]?.id || "system";
+  const createdAt = isoNow();
+  const safetyPolicies = Array.isArray(state.safetyPolicies) && state.safetyPolicies.length > 0
+    ? state.safetyPolicies
+    : INITIAL_SAFETY_POLICIES.map((policy, index) => ({
+      ...policy,
+      createdBy: fallbackUserId,
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+      sortIndex: index,
+    }));
+  const ppeItems = Array.isArray(state.ppeItems) && state.ppeItems.length > 0
+    ? state.ppeItems
+    : INITIAL_PPE_ITEMS.map((item, index) => ({
+      ...item,
+      createdBy: fallbackUserId,
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+      sortIndex: index,
+    }));
+
+  return {
+    ...state,
+    safetyPolicies,
+    ppeItems,
+    safetyAcknowledgments: Array.isArray(state.safetyAcknowledgments) ? state.safetyAcknowledgments : [],
+    safetyIncidents: Array.isArray(state.safetyIncidents) ? state.safetyIncidents : [],
+  };
 }
 
 function isRetryableSqliteError(error) {
@@ -1877,6 +2216,15 @@ export async function ensureDb() {
   const currentState = readTableState();
 
   if (hasSqlite && currentState.users.length > 0) {
+    const nextState = withDefaultSafetyContent(currentState);
+    if (
+      nextState.safetyPolicies !== currentState.safetyPolicies
+      || nextState.ppeItems !== currentState.ppeItems
+      || nextState.safetyAcknowledgments !== currentState.safetyAcknowledgments
+      || nextState.safetyIncidents !== currentState.safetyIncidents
+    ) {
+      writeStateToDb(nextState);
+    }
     return;
   }
 
