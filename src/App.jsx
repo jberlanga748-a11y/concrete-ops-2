@@ -1190,7 +1190,7 @@ function LoginScreen({
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
   const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
-  const canShowDemoCredentials = setupStatus.demoUserExists && !isSetupMode;
+  const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -8387,13 +8387,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!setupStatus.demoUserExists) return;
+    if (!setupStatus.demoMode || !setupStatus.demoUserExists) return;
     if (credentials.email || credentials.password) return;
     setCredentials({
       email: "demo.admin@concreteops.app",
       password: "",
     });
-  }, [credentials.email, credentials.password, setupStatus.demoUserExists]);
+  }, [credentials.email, credentials.password, setupStatus.demoMode, setupStatus.demoUserExists]);
 
   useEffect(() => {
     if (!appState.user?.id) return;

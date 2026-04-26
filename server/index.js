@@ -3818,7 +3818,8 @@ function sanitizeBootstrap(state, user) {
 }
 
 function sanitizeSetupStatus(state) {
-  const demoUserExists = state.users.some((user) => DEMO_USER_EMAILS.includes(user.email.toLowerCase()));
+  const demoUserExists = serverConfig.demoMode
+    && state.users.some((user) => DEMO_USER_EMAILS.includes(user.email.toLowerCase()));
   return {
     needsSetup: state.users.length === 0,
     hasUsers: state.users.length > 0,
