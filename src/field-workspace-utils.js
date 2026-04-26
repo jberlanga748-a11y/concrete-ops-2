@@ -37,8 +37,9 @@ function isAssignedCrew(job, userId) {
 }
 
 export function deriveForemanWorkspace(jobs, userId, now = new Date()) {
-  const assignedJobs = jobs.filter((job) => !job.archivedAt && isAssignedForeman(job, userId));
-  const upcomingJobs = jobs.filter((job) => (
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const assignedJobs = safeJobs.filter((job) => !job.archivedAt && isAssignedForeman(job, userId));
+  const upcomingJobs = safeJobs.filter((job) => (
     !job.archivedAt
     && !isAssignedForeman(job, userId)
     && (Boolean(job.fieldPlanningVisible) || Boolean(job.visibleToForeman))
@@ -53,7 +54,8 @@ export function deriveForemanWorkspace(jobs, userId, now = new Date()) {
 }
 
 export function deriveEmployeeWorkspace(jobs, userId) {
-  const assignedJobs = jobs.filter((job) => !job.archivedAt && isAssignedCrew(job, userId));
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const assignedJobs = safeJobs.filter((job) => !job.archivedAt && isAssignedCrew(job, userId));
 
   return {
     assignedJobs,

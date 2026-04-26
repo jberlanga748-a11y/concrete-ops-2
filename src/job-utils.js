@@ -98,9 +98,10 @@ export function filterJobs(jobs, {
   foremanId = "All foremen",
   date = "All dates",
 } = {}) {
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
   const normalizedQuery = String(query || "").trim().toLowerCase();
 
-  return jobs.filter((job) => {
+  return safeJobs.filter((job) => {
     const archived = isArchivedJob(job);
     const normalizedStatus = normalizeJobStatus(job.status || job.stage);
     const matchesArchive = status === "Archived" ? archived : !archived;
@@ -129,18 +130,20 @@ export function filterJobs(jobs, {
 }
 
 export function deriveJobListState(jobs, filters = {}, users = []) {
-  const filteredJobs = filterJobs(jobs, filters);
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+  const filteredJobs = filterJobs(safeJobs, filters);
   const customerOptions = Array.from(new Map(
-    jobs
+    safeJobs
       .filter((job) => !isArchivedJob(job))
       .map((job) => [(job.customerId || job.customer), { value: job.customerId || job.customer, label: job.customer }]),
   ).values()).sort((left, right) => left.label.localeCompare(right.label));
 
   const foremanOptions = Array.from(new Map(
-    jobs
+    safeJobs
       .filter((job) => job.assignedForemanId)
       .map((job) => {
-        const matchedUser = users.find((user) => user.id === job.assignedForemanId);
+        const matchedUser = safeUsers.find((user) => user.id === job.assignedForemanId);
         return [job.assignedForemanId, { value: job.assignedForemanId, label: matchedUser?.name || job.assignedForemanId }];
       }),
   ).values()).sort((left, right) => left.label.localeCompare(right.label));

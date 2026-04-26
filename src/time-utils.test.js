@@ -81,6 +81,14 @@ test("deriveTimeWorkspace returns allowed job options and a weekly summary", () 
   assert.equal(workspace.weeklySummary.totalMinutes, 570);
 });
 
+test("deriveTimeWorkspace tolerates missing jobs and categories", () => {
+  const workspace = deriveTimeWorkspace(SAMPLE_ENTRIES, undefined, "U-1", undefined);
+
+  assert.deepEqual(workspace.availableJobs, []);
+  assert.deepEqual(workspace.allowedCategories, []);
+  assert.equal(workspace.weeklySummary.totalMinutes, 570);
+});
+
 test("deriveCrewWeeklySummary excludes the foreman self entry and counts active crew", () => {
   const summary = deriveCrewWeeklySummary(SAMPLE_ENTRIES, {
     excludeUserId: "U-1",

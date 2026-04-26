@@ -71,3 +71,12 @@ test("job list state derives customer and foreman filter options", () => {
   assert.deepEqual(state.foremanOptions, [{ value: "U-FOREMAN", label: "Miguel Foreman" }]);
   assert.equal(state.filteredJobs.length, 2);
 });
+
+test("job list helpers tolerate missing job arrays", () => {
+  assert.deepEqual(filterJobs(undefined, { status: "All" }), []);
+
+  const state = deriveJobListState(undefined, {}, undefined);
+  assert.deepEqual(state.filteredJobs, []);
+  assert.deepEqual(state.customerOptions, []);
+  assert.deepEqual(state.foremanOptions, []);
+});

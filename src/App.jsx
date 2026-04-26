@@ -1690,9 +1690,10 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
 }
 
 function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
-  const workspace = useMemo(() => deriveForemanWorkspace(rows, user?.id), [rows, user?.id]);
-  const focusJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob;
-  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, rows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, rows, timeEntries, user?.id]);
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
+  const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
+  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, safeRows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, safeRows, timeEntries, user?.id]);
 
   return (
     <div>
@@ -1742,8 +1743,9 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
 }
 
 function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, busy }) {
-  const workspace = useMemo(() => deriveEmployeeWorkspace(rows, user?.id), [rows, user?.id]);
-  const fallbackJob = rows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || rows[0] || null;
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
+  const fallbackJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || safeRows[0] || null;
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
 
   return (
@@ -1886,22 +1888,24 @@ function TimeEntryCard({ entry, showUser = false, compact = false }) {
 }
 
 function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories." }) {
-  const defaultCategory = allowedCategories[0] || "job";
+  const safeAllowedCategories = Array.isArray(allowedCategories) ? allowedCategories : [];
+  const safeAvailableJobs = Array.isArray(availableJobs) ? availableJobs : [];
+  const defaultCategory = safeAllowedCategories[0] || "job";
   const [workCategory, setWorkCategory] = useState(defaultCategory);
-  const [jobId, setJobId] = useState(availableJobs[0]?.id || "");
+  const [jobId, setJobId] = useState(safeAvailableJobs[0]?.id || "");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (activeEntry) return;
     if (workCategory !== "job") return;
-    if (availableJobs.some((job) => job.id === jobId)) return;
-    setJobId(availableJobs[0]?.id || "");
-  }, [activeEntry, availableJobs, jobId, workCategory]);
+    if (safeAvailableJobs.some((job) => job.id === jobId)) return;
+    setJobId(safeAvailableJobs[0]?.id || "");
+  }, [activeEntry, jobId, safeAvailableJobs, workCategory]);
 
   useEffect(() => {
-    if (allowedCategories.includes(workCategory)) return;
+    if (safeAllowedCategories.includes(workCategory)) return;
     setWorkCategory(defaultCategory);
-  }, [allowedCategories, defaultCategory, workCategory]);
+  }, [defaultCategory, safeAllowedCategories, workCategory]);
 
   if (activeEntry) {
     return (
@@ -1921,9 +1925,9 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
   }
 
   return (
-    <Card className="p-5">
-      <SectionHeader title="Clock in" description={description} />
-      {allowedCategories.length === 0 ? (
+      <Card className="p-5">
+        <SectionHeader title="Clock in" description={description} />
+      {safeAllowedCategories.length === 0 ? (
         <StateCard title="Clock-in not available" description="This role is not set up for self time tracking right now." tone="slate" />
       ) : (
         <form
@@ -1936,14 +1940,14 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
           }}
         >
           <SelectField label="Work category" value={workCategory} onChange={(event) => setWorkCategory(event.target.value)}>
-            {allowedCategories.map((category) => <option key={category} value={category}>{workCategoryLabel(category)}</option>)}
+            {safeAllowedCategories.map((category) => <option key={category} value={category}>{workCategoryLabel(category)}</option>)}
           </SelectField>
           {workCategory === "job" ? (
-            availableJobs.length === 0 ? (
+            safeAvailableJobs.length === 0 ? (
               <StateCard title="No job options yet" description="Contact office if the right assigned job is missing." tone="slate" />
             ) : (
               <SelectField label="Job" value={jobId} onChange={(event) => setJobId(event.target.value)}>
-                {availableJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                {safeAvailableJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
               </SelectField>
             )
           ) : null}
@@ -3693,10 +3697,11 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode }) {
 
 function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
+  const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
   const previews = [
     selectedLead ? `${selectedLead.customer} · ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
           selectedJob ? `${jobTitle(selectedJob)} · ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
-    queueItems[0] ? `${queueItems[0].title} · ${queueItems[0].status}` : "Queue items will appear here as they are added.",
+    safeQueueItems[0] ? `${safeQueueItems[0].title} · ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
   ];
 
   return (

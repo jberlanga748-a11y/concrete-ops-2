@@ -65,3 +65,12 @@ test("report status labels stay human friendly", () => {
   assert.equal(reportStatusLabel("reopened"), "Reopened");
   assert.equal(reportStatusLabel("submitted"), "Submitted");
 });
+
+test("report helpers tolerate missing report arrays", () => {
+  assert.deepEqual(filterDailyReports(undefined, { status: "All" }), []);
+
+  const state = deriveDailyReportListState(undefined);
+  assert.deepEqual(state.jobOptions, []);
+  assert.deepEqual(state.creatorOptions, []);
+  assert.deepEqual(state.dateOptions, []);
+});

@@ -51,3 +51,14 @@ test("employee workspace only includes personally assigned jobs", () => {
   assert.deepEqual(workspace.assignedJobs.map((job) => job.id), ["J-2201"]);
   assert.equal(workspace.primaryJob?.id, "J-2201");
 });
+
+test("field workspace helpers tolerate missing job arrays", () => {
+  const foremanWorkspace = deriveForemanWorkspace(undefined, "U-FOREMAN", NOW);
+  const employeeWorkspace = deriveEmployeeWorkspace(undefined, "U-EMPLOYEE");
+
+  assert.deepEqual(foremanWorkspace.assignedJobs, []);
+  assert.deepEqual(foremanWorkspace.upcomingJobs, []);
+  assert.equal(foremanWorkspace.primaryJob, null);
+  assert.deepEqual(employeeWorkspace.assignedJobs, []);
+  assert.equal(employeeWorkspace.primaryJob, null);
+});
