@@ -287,6 +287,25 @@ function dedupeAssignmentsById(assignments = []) {
   return Array.from(byId.values());
 }
 
+function dedupeActiveAssignmentsByUser(assignments = []) {
+  const activeByUser = new Map();
+  const removedAssignments = [];
+
+  for (const assignment of assignments || []) {
+    if (assignment?.removedAt) {
+      removedAssignments.push(assignment);
+      continue;
+    }
+    const key = `${assignment.jobId}:${assignment.userId}`;
+    activeByUser.set(key, preferredAssignmentRecord(activeByUser.get(key), assignment));
+  }
+
+  return [
+    ...Array.from(activeByUser.values()),
+    ...removedAssignments,
+  ];
+}
+
 function buildDerivedJobAssignments(jobs, jobAssignments = []) {
   const explicitAssignments = dedupeAssignmentsById((jobAssignments || []).map((assignment) => ({
     ...assignment,
@@ -300,6 +319,11 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
   })));
   const mergedAssignments = [...explicitAssignments];
   const usedIds = new Set(explicitAssignments.map((assignment) => assignment.id));
+  const activeUserKeys = new Set(
+    explicitAssignments
+      .filter((assignment) => !assignment.removedAt)
+      .map((assignment) => `${assignment.jobId}:${assignment.userId}`),
+  );
   const activeKeys = new Set(
     explicitAssignments
       .filter((assignment) => !assignment.removedAt)
@@ -310,8 +334,9 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
     const baseStamp = job.updatedAt || job.createdAt || isoNow();
 
     if (job.assignedForemanId) {
+      const userKey = `${job.id}:${job.assignedForemanId}`;
       const key = `${job.id}:${job.assignedForemanId}:foreman`;
-      if (!activeKeys.has(key)) {
+      if (!activeUserKeys.has(userKey) && !activeKeys.has(key)) {
         let derivedId = `JA-LEGACY-${job.id}-foreman`;
         if (usedIds.has(derivedId)) {
           derivedId = `JA-ALIAS-${job.id}-foreman`;
@@ -330,13 +355,15 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
           syntheticFromJobAlias: true,
         });
         usedIds.add(derivedId);
+        activeUserKeys.add(userKey);
         activeKeys.add(key);
       }
     }
 
     if (job.assignedUserId) {
+      const userKey = `${job.id}:${job.assignedUserId}`;
       const key = `${job.id}:${job.assignedUserId}:crew`;
-      if (!activeKeys.has(key)) {
+      if (!activeUserKeys.has(userKey) && !activeKeys.has(key)) {
         let derivedId = `JA-LEGACY-${job.id}-crew`;
         if (usedIds.has(derivedId)) {
           derivedId = `JA-ALIAS-${job.id}-crew`;
@@ -355,13 +382,16 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
           syntheticFromJobAlias: true,
         });
         usedIds.add(derivedId);
+        activeUserKeys.add(userKey);
         activeKeys.add(key);
       }
     }
   }
 
+  const canonicalAssignments = dedupeActiveAssignmentsByUser(dedupeAssignmentsById(mergedAssignments));
+
   const hydratedJobs = (jobs || []).map((job) => {
-    const assignments = mergedAssignments.filter((assignment) => assignment.jobId === job.id && !assignment.removedAt);
+    const assignments = canonicalAssignments.filter((assignment) => assignment.jobId === job.id && !assignment.removedAt);
     const foremanAssignment = assignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
     const crewAssignments = assignments.filter((assignment) => assignment.roleOnJob !== "foreman");
 
@@ -378,7 +408,7 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
   });
 
   return {
-    jobAssignments: dedupeAssignmentsById(mergedAssignments),
+    jobAssignments: canonicalAssignments,
     jobs: hydratedJobs,
   };
 }

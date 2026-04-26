@@ -1984,6 +1984,7 @@ function resolveLegacyCompatibleAssignment(state, jobId, assignmentId) {
   const activeAssignments = activeJobAssignments(state, jobId);
   if (activeAssignments.length === 0) return null;
   const job = findRequiredRecord(state.jobs, jobId, "Job");
+  const legacyRecord = (state.jobAssignments || []).find((entry) => entry.id === normalizedId && entry.jobId === jobId) || null;
 
   const legacyForemanIds = new Set([
     `JA-LEGACY-${jobId}-foreman`,
@@ -1991,6 +1992,9 @@ function resolveLegacyCompatibleAssignment(state, jobId, assignmentId) {
     `JA-MIG-${jobId}-foreman`,
   ]);
   if (legacyForemanIds.has(normalizedId)) {
+    if (legacyRecord?.userId) {
+      return activeAssignments.find((assignment) => assignment.roleOnJob === "foreman" && assignment.userId === legacyRecord.userId) || null;
+    }
     return activeAssignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
   }
 
@@ -2000,6 +2004,9 @@ function resolveLegacyCompatibleAssignment(state, jobId, assignmentId) {
     `JA-MIG-${jobId}-crew`,
   ]);
   if (legacyCrewIds.has(normalizedId)) {
+    if (legacyRecord?.userId) {
+      return activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman" && assignment.userId === legacyRecord.userId) || null;
+    }
     return activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman" && assignment.userId === job.assignedUserId)
       || activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman")
       || null;
@@ -2049,7 +2056,29 @@ function assertAssignmentUserIsValid(user, roleOnJob) {
 }
 
 function activeAssignmentForUser(state, jobId, userId) {
-  return activeJobAssignments(state, jobId).find((assignment) => assignment.userId === userId) || null;
+  const explicitAssignment = activeJobAssignments(state, jobId).find((assignment) => assignment.userId === userId) || null;
+  if (explicitAssignment) return explicitAssignment;
+  const job = (state.jobs || []).find((entry) => entry.id === jobId) || null;
+  if (!job) return null;
+  if (job.assignedForemanId === userId) {
+    return {
+      id: `JA-LEGACY-${jobId}-foreman`,
+      jobId,
+      userId,
+      roleOnJob: "foreman",
+      syntheticFromJobAlias: true,
+    };
+  }
+  if (job.assignedUserId === userId) {
+    return {
+      id: `JA-LEGACY-${jobId}-crew`,
+      jobId,
+      userId,
+      roleOnJob: "crew",
+      syntheticFromJobAlias: true,
+    };
+  }
+  return null;
 }
 
 function findDailyReport(state, reportId) {
@@ -2212,6 +2241,7 @@ function replaceForemanAssignment(state, job, userId, actor, changedAt, notes = 
   let action = "foreman_assigned";
 
   if (currentForeman && currentForeman.userId === userId) {
+    materializeAssignmentRecord(currentForeman, actor, changedAt);
     if (currentForeman.notes !== optionalString(notes, currentForeman.notes || "")) {
       currentForeman.notes = optionalString(notes, currentForeman.notes || "");
       currentForeman.updatedAt = changedAt;
@@ -2247,7 +2277,10 @@ function reconcileLegacyAssignmentAliases(state, job, actor, changedAt) {
 
   const currentPrimaryCrew = activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman") || null;
   if (job.assignedUserId) {
-    const matchingCrew = activeAssignmentForUser(state, job.id, job.assignedUserId);
+    const matchingCrew = activeAssignments.find((assignment) => assignment.userId === job.assignedUserId && assignment.roleOnJob !== "foreman") || null;
+    if (matchingCrew?.syntheticFromJobAlias) {
+      materializeAssignmentRecord(matchingCrew, actor, changedAt);
+    }
     if (!matchingCrew) {
       state.jobAssignments.unshift(createJobAssignmentRecord(job.id, job.assignedUserId, "crew", actor, "", changedAt));
     }
@@ -5533,6 +5566,7 @@ app.post("/api/jobs/:id/assignments", requireAuth, asyncRoute(async (req, res) =
     draft.jobAssignments ||= [];
     const job = findRequiredRecord(draft.jobs, id, "Job");
     assertJobCanReceiveAssignments(job);
+    reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
 
     const userId = resolveOptionalUserId(draft, payload.userId, "Assigned user");
     const assignmentUserRecord = findUserById(draft, userId);
@@ -5580,6 +5614,7 @@ app.patch("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(asy
   const nextState = await updateDb((draft) => {
     draft.jobAssignments ||= [];
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
     const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
     materializeAssignmentRecord(assignment, req.auth.user, changedAt);
     const nextRole = payload.roleOnJob == null ? assignment.roleOnJob : normalizeAssignmentRoleValue(payload.roleOnJob, assignment.roleOnJob);
@@ -5635,6 +5670,8 @@ app.delete("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(as
 
   const nextState = await updateDb((draft) => {
     const job = findRequiredRecord(draft.jobs, id, "Job");
+    draft.jobAssignments ||= [];
+    reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
     const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
     const userLabel = findUserById(draft, assignment.userId)?.name || assignment.userId;
     const title = normalizeJobRecord(job).title;

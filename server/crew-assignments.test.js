@@ -463,10 +463,21 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
     const firstBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
     const legacyJob = firstBootstrap.jobs.find((job) => job.id === "J-2201");
     assert.ok(legacyJob);
-    assert.equal(legacyJob.crewAssignments.length >= 1, true);
+    assert.equal(legacyJob.crewAssignments.length, 1);
+    assert.equal(legacyJob.crewAssignments[0].userId, employeeOne.id);
 
     const secondBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
-    assert.equal(secondBootstrap.jobs.find((job) => job.id === "J-2201").crewAssignments.length >= 1, true);
+    assert.equal(secondBootstrap.jobs.find((job) => job.id === "J-2201").crewAssignments.length, 1);
+
+    const duplicateLegacyAddAttempt = await requestJson(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        userId: employeeOne.id,
+        roleOnJob: "finisher",
+      }),
+    });
+    assert.equal(duplicateLegacyAddAttempt.response.status, 409);
 
     const touchedJobState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201", {
       method: "PATCH",
@@ -478,7 +489,10 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
     assert.equal(touchedJobState.jobs.find((job) => job.id === "J-2201").id, "J-2201");
 
     const persistedAssignmentsAfterWrite = listAssignments(fixture.sqliteFile);
-    assert.equal(persistedAssignmentsAfterWrite.filter((assignment) => assignment.id === "JA-LEGACY-J-2201-crew").length, 1);
+    assert.equal(
+      persistedAssignmentsAfterWrite.filter((assignment) => assignment.userId === employeeOne.id && !assignment.removedAt).length <= 1,
+      true,
+    );
 
     const addSecondCrewState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
       method: "POST",
@@ -489,8 +503,37 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
       }),
     });
     const crewJob = addSecondCrewState.jobs.find((job) => job.id === "J-2201");
+    assert.equal(crewJob.crewAssignments.filter((assignment) => assignment.userId === employeeOne.id).length, 1);
     const addedSecondAssignment = crewJob.crewAssignments.find((assignment) => assignment.userId === employeeTwo.id);
     assert.ok(addedSecondAssignment);
+
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        userId: foremanUser.id,
+        roleOnJob: "foreman",
+      }),
+    });
+
+    const foremanLoginForView = await login(fixture.baseUrl, {
+      email: foremanUser.email,
+      password: "concrete123",
+    });
+    const foremanJobsView = await assertOk(fixture.baseUrl, "/api/jobs", {
+      headers: authHeaders(foremanLoginForView.token),
+    });
+    const foremanVisibleJob = foremanJobsView.jobs.find((job) => job.id === "J-2201");
+    assert.equal(foremanVisibleJob.crewAssignments.filter((assignment) => assignment.userId === employeeOne.id).length, 1);
+
+    const employeeLoginForView = await login(fixture.baseUrl, {
+      email: employeeOne.email,
+      password: "concrete123",
+    });
+    const employeeJobsView = await assertOk(fixture.baseUrl, "/api/jobs", {
+      headers: authHeaders(employeeLoginForView.token),
+    });
+    assert.equal(employeeJobsView.jobs[0].crewAssignments.filter((assignment) => assignment.userId === employeeOne.id).length, 1);
 
     const removedLegacyState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments/JA-LEGACY-J-2201-crew", {
       method: "DELETE",
@@ -510,6 +553,7 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
     const replacementCrewJob = replacementCrewState.jobs.find((job) => job.id === "J-2201");
     const replacementAssignment = replacementCrewJob.crewAssignments.find((assignment) => assignment.userId === employeeOne.id);
     assert.ok(replacementAssignment);
+    assert.equal(replacementCrewJob.crewAssignments.filter((assignment) => assignment.userId === employeeOne.id).length, 1);
     assert.equal(replacementAssignment.id.startsWith("JA-"), true);
     assert.notEqual(replacementAssignment.id, "JA-LEGACY-J-2201-crew");
 
