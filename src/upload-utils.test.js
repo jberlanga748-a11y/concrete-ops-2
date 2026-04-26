@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   deriveAllowedUploadJobs,
+  deriveSelectedPhotoTakenAt,
   deriveUploadListState,
   filterUploads,
   gpsStatusLabel,
@@ -19,10 +20,17 @@ test("deriveAllowedUploadJobs excludes archived jobs", () => {
 });
 
 test("gpsStatusLabel handles captured, denied, unavailable, and not requested", () => {
-  assert.equal(gpsStatusLabel({ latitude: 44.9, longitude: -123.0 }), "Captured");
-  assert.equal(gpsStatusLabel({ locationUnavailableReason: "Location permission denied by user." }), "Denied");
-  assert.equal(gpsStatusLabel({ locationUnavailableReason: "Location unavailable indoors." }), "Unavailable");
+  assert.equal(gpsStatusLabel({ latitude: 44.9, longitude: -123.0 }), "Location captured");
+  assert.equal(gpsStatusLabel({ locationUnavailableReason: "Location permission denied by user." }), "Location denied");
+  assert.equal(gpsStatusLabel({ locationUnavailableReason: "Location unavailable indoors." }), "Location unavailable");
   assert.equal(gpsStatusLabel({}), "Not requested");
+});
+
+test("deriveSelectedPhotoTakenAt uses the selection time when no EXIF time is available", () => {
+  assert.equal(
+    deriveSelectedPhotoTakenAt(new Date("2026-04-25T18:45:00.000Z")),
+    "2026-04-25T18:45:00.000Z",
+  );
 });
 
 test("validateUploadFile enforces image types and size", () => {

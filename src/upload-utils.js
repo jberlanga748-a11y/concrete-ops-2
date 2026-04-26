@@ -7,11 +7,19 @@ export function deriveAllowedUploadJobs(jobs) {
 
 export function gpsStatusLabel(item) {
   if (!item) return "Not requested";
-  if (item.latitude != null && item.longitude != null) return "Captured";
+  if (item.latitude != null && item.longitude != null) return "Location captured";
   const reason = String(item.locationUnavailableReason || "").trim().toLowerCase();
-  if (reason.includes("denied")) return "Denied";
-  if (reason) return "Unavailable";
+  if (reason.includes("denied")) return "Location denied";
+  if (reason) return "Location unavailable";
   return "Not requested";
+}
+
+export function deriveSelectedPhotoTakenAt(selectedAt = new Date()) {
+  const normalized = selectedAt instanceof Date ? selectedAt : new Date(selectedAt);
+  if (!Number.isNaN(normalized.getTime())) {
+    return normalized.toISOString();
+  }
+  return new Date().toISOString();
 }
 
 export function validateUploadFile(file) {

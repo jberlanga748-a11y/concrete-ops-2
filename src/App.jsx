@@ -58,7 +58,7 @@ import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
-import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
+import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveSelectedPhotoTakenAt, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -2527,10 +2527,12 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Job:</span> {upload.job?.title || upload.jobId}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Customer:</span> {upload.job?.customer || upload.customerName || "Not set"}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Location status:</span> {gpsStatusLabel(upload)}</p>
             {upload.hasGps ? (
               <>
                 <p className="mt-1"><span className="font-black text-slate-950">GPS:</span> {upload.latitude?.toFixed?.(5)}, {upload.longitude?.toFixed?.(5)}</p>
                 <p className="mt-1"><span className="font-black text-slate-950">Accuracy:</span> {Math.round(upload.locationAccuracy || 0)} m</p>
+                <p className="mt-1"><span className="font-black text-slate-950">Location captured at:</span> {formatDateTime(upload.locationCapturedAt)}</p>
               </>
             ) : (
               <p className="mt-1"><span className="font-black text-slate-950">Location:</span> {upload.locationUnavailableReason || "Not requested"}</p>
@@ -2549,6 +2551,8 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
 }
 
 function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation, onFileChange, onSubmit, loading, fileError }) {
+  const cameraInputRef = useRef(null);
+  const libraryInputRef = useRef(null);
   if (!canCreate) {
     return (
       <Card className="p-5">
@@ -2574,20 +2578,36 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
         <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
           {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
         </SelectField>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Button type="button" className="w-full" onClick={() => cameraInputRef.current?.click()} disabled={loading}>
+            <Icon name="upload" />
+            Take Photo
+          </Button>
+          <Button type="button" variant="secondary" className="w-full" onClick={() => libraryInputRef.current?.click()} disabled={loading}>
+            <Icon name="document" />
+            Upload Existing Photo
+          </Button>
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={onFileChange} className="hidden" />
+          <input ref={libraryInputRef} type="file" accept="image/*" onChange={onFileChange} className="hidden" />
+        </div>
         <div className="grid gap-3 md:grid-cols-2">
           <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
           <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
         </div>
         <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
-        <label className="grid gap-2 text-sm font-black text-slate-700">
-          Photo file
-          <input type="file" accept={ALLOWED_UPLOAD_TYPES.join(",")} capture="environment" onChange={onFileChange} className="rounded-2xl border border-blue-100 bg-white px-3 py-2.5 text-sm text-slate-700" />
-        </label>
+        {draft.fileName ? (
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Taken at:</span> {draft.takenAt ? formatDateTime(new Date(draft.takenAt).toISOString()) : "Will be recorded when selected"}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Uploaded at:</span> Recorded when you submit</p>
+          </div>
+        ) : null}
         {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-48 w-full rounded-2xl object-cover" /> : null}
         {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
         <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-slate-600">
-          <p><span className="font-black text-slate-950">Location:</span> {gpsStatusLabel(draft)}</p>
+          <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
           {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
+          <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Location is used for job documentation only when you tap Capture Location.</p>
           {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2646,6 +2666,7 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
 
   async function handleFileChange(event) {
     const file = event.target.files?.[0] || null;
+    event.target.value = "";
     const nextError = validateUploadFile(file);
     setFileError(nextError);
     setSuccessMessage("");
@@ -2662,13 +2683,14 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
 
     const reader = new FileReader();
     reader.onload = () => {
+      const takenAtIso = deriveSelectedPhotoTakenAt(new Date());
       setDraft((current) => ({
         ...current,
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,
         dataUrl: typeof reader.result === "string" ? reader.result : "",
-        takenAt: current.takenAt || (file.lastModified ? toDateTimeInputValue(new Date(file.lastModified).toISOString()) : ""),
+        takenAt: toDateTimeInputValue(takenAtIso),
       }));
     };
     reader.readAsDataURL(file);
