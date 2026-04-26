@@ -1175,7 +1175,7 @@ function LoginScreen({
               <p className="text-sm font-black text-slate-950">{isSetupMode ? "Set up workspace" : "Sign in"}</p>
               <p className="text-sm text-slate-500">
                 {isSetupMode
-                  ? "Create the first admin account for this deployment."
+                  ? "Create the first admin account for this workspace."
                   : canShowDemoCredentials
                     ? "Use the demo logins for fake company data, or sign in with your own office account."
                     : "Enter the admin account for this workspace."}
@@ -1213,7 +1213,7 @@ function LoginScreen({
           )}
           <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-600">
             <p className="font-black text-slate-950">Need help signing in?</p>
-            <p className="mt-2">Use the office account for this workspace, or the shared demo users when you are opening the demo deployment.</p>
+            <p className="mt-2">Use the office account for this workspace, or the shared demo users when you are opening the demo workspace.</p>
             <p className="mt-2">Public estimate requests can also be opened from here when that workflow is enabled.</p>
           </div>
           {setupStatus.publicEstimateRequestEnabled ? (
@@ -1235,7 +1235,7 @@ function LoginScreen({
               <p>
                 Employee: <span className="font-black text-blue-700">demo.employee@concreteops.app</span>
               </p>
-              <p className="mt-2 text-xs text-slate-500">The demo password is deployment-specific and should be shared privately with the demo link.</p>
+              <p className="mt-2 text-xs text-slate-500">The demo password should be shared privately with the demo link.</p>
             </div>
           ) : null}
         </Card>
@@ -1308,7 +1308,7 @@ function PublicEstimateRequestPage({
             </div>
           ) : !enabled ? (
             <div className="mt-6">
-              <StateCard title="Public requests disabled" description="This deployment has the public estimate request form turned off right now." tone="slate" />
+              <StateCard title="Public requests disabled" description="The public estimate request form is turned off for this workspace right now." tone="slate" />
             </div>
           ) : setupStatus.needsSetup ? (
             <div className="mt-6">
@@ -1399,7 +1399,7 @@ function Sidebar({ active, setActive, counts, navGroups }) {
         </div>
         <Card className="p-4">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Live workspace</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Scheduling, reporting, uploads, and safety updates stay shared across the office and field.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Office and field tools stay synced. Job, crew, report, upload, and safety records stay organized.</p>
         </Card>
       </div>
     </aside>
@@ -4328,19 +4328,35 @@ function ActivityPanel({ activity }) {
 }
 
 function AuditTrailPanel({ auditEvents }) {
-  const safeAuditEvents = normalizeObjectArray(auditEvents).map((event) => ({
+  const [showAll, setShowAll] = useState(false);
+  const safeAuditEvents = normalizeObjectArray(auditEvents).map((event, index) => ({
     ...event,
-    changedFields: Array.isArray(event?.changedFields) ? event.changedFields : [],
+    id: event?.id || `audit-${index}`,
+    summary: event?.summary || event?.title || "Workspace event",
+    detail: event?.detail || event?.description || "Changes were recorded for this workspace event.",
+    action: event?.action || "updated",
+    actorName: event?.actorName || event?.userName || "Unknown user",
+    entityType: event?.entityType || "workspace",
+    changedFields: Array.isArray(event?.changedFields) ? event.changedFields.filter(Boolean) : [],
   }));
+  const visibleAuditEvents = showAll ? safeAuditEvents : safeAuditEvents.slice(0, 5);
 
   return (
     <Card className="p-5">
-      <SectionHeader title="Audit trail" description="Track record changes, resets, and key workspace events in one place." />
+      <SectionHeader
+        title="Audit trail"
+        description="Review the latest workspace changes without crowding the rest of Settings."
+        action={safeAuditEvents.length > 5 ? (
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAll((current) => !current)}>
+            {showAll ? "Show latest 5" : "Show audit trail"}
+          </Button>
+        ) : null}
+      />
       {safeAuditEvents.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, bootstrapped, converted, and reset.</div>
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, reviewed, and reset.</div>
       ) : (
         <div className="space-y-3">
-          {safeAuditEvents.slice(0, 10).map((event) => (
+          {visibleAuditEvents.map((event) => (
             <div key={event.id} className="rounded-2xl border border-blue-100 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -5020,7 +5036,7 @@ function StateExamples() {
 function DesignSystemPage() {
   return (
     <div>
-      <PageHeader eyebrow="Design System" title="Production UI standards" description="The visual system stayed intact while the app moved to real authenticated backend flows." actions={<Badge tone="blue">Live spec</Badge>} />
+      <PageHeader eyebrow="Design System" title="Production UI standards" description="The visual system stays consistent across office and field tools." actions={<Badge tone="blue">Live spec</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
         <Card className="p-5">
           <SectionHeader title="Tokens" description="Calm blue and white system with practical density and restrained surfaces." />
@@ -5778,6 +5794,11 @@ function SettingsPage({
     ...EMPTY_APP_STATE.companySettings,
     ...(companySettings || {}),
   };
+  const workspaceCompanyName = resolveWorkspaceCompanyName({
+    companySettings: safeCompanySettings,
+    user,
+    demoMode,
+  });
   const safePermissions = {
     ...EMPTY_APP_STATE.permissions,
     ...(permissions || {}),
@@ -5798,65 +5819,93 @@ function SettingsPage({
 
   return (
     <div>
-      <PageHeader eyebrow="System" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace access, admin details, and field tools for your team."} />
+      <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace details, admin access, and field tools for your team."} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_360px]">
-          <Card className="p-5">
-            <SectionHeader title="Account" description="Current signed-in operator." />
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-              <p><span className="font-black text-slate-950">Name:</span> {user?.name || "Unknown user"}</p>
-              <p className="mt-1 break-words"><span className="font-black text-slate-950">Email:</span> {user?.email || "No email on file"}</p>
-              <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role || "Unknown role"}</p>
-            </div>
-            {demoMode ? <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button> : null}
-          </Card>
-          <Card className="p-5">
-            <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-950">Tool Checklist</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">Field roles only see this module when it is enabled. Existing checklist data is preserved when it is off.</p>
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+          <div className="grid min-w-0 gap-4">
+            <Card className="p-5">
+              <SectionHeader title="Account" description="Current signed-in operator and workspace." />
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-600">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="blue">{user?.role || "Unknown role"}</Badge>
+                  {demoMode ? <Badge tone="amber">Demo workspace</Badge> : <Badge tone="green">Live workspace</Badge>}
                 </div>
-                <Button
-                  type="button"
-                  variant={safeCompanySettings.toolChecklistEnabled ? "secondary" : "primary"}
-                  onClick={() => onUpdateCompanySettings?.({ toolChecklistEnabled: !safeCompanySettings.toolChecklistEnabled })}
-                  disabled={busy || !canToggleToolChecklist || typeof onUpdateCompanySettings !== "function"}
-                >
-                  {safeCompanySettings.toolChecklistEnabled ? "Disable module" : "Enable module"}
-                </Button>
-              </div>
-              <div className="mt-3">
-                <Badge tone={safeCompanySettings.toolChecklistEnabled ? "green" : "slate"}>
-                  {safeCompanySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
-                </Badge>
-              </div>
-            </div>
-            {showPublicEstimateRequestStatus ? (
-              <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-950">Public Estimate Request</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">Public request availability is controlled by environment-safe server settings and shown here as status only.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-0 rounded-2xl border border-white/80 bg-white/80 p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Workspace</p>
+                    <p className="mt-2 break-words text-sm font-black text-slate-950">{workspaceCompanyName}</p>
                   </div>
-                  <Badge tone={publicEstimateRequestEnabled ? "green" : "slate"}>
-                    {publicEstimateRequestEnabled ? "Public form enabled" : "Public form disabled"}
-                  </Badge>
+                  <div className="min-w-0 rounded-2xl border border-white/80 bg-white/80 p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Signed in as</p>
+                    <p className="mt-2 break-words text-sm font-black text-slate-950">{user?.name || "Unknown user"}</p>
+                    <p className="mt-1 break-words text-xs text-slate-500">{user?.email || "No email on file"}</p>
+                  </div>
                 </div>
+                <p className="mt-4 text-sm leading-6 text-slate-600">Use this page to manage admin-level workspace details without changing field role access or saved records.</p>
               </div>
-            ) : null}
-          </Card>
-          <Card className="p-5">
-            <SectionHeader title="Admin notes" description="Quick reminders for managing this workspace safely." />
-            <div className="space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl border border-blue-100 p-4">Tool Checklist can be turned on or off without deleting saved checklist records.</div>
-              <div className="rounded-2xl border border-blue-100 p-4">Public estimate request status is shown here only when that workflow is enabled for this workspace.</div>
-              <div className="rounded-2xl border border-blue-100 p-4">{demoMode ? "Reset demo data only when you want to refresh the fake company records for a fresh demo." : "Field tools remain scoped by role so office-only data stays out of field views."}</div>
-            </div>
-          </Card>
+              {demoMode ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-red-700">Demo reset</p>
+                    <p className="mt-1 text-sm leading-6 text-red-700/80">Refresh the fake demo records only when you need a clean walkthrough.</p>
+                  </div>
+                  <Button variant="danger" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button>
+                </div>
+              ) : null}
+            </Card>
+            <Card className="p-5">
+              <SectionHeader title="Workspace setup" description="Practical notes for keeping office and field records clean." />
+              <div className="space-y-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-blue-100 p-4">Field tools stay scoped by role so office-only records stay out of field views.</div>
+                <div className="rounded-2xl border border-blue-100 p-4">Tool Checklist can be disabled without deleting saved checklist records.</div>
+                <div className="rounded-2xl border border-blue-100 p-4">Public Estimate Request status appears here whenever the public request form is enabled for this workspace.</div>
+                <div className="rounded-2xl border border-blue-100 p-4">Demo reset only affects demo records when demo mode is enabled.</div>
+              </div>
+            </Card>
+          </div>
+          <div className="grid min-w-0 gap-4">
+            <Card className="p-5">
+              <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-950">Tool Checklist</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">Field roles only see this module when it is enabled. Existing checklist data is preserved when it is off.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={safeCompanySettings.toolChecklistEnabled ? "secondary" : "primary"}
+                      onClick={() => onUpdateCompanySettings?.({ toolChecklistEnabled: !safeCompanySettings.toolChecklistEnabled })}
+                      disabled={busy || !canToggleToolChecklist || typeof onUpdateCompanySettings !== "function"}
+                    >
+                      {safeCompanySettings.toolChecklistEnabled ? "Disable module" : "Enable module"}
+                    </Button>
+                  </div>
+                  <div className="mt-3">
+                    <Badge tone={safeCompanySettings.toolChecklistEnabled ? "green" : "slate"}>
+                      {safeCompanySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
+                    </Badge>
+                  </div>
+                </div>
+                {showPublicEstimateRequestStatus ? (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">Public Estimate Request</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">This status is shown here whenever the public estimate request form is available for this workspace.</p>
+                      </div>
+                      <Badge tone={publicEstimateRequestEnabled ? "green" : "slate"}>
+                        {publicEstimateRequestEnabled ? "Public form enabled" : "Public form disabled"}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+            <AuditTrailPanel auditEvents={auditEvents} />
+          </div>
         </div>
-        <AuditTrailPanel auditEvents={auditEvents} />
       </div>
     </div>
   );
@@ -7512,10 +7561,10 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
 
   return (
     <div>
-      <PageHeader eyebrow="Module" title={item?.label || "Module"} description="This module is scaffolded with the same production primitives and can now plug into real backend state." actions={<Badge tone="slate">Scaffolded</Badge>} />
+      <PageHeader eyebrow="Module" title={item?.label || "Module"} description="This space keeps the same workspace structure while the dedicated workflow is being finished." actions={<Badge tone="slate">Scaffolded</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
-          <SectionHeader title="Work queue" description="These sections are connected to live app data even before a dedicated workflow is built." />
+          <SectionHeader title="Work queue" description="These sections already stay tied to live workspace records while the dedicated workflow is filled in." />
           <div className="space-y-3">{previews.map((preview) => <div key={preview} className="rounded-2xl border border-blue-100 p-4 text-sm text-slate-600">{preview}</div>)}</div>
         </Card>
         <Card className="p-5">
