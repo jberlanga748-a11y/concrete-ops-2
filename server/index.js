@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
 
-import { DEMO_CREDENTIALS } from "./seed-data.js";
+import { DEMO_CREDENTIALS, DEMO_USER_EMAILS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
 import { logger, serializeError } from "./logger.js";
 import {
@@ -111,6 +111,7 @@ const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Est
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
+const ESTIMATE_STATUSES = new Set(["draft", "sent", "approved", "rejected", "archived"]);
 const CHANGE_ORDER_REQUEST_STATUSES = new Set(["requested", "under_review", "approved_for_pricing", "rejected", "archived"]);
 const SAFETY_POLICY_STATUSES = new Set(["active", "archived"]);
 const SAFETY_INCIDENT_TYPES = new Set(["concern", "near_miss", "injury", "property_damage", "hazard", "other"]);
@@ -302,6 +303,14 @@ function optionalDailyReportStatus(value, fallback = "draft") {
   return normalized;
 }
 
+function optionalEstimateStatus(value, fallback = "draft") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!ESTIMATE_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Estimate status must be one of: ${Array.from(ESTIMATE_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
 function optionalChangeOrderRequestStatus(value, fallback = "requested") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!CHANGE_ORDER_REQUEST_STATUSES.has(normalized)) {
@@ -340,6 +349,10 @@ function optionalPostPourItemStatus(value, fallback = "unchecked") {
     throw new ApiError(400, `Post-pour checklist item status must be one of: ${Array.from(POST_POUR_ITEM_STATUSES).join(", ")}.`);
   }
   return normalized;
+}
+
+function roundCurrency(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 function optionalSafetyPolicyStatus(value, fallback = "active") {
@@ -1220,6 +1233,213 @@ function postPourChecklistSummaryForJob(state, job, user) {
   };
 }
 
+function estimateStatusLabel(status = "draft") {
+  const labels = {
+    draft: "Draft",
+    sent: "Sent",
+    approved: "Approved",
+    rejected: "Rejected",
+    archived: "Archived",
+  };
+  return labels[optionalEstimateStatus(status, "draft")] || "Draft";
+}
+
+function estimateItemsForEstimate(state, estimateId) {
+  return (state.estimateItems || [])
+    .filter((item) => item.estimateId === estimateId)
+    .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
+}
+
+function sanitizeEstimateItem(item) {
+  return {
+    id: item.id,
+    estimateId: item.estimateId,
+    description: item.description || "",
+    quantity: Number(item.quantity || 0),
+    unit: item.unit || "",
+    unitPrice: Number(item.unitPrice || 0),
+    lineTotal: Number(item.lineTotal || 0),
+    sortOrder: Number(item.sortOrder || 0),
+    createdAt: item.createdAt || "",
+    updatedAt: item.updatedAt || "",
+  };
+}
+
+function sanitizeEstimateForUser(estimate, state, user) {
+  if (!user || !canViewEstimates(user)) return null;
+
+  const customer = estimate.customerId ? state.customers.find((entry) => entry.id === estimate.customerId) || null : null;
+  const lead = estimate.leadId ? state.leads.find((entry) => entry.id === estimate.leadId) || null : null;
+  const job = estimate.jobId ? state.jobs.find((entry) => entry.id === estimate.jobId) || null : null;
+  const createdByUser = findUserById(state, estimate.createdBy);
+  const items = estimateItemsForEstimate(state, estimate.id).map((item) => sanitizeEstimateItem(item));
+
+  return {
+    id: estimate.id,
+    customerId: estimate.customerId,
+    leadId: estimate.leadId || "",
+    jobId: estimate.jobId || "",
+    title: estimate.title || "",
+    status: optionalEstimateStatus(estimate.status, "draft"),
+    statusLabel: estimateStatusLabel(estimate.status),
+    scopeSummary: estimate.scopeSummary || "",
+    internalNotes: estimate.internalNotes || "",
+    customerNotes: estimate.customerNotes || "",
+    subtotal: roundCurrency(estimate.subtotal || 0),
+    taxRate: estimate.taxRate == null || estimate.taxRate === "" ? null : Number(estimate.taxRate),
+    taxTotal: estimate.taxTotal == null || estimate.taxTotal === "" ? null : roundCurrency(estimate.taxTotal),
+    feesTotal: estimate.feesTotal == null || estimate.feesTotal === "" ? null : roundCurrency(estimate.feesTotal),
+    grandTotal: roundCurrency(estimate.grandTotal || 0),
+    createdBy: estimate.createdBy,
+    createdByName: createdByUser?.name || estimate.createdBy,
+    sentAt: estimate.sentAt || "",
+    approvedAt: estimate.approvedAt || "",
+    rejectedAt: estimate.rejectedAt || "",
+    archivedAt: estimate.archivedAt || null,
+    createdAt: estimate.createdAt || "",
+    updatedAt: estimate.updatedAt || "",
+    items,
+    customer: customer ? {
+      id: customer.id,
+      name: customer.name || "",
+      city: customer.city || "",
+      status: customer.status || "",
+    } : null,
+    lead: lead ? {
+      id: lead.id,
+      customer: lead.customer || "",
+      project: lead.project || "",
+      status: lead.status || "",
+    } : null,
+    job: job ? sanitizeJobForUser(job, user, state) : null,
+  };
+}
+
+function visibleEstimatesForUser(state, user) {
+  if (!user || !canViewEstimates(user)) return [];
+  return (state.estimates || [])
+    .map((estimate) => sanitizeEstimateForUser(estimate, state, user))
+    .filter(Boolean)
+    .sort((left, right) => {
+      const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
+      if (archivedCompare !== 0) return archivedCompare;
+      return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
+    });
+}
+
+function normalizeEstimateItemsPayload(items, changedAt, estimateId = "") {
+  if (!Array.isArray(items)) {
+    throw new ApiError(400, "Estimate items must be an array.");
+  }
+
+  return items.map((item, index) => {
+    const description = requiredString(item?.description, `Line item ${index + 1} description`);
+    const quantity = optionalNonNegativeNumber(item?.quantity, `Line item ${index + 1} quantity`, 0);
+    const unitPrice = optionalNonNegativeNumber(item?.unitPrice, `Line item ${index + 1} unit price`, 0);
+    const createdAt = item?.createdAt || changedAt;
+    return {
+      id: optionalString(item?.id, makeId("ESTI")),
+      estimateId,
+      description,
+      quantity,
+      unit: optionalString(item?.unit, ""),
+      unitPrice,
+      lineTotal: roundCurrency(quantity * unitPrice),
+      sortOrder: Number(item?.sortOrder ?? index),
+      createdAt,
+      updatedAt: changedAt,
+    };
+  });
+}
+
+function calculateEstimateTotals(items, { taxRate, feesTotal }) {
+  const subtotal = roundCurrency(items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0));
+  const normalizedTaxRate = taxRate == null || taxRate === "" ? null : optionalNonNegativeNumber(taxRate, "Tax rate", 0);
+  const normalizedFeesTotal = feesTotal == null || feesTotal === "" ? null : optionalNonNegativeNumber(feesTotal, "Fees total", 0);
+  const taxTotal = normalizedTaxRate == null ? null : roundCurrency(subtotal * (normalizedTaxRate / 100));
+  const fees = normalizedFeesTotal == null ? 0 : normalizedFeesTotal;
+
+  return {
+    subtotal,
+    taxRate: normalizedTaxRate,
+    taxTotal,
+    feesTotal: normalizedFeesTotal == null ? null : roundCurrency(normalizedFeesTotal),
+    grandTotal: roundCurrency(subtotal + (taxTotal || 0) + fees),
+  };
+}
+
+function resolveEstimateLinks(state, payload, actor) {
+  const leadId = optionalString(payload.leadId, "");
+  const customerId = optionalString(payload.customerId, "");
+  const lead = leadId ? findRequiredRecord(state.leads || [], leadId, "Lead") : null;
+  let customer = customerId ? findRequiredRecord(state.customers || [], customerId, "Customer") : null;
+
+  if (!customer && lead?.customerId) {
+    customer = findRequiredRecord(state.customers || [], lead.customerId, "Customer");
+  }
+
+  if (!customer && lead) {
+    customer = ensureCustomerRecord(state, {
+      name: lead.customer,
+      city: optionalString(lead.city, ""),
+      serviceArea: optionalString(lead.serviceArea, optionalString(lead.city, "")),
+      status: "Prospect",
+    }, actor, { fallbackStatus: "Prospect" });
+  }
+
+  if (!customer) {
+    throw new ApiError(400, "Customer is required to create an estimate.");
+  }
+
+  if (lead && customer.id !== lead.customerId && lead.customerId) {
+    const leadCustomer = state.customers.find((entry) => entry.id === lead.customerId) || null;
+    if (leadCustomer && leadCustomer.id !== customer.id) {
+      throw new ApiError(400, "Lead does not belong to the selected customer.");
+    }
+  }
+
+  return { customer, lead };
+}
+
+function createEstimateShape(payload, user, changedAt, customer, lead, totals) {
+  return {
+    id: makeId("EST"),
+    customerId: customer.id,
+    leadId: lead?.id || "",
+    jobId: "",
+    title: requiredString(payload.title, "Estimate title"),
+    status: optionalEstimateStatus(payload.status, "draft"),
+    scopeSummary: optionalString(payload.scopeSummary, ""),
+    internalNotes: optionalString(payload.internalNotes, ""),
+    customerNotes: optionalString(payload.customerNotes, ""),
+    subtotal: totals.subtotal,
+    taxRate: totals.taxRate,
+    taxTotal: totals.taxTotal,
+    feesTotal: totals.feesTotal,
+    grandTotal: totals.grandTotal,
+    createdBy: user.id,
+    sentAt: "",
+    approvedAt: "",
+    rejectedAt: "",
+    archivedAt: null,
+    createdAt: changedAt,
+    updatedAt: changedAt,
+  };
+}
+
+function applyEstimateStatusTimestamps(estimate, status, changedAt) {
+  estimate.status = status;
+  if (status === "sent" && !estimate.sentAt) estimate.sentAt = changedAt;
+  if (status === "approved") estimate.approvedAt = changedAt;
+  if (status === "rejected") estimate.rejectedAt = changedAt;
+  if (status === "archived") estimate.archivedAt = changedAt;
+  if (status !== "archived" && estimate.archivedAt) estimate.archivedAt = null;
+}
+
+function findEstimate(state, estimateId) {
+  return findRequiredRecord(state.estimates || [], estimateId, "Estimate");
+}
+
 function canViewChangeOrderRequestRecord(user, request, job) {
   if (!user || !canViewChangeOrders(user)) return false;
   if (canManageChangeOrders(user)) return true;
@@ -1719,6 +1939,18 @@ function assertCanViewChangeOrders(user) {
 function assertCanManageChangeOrders(user) {
   if (!canManageChangeOrders(user) && !canRequestChangeOrders(user)) {
     throw new ApiError(403, "You do not have permission to manage change order requests.");
+  }
+}
+
+function assertCanViewEstimates(user) {
+  if (!canViewEstimates(user)) {
+    throw new ApiError(403, "You do not have permission to view estimates.");
+  }
+}
+
+function assertCanManageEstimatesForRequest(user) {
+  if (!canManageEstimates(user)) {
+    throw new ApiError(403, "You do not have permission to manage estimates.");
   }
 }
 
@@ -3034,6 +3266,7 @@ function sanitizeBootstrap(state, user) {
     customers: visibleCustomersForUser(state, user),
     leads: visibleLeadsForUser(state, user),
     leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
+    estimates: visibleEstimatesForUser(state, user),
     jobs: visibleJobsForUser(state, user),
     safetyPolicies: visibleSafetyPoliciesForUser(state, user),
     ppeItems: visiblePpeItemsForUser(state, user),
@@ -3095,11 +3328,11 @@ function sanitizeBootstrap(state, user) {
 }
 
 function sanitizeSetupStatus(state) {
-  const demoUserExists = state.users.some((user) => user.email.toLowerCase() === DEMO_CREDENTIALS.email.toLowerCase());
+  const demoUserExists = state.users.some((user) => DEMO_USER_EMAILS.includes(user.email.toLowerCase()));
   return {
     needsSetup: state.users.length === 0,
     hasUsers: state.users.length > 0,
-    demoMode: serverConfig.seedDemoData,
+    demoMode: serverConfig.demoMode,
     demoUserExists,
     environmentBootstrap: Boolean(serverConfig.bootstrapAdmin),
   };
@@ -3458,6 +3691,234 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
       actor: req.auth.user,
       changedFields: ["toolChecklistEnabled", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanViewEstimates(req.auth.user);
+  res.json({
+    estimates: visibleEstimatesForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.estimates ||= [];
+    draft.estimateItems ||= [];
+    const { customer, lead } = resolveEstimateLinks(draft, payload, req.auth.user);
+    const estimate = createEstimateShape(payload, req.auth.user, changedAt, customer, lead, { subtotal: 0, taxRate: null, taxTotal: null, feesTotal: null, grandTotal: 0 });
+    const items = normalizeEstimateItemsPayload(Array.isArray(payload.items) ? payload.items : [], changedAt, estimate.id);
+    const totals = calculateEstimateTotals(items, {
+      taxRate: payload.taxRate,
+      feesTotal: payload.feesTotal,
+    });
+
+    estimate.subtotal = totals.subtotal;
+    estimate.taxRate = totals.taxRate;
+    estimate.taxTotal = totals.taxTotal;
+    estimate.feesTotal = totals.feesTotal;
+    estimate.grandTotal = totals.grandTotal;
+    applyEstimateStatusTimestamps(estimate, estimate.status, changedAt);
+
+    draft.estimates.unshift(estimate);
+    draft.estimateItems = [...items, ...(draft.estimateItems || [])];
+    appendActivity(draft, "Estimate created", `${req.auth.user.name} created estimate ${estimate.title} for ${customer.name}.`);
+    appendAuditEvent(draft, {
+      entityType: "estimate",
+      entityId: estimate.id,
+      action: "created",
+      summary: "Estimate created",
+      detail: `${req.auth.user.name} created estimate ${estimate.title} for ${customer.name}.`,
+      actor: req.auth.user,
+      changedFields: ["customerId", "leadId", "title", "status", "items", "grandTotal"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/estimates/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.estimates ||= [];
+    draft.estimateItems ||= [];
+    const estimate = findEstimate(draft, req.params.id);
+    const { customer, lead } = resolveEstimateLinks(draft, {
+      customerId: payload.customerId == null ? estimate.customerId : payload.customerId,
+      leadId: payload.leadId == null ? estimate.leadId : payload.leadId,
+    }, req.auth.user);
+    const previousStatus = estimate.status;
+    const nextItems = payload.items == null
+      ? estimateItemsForEstimate(draft, estimate.id).map((item) => ({ ...item }))
+      : normalizeEstimateItemsPayload(payload.items, changedAt, estimate.id);
+    const totals = calculateEstimateTotals(nextItems, {
+      taxRate: payload.taxRate == null ? estimate.taxRate : payload.taxRate,
+      feesTotal: payload.feesTotal == null ? estimate.feesTotal : payload.feesTotal,
+    });
+    const nextStatus = payload.status == null ? estimate.status : optionalEstimateStatus(payload.status, estimate.status);
+    const changedFields = [];
+
+    const fields = {
+      customerId: customer.id,
+      leadId: lead?.id || "",
+      title: payload.title == null ? estimate.title : requiredString(payload.title, "Estimate title"),
+      scopeSummary: payload.scopeSummary == null ? (estimate.scopeSummary || "") : optionalString(payload.scopeSummary, ""),
+      internalNotes: payload.internalNotes == null ? (estimate.internalNotes || "") : optionalString(payload.internalNotes, ""),
+      customerNotes: payload.customerNotes == null ? (estimate.customerNotes || "") : optionalString(payload.customerNotes, ""),
+    };
+
+    for (const [field, value] of Object.entries(fields)) {
+      if ((estimate[field] || "") !== value) {
+        estimate[field] = value;
+        changedFields.push(field);
+      }
+    }
+
+    if (nextStatus !== estimate.status) {
+      changedFields.push("status");
+    }
+    applyEstimateStatusTimestamps(estimate, nextStatus, changedAt);
+
+    estimate.subtotal = totals.subtotal;
+    estimate.taxRate = totals.taxRate;
+    estimate.taxTotal = totals.taxTotal;
+    estimate.feesTotal = totals.feesTotal;
+    estimate.grandTotal = totals.grandTotal;
+    changedFields.push("subtotal", "taxRate", "taxTotal", "feesTotal", "grandTotal");
+
+    if (payload.items != null) {
+      draft.estimateItems = (draft.estimateItems || []).filter((item) => item.estimateId !== estimate.id);
+      draft.estimateItems.unshift(...nextItems);
+      changedFields.push("items");
+    }
+
+    markUpdated(estimate, changedAt);
+    const statusActionMap = {
+      sent: { title: "Estimate sent", summary: "Estimate sent", action: "sent" },
+      approved: { title: "Estimate approved", summary: "Estimate approved", action: "approved" },
+      rejected: { title: "Estimate rejected", summary: "Estimate rejected", action: "rejected" },
+      archived: { title: "Estimate archived", summary: "Estimate archived", action: "archived" },
+    };
+    const auditMeta = nextStatus !== previousStatus && statusActionMap[nextStatus]
+      ? statusActionMap[nextStatus]
+      : { title: "Estimate updated", summary: "Estimate updated", action: "updated" };
+    appendActivity(draft, auditMeta.title, `${req.auth.user.name} updated estimate ${estimate.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "estimate",
+      entityId: estimate.id,
+      action: auditMeta.action,
+      summary: auditMeta.summary,
+      detail: `${req.auth.user.name} updated estimate ${estimate.title}.`,
+      actor: req.auth.user,
+      changedFields: [...new Set(changedFields.length > 0 ? changedFields : ["updatedAt"])],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const estimate = findEstimate(draft, req.params.id);
+    if (optionalEstimateStatus(estimate.status, "draft") !== "approved") {
+      throw new ApiError(409, "Only approved estimates can be converted into jobs.");
+    }
+
+    const customer = findRequiredRecord(draft.customers || [], estimate.customerId, "Customer");
+    const linkedLead = estimate.leadId ? draft.leads.find((entry) => entry.id === estimate.leadId) || null : null;
+    let job = null;
+
+    if (payload.jobId) {
+      job = findRequiredRecord(draft.jobs || [], requiredString(payload.jobId, "Job"), "Job");
+      estimate.jobId = job.id;
+      markUpdated(estimate, changedAt);
+      appendAuditEvent(draft, {
+        entityType: "estimate",
+        entityId: estimate.id,
+        action: "converted",
+        summary: "Estimate linked to job",
+        detail: `${estimate.title} was linked to ${normalizeJobRecord(job).title}.`,
+        actor: req.auth.user,
+        changedFields: ["jobId", "updatedAt"],
+      });
+      return draft;
+    }
+
+    if (estimate.jobId) {
+      throw new ApiError(409, "This estimate has already been converted to a job.");
+    }
+
+    job = normalizeJobRecord({
+      id: makeId("J"),
+      customerId: customer.id,
+      leadId: estimate.leadId || "",
+      title: estimate.title,
+      customer: customer.name,
+      address: "",
+      siteContact: "",
+      scopeSummary: estimate.scopeSummary || "Scope pending.",
+      scheduledStart: "",
+      scheduledEnd: "",
+      estimatedDuration: "",
+      crewSizeNeeded: 0,
+      equipmentNotes: "",
+      safetyNotes: "",
+      materialNotes: "",
+      fieldNotes: "",
+      assignedForemanId: "",
+      assignedUserId: "",
+      fieldPlanningVisible: false,
+      visibleToForeman: false,
+      status: "draft",
+      crew: "Assign crew",
+      nextStep: "Review approved estimate and schedule field kickoff",
+      progress: 0,
+      notes: linkedLead ? `Created from approved estimate linked to ${linkedLead.customer}.` : "Created from approved estimate.",
+      createdAt: changedAt,
+      updatedAt: changedAt,
+      archivedAt: null,
+    });
+
+    draft.jobs.unshift(job);
+    estimate.jobId = job.id;
+    markUpdated(estimate, changedAt);
+    appendActivity(draft, "Estimate converted to job", `${estimate.title} was converted into ${job.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "estimate",
+      entityId: estimate.id,
+      action: "converted",
+      summary: "Estimate converted to job",
+      detail: `${estimate.title} was converted into ${job.title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "updatedAt"],
+    });
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: "created",
+      summary: "Job created from estimate",
+      detail: `${job.title} was created from approved estimate ${estimate.title}.`,
+      actor: req.auth.user,
+      changedFields: ["customerId", "leadId", "title", "scopeSummary"],
     });
     return draft;
   });
@@ -6847,8 +7308,8 @@ app.delete("/api/queue-items/:id", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
-  if (!serverConfig.seedDemoData) {
-    throw new ApiError(403, "Workspace reset is only available when demo data is enabled.");
+  if (!serverConfig.demoMode || !serverConfig.seedDemoData) {
+    throw new ApiError(403, "Workspace reset is only available when demo mode is explicitly enabled.");
   }
 
   const nextState = await updateDb(() => {

@@ -66,6 +66,7 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canViewAllTime(operations), true);
   assert.equal(canManageReports(operations), true);
   assert.equal(canManageChangeOrders(operations), true);
+  assert.equal(canManageEstimates(operations), true);
   assert.equal(canViewDeliveryTickets(operations), true);
   assert.equal(canCreateDeliveryTickets(operations), true);
   assert.equal(canManageDeliveryTickets(operations), true);

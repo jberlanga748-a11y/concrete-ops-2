@@ -63,7 +63,7 @@ export function canViewEstimates(user) {
 }
 
 export function canManageEstimates(user) {
-  return isOwner(user) || isAdministrator(user) || isEstimator(user);
+  return isOfficeManager(user) || isEstimator(user);
 }
 
 export function canViewChangeOrders(user) {
@@ -181,11 +181,11 @@ export function canViewJobMoney(user) {
 function hasJobAssignment(job, userId, roleOnJob = null) {
   if (!job || !userId) return false;
   const assignments = Array.isArray(job.assignments) ? job.assignments.filter((assignment) => !assignment.removedAt) : [];
-  if (roleOnJob) {
-    return assignments.some((assignment) => assignment.userId === userId && assignment.roleOnJob === roleOnJob);
+  if (roleOnJob && assignments.some((assignment) => assignment.userId === userId && assignment.roleOnJob === roleOnJob)) {
+    return true;
   }
-  if (assignments.length > 0) {
-    return assignments.some((assignment) => assignment.userId === userId);
+  if (!roleOnJob && assignments.some((assignment) => assignment.userId === userId)) {
+    return true;
   }
 
   if (roleOnJob === "foreman") {

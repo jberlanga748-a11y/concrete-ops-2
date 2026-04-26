@@ -19,9 +19,11 @@ import {
   archiveLead,
   archiveQueueItem,
   bootstrapAdminAccount,
+  convertEstimateToJob,
   convertLead,
   convertLeadToCustomer,
   createChangeOrderRequest,
+  createEstimate,
   createCustomer,
   createDailyReport,
   createDeliveryTicket,
@@ -69,6 +71,7 @@ import {
   updateCustomer,
   updateDailyReport,
   updateDeliveryTicket,
+  updateEstimate,
   updateJobAssignment,
   updateJob,
   updateLead,
@@ -95,6 +98,7 @@ import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRe
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
+import { calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
@@ -183,6 +187,7 @@ const EMPTY_APP_STATE = {
   customers: [],
   leads: [],
   leadStatusHistory: [],
+  estimates: [],
   jobs: [],
   safetyPolicies: [],
   ppeItems: [],
@@ -329,6 +334,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     customers: Array.isArray(source.customers) ? source.customers : Array.isArray(fallback.customers) ? fallback.customers : EMPTY_APP_STATE.customers,
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
+    estimates: Array.isArray(source.estimates) ? source.estimates : Array.isArray(fallback.estimates) ? fallback.estimates : EMPTY_APP_STATE.estimates,
       jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
         safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
         ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
@@ -432,6 +438,57 @@ const INITIAL_CUSTOMER_FORM = {
   status: "Prospect",
   notes: "",
 };
+
+const INITIAL_ESTIMATE_LINE_ITEM = {
+  description: "",
+  quantity: 1,
+  unit: "ea",
+  unitPrice: "",
+};
+
+const INITIAL_ESTIMATE_FORM = {
+  customerId: "",
+  leadId: "",
+  title: "",
+  status: "draft",
+  scopeSummary: "",
+  internalNotes: "",
+  customerNotes: "",
+  taxRate: "",
+  feesTotal: "",
+  items: [{ ...INITIAL_ESTIMATE_LINE_ITEM }],
+};
+
+function makeDraftRowId(prefix = "draft") {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createEstimateLineItemDraft(item = {}) {
+  return {
+    id: item.id || makeDraftRowId("estimate-item"),
+    description: item.description || "",
+    quantity: item.quantity ?? 1,
+    unit: item.unit || "ea",
+    unitPrice: item.unitPrice ?? "",
+  };
+}
+
+function createEstimateDraft(record) {
+  return {
+    customerId: record?.customerId || "",
+    leadId: record?.leadId || "",
+    title: record?.title || "",
+    status: record?.status || "draft",
+    scopeSummary: record?.scopeSummary || "",
+    internalNotes: record?.internalNotes || "",
+    customerNotes: record?.customerNotes || "",
+    taxRate: record?.taxRate ?? "",
+    feesTotal: record?.feesTotal ?? "",
+    items: Array.isArray(record?.items) && record.items.length > 0
+      ? record.items.map((item) => createEstimateLineItemDraft(item))
+      : [createEstimateLineItemDraft()],
+  };
+}
 
 const INITIAL_USER_FORM = {
   name: "",
@@ -5916,6 +5973,308 @@ function PostPourPage({
   );
 }
 
+function EstimatesPage({
+  customers,
+  leads,
+  estimates,
+  permissions,
+  busy,
+  onCreateEstimate,
+  onSaveEstimate,
+  onConvertEstimate,
+}) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [customerFilter, setCustomerFilter] = useState("All customers");
+  const [leadFilter, setLeadFilter] = useState("All leads");
+  const [creatorFilter, setCreatorFilter] = useState("All creators");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedEstimateId, setSelectedEstimateId] = useState("");
+  const [createDraft, setCreateDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
+  const [detailDraft, setDetailDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
+
+  const visibleCustomers = Array.isArray(customers) ? customers.filter((customer) => !customer.archivedAt) : [];
+  const visibleLeads = Array.isArray(leads) ? leads.filter((lead) => !lead.archivedAt) : [];
+  const rows = Array.isArray(estimates) ? estimates : [];
+  const filteredRows = useMemo(() => filterEstimates(rows, {
+    status: statusFilter,
+    customer: customerFilter,
+    lead: leadFilter,
+    createdBy: creatorFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, creatorFilter, customerFilter, leadFilter, rows, search, statusFilter]);
+  const listState = useMemo(() => deriveEstimateListState(filteredRows, visibleCustomers, visibleLeads), [filteredRows, visibleCustomers, visibleLeads]);
+  const selectedEstimate = filteredRows.find((estimate) => estimate.id === selectedEstimateId)
+    || filteredRows[0]
+    || rows.find((estimate) => estimate.id === selectedEstimateId)
+    || null;
+  const canManage = permissions.estimates.canManage;
+  const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
+  const createTotals = useMemo(() => calculateEstimateTotals(createDraft.items, { taxRate: createDraft.taxRate, feesTotal: createDraft.feesTotal }), [createDraft.feesTotal, createDraft.items, createDraft.taxRate]);
+  const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
+
+  useEffect(() => {
+    if (!selectedEstimateId && filteredRows[0]?.id) {
+      setSelectedEstimateId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedEstimateId]);
+
+  useEffect(() => {
+    if (singleCustomerId && !createDraft.customerId && !createDraft.leadId) {
+      setCreateDraft((current) => ({ ...current, customerId: singleCustomerId }));
+    }
+  }, [createDraft.customerId, createDraft.leadId, singleCustomerId]);
+
+  useEffect(() => {
+    setDetailDraft(createEstimateDraft(selectedEstimate || INITIAL_ESTIMATE_FORM));
+  }, [selectedEstimate?.id, selectedEstimate?.updatedAt]);
+
+  function updateDraftItem(setDraft, index, field, value) {
+    setDraft((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
+    }));
+  }
+
+  function appendDraftItem(setDraft) {
+    setDraft((current) => ({
+      ...current,
+      items: [...current.items, createEstimateLineItemDraft()],
+    }));
+  }
+
+  function removeDraftItem(setDraft, index) {
+    setDraft((current) => {
+      const nextItems = current.items.filter((_, itemIndex) => itemIndex !== index);
+      return {
+        ...current,
+        items: nextItems.length > 0 ? nextItems : [createEstimateLineItemDraft()],
+      };
+    });
+  }
+
+  if (!permissions.estimates.canView) {
+    return (
+      <div>
+        <PageHeader eyebrow="Office Sales" title="Estimates" description="Estimates are only available to office and estimator roles." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Estimate access unavailable" description="Field roles are blocked from estimates, proposal totals, and pricing." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Office Sales" title="Estimates" description="Build customer proposals with line items, pricing totals, and approved-to-job conversion while keeping field payloads money-safe." />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-4">
+            <SectionHeader title="Filters" description="Focus on active estimates or pull archived proposals back into view." />
+            <div className="grid gap-3">
+              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {["All", "Draft", "Sent", "Approved", "Rejected", "Archived"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
+                {listState.customerOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Lead" value={leadFilter} onChange={(event) => setLeadFilter(event.target.value)}>
+                {listState.leadOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archive view" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, customer, notes, or line items" />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Estimate list" description={`${filteredRows.length} visible estimate${filteredRows.length === 1 ? "" : "s"}.`} />
+            {filteredRows.length === 0 ? (
+              <StateCard title="No estimates yet" description="Create a draft estimate from a customer or lead to start the proposal workflow." tone="blue" />
+            ) : (
+              <div className="space-y-3">
+                {filteredRows.map((estimate) => (
+                  <button
+                    key={estimate.id}
+                    type="button"
+                    onClick={() => setSelectedEstimateId(estimate.id)}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedEstimate?.id === estimate.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{estimate.title || "Estimate draft"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} · {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
+                      </div>
+                      <StatusBadge status={estimateStatusLabel(estimate.status)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {estimate.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+                      {estimate.jobId ? <Badge tone="emerald">Converted to job</Badge> : null}
+                      <Badge tone="amber">{estimate.items?.length || 0} items</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          {canManage ? (
+            <Card className="p-4">
+              <SectionHeader title="Create estimate" description="Link the proposal to a customer or lead, add line items, and keep pricing inside the office workspace." />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => ({ ...current, customerId: event.target.value }))}>
+                  <option value="">Select a customer</option>
+                  {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                </SelectField>
+                <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => ({ ...current, leadId: event.target.value }))}>
+                  <option value="">Optional linked lead</option>
+                  {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} — ${lead.project}`}</option>)}
+                </SelectField>
+                <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
+                <SelectField label="Status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
+                  {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
+                </SelectField>
+                <InputField label="Tax rate (%)" value={createDraft.taxRate} onChange={(event) => setCreateDraft((current) => ({ ...current, taxRate: event.target.value }))} placeholder="Optional" inputMode="decimal" />
+                <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
+              </div>
+              <div className="mt-3 grid gap-3">
+                <TextAreaField label="Scope summary" value={createDraft.scopeSummary} onChange={(event) => setCreateDraft((current) => ({ ...current, scopeSummary: event.target.value }))} placeholder="Summarize the proposed work." />
+                <TextAreaField label="Internal notes" value={createDraft.internalNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, internalNotes: event.target.value }))} placeholder="Office-only sales notes." />
+                <TextAreaField label="Customer notes" value={createDraft.customerNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, customerNotes: event.target.value }))} placeholder="Customer-facing note summary." />
+              </div>
+              <div className="mt-4 space-y-3">
+                <SectionHeader title="Line items" description="Line totals update automatically from quantity and unit price." />
+                {createDraft.items.map((item, index) => (
+                  <div key={item.id} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
+                      <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Concrete, prep, cleanup, or finish work" />
+                      <InputField label="Qty" value={item.quantity} onChange={(event) => updateDraftItem(setCreateDraft, index, "quantity", event.target.value)} inputMode="decimal" />
+                      <InputField label="Unit" value={item.unit} onChange={(event) => updateDraftItem(setCreateDraft, index, "unit", event.target.value)} />
+                      <InputField label="Unit price" value={item.unitPrice} onChange={(event) => updateDraftItem(setCreateDraft, index, "unitPrice", event.target.value)} inputMode="decimal" />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Line total: {formatEstimateCurrency(calculateEstimateLineTotal(item))}</p>
+                      <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950" onClick={() => removeDraftItem(setCreateDraft, index)}>Remove item</button>
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" tone="secondary" onClick={() => appendDraftItem(setCreateDraft)}>Add line item</Button>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <StatCard title="Subtotal" value={formatEstimateCurrency(createTotals.subtotal)} />
+                <StatCard title="Tax" value={formatEstimateCurrency(createTotals.taxTotal || 0)} />
+                <StatCard title="Fees" value={formatEstimateCurrency(createTotals.feesTotal || 0)} />
+                <StatCard title="Grand total" value={formatEstimateCurrency(createTotals.grandTotal)} />
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    const created = await onCreateEstimate(createDraft);
+                    if (created) {
+                      setCreateDraft(createEstimateDraft({
+                        ...INITIAL_ESTIMATE_FORM,
+                        customerId: singleCustomerId,
+                      }));
+                    }
+                  }}
+                  disabled={busy || (!createDraft.customerId && !createDraft.leadId) || !createDraft.title}
+                >
+                  Create estimate
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedEstimate ? (
+            <Card className="p-4">
+              <SectionHeader
+                title={selectedEstimate.title || "Estimate detail"}
+                description={`${selectedEstimate.customer?.name || "No customer"} · ${selectedEstimate.createdByName || "Unknown creator"}`}
+                action={<StatusBadge status={estimateStatusLabel(selectedEstimate.status)} />}
+              />
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Customer:</span> {selectedEstimate.customer?.name || "Not linked"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Lead:</span> {selectedEstimate.lead?.project || "No linked lead"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Job:</span> {selectedEstimate.job?.title || "Not converted yet"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedEstimate.createdAt)}</p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <SelectField label="Customer" value={detailDraft.customerId} onChange={(event) => setDetailDraft((current) => ({ ...current, customerId: event.target.value }))}>
+                    <option value="">Select a customer</option>
+                    {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                  </SelectField>
+                  <SelectField label="Lead" value={detailDraft.leadId} onChange={(event) => setDetailDraft((current) => ({ ...current, leadId: event.target.value }))}>
+                    <option value="">Optional linked lead</option>
+                    {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} — ${lead.project}`}</option>)}
+                  </SelectField>
+                  <InputField label="Title" value={detailDraft.title} onChange={(event) => setDetailDraft((current) => ({ ...current, title: event.target.value }))} />
+                  <SelectField label="Status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
+                    {["draft", "sent", "approved", "rejected", "archived"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
+                  </SelectField>
+                  <InputField label="Tax rate (%)" value={detailDraft.taxRate} onChange={(event) => setDetailDraft((current) => ({ ...current, taxRate: event.target.value }))} inputMode="decimal" />
+                  <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" />
+                </div>
+                <div className="grid gap-3">
+                  <TextAreaField label="Scope summary" value={detailDraft.scopeSummary} onChange={(event) => setDetailDraft((current) => ({ ...current, scopeSummary: event.target.value }))} />
+                  <TextAreaField label="Internal notes" value={detailDraft.internalNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, internalNotes: event.target.value }))} />
+                  <TextAreaField label="Customer notes" value={detailDraft.customerNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, customerNotes: event.target.value }))} />
+                </div>
+                <div className="space-y-3">
+                  <SectionHeader title="Line items" description="Office pricing lives here and is never shipped to field roles." />
+                  {detailDraft.items.map((item, index) => (
+                    <div key={item.id} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
+                        <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setDetailDraft, index, "description", event.target.value)} />
+                        <InputField label="Qty" value={item.quantity} onChange={(event) => updateDraftItem(setDetailDraft, index, "quantity", event.target.value)} inputMode="decimal" />
+                        <InputField label="Unit" value={item.unit} onChange={(event) => updateDraftItem(setDetailDraft, index, "unit", event.target.value)} />
+                        <InputField label="Unit price" value={item.unitPrice} onChange={(event) => updateDraftItem(setDetailDraft, index, "unitPrice", event.target.value)} inputMode="decimal" />
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Line total: {formatEstimateCurrency(calculateEstimateLineTotal(item))}</p>
+                        <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950" onClick={() => removeDraftItem(setDetailDraft, index)}>Remove item</button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="button" tone="secondary" onClick={() => appendDraftItem(setDetailDraft)}>Add line item</Button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <StatCard title="Subtotal" value={formatEstimateCurrency(detailTotals.subtotal)} />
+                  <StatCard title="Tax" value={formatEstimateCurrency(detailTotals.taxTotal || 0)} />
+                  <StatCard title="Fees" value={formatEstimateCurrency(detailTotals.feesTotal || 0)} />
+                  <StatCard title="Grand total" value={formatEstimateCurrency(detailTotals.grandTotal)} />
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title}>
+                    Save estimate
+                  </Button>
+                  {selectedEstimate.status === "approved" && !selectedEstimate.jobId ? (
+                    <Button type="button" tone="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
+                      Convert to job
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChangeOrdersPage({
   user,
   jobs,
@@ -6732,21 +7091,35 @@ function MainContent(props) {
       />
     );
   }
-  if (active === "customers") {
-    return (
-      <CustomersPage
-        {...props}
-        customers={props.customers}
+    if (active === "customers") {
+      return (
+        <CustomersPage
+          {...props}
+          customers={props.customers}
         filter={props.customerFilter}
         setFilter={props.setCustomerFilter}
         search={props.customerSearch}
         setSearch={props.setCustomerSearch}
-      />
-    );
-  }
-  if (active === "jobs") {
-    return (
-      <JobsPage
+        />
+      );
+    }
+    if (active === "estimates") {
+      return (
+        <EstimatesPage
+          customers={props.customers}
+          leads={props.leads}
+          estimates={props.estimates}
+          permissions={props.permissions}
+          busy={props.busy}
+          onCreateEstimate={props.onCreateEstimate}
+          onSaveEstimate={props.onSaveEstimate}
+          onConvertEstimate={props.onConvertEstimate}
+        />
+      );
+    }
+    if (active === "jobs") {
+      return (
+        <JobsPage
         {...props}
         rows={props.visibleJobs}
         filter={props.jobFilter}
@@ -8266,6 +8639,57 @@ export default function App() {
     }
   }
 
+  async function handleCreateEstimate(payload) {
+    if (!sessionToken || !appState.permissions.estimates.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createEstimate(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveEstimate(estimateId, payload) {
+    if (!sessionToken || !appState.permissions.estimates.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateEstimate(sessionToken, estimateId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConvertEstimate(estimateId) {
+    if (!sessionToken || !appState.permissions.estimates.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await convertEstimateToJob(sessionToken, estimateId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateChangeOrderRequest(payload) {
     if (!sessionToken || !(appState.permissions.changeOrders.canRequest || appState.permissions.changeOrders.canManage)) return false;
     setBusy(true);
@@ -8629,10 +9053,11 @@ export default function App() {
               setActive={setActive}
               user={appState.user}
               companySettings={appState.companySettings}
-              stats={stats}
-              customers={appState.customers}
-              leads={appState.leads}
-              jobs={appState.jobs}
+                stats={stats}
+                customers={appState.customers}
+                leads={appState.leads}
+                estimates={appState.estimates}
+                jobs={appState.jobs}
               safetyPolicies={appState.safetyPolicies}
                 ppeItems={appState.ppeItems}
                 safetyAcknowledgments={appState.safetyAcknowledgments}
@@ -8677,10 +9102,13 @@ export default function App() {
               customerSaveState={customerSaveState}
               customerDraft={customerDraft}
               setCustomerDraft={setCustomerDraft}
-              onCreateCustomer={handleCreateCustomer}
-              onArchiveCustomer={handleArchiveCustomer}
-              onRestoreCustomer={handleRestoreCustomer}
-              relatedRecords={customerRelated}
+                onCreateCustomer={handleCreateCustomer}
+                onArchiveCustomer={handleArchiveCustomer}
+                onRestoreCustomer={handleRestoreCustomer}
+                onCreateEstimate={handleCreateEstimate}
+                onSaveEstimate={handleSaveEstimate}
+                onConvertEstimate={handleConvertEstimate}
+                relatedRecords={customerRelated}
               customerRouteRequested={Boolean(routeState.customerId)}
               leadFilter={leadFilter}
               setLeadFilter={setLeadFilter}

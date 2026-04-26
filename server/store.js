@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { DEMO_CREDENTIALS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
+import { DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 
@@ -575,6 +575,8 @@ export function createEmptyState() {
     leadStatusHistory: [],
     jobs: [],
     jobAssignments: [],
+    estimates: [],
+    estimateItems: [],
     safetyPolicies: [],
     ppeItems: [],
     safetyAcknowledgments: [],
@@ -605,17 +607,104 @@ export function createSeedState() {
     password: DEMO_CREDENTIALS.password,
     name: DEMO_CREDENTIALS.name,
     role: DEMO_CREDENTIALS.role,
+    createdAt: new Date(seededAt.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(seededAt.getTime() - 12 * 60 * 60 * 1000).toISOString(),
   });
+  const demoUsers = DEMO_USERS.map((user, index) => {
+    const createdAt = new Date(seededAt.getTime() - (11 * 60 - index * 15) * 60 * 1000).toISOString();
+    return createUserRecord({
+      ...user,
+      createdAt,
+      updatedAt: createdAt,
+    });
+  });
+  const includeDemoRecords = serverConfig.demoMode;
+  const demoAdmin = demoUsers.find((user) => user.role === "Administrator") || demoUsers[0];
+  const demoForeman = demoUsers.find((user) => user.role === "Foreman") || demoUsers[1];
+  const demoEmployee = demoUsers.find((user) => user.role === "Employee") || demoUsers[2];
+  const officeActor = includeDemoRecords ? (demoAdmin || seedUser) : seedUser;
+  const users = includeDemoRecords ? [seedUser, ...demoUsers] : [seedUser];
+  const toIsoMinutesAgo = (minutesAgo) => new Date(seededAt.getTime() - minutesAgo * 60 * 1000).toISOString();
+  const toDateOnly = (offsetDays = 0) => {
+    const date = new Date(seededAt);
+    date.setDate(date.getDate() + offsetDays);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const toLocalDateTime = (offsetDays, hours, minutes = 0) => {
+    const date = new Date(seededAt);
+    date.setDate(date.getDate() + offsetDays);
+    date.setHours(hours, minutes, 0, 0);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  };
   const customers = withSeedTimestamps(INITIAL_CUSTOMERS, seededAt, 220);
   const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180).map((lead) => ({
     ...lead,
-    ownerId: seedUser.id,
+    ownerId: officeActor.id,
   }));
-  const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240);
+  const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240).map((job) => {
+    if (!includeDemoRecords && job.id === "J-2192") {
+      return {
+        ...job,
+        fieldPlanningVisible: false,
+        visibleToForeman: false,
+      };
+    }
+    return job;
+  });
+  const jobAssignments = [
+    {
+      id: "JA-DEMO-2201-FOREMAN",
+      jobId: "J-2201",
+      userId: demoForeman.id,
+      roleOnJob: "foreman",
+      assignedBy: demoAdmin.id,
+      assignedAt: toIsoMinutesAgo(1000),
+      removedAt: null,
+      notes: "Primary demo foreman for active driveway work.",
+      createdAt: toIsoMinutesAgo(1000),
+      updatedAt: toIsoMinutesAgo(1000),
+    },
+    {
+      id: "JA-DEMO-2201-CREW",
+      jobId: "J-2201",
+      userId: demoEmployee.id,
+      roleOnJob: "crew",
+      assignedBy: demoAdmin.id,
+      assignedAt: toIsoMinutesAgo(990),
+      removedAt: null,
+      notes: "Assigned crew support for the driveway and finish workflow.",
+      createdAt: toIsoMinutesAgo(990),
+      updatedAt: toIsoMinutesAgo(990),
+    },
+    {
+      id: "JA-DEMO-2198-FOREMAN",
+      jobId: "J-2198",
+      userId: demoForeman.id,
+      roleOnJob: "foreman",
+      assignedBy: demoAdmin.id,
+      assignedAt: toIsoMinutesAgo(980),
+      removedAt: null,
+      notes: "ADA ramp field lead assignment.",
+      createdAt: toIsoMinutesAgo(980),
+      updatedAt: toIsoMinutesAgo(980),
+    },
+    {
+      id: "JA-DEMO-2198-CREW",
+      jobId: "J-2198",
+      userId: demoEmployee.id,
+      roleOnJob: "crew",
+      assignedBy: demoAdmin.id,
+      assignedAt: toIsoMinutesAgo(970),
+      removedAt: null,
+      notes: "Field crew support for the ADA ramp demo.",
+      createdAt: toIsoMinutesAgo(970),
+      updatedAt: toIsoMinutesAgo(970),
+    },
+  ];
   const safetyPolicies = withSeedTimestamps(
     INITIAL_SAFETY_POLICIES.map((policy) => ({
       ...policy,
-      createdBy: seedUser.id,
+      createdBy: officeActor.id,
       archivedAt: null,
     })),
     seededAt,
@@ -624,45 +713,787 @@ export function createSeedState() {
   const ppeItems = withSeedTimestamps(
     INITIAL_PPE_ITEMS.map((item) => ({
       ...item,
-      createdBy: seedUser.id,
+      createdBy: officeActor.id,
       archivedAt: null,
     })),
     seededAt,
     45,
   );
   const queueItems = withSeedTimestamps(INITIAL_QUEUE_ITEMS, seededAt, 90);
-  const leadStatusHistory = createSeedLeadStatusHistory(seedUser, leads);
+  const leadStatusHistory = createSeedLeadStatusHistory(officeActor, leads);
+  const safetyAcknowledgments = [
+    {
+      id: "SA-DEMO-001",
+      userId: demoForeman.id,
+      jobId: "J-2201",
+      policyId: safetyPolicies[0]?.id || "SP-001",
+      acknowledgedAt: toIsoMinutesAgo(720),
+      notes: "Reviewed PPE and driveway traffic-control expectations before crew huddle.",
+      createdAt: toIsoMinutesAgo(720),
+    },
+    {
+      id: "SA-DEMO-002",
+      userId: demoEmployee.id,
+      jobId: "J-2201",
+      policyId: safetyPolicies[0]?.id || "SP-001",
+      acknowledgedAt: toIsoMinutesAgo(710),
+      notes: "Confirmed glasses, vest, gloves, and saw-cut hearing protection.",
+      createdAt: toIsoMinutesAgo(710),
+    },
+  ];
+  const safetyIncidents = [
+    {
+      id: "SI-DEMO-001",
+      jobId: "J-2198",
+      submittedBy: demoEmployee.id,
+      type: "concern",
+      severity: "medium",
+      status: "open",
+      title: "ADA detour hose crossing patient path",
+      description: "Pump washout hose was resting across the temporary patient detour and needed to be rerouted before discharge.",
+      immediateAction: "Crew paused placement setup, rerouted the hose, and reset cones before truck discharge.",
+      createdAt: toIsoMinutesAgo(240),
+      updatedAt: toIsoMinutesAgo(210),
+      reviewedBy: null,
+      reviewedAt: null,
+      resolvedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: "SI-DEMO-002",
+      jobId: "J-2201",
+      submittedBy: demoForeman.id,
+      type: "hazard",
+      severity: "low",
+      status: "resolved",
+      title: "Driveway delivery backing spotter reminder",
+      description: "Residential truck backing needed a dedicated spotter after neighbor traffic increased at mid-morning.",
+      immediateAction: "Foreman reassigned one crew member to spotting and staged cones at the curb cut.",
+      createdAt: toIsoMinutesAgo(520),
+      updatedAt: toIsoMinutesAgo(470),
+      reviewedBy: demoAdmin.id,
+      reviewedAt: toIsoMinutesAgo(460),
+      resolvedAt: toIsoMinutesAgo(455),
+      archivedAt: null,
+    },
+  ];
+  const timeEntries = [
+    {
+      id: "TE-DEMO-001",
+      userId: demoEmployee.id,
+      jobId: "J-2201",
+      workCategory: "job",
+      clockInAt: `${toDateOnly(-4)}T07:05:00.000Z`,
+      clockOutAt: `${toDateOnly(-4)}T15:35:00.000Z`,
+      breakStartAt: `${toDateOnly(-4)}T12:00:00.000Z`,
+      breakEndAt: `${toDateOnly(-4)}T12:30:00.000Z`,
+      totalMinutes: 480,
+      breakMinutes: 30,
+      status: "completed",
+      notes: "Demo driveway prep and cleanup shift.",
+      createdAt: `${toDateOnly(-4)}T07:05:00.000Z`,
+      updatedAt: `${toDateOnly(-4)}T15:35:00.000Z`,
+    },
+    {
+      id: "TE-DEMO-002",
+      userId: demoEmployee.id,
+      jobId: "J-2198",
+      workCategory: "job",
+      clockInAt: `${toDateOnly(-2)}T07:10:00.000Z`,
+      clockOutAt: `${toDateOnly(-2)}T15:10:00.000Z`,
+      breakStartAt: `${toDateOnly(-2)}T11:45:00.000Z`,
+      breakEndAt: `${toDateOnly(-2)}T12:15:00.000Z`,
+      totalMinutes: 450,
+      breakMinutes: 30,
+      status: "completed",
+      notes: "ADA ramp pour support and cleanup.",
+      createdAt: `${toDateOnly(-2)}T07:10:00.000Z`,
+      updatedAt: `${toDateOnly(-2)}T15:10:00.000Z`,
+    },
+    {
+      id: "TE-DEMO-003",
+      userId: demoForeman.id,
+      jobId: "J-2201",
+      workCategory: "job",
+      clockInAt: `${toDateOnly(-4)}T06:45:00.000Z`,
+      clockOutAt: `${toDateOnly(-4)}T16:00:00.000Z`,
+      breakStartAt: `${toDateOnly(-4)}T12:05:00.000Z`,
+      breakEndAt: `${toDateOnly(-4)}T12:35:00.000Z`,
+      totalMinutes: 525,
+      breakMinutes: 30,
+      status: "completed",
+      notes: "Foreman walkthrough, layout, and pour supervision.",
+      createdAt: `${toDateOnly(-4)}T06:45:00.000Z`,
+      updatedAt: `${toDateOnly(-4)}T16:00:00.000Z`,
+    },
+    {
+      id: "TE-DEMO-004",
+      userId: demoForeman.id,
+      jobId: "J-2198",
+      workCategory: "job",
+      clockInAt: `${toDateOnly(0)}T07:00:00.000Z`,
+      clockOutAt: "",
+      breakStartAt: "",
+      breakEndAt: "",
+      totalMinutes: 0,
+      breakMinutes: 0,
+      status: "active",
+      notes: "Active foreman field shift for ADA ramp demo job.",
+      createdAt: `${toDateOnly(0)}T07:00:00.000Z`,
+      updatedAt: `${toDateOnly(0)}T07:00:00.000Z`,
+    },
+    {
+      id: "TE-DEMO-005",
+      userId: demoAdmin.id,
+      jobId: "",
+      workCategory: "office_admin",
+      clockInAt: `${toDateOnly(-1)}T08:00:00.000Z`,
+      clockOutAt: `${toDateOnly(-1)}T15:30:00.000Z`,
+      breakStartAt: `${toDateOnly(-1)}T12:15:00.000Z`,
+      breakEndAt: `${toDateOnly(-1)}T12:45:00.000Z`,
+      totalMinutes: 420,
+      breakMinutes: 30,
+      status: "completed",
+      notes: "Demo admin review day with reports, customers, and ticket follow-up.",
+      createdAt: `${toDateOnly(-1)}T08:00:00.000Z`,
+      updatedAt: `${toDateOnly(-1)}T15:30:00.000Z`,
+    },
+  ];
+  const dailyReports = [
+    {
+      id: "DR-DEMO-001",
+      jobId: "J-2201",
+      reportDate: toDateOnly(-1),
+      status: "reviewed",
+      createdBy: demoForeman.id,
+      submittedBy: demoForeman.id,
+      reviewedBy: demoAdmin.id,
+      crewSummary: "Demo Foreman and Demo Employee completed driveway prep, placement, and broom finish closeout.",
+      workPerformed: "Removed remaining cracked driveway panels, set forms, poured replacement panel, and completed broom finish.",
+      delays: "Minor ready-mix delay while the morning school drop-off traffic cleared.",
+      safetyNotes: "Spotter used for truck backing and saw-cut PPE verified during morning huddle.",
+      equipmentUsed: "Mini skid, saw, plate compactor, bull float, edgers.",
+      materialNotes: "4,000 PSI driveway mix placed with fiber mesh and aggregate base confirmed.",
+      concretePoured: true,
+      yardsPoured: 9.5,
+      weather: "Cloudy morning, 58F, dry conditions.",
+      visitorNotes: "Customer checked progress mid-day and approved restored driveway access plan.",
+      inspectionNotes: "Slope and finish checked before cure compound was applied.",
+      generalNotes: "Before, forms-set, and finish photos captured for office review.",
+      createdAt: toIsoMinutesAgo(600),
+      updatedAt: toIsoMinutesAgo(540),
+      submittedAt: toIsoMinutesAgo(560),
+      reviewedAt: toIsoMinutesAgo(520),
+      reopenedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: "DR-DEMO-002",
+      jobId: "J-2198",
+      reportDate: toDateOnly(0),
+      status: "draft",
+      createdBy: demoForeman.id,
+      submittedBy: null,
+      reviewedBy: null,
+      crewSummary: "Demo Foreman and Demo Employee working ADA ramp forms, prep, and access coordination.",
+      workPerformed: "Maintained temporary patient access, set final forms, and coordinated truck arrival timing.",
+      delays: "Waiting on the second truck arrival window before discharge starts.",
+      safetyNotes: "Detour cones adjusted twice to keep patient traffic separated from truck path.",
+      equipmentUsed: "Saw, compact plate, hand tools, wheelbarrow placement tools.",
+      materialNotes: "ADA ramp mix and warning-strip prep staged without pricing data.",
+      concretePoured: false,
+      yardsPoured: 0,
+      weather: "Light drizzle early, then overcast.",
+      visitorNotes: "Office manager requested final finish photos after patient traffic clears.",
+      inspectionNotes: "",
+      generalNotes: "Draft report remains open until discharge and finish notes are complete.",
+      createdAt: toIsoMinutesAgo(200),
+      updatedAt: toIsoMinutesAgo(180),
+      submittedAt: null,
+      reviewedAt: null,
+      reopenedAt: null,
+      archivedAt: null,
+    },
+  ];
+  const uploads = [
+    {
+      id: "UPL-DEMO-001",
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: "DR-DEMO-001",
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: demoForeman.id,
+      fileName: "before-driveway-demo.jpg",
+      fileType: "image/jpeg",
+      fileSize: 128450,
+      storagePath: "uploads/demo-before-driveway.jpg",
+      caption: "Before demo photo — cracked driveway panels",
+      notes: "Use during the customer walk-through and daily report review.",
+      takenAt: toIsoMinutesAgo(740),
+      uploadedAt: toIsoMinutesAgo(735),
+      latitude: 44.95621,
+      longitude: -123.03481,
+      locationAccuracy: 8,
+      locationCapturedAt: toIsoMinutesAgo(739),
+      locationUnavailableReason: "",
+      createdAt: toIsoMinutesAgo(735),
+      updatedAt: toIsoMinutesAgo(735),
+      archivedAt: null,
+    },
+    {
+      id: "UPL-DEMO-002",
+      jobId: "J-2198",
+      customerId: "C-1002",
+      reportId: "DR-DEMO-002",
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: demoEmployee.id,
+      fileName: "forms-set-demo.jpg",
+      fileType: "image/jpeg",
+      fileSize: 138020,
+      storagePath: "uploads/demo-forms-set.jpg",
+      caption: "Forms set before pour",
+      notes: "GPS was denied on this capture but the upload still documents field readiness.",
+      takenAt: toIsoMinutesAgo(170),
+      uploadedAt: toIsoMinutesAgo(168),
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Location denied by user",
+      createdAt: toIsoMinutesAgo(168),
+      updatedAt: toIsoMinutesAgo(168),
+      archivedAt: null,
+    },
+    {
+      id: "UPL-DEMO-003",
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: "DR-DEMO-001",
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: demoForeman.id,
+      fileName: "base-compacted-demo.jpg",
+      fileType: "image/jpeg",
+      fileSize: 120880,
+      storagePath: "uploads/demo-base-compacted.jpg",
+      caption: "Base compacted and ready",
+      notes: "Useful for pre-pour checklist and demo upload walkthrough.",
+      takenAt: toIsoMinutesAgo(690),
+      uploadedAt: toIsoMinutesAgo(688),
+      latitude: 44.95624,
+      longitude: -123.03477,
+      locationAccuracy: 6,
+      locationCapturedAt: toIsoMinutesAgo(689),
+      locationUnavailableReason: "",
+      createdAt: toIsoMinutesAgo(688),
+      updatedAt: toIsoMinutesAgo(688),
+      archivedAt: null,
+    },
+    {
+      id: "UPL-DEMO-004",
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: "DR-DEMO-001",
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: demoEmployee.id,
+      fileName: "finished-broom-finish-demo.jpg",
+      fileType: "image/jpeg",
+      fileSize: 142310,
+      storagePath: "uploads/demo-finished-broom.jpg",
+      caption: "Finished broom finish",
+      notes: "Final finish evidence for closeout and customer walkthrough.",
+      takenAt: toIsoMinutesAgo(500),
+      uploadedAt: toIsoMinutesAgo(498),
+      latitude: 44.9563,
+      longitude: -123.0347,
+      locationAccuracy: 7,
+      locationCapturedAt: toIsoMinutesAgo(499),
+      locationUnavailableReason: "",
+      createdAt: toIsoMinutesAgo(498),
+      updatedAt: toIsoMinutesAgo(498),
+      archivedAt: null,
+    },
+  ];
+  const toolChecklistId = "TC-DEMO-001";
+  const toolChecklistTwoId = "TC-DEMO-002";
+  const toolChecklists = [
+    {
+      id: toolChecklistId,
+      jobId: "J-2201",
+      title: "Martinez driveway day-of-pour tools",
+      status: "active",
+      createdBy: demoForeman.id,
+      assignedForemanId: demoForeman.id,
+      submittedBy: null,
+      reviewedBy: null,
+      notes: "Crew is tracking what is loaded, on site, and missing before finish work starts.",
+      createdAt: toIsoMinutesAgo(760),
+      updatedAt: toIsoMinutesAgo(430),
+      submittedAt: null,
+      reviewedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: toolChecklistTwoId,
+      jobId: "J-2198",
+      title: "ADA ramp setup checklist",
+      status: "submitted",
+      createdBy: demoForeman.id,
+      assignedForemanId: demoForeman.id,
+      submittedBy: demoForeman.id,
+      reviewedBy: demoAdmin.id,
+      notes: "Submitted demo checklist for ADA ramp staging and cleanup.",
+      createdAt: toIsoMinutesAgo(300),
+      updatedAt: toIsoMinutesAgo(190),
+      submittedAt: toIsoMinutesAgo(220),
+      reviewedAt: toIsoMinutesAgo(195),
+      archivedAt: null,
+    },
+  ];
+  const toolChecklistItems = [
+    {
+      id: "TCI-DEMO-001",
+      checklistId: toolChecklistId,
+      name: "Bull float",
+      category: "concrete_finishing",
+      quantity: 1,
+      status: "on_site",
+      addedBy: demoForeman.id,
+      notes: "On the truck and staged beside the pour area.",
+      missingNotes: "",
+      damagedNotes: "",
+      createdAt: toIsoMinutesAgo(758),
+      updatedAt: toIsoMinutesAgo(430),
+      archivedAt: null,
+    },
+    {
+      id: "TCI-DEMO-002",
+      checklistId: toolChecklistId,
+      name: "Hand edgers",
+      category: "concrete_finishing",
+      quantity: 2,
+      status: "loaded",
+      addedBy: demoForeman.id,
+      notes: "Loaded with finish hand tools.",
+      missingNotes: "",
+      damagedNotes: "",
+      createdAt: toIsoMinutesAgo(757),
+      updatedAt: toIsoMinutesAgo(440),
+      archivedAt: null,
+    },
+    {
+      id: "TCI-DEMO-003",
+      checklistId: toolChecklistId,
+      name: "String line",
+      category: "forms_layout",
+      quantity: 2,
+      status: "missing",
+      addedBy: demoEmployee.id,
+      notes: "Crew wants a spare for next layout check.",
+      missingNotes: "One spare string line missing from the finish truck.",
+      damagedNotes: "",
+      createdAt: toIsoMinutesAgo(756),
+      updatedAt: toIsoMinutesAgo(420),
+      archivedAt: null,
+    },
+    {
+      id: "TCI-DEMO-004",
+      checklistId: toolChecklistId,
+      name: "Plate compactor",
+      category: "small_equipment",
+      quantity: 1,
+      status: "damaged",
+      addedBy: demoForeman.id,
+      notes: "Still usable for demo, but throttle cable feels loose.",
+      missingNotes: "",
+      damagedNotes: "Throttle cable has extra slack and needs shop review after this job.",
+      createdAt: toIsoMinutesAgo(755),
+      updatedAt: toIsoMinutesAgo(410),
+      archivedAt: null,
+    },
+    {
+      id: "TCI-DEMO-005",
+      checklistId: toolChecklistTwoId,
+      name: "ADA detour cones",
+      category: "safety_ppe",
+      quantity: 6,
+      status: "on_site",
+      addedBy: demoForeman.id,
+      notes: "Placed before truck arrival.",
+      missingNotes: "",
+      damagedNotes: "",
+      createdAt: toIsoMinutesAgo(298),
+      updatedAt: toIsoMinutesAgo(230),
+      archivedAt: null,
+    },
+  ];
+  const calculatorResults = [
+    {
+      id: "CR-DEMO-001",
+      jobId: "J-2201",
+      createdBy: demoAdmin.id,
+      calculatorType: "slab",
+      inputsJson: {
+        mode: "single",
+        calculatorType: "slab",
+        inputs: {
+          length: 20,
+          width: 12,
+          thicknessInches: 4,
+        },
+      },
+      wastePercent: 10,
+      cubicFeet: 80,
+      cubicYards: 2.96,
+      cubicYardsWithWaste: 3.26,
+      summary: "20 ft × 12 ft × 4 in slab",
+      visibility: "internal",
+      notes: "Saved for the Martinez driveway demo as an internal-only yardage note.",
+      createdAt: toIsoMinutesAgo(820),
+      updatedAt: toIsoMinutesAgo(820),
+      archivedAt: null,
+    },
+    {
+      id: "CR-DEMO-002",
+      jobId: "J-2192",
+      createdBy: demoForeman.id,
+      calculatorType: "multi_section",
+      inputsJson: {
+        mode: "multi_section",
+        sectionCount: 3,
+        sections: [
+          {
+            id: "SEC-DEMO-001",
+            label: "Panel 1",
+            calculatorType: "slab",
+            inputs: { length: 5, width: 6, thicknessInches: 4 },
+            cubicFeet: 10,
+            cubicYards: 0.37,
+            notes: "",
+          },
+          {
+            id: "SEC-DEMO-002",
+            label: "Panel 2",
+            calculatorType: "slab",
+            inputs: { length: 4, width: 8, thicknessInches: 4 },
+            cubicFeet: 10.67,
+            cubicYards: 0.4,
+            notes: "",
+          },
+          {
+            id: "SEC-DEMO-003",
+            label: "Panel 3",
+            calculatorType: "slab",
+            inputs: { length: 6, width: 7, thicknessInches: 4 },
+            cubicFeet: 14,
+            cubicYards: 0.52,
+            notes: "Playground-side panel needs edge protection.",
+          },
+        ],
+        totals: {
+          cubicFeet: 34.67,
+          cubicYards: 1.28,
+          cubicYardsWithWaste: 1.41,
+        },
+      },
+      wastePercent: 10,
+      cubicFeet: 34.67,
+      cubicYards: 1.28,
+      cubicYardsWithWaste: 1.41,
+      summary: "3 sidewalk panels for Valley View Sidewalk Panels",
+      visibility: "internal",
+      notes: "Saved multi-section takeoff for the sidewalk demo workflow.",
+      createdAt: toIsoMinutesAgo(360),
+      updatedAt: toIsoMinutesAgo(360),
+      archivedAt: null,
+    },
+  ];
+  const prePourReviewedId = "PP-DEMO-001";
+  const prePourDraftId = "PP-DEMO-002";
+  const prePourChecklists = [
+    {
+      id: prePourReviewedId,
+      jobId: "J-2201",
+      status: "reviewed",
+      createdBy: demoForeman.id,
+      completedBy: demoForeman.id,
+      reviewedBy: demoAdmin.id,
+      reopenedBy: null,
+      notes: "Driveway pour cleared after forms, base, photos, and access checks.",
+      createdAt: toIsoMinutesAgo(780),
+      updatedAt: toIsoMinutesAgo(650),
+      completedAt: toIsoMinutesAgo(690),
+      reviewedAt: toIsoMinutesAgo(650),
+      reopenedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: prePourDraftId,
+      jobId: "J-2192",
+      status: "draft",
+      createdBy: demoForeman.id,
+      completedBy: null,
+      reviewedBy: null,
+      reopenedBy: null,
+      notes: "Draft field-planning checklist for upcoming sidewalk panels.",
+      createdAt: toIsoMinutesAgo(320),
+      updatedAt: toIsoMinutesAgo(300),
+      completedAt: null,
+      reviewedAt: null,
+      reopenedAt: null,
+      archivedAt: null,
+    },
+  ];
+  const prePourChecklistItems = [
+    ...createDefaultPrePourChecklistItems(prePourReviewedId, demoForeman.id, toIsoMinutesAgo(780)).map((item) => ({
+      ...item,
+      status: "checked",
+      notes: item.key === "before_photos_taken" ? "Before photos captured and uploaded." : "",
+      checkedBy: demoForeman.id,
+      checkedAt: toIsoMinutesAgo(700),
+      updatedAt: toIsoMinutesAgo(700),
+    })),
+    ...createDefaultPrePourChecklistItems(prePourDraftId, demoForeman.id, toIsoMinutesAgo(320)).map((item) => ({
+      ...item,
+      status: item.key === "utilities_marked_clear" ? "not_applicable" : item.key === "forms_set" || item.key === "subgrade_checked" ? "checked" : "unchecked",
+      notes: item.key === "forms_set" ? "Layout started at building C." : item.key === "utilities_marked_clear" ? "No buried utilities inside the repair path." : "",
+      checkedBy: item.key === "forms_set" || item.key === "subgrade_checked" ? demoForeman.id : item.key === "utilities_marked_clear" ? demoForeman.id : "",
+      checkedAt: item.key === "forms_set" || item.key === "subgrade_checked" || item.key === "utilities_marked_clear" ? toIsoMinutesAgo(305) : "",
+      updatedAt: toIsoMinutesAgo(300),
+    })),
+  ];
+  const postPourReviewedId = "PO-DEMO-001";
+  const postPourDraftId = "PO-DEMO-002";
+  const postPourChecklists = [
+    {
+      id: postPourReviewedId,
+      jobId: "J-2201",
+      status: "reviewed",
+      createdBy: demoForeman.id,
+      completedBy: demoForeman.id,
+      reviewedBy: demoAdmin.id,
+      reopenedBy: null,
+      notes: "Finish quality, cleanup, reminder items, and completion photos all documented.",
+      createdAt: toIsoMinutesAgo(560),
+      updatedAt: toIsoMinutesAgo(470),
+      completedAt: toIsoMinutesAgo(500),
+      reviewedAt: toIsoMinutesAgo(470),
+      reopenedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: postPourDraftId,
+      jobId: "J-2198",
+      status: "draft",
+      createdBy: demoForeman.id,
+      completedBy: null,
+      reviewedBy: null,
+      reopenedBy: null,
+      notes: "Will be completed after discharge and final patient-access restoration.",
+      createdAt: toIsoMinutesAgo(160),
+      updatedAt: toIsoMinutesAgo(150),
+      completedAt: null,
+      reviewedAt: null,
+      reopenedAt: null,
+      archivedAt: null,
+    },
+  ];
+  const postPourChecklistItems = [
+    ...createDefaultPostPourChecklistItems(postPourReviewedId, demoForeman.id, toIsoMinutesAgo(560)).map((item) => ({
+      ...item,
+      status: "checked",
+      notes: item.key === "completion_photos_taken" ? "Final broom-finish photos uploaded to the job." : "",
+      checkedBy: demoForeman.id,
+      checkedAt: toIsoMinutesAgo(505),
+      updatedAt: toIsoMinutesAgo(505),
+    })),
+    ...createDefaultPostPourChecklistItems(postPourDraftId, demoForeman.id, toIsoMinutesAgo(160)).map((item) => ({
+      ...item,
+      status: item.key === "site_cleaned" ? "checked" : item.key === "sealant_reminder_if_needed" ? "not_applicable" : "unchecked",
+      notes: item.key === "site_cleaned" ? "Ramp edges broomed clean while waiting for discharge closeout." : "",
+      checkedBy: item.key === "site_cleaned" || item.key === "sealant_reminder_if_needed" ? demoForeman.id : "",
+      checkedAt: item.key === "site_cleaned" || item.key === "sealant_reminder_if_needed" ? toIsoMinutesAgo(145) : "",
+      updatedAt: toIsoMinutesAgo(150),
+    })),
+  ];
+  const changeOrderRequests = [
+    {
+      id: "COR-DEMO-001",
+      jobId: "J-2198",
+      customerId: "C-1002",
+      requestedBy: demoForeman.id,
+      reason: "Extra landing width requested",
+      scopeDescription: "Customer asked to widen the ADA landing after field layout exposed a tight transition to the sidewalk.",
+      fieldNotes: "Would need a small form change and additional cleanup around the existing entry path.",
+      status: "requested",
+      officeNotes: "",
+      reviewedBy: null,
+      reviewedAt: null,
+      createdAt: toIsoMinutesAgo(205),
+      updatedAt: toIsoMinutesAgo(205),
+      archivedAt: null,
+    },
+    {
+      id: "COR-DEMO-002",
+      jobId: "J-2201",
+      customerId: "C-1001",
+      requestedBy: demoForeman.id,
+      reason: "Apron edge extension",
+      scopeDescription: "Neighbor-side apron tie-in needs a small extension to match driveway width cleanly.",
+      fieldNotes: "Foreman requested office review before promising schedule impact to the customer.",
+      status: "approved_for_pricing",
+      officeNotes: "Office approved for pricing review. Pricing remains internal only.",
+      reviewedBy: demoAdmin.id,
+      reviewedAt: toIsoMinutesAgo(430),
+      createdAt: toIsoMinutesAgo(520),
+      updatedAt: toIsoMinutesAgo(430),
+      archivedAt: null,
+    },
+  ];
+  const deliveryTickets = [
+    {
+      id: "DT-DEMO-001",
+      jobId: "J-2201",
+      reportId: "DR-DEMO-001",
+      createdBy: demoForeman.id,
+      supplier: "Knife River",
+      truckNumber: "KR-214",
+      ticketNumber: "DRV-18842",
+      yardsDelivered: 9.5,
+      arrivalTime: toLocalDateTime(-1, 9, 10),
+      dischargeTime: toLocalDateTime(-1, 10, 5),
+      mixNotes: "Driveway mix with fiber mesh and standard broom-finish setup.",
+      psi: 4000,
+      slump: 4.5,
+      ticketUploadId: "UPL-DEMO-003",
+      notes: "Primary delivery for the driveway replacement pour.",
+      createdAt: toIsoMinutesAgo(590),
+      updatedAt: toIsoMinutesAgo(585),
+      archivedAt: null,
+    },
+    {
+      id: "DT-DEMO-002",
+      jobId: "J-2198",
+      reportId: "DR-DEMO-002",
+      createdBy: demoForeman.id,
+      supplier: "Cadman",
+      truckNumber: "CD-118",
+      ticketNumber: "ADA-22019",
+      yardsDelivered: 5.25,
+      arrivalTime: toLocalDateTime(0, 10, 15),
+      dischargeTime: toLocalDateTime(0, 10, 50),
+      mixNotes: "ADA ramp mix with finish-friendly slump target and careful discharge spacing.",
+      psi: 4500,
+      slump: 5,
+      ticketUploadId: "UPL-DEMO-002",
+      notes: "Ramp delivery ticket linked to the in-progress daily report.",
+      createdAt: toIsoMinutesAgo(120),
+      updatedAt: toIsoMinutesAgo(115),
+      archivedAt: null,
+    },
+  ];
+  const activity = withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45);
+  const auditEvents = [
+    ...createSeedAuditEvents(officeActor, customers, leads, jobs, queueItems),
+    {
+      id: makeAuditId("seed-daily-report-reviewed"),
+      entityType: "dailyReport",
+      entityId: "DR-DEMO-001",
+      action: "reviewed",
+      summary: "Daily report reviewed",
+      detail: "Martinez driveway daily report was reviewed by Demo Admin.",
+      actorUserId: demoAdmin.id,
+      actorName: demoAdmin.name,
+      changedFields: ["status", "reviewedAt"],
+      createdAt: toIsoMinutesAgo(520),
+    },
+    {
+      id: makeAuditId("seed-upload-created"),
+      entityType: "upload",
+      entityId: "UPL-DEMO-001",
+      action: "created",
+      summary: "Photo evidence uploaded",
+      detail: "Before driveway photo was added to the Martinez job.",
+      actorUserId: demoForeman.id,
+      actorName: demoForeman.name,
+      changedFields: [],
+      createdAt: toIsoMinutesAgo(735),
+    },
+    {
+      id: makeAuditId("seed-safety-incident"),
+      entityType: "safetyIncident",
+      entityId: "SI-DEMO-001",
+      action: "created",
+      summary: "Safety concern submitted",
+      detail: "Employee submitted an ADA detour hose crossing concern.",
+      actorUserId: demoEmployee.id,
+      actorName: demoEmployee.name,
+      changedFields: [],
+      createdAt: toIsoMinutesAgo(240),
+    },
+    {
+      id: makeAuditId("seed-calculator-saved"),
+      entityType: "calculatorResult",
+      entityId: "CR-DEMO-002",
+      action: "saved",
+      summary: "Calculator result saved to job",
+      detail: "Multi-section sidewalk takeoff saved to Valley View Sidewalk Panels.",
+      actorUserId: demoForeman.id,
+      actorName: demoForeman.name,
+      changedFields: [],
+      createdAt: toIsoMinutesAgo(360),
+    },
+    {
+      id: makeAuditId("seed-delivery-ticket"),
+      entityType: "deliveryTicket",
+      entityId: "DT-DEMO-001",
+      action: "created",
+      summary: "Delivery ticket created",
+      detail: "Martinez driveway delivery ticket logged for the demo job.",
+      actorUserId: demoForeman.id,
+      actorName: demoForeman.name,
+      changedFields: [],
+      createdAt: toIsoMinutesAgo(590),
+    },
+  ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   return {
     companySettings: { ...DEFAULT_COMPANY_SETTINGS },
-    users: [
-      seedUser,
-    ],
+    users,
     sessions: [],
     customers,
     leads,
     leadStatusHistory,
     jobs,
-    jobAssignments: [],
+    jobAssignments: includeDemoRecords ? jobAssignments : [],
+    estimates: [],
+    estimateItems: [],
     safetyPolicies,
     ppeItems,
-    safetyAcknowledgments: [],
-    safetyIncidents: [],
-    changeOrderRequests: [],
-    deliveryTickets: [],
-    prePourChecklists: [],
-    prePourChecklistItems: [],
-    postPourChecklists: [],
-    postPourChecklistItems: [],
-    toolChecklists: [],
-    toolChecklistItems: [],
-    calculatorResults: [],
-    dailyReports: [],
-    uploads: [],
-    timeEntries: [],
+    safetyAcknowledgments: includeDemoRecords ? safetyAcknowledgments : [],
+    safetyIncidents: includeDemoRecords ? safetyIncidents : [],
+    changeOrderRequests: includeDemoRecords ? changeOrderRequests : [],
+    deliveryTickets: includeDemoRecords ? deliveryTickets : [],
+    prePourChecklists: includeDemoRecords ? prePourChecklists : [],
+    prePourChecklistItems: includeDemoRecords ? prePourChecklistItems : [],
+    postPourChecklists: includeDemoRecords ? postPourChecklists : [],
+    postPourChecklistItems: includeDemoRecords ? postPourChecklistItems : [],
+    toolChecklists: includeDemoRecords ? toolChecklists : [],
+    toolChecklistItems: includeDemoRecords ? toolChecklistItems : [],
+    calculatorResults: includeDemoRecords ? calculatorResults : [],
+    dailyReports: includeDemoRecords ? dailyReports : [],
+    uploads: includeDemoRecords ? uploads : [],
+    timeEntries: includeDemoRecords ? timeEntries : [],
     queueItems,
-    activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
-    auditEvents: createSeedAuditEvents(seedUser, customers, leads, jobs, queueItems),
+    activity,
+    auditEvents: includeDemoRecords ? auditEvents : createSeedAuditEvents(officeActor, customers, leads, jobs, queueItems),
   };
 }
 
@@ -1985,11 +2816,11 @@ const MIGRATIONS = [
       `);
       },
     },
-    {
-      version: 28,
-      description: "Add concrete delivery tickets tied to jobs and optional reports/uploads.",
-      up(database) {
-        database.exec(`
+  {
+    version: 28,
+    description: "Add concrete delivery tickets tied to jobs and optional reports/uploads.",
+    up(database) {
+      database.exec(`
           CREATE TABLE IF NOT EXISTS delivery_tickets (
             id TEXT PRIMARY KEY,
             sort_index INTEGER NOT NULL,
@@ -2020,6 +2851,68 @@ const MIGRATIONS = [
           CREATE INDEX IF NOT EXISTS idx_delivery_tickets_report_id ON delivery_tickets(report_id);
           CREATE INDEX IF NOT EXISTS idx_delivery_tickets_created_by ON delivery_tickets(created_by);
           CREATE INDEX IF NOT EXISTS idx_delivery_tickets_sort_index ON delivery_tickets(sort_index);
+        `);
+      },
+    },
+    {
+      version: 29,
+      description: "Add office-only estimate and estimate line item workflow tables.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS estimates (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            customer_id TEXT NOT NULL,
+            lead_id TEXT,
+            job_id TEXT,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            scope_summary TEXT NOT NULL,
+            internal_notes TEXT NOT NULL,
+            customer_notes TEXT NOT NULL,
+            subtotal REAL NOT NULL,
+            tax_rate REAL,
+            tax_total REAL,
+            fees_total REAL,
+            grand_total REAL NOT NULL,
+            created_by TEXT NOT NULL,
+            sent_at TEXT,
+            approved_at TEXT,
+            rejected_at TEXT,
+            archived_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+            FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL,
+            FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_estimates_customer_id ON estimates(customer_id);
+          CREATE INDEX IF NOT EXISTS idx_estimates_lead_id ON estimates(lead_id);
+          CREATE INDEX IF NOT EXISTS idx_estimates_job_id ON estimates(job_id);
+          CREATE INDEX IF NOT EXISTS idx_estimates_created_by ON estimates(created_by);
+          CREATE INDEX IF NOT EXISTS idx_estimates_status ON estimates(status);
+          CREATE INDEX IF NOT EXISTS idx_estimates_sort_index ON estimates(sort_index);
+
+          CREATE TABLE IF NOT EXISTS estimate_items (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            estimate_id TEXT NOT NULL,
+            description TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit TEXT NOT NULL,
+            unit_price REAL NOT NULL,
+            line_total REAL NOT NULL,
+            sort_order INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (estimate_id) REFERENCES estimates(id) ON DELETE CASCADE
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_estimate_items_estimate_id ON estimate_items(estimate_id);
+          CREATE INDEX IF NOT EXISTS idx_estimate_items_sort_index ON estimate_items(sort_index);
+          CREATE INDEX IF NOT EXISTS idx_estimate_items_sort_order ON estimate_items(sort_order);
         `);
       },
     },
@@ -2093,6 +2986,16 @@ function writeStateToDb(state) {
 
   const insertJobAssignment = database.prepare(`
     INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertEstimate = database.prepare(`
+    INSERT INTO estimates (id, sort_index, customer_id, lead_id, job_id, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, approved_at, rejected_at, archived_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertEstimateItem = database.prepare(`
+    INSERT INTO estimate_items (id, sort_index, estimate_id, description, quantity, unit, unit_price, line_total, sort_order, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
@@ -2363,6 +3266,49 @@ function writeStateToDb(state) {
         assignment.notes || "",
         assignment.createdAt || assignment.assignedAt || isoNow(),
         assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
+      );
+    });
+
+    (state.estimates || []).forEach((estimate, index) => {
+      insertEstimate.run(
+        estimate.id,
+        estimate.sortIndex ?? index,
+        estimate.customerId,
+        estimate.leadId || null,
+        estimate.jobId || null,
+        estimate.title || "",
+        estimate.status || "draft",
+        estimate.scopeSummary || "",
+        estimate.internalNotes || "",
+        estimate.customerNotes || "",
+        Number(estimate.subtotal || 0),
+        estimate.taxRate == null || estimate.taxRate === "" ? null : Number(estimate.taxRate),
+        estimate.taxTotal == null || estimate.taxTotal === "" ? null : Number(estimate.taxTotal),
+        estimate.feesTotal == null || estimate.feesTotal === "" ? null : Number(estimate.feesTotal),
+        Number(estimate.grandTotal || 0),
+        estimate.createdBy,
+        estimate.sentAt || null,
+        estimate.approvedAt || null,
+        estimate.rejectedAt || null,
+        estimate.archivedAt || null,
+        estimate.createdAt || isoNow(),
+        estimate.updatedAt || estimate.createdAt || isoNow(),
+      );
+    });
+
+    (state.estimateItems || []).forEach((item, index) => {
+      insertEstimateItem.run(
+        item.id,
+        item.sortIndex ?? index,
+        item.estimateId,
+        item.description || "",
+        Number(item.quantity || 0),
+        item.unit || "",
+        Number(item.unitPrice || 0),
+        Number(item.lineTotal || 0),
+        Number(item.sortOrder || index),
+        item.createdAt || isoNow(),
+        item.updatedAt || item.createdAt || isoNow(),
       );
     });
 
@@ -2771,16 +3717,33 @@ function readTableState() {
   }));
 
   const rawJobAssignments = database.prepare(`
-    SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes, created_at AS createdAt, updated_at AS updatedAt
-    FROM job_assignments
-    ORDER BY sort_index ASC
-  `).all();
+      SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes, created_at AS createdAt, updated_at AS updatedAt
+      FROM job_assignments
+      ORDER BY sort_index ASC
+    `).all();
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
+  const estimates = database.prepare(`
+      SELECT id, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, title, status, scope_summary AS scopeSummary,
+             internal_notes AS internalNotes, customer_notes AS customerNotes, subtotal, tax_rate AS taxRate,
+             tax_total AS taxTotal, fees_total AS feesTotal, grand_total AS grandTotal, created_by AS createdBy,
+             sent_at AS sentAt, approved_at AS approvedAt, rejected_at AS rejectedAt, archived_at AS archivedAt,
+             created_at AS createdAt, updated_at AS updatedAt
+      FROM estimates
+      ORDER BY sort_index ASC
+    `).all();
+
+  const estimateItems = database.prepare(`
+      SELECT id, estimate_id AS estimateId, description, quantity, unit, unit_price AS unitPrice,
+             line_total AS lineTotal, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt
+      FROM estimate_items
+      ORDER BY sort_index ASC
+    `).all();
+
   const safetyPolicies = database.prepare(`
-    SELECT id, title, body, category, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
-    FROM safety_policies
-    ORDER BY sort_index ASC
+      SELECT id, title, body, category, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM safety_policies
+      ORDER BY sort_index ASC
   `).all();
 
   const ppeItems = database.prepare(`
@@ -2940,6 +3903,8 @@ function readTableState() {
     leadStatusHistory,
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
+    estimates,
+    estimateItems,
     safetyPolicies,
     ppeItems,
     safetyAcknowledgments,

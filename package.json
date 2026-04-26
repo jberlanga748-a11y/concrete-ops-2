@@ -29,7 +29,8 @@
     "verify:pre-pour": "node --test --test-concurrency=1 server/pre-pour.test.js src/pre-pour-utils.test.js src/app-routing.test.js",
     "verify:post-pour": "node --test --test-concurrency=1 server/post-pour.test.js src/post-pour-utils.test.js src/app-routing.test.js",
     "verify:change-orders": "node --test --test-concurrency=1 server/change-orders.test.js src/change-order-utils.test.js",
-    "verify:delivery-tickets": "node --test --test-concurrency=1 server/delivery-tickets.test.js src/delivery-ticket-utils.test.js"
+    "verify:delivery-tickets": "node --test --test-concurrency=1 server/delivery-tickets.test.js src/delivery-ticket-utils.test.js",
+    "verify:estimates": "node --test --test-concurrency=1 server/estimates.test.js src/estimate-utils.test.js src/app-routing.test.js shared/permissions.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -98,6 +98,22 @@ export function createLead(token, lead) {
   return request("/api/leads", { method: "POST", token, body: lead });
 }
 
+export function getEstimates(token) {
+  return request("/api/estimates", { token });
+}
+
+export function createEstimate(token, payload) {
+  return request("/api/estimates", { method: "POST", token, body: payload });
+}
+
+export function updateEstimate(token, id, payload) {
+  return request(`/api/estimates/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function convertEstimateToJob(token, id, payload = {}) {
+  return request(`/api/estimates/${id}/convert-to-job`, { method: "POST", token, body: payload });
+}
+
 export function updateLead(token, id, lead) {
   return request(`/api/leads/${id}`, { method: "PATCH", token, body: lead });
 }
