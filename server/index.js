@@ -10,6 +10,7 @@ import { serverConfig } from "./config.js";
 import { logger, serializeError } from "./logger.js";
 import {
   cleanupExpiredSessions,
+  createDefaultPrePourChecklistItems,
   createUserRecord,
   createSeedState,
   ensureDb,
@@ -43,6 +44,7 @@ import {
   canManageJobFieldUpdates,
   canManageLeads,
   canManageOwnTime,
+  canManagePrePour,
   canManageReports,
   canManageSafety,
   canReviewSafetyIncidents,
@@ -53,6 +55,7 @@ import {
   canManageUploads,
   canManageUsers,
   canReviewReports,
+  canReviewPrePour,
   canReviewToolChecklists,
   canUseCalculator,
   canUseToolChecklist,
@@ -65,6 +68,7 @@ import {
   canViewJobMoney,
   canViewLeads,
   canViewReports,
+  canViewPrePour,
   canViewSettings,
   canViewSafety,
   canViewAllTime,
@@ -106,6 +110,8 @@ const SAFETY_INCIDENT_STATUSES = new Set(["open", "reviewed", "resolved", "archi
 const TOOL_CHECKLIST_STATUSES = new Set(["draft", "active", "submitted", "reviewed", "archived"]);
 const TOOL_CHECKLIST_ITEM_CATEGORIES = new Set(["hand_tools", "power_tools", "concrete_finishing", "forms_layout", "safety_ppe", "small_equipment", "consumables", "other"]);
 const TOOL_CHECKLIST_ITEM_STATUSES = new Set(["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"]);
+const PRE_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
+const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
@@ -281,6 +287,22 @@ function optionalDailyReportStatus(value, fallback = "draft") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!DAILY_REPORT_STATUSES.has(normalized)) {
     throw new ApiError(400, `Daily report status must be one of: ${Array.from(DAILY_REPORT_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalPrePourChecklistStatus(value, fallback = "draft") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!PRE_POUR_CHECKLIST_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Pre-pour checklist status must be one of: ${Array.from(PRE_POUR_CHECKLIST_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalPrePourItemStatus(value, fallback = "unchecked") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!PRE_POUR_ITEM_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Pre-pour checklist item status must be one of: ${Array.from(PRE_POUR_ITEM_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -523,6 +545,16 @@ function toolChecklistPermissionsForUser(user, settings = DEFAULT_COMPANY_SETTIN
   };
 }
 
+function prePourPermissionsForUser(user) {
+  return {
+    canView: canViewPrePour(user),
+    canManage: canManagePrePour(user),
+    canManageAll: isOfficeManager(user),
+    canComplete: isOfficeManager(user) || isForeman(user),
+    canReview: canReviewPrePour(user),
+  };
+}
+
 function sanitizeJobForUser(job, user, state) {
   if (!job) return null;
   const normalizedJob = normalizeJobRecord(job);
@@ -530,15 +562,16 @@ function sanitizeJobForUser(job, user, state) {
     includeNotes: canViewAllJobs(user),
   });
 
-  if (canViewAllJobs(user) || isEstimator(user)) {
-    return {
-      ...normalizedJob,
-      ...assignmentPayload,
-      calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
-      canManageField: canManageJobFieldUpdates(user, normalizedJob),
-      canManageAll: canViewAllJobs(user),
-      canViewMoney: canViewJobMoney(user),
-    };
+    if (canViewAllJobs(user) || isEstimator(user)) {
+      return {
+        ...normalizedJob,
+        ...assignmentPayload,
+        calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
+        prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user),
+        canManageField: canManageJobFieldUpdates(user, normalizedJob),
+        canManageAll: canViewAllJobs(user),
+        canViewMoney: canViewJobMoney(user),
+      };
   }
 
   return {
@@ -568,9 +601,10 @@ function sanitizeJobForUser(job, user, state) {
     visibleToForeman: Boolean(normalizedJob.visibleToForeman),
     status: normalizedJob.status,
     stage: normalizedJob.stage,
-    crew: normalizedJob.crew,
-    calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
-    nextStep: normalizedJob.nextStep,
+      crew: normalizedJob.crew,
+      calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
+      prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user),
+      nextStep: normalizedJob.nextStep,
     next: normalizedJob.nextStep,
     due: normalizedJob.due,
     progress: normalizedJob.progress,
@@ -766,6 +800,26 @@ function toolChecklistItemStatusLabel(status = "needed") {
   return labels[optionalEnum(status, TOOL_CHECKLIST_ITEM_STATUSES, "Checklist item status", "needed")] || "Needed";
 }
 
+function prePourChecklistStatusLabel(status = "draft") {
+  const labels = {
+    draft: "Draft",
+    completed: "Completed",
+    reviewed: "Reviewed",
+    reopened: "Reopened",
+    archived: "Archived",
+  };
+  return labels[optionalPrePourChecklistStatus(status, "draft")] || "Draft";
+}
+
+function prePourItemStatusLabel(status = "unchecked") {
+  const labels = {
+    unchecked: "Unchecked",
+    checked: "Checked",
+    not_applicable: "Not Applicable",
+  };
+  return labels[optionalPrePourItemStatus(status, "unchecked")] || "Unchecked";
+}
+
 function canViewToolChecklistRecord(user, checklist, job, settings) {
   if (!user) return false;
   if (canViewAllToolChecklists(user)) return true;
@@ -858,7 +912,126 @@ function visibleToolChecklistsForUser(state, user) {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
+      });
+}
+
+function canViewPrePourChecklistRecord(user, checklist, job) {
+  if (!user || !canViewPrePour(user)) return false;
+  if (isOfficeManager(user)) return true;
+  if (!job) return false;
+  return canViewJob(job, user);
+}
+
+function sanitizePrePourChecklistItemForUser(item, state, user, checklist, job) {
+  if (!canViewPrePourChecklistRecord(user, checklist, job)) return null;
+  const checkedByUser = findUserById(state, item.checkedBy);
+  return {
+    id: item.id,
+    checklistId: item.checklistId,
+    key: item.key,
+    label: item.label,
+    status: optionalPrePourItemStatus(item.status, "unchecked"),
+    statusLabel: prePourItemStatusLabel(item.status),
+    notes: item.notes || "",
+    checkedBy: item.checkedBy || "",
+    checkedByName: checkedByUser?.name || item.checkedBy || "",
+    checkedAt: item.checkedAt || "",
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    archivedAt: item.archivedAt || null,
+  };
+}
+
+function sanitizePrePourChecklistForUser(checklist, state, user) {
+  const job = checklist.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  if (!canViewPrePourChecklistRecord(user, checklist, job)) return null;
+  if (checklist.archivedAt && !isOfficeManager(user)) return null;
+  const normalizedJob = job ? normalizeJobRecord(job) : null;
+  const assignmentPayload = normalizedJob ? sanitizeJobAssignments(normalizedJob, state, user, { includeNotes: false }) : {
+    foremanAssignment: null,
+    crewAssignments: [],
+  };
+  const createdBy = findUserById(state, checklist.createdBy);
+  const completedBy = findUserById(state, checklist.completedBy);
+  const reviewedBy = findUserById(state, checklist.reviewedBy);
+  const reopenedBy = findUserById(state, checklist.reopenedBy);
+  const items = (state.prePourChecklistItems || [])
+    .filter((item) => item.checklistId === checklist.id)
+    .map((item) => sanitizePrePourChecklistItemForUser(item, state, user, checklist, job))
+    .filter(Boolean);
+  const incompleteItemCount = items.filter((item) => item.status === "unchecked").length;
+
+  return {
+    id: checklist.id,
+    jobId: checklist.jobId,
+    status: optionalPrePourChecklistStatus(checklist.status, "draft"),
+    statusLabel: prePourChecklistStatusLabel(checklist.status),
+    createdBy: checklist.createdBy,
+    createdByName: createdBy?.name || checklist.createdBy,
+    completedBy: checklist.completedBy || "",
+    completedByName: completedBy?.name || checklist.completedBy || "",
+    reviewedBy: checklist.reviewedBy || "",
+    reviewedByName: reviewedBy?.name || checklist.reviewedBy || "",
+    reopenedBy: checklist.reopenedBy || "",
+    reopenedByName: reopenedBy?.name || checklist.reopenedBy || "",
+    notes: checklist.notes || "",
+    createdAt: checklist.createdAt,
+    updatedAt: checklist.updatedAt,
+    completedAt: checklist.completedAt || "",
+    reviewedAt: checklist.reviewedAt || "",
+    reopenedAt: checklist.reopenedAt || "",
+    archivedAt: checklist.archivedAt || null,
+    job: normalizedJob ? {
+      id: normalizedJob.id,
+      title: normalizedJob.title,
+      customer: normalizedJob.customer,
+      address: normalizedJob.address || "",
+      scheduledStart: normalizedJob.scheduledStart || "",
+      status: normalizedJob.status,
+      foremanAssignment: assignmentPayload.foremanAssignment,
+    } : null,
+    items,
+    incompleteItemCount,
+  };
+}
+
+function visiblePrePourChecklistsForUser(state, user) {
+  if (!user || !canViewPrePour(user)) return [];
+  return (state.prePourChecklists || [])
+    .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user))
+    .filter(Boolean)
+    .sort((left, right) => {
+      const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
+      if (archivedCompare !== 0) return archivedCompare;
+      return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
     });
+}
+
+function prePourChecklistSummaryForJob(state, job, user) {
+  const visible = (state.prePourChecklists || [])
+    .filter((checklist) => checklist.jobId === job.id)
+    .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+  if (visible.length === 0) {
+    return {
+      status: "not_started",
+      statusLabel: "Not started",
+      checklistId: "",
+      incompleteItemCount: 0,
+      completedAt: "",
+      reviewedAt: "",
+    };
+  }
+  const latest = visible[0];
+  return {
+    status: latest.status,
+    statusLabel: latest.statusLabel,
+    checklistId: latest.id,
+    incompleteItemCount: latest.incompleteItemCount,
+    completedAt: latest.completedAt || "",
+    reviewedAt: latest.reviewedAt || "",
+  };
 }
 
 function dailyReportStatusLabel(status = "draft") {
@@ -1178,6 +1351,24 @@ function assertCanCorrectTimeEntries(user) {
 function assertCanViewReports(user) {
   if (!canViewReports(user)) {
     throw new ApiError(403, "You do not have permission to view daily reports.");
+  }
+}
+
+function assertCanViewPrePour(user) {
+  if (!canViewPrePour(user)) {
+    throw new ApiError(403, "You do not have permission to view pre-pour checklists.");
+  }
+}
+
+function assertCanManagePrePour(user) {
+  if (!canManagePrePour(user)) {
+    throw new ApiError(403, "You do not have permission to manage pre-pour checklists.");
+  }
+}
+
+function assertCanReviewPrePour(user) {
+  if (!canReviewPrePour(user)) {
+    throw new ApiError(403, "You do not have permission to review pre-pour checklists.");
   }
 }
 
@@ -1787,11 +1978,53 @@ function removeActiveAssignment(assignment, changedAt = new Date().toISOString()
   assignment.updatedAt = changedAt;
 }
 
+function resolveLegacyCompatibleAssignment(state, jobId, assignmentId) {
+  const normalizedId = String(assignmentId || "").trim();
+  if (!normalizedId) return null;
+  const activeAssignments = activeJobAssignments(state, jobId);
+  if (activeAssignments.length === 0) return null;
+  const job = findRequiredRecord(state.jobs, jobId, "Job");
+
+  const legacyForemanIds = new Set([
+    `JA-LEGACY-${jobId}-foreman`,
+    `JA-ALIAS-${jobId}-foreman`,
+    `JA-MIG-${jobId}-foreman`,
+  ]);
+  if (legacyForemanIds.has(normalizedId)) {
+    return activeAssignments.find((assignment) => assignment.roleOnJob === "foreman") || null;
+  }
+
+  const legacyCrewIds = new Set([
+    `JA-LEGACY-${jobId}-crew`,
+    `JA-ALIAS-${jobId}-crew`,
+    `JA-MIG-${jobId}-crew`,
+  ]);
+  if (legacyCrewIds.has(normalizedId)) {
+    return activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman" && assignment.userId === job.assignedUserId)
+      || activeAssignments.find((assignment) => assignment.roleOnJob !== "foreman")
+      || null;
+  }
+
+  return null;
+}
+
 function findActiveAssignmentRecord(state, jobId, assignmentId) {
-  const assignment = (state.jobAssignments || []).find((entry) => entry.id === assignmentId && entry.jobId === jobId && !entry.removedAt);
+  const assignment = (state.jobAssignments || []).find((entry) => entry.id === assignmentId && entry.jobId === jobId && !entry.removedAt)
+    || resolveLegacyCompatibleAssignment(state, jobId, assignmentId);
   if (!assignment) {
     throw new ApiError(404, "Crew assignment not found.");
   }
+  return assignment;
+}
+
+function materializeAssignmentRecord(assignment, actor, changedAt = new Date().toISOString()) {
+  if (!assignment?.syntheticFromJobAlias) return assignment;
+  assignment.id = makeId("JA");
+  assignment.syntheticFromJobAlias = false;
+  assignment.assignedBy = assignment.assignedBy || actor?.id || "";
+  assignment.assignedAt = assignment.assignedAt || assignment.createdAt || changedAt;
+  assignment.createdAt = assignment.createdAt || assignment.assignedAt || changedAt;
+  assignment.updatedAt = changedAt;
   return assignment;
 }
 
@@ -1875,6 +2108,66 @@ function createDailyReportShape(payload, user, changedAt) {
     createdAt: changedAt,
     updatedAt: changedAt,
     submittedAt: "",
+    reviewedAt: "",
+    reopenedAt: "",
+    archivedAt: null,
+  };
+}
+
+function findPrePourChecklist(state, checklistId) {
+  return findRequiredRecord(state.prePourChecklists || [], checklistId, "Pre-pour checklist");
+}
+
+function findPrePourChecklistItem(state, itemId) {
+  return findRequiredRecord(state.prePourChecklistItems || [], itemId, "Pre-pour checklist item");
+}
+
+function canCreatePrePourChecklistForJob(user, job) {
+  if (!job || job.archivedAt) return false;
+  if (isOfficeManager(user)) return true;
+  if (!isForeman(user)) return false;
+  return canViewJob(job, user);
+}
+
+function canEditPrePourChecklist(user, job, checklist) {
+  if (!job || !checklist || checklist.archivedAt) return false;
+  if (isOfficeManager(user)) return true;
+  if (!isForeman(user)) return false;
+  if (!canViewJob(job, user)) return false;
+  return ["draft", "reopened"].includes(optionalPrePourChecklistStatus(checklist.status, "draft"));
+}
+
+function canCompletePrePourChecklist(user, job, checklist) {
+  if (!job || !checklist || checklist.archivedAt) return false;
+  if (isOfficeManager(user)) return true;
+  if (!isForeman(user)) return false;
+  if (!canViewJob(job, user)) return false;
+  return ["draft", "reopened"].includes(optionalPrePourChecklistStatus(checklist.status, "draft"));
+}
+
+function canViewPrePourChecklistDetails(user, checklist, job) {
+  return canViewPrePourChecklistRecord(user, checklist, job);
+}
+
+function checklistHasIncompleteRequiredItems(state, checklistId) {
+  return (state.prePourChecklistItems || [])
+    .filter((item) => item.checklistId === checklistId && !item.archivedAt)
+    .some((item) => optionalPrePourItemStatus(item.status, "unchecked") === "unchecked");
+}
+
+function createPrePourChecklistShape(payload, user, changedAt) {
+  return {
+    id: makeId("PP"),
+    jobId: requiredString(payload.jobId, "Job"),
+    status: "draft",
+    createdBy: user.id,
+    completedBy: "",
+    reviewedBy: "",
+    reopenedBy: "",
+    notes: optionalString(payload.notes, ""),
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    completedAt: "",
     reviewedAt: "",
     reopenedAt: "",
     archivedAt: null,
@@ -2210,9 +2503,10 @@ function sanitizeBootstrap(state, user) {
     jobs: visibleJobsForUser(state, user),
     safetyPolicies: visibleSafetyPoliciesForUser(state, user),
     ppeItems: visiblePpeItemsForUser(state, user),
-    safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
-    safetyIncidents: visibleSafetyIncidentsForUser(state, user),
-    toolChecklists: visibleToolChecklistsForUser(state, user),
+      safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
+      safetyIncidents: visibleSafetyIncidentsForUser(state, user),
+      prePourChecklists: visiblePrePourChecklistsForUser(state, user),
+      toolChecklists: visibleToolChecklistsForUser(state, user),
     calculatorResults: visibleCalculatorResultsForUser(state, user),
     uploads: visibleUploadsForUser(state, user),
     dailyReports: visibleDailyReportsForUser(state, user),
@@ -2237,8 +2531,9 @@ function sanitizeBootstrap(state, user) {
         canManageAssignments: canViewAllJobs(user),
         canViewMoney: canViewJobMoney(user),
       },
-      reports: reportPermissionsForUser(user),
-      uploads: uploadPermissionsForUser(user),
+        reports: reportPermissionsForUser(user),
+        prePour: prePourPermissionsForUser(user),
+        uploads: uploadPermissionsForUser(user),
       time: timePermissionsForUser(user),
       safety: safetyPermissionsForUser(user),
       calculator: {
@@ -2627,6 +2922,254 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
       actor: req.auth.user,
       changedFields: ["toolChecklistEnabled", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/pre-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanViewPrePour(req.auth.user);
+  res.json({
+    prePourChecklists: visiblePrePourChecklistsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/pre-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManagePrePour(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const newChecklist = createPrePourChecklistShape(payload, req.auth.user, changedAt);
+
+  const nextState = await updateDb((draft) => {
+    draft.prePourChecklists ||= [];
+    draft.prePourChecklistItems ||= [];
+    const job = findRequiredRecord(draft.jobs, newChecklist.jobId, "Job");
+    if (!canCreatePrePourChecklistForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to create a pre-pour checklist for that job.");
+    }
+
+    const title = normalizeJobRecord(job).title;
+    draft.prePourChecklists.unshift(newChecklist);
+    const defaultItems = createDefaultPrePourChecklistItems(newChecklist.id, req.auth.user.id, changedAt);
+    draft.prePourChecklistItems.unshift(...defaultItems);
+    appendActivity(draft, "Pre-pour checklist created", `${req.auth.user.name} created a pre-pour checklist for ${title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklist",
+      entityId: newChecklist.id,
+      action: "created",
+      summary: "Pre-pour checklist created",
+      detail: `${req.auth.user.name} created a pre-pour checklist for ${title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "status", "items"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/pre-pour-checklists/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManagePrePour(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.prePourChecklists ||= [];
+    const checklist = findPrePourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    if (!canEditPrePourChecklist(req.auth.user, job, checklist)) {
+      throw new ApiError(403, "You do not have permission to edit this pre-pour checklist.");
+    }
+
+    const nextNotes = payload.notes == null ? checklist.notes || "" : optionalString(payload.notes, "");
+    checklist.notes = nextNotes;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Pre-pour checklist updated", `${req.auth.user.name} updated the pre-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklist",
+      entityId: checklist.id,
+      action: "updated",
+      summary: "Pre-pour checklist updated",
+      detail: `${req.auth.user.name} updated the pre-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["notes", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/pre-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewPrePour(req.auth.user);
+  const { id, itemId } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPrePourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    if (!canViewPrePourChecklistDetails(req.auth.user, checklist, job)) {
+      throw new ApiError(403, "You do not have permission to access this pre-pour checklist.");
+    }
+    if (!canEditPrePourChecklist(req.auth.user, job, checklist)) {
+      throw new ApiError(403, "You do not have permission to update pre-pour checklist items.");
+    }
+    const item = findPrePourChecklistItem(draft, itemId);
+    if (item.checklistId !== checklist.id) {
+      throw new ApiError(404, "Pre-pour checklist item not found.");
+    }
+
+    const nextStatus = payload.status == null ? item.status : optionalPrePourItemStatus(payload.status, item.status);
+    const nextNotes = payload.notes == null ? item.notes || "" : optionalString(payload.notes, "");
+    const changedFields = [];
+    if (nextStatus !== item.status) changedFields.push("status");
+    if (nextNotes !== (item.notes || "")) changedFields.push("notes");
+
+    item.status = nextStatus;
+    item.notes = nextNotes;
+    item.checkedBy = nextStatus === "checked" ? req.auth.user.id : "";
+    item.checkedAt = nextStatus === "checked" ? changedAt : "";
+    markUpdated(item, changedAt);
+    markUpdated(checklist, changedAt);
+
+    const actionLabel = nextStatus === "checked"
+      ? "item checked"
+      : nextStatus === "not_applicable"
+        ? "item marked not applicable"
+        : "item unchecked";
+    appendActivity(draft, "Pre-pour item updated", `${req.auth.user.name} set ${item.label} to ${prePourItemStatusLabel(nextStatus)} on ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklistItem",
+      entityId: item.id,
+      action: actionLabel,
+      summary: "Pre-pour item updated",
+      detail: `${req.auth.user.name} set ${item.label} to ${prePourItemStatusLabel(nextStatus)} on ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: changedFields.length > 0 ? changedFields : ["updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/pre-pour-checklists/:id/complete", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManagePrePour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPrePourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    if (!canCompletePrePourChecklist(req.auth.user, job, checklist)) {
+      throw new ApiError(403, "You do not have permission to complete this pre-pour checklist.");
+    }
+    if (checklistHasIncompleteRequiredItems(draft, checklist.id)) {
+      throw new ApiError(409, "Complete or mark not applicable for every pre-pour item before finishing the checklist.");
+    }
+
+    checklist.status = "completed";
+    checklist.completedBy = req.auth.user.id;
+    checklist.completedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Pre-pour checklist completed", `${req.auth.user.name} completed the pre-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklist",
+      entityId: checklist.id,
+      action: "completed",
+      summary: "Pre-pour checklist completed",
+      detail: `${req.auth.user.name} completed the pre-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "completedBy", "completedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/pre-pour-checklists/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewPrePour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPrePourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    checklist.status = "reviewed";
+    checklist.reviewedBy = req.auth.user.id;
+    checklist.reviewedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Pre-pour checklist reviewed", `${req.auth.user.name} reviewed the pre-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklist",
+      entityId: checklist.id,
+      action: "reviewed",
+      summary: "Pre-pour checklist reviewed",
+      detail: `${req.auth.user.name} reviewed the pre-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/pre-pour-checklists/:id/reopen", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewPrePour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPrePourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    checklist.status = "reopened";
+    checklist.reopenedBy = req.auth.user.id;
+    checklist.reopenedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Pre-pour checklist reopened", `${req.auth.user.name} reopened the pre-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklist",
+      entityId: checklist.id,
+      action: "reopened",
+      summary: "Pre-pour checklist reopened",
+      detail: `${req.auth.user.name} reopened the pre-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reopenedBy", "reopenedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/pre-pour-checklists/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewPrePour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPrePourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    checklist.status = "archived";
+    checklist.archivedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Pre-pour checklist archived", `${req.auth.user.name} archived the pre-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "prePourChecklist",
+      entityId: checklist.id,
+      action: "archived",
+      summary: "Pre-pour checklist archived",
+      detail: `${req.auth.user.name} archived the pre-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt", "updatedAt"],
     });
     return draft;
   });
@@ -5038,6 +5581,7 @@ app.patch("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(asy
     draft.jobAssignments ||= [];
     const job = findRequiredRecord(draft.jobs, id, "Job");
     const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
+    materializeAssignmentRecord(assignment, req.auth.user, changedAt);
     const nextRole = payload.roleOnJob == null ? assignment.roleOnJob : normalizeAssignmentRoleValue(payload.roleOnJob, assignment.roleOnJob);
     const nextNotes = payload.notes == null ? assignment.notes || "" : optionalString(payload.notes, "");
     const changedFields = [];

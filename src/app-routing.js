@@ -12,6 +12,7 @@ export const MODULE_PATHS = {
   incidents: "/incidents",
   toolbox: "/toolbox",
   ppe: "/ppe",
+  prePour: "/prePour",
   toolChecklist: "/toolChecklist",
   calculator: "/calculator",
   copilot: "/copilot",

@@ -25,7 +25,8 @@
     "verify:uploads": "node --test --test-concurrency=1 server/uploads.test.js src/upload-utils.test.js",
     "verify:safety": "node --test --test-concurrency=1 server/safety.test.js src/safety-utils.test.js shared/permissions.test.js",
     "verify:tool-checklist": "node --test --test-concurrency=1 server/tool-checklist.test.js src/tool-checklist-utils.test.js src/navigation-utils.test.js shared/permissions.test.js",
-    "verify:calculator": "node --test --test-concurrency=1 server/calculator-results.test.js src/calculator-utils.test.js src/app-routing.test.js shared/permissions.test.js src/navigation-utils.test.js"
+    "verify:calculator": "node --test --test-concurrency=1 server/calculator-results.test.js src/calculator-utils.test.js src/app-routing.test.js shared/permissions.test.js src/navigation-utils.test.js",
+    "verify:pre-pour": "node --test --test-concurrency=1 server/pre-pour.test.js src/pre-pour-utils.test.js src/app-routing.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

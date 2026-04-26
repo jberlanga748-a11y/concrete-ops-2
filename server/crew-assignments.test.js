@@ -141,6 +141,66 @@ function configureCrewPlanning(sqliteFile) {
   }
 }
 
+function seedLegacyCrewAliasConflict(sqliteFile, userId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE jobs
+      SET assigned_user_id = ?,
+          assigned_foreman_id = '',
+          updated_at = '2026-05-01T08:00:00.000Z'
+      WHERE id = 'J-2201'
+    `).run(userId);
+
+    database.prepare(`
+      INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "JA-LEGACY-J-2201-crew",
+      0,
+      "J-2201",
+      userId,
+      "crew",
+      "",
+      "2026-04-30T08:00:00.000Z",
+      "2026-04-30T09:00:00.000Z",
+      "",
+      "2026-04-30T08:00:00.000Z",
+      "2026-04-30T09:00:00.000Z",
+    );
+  } finally {
+    database.close();
+  }
+}
+
+function updateJobFieldNotes(sqliteFile, notes) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE jobs
+      SET field_notes = ?,
+          updated_at = '2026-05-01T10:00:00.000Z'
+      WHERE id = 'J-2201'
+    `).run(notes);
+  } finally {
+    database.close();
+  }
+}
+
+function listAssignments(sqliteFile, jobId = "J-2201") {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, removed_at AS removedAt
+      FROM job_assignments
+      WHERE job_id = ?
+      ORDER BY sort_index ASC
+    `).all(jobId);
+  } finally {
+    database.close();
+  }
+}
+
 test("office roles can assign foremen and multiple crew members with audit coverage", async () => {
   const fixture = await startServer();
 
@@ -360,6 +420,122 @@ test("field roles see only crew data appropriate to their assigned work and cann
       }),
     });
     assert.equal(employeeDeniedAssignment.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("legacy assignment aliases do not duplicate persisted rows and stay manageable through office APIs", async () => {
+  const fixture = await startServer();
+
+  try {
+    const employeeOne = createUserRecord({
+      id: "U-CREW-LEGACY-EMP-1",
+      email: "crew-legacy-emp-1@lastyard.test",
+      password: "concrete123",
+      name: "Legacy Crew Employee",
+      role: "Employee",
+    });
+    const employeeTwo = createUserRecord({
+      id: "U-CREW-LEGACY-EMP-2",
+      email: "crew-legacy-emp-2@lastyard.test",
+      password: "concrete123",
+      name: "Second Crew Employee",
+      role: "Employee",
+    });
+    const foremanUser = createUserRecord({
+      id: "U-CREW-LEGACY-FOREMAN",
+      email: "crew-legacy-foreman@lastyard.test",
+      password: "concrete123",
+      name: "Legacy Foreman",
+      role: "Foreman",
+    });
+
+    insertUsers(fixture.sqliteFile, [employeeOne, employeeTwo, foremanUser]);
+    seedLegacyCrewAliasConflict(fixture.sqliteFile, employeeOne.id);
+
+    const opsLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const headers = authHeaders(opsLogin.token);
+
+    const firstBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const legacyJob = firstBootstrap.jobs.find((job) => job.id === "J-2201");
+    assert.ok(legacyJob);
+    assert.equal(legacyJob.crewAssignments.length >= 1, true);
+
+    const secondBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    assert.equal(secondBootstrap.jobs.find((job) => job.id === "J-2201").crewAssignments.length >= 1, true);
+
+    const touchedJobState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        fieldNotes: "Legacy assignment dedupe check.",
+      }),
+    });
+    assert.equal(touchedJobState.jobs.find((job) => job.id === "J-2201").id, "J-2201");
+
+    const persistedAssignmentsAfterWrite = listAssignments(fixture.sqliteFile);
+    assert.equal(persistedAssignmentsAfterWrite.filter((assignment) => assignment.id === "JA-LEGACY-J-2201-crew").length, 1);
+
+    const addSecondCrewState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        userId: employeeTwo.id,
+        roleOnJob: "crew",
+      }),
+    });
+    const crewJob = addSecondCrewState.jobs.find((job) => job.id === "J-2201");
+    const addedSecondAssignment = crewJob.crewAssignments.find((assignment) => assignment.userId === employeeTwo.id);
+    assert.ok(addedSecondAssignment);
+
+    const removedLegacyState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments/JA-LEGACY-J-2201-crew", {
+      method: "DELETE",
+      headers,
+    });
+    const removedLegacyJob = removedLegacyState.jobs.find((job) => job.id === "J-2201");
+    assert.equal(removedLegacyJob.crewAssignments.some((assignment) => assignment.userId === employeeOne.id), false);
+
+    const replacementCrewState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        userId: employeeOne.id,
+        roleOnJob: "crew",
+      }),
+    });
+    const replacementCrewJob = replacementCrewState.jobs.find((job) => job.id === "J-2201");
+    const replacementAssignment = replacementCrewJob.crewAssignments.find((assignment) => assignment.userId === employeeOne.id);
+    assert.ok(replacementAssignment);
+    assert.equal(replacementAssignment.id.startsWith("JA-"), true);
+    assert.notEqual(replacementAssignment.id, "JA-LEGACY-J-2201-crew");
+
+    const duplicateCrewAttempt = await requestJson(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        userId: employeeOne.id,
+        roleOnJob: "crew",
+      }),
+    });
+    assert.equal(duplicateCrewAttempt.response.status, 409);
+
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: foremanUser.email,
+      password: "concrete123",
+    });
+    const foremanDeniedAssignment = await requestJson(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers: authHeaders(foremanLogin.token),
+      body: JSON.stringify({
+        userId: employeeTwo.id,
+        roleOnJob: "crew",
+      }),
+    });
+    assert.equal(foremanDeniedAssignment.response.status, 403);
   } finally {
     await fixture.stop();
   }

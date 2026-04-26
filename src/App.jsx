@@ -4,6 +4,7 @@ import {
   acknowledgeSafety,
   archiveUpload,
   archivePpeItem,
+  archivePrePourChecklist,
   archiveSafetyIncident,
   archiveSafetyPolicy,
   archiveToolChecklist,
@@ -23,6 +24,7 @@ import {
   createJobAssignment,
   createJob,
   createLead,
+  createPrePourChecklist,
   createQueueItem,
   createCalculatorResult,
   createUpload,
@@ -44,8 +46,10 @@ import {
   reviewDailyReport,
   reviewToolChecklist,
   reopenDailyReport,
+  reopenPrePourChecklist,
   resolveSafetyIncident,
   reviewSafetyIncident,
+  reviewPrePourChecklist,
   restoreCustomer,
   restoreJob,
   restoreLead,
@@ -60,6 +64,8 @@ import {
   updateJob,
   updateLead,
   updatePpeItem,
+  updatePrePourChecklist,
+  updatePrePourChecklistItem,
   updateSafetyPolicy,
   updateCompanySettings,
   updateToolChecklist,
@@ -67,6 +73,7 @@ import {
   updateUpload,
   updateUser,
   addToolChecklistItem,
+  completePrePourChecklist,
   submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
@@ -77,6 +84,7 @@ import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspa
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
+import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
@@ -114,6 +122,7 @@ const NAV_GROUPS = [
       { id: "jobs", label: "Jobs", icon: "briefcase" },
       { id: "time", label: "Time", icon: "clock" },
       { id: "reports", label: "Reports", icon: "document" },
+      { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
       { id: "uploads", label: "Uploads", icon: "upload" },
     ],
   },
@@ -161,6 +170,7 @@ const EMPTY_APP_STATE = {
   ppeItems: [],
   safetyAcknowledgments: [],
   safetyIncidents: [],
+  prePourChecklists: [],
   toolChecklists: [],
   calculatorResults: [],
   uploads: [],
@@ -198,6 +208,13 @@ const EMPTY_APP_STATE = {
       canView: false,
       canCreate: false,
       canManageAll: false,
+      canReview: false,
+    },
+    prePour: {
+      canView: false,
+      canManage: false,
+      canManageAll: false,
+      canComplete: false,
       canReview: false,
     },
     uploads: {
@@ -278,11 +295,12 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
       jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
-      safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
-      ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
-      safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
-      safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
-      toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
+        safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
+        ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
+        safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
+        safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
+        prePourChecklists: Array.isArray(source.prePourChecklists) ? source.prePourChecklists : Array.isArray(fallback.prePourChecklists) ? fallback.prePourChecklists : EMPTY_APP_STATE.prePourChecklists,
+        toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
       calculatorResults: Array.isArray(source.calculatorResults) ? source.calculatorResults : Array.isArray(fallback.calculatorResults) ? fallback.calculatorResults : EMPTY_APP_STATE.calculatorResults,
       uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
     dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
@@ -295,9 +313,10 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
       leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
-      jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
-      reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
-      uploads: mergePermissionScope(EMPTY_APP_STATE.permissions.uploads, source.permissions?.uploads || fallback.permissions?.uploads),
+        jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
+        reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
+        prePour: mergePermissionScope(EMPTY_APP_STATE.permissions.prePour, source.permissions?.prePour || fallback.permissions?.prePour),
+        uploads: mergePermissionScope(EMPTY_APP_STATE.permissions.uploads, source.permissions?.uploads || fallback.permissions?.uploads),
       time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
         safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
         calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
@@ -447,6 +466,11 @@ const INITIAL_SAFETY_INCIDENT_FORM = {
 const INITIAL_TOOL_CHECKLIST_FORM = {
   jobId: "",
   title: "",
+  notes: "",
+};
+
+const INITIAL_PRE_POUR_FORM = {
+  jobId: "",
   notes: "",
 };
 
@@ -1594,6 +1618,10 @@ function JobDetailPanel({
         ) : null}
         <TextAreaField label="Safety notes" value={job.safetyNotes || ""} onChange={(event) => onFieldChange("safetyNotes", event.target.value)} disabled={!canManageAll || disabled} />
         <TextAreaField label="Material notes" value={job.materialNotes || ""} onChange={(event) => onFieldChange("materialNotes", event.target.value)} disabled={!canManageAll || disabled} />
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour checklist</p>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
+        </div>
         <TextAreaField label={canManageAll ? "Office notes" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
         <JobCrewSection
           job={job}
@@ -1786,24 +1814,26 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
   const quickActions = permissions.jobs.canManageField
     ? [
-      { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
-      { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
-      { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
-      { title: "Report Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
-      { title: "Tool Checklist", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
-      { title: "Concrete Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
-      { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
-    ]
+        { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
+        { title: "Pre-Pour Checklist", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
+        { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
+        { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+        { title: "Report Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
+        { title: "Tool Checklist", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
+        { title: "Concrete Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
+        { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
+      ]
     : [
-      { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
-      { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
-      { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
-      { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
-      { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
-      { title: "Report Incident", description: "Raise a field safety concern tied to your assigned work.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
-      { title: "Tool Checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
-      { title: "Concrete Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
-    ];
+        { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
+        { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
+        { title: "Pre-Pour Checklist", description: "Review the assigned-job readiness checklist when it is available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
+        { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
+        { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
+        { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+        { title: "Report Incident", description: "Raise a field safety concern tied to your assigned work.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
+        { title: "Tool Checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
+        { title: "Concrete Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
+      ];
 
   return (
     <div className="space-y-4">
@@ -1822,11 +1852,15 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Site contact</p>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.siteContact || "Contact pending"}</p>
           </div>
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
+            </div>
           </div>
-        </div>
         <div className="mt-4 grid gap-3">
           <div className="rounded-2xl border border-blue-100 p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Scope summary</p>
@@ -5275,6 +5309,269 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode, companySetti
   );
 }
 
+function PrePourPage({
+  jobs,
+  prePourChecklists,
+  permissions,
+  busy,
+  onCreateChecklist,
+  onSaveChecklist,
+  onUpdateChecklistItem,
+  onCompleteChecklist,
+  onReviewChecklist,
+  onReopenChecklist,
+  onArchiveChecklist,
+}) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [foremanFilter, setForemanFilter] = useState("All foremen");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedChecklistId, setSelectedChecklistId] = useState("");
+  const [createDraft, setCreateDraft] = useState(INITIAL_PRE_POUR_FORM);
+  const [detailNotes, setDetailNotes] = useState("");
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const checklistRows = Array.isArray(prePourChecklists) ? prePourChecklists : [];
+  const filteredRows = useMemo(() => filterPrePourChecklists(checklistRows, {
+    status: statusFilter,
+    job: jobFilter,
+    foreman: foremanFilter,
+    date: dateFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, checklistRows, dateFilter, foremanFilter, jobFilter, search, statusFilter]);
+  const listState = useMemo(() => derivePrePourChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedChecklist = filteredRows.find((checklist) => checklist.id === selectedChecklistId)
+    || filteredRows[0]
+    || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
+    || null;
+  const selectedItems = derivePrePourItems(selectedChecklist?.items || [], { includeArchived: permissions.prePour.canManageAll });
+  const checklistSummary = summarizePrePourChecklist(selectedChecklist);
+  const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
+
+  useEffect(() => {
+    if (!selectedChecklistId && filteredRows[0]?.id) {
+      setSelectedChecklistId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedChecklistId]);
+
+  useEffect(() => {
+    if (singleJobId && !createDraft.jobId) {
+      setCreateDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [createDraft.jobId, singleJobId]);
+
+  useEffect(() => {
+    setDetailNotes(selectedChecklist?.notes || "");
+  }, [selectedChecklist?.id, selectedChecklist?.notes]);
+
+  const canCreateChecklist = permissions.prePour.canManage;
+  const canEditChecklist = Boolean(selectedChecklist)
+    && permissions.prePour.canManage
+    && !selectedChecklist.archivedAt
+    && (permissions.prePour.canManageAll || ["draft", "reopened"].includes(selectedChecklist.status));
+  const canCompleteChecklist = Boolean(selectedChecklist)
+    && permissions.prePour.canComplete
+    && !selectedChecklist.archivedAt
+    && ["draft", "reopened"].includes(selectedChecklist.status);
+  const noFieldJob = !permissions.prePour.canManageAll && visibleJobs.length === 0;
+
+  if (!permissions.prePour.canView) {
+    return (
+      <div>
+        <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Pre-pour access unavailable" description="Only office, foreman, or assigned field roles can open this checklist workspace." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-4">
+            <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
+            <div className="grid gap-3">
+              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {["All", "Draft", "Completed", "Reviewed", "Reopened", "Archived"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search jobs, notes, or checklist items..." />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
+            {filteredRows.length === 0 ? (
+              <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
+            ) : (
+              <div className="space-y-3">
+                {filteredRows.map((checklist) => (
+                  <button
+                    key={checklist.id}
+                    type="button"
+                    onClick={() => setSelectedChecklistId(checklist.id)}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} · {checklist.completedByName || checklist.createdByName}</p>
+                      </div>
+                      <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge tone={checklist.incompleteItemCount > 0 ? "amber" : "green"}>{checklist.incompleteItemCount} incomplete</Badge>
+                      {checklist.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          {canCreateChecklist ? (
+            <Card className="p-4">
+              <SectionHeader title="Create checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                  <option value="">Select a job</option>
+                  {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                </SelectField>
+                <TextAreaField label="Checklist notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional prep note for the crew." />
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onCreateChecklist(createDraft);
+                    setCreateDraft({ ...INITIAL_PRE_POUR_FORM, jobId: singleJobId });
+                  }}
+                  disabled={busy || !createDraft.jobId}
+                >
+                  Create checklist
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedChecklist ? (
+            <Card className="p-4">
+              <SectionHeader
+                title={selectedChecklist.job?.title || "Pre-pour checklist"}
+                description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
+                action={<StatusBadge status={prePourChecklistStatusLabel(selectedChecklist.status)} />}
+              />
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <TextAreaField
+                  label="Checklist notes"
+                  value={detailNotes}
+                  onChange={(event) => setDetailNotes(event.target.value)}
+                  disabled={busy || !canEditChecklist}
+                  placeholder="Add internal notes for the crew or office."
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {canEditChecklist ? <Button type="button" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
+                {canCompleteChecklist ? <Button type="button" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete checklist</Button> : null}
+                {permissions.prePour.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
+                {permissions.prePour.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
+                {permissions.prePour.canReview ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
+              </div>
+              {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
+                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                  {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
+                </div>
+              ) : null}
+            </Card>
+          ) : (
+            <Card className="p-4">
+              <SectionHeader title="Checklist details" description="Select a checklist to review site readiness and completion details." />
+              <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
+            </Card>
+          )}
+
+          {selectedChecklist ? (
+            <Card className="p-4">
+              <SectionHeader title="Checklist items" description="Work through the default pre-pour checks before the concrete is placed." />
+              <div className="space-y-3">
+                {selectedItems.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-black text-slate-950">{item.label}</p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">{prePourItemStatusLabel(item.status)}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone={item.status === "checked" ? "green" : item.status === "not_applicable" ? "slate" : "amber"}>{prePourItemStatusLabel(item.status)}</Badge>
+                        {canEditChecklist ? (
+                          <>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      {canEditChecklist ? (
+                        <TextAreaField
+                          key={`${item.id}-${item.updatedAt}`}
+                          label="Item note"
+                          defaultValue={item.notes || ""}
+                          onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
+                          disabled={busy}
+                          placeholder="Add a note for this readiness item."
+                        />
+                      ) : (
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+                          {item.notes || "No note for this item yet."}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToolChecklistPage({
   user,
   jobs,
@@ -5644,12 +5941,27 @@ function MainContent(props) {
       />
     );
   }
-  if (active === "uploads") {
-    return <UploadsPage {...props} uploads={props.uploads} />;
-  }
-  if (active === "ppe" || active === "incidents") {
-    return <SafetyPage {...props} />;
-  }
+    if (active === "uploads") {
+      return <UploadsPage {...props} uploads={props.uploads} />;
+    }
+    if (active === "prePour") {
+      return (
+        <PrePourPage
+          {...props}
+          prePourChecklists={props.prePourChecklists}
+          onCreateChecklist={props.onCreatePrePourChecklist}
+          onSaveChecklist={props.onSavePrePourChecklist}
+          onUpdateChecklistItem={props.onUpdatePrePourChecklistItem}
+          onCompleteChecklist={props.onCompletePrePourChecklist}
+          onReviewChecklist={props.onReviewPrePourChecklist}
+          onReopenChecklist={props.onReopenPrePourChecklist}
+          onArchiveChecklist={props.onArchivePrePourChecklist}
+        />
+      );
+    }
+    if (active === "ppe" || active === "incidents") {
+      return <SafetyPage {...props} />;
+    }
   if (active === "toolChecklist") {
     return <ToolChecklistPage {...props} toolChecklists={props.toolChecklists} />;
   }
@@ -6846,6 +7158,125 @@ export default function App() {
     }
   }
 
+  async function handleCreatePrePourChecklist(payload) {
+    if (!sessionToken || !appState.permissions.prePour.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createPrePourChecklist(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSavePrePourChecklist(checklistId, payload) {
+    if (!sessionToken || !appState.permissions.prePour.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updatePrePourChecklist(sessionToken, checklistId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdatePrePourChecklistItem(checklistId, itemId, payload) {
+    if (!sessionToken || !appState.permissions.prePour.canView) return false;
+    setBusy(true);
+    try {
+      const nextState = await updatePrePourChecklistItem(sessionToken, checklistId, itemId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCompletePrePourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.prePour.canComplete) return false;
+    setBusy(true);
+    try {
+      const nextState = await completePrePourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReviewPrePourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.prePour.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await reviewPrePourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReopenPrePourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.prePour.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await reopenPrePourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchivePrePourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.prePour.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await archivePrePourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateToolChecklist(payload) {
     if (!sessionToken || !appState.permissions.toolChecklist.canManage) return false;
     setBusy(true);
@@ -7112,10 +7543,11 @@ export default function App() {
               leads={appState.leads}
               jobs={appState.jobs}
               safetyPolicies={appState.safetyPolicies}
-              ppeItems={appState.ppeItems}
-              safetyAcknowledgments={appState.safetyAcknowledgments}
-              safetyIncidents={appState.safetyIncidents}
-              toolChecklists={appState.toolChecklists}
+                ppeItems={appState.ppeItems}
+                safetyAcknowledgments={appState.safetyAcknowledgments}
+                safetyIncidents={appState.safetyIncidents}
+                prePourChecklists={appState.prePourChecklists}
+                toolChecklists={appState.toolChecklists}
               dailyReports={appState.dailyReports}
               timeEntries={appState.timeEntries}
               queueItems={appState.queueItems}
@@ -7220,16 +7652,23 @@ export default function App() {
               onCreateSafetyIncident={handleCreateSafetyIncident}
               onReviewSafetyIncident={handleReviewSafetyIncident}
               onResolveSafetyIncident={handleResolveSafetyIncident}
-              onArchiveSafetyIncident={handleArchiveSafetyIncident}
-              onUpdateCompanySettings={handleUpdateCompanySettings}
-              onCreateChecklist={handleCreateToolChecklist}
-              onSaveChecklist={handleSaveToolChecklist}
-              onAddChecklistItem={handleAddToolChecklistItem}
-              onUpdateChecklistItem={handleUpdateToolChecklistItem}
-              onSubmitChecklist={handleSubmitToolChecklist}
-              onReviewChecklist={handleReviewToolChecklist}
-              onArchiveChecklist={handleArchiveToolChecklist}
-              selectedReportId={selectedReportId}
+                onArchiveSafetyIncident={handleArchiveSafetyIncident}
+                onUpdateCompanySettings={handleUpdateCompanySettings}
+                onCreateChecklist={handleCreateToolChecklist}
+                onSaveChecklist={handleSaveToolChecklist}
+                onAddChecklistItem={handleAddToolChecklistItem}
+                onUpdateChecklistItem={handleUpdateToolChecklistItem}
+                onSubmitChecklist={handleSubmitToolChecklist}
+                onReviewChecklist={handleReviewToolChecklist}
+                onArchiveChecklist={handleArchiveToolChecklist}
+                onCreatePrePourChecklist={handleCreatePrePourChecklist}
+                onSavePrePourChecklist={handleSavePrePourChecklist}
+                onUpdatePrePourChecklistItem={handleUpdatePrePourChecklistItem}
+                onCompletePrePourChecklist={handleCompletePrePourChecklist}
+                onReviewPrePourChecklist={handleReviewPrePourChecklist}
+                onReopenPrePourChecklist={handleReopenPrePourChecklist}
+                onArchivePrePourChecklist={handleArchivePrePourChecklist}
+                selectedReportId={selectedReportId}
               onSelectReport={navigateToReport}
               selectedReport={selectedReport}
               reportEditDraft={reportEditDraft}

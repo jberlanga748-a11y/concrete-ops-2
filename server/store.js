@@ -191,6 +191,39 @@ const INITIAL_TOOL_CHECKLIST_TEMPLATES = [
   },
 ];
 
+const INITIAL_PRE_POUR_CHECKLIST_ITEMS = [
+  { key: "forms_set", label: "Forms set" },
+  { key: "subgrade_checked", label: "Subgrade checked" },
+  { key: "rebar_mesh_checked", label: "Rebar/mesh checked" },
+  { key: "depth_checked", label: "Depth checked" },
+  { key: "access_ready", label: "Access ready" },
+  { key: "pump_truck_access_confirmed", label: "Pump/truck access confirmed" },
+  { key: "weather_checked", label: "Weather checked" },
+  { key: "customer_approval_confirmed", label: "Customer approval confirmed" },
+  { key: "before_photos_taken", label: "Before photos taken" },
+  { key: "utilities_marked_clear", label: "Utilities marked/clear if applicable" },
+  { key: "base_compacted", label: "Base compacted" },
+  { key: "drainage_slope_checked", label: "Drainage/slope checked" },
+  { key: "foreman_signoff", label: "Foreman sign-off" },
+];
+
+export function createDefaultPrePourChecklistItems(checklistId, addedBy, createdAt = isoNow()) {
+  return INITIAL_PRE_POUR_CHECKLIST_ITEMS.map((item, index) => ({
+    id: makeId("PPI"),
+    checklistId,
+    key: item.key,
+    label: item.label,
+    status: "unchecked",
+    notes: "",
+    checkedBy: "",
+    checkedAt: "",
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt: null,
+    sortIndex: index,
+  }));
+}
+
 function jobStatusValue(status = "scheduled") {
   const normalized = String(status || "").trim().toLowerCase();
   const legacyMap = {
@@ -226,8 +259,36 @@ function normalizeAssignmentRole(role = "crew") {
   return normalized || "crew";
 }
 
+function preferredAssignmentRecord(current, candidate) {
+  if (!current) return candidate;
+  const currentActive = !current.removedAt;
+  const candidateActive = !candidate.removedAt;
+  if (currentActive !== candidateActive) {
+    return candidateActive ? candidate : current;
+  }
+
+  const currentSynthetic = Boolean(current.syntheticFromJobAlias);
+  const candidateSynthetic = Boolean(candidate.syntheticFromJobAlias);
+  if (currentSynthetic !== candidateSynthetic) {
+    return currentSynthetic ? candidate : current;
+  }
+
+  const currentUpdatedAt = new Date(current.updatedAt || current.createdAt || current.assignedAt || 0).getTime();
+  const candidateUpdatedAt = new Date(candidate.updatedAt || candidate.createdAt || candidate.assignedAt || 0).getTime();
+  return candidateUpdatedAt >= currentUpdatedAt ? candidate : current;
+}
+
+function dedupeAssignmentsById(assignments = []) {
+  const byId = new Map();
+  for (const assignment of assignments || []) {
+    if (!assignment?.id) continue;
+    byId.set(assignment.id, preferredAssignmentRecord(byId.get(assignment.id), assignment));
+  }
+  return Array.from(byId.values());
+}
+
 function buildDerivedJobAssignments(jobs, jobAssignments = []) {
-  const explicitAssignments = (jobAssignments || []).map((assignment) => ({
+  const explicitAssignments = dedupeAssignmentsById((jobAssignments || []).map((assignment) => ({
     ...assignment,
     roleOnJob: normalizeAssignmentRole(assignment.roleOnJob),
     notes: assignment.notes || "",
@@ -235,8 +296,10 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
     createdAt: assignment.createdAt || assignment.assignedAt || isoNow(),
     updatedAt: assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
     assignedAt: assignment.assignedAt || assignment.createdAt || isoNow(),
-  }));
+    syntheticFromJobAlias: Boolean(assignment.syntheticFromJobAlias),
+  })));
   const mergedAssignments = [...explicitAssignments];
+  const usedIds = new Set(explicitAssignments.map((assignment) => assignment.id));
   const activeKeys = new Set(
     explicitAssignments
       .filter((assignment) => !assignment.removedAt)
@@ -249,8 +312,12 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
     if (job.assignedForemanId) {
       const key = `${job.id}:${job.assignedForemanId}:foreman`;
       if (!activeKeys.has(key)) {
+        let derivedId = `JA-LEGACY-${job.id}-foreman`;
+        if (usedIds.has(derivedId)) {
+          derivedId = `JA-ALIAS-${job.id}-foreman`;
+        }
         mergedAssignments.push({
-          id: `JA-LEGACY-${job.id}-foreman`,
+          id: derivedId,
           jobId: job.id,
           userId: job.assignedForemanId,
           roleOnJob: "foreman",
@@ -260,7 +327,9 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
           notes: "",
           createdAt: baseStamp,
           updatedAt: baseStamp,
+          syntheticFromJobAlias: true,
         });
+        usedIds.add(derivedId);
         activeKeys.add(key);
       }
     }
@@ -268,8 +337,12 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
     if (job.assignedUserId) {
       const key = `${job.id}:${job.assignedUserId}:crew`;
       if (!activeKeys.has(key)) {
+        let derivedId = `JA-LEGACY-${job.id}-crew`;
+        if (usedIds.has(derivedId)) {
+          derivedId = `JA-ALIAS-${job.id}-crew`;
+        }
         mergedAssignments.push({
-          id: `JA-LEGACY-${job.id}-crew`,
+          id: derivedId,
           jobId: job.id,
           userId: job.assignedUserId,
           roleOnJob: "crew",
@@ -279,7 +352,9 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
           notes: "",
           createdAt: baseStamp,
           updatedAt: baseStamp,
+          syntheticFromJobAlias: true,
         });
+        usedIds.add(derivedId);
         activeKeys.add(key);
       }
     }
@@ -303,7 +378,7 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
   });
 
   return {
-    jobAssignments: mergedAssignments,
+    jobAssignments: dedupeAssignmentsById(mergedAssignments),
     jobs: hydratedJobs,
   };
 }
@@ -440,9 +515,11 @@ export function createEmptyState() {
     safetyPolicies: [],
     ppeItems: [],
     safetyAcknowledgments: [],
-    safetyIncidents: [],
-    toolChecklists: [],
-    toolChecklistItems: [],
+      safetyIncidents: [],
+      prePourChecklists: [],
+      prePourChecklistItems: [],
+      toolChecklists: [],
+      toolChecklistItems: [],
     calculatorResults: [],
     dailyReports: [],
     uploads: [],
@@ -503,9 +580,11 @@ export function createSeedState() {
     safetyPolicies,
     ppeItems,
     safetyAcknowledgments: [],
-    safetyIncidents: [],
-    toolChecklists: [],
-    toolChecklistItems: [],
+      safetyIncidents: [],
+      prePourChecklists: [],
+      prePourChecklistItems: [],
+      toolChecklists: [],
+      toolChecklistItems: [],
     calculatorResults: [],
     dailyReports: [],
     uploads: [],
@@ -1689,6 +1768,62 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 25,
+    description: "Add pre-pour checklist workflow tables.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS pre_pour_checklists (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          completed_by TEXT,
+          reviewed_by TEXT,
+          reopened_by TEXT,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT,
+          reviewed_at TEXT,
+          reopened_at TEXT,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reopened_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklists_job_id ON pre_pour_checklists(job_id);
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklists_status ON pre_pour_checklists(status);
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklists_created_by ON pre_pour_checklists(created_by);
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklists_sort_index ON pre_pour_checklists(sort_index);
+
+        CREATE TABLE IF NOT EXISTS pre_pour_checklist_items (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          checklist_id TEXT NOT NULL,
+          key TEXT NOT NULL,
+          label TEXT NOT NULL,
+          status TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          checked_by TEXT,
+          checked_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (checklist_id) REFERENCES pre_pour_checklists(id) ON DELETE CASCADE,
+          FOREIGN KEY (checked_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklist_items_checklist_id ON pre_pour_checklist_items(checklist_id);
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklist_items_status ON pre_pour_checklist_items(status);
+        CREATE INDEX IF NOT EXISTS idx_pre_pour_checklist_items_sort_index ON pre_pour_checklist_items(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1777,15 +1912,25 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const insertSafetyIncident = database.prepare(`
-    INSERT INTO safety_incidents (id, sort_index, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+    const insertSafetyIncident = database.prepare(`
+      INSERT INTO safety_incidents (id, sort_index, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-  const insertToolChecklist = database.prepare(`
-    INSERT INTO tool_checklists (id, sort_index, job_id, title, status, created_by, assigned_foreman_id, submitted_by, reviewed_by, notes, created_at, updated_at, submitted_at, reviewed_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+    const insertPrePourChecklist = database.prepare(`
+      INSERT INTO pre_pour_checklists (id, sort_index, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertPrePourChecklistItem = database.prepare(`
+      INSERT INTO pre_pour_checklist_items (id, sort_index, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertToolChecklist = database.prepare(`
+      INSERT INTO tool_checklists (id, sort_index, job_id, title, status, created_by, assigned_foreman_id, submitted_by, reviewed_by, notes, created_at, updated_at, submitted_at, reviewed_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
   const insertToolChecklistItem = database.prepare(`
     INSERT INTO tool_checklist_items (id, sort_index, checklist_id, name, category, quantity, status, added_by, notes, missing_notes, damaged_notes, created_at, updated_at, archived_at)
@@ -1829,6 +1974,9 @@ function writeStateToDb(state) {
 
     runInTransaction(database, () => {
       const derivedAssignmentState = buildDerivedJobAssignments(state.jobs, state.jobAssignments);
+      const persistedAssignments = dedupeAssignmentsById(
+        (derivedAssignmentState.jobAssignments || []).filter((assignment) => !assignment.syntheticFromJobAlias),
+      );
       const normalizedCompanySettings = normalizeCompanySettings(state.companySettings);
       database.exec(`
       DELETE FROM company_settings;
@@ -1839,13 +1987,15 @@ function writeStateToDb(state) {
       DELETE FROM leads;
       DELETE FROM job_assignments;
       DELETE FROM jobs;
-      DELETE FROM safety_acknowledgments;
-      DELETE FROM safety_incidents;
-      DELETE FROM safety_policies;
-      DELETE FROM ppe_items;
-      DELETE FROM tool_checklist_items;
-      DELETE FROM tool_checklists;
-      DELETE FROM calculator_results;
+        DELETE FROM safety_acknowledgments;
+        DELETE FROM safety_incidents;
+        DELETE FROM safety_policies;
+        DELETE FROM ppe_items;
+        DELETE FROM pre_pour_checklist_items;
+        DELETE FROM pre_pour_checklists;
+        DELETE FROM tool_checklist_items;
+        DELETE FROM tool_checklists;
+        DELETE FROM calculator_results;
       DELETE FROM daily_reports;
       DELETE FROM uploads;
       DELETE FROM time_entries;
@@ -1977,7 +2127,7 @@ function writeStateToDb(state) {
       );
     });
 
-    derivedAssignmentState.jobAssignments.forEach((assignment, index) => {
+    persistedAssignments.forEach((assignment, index) => {
       insertJobAssignment.run(
         assignment.id,
         index,
@@ -2036,8 +2186,8 @@ function writeStateToDb(state) {
       );
     });
 
-    (state.safetyIncidents || []).forEach((incident, index) => {
-      insertSafetyIncident.run(
+      (state.safetyIncidents || []).forEach((incident, index) => {
+        insertSafetyIncident.run(
         incident.id,
         index,
         incident.jobId || null,
@@ -2054,11 +2204,48 @@ function writeStateToDb(state) {
         incident.reviewedAt || null,
         incident.resolvedAt || null,
         incident.archivedAt || null,
-      );
-    });
+        );
+      });
 
-    (state.toolChecklists || []).forEach((checklist, index) => {
-      insertToolChecklist.run(
+      (state.prePourChecklists || []).forEach((checklist, index) => {
+        insertPrePourChecklist.run(
+          checklist.id,
+          checklist.sortIndex ?? index,
+          checklist.jobId,
+          checklist.status,
+          checklist.createdBy,
+          checklist.completedBy || null,
+          checklist.reviewedBy || null,
+          checklist.reopenedBy || null,
+          checklist.notes || "",
+          checklist.createdAt || isoNow(),
+          checklist.updatedAt || checklist.createdAt || isoNow(),
+          checklist.completedAt || null,
+          checklist.reviewedAt || null,
+          checklist.reopenedAt || null,
+          checklist.archivedAt || null,
+        );
+      });
+
+      (state.prePourChecklistItems || []).forEach((item, index) => {
+        insertPrePourChecklistItem.run(
+          item.id,
+          item.sortIndex ?? index,
+          item.checklistId,
+          item.key,
+          item.label,
+          item.status,
+          item.notes || "",
+          item.checkedBy || null,
+          item.checkedAt || null,
+          item.createdAt || isoNow(),
+          item.updatedAt || item.createdAt || isoNow(),
+          item.archivedAt || null,
+        );
+      });
+
+      (state.toolChecklists || []).forEach((checklist, index) => {
+        insertToolChecklist.run(
         checklist.id,
         index,
         checklist.jobId || null,
@@ -2307,15 +2494,30 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
-  const safetyIncidents = database.prepare(`
-    SELECT id, job_id AS jobId, submitted_by AS submittedBy, type, severity, status, title, description, immediate_action AS immediateAction,
-           created_at AS createdAt, updated_at AS updatedAt, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt, resolved_at AS resolvedAt, archived_at AS archivedAt
-    FROM safety_incidents
-    ORDER BY sort_index ASC
-  `).all();
+    const safetyIncidents = database.prepare(`
+      SELECT id, job_id AS jobId, submitted_by AS submittedBy, type, severity, status, title, description, immediate_action AS immediateAction,
+             created_at AS createdAt, updated_at AS updatedAt, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt, resolved_at AS resolvedAt, archived_at AS archivedAt
+      FROM safety_incidents
+      ORDER BY sort_index ASC
+    `).all();
 
-  const toolChecklists = database.prepare(`
-    SELECT id, job_id AS jobId, title, status, created_by AS createdBy, assigned_foreman_id AS assignedForemanId,
+    const prePourChecklists = database.prepare(`
+      SELECT id, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
+             reopened_by AS reopenedBy, notes, created_at AS createdAt, updated_at AS updatedAt, completed_at AS completedAt,
+             reviewed_at AS reviewedAt, reopened_at AS reopenedAt, archived_at AS archivedAt
+      FROM pre_pour_checklists
+      ORDER BY sort_index ASC
+    `).all();
+
+    const prePourChecklistItems = database.prepare(`
+      SELECT id, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy, checked_at AS checkedAt,
+             created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM pre_pour_checklist_items
+      ORDER BY sort_index ASC
+    `).all();
+
+    const toolChecklists = database.prepare(`
+      SELECT id, job_id AS jobId, title, status, created_by AS createdBy, assigned_foreman_id AS assignedForemanId,
            submitted_by AS submittedBy, reviewed_by AS reviewedBy, notes, created_at AS createdAt, updated_at AS updatedAt,
            submitted_at AS submittedAt, reviewed_at AS reviewedAt, archived_at AS archivedAt
     FROM tool_checklists
@@ -2403,11 +2605,13 @@ function readTableState() {
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
     safetyPolicies,
-    ppeItems,
-    safetyAcknowledgments,
-    safetyIncidents,
-    toolChecklists,
-    toolChecklistItems,
+      ppeItems,
+      safetyAcknowledgments,
+      safetyIncidents,
+      prePourChecklists,
+      prePourChecklistItems,
+      toolChecklists,
+      toolChecklistItems,
     calculatorResults,
     dailyReports,
     uploads,

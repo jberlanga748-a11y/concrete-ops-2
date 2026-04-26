@@ -68,3 +68,14 @@ test("calculator module route resolves directly", () => {
     reportId: "",
   });
 });
+
+test("pre-pour module route resolves directly", () => {
+  assert.equal(getModulePath("prePour"), "/prePour");
+  assert.deepEqual(parseAppPath("/prePour"), {
+    active: "prePour",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+  });
+});
