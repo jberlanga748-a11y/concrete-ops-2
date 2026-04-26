@@ -1,0 +1,357 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { spawn } from "node:child_process";
+import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
+
+import { createUserRecord } from "./store.js";
+
+const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnV1n0AAAAASUVORK5CYII=";
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createPort() {
+  return 7600 + Math.floor(Math.random() * 1000);
+}
+
+async function waitForServer(baseUrl, serverOutput) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/api/ready`);
+      if (response.ok) return;
+    } catch {
+      // Poll until the test server is ready.
+    }
+    await sleep(250);
+  }
+
+  throw new Error(`Uploads test server did not become ready.\n${serverOutput()}`);
+}
+
+async function startServer() {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-uploads-"));
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
+  const port = createPort();
+  const baseUrl = `http://localhost:${port}`;
+  let output = "";
+  const server = spawn(process.execPath, ["server/index.js"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATA_DIR: tempDataDir,
+      LOG_LEVEL: "warn",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  server.stdout.on("data", (chunk) => {
+    output += String(chunk);
+  });
+  server.stderr.on("data", (chunk) => {
+    output += String(chunk);
+  });
+
+  await waitForServer(baseUrl, () => output);
+
+  async function stop() {
+    server.kill("SIGTERM");
+    await new Promise((resolve) => server.once("exit", resolve));
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+
+  return {
+    baseUrl,
+    sqliteFile,
+    tempDataDir,
+    stop,
+    serverOutput: () => output,
+  };
+}
+
+async function requestJson(baseUrl, pathname, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, options);
+  const payload = response.status === 204 ? null : await response.json().catch(() => null);
+  return { response, payload };
+}
+
+async function assertOk(baseUrl, pathname, options = {}) {
+  const { response, payload } = await requestJson(baseUrl, pathname, options);
+  assert.equal(response.ok, true, payload?.error || `Expected ${pathname} to succeed.`);
+  return payload;
+}
+
+async function login(baseUrl, credentials) {
+  return assertOk(baseUrl, "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+  });
+}
+
+function authHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function insertUsers(sqliteFile, users) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const insertUser = database.prepare(`
+      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const user of users) {
+      insertUser.run(
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.phone || "",
+        user.status || "active",
+        user.createdAt || new Date().toISOString(),
+        user.updatedAt || user.createdAt || new Date().toISOString(),
+        user.lastLoginAt || null,
+        user.passwordHash,
+      );
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function configureFieldVisibleJob(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE jobs
+      SET field_planning_visible = 1,
+          visible_to_foreman = 1,
+          scheduled_start = '2026-05-12T08:00:00.000Z',
+          status = 'scheduled'
+      WHERE id = 'J-2198'
+    `).run();
+  } finally {
+    database.close();
+  }
+}
+
+test("uploads respect job-scoped field permissions, GPS-optional metadata, and persistent storage", async () => {
+  const fixture = await startServer();
+
+  try {
+    const foremanUser = createUserRecord({
+      id: "U-UPL-FOREMAN",
+      email: "upload-foreman@lastyard.test",
+      password: "concrete123",
+      name: "Upload Foreman",
+      role: "Foreman",
+    });
+    const employeeUser = createUserRecord({
+      id: "U-UPL-EMPLOYEE",
+      email: "upload-employee@lastyard.test",
+      password: "concrete123",
+      name: "Upload Employee",
+      role: "Employee",
+    });
+
+    insertUsers(fixture.sqliteFile, [foremanUser, employeeUser]);
+    configureFieldVisibleJob(fixture.sqliteFile);
+
+    const officeLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const officeHeaders = authHeaders(officeLogin.token);
+
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        userId: foremanUser.id,
+        roleOnJob: "foreman",
+      }),
+    });
+
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        userId: employeeUser.id,
+        roleOnJob: "crew",
+      }),
+    });
+
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: foremanUser.email,
+      password: "concrete123",
+    });
+    const foremanHeaders = authHeaders(foremanLogin.token);
+
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: employeeUser.email,
+      password: "concrete123",
+    });
+    const employeeHeaders = authHeaders(employeeLogin.token);
+
+    const officeUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2192",
+        fileName: "office-evidence.png",
+        fileType: "image/png",
+        dataUrl: PNG_DATA_URL,
+        caption: "Office-only upload",
+      }),
+    });
+    const officeUpload = officeUploadState.uploads.find((upload) => upload.caption === "Office-only upload");
+    assert.ok(officeUpload);
+
+    const foremanUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: foremanHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "job-finish.png",
+        fileType: "image/png",
+        dataUrl: PNG_DATA_URL,
+        caption: "Finished broom pass",
+        notes: "Captured before washout.",
+        takenAt: "2026-04-25T14:00:00.000Z",
+        latitude: 44.9428,
+        longitude: -123.0351,
+        locationAccuracy: 8.4,
+        locationCapturedAt: "2026-04-25T14:00:05.000Z",
+      }),
+    });
+    const foremanUpload = foremanUploadState.uploads.find((upload) => upload.caption === "Finished broom pass");
+    assert.ok(foremanUpload);
+    assert.equal(foremanUpload.jobId, "J-2201");
+    assert.equal(foremanUpload.hasGps, true);
+    assert.equal(foremanUpload.latitude, 44.9428);
+    assert.equal(foremanUpload.locationUnavailableReason, "");
+    assert.equal(foremanUpload.job.canViewMoney, false);
+    assert.equal("notes" in foremanUpload.job, false);
+
+    const uploadFiles = await fs.readdir(path.join(fixture.tempDataDir, "uploads"));
+    assert.equal(uploadFiles.length >= 2, true);
+
+    const employeeUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "employee-progress.png",
+        fileType: "image/png",
+        dataUrl: PNG_DATA_URL,
+        caption: "Employee progress",
+        notes: "No GPS available inside the site office.",
+        locationUnavailableReason: "Location permission denied by user.",
+      }),
+    });
+    const employeeUpload = employeeUploadState.uploads.find((upload) => upload.caption === "Employee progress");
+    assert.ok(employeeUpload);
+    assert.equal(employeeUpload.hasGps, false);
+    assert.equal(employeeUpload.locationUnavailableReason, "Location permission denied by user.");
+    assert.ok(employeeUpload.uploadedAt);
+    assert.ok(employeeUpload.takenAt);
+
+    const deniedEmployeeUpload = await requestJson(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2192",
+        fileName: "wrong-job.png",
+        fileType: "image/png",
+        dataUrl: PNG_DATA_URL,
+      }),
+    });
+    assert.equal(deniedEmployeeUpload.response.status, 403);
+
+    const deniedForemanView = await assertOk(fixture.baseUrl, "/api/uploads", {
+      headers: foremanHeaders,
+    });
+    assert.equal(deniedForemanView.uploads.some((upload) => upload.jobId === "J-2192"), false);
+    assert.ok(deniedForemanView.uploads.some((upload) => upload.id === foremanUpload.id));
+
+    const employeeUploads = await assertOk(fixture.baseUrl, "/api/uploads", {
+      headers: employeeHeaders,
+    });
+    assert.equal(employeeUploads.uploads.some((upload) => upload.jobId === "J-2192"), false);
+    assert.equal(employeeUploads.uploads.every((upload) => upload.jobId === "J-2201"), true);
+
+    const contentResponse = await fetch(`${fixture.baseUrl}${foremanUpload.contentUrl}`, {
+      headers: {
+        Authorization: `Bearer ${foremanLogin.token}`,
+      },
+    });
+    assert.equal(contentResponse.ok, true);
+    assert.equal(contentResponse.headers.get("content-type"), "image/png");
+    const contentBuffer = Buffer.from(await contentResponse.arrayBuffer());
+    assert.equal(contentBuffer.length > 0, true);
+
+    const officeUploads = await assertOk(fixture.baseUrl, "/api/uploads", {
+      headers: officeHeaders,
+    });
+    const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: officeHeaders,
+    });
+    const uploadAuditActions = officeBootstrap.auditEvents
+      .filter((event) => event.entityType === "upload")
+      .map((event) => event.action);
+    assert.ok(uploadAuditActions.includes("created"));
+
+    const diskUploads = await fs.readdir(path.join(fixture.tempDataDir, "uploads"));
+    assert.equal(diskUploads.length >= 3, true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("uploads reject unsafe types and oversized payloads", async () => {
+  const fixture = await startServer();
+
+  try {
+    const officeLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const officeHeaders = authHeaders(officeLogin.token);
+
+    const unsafeUpload = await requestJson(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "script.js",
+        fileType: "application/javascript",
+        dataUrl: "data:application/javascript;base64,YWxlcnQoMSk=",
+      }),
+    });
+    assert.equal(unsafeUpload.response.status, 400);
+
+    const oversizedData = Buffer.alloc(8 * 1024 * 1024 + 1, 1).toString("base64");
+    const oversizedUpload = await requestJson(fixture.baseUrl, "/api/uploads", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        fileName: "huge.png",
+        fileType: "image/png",
+        dataUrl: `data:image/png;base64,${oversizedData}`,
+      }),
+    });
+    assert.equal(oversizedUpload.response.status, 400);
+  } finally {
+    await fixture.stop();
+  }
+});

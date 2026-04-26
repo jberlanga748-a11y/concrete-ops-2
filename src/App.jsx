@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  archiveUpload,
   archiveCustomer,
   archiveJob,
   archiveLead,
@@ -14,6 +15,7 @@ import {
   createJob,
   createLead,
   createQueueItem,
+  createUpload,
   createUser,
   clockIn,
   clockOut,
@@ -44,6 +46,7 @@ import {
   updateJobAssignment,
   updateJob,
   updateLead,
+  updateUpload,
   updateUser,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
@@ -55,6 +58,7 @@ import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
+import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -130,6 +134,7 @@ const EMPTY_APP_STATE = {
   leads: [],
   leadStatusHistory: [],
   jobs: [],
+  uploads: [],
   dailyReports: [],
   timeEntries: [],
   queueItems: [],
@@ -165,6 +170,11 @@ const EMPTY_APP_STATE = {
       canCreate: false,
       canManageAll: false,
       canReview: false,
+    },
+    uploads: {
+      canView: false,
+      canCreate: false,
+      canManageAll: false,
     },
     time: {
       canView: false,
@@ -231,6 +241,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
     jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
+    uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
     dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
     timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
     queueItems: Array.isArray(source.queueItems) ? source.queueItems : Array.isArray(fallback.queueItems) ? fallback.queueItems : EMPTY_APP_STATE.queueItems,
@@ -243,6 +254,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
       jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
       reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
+      uploads: mergePermissionScope(EMPTY_APP_STATE.permissions.uploads, source.permissions?.uploads || fallback.permissions?.uploads),
       time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
       safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
       calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
@@ -362,6 +374,23 @@ const INITIAL_DAILY_REPORT_FORM = {
   generalNotes: "",
 };
 
+const INITIAL_UPLOAD_FORM = {
+  jobId: "",
+  reportId: "",
+  caption: "",
+  notes: "",
+  fileName: "",
+  fileType: "",
+  fileSize: 0,
+  dataUrl: "",
+  takenAt: "",
+  latitude: null,
+  longitude: null,
+  locationAccuracy: null,
+  locationCapturedAt: "",
+  locationUnavailableReason: "",
+};
+
 const INITIAL_SETUP_STATUS = {
   checked: false,
   needsSetup: false,
@@ -414,6 +443,13 @@ function toDateTimeInputValue(value) {
   if (Number.isNaN(parsed.getTime())) return "";
   const localOffsetMs = parsed.getTimezoneOffset() * 60000;
   return new Date(parsed.getTime() - localOffsetMs).toISOString().slice(0, 16);
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`;
+  return `${size} B`;
 }
 
 function iconStrokeProps(className) {
@@ -2368,6 +2404,425 @@ function DailyReportDetailPanel({
   );
 }
 
+function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full rounded-2xl object-cover" }) {
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [status, setStatus] = useState("idle");
+
+  useEffect(() => {
+    if (!upload?.contentUrl || !token) {
+      setPreviewUrl("");
+      setStatus("idle");
+      return undefined;
+    }
+
+    let revokedUrl = "";
+    let cancelled = false;
+    setStatus("loading");
+
+    fetch(upload.contentUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Could not load upload preview.");
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        revokedUrl = URL.createObjectURL(blob);
+        setPreviewUrl(revokedUrl);
+        setStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewUrl("");
+          setStatus("error");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (revokedUrl) URL.revokeObjectURL(revokedUrl);
+    };
+  }, [token, upload?.contentUrl, upload?.id]);
+
+  if (status === "ready" && previewUrl) {
+    return <img src={previewUrl} alt={upload.fileName || "Uploaded evidence"} className={className} />;
+  }
+
+  return (
+    <div className={`flex items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 text-sm font-bold text-slate-500 ${className}`}>
+      {status === "loading" ? "Loading preview..." : "Preview unavailable"}
+    </div>
+  );
+}
+
+function UploadListCard({ upload, selected, onSelect }) {
+  return (
+    <button type="button" onClick={() => onSelect(upload.id)} className={`w-full rounded-2xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-slate-950">{upload.caption || upload.fileName}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{upload.job?.title || upload.jobId} · {upload.uploadedByName}</p>
+        </div>
+        <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+        <span>{formatDateTime(upload.takenAt)}</span>
+        <span>{formatFileSize(upload.fileSize)}</span>
+        {upload.archivedAt ? <span>Archived</span> : null}
+      </div>
+      {upload.notes ? <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{upload.notes}</p> : null}
+    </button>
+  );
+}
+
+function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchive }) {
+  const [draft, setDraft] = useState({ caption: "", notes: "" });
+
+  useEffect(() => {
+    if (!upload) {
+      setDraft({ caption: "", notes: "" });
+      return;
+    }
+    setDraft({
+      caption: upload.caption || "",
+      notes: upload.notes || "",
+    });
+  }, [upload]);
+
+  if (!upload) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Upload details" description="Select an upload to review evidence and metadata." />
+        <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and location metadata." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title={upload.caption || upload.fileName}
+        description={`${upload.job?.title || upload.jobId} · ${formatFileSize(upload.fileSize)}`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+            {upload.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+          </div>
+        }
+      />
+      <div className="grid gap-4">
+        <AuthenticatedUploadPreview upload={upload} token={token} />
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Uploaded by:</span> {upload.uploadedByName}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Taken at:</span> {formatDateTime(upload.takenAt)}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Uploaded at:</span> {formatDateTime(upload.uploadedAt)}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {upload.fileType}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Job:</span> {upload.job?.title || upload.jobId}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Customer:</span> {upload.job?.customer || upload.customerName || "Not set"}</p>
+            {upload.hasGps ? (
+              <>
+                <p className="mt-1"><span className="font-black text-slate-950">GPS:</span> {upload.latitude?.toFixed?.(5)}, {upload.longitude?.toFixed?.(5)}</p>
+                <p className="mt-1"><span className="font-black text-slate-950">Accuracy:</span> {Math.round(upload.locationAccuracy || 0)} m</p>
+              </>
+            ) : (
+              <p className="mt-1"><span className="font-black text-slate-950">Location:</span> {upload.locationUnavailableReason || "Not requested"}</p>
+            )}
+          </div>
+        </div>
+        <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} disabled={!canManage || disabled} />
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={!canManage || disabled} />
+        <div className="flex flex-wrap gap-2">
+          {canManage ? <Button onClick={() => onSave(draft)} disabled={disabled}>Save upload notes</Button> : null}
+          {canManage && !upload.archivedAt ? <Button variant="secondary" onClick={() => onArchive(upload.id)} disabled={disabled}>Archive upload</Button> : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation, onFileChange, onSubmit, loading, fileError }) {
+  if (!canCreate) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Upload photo" description="This role cannot create upload evidence right now." />
+        <StateCard title="Read-only" description="Uploads are limited to office and field users with allowed job access." tone="slate" />
+      </Card>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Upload photo" description="A job link is required for photo evidence." />
+        <StateCard title="No assigned job available for upload" description="Contact office if this is wrong or if the job should already be assigned." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Upload photo" description="Capture field documentation with optional location metadata. Upload still works if location is denied." />
+      <form className="grid gap-3" onSubmit={onSubmit}>
+        <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+          {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+        </SelectField>
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
+          <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
+        </div>
+        <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
+        <label className="grid gap-2 text-sm font-black text-slate-700">
+          Photo file
+          <input type="file" accept={ALLOWED_UPLOAD_TYPES.join(",")} capture="environment" onChange={onFileChange} className="rounded-2xl border border-blue-100 bg-white px-3 py-2.5 text-sm text-slate-700" />
+        </label>
+        {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-48 w-full rounded-2xl object-cover" /> : null}
+        {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-slate-600">
+          <p><span className="font-black text-slate-950">Location:</span> {gpsStatusLabel(draft)}</p>
+          {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
+          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={onRequestLocation} disabled={loading}>Capture location</Button>
+          <Button type="submit" disabled={loading || !draft.jobId || !draft.dataUrl}>Upload evidence</Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
+  const [filter, setFilter] = useState("Active only");
+  const [search, setSearch] = useState("");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [uploaderFilter, setUploaderFilter] = useState("All uploaders");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [gpsFilter, setGpsFilter] = useState("All locations");
+  const [selectedUploadId, setSelectedUploadId] = useState("");
+  const [draft, setDraft] = useState(INITIAL_UPLOAD_FORM);
+  const [fileError, setFileError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
+  const listState = useMemo(() => deriveUploadListState(uploads), [uploads]);
+  const visibleRows = useMemo(() => filterUploads(uploads, {
+    archived: filter,
+    query: search,
+    jobId: jobFilter,
+    uploaderId: uploaderFilter,
+    date: dateFilter,
+    gps: gpsFilter,
+  }), [dateFilter, filter, gpsFilter, jobFilter, search, uploads, uploaderFilter]);
+  const selectedUpload = visibleRows.find((upload) => upload.id === selectedUploadId)
+    || uploads.find((upload) => upload.id === selectedUploadId)
+    || null;
+
+  useEffect(() => {
+    const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
+      ? selectedJob.id
+      : allowedJobs[0]?.id || "";
+    setDraft((current) => {
+      if (current.jobId && allowedJobs.some((job) => job.id === current.jobId)) return current;
+      return {
+        ...current,
+        jobId: preferredJobId,
+      };
+    });
+  }, [allowedJobs, selectedJob?.id]);
+
+  useEffect(() => {
+    const fallbackUploadId = visibleRows[0]?.id || "";
+    if (!selectedUploadId || !uploads.some((upload) => upload.id === selectedUploadId)) {
+      setSelectedUploadId(fallbackUploadId);
+    }
+  }, [selectedUploadId, uploads, visibleRows]);
+
+  async function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    const nextError = validateUploadFile(file);
+    setFileError(nextError);
+    setSuccessMessage("");
+    if (nextError || !file) {
+      setDraft((current) => ({
+        ...current,
+        fileName: "",
+        fileType: "",
+        fileSize: 0,
+        dataUrl: "",
+      }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDraft((current) => ({
+        ...current,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        dataUrl: typeof reader.result === "string" ? reader.result : "",
+        takenAt: current.takenAt || (file.lastModified ? toDateTimeInputValue(new Date(file.lastModified).toISOString()) : ""),
+      }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRequestLocation() {
+    setSuccessMessage("");
+    if (!navigator.geolocation) {
+      setDraft((current) => ({
+        ...current,
+        latitude: null,
+        longitude: null,
+        locationAccuracy: null,
+        locationCapturedAt: "",
+        locationUnavailableReason: "Location services are unavailable in this browser.",
+      }));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDraft((current) => ({
+          ...current,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          locationAccuracy: position.coords.accuracy,
+          locationCapturedAt: new Date(position.timestamp).toISOString(),
+          locationUnavailableReason: "",
+        }));
+      },
+      (error) => {
+        const reason = error.code === error.PERMISSION_DENIED
+          ? "Location permission denied by user."
+          : error.code === error.TIMEOUT
+            ? "Location request timed out."
+            : "Location unavailable on this device.";
+        setDraft((current) => ({
+          ...current,
+          latitude: null,
+          longitude: null,
+          locationAccuracy: null,
+          locationCapturedAt: "",
+          locationUnavailableReason: reason,
+        }));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    );
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setFileError("");
+    setSuccessMessage("");
+    const nextError = validateUploadFile({ type: draft.fileType, size: draft.fileSize });
+    if (nextError || !draft.dataUrl) {
+      setFileError(nextError || "Choose a photo to upload.");
+      return;
+    }
+
+    const success = await onCreateUpload({
+      jobId: draft.jobId,
+      caption: draft.caption,
+      notes: draft.notes,
+      fileName: draft.fileName,
+      fileType: draft.fileType,
+      dataUrl: draft.dataUrl,
+      takenAt: draft.takenAt ? new Date(draft.takenAt).toISOString() : "",
+      latitude: draft.latitude,
+      longitude: draft.longitude,
+      locationAccuracy: draft.locationAccuracy,
+      locationCapturedAt: draft.locationCapturedAt,
+      locationUnavailableReason: draft.locationUnavailableReason,
+    });
+
+    if (success) {
+      setSuccessMessage("Photo evidence uploaded.");
+      setDraft({
+        ...INITIAL_UPLOAD_FORM,
+        jobId: allowedJobs.some((job) => job.id === draft.jobId) ? draft.jobId : (allowedJobs[0]?.id || ""),
+      });
+      setFileError("");
+    }
+  }
+
+  async function handleSaveUpload(nextDraft) {
+    if (!selectedUpload) return;
+    setSuccessMessage("");
+    await onUpdateUpload(selectedUpload.id, nextDraft);
+  }
+
+  async function handleArchiveSelected(uploadId) {
+    setSuccessMessage("");
+    await onArchiveUpload(uploadId);
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"} title="Uploads" description="Job-linked photo evidence with timestamp metadata and optional GPS capture for field documentation." actions={<Badge tone="blue">{visibleRows.length} uploads</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+        <Card className="overflow-hidden">
+          <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
+          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-2 xl:grid-cols-4">
+            <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+              <option>All jobs</option>
+              {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectField>
+            <SelectField label="Uploader" value={uploaderFilter} onChange={(event) => setUploaderFilter(event.target.value)}>
+              <option>All uploaders</option>
+              {listState.uploaderOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectField>
+            <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+              <option>All dates</option>
+              {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+            </SelectField>
+            <SelectField label="GPS" value={gpsFilter} onChange={(event) => setGpsFilter(event.target.value)}>
+              <option>All locations</option>
+              <option>Has GPS</option>
+              <option>Missing GPS</option>
+            </SelectField>
+          </div>
+          {successMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+          {errorMessage && visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
+          ) : visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="No uploads yet" description="Photo evidence will appear here after the first field upload." tone="slate" /></div>
+          ) : (
+            <div className="space-y-3 p-4">
+              {visibleRows.map((upload) => <UploadListCard key={upload.id} upload={upload} selected={selectedUpload?.id === upload.id} onSelect={setSelectedUploadId} />)}
+            </div>
+          )}
+        </Card>
+        <div className="space-y-4">
+          <UploadCreateCard
+            canCreate={permissions.uploads.canCreate}
+            jobs={allowedJobs}
+            draft={draft}
+            setDraft={setDraft}
+            onRequestLocation={handleRequestLocation}
+            onFileChange={handleFileChange}
+            onSubmit={handleSubmit}
+            loading={busy}
+            fileError={fileError}
+          />
+          <UploadDetailPanel upload={selectedUpload} token={sessionToken} canManage={permissions.uploads.canManageAll} disabled={busy} onSave={handleSaveUpload} onArchive={handleArchiveSelected} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportsPage({
   user,
   permissions,
@@ -3801,6 +4256,9 @@ function MainContent(props) {
       />
     );
   }
+  if (active === "uploads") {
+    return <UploadsPage {...props} uploads={props.uploads} />;
+  }
   if (active === "time") {
     return <TimePage {...props} rows={props.timeEntries} />;
   }
@@ -3986,6 +4444,7 @@ export default function App() {
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
+        uploads: normalizedNextState.uploads,
         dailyReports: normalizedNextState.dailyReports,
         timeEntries: normalizedNextState.timeEntries,
         queueItems: normalizedNextState.queueItems,
@@ -4701,6 +5160,66 @@ export default function App() {
     runMutation(() => submitDailyReport(sessionToken, selectedReport.id));
   }
 
+  async function handleCreateUpload(payload) {
+    if (!sessionToken || !appState.permissions.uploads.canCreate) return false;
+    setBusy(true);
+    try {
+      const nextState = await createUpload(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateUpload(uploadId, payload) {
+    if (!sessionToken || !appState.permissions.uploads.canManageAll) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateUpload(sessionToken, uploadId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveUpload(uploadId) {
+    if (!sessionToken || !appState.permissions.uploads.canManageAll) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveUpload(sessionToken, uploadId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleReviewReport() {
     if (!selectedReport || !appState.permissions.reports.canReview) return;
     runMutation(() => reviewDailyReport(sessionToken, selectedReport.id));
@@ -4934,6 +5453,11 @@ export default function App() {
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}
               selectedJob={selectedJob}
+              uploads={appState.uploads}
+              sessionToken={sessionToken}
+              onCreateUpload={handleCreateUpload}
+              onUpdateUpload={handleUpdateUpload}
+              onArchiveUpload={handleArchiveUpload}
               selectedReportId={selectedReportId}
               onSelectReport={navigateToReport}
               selectedReport={selectedReport}

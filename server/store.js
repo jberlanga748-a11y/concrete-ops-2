@@ -365,6 +365,7 @@ export function createEmptyState() {
     jobs: [],
     jobAssignments: [],
     dailyReports: [],
+    uploads: [],
     timeEntries: [],
     queueItems: [],
     activity: [],
@@ -401,6 +402,7 @@ export function createSeedState() {
     jobs,
     jobAssignments: [],
     dailyReports: [],
+    uploads: [],
     timeEntries: [],
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
@@ -1322,6 +1324,49 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 21,
+    description: "Add persistent uploads and photo evidence records.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS uploads (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          customer_id TEXT,
+          report_id TEXT,
+          incident_id TEXT,
+          change_order_id TEXT,
+          tool_checklist_item_id TEXT,
+          uploaded_by TEXT NOT NULL,
+          file_name TEXT NOT NULL,
+          file_type TEXT NOT NULL,
+          file_size INTEGER NOT NULL,
+          storage_path TEXT NOT NULL,
+          caption TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          taken_at TEXT NOT NULL,
+          uploaded_at TEXT NOT NULL,
+          latitude REAL,
+          longitude REAL,
+          location_accuracy REAL,
+          location_captured_at TEXT,
+          location_unavailable_reason TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_uploads_job_id ON uploads(job_id);
+        CREATE INDEX IF NOT EXISTS idx_uploads_uploaded_by ON uploads(uploaded_by);
+        CREATE INDEX IF NOT EXISTS idx_uploads_report_id ON uploads(report_id);
+        CREATE INDEX IF NOT EXISTS idx_uploads_uploaded_at ON uploads(uploaded_at);
+        CREATE INDEX IF NOT EXISTS idx_uploads_sort_index ON uploads(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1400,6 +1445,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertUpload = database.prepare(`
+    INSERT INTO uploads (id, sort_index, job_id, customer_id, report_id, incident_id, change_order_id, tool_checklist_item_id, uploaded_by, file_name, file_type, file_size, storage_path, caption, notes, taken_at, uploaded_at, latitude, longitude, location_accuracy, location_captured_at, location_unavailable_reason, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertQueueItem = database.prepare(`
     INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1426,6 +1476,7 @@ function writeStateToDb(state) {
       DELETE FROM job_assignments;
       DELETE FROM jobs;
       DELETE FROM daily_reports;
+      DELETE FROM uploads;
       DELETE FROM time_entries;
       DELETE FROM queue_items;
       DELETE FROM activity;
@@ -1620,6 +1671,36 @@ function writeStateToDb(state) {
       );
     });
 
+    (state.uploads || []).forEach((upload, index) => {
+      insertUpload.run(
+        upload.id,
+        index,
+        upload.jobId,
+        upload.customerId || null,
+        upload.reportId || null,
+        upload.incidentId || null,
+        upload.changeOrderId || null,
+        upload.toolChecklistItemId || null,
+        upload.uploadedBy,
+        upload.fileName,
+        upload.fileType,
+        Number(upload.fileSize || 0),
+        upload.storagePath,
+        upload.caption || "",
+        upload.notes || "",
+        upload.takenAt || upload.uploadedAt || upload.createdAt || isoNow(),
+        upload.uploadedAt || upload.createdAt || isoNow(),
+        upload.latitude == null ? null : Number(upload.latitude),
+        upload.longitude == null ? null : Number(upload.longitude),
+        upload.locationAccuracy == null ? null : Number(upload.locationAccuracy),
+        upload.locationCapturedAt || null,
+        upload.locationUnavailableReason || "",
+        upload.createdAt || upload.uploadedAt || isoNow(),
+        upload.updatedAt || upload.createdAt || upload.uploadedAt || isoNow(),
+        upload.archivedAt || null,
+      );
+    });
+
     state.queueItems.forEach((item, index) => {
       insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
     });
@@ -1717,6 +1798,16 @@ function readTableState() {
     concretePoured: Boolean(report.concretePoured),
   }));
 
+  const uploads = database.prepare(`
+    SELECT id, job_id AS jobId, customer_id AS customerId, report_id AS reportId, incident_id AS incidentId, change_order_id AS changeOrderId,
+           tool_checklist_item_id AS toolChecklistItemId, uploaded_by AS uploadedBy, file_name AS fileName, file_type AS fileType, file_size AS fileSize,
+           storage_path AS storagePath, caption, notes, taken_at AS takenAt, uploaded_at AS uploadedAt, latitude, longitude,
+           location_accuracy AS locationAccuracy, location_captured_at AS locationCapturedAt, location_unavailable_reason AS locationUnavailableReason,
+           created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM uploads
+    ORDER BY sort_index ASC
+  `).all();
+
   const queueItems = database.prepare(`
     SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM queue_items
@@ -1738,7 +1829,7 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, dailyReports, timeEntries, queueItems, activity, auditEvents };
+  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, dailyReports, uploads, timeEntries, queueItems, activity, auditEvents };
 }
 
 function isRetryableSqliteError(error) {

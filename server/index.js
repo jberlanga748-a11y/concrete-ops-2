@@ -32,6 +32,7 @@ import {
   canArchiveJobs,
   canCreateJobs,
   canCreateDailyReports,
+  canCreateUploads,
   canDeleteJobs,
   canCorrectTimeEntries,
   canExportData,
@@ -44,6 +45,7 @@ import {
   canManageReports,
   canManageSafety,
   canManageToolChecklist,
+  canManageUploads,
   canManageUsers,
   canReviewReports,
   canUseCalculator,
@@ -60,6 +62,7 @@ import {
   canViewSafety,
   canViewAllTime,
   canViewCrewTime,
+  canViewUploads,
   canViewUsers,
   canViewAllJobs,
   normalizeRole,
@@ -88,12 +91,14 @@ const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Est
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
+const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
+const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const serverStartedAt = Date.now();
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "16mb" }));
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -163,6 +168,15 @@ function optionalNonNegativeNumber(value, fieldName, fallback = 0) {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized < 0) {
     throw new ApiError(400, `${fieldName} must be a non-negative number.`);
+  }
+  return normalized;
+}
+
+function optionalNumberInRange(value, fieldName, { min, max, fallback = null } = {}) {
+  if (value == null || value === "") return fallback;
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized) || normalized < min || normalized > max) {
+    throw new ApiError(400, `${fieldName} must be between ${min} and ${max}.`);
   }
   return normalized;
 }
@@ -547,6 +561,58 @@ function visibleDailyReportsForUser(state, user) {
     });
 }
 
+function canCreateUploadForJob(user, job) {
+  if (!user || !job || !canCreateUploads(user)) return false;
+  if (canViewAllJobs(user)) return true;
+  return canViewJob(job, user);
+}
+
+function sanitizeUploadForUser(upload, state, user) {
+  const job = upload.jobId ? state.jobs.find((entry) => entry.id === upload.jobId) || null : null;
+  if (!job || !canViewJob(job, user)) return null;
+
+  const uploader = findUserById(state, upload.uploadedBy);
+  const customer = upload.customerId ? state.customers.find((entry) => entry.id === upload.customerId) || null : null;
+  const report = upload.reportId ? state.dailyReports.find((entry) => entry.id === upload.reportId) || null : null;
+
+  return {
+    id: upload.id,
+    jobId: upload.jobId,
+    customerId: upload.customerId || "",
+    reportId: upload.reportId || "",
+    uploadedBy: upload.uploadedBy,
+    uploadedByName: uploader?.name || upload.uploadedBy,
+    fileName: upload.fileName,
+    fileType: upload.fileType,
+    fileSize: Number(upload.fileSize || 0),
+    caption: upload.caption || "",
+    notes: upload.notes || "",
+    takenAt: upload.takenAt || upload.uploadedAt || upload.createdAt,
+    uploadedAt: upload.uploadedAt || upload.createdAt,
+    latitude: upload.latitude == null ? null : Number(upload.latitude),
+    longitude: upload.longitude == null ? null : Number(upload.longitude),
+    locationAccuracy: upload.locationAccuracy == null ? null : Number(upload.locationAccuracy),
+    locationCapturedAt: upload.locationCapturedAt || "",
+    locationUnavailableReason: upload.locationUnavailableReason || "",
+    createdAt: upload.createdAt,
+    updatedAt: upload.updatedAt,
+    archivedAt: upload.archivedAt || null,
+    hasGps: upload.latitude != null && upload.longitude != null,
+    contentUrl: `/api/uploads/${upload.id}/content`,
+    job: sanitizeJobForUser(job, user, state),
+    customerName: canViewCustomers(user) ? (customer?.name || "") : "",
+    reportDate: report?.reportDate || "",
+  };
+}
+
+function visibleUploadsForUser(state, user) {
+  if (!user || !canViewUploads(user)) return [];
+  return (state.uploads || [])
+    .map((upload) => sanitizeUploadForUser(upload, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.uploadedAt || right.createdAt || 0).getTime() - new Date(left.uploadedAt || left.createdAt || 0).getTime());
+}
+
 function visibleQueueItemsForUser(state, user) {
   if (!user) return [];
   if (isOfficeManager(user)) {
@@ -649,6 +715,106 @@ function assertCanReviewReports(user) {
   if (!canReviewReports(user)) {
     throw new ApiError(403, "You do not have permission to review daily reports.");
   }
+}
+
+function uploadPermissionsForUser(user) {
+  return {
+    canView: canViewUploads(user),
+    canCreate: canCreateUploads(user),
+    canManageAll: canManageUploads(user),
+  };
+}
+
+function assertCanViewUploads(user) {
+  if (!canViewUploads(user)) {
+    throw new ApiError(403, "You do not have permission to view uploads.");
+  }
+}
+
+function assertCanCreateUploads(user) {
+  if (!canCreateUploads(user)) {
+    throw new ApiError(403, "You do not have permission to create uploads.");
+  }
+}
+
+function assertCanManageUploads(user) {
+  if (!canManageUploads(user)) {
+    throw new ApiError(403, "You do not have permission to manage uploads.");
+  }
+}
+
+function uploadsDirectory() {
+  return path.join(getDataPaths().dataDir, "uploads");
+}
+
+async function ensureUploadsDirectory() {
+  const directory = uploadsDirectory();
+  await fs.mkdir(directory, { recursive: true });
+  return directory;
+}
+
+function sanitizeUploadFileName(fileName, fallbackExtension = ".jpg") {
+  const rawBaseName = path.basename(String(fileName || ""), path.extname(String(fileName || "")));
+  const normalizedBase = rawBaseName
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80) || "upload";
+  return `${normalizedBase}${fallbackExtension}`;
+}
+
+function uploadExtensionForType(fileType) {
+  const extensions = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+    "image/gif": ".gif",
+  };
+  return extensions[fileType] || ".bin";
+}
+
+function decodeUploadPayload(payload) {
+  const fileName = requiredString(payload.fileName, "File name");
+  const fileType = requiredString(payload.fileType, "File type").toLowerCase();
+  if (!ALLOWED_UPLOAD_TYPES.has(fileType)) {
+    throw new ApiError(400, `File type must be one of: ${Array.from(ALLOWED_UPLOAD_TYPES).join(", ")}.`);
+  }
+
+  const dataUrl = requiredString(payload.dataUrl, "File data");
+  const match = dataUrl.match(/^data:([^;]+);base64,([\s\S]+)$/i);
+  if (!match) {
+    throw new ApiError(400, "File data must be a base64 data URL.");
+  }
+  const declaredType = String(match[1] || "").trim().toLowerCase();
+  if (declaredType !== fileType) {
+    throw new ApiError(400, "File type does not match uploaded data.");
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(match[2], "base64");
+  } catch {
+    throw new ApiError(400, "File data could not be decoded.");
+  }
+
+  if (!buffer.length) {
+    throw new ApiError(400, "Uploaded file is empty.");
+  }
+
+  if (buffer.length > MAX_UPLOAD_SIZE_BYTES) {
+    throw new ApiError(400, `Uploaded file must be ${Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024))}MB or smaller.`);
+  }
+
+  return {
+    fileName,
+    fileType,
+    buffer,
+    fileSize: buffer.length,
+    safeFileName: sanitizeUploadFileName(fileName, uploadExtensionForType(fileType)),
+  };
 }
 
 function minutesBetween(startAt, endAt) {
@@ -1451,6 +1617,7 @@ function sanitizeBootstrap(state, user) {
     leads: visibleLeadsForUser(state, user),
     leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
     jobs: visibleJobsForUser(state, user),
+    uploads: visibleUploadsForUser(state, user),
     dailyReports: visibleDailyReportsForUser(state, user),
     timeEntries: visibleTimeEntriesForUser(state, user),
     queueItems: visibleQueueItemsForUser(state, user),
@@ -1474,6 +1641,7 @@ function sanitizeBootstrap(state, user) {
         canViewMoney: canViewJobMoney(user),
       },
       reports: reportPermissionsForUser(user),
+      uploads: uploadPermissionsForUser(user),
       time: timePermissionsForUser(user),
       safety: {
         canView: canViewSafety(user),
@@ -1812,6 +1980,35 @@ app.get("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get("/api/uploads", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewUploads(req.auth.user);
+  const state = await readDb();
+  res.json({
+    uploads: visibleUploadsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/uploads/:id/content", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const upload = findRequiredRecord(state.uploads || [], req.params.id, "Upload");
+  const sanitizedUpload = sanitizeUploadForUser(upload, state, req.auth.user);
+  if (!sanitizedUpload) {
+    throw new ApiError(403, "You do not have permission to view that upload.");
+  }
+
+  const absolutePath = path.join(getDataPaths().dataDir, upload.storagePath);
+  const fileBuffer = await fs.readFile(absolutePath).catch(() => null);
+  if (!fileBuffer) {
+    throw new ApiError(404, "Uploaded file not found.");
+  }
+
+  res.setHeader("Content-Type", upload.fileType || "application/octet-stream");
+  res.setHeader("Content-Length", String(fileBuffer.length));
+  res.setHeader("Cache-Control", "private, max-age=60");
+  res.send(fileBuffer);
+}));
+
 app.get("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {
   assertCanViewReports(req.auth.user);
   const state = await readDb();
@@ -1828,6 +2025,171 @@ app.get("/api/time-entries", requireAuth, asyncRoute(async (req, res) => {
     timeEntries: visibleTimeEntriesForUser(state, req.auth.user),
     requestId: res.locals.requestId,
   });
+}));
+
+app.post("/api/uploads", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateUploads(req.auth.user);
+  const payload = req.body || {};
+  const decodedFile = decodeUploadPayload(payload);
+  const changedAt = new Date().toISOString();
+  const jobId = requiredString(payload.jobId, "Job");
+  const reportId = optionalString(payload.reportId, "");
+
+  const nextState = await updateDb(async (draft) => {
+    draft.uploads ||= [];
+    const job = findRequiredRecord(draft.jobs, jobId, "Job");
+    if (!canCreateUploadForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to upload to that job.");
+    }
+
+    let report = null;
+    if (reportId) {
+      report = findRequiredRecord(draft.dailyReports || [], reportId, "Daily report");
+      if (report.jobId !== job.id) {
+        throw new ApiError(400, "Daily report must belong to the selected job.");
+      }
+    }
+
+    const latitude = optionalNumberInRange(payload.latitude, "Latitude", { min: -90, max: 90 });
+    const longitude = optionalNumberInRange(payload.longitude, "Longitude", { min: -180, max: 180 });
+    const locationAccuracy = optionalNumberInRange(payload.locationAccuracy, "Location accuracy", { min: 0, max: 100000 });
+    const locationCapturedAt = optionalDateTimeString(payload.locationCapturedAt, "Location captured at", "");
+    const locationUnavailableReason = optionalString(payload.locationUnavailableReason, "");
+    const uploadId = makeId("UPL");
+    const storedFileName = `${uploadId}-${decodedFile.safeFileName}`;
+    const relativeStoragePath = path.join("uploads", storedFileName);
+    const uploadDirectory = await ensureUploadsDirectory();
+    await fs.writeFile(path.join(uploadDirectory, storedFileName), decodedFile.buffer);
+
+    draft.uploads.unshift({
+      id: uploadId,
+      jobId: job.id,
+      customerId: job.customerId || "",
+      reportId,
+      incidentId: "",
+      changeOrderId: "",
+      toolChecklistItemId: "",
+      uploadedBy: req.auth.user.id,
+      fileName: decodedFile.fileName,
+      fileType: decodedFile.fileType,
+      fileSize: decodedFile.fileSize,
+      storagePath: relativeStoragePath,
+      caption: optionalString(payload.caption, ""),
+      notes: optionalString(payload.notes, ""),
+      takenAt: optionalDateTimeString(payload.takenAt, "Taken at", changedAt) || changedAt,
+      uploadedAt: changedAt,
+      latitude,
+      longitude,
+      locationAccuracy,
+      locationCapturedAt,
+      locationUnavailableReason,
+      createdAt: changedAt,
+      updatedAt: changedAt,
+      archivedAt: null,
+    });
+    appendActivity(draft, "Photo uploaded", `${req.auth.user.name} added photo evidence to ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "upload",
+      entityId: uploadId,
+      action: "created",
+      summary: "Upload created",
+      detail: `${req.auth.user.name} uploaded photo evidence for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "fileName", "takenAt", ...(latitude != null && longitude != null ? ["location"] : [])],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/uploads/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageUploads(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const upload = findRequiredRecord(draft.uploads || [], req.params.id, "Upload");
+    const changedFields = [];
+
+    if (payload.jobId != null && payload.jobId !== upload.jobId) {
+      const nextJob = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+      upload.jobId = nextJob.id;
+      upload.customerId = nextJob.customerId || "";
+      if (upload.reportId) {
+        upload.reportId = "";
+        changedFields.push("reportId");
+      }
+      changedFields.push("jobId", "customerId");
+    }
+
+    if (payload.reportId != null) {
+      const nextReportId = optionalString(payload.reportId, "");
+      if (nextReportId) {
+        const nextReport = findRequiredRecord(draft.dailyReports || [], nextReportId, "Daily report");
+        if (nextReport.jobId !== upload.jobId) {
+          throw new ApiError(400, "Daily report must belong to the selected job.");
+        }
+      }
+      if (nextReportId !== upload.reportId) {
+        upload.reportId = nextReportId;
+        changedFields.push("reportId");
+      }
+    }
+
+    const nextCaption = payload.caption == null ? upload.caption || "" : optionalString(payload.caption, "");
+    if (nextCaption !== (upload.caption || "")) {
+      upload.caption = nextCaption;
+      changedFields.push("caption");
+    }
+
+    const nextNotes = payload.notes == null ? upload.notes || "" : optionalString(payload.notes, "");
+    if (nextNotes !== (upload.notes || "")) {
+      upload.notes = nextNotes;
+      changedFields.push("notes");
+    }
+
+    if (changedFields.length === 0) {
+      return draft;
+    }
+
+    markUpdated(upload, changedAt);
+    appendAuditEvent(draft, {
+      entityType: "upload",
+      entityId: upload.id,
+      action: "updated",
+      summary: "Upload updated",
+      detail: `${req.auth.user.name} updated upload metadata for ${upload.fileName}.`,
+      actor: req.auth.user,
+      changedFields,
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/uploads/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageUploads(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const upload = findRequiredRecord(draft.uploads || [], req.params.id, "Upload");
+    upload.archivedAt = changedAt;
+    markUpdated(upload, changedAt);
+    appendAuditEvent(draft, {
+      entityType: "upload",
+      entityId: upload.id,
+      action: "archived",
+      summary: "Upload archived",
+      detail: `${req.auth.user.name} archived upload ${upload.fileName}.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.post("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {

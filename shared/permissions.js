@@ -98,6 +98,18 @@ export function canManageReports(user) {
   return isOfficeManager(user);
 }
 
+export function canViewUploads(user) {
+  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+}
+
+export function canCreateUploads(user) {
+  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+}
+
+export function canManageUploads(user) {
+  return isOfficeManager(user);
+}
+
 export function canCreateDailyReports(user) {
   return isForeman(user) || isOfficeManager(user);
 }

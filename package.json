@@ -21,7 +21,8 @@
     "verify:users": "node --test --test-concurrency=1 server/users-management.test.js src/user-utils.test.js",
     "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js",
     "verify:time": "node --test --test-concurrency=1 server/time-tracking.test.js src/time-utils.test.js",
-    "verify:daily-reports": "node --test --test-concurrency=1 server/daily-reports.test.js src/report-utils.test.js src/app-routing.test.js"
+    "verify:daily-reports": "node --test --test-concurrency=1 server/daily-reports.test.js src/report-utils.test.js src/app-routing.test.js",
+    "verify:uploads": "node --test --test-concurrency=1 server/uploads.test.js src/upload-utils.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

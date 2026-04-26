@@ -3,11 +3,13 @@ import test from "node:test";
 
 import {
   canCreateDailyReports,
+  canCreateUploads,
   canManageCustomers,
   canManageEstimates,
   canManageLeads,
   canManageOwnTime,
   canManageReports,
+  canManageUploads,
   canManageUsers,
   canReviewReports,
   canUseCalculator,
@@ -20,6 +22,7 @@ import {
   canViewReports,
   canViewSafety,
   canViewSettings,
+  canViewUploads,
   canExportData,
   getAllowedModuleIds,
 } from "./permissions.js";
@@ -44,6 +47,9 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canViewAllTime(operations), true);
   assert.equal(canManageReports(operations), true);
   assert.equal(canReviewReports(operations), true);
+  assert.equal(canViewUploads(operations), true);
+  assert.equal(canCreateUploads(operations), true);
+  assert.equal(canManageUploads(operations), true);
   assert.equal(modules.has("employees"), true);
 });
 
@@ -71,6 +77,9 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canViewReports(foreman), true);
   assert.equal(canCreateDailyReports(foreman), true);
   assert.equal(canManageReports(foreman), false);
+  assert.equal(canViewUploads(foreman), true);
+  assert.equal(canCreateUploads(foreman), true);
+  assert.equal(canManageUploads(foreman), false);
   assert.equal(canViewCrewTime(foreman), true);
   assert.equal(canUseCalculator(foreman), true);
   assert.equal(canViewSafety(foreman), true);
@@ -87,6 +96,9 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canViewEstimates(employee), false);
   assert.equal(canViewReports(employee), false);
   assert.equal(canCreateDailyReports(employee), false);
+  assert.equal(canViewUploads(employee), true);
+  assert.equal(canCreateUploads(employee), true);
+  assert.equal(canManageUploads(employee), false);
   assert.equal(canManageOwnTime(employee), true);
   assert.equal(canUseCalculator(employee), true);
   assert.equal(canViewSafety(employee), true);

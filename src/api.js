@@ -158,6 +158,22 @@ export function getDailyReports(token) {
   return request("/api/daily-reports", { token });
 }
 
+export function getUploads(token) {
+  return request("/api/uploads", { token });
+}
+
+export function createUpload(token, payload) {
+  return request("/api/uploads", { method: "POST", token, body: payload });
+}
+
+export function updateUpload(token, id, payload) {
+  return request(`/api/uploads/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archiveUpload(token, id) {
+  return request(`/api/uploads/${id}/archive`, { method: "POST", token });
+}
+
 export function createDailyReport(token, payload) {
   return request("/api/daily-reports", { method: "POST", token, body: payload });
 }
