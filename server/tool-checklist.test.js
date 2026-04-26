@@ -191,6 +191,7 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     assert.equal(disabledState.companySettings.companyName, "Pacific Northwest Concrete Demo");
     assert.equal(disabledState.companySettings.logoInitials, "PNC");
     assert.equal(disabledState.companySettings.accentColor, "emerald");
+    const toolChecklistAuditCount = disabledState.auditEvents.filter((event) => /Tool checklist (enabled|disabled)/i.test(event.summary || "")).length;
 
     const disabledForemanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: foremanHeaders });
     assert.equal(disabledForemanBootstrap.permissions.toolChecklist.canUse, false);
@@ -208,6 +209,22 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     assert.equal(reenabledState.companySettings.companyName, "Pacific Northwest Concrete Demo");
     assert.equal(reenabledState.companySettings.logoInitials, "PNC");
     assert.equal(reenabledState.companySettings.accentColor, "emerald");
+
+    const brandingOnlyState = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        companyName: "Pacific Northwest Concrete HQ",
+        logoInitials: "pc",
+        accentColor: "amber",
+      }),
+    });
+    assert.equal(brandingOnlyState.companySettings.toolChecklistEnabled, true);
+    assert.equal(brandingOnlyState.companySettings.companyName, "Pacific Northwest Concrete HQ");
+    assert.equal(brandingOnlyState.companySettings.logoInitials, "PC");
+    assert.equal(brandingOnlyState.companySettings.accentColor, "amber");
+    assert.equal(brandingOnlyState.auditEvents[0]?.summary, "Workspace branding updated");
+    assert.equal(brandingOnlyState.auditEvents.filter((event) => /Tool checklist (enabled|disabled)/i.test(event.summary || "")).length, toolChecklistAuditCount + 1);
 
     const createdChecklistState = await assertOk(fixture.baseUrl, "/api/tool-checklists", {
       method: "POST",

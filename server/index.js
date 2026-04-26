@@ -4275,9 +4275,11 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     draft.companySettings = companySettingsForState(draft);
-    const changedFields = [];
+    const previousToolChecklistEnabled = draft.companySettings.toolChecklistEnabled;
     const brandingChanges = [];
-    const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, draft.companySettings.toolChecklistEnabled);
+    const brandingChangedFields = [];
+    const hasToolChecklistEnabledUpdate = Object.prototype.hasOwnProperty.call(payload, "toolChecklistEnabled");
+    const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, previousToolChecklistEnabled);
     const nextCompanyName = payload.companyName == null
       ? draft.companySettings.companyName
       : optionalCompanyName(payload.companyName, "");
@@ -4288,9 +4290,8 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       ? draft.companySettings.accentColor
       : optionalAccentColor(payload.accentColor, draft.companySettings.accentColor);
 
-    if (draft.companySettings.toolChecklistEnabled !== nextToolChecklistEnabled) {
+    if (hasToolChecklistEnabledUpdate && previousToolChecklistEnabled !== nextToolChecklistEnabled) {
       draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
-      changedFields.push("toolChecklistEnabled");
       appendActivity(draft, nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled", `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`);
       appendAuditEvent(draft, {
         entityType: "companySettings",
@@ -4305,17 +4306,17 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
 
     if (draft.companySettings.companyName !== nextCompanyName) {
       draft.companySettings.companyName = nextCompanyName;
-      changedFields.push("companyName");
+      brandingChangedFields.push("companyName");
       brandingChanges.push("company name");
     }
     if (draft.companySettings.logoInitials !== nextLogoInitials) {
       draft.companySettings.logoInitials = nextLogoInitials;
-      changedFields.push("logoInitials");
+      brandingChangedFields.push("logoInitials");
       brandingChanges.push("logo initials");
     }
     if (draft.companySettings.accentColor !== nextAccentColor) {
       draft.companySettings.accentColor = nextAccentColor;
-      changedFields.push("accentColor");
+      brandingChangedFields.push("accentColor");
       brandingChanges.push("accent color");
     }
 
@@ -4329,7 +4330,7 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         summary: "Workspace branding updated",
         detail,
         actor: req.auth.user,
-        changedFields: [...changedFields, "updatedAt"],
+        changedFields: [...brandingChangedFields, "updatedAt"],
       });
     }
 
