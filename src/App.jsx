@@ -781,7 +781,7 @@ function Button({ children, variant = "primary", size = "md", className = "", ..
   };
 
   return (
-    <button className={`inline-flex items-center justify-center gap-2 rounded-2xl font-black transition ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+    <button className={`inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-2xl text-center font-black leading-tight transition whitespace-normal break-words ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
   );
@@ -796,7 +796,7 @@ function Badge({ children, tone = "blue" }) {
     violet: "bg-violet-50 text-violet-700 ring-violet-100",
     slate: "bg-slate-100 text-slate-700 ring-slate-200",
   };
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ring-1 ${tones[tone] || tones.blue}`}>{children}</span>;
+  return <span className={`inline-flex min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-black ring-1 break-words ${tones[tone] || tones.blue}`}>{children}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -817,15 +817,15 @@ function Card({ children, className = "" }) {
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
   return (
     <div className="mb-5 border-b border-blue-100/80 bg-white/80 px-5 py-5 backdrop-blur sm:px-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex min-w-0 max-w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
           <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
           {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
         </div>
-        {actions ? <div className="flex max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
+        {actions ? <div className="flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
       </div>
-      {tabs ? <div className="mt-5 flex gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
+      {tabs ? <div className="mt-5 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
     </div>
   );
 }
@@ -837,14 +837,14 @@ function SectionHeader({ title, description, action }) {
         <h2 className="text-base font-black text-slate-950">{title}</h2>
         {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-500">{description}</p> : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="min-w-0 max-w-full shrink-0">{action}</div> : null}
     </div>
   );
 }
 
 function StatCard({ title, value, detail }) {
   return (
-    <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+    <div className="min-w-0 max-w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{title}</p>
       <p className="mt-2 break-words text-xl font-black text-slate-950">{value}</p>
       {detail ? <p className="mt-1 break-words text-sm text-slate-500">{detail}</p> : null}
@@ -854,14 +854,14 @@ function StatCard({ title, value, detail }) {
 
 function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex gap-2 overflow-x-auto">
+    <div className="flex min-w-0 max-w-full flex-col gap-3 border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex min-w-0 max-w-full gap-2 overflow-x-auto">
         {filters.map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => setActive(filter)}
-            className={`rounded-2xl px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+            className={`shrink-0 rounded-2xl px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
           >
             {filter}
           </button>
@@ -1159,9 +1159,9 @@ function PublicEstimateRequestPage({
   const checkingStatus = backendStatus === "checking" || !setupStatus.checked;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-transparent p-4 sm:p-6">
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card className="overflow-hidden p-6 sm:p-8">
+    <div className="flex min-h-screen items-center justify-center overflow-x-clip bg-transparent p-4 sm:p-6">
+      <div className="grid min-w-0 w-full max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <Card className="min-w-0 overflow-hidden p-5 sm:p-8">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="emerald">Public estimate request</Badge>
             {demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
@@ -1186,7 +1186,7 @@ function PublicEstimateRequestPage({
           </div>
           <Button type="button" variant="ghost" className="mt-6" onClick={onBackToLogin}>Back to login</Button>
         </Card>
-        <Card className="p-6 sm:p-8">
+        <Card className="min-w-0 p-5 sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white">
               <Icon name="quote" className="h-5 w-5" />
@@ -1331,8 +1331,8 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
             ))}
           </select>
           <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
-            <Button variant="ghost" size="sm" onClick={onLogout}>
+            <div className="min-w-0 max-w-[58vw] truncate rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={onLogout}>
               Log out
             </Button>
           </div>
@@ -1345,14 +1345,14 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
 
 function KpiCard({ item }) {
   return (
-    <Card className="p-4">
+    <Card className="min-w-0 p-4">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-slate-500">{item.label}</p>
-          <p className="mt-2 text-3xl font-black text-slate-950">{item.value}</p>
-          <p className="mt-1 text-sm font-bold text-slate-500">{item.helper}</p>
+          <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">{item.value}</p>
+          <p className="mt-1 break-words text-sm font-bold text-slate-500">{item.helper}</p>
         </div>
-        <div className="rounded-2xl bg-blue-50 p-2.5 text-blue-700">
+        <div className="shrink-0 rounded-2xl bg-blue-50 p-2.5 text-blue-700">
           <Icon name={item.icon} />
         </div>
       </div>
@@ -1362,7 +1362,7 @@ function KpiCard({ item }) {
 
 function LeadsTable({ rows, selectedId, onSelect }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="table-shell">
       <table className="w-full min-w-[860px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
@@ -1401,7 +1401,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
 
 function JobsTable({ rows, selectedId, onSelect }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="table-shell">
       <table className="w-full min-w-[980px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
@@ -1945,9 +1945,9 @@ function StateCard({ title, description, tone = "blue" }) {
   };
 
   return (
-    <div className={`rounded-2xl border p-6 text-center ${tones[tone] || tones.blue}`}>
+    <div className={`min-w-0 max-w-full rounded-2xl border p-4 text-center sm:p-6 ${tones[tone] || tones.blue}`}>
       <p className="font-black text-slate-950">{title}</p>
-      <p className="mt-2 text-sm">{description}</p>
+      <p className="mt-2 break-words text-sm">{description}</p>
     </div>
   );
 }
@@ -2138,7 +2138,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
       ];
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <Card className="p-5">
         <SectionHeader title={jobTitle(job)} description={`${job.id} · ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -2248,8 +2248,8 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
   return (
     <div>
       <PageHeader eyebrow="Field Workspace" title="My Crew" description="Assigned jobs, upcoming planning work, and safe crew details without office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -2301,8 +2301,8 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
   return (
     <div>
       <PageHeader eyebrow="Field Workspace" title="My Job" description="Simple assigned-work view with only the job details and tools needed in the field." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -2723,7 +2723,7 @@ function TimePage({
   return (
     <div>
       <PageHeader eyebrow="My Time" title="My Time" description="Track only your assigned work. Contact office if your job assignment looks wrong." actions={activeEntry ? <TimeStatusBadge status={activeEntry.status} /> : <Badge tone="slate">Ready to clock in</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[380px_1fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[380px_1fr] lg:px-8">
         <ActiveTimeCard
           activeEntry={activeEntry}
           availableJobs={workspace.availableJobs}
@@ -2734,7 +2734,7 @@ function TimePage({
           onEndBreak={onEndBreak}
           disabled={busy}
         />
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <WeekSummaryCard summary={workspace.weeklySummary} description="Your current-week hours, breaks, and work breakdown." />
           <RecentTimeEntriesCard entries={workspace.sortedEntries} description="Only your own time entries are visible here." emptyDescription="Clock in on an allowed job or work category to start your first time entry." compact />
         </div>
@@ -2759,7 +2759,7 @@ function DailyReportStatusBadge({ status }) {
 
 function DailyReportsTable({ rows, selectedId, onSelect }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="table-shell">
       <table className="w-full min-w-[920px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
@@ -2878,7 +2878,7 @@ function DailyReportDetailPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <Card className="p-5">
         <SectionHeader
           title={jobTitle(report.job)}
@@ -3011,9 +3011,9 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
 
 function UploadListCard({ upload, selected, onSelect }) {
   return (
-    <button type="button" onClick={() => onSelect(upload.id)} className={`w-full rounded-2xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+    <button type="button" onClick={() => onSelect(upload.id)} className={`w-full min-w-0 max-w-full rounded-2xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
           <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} · {uploadUploaderLabel(upload)}</p>
         </div>
@@ -3065,15 +3065,15 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
         }
       />
       <div className="grid gap-4">
-        <AuthenticatedUploadPreview upload={upload} token={token} />
+        <AuthenticatedUploadPreview upload={upload} token={token} className="h-52 w-full max-w-full rounded-2xl object-cover sm:h-64" />
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+          <div className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Uploaded by:</span> {uploadUploaderLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Taken at:</span> {formatDateTime(upload.takenAt)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Uploaded at:</span> {formatDateTime(upload.uploadedAt)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {upload.fileType || "Unknown"}</p>
           </div>
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+          <div className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Job:</span> {uploadJobLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Customer:</span> {uploadCustomerLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Location status:</span> {gpsStatusLabel(upload)}</p>
@@ -3360,7 +3360,7 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
   return (
     <div>
       <PageHeader eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"} title="Uploads" description="Job-linked photo evidence with timestamp metadata and optional GPS capture for field documentation." actions={<Badge tone="blue">{visibleRows.length} uploads</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-2 xl:grid-cols-4">
@@ -3393,7 +3393,7 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
             </div>
           )}
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <UploadCreateCard
             canCreate={permissions.uploads.canCreate}
             jobs={allowedJobs}
@@ -3578,8 +3578,8 @@ function SafetyPage({
         description={headerDescription}
         actions={<Badge tone="blue">{visibleIncidents.length} visible incidents</Badge>}
       />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
+        <div className="min-w-0 space-y-4">
           {canSubmitIncidents ? (
             <Card className="p-4 md:p-5">
               <SectionHeader
@@ -3721,7 +3721,7 @@ function SafetyPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4 md:p-5">
             <SectionHeader title="PPE checklist" description="Default PPE stays visible to field users and editable only for office/admin." />
             {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
@@ -3890,7 +3890,7 @@ function ReportsPage({
   return (
     <div>
       <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture work performed, delays, safety notes, crew coverage, and concrete details without exposing payroll or pricing." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           {canView ? (
             <>
@@ -3921,7 +3921,7 @@ function ReportsPage({
             <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
           )}
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
           <DailyReportDetailPanel
             report={selectedReport}
@@ -4078,7 +4078,7 @@ function CustomerDetailPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <Card className="p-5">
         <SectionHeader
           title={customer.name}
@@ -4461,9 +4461,9 @@ function DashboardPage({
         }
         tabs={tabs}
       />
-      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
-        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <Card className="overflow-hidden">
             <div className="p-4">
               <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
@@ -4471,12 +4471,12 @@ function DashboardPage({
             <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
             <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
           </Card>
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
             <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
           </div>
         </div>
-        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card className="overflow-hidden">
             <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
             <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={selectedJobId} onSelect={onSelectJob} />
@@ -4523,7 +4523,7 @@ function LeadsPage({
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
@@ -4545,7 +4545,7 @@ function LeadsPage({
           </div>
           <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
           <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
         </div>
@@ -4650,7 +4650,7 @@ function JobsPage({
   return (
     <div>
       <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
@@ -4672,7 +4672,7 @@ function JobsPage({
           </div>
           <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
           <JobDetailPanel
             job={selectedJob}
@@ -4731,7 +4731,7 @@ function CustomersPage({
   return (
     <div>
       <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} visible customers</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           {canView ? (
             <>
@@ -4761,7 +4761,7 @@ function CustomersPage({
             </div>
           )}
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <CustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
           <CustomerDetailPanel
             customer={selectedCustomer}
@@ -5016,7 +5016,7 @@ function EmployeesPage({
   return (
     <div>
       <PageHeader eyebrow="Office" title="Employees" description="Create and manage office, foreman, and employee logins so crew assignments stay usable." actions={<Badge tone="blue">{visibleRows.length} users</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All roles", ...USER_ROLE_OPTIONS]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, email, phone..." />
           <div className="border-b border-blue-100 bg-blue-50/40 p-3">
@@ -5036,7 +5036,7 @@ function EmployeesPage({
             <UsersTable rows={visibleRows} selectedId={selectedUserId} onSelect={onSelectUser} />
           )}
         </Card>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <UserCreateCard draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} />
           <UserDetailPanel user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} />
         </div>
@@ -5535,7 +5535,7 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   return (
     <div>
       <PageHeader eyebrow="System" title="Ops Copilot" description="A lightweight operations summary page derived from live backend state." />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
           <SectionHeader title="Suggested actions" description="Derived from the current state of leads, jobs, and the queue." />
           <div className="space-y-3">
@@ -5560,8 +5560,8 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode, companySetti
   return (
     <div>
       <PageHeader eyebrow="System" title="Settings" description={demoMode ? "This workspace uses authenticated server state with optional seeded demo data." : "This workspace uses authenticated server state with production-style admin setup."} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
-        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_360px]">
           <Card className="p-5">
             <SectionHeader title="Account" description="Current signed-in operator." />
             <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
@@ -5693,8 +5693,8 @@ function PrePourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
@@ -5748,7 +5748,7 @@ function PrePourPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {canCreateChecklist ? (
             <Card className="p-4">
               <SectionHeader title="Create checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
@@ -5957,8 +5957,8 @@ function PostPourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job, then reopen checklists when the field needs another pass." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
@@ -6012,7 +6012,7 @@ function PostPourPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {canCreateChecklist ? (
             <Card className="p-4">
               <SectionHeader title="Create checklist" description="Start a post-pour checklist with the default finish and closeout items for a job." />
@@ -6232,8 +6232,8 @@ function EstimatesPage({
   return (
     <div>
       <PageHeader eyebrow="Office Sales" title="Estimates" description="Build customer proposals with line items, pricing totals, and approved-to-job conversion while keeping field payloads money-safe." />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Focus on active estimates or pull archived proposals back into view." />
             <div className="grid gap-3">
@@ -6288,7 +6288,7 @@ function EstimatesPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {canManage ? (
             <Card className="p-4">
               <SectionHeader title="Create estimate" description="Link the proposal to a customer or lead, add line items, and keep pricing inside the office workspace." />
@@ -6511,8 +6511,8 @@ function ChangeOrdersPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Change Order Requests" description={canManage ? "Review field scope-change requests across every job and keep pricing decisions on the office side." : "Request a scope change from the field without exposing pricing, billing, or profit data."} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Focus on the requests that need action." />
             <div className="grid gap-3">
@@ -6566,7 +6566,7 @@ function ChangeOrdersPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {canCreate ? (
             <Card className="p-4">
               <SectionHeader title="Create request" description="Capture field scope changes for office review without adding pricing." />
@@ -6743,8 +6743,8 @@ function DeliveryTicketsPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Focus on the deliveries that matter right now." />
             <div className="grid gap-3">
@@ -6798,7 +6798,7 @@ function DeliveryTicketsPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {canCreate ? (
             <Card className="p-4">
               <SectionHeader title="Create ticket" description="Record truck and ticket details from the field without any pricing data." />
@@ -7014,8 +7014,8 @@ function ToolChecklistPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Tool Checklist" description={permissions.toolChecklist.canManageAll ? "Manage job checklists, review submissions, and keep field tool status visible to the office." : "Keep job tools organized, flag missing or damaged items, and submit the field checklist without exposing office-only data."} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Keep the checklist list scoped to the work you need right now." />
             <div className="grid gap-3">
@@ -7068,7 +7068,7 @@ function ToolChecklistPage({
             )}
           </Card>
         </div>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {canCreateChecklist ? (
             <Card className="p-4">
               <SectionHeader title="Create checklist" description="Start with a job-level checklist for the crew." />
@@ -7219,7 +7219,7 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   return (
     <div>
       <PageHeader eyebrow="Module" title={item?.label || "Module"} description="This module is scaffolded with the same production primitives and can now plug into real backend state." actions={<Badge tone="slate">Scaffolded</Badge>} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
           <SectionHeader title="Work queue" description="These sections are connected to live app data even before a dedicated workflow is built." />
           <div className="space-y-3">{previews.map((preview) => <div key={preview} className="rounded-2xl border border-blue-100 p-4 text-sm text-slate-600">{preview}</div>)}</div>
@@ -9261,7 +9261,7 @@ export default function App() {
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-950">
+    <div className="min-h-screen overflow-x-clip bg-transparent text-slate-950">
       <div className="flex">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
