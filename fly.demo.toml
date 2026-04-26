@@ -9,7 +9,7 @@ primary_region = "sjc"
   PORT = "4000"
   DATA_DIR = "/app/data"
   LOG_LEVEL = "info"
-  SEED_DEMO_DATA = "false"
+  SEED_DEMO_DATA = "true"
 
 [http_service]
   internal_port = 4000
