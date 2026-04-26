@@ -120,6 +120,8 @@ const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "public_request_form"];
+const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
+const uploadPreviewCache = new Map();
 
 const TOKENS = {
   colors: [
@@ -324,6 +326,39 @@ function mergePermissionScope(defaults, incoming) {
   };
 }
 
+function getUploadPreviewCacheKey(upload) {
+  if (!upload?.id) return "";
+  return `${upload.id}:${upload.updatedAt || upload.uploadedAt || ""}`;
+}
+
+function getCachedUploadPreviewUrl(cacheKey) {
+  if (!cacheKey) return "";
+  const cachedEntry = uploadPreviewCache.get(cacheKey);
+  if (!cachedEntry?.url) return "";
+  uploadPreviewCache.delete(cacheKey);
+  uploadPreviewCache.set(cacheKey, cachedEntry);
+  return cachedEntry.url;
+}
+
+function storeUploadPreviewUrl(cacheKey, previewUrl) {
+  if (!cacheKey || !previewUrl) return;
+  const previousEntry = uploadPreviewCache.get(cacheKey);
+  if (previousEntry?.url && previousEntry.url !== previewUrl) {
+    URL.revokeObjectURL(previousEntry.url);
+  }
+  uploadPreviewCache.delete(cacheKey);
+  uploadPreviewCache.set(cacheKey, { url: previewUrl });
+
+  while (uploadPreviewCache.size > UPLOAD_PREVIEW_CACHE_LIMIT) {
+    const oldestKey = uploadPreviewCache.keys().next().value;
+    const oldestEntry = uploadPreviewCache.get(oldestKey);
+    if (oldestEntry?.url) {
+      URL.revokeObjectURL(oldestEntry.url);
+    }
+    uploadPreviewCache.delete(oldestKey);
+  }
+}
+
 function normalizeObjectArray(value, fallback = []) {
   if (Array.isArray(value)) {
     return value.filter((item) => item && typeof item === "object");
@@ -339,6 +374,38 @@ function normalizeEstimateArray(value, fallback = []) {
     ...estimate,
     items: normalizeObjectArray(estimate?.items),
   }));
+}
+
+function deriveDashboardMetrics(leads = [], jobs = [], queueItems = []) {
+  const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
+  const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
+  const liveQueueItems = normalizeObjectArray(queueItems).filter((item) => !item.archivedAt);
+
+  return {
+    liveLeadCount: liveLeads.length,
+    liveJobsPreview: liveJobs.slice(0, 5),
+    stats: {
+      newLeads: liveLeads.filter((lead) => lead.status === "New").length,
+      highPriorityLeads: liveLeads.filter((lead) => lead.priority === "High").length,
+      pipelineValue: liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0),
+      activeJobs: liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length,
+      scheduledJobs: liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "scheduled").length,
+      reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
+      queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
+    },
+  };
+}
+
+function deriveWorkspaceCounts({ permissions, users, customers, leads, jobs, dailyReports }) {
+  const safePermissions = permissions || EMPTY_APP_STATE.permissions;
+  return {
+    employees: safePermissions.users?.canView ? normalizeObjectArray(users).filter((user) => user.status === "active").length : null,
+    customers: safePermissions.customers?.canView ? normalizeObjectArray(customers).filter((customer) => !customer.archivedAt).length : null,
+    leads: safePermissions.leads?.canView ? normalizeObjectArray(leads).filter((lead) => !lead.archivedAt).length : null,
+    jobs: normalizeObjectArray(jobs).filter((job) => !job.archivedAt).length,
+    reports: safePermissions.reports?.canView ? normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt).length : null,
+    copilot: 1,
+  };
 }
 
 function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
@@ -2961,6 +3028,7 @@ function DailyReportDetailPanel({
 function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full rounded-2xl object-cover" }) {
   const [previewUrl, setPreviewUrl] = useState("");
   const [status, setStatus] = useState("idle");
+  const cacheKey = getUploadPreviewCacheKey(upload);
 
   useEffect(() => {
     if (!upload?.contentUrl || !token) {
@@ -2969,8 +3037,16 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
       return undefined;
     }
 
+    const cachedPreviewUrl = getCachedUploadPreviewUrl(cacheKey);
+    if (cachedPreviewUrl) {
+      setPreviewUrl(cachedPreviewUrl);
+      setStatus("ready");
+      return undefined;
+    }
+
     let revokedUrl = "";
     let cancelled = false;
+    let cached = false;
     setStatus("loading");
 
     fetch(upload.contentUrl, {
@@ -2987,6 +3063,8 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
       .then((blob) => {
         if (cancelled) return;
         revokedUrl = URL.createObjectURL(blob);
+        storeUploadPreviewUrl(cacheKey, revokedUrl);
+        cached = true;
         setPreviewUrl(revokedUrl);
         setStatus("ready");
       })
@@ -2999,9 +3077,9 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
 
     return () => {
       cancelled = true;
-      if (revokedUrl) URL.revokeObjectURL(revokedUrl);
+      if (revokedUrl && !cached) URL.revokeObjectURL(revokedUrl);
     };
-  }, [token, upload?.contentUrl, upload?.id]);
+  }, [cacheKey, token, upload?.contentUrl]);
 
   if (status === "ready" && previewUrl) {
     return <img src={previewUrl} alt={upload.fileName || "Uploaded evidence"} className={className} />;
@@ -4398,6 +4476,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
 
 function DashboardPage({
   stats,
+  dashboardMetrics,
   leads,
   jobs,
   queueItems,
@@ -4468,20 +4547,23 @@ function DashboardPage({
     </button>
   ));
 
-  const visibleLeads = leads.filter((lead) => {
-    const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
-    const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
+  const visibleLeads = useMemo(() => {
     const searchValue = leadSearch.toLowerCase();
-    const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => value.toLowerCase().includes(searchValue));
-    return matchesArchive && matchesFilter && matchesSearch;
-  });
-
-  const kpis = [
+    return normalizeObjectArray(leads).filter((lead) => {
+      const matchesArchive = leadFilter === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
+      const matchesFilter = leadFilter === "All" || leadFilter === "Archived" ? true : lead.status === leadFilter;
+      const matchesSearch = [lead.customer, lead.project, lead.city, lead.owner].some((value) => String(value || "").toLowerCase().includes(searchValue));
+      return matchesArchive && matchesFilter && matchesSearch;
+    });
+  }, [leadFilter, leadSearch, leads]);
+  const liveLeadCount = dashboardMetrics?.liveLeadCount ?? 0;
+  const liveJobsPreview = Array.isArray(dashboardMetrics?.liveJobsPreview) ? dashboardMetrics.liveJobsPreview : [];
+  const kpis = useMemo(() => ([
     { label: "Leads needing review", value: `${stats.newLeads}`, helper: `${stats.highPriorityLeads} high priority`, icon: "inbox" },
-    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${leads.filter((lead) => !lead.archivedAt).length} active opportunities`, icon: "quote" },
+    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${liveLeadCount} active opportunities`, icon: "quote" },
     { label: "Jobs active today", value: `${stats.activeJobs}`, helper: `${stats.scheduledJobs} scheduled next`, icon: "briefcase" },
     { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
-  ];
+  ]), [liveLeadCount, stats.activeJobs, stats.highPriorityLeads, stats.pipelineValue, stats.queueBlocked, stats.reportsDue, stats.scheduledJobs]);
 
   return (
     <div>
@@ -4520,7 +4602,7 @@ function DashboardPage({
           <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
               <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
-              <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={selectedJobId} onSelect={onSelectJob} />
+              <JobsTable rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} />
             </Card>
           </div>
           <ActivityPanel activity={activity} />
@@ -8016,10 +8098,14 @@ export default function App() {
   }), [appState.leads, leadDueFilter, leadFilter, leadOwnerFilter, leadSearch, leadSourceFilter]);
   const visibleLeads = leadListState.filteredLeads;
 
+  const userNamesById = useMemo(
+    () => new Map(appState.users.map((user) => [user.id, user.name || ""])),
+    [appState.users],
+  );
   const enrichedJobs = useMemo(() => appState.jobs.map((job) => ({
     ...job,
-    assignedForemanName: appState.users.find((user) => user.id === job.assignedForemanId)?.name || "",
-  })), [appState.jobs, appState.users]);
+    assignedForemanName: userNamesById.get(job.assignedForemanId) || "",
+  })), [appState.jobs, userNamesById]);
 
   const visibleJobs = useMemo(() => deriveJobListState(enrichedJobs, {
     status: jobFilter,
@@ -8029,27 +8115,11 @@ export default function App() {
   date: jobDateFilter,
   }, appState.users).filteredJobs, [appState.users, enrichedJobs, jobCustomerFilter, jobDateFilter, jobFilter, jobForemanFilter, jobSearch]);
 
-  const stats = useMemo(() => {
-    const liveLeads = appState.leads.filter((lead) => !lead.archivedAt);
-    const liveJobs = appState.jobs.filter((job) => !job.archivedAt);
-    const liveQueueItems = appState.queueItems.filter((item) => !item.archivedAt);
-    const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
-    const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
-    const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
-    const activeJobs = liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length;
-    const scheduledJobs = liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "scheduled").length;
-    const reportsDue = liveQueueItems.filter((item) => !item.done && item.status === "Due today").length;
-    const queueBlocked = liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length;
-    return {
-      newLeads,
-      highPriorityLeads,
-      pipelineValue,
-      activeJobs,
-      scheduledJobs,
-      reportsDue,
-      queueBlocked,
-    };
-  }, [appState.jobs, appState.leads, appState.queueItems]);
+  const dashboardMetrics = useMemo(
+    () => deriveDashboardMetrics(appState.leads, appState.jobs, appState.queueItems),
+    [appState.jobs, appState.leads, appState.queueItems],
+  );
+  const stats = dashboardMetrics.stats;
 
   const saveSummary = useMemo(() => {
     const relevantStates = [recordSaveState.customer, recordSaveState.lead, recordSaveState.job];
@@ -8060,14 +8130,14 @@ export default function App() {
     return null;
   }, [recordSaveState.customer, recordSaveState.job, recordSaveState.lead]);
 
-  const counts = {
-    employees: appState.permissions.users.canView ? appState.users.filter((user) => user.status === "active").length : null,
-    customers: appState.permissions.customers.canView ? appState.customers.filter((customer) => !customer.archivedAt).length : null,
-    leads: appState.permissions.leads.canView ? appState.leads.filter((lead) => !lead.archivedAt).length : null,
-    jobs: appState.jobs.filter((job) => !job.archivedAt).length,
-    reports: appState.permissions.reports.canView ? appState.dailyReports.filter((report) => !report.archivedAt).length : null,
-    copilot: 1,
-  };
+  const counts = useMemo(() => deriveWorkspaceCounts({
+    permissions: appState.permissions,
+    users: appState.users,
+    customers: appState.customers,
+    leads: appState.leads,
+    jobs: appState.jobs,
+    dailyReports: appState.dailyReports,
+  }), [appState.customers, appState.dailyReports, appState.jobs, appState.leads, appState.permissions, appState.users]);
   const dashboardShortcuts = useMemo(() => getDashboardShortcuts(appState.user, appState.companySettings), [appState.companySettings, appState.user]);
 
   async function runMutation(task) {
@@ -9436,11 +9506,12 @@ export default function App() {
               setActive={setActive}
               user={appState.user}
               companySettings={appState.companySettings}
-                stats={stats}
-                customers={appState.customers}
-                leads={appState.leads}
-                estimates={appState.estimates}
-                jobs={appState.jobs}
+              stats={stats}
+              dashboardMetrics={dashboardMetrics}
+              customers={appState.customers}
+              leads={appState.leads}
+              estimates={appState.estimates}
+              jobs={appState.jobs}
               safetyPolicies={appState.safetyPolicies}
                 ppeItems={appState.ppeItems}
                 safetyAcknowledgments={appState.safetyAcknowledgments}
