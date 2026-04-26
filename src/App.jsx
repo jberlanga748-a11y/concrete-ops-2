@@ -538,7 +538,7 @@ function StatusBadge({ status }) {
 }
 
 function Card({ children, className = "" }) {
-  return <div className={`panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel ${className}`}>{children}</div>;
+  return <div className={`panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel ${className}`}>{children}</div>;
 }
 
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
@@ -559,7 +559,7 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
 
 function SectionHeader({ title, description, action }) {
   return (
-    <div className="mb-3 flex items-start justify-between gap-4">
+    <div className="mb-3 flex min-w-0 items-start justify-between gap-4">
       <div className="min-w-0">
         <h2 className="text-base font-black text-slate-950">{title}</h2>
         {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-500">{description}</p> : null}
@@ -2142,9 +2142,9 @@ function TimePage({
     return (
       <div>
         <PageHeader eyebrow="Time" title="Time Entries" description="Review all field time entries and correct timestamps when needed." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
-        <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
           {permissions.time.canManageOwn ? (
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <ActiveTimeCard
                 activeEntry={activeEntry}
                 availableJobs={workspace.availableJobs}
@@ -2168,13 +2168,13 @@ function TimePage({
               />
             </div>
           ) : null}
-          <div className="grid gap-3.5 md:gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="space-y-4">
+          <div className="grid min-w-0 gap-3.5 md:gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="min-w-0 space-y-4">
               <WeekSummaryCard summary={deriveCrewWeeklySummary(rows)} title="All Visible Time This Week" description="Role-scoped weekly totals across the time entries you are allowed to view." compactMobile />
-              <Card className="overflow-hidden border-blue-100/80 bg-slate-50/35">
+              <Card className="min-w-0 overflow-hidden border-blue-100/80 bg-slate-50/35">
                 <div className="border-b border-blue-100/80 p-3 md:p-4"><SectionHeader title="Admin time management" description="All-company review and correction tools stay below your personal clock cards on mobile." /></div>
                 <div className="p-3 pt-0 md:p-4 md:pt-0"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
-                {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
+                {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="min-w-0 overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
               </Card>
             </div>
             <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
