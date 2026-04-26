@@ -1,4 +1,7 @@
 export const DEFAULT_COMPANY_SETTINGS = {
+  companyName: "",
+  logoInitials: "",
+  accentColor: "blue",
   toolChecklistEnabled: true,
 };
 

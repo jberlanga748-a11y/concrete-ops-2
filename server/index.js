@@ -129,6 +129,7 @@ const SAFETY_INCIDENT_STATUSES = new Set(["open", "reviewed", "resolved", "archi
 const TOOL_CHECKLIST_STATUSES = new Set(["draft", "active", "submitted", "reviewed", "archived"]);
 const TOOL_CHECKLIST_ITEM_CATEGORIES = new Set(["hand_tools", "power_tools", "concrete_finishing", "forms_layout", "safety_ppe", "small_equipment", "consumables", "other"]);
 const TOOL_CHECKLIST_ITEM_STATUSES = new Set(["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"]);
+const COMPANY_ACCENT_COLORS = new Set(["blue", "slate", "emerald", "amber", "orange"]);
 const PRE_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
 const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
 const POST_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
@@ -2888,6 +2889,25 @@ function optionalBoolean(value, fallback = false) {
   return Boolean(value);
 }
 
+function optionalCompanyName(value, fallback = "") {
+  if (value == null) return fallback;
+  return String(value).trim().slice(0, 80);
+}
+
+function optionalLogoInitials(value, fallback = "") {
+  if (value == null) return fallback;
+  return String(value).trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+function optionalAccentColor(value, fallback = DEFAULT_COMPANY_SETTINGS.accentColor) {
+  if (value == null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (!COMPANY_ACCENT_COLORS.has(normalized)) {
+    throw new ApiError(400, `Accent color must be one of: ${Array.from(COMPANY_ACCENT_COLORS).join(", ")}.`);
+  }
+  return normalized;
+}
+
 function resolveOptionalUserId(state, value, fieldName) {
   const normalized = optionalString(value, "");
   if (!normalized) return "";
@@ -4252,23 +4272,67 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
 app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
   assertCanToggleToolChecklist(req.auth.user);
   const payload = req.body || {};
-  const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     draft.companySettings = companySettingsForState(draft);
+    const changedFields = [];
+    const brandingChanges = [];
     const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, draft.companySettings.toolChecklistEnabled);
-    draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
+    const nextCompanyName = payload.companyName == null
+      ? draft.companySettings.companyName
+      : optionalCompanyName(payload.companyName, "");
+    const nextLogoInitials = payload.logoInitials == null
+      ? draft.companySettings.logoInitials
+      : optionalLogoInitials(payload.logoInitials, "");
+    const nextAccentColor = payload.accentColor == null
+      ? draft.companySettings.accentColor
+      : optionalAccentColor(payload.accentColor, draft.companySettings.accentColor);
 
-    appendActivity(draft, nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled", `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`);
-    appendAuditEvent(draft, {
-      entityType: "companySettings",
-      entityId: "toolChecklistEnabled",
-      action: nextToolChecklistEnabled ? "enabled" : "disabled",
-      summary: nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled",
-      detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
-      actor: req.auth.user,
-      changedFields: ["toolChecklistEnabled", "updatedAt"],
-    });
+    if (draft.companySettings.toolChecklistEnabled !== nextToolChecklistEnabled) {
+      draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
+      changedFields.push("toolChecklistEnabled");
+      appendActivity(draft, nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled", `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "toolChecklistEnabled",
+        action: nextToolChecklistEnabled ? "enabled" : "disabled",
+        summary: nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled",
+        detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
+        actor: req.auth.user,
+        changedFields: ["toolChecklistEnabled", "updatedAt"],
+      });
+    }
+
+    if (draft.companySettings.companyName !== nextCompanyName) {
+      draft.companySettings.companyName = nextCompanyName;
+      changedFields.push("companyName");
+      brandingChanges.push("company name");
+    }
+    if (draft.companySettings.logoInitials !== nextLogoInitials) {
+      draft.companySettings.logoInitials = nextLogoInitials;
+      changedFields.push("logoInitials");
+      brandingChanges.push("logo initials");
+    }
+    if (draft.companySettings.accentColor !== nextAccentColor) {
+      draft.companySettings.accentColor = nextAccentColor;
+      changedFields.push("accentColor");
+      brandingChanges.push("accent color");
+    }
+
+    if (brandingChanges.length > 0) {
+      const detail = `${req.auth.user.name} updated the workspace ${brandingChanges.join(", ")}.`;
+      appendActivity(draft, "Workspace branding updated", detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "branding",
+        action: "updated",
+        summary: "Workspace branding updated",
+        detail,
+        actor: req.auth.user,
+        changedFields: [...changedFields, "updatedAt"],
+      });
+    }
+
     return draft;
   });
 

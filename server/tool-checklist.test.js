@@ -180,9 +180,17 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     const disabledState = await assertOk(fixture.baseUrl, "/api/settings/company", {
       method: "PATCH",
       headers: officeHeaders,
-      body: JSON.stringify({ toolChecklistEnabled: false }),
+      body: JSON.stringify({
+        toolChecklistEnabled: false,
+        companyName: "Pacific Northwest Concrete Demo",
+        logoInitials: "pnc",
+        accentColor: "emerald",
+      }),
     });
     assert.equal(disabledState.companySettings.toolChecklistEnabled, false);
+    assert.equal(disabledState.companySettings.companyName, "Pacific Northwest Concrete Demo");
+    assert.equal(disabledState.companySettings.logoInitials, "PNC");
+    assert.equal(disabledState.companySettings.accentColor, "emerald");
 
     const disabledForemanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: foremanHeaders });
     assert.equal(disabledForemanBootstrap.permissions.toolChecklist.canUse, false);
@@ -197,6 +205,9 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
       body: JSON.stringify({ toolChecklistEnabled: true }),
     });
     assert.equal(reenabledState.companySettings.toolChecklistEnabled, true);
+    assert.equal(reenabledState.companySettings.companyName, "Pacific Northwest Concrete Demo");
+    assert.equal(reenabledState.companySettings.logoInitials, "PNC");
+    assert.equal(reenabledState.companySettings.accentColor, "emerald");
 
     const createdChecklistState = await assertOk(fixture.baseUrl, "/api/tool-checklists", {
       method: "POST",
