@@ -154,6 +154,34 @@ export function getTimeEntries(token) {
   return request("/api/time-entries", { token });
 }
 
+export function getDailyReports(token) {
+  return request("/api/daily-reports", { token });
+}
+
+export function createDailyReport(token, payload) {
+  return request("/api/daily-reports", { method: "POST", token, body: payload });
+}
+
+export function updateDailyReport(token, id, payload) {
+  return request(`/api/daily-reports/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function submitDailyReport(token, id) {
+  return request(`/api/daily-reports/${id}/submit`, { method: "POST", token });
+}
+
+export function reviewDailyReport(token, id) {
+  return request(`/api/daily-reports/${id}/review`, { method: "POST", token });
+}
+
+export function reopenDailyReport(token, id) {
+  return request(`/api/daily-reports/${id}/reopen`, { method: "POST", token });
+}
+
+export function archiveDailyReport(token, id) {
+  return request(`/api/daily-reports/${id}/archive`, { method: "POST", token });
+}
+
 export function clockIn(token, payload) {
   return request("/api/time-entries/clock-in", { method: "POST", token, body: payload });
 }

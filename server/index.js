@@ -31,6 +31,7 @@ import {
   DEFAULT_COMPANY_SETTINGS,
   canArchiveJobs,
   canCreateJobs,
+  canCreateDailyReports,
   canDeleteJobs,
   canCorrectTimeEntries,
   canExportData,
@@ -40,9 +41,11 @@ import {
   canManageJobFieldUpdates,
   canManageLeads,
   canManageOwnTime,
+  canManageReports,
   canManageSafety,
   canManageToolChecklist,
   canManageUsers,
+  canReviewReports,
   canUseCalculator,
   canUseToolChecklist,
   canViewAudit,
@@ -52,6 +55,7 @@ import {
   canViewJob,
   canViewJobMoney,
   canViewLeads,
+  canViewReports,
   canViewSettings,
   canViewSafety,
   canViewAllTime,
@@ -83,6 +87,7 @@ const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
+const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -229,6 +234,14 @@ function optionalWorkCategory(value, fallback = "job") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!TIME_WORK_CATEGORIES.has(normalized)) {
     throw new ApiError(400, `Work category must be one of: ${Array.from(TIME_WORK_CATEGORIES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalDailyReportStatus(value, fallback = "draft") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!DAILY_REPORT_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Daily report status must be one of: ${Array.from(DAILY_REPORT_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -440,6 +453,100 @@ function visibleJobsForUser(state, user) {
   return state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state));
 }
 
+function dailyReportStatusLabel(status = "draft") {
+  const labels = {
+    draft: "Draft",
+    submitted: "Submitted",
+    reviewed: "Reviewed",
+    reopened: "Reopened",
+    archived: "Archived",
+  };
+
+  return labels[optionalDailyReportStatus(status, "draft")] || "Draft";
+}
+
+function jobCrewSummaryForDate(state, job, reportDate, user) {
+  const baseJob = sanitizeJobForUser(job, user, state);
+  const visibleEntries = visibleTimeEntriesForUser(state, user).filter((entry) => entry.jobId === job.id && entry.clockInAt.slice(0, 10) === reportDate);
+  const totalMinutes = visibleEntries.reduce((sum, entry) => sum + Number(entry.totalMinutes || 0), 0);
+  const breakMinutes = visibleEntries.reduce((sum, entry) => sum + Number(entry.breakMinutes || 0), 0);
+  const participants = [...new Map(
+    visibleEntries.map((entry) => [entry.userId, { userId: entry.userId, userName: entry.userName, userRole: entry.userRole }]),
+  ).values()];
+
+  return {
+    foremanAssignment: baseJob.foremanAssignment || null,
+    crewAssignments: baseJob.crewAssignments || [],
+    timeSummary: {
+      reportDate,
+      totalEntries: visibleEntries.length,
+      totalMinutes,
+      breakMinutes,
+      activeUserCount: new Set(visibleEntries.filter((entry) => entry.status !== "completed").map((entry) => entry.userId)).size,
+      participants,
+    },
+  };
+}
+
+function sanitizeDailyReportForUser(report, state, user) {
+  const job = state.jobs.find((entry) => entry.id === report.jobId);
+  if (!job || !canViewJob(job, user)) return null;
+
+  const createdByUser = findUserById(state, report.createdBy);
+  const submittedByUser = findUserById(state, report.submittedBy);
+  const reviewedByUser = findUserById(state, report.reviewedBy);
+  const crewTime = jobCrewSummaryForDate(state, job, report.reportDate, user);
+
+  return {
+    id: report.id,
+    jobId: report.jobId,
+    reportDate: report.reportDate,
+    status: optionalDailyReportStatus(report.status, "draft"),
+    statusLabel: dailyReportStatusLabel(report.status),
+    createdBy: report.createdBy,
+    createdByName: createdByUser?.name || report.createdBy,
+    submittedBy: report.submittedBy || "",
+    submittedByName: submittedByUser?.name || "",
+    reviewedBy: report.reviewedBy || "",
+    reviewedByName: reviewedByUser?.name || "",
+    crewSummary: report.crewSummary || "",
+    workPerformed: report.workPerformed || "",
+    delays: report.delays || "",
+    safetyNotes: report.safetyNotes || "",
+    equipmentUsed: report.equipmentUsed || "",
+    materialNotes: report.materialNotes || "",
+    concretePoured: Boolean(report.concretePoured),
+    yardsPoured: Number(report.yardsPoured || 0),
+    weather: report.weather || "",
+    visitorNotes: report.visitorNotes || "",
+    inspectionNotes: report.inspectionNotes || "",
+    generalNotes: report.generalNotes || "",
+    createdAt: report.createdAt,
+    updatedAt: report.updatedAt,
+    submittedAt: report.submittedAt || "",
+    reviewedAt: report.reviewedAt || "",
+    reopenedAt: report.reopenedAt || "",
+    archivedAt: report.archivedAt || null,
+    job: sanitizeJobForUser(job, user, state),
+    crewAssignments: crewTime.crewAssignments,
+    foremanAssignment: crewTime.foremanAssignment,
+    timeSummary: crewTime.timeSummary,
+  };
+}
+
+function visibleDailyReportsForUser(state, user) {
+  if (!user || !canViewReports(user)) return [];
+
+  return (state.dailyReports || [])
+    .map((report) => sanitizeDailyReportForUser(report, state, user))
+    .filter(Boolean)
+    .sort((left, right) => {
+      const dateCompare = String(right.reportDate || "").localeCompare(String(left.reportDate || ""));
+      if (dateCompare !== 0) return dateCompare;
+      return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
+    });
+}
+
 function visibleQueueItemsForUser(state, user) {
   if (!user) return [];
   if (isOfficeManager(user)) {
@@ -458,6 +565,15 @@ function visibleActivityForUser(state, user) {
 
 function canViewTimeEntries(user) {
   return canViewAllTime(user) || canViewCrewTime(user) || canManageOwnTime(user);
+}
+
+function reportPermissionsForUser(user) {
+  return {
+    canView: canViewReports(user),
+    canCreate: canCreateDailyReports(user),
+    canManageAll: canManageReports(user),
+    canReview: canReviewReports(user),
+  };
 }
 
 function timePermissionsForUser(user) {
@@ -514,6 +630,24 @@ function assertCanManageOwnTime(user) {
 function assertCanCorrectTimeEntries(user) {
   if (!canCorrectTimeEntries(user)) {
     throw new ApiError(403, "You do not have permission to correct time entries.");
+  }
+}
+
+function assertCanViewReports(user) {
+  if (!canViewReports(user)) {
+    throw new ApiError(403, "You do not have permission to view daily reports.");
+  }
+}
+
+function assertCanCreateDailyReports(user) {
+  if (!canCreateDailyReports(user)) {
+    throw new ApiError(403, "You do not have permission to create daily reports.");
+  }
+}
+
+function assertCanReviewReports(user) {
+  if (!canReviewReports(user)) {
+    throw new ApiError(403, "You do not have permission to review daily reports.");
   }
 }
 
@@ -928,6 +1062,68 @@ function activeAssignmentForUser(state, jobId, userId) {
   return activeJobAssignments(state, jobId).find((assignment) => assignment.userId === userId) || null;
 }
 
+function findDailyReport(state, reportId) {
+  return findRequiredRecord(state.dailyReports || [], reportId, "Daily report");
+}
+
+function canCreateDailyReportForJob(user, job) {
+  if (!job) return false;
+  if (job.archivedAt) return false;
+  if (canManageReports(user)) return true;
+  if (!isForeman(user)) return false;
+  return canViewJob(job, user);
+}
+
+function canEditDailyReport(user, job, report) {
+  if (!job || !report || report.archivedAt) return false;
+  if (canManageReports(user)) return true;
+  if (!isForeman(user)) return false;
+  if (!canViewJob(job, user)) return false;
+  return ["draft", "reopened"].includes(optionalDailyReportStatus(report.status, "draft"));
+}
+
+function canSubmitDailyReport(user, job, report) {
+  if (!job || !report || report.archivedAt) return false;
+  if (canManageReports(user)) return true;
+  if (!isForeman(user)) return false;
+  if (!canViewJob(job, user)) return false;
+  return ["draft", "reopened"].includes(optionalDailyReportStatus(report.status, "draft"));
+}
+
+function createDailyReportShape(payload, user, changedAt) {
+  const reportDate = optionalDateString(requiredString(payload.reportDate, "Report date"), "Report date");
+  const concretePoured = optionalBoolean(payload.concretePoured, false);
+  const yardsPoured = concretePoured ? optionalNonNegativeNumber(payload.yardsPoured, "Yards poured", 0) : 0;
+
+  return {
+    id: makeId("R"),
+    jobId: requiredString(payload.jobId, "Job"),
+    reportDate,
+    status: "draft",
+    createdBy: user.id,
+    submittedBy: "",
+    reviewedBy: "",
+    crewSummary: optionalString(payload.crewSummary, ""),
+    workPerformed: optionalString(payload.workPerformed, ""),
+    delays: optionalString(payload.delays, ""),
+    safetyNotes: optionalString(payload.safetyNotes, ""),
+    equipmentUsed: optionalString(payload.equipmentUsed, ""),
+    materialNotes: optionalString(payload.materialNotes, ""),
+    concretePoured,
+    yardsPoured,
+    weather: optionalString(payload.weather, ""),
+    visitorNotes: optionalString(payload.visitorNotes, ""),
+    inspectionNotes: optionalString(payload.inspectionNotes, ""),
+    generalNotes: optionalString(payload.generalNotes, ""),
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    submittedAt: "",
+    reviewedAt: "",
+    reopenedAt: "",
+    archivedAt: null,
+  };
+}
+
 function activeForemanAssignment(state, jobId) {
   return activeJobAssignments(state, jobId).find((assignment) => assignment.roleOnJob === "foreman") || null;
 }
@@ -1255,6 +1451,7 @@ function sanitizeBootstrap(state, user) {
     leads: visibleLeadsForUser(state, user),
     leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
     jobs: visibleJobsForUser(state, user),
+    dailyReports: visibleDailyReportsForUser(state, user),
     timeEntries: visibleTimeEntriesForUser(state, user),
     queueItems: visibleQueueItemsForUser(state, user),
     activity: visibleActivityForUser(state, user),
@@ -1276,6 +1473,7 @@ function sanitizeBootstrap(state, user) {
         canManageAssignments: canViewAllJobs(user),
         canViewMoney: canViewJobMoney(user),
       },
+      reports: reportPermissionsForUser(user),
       time: timePermissionsForUser(user),
       safety: {
         canView: canViewSafety(user),
@@ -1614,6 +1812,15 @@ app.get("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewReports(req.auth.user);
+  const state = await readDb();
+  res.json({
+    dailyReports: visibleDailyReportsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
 app.get("/api/time-entries", requireAuth, asyncRoute(async (req, res) => {
   assertCanViewTimeEntries(req.auth.user);
   const state = await readDb();
@@ -1621,6 +1828,235 @@ app.get("/api/time-entries", requireAuth, asyncRoute(async (req, res) => {
     timeEntries: visibleTimeEntriesForUser(state, req.auth.user),
     requestId: res.locals.requestId,
   });
+}));
+
+app.post("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateDailyReports(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.dailyReports ||= [];
+    const report = createDailyReportShape(payload, req.auth.user, changedAt);
+    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+
+    if (!canCreateDailyReportForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to create a daily report for that job.");
+    }
+
+    draft.dailyReports.unshift(report);
+    appendActivity(draft, "Daily report created", `${req.auth.user.name} created a draft report for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "dailyReport",
+      entityId: report.id,
+      action: "created",
+      summary: "Daily report created",
+      detail: `${req.auth.user.name} created a draft report for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "reportDate", "status"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/daily-reports/:id", requireAuth, asyncRoute(async (req, res) => {
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.dailyReports ||= [];
+    const report = findDailyReport(draft, req.params.id);
+    const currentJob = findRequiredRecord(draft.jobs, report.jobId, "Job");
+
+    if (!canEditDailyReport(req.auth.user, currentJob, report)) {
+      throw new ApiError(403, "You do not have permission to edit this daily report.");
+    }
+
+    const nextJobId = payload.jobId == null ? report.jobId : requiredString(payload.jobId, "Job");
+    const nextJob = findRequiredRecord(draft.jobs, nextJobId, "Job");
+    if (!canCreateDailyReportForJob(req.auth.user, nextJob)) {
+      throw new ApiError(403, "You do not have permission to move this daily report to that job.");
+    }
+
+    const changedFields = [];
+    const fieldMap = {
+      jobId: nextJobId,
+      reportDate: payload.reportDate == null ? report.reportDate : optionalDateString(requiredString(payload.reportDate, "Report date"), "Report date"),
+      crewSummary: payload.crewSummary == null ? report.crewSummary || "" : optionalString(payload.crewSummary, ""),
+      workPerformed: payload.workPerformed == null ? report.workPerformed || "" : optionalString(payload.workPerformed, ""),
+      delays: payload.delays == null ? report.delays || "" : optionalString(payload.delays, ""),
+      safetyNotes: payload.safetyNotes == null ? report.safetyNotes || "" : optionalString(payload.safetyNotes, ""),
+      equipmentUsed: payload.equipmentUsed == null ? report.equipmentUsed || "" : optionalString(payload.equipmentUsed, ""),
+      materialNotes: payload.materialNotes == null ? report.materialNotes || "" : optionalString(payload.materialNotes, ""),
+      concretePoured: payload.concretePoured == null ? Boolean(report.concretePoured) : optionalBoolean(payload.concretePoured, false),
+      weather: payload.weather == null ? report.weather || "" : optionalString(payload.weather, ""),
+      visitorNotes: payload.visitorNotes == null ? report.visitorNotes || "" : optionalString(payload.visitorNotes, ""),
+      inspectionNotes: payload.inspectionNotes == null ? report.inspectionNotes || "" : optionalString(payload.inspectionNotes, ""),
+      generalNotes: payload.generalNotes == null ? report.generalNotes || "" : optionalString(payload.generalNotes, ""),
+    };
+    fieldMap.yardsPoured = fieldMap.concretePoured ? (payload.yardsPoured == null ? Number(report.yardsPoured || 0) : optionalNonNegativeNumber(payload.yardsPoured, "Yards poured", 0)) : 0;
+
+    Object.entries(fieldMap).forEach(([field, nextValue]) => {
+      const currentValue = report[field];
+      if (currentValue !== nextValue) {
+        changedFields.push(field);
+        report[field] = nextValue;
+      }
+    });
+
+    if (changedFields.length > 0) {
+      markUpdated(report, changedAt);
+      appendActivity(draft, "Daily report updated", `${req.auth.user.name} updated a report for ${normalizeJobRecord(nextJob).title}.`);
+      appendAuditEvent(draft, {
+        entityType: "dailyReport",
+        entityId: report.id,
+        action: "updated",
+        summary: "Daily report updated",
+        detail: `${req.auth.user.name} updated a report for ${normalizeJobRecord(nextJob).title}.`,
+        actor: req.auth.user,
+        changedFields,
+      });
+    }
+
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/daily-reports/:id/submit", requireAuth, asyncRoute(async (req, res) => {
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.dailyReports ||= [];
+    const report = findDailyReport(draft, req.params.id);
+    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+
+    if (!canSubmitDailyReport(req.auth.user, job, report)) {
+      throw new ApiError(403, "You do not have permission to submit this daily report.");
+    }
+
+    const currentStatus = optionalDailyReportStatus(report.status, "draft");
+    if (!["draft", "reopened"].includes(currentStatus)) {
+      throw new ApiError(409, "Only draft or reopened reports can be submitted.");
+    }
+
+    report.status = "submitted";
+    report.submittedBy = req.auth.user.id;
+    report.submittedAt = changedAt;
+    markUpdated(report, changedAt);
+    appendActivity(draft, "Daily report submitted", `${req.auth.user.name} submitted a report for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "dailyReport",
+      entityId: report.id,
+      action: "submitted",
+      summary: "Daily report submitted",
+      detail: `${req.auth.user.name} submitted a report for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "submittedBy", "submittedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/daily-reports/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewReports(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.dailyReports ||= [];
+    const report = findDailyReport(draft, req.params.id);
+    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const currentStatus = optionalDailyReportStatus(report.status, "draft");
+    if (!["submitted", "reopened"].includes(currentStatus)) {
+      throw new ApiError(409, "Only submitted or reopened reports can be reviewed.");
+    }
+
+    report.status = "reviewed";
+    report.reviewedBy = req.auth.user.id;
+    report.reviewedAt = changedAt;
+    markUpdated(report, changedAt);
+    appendActivity(draft, "Daily report reviewed", `${req.auth.user.name} reviewed a report for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "dailyReport",
+      entityId: report.id,
+      action: "reviewed",
+      summary: "Daily report reviewed",
+      detail: `${req.auth.user.name} reviewed a report for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/daily-reports/:id/reopen", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewReports(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.dailyReports ||= [];
+    const report = findDailyReport(draft, req.params.id);
+    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const currentStatus = optionalDailyReportStatus(report.status, "draft");
+    if (!["submitted", "reviewed"].includes(currentStatus)) {
+      throw new ApiError(409, "Only submitted or reviewed reports can be reopened.");
+    }
+
+    report.status = "reopened";
+    report.reopenedAt = changedAt;
+    markUpdated(report, changedAt);
+    appendActivity(draft, "Daily report reopened", `${req.auth.user.name} reopened a report for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "dailyReport",
+      entityId: report.id,
+      action: "reopened",
+      summary: "Daily report reopened",
+      detail: `${req.auth.user.name} reopened a report for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reopenedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/daily-reports/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewReports(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.dailyReports ||= [];
+    const report = findDailyReport(draft, req.params.id);
+    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    if (report.archivedAt) {
+      throw new ApiError(409, "Daily report is already archived.");
+    }
+
+    report.archivedAt = changedAt;
+    report.status = "archived";
+    markUpdated(report, changedAt);
+    appendActivity(draft, "Daily report archived", `${req.auth.user.name} archived a report for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "dailyReport",
+      entityId: report.id,
+      action: "archived",
+      summary: "Daily report archived",
+      detail: `${req.auth.user.name} archived a report for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.get("/api/users", requireAuth, asyncRoute(async (req, res) => {
