@@ -258,6 +258,10 @@ export function archiveUpload(token, id) {
   return request(`/api/uploads/${id}/archive`, { method: "POST", token });
 }
 
+export function createCalculatorResult(token, payload) {
+  return request("/api/calculator-results", { method: "POST", token, body: payload });
+}
+
 export function createDailyReport(token, payload) {
   return request("/api/daily-reports", { method: "POST", token, body: payload });
 }

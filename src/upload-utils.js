@@ -5,6 +5,30 @@ export function deriveAllowedUploadJobs(jobs) {
   return (Array.isArray(jobs) ? jobs : []).filter((job) => !job?.archivedAt);
 }
 
+export function uploadTitle(upload) {
+  return upload?.caption || upload?.fileName || "Untitled upload";
+}
+
+export function uploadJobLabel(upload) {
+  return upload?.job?.title || upload?.jobTitle || upload?.jobId || "Job unavailable";
+}
+
+export function uploadUploaderLabel(upload) {
+  return upload?.uploadedByName || upload?.uploadedBy || "Unknown uploader";
+}
+
+export function uploadCustomerLabel(upload) {
+  return upload?.job?.customer || upload?.customerName || "Not set";
+}
+
+export function findSelectedUpload(visibleUploads, uploads, selectedUploadId) {
+  const safeVisibleUploads = Array.isArray(visibleUploads) ? visibleUploads : [];
+  const safeUploads = Array.isArray(uploads) ? uploads : [];
+  return safeVisibleUploads.find((upload) => upload?.id === selectedUploadId)
+    || safeUploads.find((upload) => upload?.id === selectedUploadId)
+    || null;
+}
+
 export function gpsStatusLabel(item) {
   if (!item) return "Not requested";
   if (item.latitude != null && item.longitude != null) return "Location captured";
@@ -88,12 +112,14 @@ export function deriveUploadListState(uploads) {
   const safeUploads = Array.isArray(uploads) ? uploads : [];
   const jobOptions = Array.from(new Map(
     safeUploads
-      .filter((upload) => !upload?.archivedAt)
-      .map((upload) => [upload.jobId, { value: upload.jobId, label: upload?.job?.title || upload.jobId }]),
+      .filter((upload) => !upload?.archivedAt && upload?.jobId)
+      .map((upload) => [upload.jobId, { value: upload.jobId, label: uploadJobLabel(upload) }]),
   ).values()).sort((left, right) => left.label.localeCompare(right.label));
 
   const uploaderOptions = Array.from(new Map(
-    safeUploads.map((upload) => [upload.uploadedBy, { value: upload.uploadedBy, label: upload.uploadedByName || upload.uploadedBy }]),
+    safeUploads
+      .filter((upload) => upload?.uploadedBy)
+      .map((upload) => [upload.uploadedBy, { value: upload.uploadedBy, label: uploadUploaderLabel(upload) }]),
   ).values()).sort((left, right) => left.label.localeCompare(right.label));
 
   const dateOptions = Array.from(new Set(

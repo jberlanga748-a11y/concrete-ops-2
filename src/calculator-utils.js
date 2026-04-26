@@ -5,6 +5,14 @@ export const CALCULATOR_TYPES = [
   { id: "roundColumn", label: "Round Column" },
 ];
 
+export const CALCULATOR_TYPE_LABELS = {
+  slab: "Slab",
+  footing: "Footing",
+  wall: "Wall",
+  roundColumn: "Round Column",
+  round_column: "Round Column",
+};
+
 export const WASTE_OPTIONS = [
   { value: "0", label: "0%" },
   { value: "5", label: "5%" },
@@ -83,6 +91,10 @@ export function summarizeCalculation(type, inputs = {}) {
   if (type === "footing") return `${inputs.length} ft x ${inputs.width} ft x ${inputs.depth} ft footing`;
   if (type === "wall") return `${inputs.length} ft x ${inputs.height} ft x ${inputs.thicknessInches} in wall`;
   return `${inputs.diameterInches} in diameter x ${inputs.height} ft round column`;
+}
+
+export function calculatorTypeLabel(type) {
+  return CALCULATOR_TYPE_LABELS[type] || "Concrete";
 }
 
 export function calculateConcreteResult(type, inputs = {}, wastePercent = 0) {

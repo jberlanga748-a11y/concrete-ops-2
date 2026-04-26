@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCalculatorCopyText, calculateConcreteResult, formatCubicFeet, formatCubicYards, summarizeCalculation } from "./calculator-utils.js";
+import { buildCalculatorCopyText, calculateConcreteResult, calculatorTypeLabel, formatCubicFeet, formatCubicYards, summarizeCalculation } from "./calculator-utils.js";
 
 test("slab calculator returns correct cubic yards and waste", () => {
   const result = calculateConcreteResult("slab", {
@@ -72,6 +72,7 @@ test("formatters and copy summary return compact field-safe strings", () => {
 
   assert.equal(formatCubicYards(result.baseCubicYards), "2.96 yd^3");
   assert.equal(formatCubicFeet(result.baseCubicFeet), "80.0 ft^3");
+  assert.equal(calculatorTypeLabel("round_column"), "Round Column");
   assert.equal(summarizeCalculation("slab", result.normalizedInputs), "20 ft x 12 ft x 4 in slab");
   assert.equal(
     buildCalculatorCopyText(result),

@@ -24,6 +24,7 @@ import {
   createJob,
   createLead,
   createQueueItem,
+  createCalculatorResult,
   createUpload,
   createUser,
   clockIn,
@@ -69,7 +70,7 @@ import {
   submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
-import { buildCalculatorCopyText, calculateConcreteResult, CALCULATOR_TYPES, formatCubicFeet, formatCubicYards, WASTE_OPTIONS } from "./calculator-utils";
+import { buildCalculatorCopyText, calculateConcreteResult, calculatorTypeLabel, CALCULATOR_TYPES, formatCubicFeet, formatCubicYards, WASTE_OPTIONS } from "./calculator-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
@@ -80,7 +81,7 @@ import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } fro
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
-import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
+import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
@@ -161,6 +162,7 @@ const EMPTY_APP_STATE = {
   safetyAcknowledgments: [],
   safetyIncidents: [],
   toolChecklists: [],
+  calculatorResults: [],
   uploads: [],
   dailyReports: [],
   timeEntries: [],
@@ -281,6 +283,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
       safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
       toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
+      calculatorResults: Array.isArray(source.calculatorResults) ? source.calculatorResults : Array.isArray(fallback.calculatorResults) ? fallback.calculatorResults : EMPTY_APP_STATE.calculatorResults,
       uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
     dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
     timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
@@ -472,6 +475,11 @@ const INITIAL_UPLOAD_FORM = {
   locationAccuracy: null,
   locationCapturedAt: "",
   locationUnavailableReason: "",
+};
+
+const INITIAL_CALCULATOR_SAVE_FORM = {
+  jobId: "",
+  notes: "",
 };
 
 const INITIAL_SETUP_STATUS = {
@@ -1597,6 +1605,7 @@ function JobDetailPanel({
           onUpdateAssignment={onUpdateAssignment}
           onRemoveAssignment={onRemoveAssignment}
         />
+        <JobCalculationsCard calculations={job.calculatorResults} />
       </div>
     </Card>
   );
@@ -1630,6 +1639,52 @@ function humanizeAssignmentRole(roleOnJob = "") {
   const normalized = String(roleOnJob || "").replaceAll("_", " ").trim().toLowerCase();
   if (!normalized) return "Crew";
   return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function JobCalculationsCard({ calculations, title = "Internal calculations", description = "Internal-only concrete volume records saved by the company team." }) {
+  const safeCalculations = Array.isArray(calculations) ? calculations : [];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title={title} description={description} />
+      {safeCalculations.length === 0 ? (
+        <StateCard title="No saved calculations yet" description="Calculator results saved to this job will appear here for allowed company users." tone="slate" />
+      ) : (
+        <div className="space-y-3">
+          {safeCalculations.map((calculation) => (
+            <div key={calculation.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-black text-slate-950">{calculatorTypeLabel(calculation.calculatorType)}</p>
+                  <p className="mt-1 break-words text-sm text-slate-600">{calculation.summary || "Saved internal calculation"}</p>
+                </div>
+                <Badge tone="slate">Internal only</Badge>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Base</p>
+                  <p className="mt-1 text-sm font-bold text-slate-700">{formatCubicYards(calculation.cubicYards)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">With waste</p>
+                  <p className="mt-1 text-sm font-bold text-slate-700">{formatCubicYards(calculation.cubicYardsWithWaste)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Created by</p>
+                  <p className="mt-1 text-sm font-bold text-slate-700">{calculation.createdByName || calculation.createdBy}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Saved at</p>
+                  <p className="mt-1 text-sm font-bold text-slate-700">{formatDateTime(calculation.createdAt)}</p>
+                </div>
+              </div>
+              {calculation.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{calculation.notes}</p> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function FieldActionGrid({ actions, onOpen }) {
@@ -1810,6 +1865,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
           <StateCard title="No crew assigned yet" description="Contact office if this crew list looks incomplete." tone="slate" />
         )}
       </Card>
+      <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Internal company calculation records for this job only." />
       <Card className="p-5">
         <SectionHeader title="Quick actions" description="Big targets for the most common field tasks." />
         <FieldActionGrid actions={quickActions} onOpen={onSelectModule} />
@@ -2593,8 +2649,8 @@ function UploadListCard({ upload, selected, onSelect }) {
     <button type="button" onClick={() => onSelect(upload.id)} className={`w-full rounded-2xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-slate-950">{upload.caption || upload.fileName}</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{upload.job?.title || upload.jobId} · {upload.uploadedByName}</p>
+          <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} · {uploadUploaderLabel(upload)}</p>
         </div>
         <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
       </div>
@@ -2608,7 +2664,7 @@ function UploadListCard({ upload, selected, onSelect }) {
   );
 }
 
-function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchive }) {
+function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchive, compactMobile = false }) {
   const [draft, setDraft] = useState({ caption: "", notes: "" });
 
   useEffect(() => {
@@ -2634,8 +2690,8 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
   return (
     <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
       <SectionHeader
-        title={upload.caption || upload.fileName}
-        description={`${upload.job?.title || upload.jobId} · ${formatFileSize(upload.fileSize)}`}
+        title={uploadTitle(upload)}
+        description={`${uploadJobLabel(upload)} · ${formatFileSize(upload.fileSize)}`}
         action={
           <div className="flex flex-wrap gap-2">
             <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
@@ -2647,14 +2703,14 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
         <AuthenticatedUploadPreview upload={upload} token={token} />
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
-            <p><span className="font-black text-slate-950">Uploaded by:</span> {upload.uploadedByName}</p>
+            <p><span className="font-black text-slate-950">Uploaded by:</span> {uploadUploaderLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Taken at:</span> {formatDateTime(upload.takenAt)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Uploaded at:</span> {formatDateTime(upload.uploadedAt)}</p>
-            <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {upload.fileType}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {upload.fileType || "Unknown"}</p>
           </div>
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
-            <p><span className="font-black text-slate-950">Job:</span> {upload.job?.title || upload.jobId}</p>
-            <p className="mt-1"><span className="font-black text-slate-950">Customer:</span> {upload.job?.customer || upload.customerName || "Not set"}</p>
+            <p><span className="font-black text-slate-950">Job:</span> {uploadJobLabel(upload)}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">Customer:</span> {uploadCustomerLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Location status:</span> {gpsStatusLabel(upload)}</p>
             {upload.hasGps ? (
               <>
@@ -2777,19 +2833,18 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
   const [draft, setDraft] = useState(INITIAL_UPLOAD_FORM);
   const [fileError, setFileError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const safeUploads = Array.isArray(uploads) ? uploads : [];
   const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
-  const listState = useMemo(() => deriveUploadListState(uploads), [uploads]);
-  const visibleRows = useMemo(() => filterUploads(uploads, {
+  const listState = useMemo(() => deriveUploadListState(safeUploads), [safeUploads]);
+  const visibleRows = useMemo(() => filterUploads(safeUploads, {
     archived: filter,
     query: search,
     jobId: jobFilter,
     uploaderId: uploaderFilter,
     date: dateFilter,
     gps: gpsFilter,
-  }), [dateFilter, filter, gpsFilter, jobFilter, search, uploads, uploaderFilter]);
-  const selectedUpload = visibleRows.find((upload) => upload.id === selectedUploadId)
-    || uploads.find((upload) => upload.id === selectedUploadId)
-    || null;
+  }), [dateFilter, filter, gpsFilter, jobFilter, safeUploads, search, uploaderFilter]);
+  const selectedUpload = useMemo(() => findSelectedUpload(visibleRows, safeUploads, selectedUploadId), [safeUploads, selectedUploadId, visibleRows]);
 
   useEffect(() => {
     const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
@@ -2806,10 +2861,10 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
 
   useEffect(() => {
     const fallbackUploadId = visibleRows[0]?.id || "";
-    if (!selectedUploadId || !uploads.some((upload) => upload.id === selectedUploadId)) {
+    if (!selectedUploadId || !safeUploads.some((upload) => upload?.id === selectedUploadId)) {
       setSelectedUploadId(fallbackUploadId);
     }
-  }, [selectedUploadId, uploads, visibleRows]);
+  }, [safeUploads, selectedUploadId, visibleRows]);
 
   async function handleFileChange(event) {
     event.preventDefault();
@@ -4659,19 +4714,43 @@ const CALCULATOR_FIELD_CONFIG = {
   ],
 };
 
-function CalculatorPage() {
+function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
   const [calculatorType, setCalculatorType] = useState("slab");
   const [draftByType, setDraftByType] = useState(CALCULATOR_INPUT_DEFAULTS);
   const [wastePreset, setWastePreset] = useState("10");
   const [customWastePercent, setCustomWastePercent] = useState("");
   const [resultCopied, setResultCopied] = useState(false);
+  const [savePanelOpen, setSavePanelOpen] = useState(false);
+  const [saveDraft, setSaveDraft] = useState(INITIAL_CALCULATOR_SAVE_FORM);
+  const [saveMessage, setSaveMessage] = useState("");
   const activeDraft = draftByType[calculatorType] || CALCULATOR_INPUT_DEFAULTS.slab;
   const activeWastePercent = wastePreset === "custom" ? customWastePercent : wastePreset;
   const activeFields = CALCULATOR_FIELD_CONFIG[calculatorType] || [];
+  const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
   const result = useMemo(
     () => calculateConcreteResult(calculatorType, activeDraft, activeWastePercent),
     [activeDraft, activeWastePercent, calculatorType],
   );
+
+  useEffect(() => {
+    const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
+      ? selectedJob.id
+      : allowedJobs[0]?.id || "";
+    setSaveDraft((current) => {
+      if (current.jobId && allowedJobs.some((job) => job.id === current.jobId)) return current;
+      return {
+        ...current,
+        jobId: preferredJobId,
+      };
+    });
+  }, [allowedJobs, selectedJob?.id]);
+
+  useEffect(() => {
+    if (result.status !== "ready") {
+      setSavePanelOpen(false);
+      setSaveMessage("");
+    }
+  }, [result.status]);
 
   function updateField(key, value) {
     setDraftByType((current) => ({
@@ -4691,6 +4770,12 @@ function CalculatorPage() {
     setWastePreset("10");
     setCustomWastePercent("");
     setResultCopied(false);
+    setSavePanelOpen(false);
+    setSaveDraft((current) => ({
+      ...INITIAL_CALCULATOR_SAVE_FORM,
+      jobId: current.jobId,
+    }));
+    setSaveMessage("");
   }
 
   async function copyResult() {
@@ -4703,6 +4788,29 @@ function CalculatorPage() {
       window.setTimeout(() => setResultCopied(false), 1500);
     } catch {
       setResultCopied(false);
+    }
+  }
+
+  async function handleSaveResult() {
+    if (result.status !== "ready" || !saveDraft.jobId || !onSaveCalculatorResult) return;
+    const success = await onSaveCalculatorResult({
+      jobId: saveDraft.jobId,
+      calculatorType,
+      inputsJson: result.normalizedInputs,
+      wastePercent: result.wastePercent,
+      cubicFeet: result.baseCubicFeet,
+      cubicYards: result.baseCubicYards,
+      cubicYardsWithWaste: result.cubicYardsWithWaste,
+      summary: result.summary,
+      notes: saveDraft.notes,
+    });
+    if (success) {
+      setSaveMessage("Saved to job.");
+      setSavePanelOpen(false);
+      setSaveDraft((current) => ({
+        ...current,
+        notes: "",
+      }));
     }
   }
 
@@ -4770,7 +4878,28 @@ function CalculatorPage() {
               <Button type="button" variant="ghost" onClick={copyResult} disabled={result.status !== "ready"}>
                 {resultCopied ? "Copied" : "Copy result"}
               </Button>
+              <Button type="button" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>
+                {savePanelOpen ? "Hide Save to Job" : "Save to Job"}
+              </Button>
             </div>
+            {savePanelOpen ? (
+              allowedJobs.length === 0 ? (
+                <StateCard title="No available job to save this calculation" description="Assigned or visible jobs will appear here when there is somewhere safe to store the result." tone="slate" />
+              ) : (
+                <div className="mt-4 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                  <SectionHeader title="Save to job" description="This creates an internal-only company record. Customers do not see it." />
+                  <SelectField label="Job" value={saveDraft.jobId} onChange={(event) => setSaveDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                    {allowedJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                  </SelectField>
+                  <TextAreaField label="Internal note" value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional internal note for the crew or office." />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={handleSaveResult} disabled={busy || !saveDraft.jobId}>Save</Button>
+                    <Button type="button" variant="secondary" onClick={() => setSavePanelOpen(false)} disabled={busy}>Cancel</Button>
+                  </div>
+                </div>
+              )
+            ) : null}
+            {saveMessage ? <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{saveMessage}</div> : null}
           </Card>
         </div>
 
@@ -5327,7 +5456,9 @@ function MainContent(props) {
       />
     );
   }
-  if (active === "calculator") return <CalculatorPage />;
+  if (active === "calculator") {
+    return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
+  }
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
   if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} companySettings={props.companySettings} permissions={props.permissions} onUpdateCompanySettings={props.onUpdateCompanySettings} />;
@@ -5493,6 +5624,7 @@ export default function App() {
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
+        calculatorResults: normalizedNextState.calculatorResults,
         uploads: normalizedNextState.uploads,
         dailyReports: normalizedNextState.dailyReports,
         timeEntries: normalizedNextState.timeEntries,
@@ -6456,6 +6588,26 @@ export default function App() {
     }
   }
 
+  async function handleSaveCalculatorResult(payload) {
+    if (!sessionToken || !appState.permissions.calculator.canUse) return false;
+    setBusy(true);
+    try {
+      const nextState = await createCalculatorResult(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleUpdateCompanySettings(payload) {
     if (!sessionToken || !appState.permissions.toolChecklist.canToggle) return false;
     setBusy(true);
@@ -6831,10 +6983,12 @@ export default function App() {
               onSelectJob={navigateToJob}
               selectedJob={selectedJob}
               uploads={appState.uploads}
+              calculatorResults={appState.calculatorResults}
               sessionToken={sessionToken}
               onCreateUpload={handleCreateUpload}
               onUpdateUpload={handleUpdateUpload}
               onArchiveUpload={handleArchiveUpload}
+              onSaveCalculatorResult={handleSaveCalculatorResult}
               onCreateSafetyPolicy={handleCreateSafetyPolicy}
               onSaveSafetyPolicy={handleSaveSafetyPolicy}
               onArchiveSafetyPolicy={handleArchiveSafetyPolicy}

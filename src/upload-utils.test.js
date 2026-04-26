@@ -6,8 +6,13 @@ import {
   deriveSelectedPhotoTakenAt,
   deriveUploadDraftFromSelection,
   deriveUploadListState,
+  findSelectedUpload,
   filterUploads,
   gpsStatusLabel,
+  uploadCustomerLabel,
+  uploadJobLabel,
+  uploadTitle,
+  uploadUploaderLabel,
   validateUploadFile,
 } from "./upload-utils.js";
 
@@ -124,4 +129,26 @@ test("deriveUploadListState tolerates empty inputs and derives options", () => {
   assert.deepEqual(state.jobOptions, [{ value: "J-1", label: "Driveway" }]);
   assert.deepEqual(state.uploaderOptions, [{ value: "U-1", label: "Ava" }]);
   assert.deepEqual(state.dateOptions, ["2026-04-25"]);
+});
+
+test("upload display helpers tolerate missing gps and sparse uploader or job records", () => {
+  const upload = {
+    id: "UPL-2",
+    fileName: "field-shot.jpg",
+    uploadedBy: "U-9",
+    locationUnavailableReason: "",
+  };
+
+  assert.equal(uploadTitle(upload), "field-shot.jpg");
+  assert.equal(uploadJobLabel(upload), "Job unavailable");
+  assert.equal(uploadUploaderLabel(upload), "U-9");
+  assert.equal(uploadCustomerLabel(upload), "Not set");
+  assert.equal(gpsStatusLabel(upload), "Not requested");
+});
+
+test("findSelectedUpload tolerates missing arrays and falls back safely", () => {
+  assert.equal(findSelectedUpload(undefined, undefined, "UPL-1"), null);
+
+  const upload = { id: "UPL-1", caption: "Selected" };
+  assert.deepEqual(findSelectedUpload([], [upload], "UPL-1"), upload);
 });

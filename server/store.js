@@ -443,6 +443,7 @@ export function createEmptyState() {
     safetyIncidents: [],
     toolChecklists: [],
     toolChecklistItems: [],
+    calculatorResults: [],
     dailyReports: [],
     uploads: [],
     timeEntries: [],
@@ -505,6 +506,7 @@ export function createSeedState() {
     safetyIncidents: [],
     toolChecklists: [],
     toolChecklistItems: [],
+    calculatorResults: [],
     dailyReports: [],
     uploads: [],
     timeEntries: [],
@@ -1655,6 +1657,38 @@ const MIGRATIONS = [
       insertSetting.run("toolChecklistEnabled", "true", now);
     },
   },
+  {
+    version: 24,
+    description: "Add internal calculator results linked to jobs.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS calculator_results (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          calculator_type TEXT NOT NULL,
+          inputs_json TEXT NOT NULL,
+          waste_percent REAL NOT NULL,
+          cubic_feet REAL NOT NULL,
+          cubic_yards REAL NOT NULL,
+          cubic_yards_with_waste REAL NOT NULL,
+          summary TEXT NOT NULL,
+          visibility TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_calculator_results_job_id ON calculator_results(job_id);
+        CREATE INDEX IF NOT EXISTS idx_calculator_results_created_by ON calculator_results(created_by);
+        CREATE INDEX IF NOT EXISTS idx_calculator_results_sort_index ON calculator_results(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1758,6 +1792,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertCalculatorResult = database.prepare(`
+    INSERT INTO calculator_results (id, sort_index, job_id, created_by, calculator_type, inputs_json, waste_percent, cubic_feet, cubic_yards, cubic_yards_with_waste, summary, visibility, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertTimeEntry = database.prepare(`
     INSERT INTO time_entries (id, sort_index, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1806,6 +1845,7 @@ function writeStateToDb(state) {
       DELETE FROM ppe_items;
       DELETE FROM tool_checklist_items;
       DELETE FROM tool_checklists;
+      DELETE FROM calculator_results;
       DELETE FROM daily_reports;
       DELETE FROM uploads;
       DELETE FROM time_entries;
@@ -2056,6 +2096,27 @@ function writeStateToDb(state) {
       );
     });
 
+    (state.calculatorResults || []).forEach((result, index) => {
+      insertCalculatorResult.run(
+        result.id,
+        index,
+        result.jobId,
+        result.createdBy,
+        result.calculatorType,
+        typeof result.inputsJson === "string" ? result.inputsJson : JSON.stringify(result.inputsJson || {}),
+        Number(result.wastePercent || 0),
+        Number(result.cubicFeet || 0),
+        Number(result.cubicYards || 0),
+        Number(result.cubicYardsWithWaste || 0),
+        result.summary || "",
+        result.visibility || "internal",
+        result.notes || "",
+        result.createdAt || isoNow(),
+        result.updatedAt || result.createdAt || isoNow(),
+        result.archivedAt || null,
+      );
+    });
+
     (state.timeEntries || []).forEach((entry, index) => {
       insertTimeEntry.run(
         entry.id,
@@ -2269,6 +2330,17 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
+  const calculatorResults = database.prepare(`
+    SELECT id, job_id AS jobId, created_by AS createdBy, calculator_type AS calculatorType, inputs_json AS inputsJson,
+           waste_percent AS wastePercent, cubic_feet AS cubicFeet, cubic_yards AS cubicYards, cubic_yards_with_waste AS cubicYardsWithWaste,
+           summary, visibility, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM calculator_results
+    ORDER BY sort_index ASC
+  `).all().map((result) => ({
+    ...result,
+    inputsJson: JSON.parse(result.inputsJson || "{}"),
+  }));
+
   const timeEntries = database.prepare(`
     SELECT id, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
@@ -2336,6 +2408,7 @@ function readTableState() {
     safetyIncidents,
     toolChecklists,
     toolChecklistItems,
+    calculatorResults,
     dailyReports,
     uploads,
     timeEntries,

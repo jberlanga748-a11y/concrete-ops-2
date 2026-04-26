@@ -108,6 +108,7 @@ const TOOL_CHECKLIST_ITEM_CATEGORIES = new Set(["hand_tools", "power_tools", "co
 const TOOL_CHECKLIST_ITEM_STATUSES = new Set(["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"]);
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
+const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn"]);
 const serverStartedAt = Date.now();
 
 const app = express();
@@ -428,6 +429,53 @@ function sanitizeJobAssignments(job, state, user, { includeNotes = false } = {})
   };
 }
 
+function normalizeCalculatorResultType(value) {
+  const normalized = optionalEnum(value, CALCULATOR_RESULT_TYPES, "Calculator type", "slab");
+  return normalized === "roundColumn" ? "round_column" : normalized;
+}
+
+function sanitizeCalculatorResultForUser(result, state, user) {
+  if (!result || result.visibility !== "internal") return null;
+  const job = result.jobId ? state.jobs.find((entry) => entry.id === result.jobId) || null : null;
+  if (!job || !canViewJob(job, user)) return null;
+  const createdByUser = findUserById(state, result.createdBy);
+
+  return {
+    id: result.id,
+    jobId: result.jobId,
+    createdBy: result.createdBy,
+    createdByName: createdByUser?.name || result.createdBy,
+    calculatorType: normalizeCalculatorResultType(result.calculatorType),
+    inputsJson: typeof result.inputsJson === "string" ? JSON.parse(result.inputsJson || "{}") : (result.inputsJson || {}),
+    wastePercent: Number(result.wastePercent || 0),
+    cubicFeet: Number(result.cubicFeet || 0),
+    cubicYards: Number(result.cubicYards || 0),
+    cubicYardsWithWaste: Number(result.cubicYardsWithWaste || 0),
+    summary: result.summary || "",
+    visibility: "internal",
+    notes: result.notes || "",
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
+    archivedAt: result.archivedAt || null,
+  };
+}
+
+function calculatorResultsForJob(state, job, user) {
+  return (state.calculatorResults || [])
+    .filter((result) => result.jobId === job.id && !result.archivedAt)
+    .map((result) => sanitizeCalculatorResultForUser(result, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
+}
+
+function visibleCalculatorResultsForUser(state, user) {
+  if (!user || !canUseCalculator(user)) return [];
+  return (state.calculatorResults || [])
+    .map((result) => sanitizeCalculatorResultForUser(result, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
+}
+
 function findRequiredRecord(records, id, resourceName) {
   const record = records.find((entry) => entry.id === id);
   if (!record) {
@@ -486,6 +534,7 @@ function sanitizeJobForUser(job, user, state) {
     return {
       ...normalizedJob,
       ...assignmentPayload,
+      calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
       canManageField: canManageJobFieldUpdates(user, normalizedJob),
       canManageAll: canViewAllJobs(user),
       canViewMoney: canViewJobMoney(user),
@@ -520,6 +569,7 @@ function sanitizeJobForUser(job, user, state) {
     status: normalizedJob.status,
     stage: normalizedJob.stage,
     crew: normalizedJob.crew,
+    calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
     nextStep: normalizedJob.nextStep,
     next: normalizedJob.nextStep,
     due: normalizedJob.due,
@@ -907,6 +957,12 @@ function visibleDailyReportsForUser(state, user) {
 
 function canCreateUploadForJob(user, job) {
   if (!user || !job || !canCreateUploads(user)) return false;
+  if (canViewAllJobs(user)) return true;
+  return canViewJob(job, user);
+}
+
+function canSaveCalculatorResultForJob(user, job) {
+  if (!user || !job || !canUseCalculator(user)) return false;
   if (canViewAllJobs(user)) return true;
   return canViewJob(job, user);
 }
@@ -2157,6 +2213,7 @@ function sanitizeBootstrap(state, user) {
     safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
     safetyIncidents: visibleSafetyIncidentsForUser(state, user),
     toolChecklists: visibleToolChecklistsForUser(state, user),
+    calculatorResults: visibleCalculatorResultsForUser(state, user),
     uploads: visibleUploadsForUser(state, user),
     dailyReports: visibleDailyReportsForUser(state, user),
     timeEntries: visibleTimeEntriesForUser(state, user),
@@ -3493,6 +3550,77 @@ app.post("/api/uploads/:id/archive", requireAuth, asyncRoute(async (req, res) =>
   });
 
   res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/calculator-results", requireAuth, asyncRoute(async (req, res) => {
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const jobId = requiredString(payload.jobId, "Job");
+  const summary = requiredString(payload.summary, "Calculation summary");
+  const calculatorType = normalizeCalculatorResultType(payload.calculatorType);
+  const wastePercent = optionalNonNegativeNumber(payload.wastePercent, "Waste percent", 0);
+  const cubicFeet = optionalNonNegativeNumber(payload.cubicFeet, "Cubic feet", 0);
+  const cubicYards = optionalNonNegativeNumber(payload.cubicYards, "Cubic yards", 0);
+  const cubicYardsWithWaste = optionalNonNegativeNumber(payload.cubicYardsWithWaste, "Cubic yards with waste", 0);
+  const notes = optionalString(payload.notes, "");
+  const visibility = optionalString(payload.visibility, "internal");
+  if (visibility !== "internal") {
+    throw new ApiError(400, "Calculator results are internal-only.");
+  }
+
+  let inputsJson = payload.inputsJson;
+  if (typeof inputsJson === "string") {
+    try {
+      inputsJson = JSON.parse(inputsJson);
+    } catch {
+      throw new ApiError(400, "Calculator inputs must be valid JSON.");
+    }
+  }
+  if (!inputsJson || typeof inputsJson !== "object" || Array.isArray(inputsJson)) {
+    throw new ApiError(400, "Calculator inputs must be an object.");
+  }
+
+  const nextState = await updateDb((draft) => {
+    draft.calculatorResults ||= [];
+    const job = findRequiredRecord(draft.jobs, jobId, "Job");
+    if (!canSaveCalculatorResultForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to save calculations for that job.");
+    }
+
+    const calculatorResult = {
+      id: makeId("CALC"),
+      jobId: job.id,
+      createdBy: req.auth.user.id,
+      calculatorType,
+      inputsJson,
+      wastePercent,
+      cubicFeet,
+      cubicYards,
+      cubicYardsWithWaste,
+      summary,
+      visibility: "internal",
+      notes,
+      createdAt: changedAt,
+      updatedAt: changedAt,
+      archivedAt: null,
+    };
+
+    draft.calculatorResults.unshift(calculatorResult);
+    const title = normalizeJobRecord(job).title;
+    appendActivity(draft, "Calculator result saved", `${req.auth.user.name} saved an internal calculator result for ${title}.`);
+    appendAuditEvent(draft, {
+      entityType: "calculatorResult",
+      entityId: calculatorResult.id,
+      action: "saved",
+      summary: "Calculator result saved to job",
+      detail: `${req.auth.user.name} saved an internal calculator result for ${title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "calculatorType", "cubicYardsWithWaste"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.post("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {
