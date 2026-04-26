@@ -29,6 +29,7 @@ import {
 } from "./store.js";
 import {
   DEFAULT_COMPANY_SETTINGS,
+  canAcknowledgeSafety,
   canArchiveJobs,
   canCreateJobs,
   canCreateDailyReports,
@@ -44,6 +45,8 @@ import {
   canManageOwnTime,
   canManageReports,
   canManageSafety,
+  canReviewSafetyIncidents,
+  canSubmitSafetyIncidents,
   canManageToolChecklist,
   canManageUploads,
   canManageUsers,
@@ -91,6 +94,10 @@ const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Est
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
+const SAFETY_POLICY_STATUSES = new Set(["active", "archived"]);
+const SAFETY_INCIDENT_TYPES = new Set(["concern", "near_miss", "injury", "property_damage", "hazard", "other"]);
+const SAFETY_INCIDENT_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+const SAFETY_INCIDENT_STATUSES = new Set(["open", "reviewed", "resolved", "archived"]);
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const serverStartedAt = Date.now();
@@ -256,6 +263,38 @@ function optionalDailyReportStatus(value, fallback = "draft") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!DAILY_REPORT_STATUSES.has(normalized)) {
     throw new ApiError(400, `Daily report status must be one of: ${Array.from(DAILY_REPORT_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalSafetyPolicyStatus(value, fallback = "active") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!SAFETY_POLICY_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Safety policy status must be one of: ${Array.from(SAFETY_POLICY_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalSafetyIncidentType(value, fallback = "concern") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!SAFETY_INCIDENT_TYPES.has(normalized)) {
+    throw new ApiError(400, `Safety incident type must be one of: ${Array.from(SAFETY_INCIDENT_TYPES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalSafetyIncidentSeverity(value, fallback = "low") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!SAFETY_INCIDENT_SEVERITIES.has(normalized)) {
+    throw new ApiError(400, `Safety incident severity must be one of: ${Array.from(SAFETY_INCIDENT_SEVERITIES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalSafetyIncidentStatus(value, fallback = "open") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!SAFETY_INCIDENT_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Safety incident status must be one of: ${Array.from(SAFETY_INCIDENT_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -467,6 +506,160 @@ function visibleJobsForUser(state, user) {
   return state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state));
 }
 
+function safetyPolicyStatusLabel(status = "active") {
+  return optionalSafetyPolicyStatus(status, "active") === "archived" ? "Archived" : "Active";
+}
+
+function safetyIncidentStatusLabel(status = "open") {
+  const labels = {
+    open: "Open",
+    reviewed: "Reviewed",
+    resolved: "Resolved",
+    archived: "Archived",
+  };
+
+  return labels[optionalSafetyIncidentStatus(status, "open")] || "Open";
+}
+
+function visibleSafetyPoliciesForUser(state, user) {
+  if (!user || !canViewSafety(user)) return [];
+  const includeArchived = canManageSafety(user);
+
+  return (state.safetyPolicies || [])
+    .filter((policy) => includeArchived || !policy.archivedAt)
+    .map((policy) => {
+      const createdByUser = findUserById(state, policy.createdBy);
+      return {
+        id: policy.id,
+        title: policy.title,
+        body: policy.body || "",
+        category: policy.category || "",
+        status: optionalSafetyPolicyStatus(policy.status, policy.archivedAt ? "archived" : "active"),
+        statusLabel: safetyPolicyStatusLabel(policy.status || (policy.archivedAt ? "archived" : "active")),
+        createdBy: policy.createdBy,
+        createdByName: createdByUser?.name || policy.createdBy,
+        createdAt: policy.createdAt,
+        updatedAt: policy.updatedAt,
+        archivedAt: policy.archivedAt || null,
+      };
+    })
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+}
+
+function visiblePpeItemsForUser(state, user) {
+  if (!user || !canViewSafety(user)) return [];
+  const includeArchived = canManageSafety(user);
+
+  return (state.ppeItems || [])
+    .filter((item) => includeArchived || !item.archivedAt)
+    .map((item) => {
+      const createdByUser = findUserById(state, item.createdBy);
+      return {
+        id: item.id,
+        label: item.label,
+        description: item.description || "",
+        requiredByDefault: Boolean(item.requiredByDefault),
+        status: optionalSafetyPolicyStatus(item.status, item.archivedAt ? "archived" : "active"),
+        statusLabel: safetyPolicyStatusLabel(item.status || (item.archivedAt ? "archived" : "active")),
+        createdBy: item.createdBy,
+        createdByName: createdByUser?.name || item.createdBy,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        archivedAt: item.archivedAt || null,
+      };
+    })
+    .sort((left, right) => {
+      const requiredCompare = Number(right.requiredByDefault) - Number(left.requiredByDefault);
+      if (requiredCompare !== 0) return requiredCompare;
+      return String(left.label || "").localeCompare(String(right.label || ""));
+    });
+}
+
+function canViewSafetyAcknowledgment(user, acknowledgmentJob, acknowledgmentUserId) {
+  if (!user || !canViewSafety(user)) return false;
+  if (canManageSafety(user)) return true;
+  if (acknowledgmentUserId === user.id) return true;
+  if (isForeman(user) && acknowledgmentJob && canViewJob(acknowledgmentJob, user)) return true;
+  return false;
+}
+
+function visibleSafetyAcknowledgmentsForUser(state, user) {
+  if (!user || !canViewSafety(user)) return [];
+
+  return (state.safetyAcknowledgments || [])
+    .map((acknowledgment) => {
+      const job = acknowledgment.jobId ? state.jobs.find((entry) => entry.id === acknowledgment.jobId) || null : null;
+      if (!canViewSafetyAcknowledgment(user, job, acknowledgment.userId)) return null;
+      const ackUser = findUserById(state, acknowledgment.userId);
+      const policy = acknowledgment.policyId ? state.safetyPolicies.find((entry) => entry.id === acknowledgment.policyId) || null : null;
+      return {
+        id: acknowledgment.id,
+        userId: acknowledgment.userId,
+        userName: ackUser?.name || acknowledgment.userId,
+        userRole: ackUser?.role || "",
+        jobId: acknowledgment.jobId || "",
+        policyId: acknowledgment.policyId || "",
+        policyTitle: policy?.title || "",
+        acknowledgedAt: acknowledgment.acknowledgedAt,
+        notes: acknowledgment.notes || "",
+        createdAt: acknowledgment.createdAt || acknowledgment.acknowledgedAt,
+        job: job ? sanitizeJobForUser(job, user, state) : null,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.acknowledgedAt || 0).getTime() - new Date(left.acknowledgedAt || 0).getTime());
+}
+
+function canViewSafetyIncidentRecord(user, incident, job) {
+  if (!user || !canViewSafety(user)) return false;
+  if (canManageSafety(user)) return true;
+  if (isForeman(user)) {
+    if (job && canViewJob(job, user)) return true;
+    return incident.submittedBy === user.id;
+  }
+  if (isEmployee(user)) {
+    return incident.submittedBy === user.id;
+  }
+  return false;
+}
+
+function sanitizeSafetyIncidentForUser(incident, state, user) {
+  const job = incident.jobId ? state.jobs.find((entry) => entry.id === incident.jobId) || null : null;
+  if (!canViewSafetyIncidentRecord(user, incident, job)) return null;
+  const submittedByUser = findUserById(state, incident.submittedBy);
+  const reviewedByUser = findUserById(state, incident.reviewedBy);
+  return {
+    id: incident.id,
+    jobId: incident.jobId || "",
+    submittedBy: incident.submittedBy,
+    submittedByName: submittedByUser?.name || incident.submittedBy,
+    type: optionalSafetyIncidentType(incident.type, "concern"),
+    severity: optionalSafetyIncidentSeverity(incident.severity, "low"),
+    status: optionalSafetyIncidentStatus(incident.status, "open"),
+    statusLabel: safetyIncidentStatusLabel(incident.status),
+    title: incident.title || "",
+    description: incident.description || "",
+    immediateAction: incident.immediateAction || "",
+    createdAt: incident.createdAt,
+    updatedAt: incident.updatedAt,
+    reviewedBy: incident.reviewedBy || "",
+    reviewedByName: reviewedByUser?.name || "",
+    reviewedAt: incident.reviewedAt || "",
+    resolvedAt: incident.resolvedAt || "",
+    archivedAt: incident.archivedAt || null,
+    job: job ? sanitizeJobForUser(job, user, state) : null,
+  };
+}
+
+function visibleSafetyIncidentsForUser(state, user) {
+  if (!user || !canViewSafety(user)) return [];
+
+  return (state.safetyIncidents || [])
+    .map((incident) => sanitizeSafetyIncidentForUser(incident, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+}
+
 function dailyReportStatusLabel(status = "draft") {
   const labels = {
     draft: "Draft",
@@ -653,6 +846,16 @@ function timePermissionsForUser(user) {
   };
 }
 
+function safetyPermissionsForUser(user) {
+  return {
+    canView: canViewSafety(user),
+    canManage: canManageSafety(user),
+    canAcknowledge: canAcknowledgeSafety(user),
+    canSubmitIncidents: canSubmitSafetyIncidents(user),
+    canReviewIncidents: canReviewSafetyIncidents(user),
+  };
+}
+
 function allowedSelfTimeCategories(user) {
   if (isEmployee(user)) {
     return new Set(["job"]);
@@ -684,6 +887,36 @@ function canUseSelfTimeCategory(user, workCategory) {
 function assertCanViewTimeEntries(user) {
   if (!canViewTimeEntries(user)) {
     throw new ApiError(403, "You do not have permission to view time entries.");
+  }
+}
+
+function assertCanViewSafety(user) {
+  if (!canViewSafety(user)) {
+    throw new ApiError(403, "You do not have permission to view Safety & PPE.");
+  }
+}
+
+function assertCanManageSafety(user) {
+  if (!canManageSafety(user)) {
+    throw new ApiError(403, "You do not have permission to manage Safety & PPE.");
+  }
+}
+
+function assertCanAcknowledgeSafety(user) {
+  if (!canAcknowledgeSafety(user)) {
+    throw new ApiError(403, "You do not have permission to acknowledge safety items.");
+  }
+}
+
+function assertCanSubmitSafetyIncidents(user) {
+  if (!canSubmitSafetyIncidents(user)) {
+    throw new ApiError(403, "You do not have permission to submit safety concerns.");
+  }
+}
+
+function assertCanReviewSafetyIncidents(user) {
+  if (!canReviewSafetyIncidents(user)) {
+    throw new ApiError(403, "You do not have permission to review safety concerns.");
   }
 }
 
@@ -1163,6 +1396,84 @@ function resolveOptionalUserId(state, value, fieldName) {
   return user.id;
 }
 
+function findSafetyPolicy(state, policyId) {
+  return findRequiredRecord(state.safetyPolicies || [], policyId, "Safety policy");
+}
+
+function findPpeItem(state, itemId) {
+  return findRequiredRecord(state.ppeItems || [], itemId, "PPE item");
+}
+
+function findSafetyIncident(state, incidentId) {
+  return findRequiredRecord(state.safetyIncidents || [], incidentId, "Safety incident");
+}
+
+function canLinkSafetyRecordToJob(user, job) {
+  if (!job) return false;
+  if (canManageSafety(user)) return true;
+  return canViewJob(job, user);
+}
+
+function createSafetyPolicyShape(payload, user, changedAt) {
+  return {
+    id: makeId("SP"),
+    title: requiredString(payload.title, "Policy title"),
+    body: requiredString(payload.body, "Policy body"),
+    category: requiredString(payload.category, "Policy category"),
+    status: optionalSafetyPolicyStatus(payload.status, "active"),
+    createdBy: user.id,
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    archivedAt: null,
+  };
+}
+
+function createPpeItemShape(payload, user, changedAt) {
+  return {
+    id: makeId("PPE"),
+    label: requiredString(payload.label, "PPE label"),
+    description: optionalString(payload.description, ""),
+    requiredByDefault: optionalBoolean(payload.requiredByDefault, true),
+    status: optionalSafetyPolicyStatus(payload.status, "active"),
+    createdBy: user.id,
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    archivedAt: null,
+  };
+}
+
+function createSafetyAcknowledgmentShape(payload, user, changedAt) {
+  return {
+    id: makeId("SA"),
+    userId: user.id,
+    jobId: optionalString(payload.jobId, ""),
+    policyId: optionalString(payload.policyId, ""),
+    acknowledgedAt: changedAt,
+    notes: optionalString(payload.notes, ""),
+    createdAt: changedAt,
+  };
+}
+
+function createSafetyIncidentShape(payload, user, changedAt) {
+  return {
+    id: makeId("SI"),
+    jobId: optionalString(payload.jobId, ""),
+    submittedBy: user.id,
+    type: optionalSafetyIncidentType(payload.type, "concern"),
+    severity: optionalSafetyIncidentSeverity(payload.severity, "low"),
+    status: optionalSafetyIncidentStatus(payload.status, "open"),
+    title: requiredString(payload.title, "Incident title"),
+    description: requiredString(payload.description, "Incident description"),
+    immediateAction: optionalString(payload.immediateAction, ""),
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    reviewedBy: "",
+    reviewedAt: "",
+    resolvedAt: "",
+    archivedAt: null,
+  };
+}
+
 function activeJobAssignments(state, jobId) {
   return (state.jobAssignments || []).filter((assignment) => assignment.jobId === jobId && !assignment.removedAt);
 }
@@ -1617,6 +1928,10 @@ function sanitizeBootstrap(state, user) {
     leads: visibleLeadsForUser(state, user),
     leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
     jobs: visibleJobsForUser(state, user),
+    safetyPolicies: visibleSafetyPoliciesForUser(state, user),
+    ppeItems: visiblePpeItemsForUser(state, user),
+    safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
+    safetyIncidents: visibleSafetyIncidentsForUser(state, user),
     uploads: visibleUploadsForUser(state, user),
     dailyReports: visibleDailyReportsForUser(state, user),
     timeEntries: visibleTimeEntriesForUser(state, user),
@@ -1643,10 +1958,7 @@ function sanitizeBootstrap(state, user) {
       reports: reportPermissionsForUser(user),
       uploads: uploadPermissionsForUser(user),
       time: timePermissionsForUser(user),
-      safety: {
-        canView: canViewSafety(user),
-        canManage: canManageSafety(user),
-      },
+      safety: safetyPermissionsForUser(user),
       calculator: {
         canUse: canUseCalculator(user),
       },
@@ -1864,7 +2176,69 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
       throw new ApiError(409, "Workspace has already been set up.");
     }
 
+    draft.safetyPolicies ||= [];
+    draft.ppeItems ||= [];
     draft.users.push(createdUser);
+    if (draft.safetyPolicies.length === 0) {
+      draft.safetyPolicies.push(
+        {
+          id: makeId("SP"),
+          title: "General jobsite PPE",
+          body: "Show up ready with the core PPE for the task. If the site conditions change, stop and confirm what extra protection is needed before work continues.",
+          category: "PPE",
+          status: "active",
+          createdBy: createdUser.id,
+          createdAt,
+          updatedAt: createdAt,
+          archivedAt: null,
+        },
+        {
+          id: makeId("SP"),
+          title: "Silica and dust awareness",
+          body: "Use dust-control steps that fit the task. Slow down, keep visibility clear, and speak up if the crew needs a safer cutting or cleanup plan.",
+          category: "Air quality",
+          status: "active",
+          createdBy: createdUser.id,
+          createdAt,
+          updatedAt: createdAt,
+          archivedAt: null,
+        },
+        {
+          id: makeId("SP"),
+          title: "Equipment awareness",
+          body: "Keep clear communication around moving equipment. Walk the site before work starts and call out blind spots, pinch points, and access issues early.",
+          category: "Equipment",
+          status: "active",
+          createdBy: createdUser.id,
+          createdAt,
+          updatedAt: createdAt,
+          archivedAt: null,
+        },
+        {
+          id: makeId("SP"),
+          title: "Incident reporting expectations",
+          body: "Report hazards, near misses, injuries, and property damage as soon as they happen. Quick reporting helps the office and crew respond before the next task starts.",
+          category: "Reporting",
+          status: "active",
+          createdBy: createdUser.id,
+          createdAt,
+          updatedAt: createdAt,
+          archivedAt: null,
+        },
+      );
+    }
+    if (draft.ppeItems.length === 0) {
+      draft.ppeItems.push(
+        { id: makeId("PPE"), label: "Hard hat", description: "Wear when overhead or active equipment hazards are present.", requiredByDefault: true, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "Safety glasses", description: "Use eye protection during cutting, cleanup, or flying-debris tasks.", requiredByDefault: true, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "High-vis vest/shirt", description: "Keep visibility high around vehicles, equipment, and deliveries.", requiredByDefault: true, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "Gloves", description: "Use task-appropriate gloves for handling forms, rebar, tools, or material.", requiredByDefault: true, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "Work boots", description: "Wear work boots suited to uneven ground, heavy material, and wet conditions.", requiredByDefault: true, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "Hearing protection", description: "Use hearing protection around saws, compactors, generators, or loud equipment.", requiredByDefault: true, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "Respirator/dust mask when needed", description: "Use when cutting, grinding, or working in dusty conditions that call for respiratory protection.", requiredByDefault: false, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+        { id: makeId("PPE"), label: "Fall protection when required", description: "Use when task conditions create fall exposure and a protection plan is required.", requiredByDefault: false, status: "active", createdBy: createdUser.id, createdAt, updatedAt: createdAt, archivedAt: null },
+      );
+    }
     draft.sessions.push({
       id: makeId("S"),
       userId: createdUser.id,
@@ -1951,6 +2325,350 @@ app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
 app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json(sanitizeBootstrap(state, req.auth.user));
+}));
+
+app.get("/api/safety", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewSafety(req.auth.user);
+  const state = await readDb();
+  res.json({
+    safetyPolicies: visibleSafetyPoliciesForUser(state, req.auth.user),
+    ppeItems: visiblePpeItemsForUser(state, req.auth.user),
+    safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, req.auth.user),
+    safetyIncidents: visibleSafetyIncidentsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/safety/incidents", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewSafety(req.auth.user);
+  const state = await readDb();
+  res.json({
+    safetyIncidents: visibleSafetyIncidentsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/safety/policies", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageSafety(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyPolicies ||= [];
+    const policy = createSafetyPolicyShape(req.body || {}, req.auth.user, changedAt);
+    draft.safetyPolicies.unshift(policy);
+    appendActivity(draft, "Safety policy created", `${req.auth.user.name} published ${policy.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyPolicy",
+      entityId: policy.id,
+      action: "created",
+      summary: "Safety policy created",
+      detail: policy.title,
+      actor: req.auth.user,
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/safety/policies/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageSafety(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const payload = req.body || {};
+  const nextState = await updateDb((draft) => {
+    draft.safetyPolicies ||= [];
+    const policy = findSafetyPolicy(draft, req.params.id);
+    const changedFields = [];
+    const nextTitle = payload.title == null ? policy.title : requiredString(payload.title, "Policy title");
+    const nextBody = payload.body == null ? policy.body : requiredString(payload.body, "Policy body");
+    const nextCategory = payload.category == null ? policy.category : requiredString(payload.category, "Policy category");
+
+    if (nextTitle !== policy.title) {
+      policy.title = nextTitle;
+      changedFields.push("title");
+    }
+    if (nextBody !== policy.body) {
+      policy.body = nextBody;
+      changedFields.push("body");
+    }
+    if (nextCategory !== policy.category) {
+      policy.category = nextCategory;
+      changedFields.push("category");
+    }
+
+    policy.updatedAt = changedAt;
+    appendActivity(draft, "Safety policy updated", `${req.auth.user.name} updated ${policy.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyPolicy",
+      entityId: policy.id,
+      action: "updated",
+      summary: "Safety policy updated",
+      detail: policy.title,
+      actor: req.auth.user,
+      changedFields,
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/policies/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageSafety(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyPolicies ||= [];
+    const policy = findSafetyPolicy(draft, req.params.id);
+    policy.status = "archived";
+    policy.archivedAt = changedAt;
+    policy.updatedAt = changedAt;
+    appendActivity(draft, "Safety policy archived", `${req.auth.user.name} archived ${policy.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyPolicy",
+      entityId: policy.id,
+      action: "archived",
+      summary: "Safety policy archived",
+      detail: policy.title,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/ppe-items", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageSafety(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.ppeItems ||= [];
+    const item = createPpeItemShape(req.body || {}, req.auth.user, changedAt);
+    draft.ppeItems.unshift(item);
+    appendActivity(draft, "PPE item created", `${req.auth.user.name} added ${item.label}.`);
+    appendAuditEvent(draft, {
+      entityType: "ppeItem",
+      entityId: item.id,
+      action: "created",
+      summary: "PPE item created",
+      detail: item.label,
+      actor: req.auth.user,
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/safety/ppe-items/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageSafety(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.ppeItems ||= [];
+    const item = findPpeItem(draft, req.params.id);
+    const changedFields = [];
+    const nextLabel = payload.label == null ? item.label : requiredString(payload.label, "PPE label");
+    const nextDescription = payload.description == null ? item.description : optionalString(payload.description, "");
+    const nextRequiredByDefault = payload.requiredByDefault == null ? Boolean(item.requiredByDefault) : optionalBoolean(payload.requiredByDefault, Boolean(item.requiredByDefault));
+
+    if (nextLabel !== item.label) {
+      item.label = nextLabel;
+      changedFields.push("label");
+    }
+    if (nextDescription !== item.description) {
+      item.description = nextDescription;
+      changedFields.push("description");
+    }
+    if (nextRequiredByDefault !== Boolean(item.requiredByDefault)) {
+      item.requiredByDefault = nextRequiredByDefault;
+      changedFields.push("requiredByDefault");
+    }
+
+    item.updatedAt = changedAt;
+    appendActivity(draft, "PPE item updated", `${req.auth.user.name} updated ${item.label}.`);
+    appendAuditEvent(draft, {
+      entityType: "ppeItem",
+      entityId: item.id,
+      action: "updated",
+      summary: "PPE item updated",
+      detail: item.label,
+      actor: req.auth.user,
+      changedFields,
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/ppe-items/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageSafety(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.ppeItems ||= [];
+    const item = findPpeItem(draft, req.params.id);
+    item.status = "archived";
+    item.archivedAt = changedAt;
+    item.updatedAt = changedAt;
+    appendActivity(draft, "PPE item archived", `${req.auth.user.name} archived ${item.label}.`);
+    appendAuditEvent(draft, {
+      entityType: "ppeItem",
+      entityId: item.id,
+      action: "archived",
+      summary: "PPE item archived",
+      detail: item.label,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/acknowledgments", requireAuth, asyncRoute(async (req, res) => {
+  assertCanAcknowledgeSafety(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const payload = req.body || {};
+  const nextState = await updateDb((draft) => {
+    draft.safetyAcknowledgments ||= [];
+    const acknowledgment = createSafetyAcknowledgmentShape(payload, req.auth.user, changedAt);
+    let job = null;
+    if (acknowledgment.jobId) {
+      job = findRequiredRecord(draft.jobs, acknowledgment.jobId, "Job");
+      if (!canLinkSafetyRecordToJob(req.auth.user, job)) {
+        throw new ApiError(403, "You do not have permission to acknowledge safety for that job.");
+      }
+    }
+    if (acknowledgment.policyId) {
+      const policy = findSafetyPolicy(draft, acknowledgment.policyId);
+      if (policy.archivedAt) {
+        throw new ApiError(409, "Archived safety policies cannot be acknowledged.");
+      }
+    }
+
+    draft.safetyAcknowledgments.unshift(acknowledgment);
+    appendActivity(draft, "Safety acknowledged", `${req.auth.user.name} acknowledged ${acknowledgment.policyId ? "a safety item" : "safety and PPE guidance"}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyAcknowledgment",
+      entityId: acknowledgment.id,
+      action: "acknowledged",
+      summary: "Safety acknowledged",
+      detail: job ? `${req.auth.user.name} acknowledged safety for ${job.title || job.job}.` : `${req.auth.user.name} acknowledged safety guidance.`,
+      actor: req.auth.user,
+      changedFields: acknowledgment.policyId ? ["policyId"] : [],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/incidents", requireAuth, asyncRoute(async (req, res) => {
+  assertCanSubmitSafetyIncidents(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyIncidents ||= [];
+    const incident = createSafetyIncidentShape(payload, req.auth.user, changedAt);
+    if (incident.jobId) {
+      const job = findRequiredRecord(draft.jobs, incident.jobId, "Job");
+      if (!canLinkSafetyRecordToJob(req.auth.user, job)) {
+        throw new ApiError(403, "You do not have permission to submit an incident for that job.");
+      }
+    }
+    draft.safetyIncidents.unshift(incident);
+    appendActivity(draft, "Safety concern submitted", `${req.auth.user.name} submitted ${incident.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyIncident",
+      entityId: incident.id,
+      action: incident.type === "injury" ? "incident_submitted" : "concern_submitted",
+      summary: incident.type === "injury" ? "Incident submitted" : "Safety concern submitted",
+      detail: incident.title,
+      actor: req.auth.user,
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/incidents/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewSafetyIncidents(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyIncidents ||= [];
+    const incident = findSafetyIncident(draft, req.params.id);
+    incident.status = "reviewed";
+    incident.reviewedBy = req.auth.user.id;
+    incident.reviewedAt = changedAt;
+    incident.updatedAt = changedAt;
+    appendActivity(draft, "Safety incident reviewed", `${req.auth.user.name} reviewed ${incident.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyIncident",
+      entityId: incident.id,
+      action: "reviewed",
+      summary: "Safety incident reviewed",
+      detail: incident.title,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/incidents/:id/resolve", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewSafetyIncidents(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyIncidents ||= [];
+    const incident = findSafetyIncident(draft, req.params.id);
+    incident.status = "resolved";
+    incident.reviewedBy = req.auth.user.id;
+    incident.reviewedAt ||= changedAt;
+    incident.resolvedAt = changedAt;
+    incident.updatedAt = changedAt;
+    appendActivity(draft, "Safety incident resolved", `${req.auth.user.name} resolved ${incident.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyIncident",
+      entityId: incident.id,
+      action: "resolved",
+      summary: "Safety incident resolved",
+      detail: incident.title,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt", "resolvedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/safety/incidents/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewSafetyIncidents(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    draft.safetyIncidents ||= [];
+    const incident = findSafetyIncident(draft, req.params.id);
+    incident.status = "archived";
+    incident.archivedAt = changedAt;
+    incident.updatedAt = changedAt;
+    appendActivity(draft, "Safety incident archived", `${req.auth.user.name} archived ${incident.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "safetyIncident",
+      entityId: incident.id,
+      action: "archived",
+      summary: "Safety incident archived",
+      detail: incident.title,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.get("/api/leads", requireAuth, asyncRoute(async (req, res) => {

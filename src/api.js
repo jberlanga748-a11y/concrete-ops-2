@@ -166,6 +166,54 @@ export function createUpload(token, payload) {
   return request("/api/uploads", { method: "POST", token, body: payload });
 }
 
+export function getSafety(token) {
+  return request("/api/safety", { token });
+}
+
+export function createSafetyPolicy(token, payload) {
+  return request("/api/safety/policies", { method: "POST", token, body: payload });
+}
+
+export function updateSafetyPolicy(token, id, payload) {
+  return request(`/api/safety/policies/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archiveSafetyPolicy(token, id) {
+  return request(`/api/safety/policies/${id}/archive`, { method: "POST", token });
+}
+
+export function createPpeItem(token, payload) {
+  return request("/api/safety/ppe-items", { method: "POST", token, body: payload });
+}
+
+export function updatePpeItem(token, id, payload) {
+  return request(`/api/safety/ppe-items/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archivePpeItem(token, id) {
+  return request(`/api/safety/ppe-items/${id}/archive`, { method: "POST", token });
+}
+
+export function acknowledgeSafety(token, payload) {
+  return request("/api/safety/acknowledgments", { method: "POST", token, body: payload });
+}
+
+export function createSafetyIncident(token, payload) {
+  return request("/api/safety/incidents", { method: "POST", token, body: payload });
+}
+
+export function reviewSafetyIncident(token, id) {
+  return request(`/api/safety/incidents/${id}/review`, { method: "POST", token });
+}
+
+export function resolveSafetyIncident(token, id) {
+  return request(`/api/safety/incidents/${id}/resolve`, { method: "POST", token });
+}
+
+export function archiveSafetyIncident(token, id) {
+  return request(`/api/safety/incidents/${id}/archive`, { method: "POST", token });
+}
+
 export function updateUpload(token, id, payload) {
   return request(`/api/uploads/${id}`, { method: "PATCH", token, body: payload });
 }

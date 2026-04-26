@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  acknowledgeSafety,
   archiveUpload,
+  archivePpeItem,
+  archiveSafetyIncident,
+  archiveSafetyPolicy,
   archiveCustomer,
+  createPpeItem,
+  createSafetyIncident,
+  createSafetyPolicy,
   archiveJob,
   archiveLead,
   archiveQueueItem,
@@ -33,6 +40,8 @@ import {
   resetWorkspace,
   reviewDailyReport,
   reopenDailyReport,
+  resolveSafetyIncident,
+  reviewSafetyIncident,
   restoreCustomer,
   restoreJob,
   restoreLead,
@@ -46,6 +55,8 @@ import {
   updateJobAssignment,
   updateJob,
   updateLead,
+  updatePpeItem,
+  updateSafetyPolicy,
   updateUpload,
   updateUser,
 } from "./api";
@@ -57,6 +68,7 @@ import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobT
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
+import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -134,6 +146,10 @@ const EMPTY_APP_STATE = {
   leads: [],
   leadStatusHistory: [],
   jobs: [],
+  safetyPolicies: [],
+  ppeItems: [],
+  safetyAcknowledgments: [],
+  safetyIncidents: [],
   uploads: [],
   dailyReports: [],
   timeEntries: [],
@@ -187,6 +203,9 @@ const EMPTY_APP_STATE = {
     safety: {
       canView: false,
       canManage: false,
+      canAcknowledge: false,
+      canSubmitIncidents: false,
+      canReviewIncidents: false,
     },
     calculator: {
       canUse: false,
@@ -241,6 +260,10 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
     jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
+    safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
+    ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
+    safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
+    safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
     uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
     dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
     timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
@@ -372,6 +395,33 @@ const INITIAL_DAILY_REPORT_FORM = {
   visitorNotes: "",
   inspectionNotes: "",
   generalNotes: "",
+};
+
+const INITIAL_SAFETY_POLICY_FORM = {
+  title: "",
+  body: "",
+  category: "PPE",
+};
+
+const INITIAL_PPE_ITEM_FORM = {
+  label: "",
+  description: "",
+  requiredByDefault: true,
+};
+
+const INITIAL_SAFETY_ACK_FORM = {
+  jobId: "",
+  policyId: "",
+  notes: "",
+};
+
+const INITIAL_SAFETY_INCIDENT_FORM = {
+  jobId: "",
+  type: "concern",
+  severity: "low",
+  title: "",
+  description: "",
+  immediateAction: "",
 };
 
 const INITIAL_UPLOAD_FORM = {
@@ -1626,6 +1676,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
       { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
       { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
       { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+      { title: "Report Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
       { title: "Tool Checklist", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
       { title: "Concrete Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
       { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
@@ -1636,6 +1687,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
       { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
       { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
       { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+      { title: "Report Incident", description: "Raise a field safety concern tied to your assigned work.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
       { title: "Tool Checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
       { title: "Concrete Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
     ];
@@ -2901,6 +2953,435 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
             fileError={fileError}
           />
           <UploadDetailPanel upload={selectedUpload} token={sessionToken} canManage={permissions.uploads.canManageAll} disabled={busy} onSave={handleSaveUpload} onArchive={handleArchiveSelected} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function safetySeverityTone(severity = "low") {
+  const normalized = String(severity || "").toLowerCase();
+  if (normalized === "critical" || normalized === "high") return "red";
+  if (normalized === "medium") return "amber";
+  if (normalized === "resolved") return "green";
+  return "slate";
+}
+
+function safetyIncidentTypeLabel(type = "concern") {
+  return String(type || "concern").replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function SafetyPage({
+  active,
+  user,
+  permissions,
+  jobs,
+  safetyPolicies,
+  ppeItems,
+  safetyAcknowledgments,
+  safetyIncidents,
+  busy,
+  errorMessage,
+  onCreateSafetyPolicy,
+  onSaveSafetyPolicy,
+  onArchiveSafetyPolicy,
+  onCreatePpeItem,
+  onSavePpeItem,
+  onArchivePpeItem,
+  onAcknowledgeSafety,
+  onCreateSafetyIncident,
+  onReviewSafetyIncident,
+  onResolveSafetyIncident,
+  onArchiveSafetyIncident,
+}) {
+  const incidentFocused = active === "incidents";
+  const canManage = permissions.safety.canManage;
+  const canAcknowledge = permissions.safety.canAcknowledge;
+  const canSubmitIncidents = permissions.safety.canSubmitIncidents;
+  const canReview = permissions.safety.canReviewIncidents;
+  const allowedJobs = useMemo(() => deriveSafetyWorkspaceJobs(jobs), [jobs]);
+  const visiblePolicies = useMemo(() => deriveVisibleSafetyPolicies(safetyPolicies, { includeArchived: canManage }), [canManage, safetyPolicies]);
+  const activePpeItems = useMemo(() => deriveActivePpeItems(ppeItems), [ppeItems]);
+  const acknowledgmentState = useMemo(() => deriveAcknowledgmentState(safetyAcknowledgments, user?.id), [safetyAcknowledgments, user?.id]);
+  const incidentListState = useMemo(() => deriveSafetyIncidentListState(safetyIncidents), [safetyIncidents]);
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState("All");
+  const [incidentTypeFilter, setIncidentTypeFilter] = useState("All types");
+  const [incidentSeverityFilter, setIncidentSeverityFilter] = useState("All severities");
+  const [incidentJobFilter, setIncidentJobFilter] = useState("All jobs");
+  const [incidentReporterFilter, setIncidentReporterFilter] = useState("All reporters");
+  const [incidentArchiveFilter, setIncidentArchiveFilter] = useState("Active only");
+  const [incidentSearch, setIncidentSearch] = useState("");
+  const [selectedPolicyId, setSelectedPolicyId] = useState("");
+  const [selectedPpeId, setSelectedPpeId] = useState("");
+  const [selectedIncidentId, setSelectedIncidentId] = useState("");
+  const [policyDraft, setPolicyDraft] = useState(INITIAL_SAFETY_POLICY_FORM);
+  const [ppeDraft, setPpeDraft] = useState(INITIAL_PPE_ITEM_FORM);
+  const [ackDraft, setAckDraft] = useState(INITIAL_SAFETY_ACK_FORM);
+  const [incidentDraft, setIncidentDraft] = useState(INITIAL_SAFETY_INCIDENT_FORM);
+  const visibleIncidents = useMemo(() => filterSafetyIncidents(safetyIncidents, {
+    status: incidentStatusFilter,
+    type: incidentTypeFilter,
+    severity: incidentSeverityFilter,
+    jobId: incidentJobFilter,
+    submittedBy: incidentReporterFilter,
+    archived: incidentArchiveFilter,
+    query: incidentSearch,
+  }), [incidentArchiveFilter, incidentJobFilter, incidentReporterFilter, incidentSearch, incidentSeverityFilter, incidentStatusFilter, incidentTypeFilter, safetyIncidents]);
+  const selectedPolicy = visiblePolicies.find((policy) => policy.id === selectedPolicyId) || null;
+  const selectedPpeItem = ppeItems.find((item) => item.id === selectedPpeId) || null;
+  const selectedIncident = visibleIncidents.find((incident) => incident.id === selectedIncidentId) || safetyIncidents.find((incident) => incident.id === selectedIncidentId) || null;
+
+  useEffect(() => {
+    const preferredJobId = allowedJobs.length === 1 ? allowedJobs[0].id : "";
+    setAckDraft((current) => {
+      if (current.jobId && allowedJobs.some((job) => job.id === current.jobId)) return current;
+      return { ...current, jobId: preferredJobId };
+    });
+    setIncidentDraft((current) => {
+      if (current.jobId && allowedJobs.some((job) => job.id === current.jobId)) return current;
+      return { ...current, jobId: preferredJobId };
+    });
+  }, [allowedJobs]);
+
+  useEffect(() => {
+    if (!selectedPolicy) {
+      setPolicyDraft(INITIAL_SAFETY_POLICY_FORM);
+      return;
+    }
+    setPolicyDraft({
+      title: selectedPolicy.title || "",
+      body: selectedPolicy.body || "",
+      category: selectedPolicy.category || "PPE",
+    });
+  }, [selectedPolicy]);
+
+  useEffect(() => {
+    if (!selectedPpeItem) {
+      setPpeDraft(INITIAL_PPE_ITEM_FORM);
+      return;
+    }
+    setPpeDraft({
+      label: selectedPpeItem.label || "",
+      description: selectedPpeItem.description || "",
+      requiredByDefault: Boolean(selectedPpeItem.requiredByDefault),
+    });
+  }, [selectedPpeItem]);
+
+  useEffect(() => {
+    if (!selectedIncidentId && visibleIncidents[0]?.id) {
+      setSelectedIncidentId(visibleIncidents[0].id);
+      return;
+    }
+    if (selectedIncidentId && !visibleIncidents.some((incident) => incident.id === selectedIncidentId) && visibleIncidents[0]?.id) {
+      setSelectedIncidentId(visibleIncidents[0].id);
+    }
+  }, [selectedIncidentId, visibleIncidents]);
+
+  function handlePolicySubmit(event) {
+    event.preventDefault();
+    if (selectedPolicy && canManage) {
+      onSaveSafetyPolicy(selectedPolicy.id, policyDraft);
+      return;
+    }
+    onCreateSafetyPolicy(policyDraft);
+    setPolicyDraft(INITIAL_SAFETY_POLICY_FORM);
+  }
+
+  function handlePpeSubmit(event) {
+    event.preventDefault();
+    if (selectedPpeItem && canManage) {
+      onSavePpeItem(selectedPpeItem.id, ppeDraft);
+      return;
+    }
+    onCreatePpeItem(ppeDraft);
+    setPpeDraft(INITIAL_PPE_ITEM_FORM);
+  }
+
+  function handleAcknowledge(event) {
+    event.preventDefault();
+    onAcknowledgeSafety(ackDraft);
+    setAckDraft((current) => ({ ...INITIAL_SAFETY_ACK_FORM, jobId: current.jobId }));
+  }
+
+  function handleIncidentSubmit(event) {
+    event.preventDefault();
+    onCreateSafetyIncident(incidentDraft);
+    setIncidentDraft((current) => ({
+      ...INITIAL_SAFETY_INCIDENT_FORM,
+      jobId: current.jobId,
+    }));
+  }
+
+  const headerTitle = canManage ? "Safety & PPE" : incidentFocused ? "Report Incident" : "Safety & PPE";
+  const headerDescription = canManage
+    ? "Manage field-safe policies, PPE expectations, acknowledgments, and incidents without exposing payroll or pricing."
+    : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow={canManage ? "Office Safety" : "Field Safety"}
+        title={headerTitle}
+        description={headerDescription}
+        actions={<Badge tone="blue">{visibleIncidents.length} visible incidents</Badge>}
+      />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
+        <div className="space-y-4">
+          {canSubmitIncidents ? (
+            <Card className="p-4 md:p-5">
+              <SectionHeader
+                title={incidentFocused ? "Submit concern or incident" : "Report incident"}
+                description={allowedJobs.length === 0 ? "No assigned job is on your device yet. You can still submit a general safety concern." : "Job options stay scoped to the work you are allowed to see."}
+              />
+              <form className="grid gap-3" onSubmit={handleIncidentSubmit}>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <SelectField label="Job" value={incidentDraft.jobId} onChange={(event) => setIncidentDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                    <option value="">General safety concern</option>
+                    {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Type" value={incidentDraft.type} onChange={(event) => setIncidentDraft((current) => ({ ...current, type: event.target.value }))}>
+                    <option value="concern">Concern</option>
+                    <option value="hazard">Hazard</option>
+                    <option value="near_miss">Near miss</option>
+                    <option value="injury">Injury</option>
+                    <option value="property_damage">Property damage</option>
+                    <option value="other">Other</option>
+                  </SelectField>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <SelectField label="Severity" value={incidentDraft.severity} onChange={(event) => setIncidentDraft((current) => ({ ...current, severity: event.target.value }))}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </SelectField>
+                  <InputField label="Title" value={incidentDraft.title} onChange={(event) => setIncidentDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Wet slab edge, exposed rebar, blocked access..." />
+                </div>
+                <TextAreaField label="Description" value={incidentDraft.description} onChange={(event) => setIncidentDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What happened, where it was, and what the crew should know next." />
+                <TextAreaField label="Immediate action" value={incidentDraft.immediateAction} onChange={(event) => setIncidentDraft((current) => ({ ...current, immediateAction: event.target.value }))} placeholder="Stopped work, taped off area, called foreman, moved material..." />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={busy || !incidentDraft.title || !incidentDraft.description}>Submit safety item</Button>
+                </div>
+              </form>
+            </Card>
+          ) : null}
+
+          <Card className="overflow-hidden">
+            <div className="p-4 md:p-5">
+              <SectionHeader title="Incidents & concerns" description={canManage ? "Review, resolve, and archive field submissions across the company." : "Only incidents in your allowed field scope appear here."} />
+            </div>
+            <div className="grid gap-3 border-y border-blue-100 bg-blue-50/35 p-3 md:grid-cols-2 xl:grid-cols-3">
+              <SelectField label="Status" value={incidentStatusFilter} onChange={(event) => setIncidentStatusFilter(event.target.value)}>
+                <option>All</option>
+                <option value="open">Open</option>
+                <option value="reviewed">Reviewed</option>
+                <option value="resolved">Resolved</option>
+                <option value="archived">Archived</option>
+              </SelectField>
+              <SelectField label="Type" value={incidentTypeFilter} onChange={(event) => setIncidentTypeFilter(event.target.value)}>
+                <option>All types</option>
+                <option value="concern">Concern</option>
+                <option value="hazard">Hazard</option>
+                <option value="near_miss">Near miss</option>
+                <option value="injury">Injury</option>
+                <option value="property_damage">Property damage</option>
+                <option value="other">Other</option>
+              </SelectField>
+              <SelectField label="Severity" value={incidentSeverityFilter} onChange={(event) => setIncidentSeverityFilter(event.target.value)}>
+                <option>All severities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </SelectField>
+              <SelectField label="Job" value={incidentJobFilter} onChange={(event) => setIncidentJobFilter(event.target.value)}>
+                <option>All jobs</option>
+                {incidentListState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </SelectField>
+              <SelectField label="Submitted by" value={incidentReporterFilter} onChange={(event) => setIncidentReporterFilter(event.target.value)}>
+                <option>All reporters</option>
+                {incidentListState.reporterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </SelectField>
+              <SelectField label="Archive" value={incidentArchiveFilter} onChange={(event) => setIncidentArchiveFilter(event.target.value)}>
+                <option>Active only</option>
+                <option>Archived only</option>
+                <option>All</option>
+              </SelectField>
+              <div className="md:col-span-2 xl:col-span-3">
+                <input className="field-input w-full" value={incidentSearch} onChange={(event) => setIncidentSearch(event.target.value)} placeholder="Search incident title, description, job, or reporter..." />
+              </div>
+            </div>
+            {errorMessage && visibleIncidents.length === 0 ? (
+              <div className="p-5"><StateCard title="Safety incidents unavailable" description={errorMessage} tone="red" /></div>
+            ) : visibleIncidents.length === 0 ? (
+              <div className="p-5"><StateCard title="No incidents yet" description="Submitted concerns and incidents will appear here as soon as the field starts using the safety workflow." tone="slate" /></div>
+            ) : (
+              <div className="space-y-3 p-4">
+                {visibleIncidents.map((incident) => (
+                  <button
+                    key={incident.id}
+                    type="button"
+                    onClick={() => setSelectedIncidentId(incident.id)}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${selectedIncident?.id === incident.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/40"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{incident.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} · {incident.submittedByName}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
+                        <Badge tone={incident.status === "resolved" ? "green" : incident.status === "reviewed" ? "blue" : incident.status === "archived" ? "slate" : "amber"}>{incident.statusLabel}</Badge>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{incident.description}</p>
+                    <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(incident.createdAt)}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-4 md:p-5">
+            <SectionHeader title="Safety policies" description={canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data."} />
+            {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
+              <div className="space-y-3">
+                {visiblePolicies.map((policy) => (
+                  <button
+                    key={policy.id}
+                    type="button"
+                    onClick={() => canManage ? setSelectedPolicyId(policy.id) : undefined}
+                    className={`w-full rounded-2xl border p-4 text-left ${selectedPolicy?.id === policy.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{policy.title}</p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">{policy.category}</p>
+                      </div>
+                      <Badge tone={policy.archivedAt ? "slate" : "green"}>{policy.statusLabel}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{policy.body}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card className="p-4 md:p-5">
+            <SectionHeader title="PPE checklist" description="Default PPE stays visible to field users and editable only for office/admin." />
+            {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
+              <div className="space-y-2">
+                {activePpeItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => canManage ? setSelectedPpeId(item.id) : undefined}
+                    className={`w-full rounded-2xl border p-3 text-left ${selectedPpeItem?.id === item.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{item.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>
+                      </div>
+                      <Badge tone={item.requiredByDefault ? "blue" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {canAcknowledge ? (
+            <Card className="p-4 md:p-5">
+              <SectionHeader title="Acknowledge safety & PPE" description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
+              <form className="grid gap-3" onSubmit={handleAcknowledge}>
+                <SelectField label="Job" value={ackDraft.jobId} onChange={(event) => setAckDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                  <option value="">General safety review</option>
+                  {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+                </SelectField>
+                <SelectField label="Policy" value={ackDraft.policyId} onChange={(event) => setAckDraft((current) => ({ ...current, policyId: event.target.value }))}>
+                  <option value="">All current safety guidance</option>
+                  {visiblePolicies.filter((policy) => !policy.archivedAt).map((policy) => <option key={policy.id} value={policy.id}>{policy.title}</option>)}
+                </SelectField>
+                <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Crew brief complete, PPE checked, silica controls discussed..." />
+                <Button type="submit" disabled={busy}>Acknowledge</Button>
+              </form>
+              <div className="mt-4 space-y-2">
+                {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
+                  <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+                    <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
+                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` · ${acknowledgment.job.title}` : ""}</p>
+                    <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedIncident ? (
+            <Card className="p-4 md:p-5">
+              <SectionHeader title="Incident detail" description={selectedIncident.job?.title || "General safety concern"} action={<Badge tone={safetySeverityTone(selectedIncident.severity)}>{selectedIncident.severity}</Badge>} />
+              <p className="text-sm font-black text-slate-950">{selectedIncident.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{selectedIncident.description}</p>
+              {selectedIncident.immediateAction ? (
+                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Immediate action</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{selectedIncident.immediateAction}</p>
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone="slate">{safetyIncidentTypeLabel(selectedIncident.type)}</Badge>
+                <Badge tone={selectedIncident.status === "resolved" ? "green" : selectedIncident.status === "reviewed" ? "blue" : selectedIncident.status === "archived" ? "slate" : "amber"}>{selectedIncident.statusLabel}</Badge>
+              </div>
+              {canReview ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => onReviewSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "reviewed" || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Review</Button>
+                  <Button type="button" onClick={() => onResolveSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Resolve</Button>
+                  <Button type="button" variant="danger" onClick={() => onArchiveSafetyIncident(selectedIncident.id)} disabled={busy || Boolean(selectedIncident.archivedAt)}>Archive</Button>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
+
+          {canManage ? (
+            <>
+              <Card className="p-4 md:p-5">
+                <SectionHeader title={selectedPolicy ? "Edit safety policy" : "Create safety policy"} description="Keep the language practical for the field. Avoid legal or pricing content here." />
+                <form className="grid gap-3" onSubmit={handlePolicySubmit}>
+                  <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
+                  <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
+                  <TextAreaField label="Policy body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save policy</Button>
+                    {selectedPolicy ? <Button type="button" variant="secondary" onClick={() => setSelectedPolicyId("")}>New policy</Button> : null}
+                    {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchiveSafetyPolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
+                  </div>
+                </form>
+              </Card>
+
+              <Card className="p-4 md:p-5">
+                <SectionHeader title={selectedPpeItem ? "Edit PPE item" : "Add PPE item"} description="Required-by-default items stay surfaced first for field crews." />
+                <form className="grid gap-3" onSubmit={handlePpeSubmit}>
+                  <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
+                  <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
+                  <label className="field-label">
+                    <span>Required by default</span>
+                    <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                      <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
+                      <span>Surface this item at the top of the PPE checklist.</span>
+                    </div>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
+                    {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
+                    {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
+                  </div>
+                </form>
+              </Card>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
@@ -4343,6 +4824,9 @@ function MainContent(props) {
   if (active === "uploads") {
     return <UploadsPage {...props} uploads={props.uploads} />;
   }
+  if (active === "ppe" || active === "incidents") {
+    return <SafetyPage {...props} />;
+  }
   if (active === "time") {
     return <TimePage {...props} rows={props.timeEntries} />;
   }
@@ -4522,6 +5006,10 @@ export default function App() {
         companySettings: normalizedNextState.companySettings,
         users: normalizedNextState.users,
         customers: kind === "customer" && !shouldReplaceRecord ? current.customers : normalizedNextState.customers,
+        safetyPolicies: normalizedNextState.safetyPolicies,
+        ppeItems: normalizedNextState.ppeItems,
+        safetyAcknowledgments: normalizedNextState.safetyAcknowledgments,
+        safetyIncidents: normalizedNextState.safetyIncidents,
         activity: normalizedNextState.activity,
         auditEvents: normalizedNextState.auditEvents,
         permissions: normalizedNextState.permissions,
@@ -5304,6 +5792,193 @@ export default function App() {
     }
   }
 
+  async function handleCreateSafetyPolicy(payload) {
+    if (!sessionToken || !appState.permissions.safety.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createSafetyPolicy(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveSafetyPolicy(policyId, payload) {
+    if (!sessionToken || !appState.permissions.safety.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateSafetyPolicy(sessionToken, policyId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveSafetyPolicy(policyId) {
+    if (!sessionToken || !appState.permissions.safety.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveSafetyPolicy(sessionToken, policyId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreatePpeItem(payload) {
+    if (!sessionToken || !appState.permissions.safety.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createPpeItem(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSavePpeItem(itemId, payload) {
+    if (!sessionToken || !appState.permissions.safety.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updatePpeItem(sessionToken, itemId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchivePpeItem(itemId) {
+    if (!sessionToken || !appState.permissions.safety.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await archivePpeItem(sessionToken, itemId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAcknowledgeSafety(payload) {
+    if (!sessionToken || !appState.permissions.safety.canAcknowledge) return false;
+    setBusy(true);
+    try {
+      const nextState = await acknowledgeSafety(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateSafetyIncident(payload) {
+    if (!sessionToken || !appState.permissions.safety.canSubmitIncidents) return false;
+    setBusy(true);
+    try {
+      const nextState = await createSafetyIncident(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReviewSafetyIncident(incidentId) {
+    if (!sessionToken || !appState.permissions.safety.canReviewIncidents) return false;
+    setBusy(true);
+    try {
+      const nextState = await reviewSafetyIncident(sessionToken, incidentId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResolveSafetyIncident(incidentId) {
+    if (!sessionToken || !appState.permissions.safety.canReviewIncidents) return false;
+    setBusy(true);
+    try {
+      const nextState = await resolveSafetyIncident(sessionToken, incidentId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveSafetyIncident(incidentId) {
+    if (!sessionToken || !appState.permissions.safety.canReviewIncidents) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveSafetyIncident(sessionToken, incidentId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleReviewReport() {
     if (!selectedReport || !appState.permissions.reports.canReview) return;
     runMutation(() => reviewDailyReport(sessionToken, selectedReport.id));
@@ -5450,6 +6125,10 @@ export default function App() {
               customers={appState.customers}
               leads={appState.leads}
               jobs={appState.jobs}
+              safetyPolicies={appState.safetyPolicies}
+              ppeItems={appState.ppeItems}
+              safetyAcknowledgments={appState.safetyAcknowledgments}
+              safetyIncidents={appState.safetyIncidents}
               dailyReports={appState.dailyReports}
               timeEntries={appState.timeEntries}
               queueItems={appState.queueItems}
@@ -5542,6 +6221,17 @@ export default function App() {
               onCreateUpload={handleCreateUpload}
               onUpdateUpload={handleUpdateUpload}
               onArchiveUpload={handleArchiveUpload}
+              onCreateSafetyPolicy={handleCreateSafetyPolicy}
+              onSaveSafetyPolicy={handleSaveSafetyPolicy}
+              onArchiveSafetyPolicy={handleArchiveSafetyPolicy}
+              onCreatePpeItem={handleCreatePpeItem}
+              onSavePpeItem={handleSavePpeItem}
+              onArchivePpeItem={handleArchivePpeItem}
+              onAcknowledgeSafety={handleAcknowledgeSafety}
+              onCreateSafetyIncident={handleCreateSafetyIncident}
+              onReviewSafetyIncident={handleReviewSafetyIncident}
+              onResolveSafetyIncident={handleResolveSafetyIncident}
+              onArchiveSafetyIncident={handleArchiveSafetyIncident}
               selectedReportId={selectedReportId}
               onSelectReport={navigateToReport}
               selectedReport={selectedReport}
