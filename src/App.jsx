@@ -1896,14 +1896,31 @@ function WeekSummaryCard({ summary, title = "This Week", description, accent = "
   );
 }
 
+function RecentTimeEntriesCard({ entries, title = "Recent entries", description, emptyTitle = "No time entries yet", emptyDescription = "Clock in to start your first time entry.", showUser = false, compact = false }) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title={title} description={description} />
+      {safeEntries.length === 0 ? (
+        <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />
+      ) : (
+        <div className="space-y-3">
+          {safeEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} showUser={showUser} compact={compact} />)}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function TimeEntryCard({ entry, showUser = false, compact = false }) {
   return (
     <div className="rounded-2xl border border-blue-100 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{entry.workCategory === "job" ? (entry.address || "Jobsite details pending") : workCategoryLabel(entry.workCategory)}</p>
-          {showUser ? <p className="mt-1 text-xs font-bold text-slate-500">{entry.userName}</p> : null}
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.workCategory === "job" ? (entry.address || "Jobsite details pending") : workCategoryLabel(entry.workCategory)}</p>
+          {showUser ? <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.userName}</p> : null}
         </div>
         <TimeStatusBadge status={entry.status} />
       </div>
@@ -2113,12 +2130,14 @@ function TimePage({
   const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(rows, { excludeUserId: user?.id }), [rows, user?.id]);
 
   if (permissions.time.canViewAll) {
+    const ownRecentEntries = workspace.ownEntries.slice(0, 5);
+
     return (
       <div>
         <PageHeader eyebrow="Time" title="Time Entries" description="Review all field time entries and correct timestamps when needed." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
-        <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-          <div className="space-y-4">
-            {permissions.time.canManageOwn ? (
+        <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+          {permissions.time.canManageOwn ? (
+            <div className="space-y-4">
               <ActiveTimeCard
                 activeEntry={activeEntry}
                 availableJobs={workspace.availableJobs}
@@ -2130,15 +2149,26 @@ function TimePage({
                 disabled={busy}
                 description="Clock your own office or field work while keeping payroll data out of this workspace."
               />
-            ) : null}
-            <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours only." />
-            <WeekSummaryCard summary={deriveCrewWeeklySummary(rows)} title="All Visible Time This Week" description="Role-scoped weekly totals across the time entries you are allowed to view." />
-            <Card className="overflow-hidden">
-              <div className="p-4"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
-              {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
-            </Card>
+              <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours only." />
+              <RecentTimeEntriesCard
+                entries={ownRecentEntries}
+                title="My recent entries"
+                description="Your own clock-ins stay first on mobile before company-wide time management."
+                emptyDescription="Use the clock-in card above to create your first time entry."
+                compact
+              />
+            </div>
+          ) : null}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="space-y-4">
+              <WeekSummaryCard summary={deriveCrewWeeklySummary(rows)} title="All Visible Time This Week" description="Role-scoped weekly totals across the time entries you are allowed to view." />
+              <Card className="overflow-hidden">
+                <div className="p-4"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
+                {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
+              </Card>
+            </div>
+            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} />
           </div>
-          <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} />
         </div>
       </div>
     );
@@ -2190,16 +2220,7 @@ function TimePage({
         />
         <div className="space-y-4">
           <WeekSummaryCard summary={workspace.weeklySummary} description="Your current-week hours, breaks, and work breakdown." />
-          <Card className="p-5">
-            <SectionHeader title="Recent entries" description="Only your own time entries are visible here." />
-            {workspace.sortedEntries.length === 0 ? (
-              <StateCard title="No time entries yet" description="Clock in on an allowed job or work category to start your first time entry." tone="slate" />
-            ) : (
-              <div className="space-y-3">
-                {workspace.sortedEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} compact />)}
-              </div>
-            )}
-          </Card>
+          <RecentTimeEntriesCard entries={workspace.sortedEntries} description="Only your own time entries are visible here." emptyDescription="Clock in on an allowed job or work category to start your first time entry." compact />
         </div>
       </div>
     </div>
