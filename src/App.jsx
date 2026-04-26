@@ -9,6 +9,7 @@ import {
   convertLead,
   convertLeadToCustomer,
   createCustomer,
+  createDailyReport,
   createJobAssignment,
   createJob,
   createLead,
@@ -28,25 +29,31 @@ import {
   login,
   logout,
   resetWorkspace,
+  reviewDailyReport,
+  reopenDailyReport,
   restoreCustomer,
   restoreJob,
   restoreLead,
   restoreQueueItem,
+  submitDailyReport,
   startBreak,
   toggleQueueItem,
+  archiveDailyReport,
   updateCustomer,
+  updateDailyReport,
   updateJobAssignment,
   updateJob,
   updateLead,
   updateUser,
 } from "./api";
-import { buildCustomerPath, buildJobPath, buildLeadPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
+import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
+import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
@@ -123,6 +130,7 @@ const EMPTY_APP_STATE = {
   leads: [],
   leadStatusHistory: [],
   jobs: [],
+  dailyReports: [],
   timeEntries: [],
   queueItems: [],
   activity: [],
@@ -151,6 +159,12 @@ const EMPTY_APP_STATE = {
       canManageField: false,
       canManageAssignments: false,
       canViewMoney: false,
+    },
+    reports: {
+      canView: false,
+      canCreate: false,
+      canManageAll: false,
+      canReview: false,
     },
     time: {
       canView: false,
@@ -217,6 +231,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
     jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
+    dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
     timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
     queueItems: Array.isArray(source.queueItems) ? source.queueItems : Array.isArray(fallback.queueItems) ? fallback.queueItems : EMPTY_APP_STATE.queueItems,
     activity: Array.isArray(source.activity) ? source.activity : Array.isArray(fallback.activity) ? fallback.activity : EMPTY_APP_STATE.activity,
@@ -227,6 +242,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
       jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
+      reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
       time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
       safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
       calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
@@ -327,6 +343,23 @@ const INITIAL_TIME_CORRECTION_FORM = {
   breakStartAt: "",
   breakEndAt: "",
   notes: "",
+};
+
+const INITIAL_DAILY_REPORT_FORM = {
+  jobId: "",
+  reportDate: new Date().toISOString().slice(0, 10),
+  crewSummary: "",
+  workPerformed: "",
+  delays: "",
+  safetyNotes: "",
+  equipmentUsed: "",
+  materialNotes: "",
+  concretePoured: false,
+  yardsPoured: 0,
+  weather: "",
+  visitorNotes: "",
+  inspectionNotes: "",
+  generalNotes: "",
 };
 
 const INITIAL_SETUP_STATUS = {
@@ -2121,6 +2154,320 @@ function TimePage({
   );
 }
 
+function DailyReportStatusBadge({ status }) {
+  const tone = status === "reviewed"
+    ? "green"
+    : status === "submitted"
+      ? "blue"
+      : status === "reopened"
+        ? "amber"
+        : status === "archived"
+          ? "slate"
+          : "violet";
+
+  return <Badge tone={tone}>{reportStatusLabel(status)}</Badge>;
+}
+
+function DailyReportsTable({ rows, selectedId, onSelect }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[920px] text-left">
+        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Job</th>
+            <th className="px-4 py-3">Date</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Created by</th>
+            <th className="px-4 py-3">Crew</th>
+            <th className="px-4 py-3">Weather</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50">
+          {rows.map((report) => {
+            const selected = report.id === selectedId;
+            return (
+              <tr key={report.id} onClick={() => onSelect(report.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+                <td className="px-4 py-3">
+                  <p className="font-black text-slate-950">{jobTitle(report.job)}</p>
+                  <p className="text-xs font-bold text-slate-500">{report.id}</p>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{report.reportDate}</td>
+                <td className="px-4 py-3"><DailyReportStatusBadge status={report.status} /></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{report.createdByName}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{report.crewSummary || "No crew summary"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{report.weather || "Not set"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate, jobs }) {
+  if (!canCreate) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="New report" description="Only foremen and office roles can create official daily reports." />
+        <StateCard title="Read-only access" description="You can review field reports here, but only approved field or office roles can create them." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="New daily report" description="Create a draft report for today’s work, delays, safety, and materials." />
+      <form className="grid gap-3" onSubmit={onCreate}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+            <option value="">Select a job</option>
+            {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+          </SelectField>
+          <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
+        </div>
+        <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." />
+        <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." />
+        <div className="grid gap-3 md:grid-cols-2">
+          <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
+          <label className="field-label">
+            <span>Concrete poured</span>
+            <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
+          </label>
+        </div>
+        {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
+        <Button type="submit" disabled={disabled}>
+          <Icon name="plus" />
+          Create draft
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function DailyReportDetailPanel({
+  report,
+  reportDraft,
+  setReportDraft,
+  onSave,
+  onSubmit,
+  onReview,
+  onReopen,
+  onArchive,
+  canView,
+  canEdit,
+  canReview,
+  canArchive,
+  disabled,
+  notFound,
+}) {
+  if (!canView) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Report details" description="Daily reports follow role and job visibility rules." />
+        <StateCard title="Daily report access unavailable" description="This role cannot open the report workspace right now." tone="slate" />
+      </Card>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Report details" description="The requested report route is not available in your scope." />
+        <StateCard title="Daily report not found" description="The report may have been archived, removed from your access scope, or never existed." tone="red" />
+      </Card>
+    );
+  }
+
+  if (!report) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title="Report details" description="Select a report to view job progress, safety notes, and field documentation." />
+        <StateCard title="No report selected" description="Pick a report from the list or create a new draft to get started." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader
+          title={jobTitle(report.job)}
+          description={`${report.reportDate} · ${report.createdByName}`}
+          action={
+            <div className="flex flex-wrap gap-2">
+              <DailyReportStatusBadge status={report.status} />
+              {canReview && ["submitted", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReview} disabled={disabled}>Review</Button> : null}
+              {canReview && ["submitted", "reviewed"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReopen} disabled={disabled}>Reopen</Button> : null}
+              {canArchive && !report.archivedAt ? <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button> : null}
+              {canEdit && ["draft", "reopened"].includes(report.status) ? <Button size="sm" onClick={onSave} disabled={disabled}>Save report</Button> : null}
+              {canEdit && ["draft", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onSubmit} disabled={disabled}>Submit</Button> : null}
+            </div>
+          }
+        />
+        <div className="grid gap-3">
+          <TimestampMeta createdAt={report.createdAt} updatedAt={report.updatedAt} />
+          <div className="grid gap-3 md:grid-cols-2">
+            <InputField label="Report date" type="date" value={reportDraft.reportDate} onChange={(event) => setReportDraft((current) => ({ ...current, reportDate: event.target.value }))} disabled={!canEdit || disabled} />
+            <InputField label="Weather" value={reportDraft.weather} onChange={(event) => setReportDraft((current) => ({ ...current, weather: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+          <TextAreaField label="Crew summary" value={reportDraft.crewSummary} onChange={(event) => setReportDraft((current) => ({ ...current, crewSummary: event.target.value }))} disabled={!canEdit || disabled} />
+          <TextAreaField label="Work performed" value={reportDraft.workPerformed} onChange={(event) => setReportDraft((current) => ({ ...current, workPerformed: event.target.value }))} disabled={!canEdit || disabled} />
+          <div className="grid gap-3 md:grid-cols-2">
+            <TextAreaField label="Delays" value={reportDraft.delays} onChange={(event) => setReportDraft((current) => ({ ...current, delays: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="Safety notes" value={reportDraft.safetyNotes} onChange={(event) => setReportDraft((current) => ({ ...current, safetyNotes: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <TextAreaField label="Equipment used" value={reportDraft.equipmentUsed} onChange={(event) => setReportDraft((current) => ({ ...current, equipmentUsed: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="Material / concrete notes" value={reportDraft.materialNotes} onChange={(event) => setReportDraft((current) => ({ ...current, materialNotes: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="field-label">
+              <span>Concrete poured</span>
+              <input type="checkbox" checked={Boolean(reportDraft.concretePoured)} onChange={(event) => setReportDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} disabled={!canEdit || disabled} />
+            </label>
+            <InputField label="Yards poured" type="number" min="0" step="0.1" value={reportDraft.yardsPoured} onChange={(event) => setReportDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} disabled={!canEdit || disabled || !reportDraft.concretePoured} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <TextAreaField label="Visitor notes" value={reportDraft.visitorNotes} onChange={(event) => setReportDraft((current) => ({ ...current, visitorNotes: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="Inspection notes" value={reportDraft.inspectionNotes} onChange={(event) => setReportDraft((current) => ({ ...current, inspectionNotes: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+          <TextAreaField label="General notes" value={reportDraft.generalNotes} onChange={(event) => setReportDraft((current) => ({ ...current, generalNotes: event.target.value }))} disabled={!canEdit || disabled} />
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <SectionHeader title="Crew and time summary" description="Field-safe assignment and hours snapshot for this report date." />
+        <div className="grid gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="slate">{report.timeSummary.totalEntries} time entries</Badge>
+            <Badge tone="slate">{formatMinutes(report.timeSummary.totalMinutes)} worked</Badge>
+            <Badge tone="slate">{formatMinutes(report.timeSummary.breakMinutes)} breaks</Badge>
+          </div>
+          {report.crewAssignments.length === 0 ? (
+            <StateCard title="No crew assigned yet" description="Assigned crew will appear here once scheduling adds them to the job." tone="slate" />
+          ) : (
+            <div className="space-y-2">
+              {report.crewAssignments.map((assignment) => (
+                <div key={assignment.id || `${assignment.userId}-${assignment.roleOnJob}`} className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-black text-slate-950">{assignment.userName}</p>
+                    <Badge tone="slate">{assignment.roleOnJob}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ReportsPage({
+  user,
+  permissions,
+  reports,
+  jobs,
+  users,
+  filter,
+  setFilter,
+  search,
+  setSearch,
+  jobFilter,
+  setJobFilter,
+  creatorFilter,
+  setCreatorFilter,
+  dateFilter,
+  setDateFilter,
+  selectedReportId,
+  onSelectReport,
+  selectedReport,
+  reportDraft,
+  setReportDraft,
+  createDraft,
+  setCreateDraft,
+  onCreateReport,
+  onSaveReport,
+  onSubmitReport,
+  onReviewReport,
+  onReopenReport,
+  onArchiveReport,
+  busy,
+  reportRouteRequested,
+}) {
+  const canView = permissions.reports.canView;
+  const canCreate = permissions.reports.canCreate;
+  const listState = useMemo(() => deriveDailyReportListState(reports), [reports]);
+  const visibleRows = useMemo(() => filterDailyReports(reports, {
+    status: filter,
+    query: search,
+    jobId: jobFilter,
+    createdBy: creatorFilter,
+    date: dateFilter,
+  }), [creatorFilter, dateFilter, filter, jobFilter, reports, search]);
+  const notFound = Boolean(reportRouteRequested) && !selectedReport;
+  const canEdit = Boolean(selectedReport) && ((permissions.reports.canManageAll && !selectedReport.archivedAt) || (user?.role === "Foreman" && ["draft", "reopened"].includes(selectedReport.status)));
+  const canReviewActions = permissions.reports.canReview;
+
+  return (
+    <div>
+      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture work performed, delays, safety notes, crew coverage, and concrete details without exposing payroll or pricing." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
+          {canView ? (
+            <>
+              <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
+              <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  <option>All jobs</option>
+                  {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                  <option>All creators</option>
+                  {listState.creatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  <option>All dates</option>
+                  {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </SelectField>
+              </div>
+              {busy && visibleRows.length === 0 ? (
+                <div className="p-5"><StateCard title="Loading reports" description="Pulling field reports from the API." /></div>
+              ) : visibleRows.length === 0 ? (
+                <div className="p-5"><StateCard title="No reports yet" description="Create the first daily report or adjust the filters to widen the list." /></div>
+              ) : (
+                <DailyReportsTable rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} />
+              )}
+            </>
+          ) : (
+            <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
+          )}
+        </Card>
+        <div className="space-y-4">
+          <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
+          <DailyReportDetailPanel
+            report={selectedReport}
+            reportDraft={reportDraft}
+            setReportDraft={setReportDraft}
+            onSave={onSaveReport}
+            onSubmit={onSubmitReport}
+            onReview={onReviewReport}
+            onReopen={onReopenReport}
+            onArchive={onArchiveReport}
+            canView={canView}
+            canEdit={canEdit}
+            canReview={canReviewActions}
+            canArchive={permissions.reports.canManageAll}
+            disabled={busy}
+            notFound={notFound}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CustomersTable({ rows, selectedId, onSelect }) {
   return (
     <table className="w-full min-w-[980px] text-left">
@@ -3421,6 +3768,34 @@ function MainContent(props) {
       />
     );
   }
+  if (active === "reports") {
+    return (
+      <ReportsPage
+        {...props}
+        reports={props.dailyReports}
+        filter={props.reportFilter}
+        setFilter={props.setReportFilter}
+        search={props.reportSearch}
+        setSearch={props.setReportSearch}
+        jobFilter={props.reportJobFilter}
+        setJobFilter={props.setReportJobFilter}
+        creatorFilter={props.reportCreatorFilter}
+        setCreatorFilter={props.setReportCreatorFilter}
+        dateFilter={props.reportDateFilter}
+        setDateFilter={props.setReportDateFilter}
+        reportDraft={props.reportEditDraft}
+        setReportDraft={props.setReportEditDraft}
+        createDraft={props.createReportDraft}
+        setCreateDraft={props.setCreateReportDraft}
+        onCreateReport={props.onCreateReport}
+        onSaveReport={props.onSaveReport}
+        onSubmitReport={props.onSubmitReport}
+        onReviewReport={props.onReviewReport}
+        onReopenReport={props.onReopenReport}
+        onArchiveReport={props.onArchiveReport}
+      />
+    );
+  }
   if (active === "time") {
     return <TimePage {...props} rows={props.timeEntries} />;
   }
@@ -3478,16 +3853,24 @@ export default function App() {
   const [jobCustomerFilter, setJobCustomerFilter] = useState("All customers");
   const [jobForemanFilter, setJobForemanFilter] = useState("All foremen");
   const [jobDateFilter, setJobDateFilter] = useState("All dates");
+  const [reportFilter, setReportFilter] = useState("All");
+  const [reportSearch, setReportSearch] = useState("");
+  const [reportJobFilter, setReportJobFilter] = useState("All jobs");
+  const [reportCreatorFilter, setReportCreatorFilter] = useState("All creators");
+  const [reportDateFilter, setReportDateFilter] = useState("All dates");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [selectedReportId, setSelectedReportId] = useState("");
   const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
+  const [createReportDraft, setCreateReportDraft] = useState(INITIAL_DAILY_REPORT_FORM);
+  const [reportEditDraft, setReportEditDraft] = useState(INITIAL_DAILY_REPORT_FORM);
   const [taskDraft, setTaskDraft] = useState(INITIAL_TASK_FORM);
   const [timeEditDraft, setTimeEditDraft] = useState(INITIAL_TIME_CORRECTION_FORM);
   const [userProvisionNotice, setUserProvisionNotice] = useState(null);
@@ -3510,6 +3893,7 @@ export default function App() {
   const selectedUser = appState.users.find((user) => user.id === selectedUserId) || null;
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
+  const selectedReport = appState.dailyReports.find((report) => report.id === selectedReportId) || null;
   const selectedTimeEntry = appState.timeEntries.find((entry) => entry.id === selectedTimeEntryId) || null;
 
   function navigateTo(nextPath, { replace = false } = {}) {
@@ -3541,6 +3925,11 @@ export default function App() {
   function navigateToCustomer(id) {
     setSelectedCustomerId(id);
     navigateTo(buildCustomerPath(id));
+  }
+
+  function navigateToReport(id) {
+    setSelectedReportId(id);
+    navigateTo(buildReportPath(id));
   }
 
   function applyBootstrap(nextState) {
@@ -3592,6 +3981,7 @@ export default function App() {
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
+        dailyReports: normalizedNextState.dailyReports,
         timeEntries: normalizedNextState.timeEntries,
         queueItems: normalizedNextState.queueItems,
         stats: normalizedNextState.stats,
@@ -3637,6 +4027,7 @@ export default function App() {
     setSelectedCustomerId("");
     setSelectedLeadId("");
     setSelectedJobId("");
+    setSelectedReportId("");
     setSelectedTimeEntryId("");
   }
 
@@ -3737,6 +4128,30 @@ export default function App() {
     });
   }, [selectedTimeEntry]);
 
+  useEffect(() => {
+    if (!selectedReport) {
+      setReportEditDraft(INITIAL_DAILY_REPORT_FORM);
+      return;
+    }
+
+    setReportEditDraft({
+      jobId: selectedReport.jobId || "",
+      reportDate: selectedReport.reportDate || new Date().toISOString().slice(0, 10),
+      crewSummary: selectedReport.crewSummary || "",
+      workPerformed: selectedReport.workPerformed || "",
+      delays: selectedReport.delays || "",
+      safetyNotes: selectedReport.safetyNotes || "",
+      equipmentUsed: selectedReport.equipmentUsed || "",
+      materialNotes: selectedReport.materialNotes || "",
+      concretePoured: Boolean(selectedReport.concretePoured),
+      yardsPoured: Number(selectedReport.yardsPoured || 0),
+      weather: selectedReport.weather || "",
+      visitorNotes: selectedReport.visitorNotes || "",
+      inspectionNotes: selectedReport.inspectionNotes || "",
+      generalNotes: selectedReport.generalNotes || "",
+    });
+  }, [selectedReport]);
+
   async function bootstrap(token) {
     setBusy(true);
     setStartupError("");
@@ -3830,6 +4245,28 @@ export default function App() {
   }, [appState.jobs, authStatus, routeState.jobId, selectedJobId]);
 
   useEffect(() => {
+    if (authStatus !== "authenticated") return;
+
+    const fallbackReportId = appState.dailyReports[0]?.id || "";
+
+    if (routeState.reportId) {
+      if (!appState.dailyReports.some((report) => report.id === routeState.reportId)) {
+        setSelectedReportId(fallbackReportId);
+        navigateTo(getModulePath("reports"), { replace: true });
+        return;
+      }
+
+      if (selectedReportId !== routeState.reportId) {
+        setSelectedReportId(routeState.reportId);
+      }
+      return;
+    }
+
+    if (!selectedReportId && fallbackReportId) setSelectedReportId(fallbackReportId);
+    if (selectedReportId && !appState.dailyReports.some((report) => report.id === selectedReportId)) setSelectedReportId(fallbackReportId);
+  }, [appState.dailyReports, authStatus, routeState.reportId, selectedReportId]);
+
+  useEffect(() => {
     const fallbackUserId = appState.permissions.users.canView ? appState.users[0]?.id || "" : "";
     if (!selectedUserId || !appState.users.some((user) => user.id === selectedUserId)) {
       setSelectedUserId(fallbackUserId);
@@ -3871,7 +4308,7 @@ export default function App() {
     query: jobSearch,
     customer: jobCustomerFilter,
     foremanId: jobForemanFilter,
-    date: jobDateFilter,
+  date: jobDateFilter,
   }, appState.users).filteredJobs, [appState.users, enrichedJobs, jobCustomerFilter, jobDateFilter, jobFilter, jobForemanFilter, jobSearch]);
 
   const stats = useMemo(() => {
@@ -3910,7 +4347,7 @@ export default function App() {
     customers: appState.permissions.customers.canView ? appState.customers.filter((customer) => !customer.archivedAt).length : null,
     leads: appState.permissions.leads.canView ? appState.leads.filter((lead) => !lead.archivedAt).length : null,
     jobs: appState.jobs.filter((job) => !job.archivedAt).length,
-    reports: stats.reportsDue || null,
+    reports: appState.permissions.reports.canView ? appState.dailyReports.filter((report) => !report.archivedAt).length : null,
     copilot: 1,
   };
 
@@ -4234,6 +4671,46 @@ export default function App() {
     });
   }
 
+  function handleCreateReport(event) {
+    event.preventDefault();
+    if (!appState.permissions.reports.canCreate) return;
+    const existingReportIds = new Set(appState.dailyReports.map((report) => report.id));
+    runMutation(async () => {
+      const nextState = await createDailyReport(sessionToken, createReportDraft);
+      const createdReport = nextState.dailyReports.find((report) => !existingReportIds.has(report.id));
+      if (createdReport) {
+        navigateToReport(createdReport.id);
+      }
+      setCreateReportDraft(INITIAL_DAILY_REPORT_FORM);
+      return nextState;
+    });
+  }
+
+  function handleSaveReport() {
+    if (!selectedReport) return;
+    runMutation(() => updateDailyReport(sessionToken, selectedReport.id, reportEditDraft));
+  }
+
+  function handleSubmitReport() {
+    if (!selectedReport) return;
+    runMutation(() => submitDailyReport(sessionToken, selectedReport.id));
+  }
+
+  function handleReviewReport() {
+    if (!selectedReport || !appState.permissions.reports.canReview) return;
+    runMutation(() => reviewDailyReport(sessionToken, selectedReport.id));
+  }
+
+  function handleReopenReport() {
+    if (!selectedReport || !appState.permissions.reports.canReview) return;
+    runMutation(() => reopenDailyReport(sessionToken, selectedReport.id));
+  }
+
+  function handleArchiveReport() {
+    if (!selectedReport || !appState.permissions.reports.canManageAll) return;
+    runMutation(() => archiveDailyReport(sessionToken, selectedReport.id));
+  }
+
   function handleConvertLeadToCustomer() {
     if (!selectedLead || !appState.permissions.leads.canManage) return;
     runMutation(() => convertLeadToCustomer(sessionToken, selectedLead.id));
@@ -4365,6 +4842,7 @@ export default function App() {
               customers={appState.customers}
               leads={appState.leads}
               jobs={appState.jobs}
+              dailyReports={appState.dailyReports}
               timeEntries={appState.timeEntries}
               queueItems={appState.queueItems}
               activity={appState.activity}
@@ -4424,6 +4902,16 @@ export default function App() {
               setJobForemanFilter={setJobForemanFilter}
               jobDateFilter={jobDateFilter}
               setJobDateFilter={setJobDateFilter}
+              reportFilter={reportFilter}
+              setReportFilter={setReportFilter}
+              reportSearch={reportSearch}
+              setReportSearch={setReportSearch}
+              reportJobFilter={reportJobFilter}
+              setReportJobFilter={setReportJobFilter}
+              reportCreatorFilter={reportCreatorFilter}
+              setReportCreatorFilter={setReportCreatorFilter}
+              reportDateFilter={reportDateFilter}
+              setReportDateFilter={setReportDateFilter}
               selectedLeadId={selectedLeadId}
               onSelectLead={navigateToLead}
               selectedLead={selectedLead}
@@ -4441,6 +4929,20 @@ export default function App() {
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}
               selectedJob={selectedJob}
+              selectedReportId={selectedReportId}
+              onSelectReport={navigateToReport}
+              selectedReport={selectedReport}
+              reportEditDraft={reportEditDraft}
+              setReportEditDraft={setReportEditDraft}
+              createReportDraft={createReportDraft}
+              setCreateReportDraft={setCreateReportDraft}
+              onCreateReport={handleCreateReport}
+              onSaveReport={handleSaveReport}
+              onSubmitReport={handleSubmitReport}
+              onReviewReport={handleReviewReport}
+              onReopenReport={handleReopenReport}
+              onArchiveReport={handleArchiveReport}
+              reportRouteRequested={Boolean(routeState.reportId)}
               selectedTimeEntryId={selectedTimeEntryId}
               onSelectTimeEntry={setSelectedTimeEntryId}
               selectedTimeEntry={selectedTimeEntry}

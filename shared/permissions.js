@@ -90,6 +90,22 @@ export function canCorrectTimeEntries(user) {
   return isOfficeManager(user);
 }
 
+export function canViewReports(user) {
+  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+}
+
+export function canManageReports(user) {
+  return isOfficeManager(user);
+}
+
+export function canCreateDailyReports(user) {
+  return isForeman(user) || isOfficeManager(user);
+}
+
+export function canReviewReports(user) {
+  return isOfficeManager(user);
+}
+
 export function canViewCrewTime(user) {
   return isForeman(user);
 }

@@ -12,6 +12,10 @@ export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
 let db;
 let writeChain = Promise.resolve();
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getDataDir() {
   return serverConfig.dataDir;
 }
@@ -360,6 +364,7 @@ export function createEmptyState() {
     leadStatusHistory: [],
     jobs: [],
     jobAssignments: [],
+    dailyReports: [],
     timeEntries: [],
     queueItems: [],
     activity: [],
@@ -395,6 +400,7 @@ export function createSeedState() {
     leadStatusHistory,
     jobs,
     jobAssignments: [],
+    dailyReports: [],
     timeEntries: [],
     queueItems,
     activity: withSeedTimestamps(INITIAL_ACTIVITY, seededAt, 45),
@@ -448,6 +454,7 @@ function createDatabaseConnection() {
   db = new DatabaseSync(getSqliteFile());
   db.exec(`
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 5000;
     PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS app_meta (
@@ -1269,6 +1276,52 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 20,
+    description: "Add daily reports for field reporting workflow.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS daily_reports (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          report_date TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          submitted_by TEXT,
+          reviewed_by TEXT,
+          crew_summary TEXT NOT NULL,
+          work_performed TEXT NOT NULL,
+          delays TEXT NOT NULL,
+          safety_notes TEXT NOT NULL,
+          equipment_used TEXT NOT NULL,
+          material_notes TEXT NOT NULL,
+          concrete_poured INTEGER NOT NULL DEFAULT 0,
+          yards_poured REAL NOT NULL DEFAULT 0,
+          weather TEXT NOT NULL,
+          visitor_notes TEXT NOT NULL,
+          inspection_notes TEXT NOT NULL,
+          general_notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          submitted_at TEXT,
+          reviewed_at TEXT,
+          reopened_at TEXT,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_daily_reports_job_id ON daily_reports(job_id);
+        CREATE INDEX IF NOT EXISTS idx_daily_reports_report_date ON daily_reports(report_date);
+        CREATE INDEX IF NOT EXISTS idx_daily_reports_status ON daily_reports(status);
+        CREATE INDEX IF NOT EXISTS idx_daily_reports_created_by ON daily_reports(created_by);
+        CREATE INDEX IF NOT EXISTS idx_daily_reports_sort_index ON daily_reports(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1342,6 +1395,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertDailyReport = database.prepare(`
+    INSERT INTO daily_reports (id, sort_index, job_id, report_date, status, created_by, submitted_by, reviewed_by, crew_summary, work_performed, delays, safety_notes, equipment_used, material_notes, concrete_poured, yards_poured, weather, visitor_notes, inspection_notes, general_notes, created_at, updated_at, submitted_at, reviewed_at, reopened_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertQueueItem = database.prepare(`
     INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1367,6 +1425,7 @@ function writeStateToDb(state) {
       DELETE FROM leads;
       DELETE FROM job_assignments;
       DELETE FROM jobs;
+      DELETE FROM daily_reports;
       DELETE FROM time_entries;
       DELETE FROM queue_items;
       DELETE FROM activity;
@@ -1530,6 +1589,37 @@ function writeStateToDb(state) {
       );
     });
 
+    (state.dailyReports || []).forEach((report, index) => {
+      insertDailyReport.run(
+        report.id,
+        index,
+        report.jobId,
+        report.reportDate,
+        report.status || "draft",
+        report.createdBy,
+        report.submittedBy || null,
+        report.reviewedBy || null,
+        report.crewSummary || "",
+        report.workPerformed || "",
+        report.delays || "",
+        report.safetyNotes || "",
+        report.equipmentUsed || "",
+        report.materialNotes || "",
+        report.concretePoured ? 1 : 0,
+        Number(report.yardsPoured || 0),
+        report.weather || "",
+        report.visitorNotes || "",
+        report.inspectionNotes || "",
+        report.generalNotes || "",
+        report.createdAt || isoNow(),
+        report.updatedAt || report.createdAt || isoNow(),
+        report.submittedAt || null,
+        report.reviewedAt || null,
+        report.reopenedAt || null,
+        report.archivedAt || null,
+      );
+    });
+
     state.queueItems.forEach((item, index) => {
       insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
     });
@@ -1614,6 +1704,19 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
+  const dailyReports = database.prepare(`
+    SELECT id, job_id AS jobId, report_date AS reportDate, status, created_by AS createdBy, submitted_by AS submittedBy, reviewed_by AS reviewedBy,
+           crew_summary AS crewSummary, work_performed AS workPerformed, delays, safety_notes AS safetyNotes, equipment_used AS equipmentUsed,
+           material_notes AS materialNotes, concrete_poured AS concretePoured, yards_poured AS yardsPoured, weather, visitor_notes AS visitorNotes,
+           inspection_notes AS inspectionNotes, general_notes AS generalNotes, created_at AS createdAt, updated_at AS updatedAt, submitted_at AS submittedAt,
+           reviewed_at AS reviewedAt, reopened_at AS reopenedAt, archived_at AS archivedAt
+    FROM daily_reports
+    ORDER BY sort_index ASC
+  `).all().map((report) => ({
+    ...report,
+    concretePoured: Boolean(report.concretePoured),
+  }));
+
   const queueItems = database.prepare(`
     SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM queue_items
@@ -1635,7 +1738,30 @@ function readTableState() {
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
-  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, timeEntries, queueItems, activity, auditEvents };
+  return { users, sessions, customers, leads, leadStatusHistory, jobs: derivedAssignmentState.jobs, jobAssignments: derivedAssignmentState.jobAssignments, dailyReports, timeEntries, queueItems, activity, auditEvents };
+}
+
+function isRetryableSqliteError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return error?.code === "SQLITE_BUSY" || error?.code === "SQLITE_LOCKED" || /database is locked/i.test(message);
+}
+
+async function withSqliteRetry(task, { attempts = 5, delayMs = 40 } = {}) {
+  let lastError;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      if (!isRetryableSqliteError(error) || attempt === attempts - 1) {
+        throw error;
+      }
+      lastError = error;
+      await sleep(delayMs * (attempt + 1));
+    }
+  }
+
+  throw lastError;
 }
 
 async function loadInitialState() {
@@ -1682,26 +1808,29 @@ export async function ensureDb() {
 
 export async function cleanupExpiredSessions(now = new Date().toISOString()) {
   await ensureDb();
-  const database = createDatabaseConnection();
-
-  database.prepare(`
-    DELETE FROM sessions
-    WHERE expires_at IS NOT NULL
-      AND expires_at <= ?
-  `).run(now);
+  await withSqliteRetry(async () => {
+    const database = createDatabaseConnection();
+    database.prepare(`
+      DELETE FROM sessions
+      WHERE expires_at IS NOT NULL
+        AND expires_at <= ?
+    `).run(now);
+  });
 }
 
 export async function readDb() {
   await ensureDb();
-  return readTableState();
+  return withSqliteRetry(async () => readTableState());
 }
 
 export function updateDb(mutator) {
   const runUpdate = writeChain.catch(() => undefined).then(async () => {
-    const current = await readDb();
-    const next = await mutator(structuredClone(current));
-    writeStateToDb(next);
-    return readTableState();
+    return withSqliteRetry(async () => {
+      const current = await readDb();
+      const next = await mutator(structuredClone(current));
+      writeStateToDb(next);
+      return readTableState();
+    });
   });
 
   writeChain = runUpdate.then(() => undefined, () => undefined);

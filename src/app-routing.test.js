@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCustomerPath, buildJobPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
+import { buildCustomerPath, buildJobPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
 
 test("customer routes build and parse durable detail paths", () => {
   assert.equal(buildCustomerPath("C-1001"), "/customers/C-1001");
@@ -10,6 +10,7 @@ test("customer routes build and parse durable detail paths", () => {
     leadId: "",
     jobId: "",
     customerId: "C-1001",
+    reportId: "",
   });
 });
 
@@ -20,6 +21,7 @@ test("customer routes decode encoded ids and normalize trailing slashes", () => 
     leadId: "",
     jobId: "",
     customerId: "C/42",
+    reportId: "",
   });
 });
 
@@ -30,6 +32,18 @@ test("job routes build and parse durable detail paths", () => {
     leadId: "",
     jobId: "J-2201",
     customerId: "",
+    reportId: "",
+  });
+});
+
+test("report routes build and parse durable detail paths", () => {
+  assert.equal(buildReportPath("R-1001"), "/reports/R-1001");
+  assert.deepEqual(parseAppPath("/reports/R-1001"), {
+    active: "reports",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "R-1001",
   });
 });
 
@@ -40,5 +54,6 @@ test("employees module route resolves directly instead of falling back to dashbo
     leadId: "",
     jobId: "",
     customerId: "",
+    reportId: "",
   });
 });
