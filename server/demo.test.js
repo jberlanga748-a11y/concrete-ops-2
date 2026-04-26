@@ -206,6 +206,145 @@ function insertExistingBusinessRecords(sqliteFile) {
   }
 }
 
+function insertJunkBusinessRecords(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const createdAt = new Date().toISOString();
+
+    database.prepare(`
+      INSERT INTO customers (id, sort_index, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "C-JUNK-001",
+      1200,
+      "john berlan",
+      "",
+      "503-555-1111",
+      "john.berlan@example.test",
+      "Salem",
+      "Salem",
+      "Active",
+      "Junk test customer that should stay out of demo views.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO customers (id, sort_index, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "C-JUNK-002",
+      1201,
+      "asas",
+      "",
+      "503-555-1112",
+      "asas@example.test",
+      "Keizer",
+      "Keizer",
+      "Prospect",
+      "Another junk customer that should not appear for demo users.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "L-JUNK-001",
+      1200,
+      "C-JUNK-001",
+      "john berlan",
+      "Salem",
+      "gfsghyrh",
+      "New",
+      "Low",
+      1000,
+      "Real Admin",
+      "U-REAL-ADMIN",
+      "0d",
+      "Manual",
+      "2026-05-03",
+      "Ignore",
+      "Junk lead that should not appear for demo users.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "J-JUNK-001",
+      1200,
+      "C-JUNK-001",
+      "L-JUNK-001",
+      "hhhh",
+      "hhhh",
+      "john berlan",
+      "404 Test Way, Salem, OR",
+      "riley · 503-555-1113",
+      "Junk job that should not appear for demo users.",
+      "2026-05-04T08:00",
+      "2026-05-04T16:00",
+      "1 day",
+      1,
+      "",
+      "",
+      "",
+      "",
+      "U-REAL-FOREMAN",
+      "",
+      0,
+      0,
+      "scheduled",
+      "Scheduled",
+      "riley",
+      "Ignore",
+      "Ignore",
+      "2026-05-04",
+      0,
+      "Junk job note.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "Q-JUNK-001",
+      1200,
+      "Follow up with john",
+      "asas",
+      "Due today",
+      0,
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO activity (id, sort_index, time, title, detail, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "A-JUNK-001",
+      1200,
+      "09:41 AM",
+      "riley",
+      "gfsghyrh",
+      createdAt,
+      createdAt,
+    );
+  } finally {
+    database.close();
+  }
+}
+
 function insertDemoUploadRecord(sqliteFile, upload) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -498,6 +637,85 @@ test("existing database backfills missing demo users when demo mode is enabled",
     assert.equal(demoUsers.length, 3);
     assert.equal(demoUsers.every((user) => user.id.startsWith("DEMO-U-")), true);
 
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+});
+
+test("demo users only see the clean demo story even when an existing database contains rough test records", async () => {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-clean-view-"));
+  const firstServer = await startServer({}, { dataDir: tempDataDir });
+
+  try {
+    await login(firstServer.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+  } finally {
+    await firstServer.stop();
+  }
+
+  const realAdminUser = createUserRecord({
+    id: "U-REAL-ADMIN",
+    email: "real.admin@example.test",
+    password: "realadmin123",
+    name: "Real Admin",
+    role: "Administrator",
+  });
+  const realForemanUser = createUserRecord({
+    id: "U-REAL-FOREMAN",
+    email: "real.foreman@example.test",
+    password: "realforeman123",
+    name: "Real Foreman",
+    role: "Foreman",
+  });
+  insertUsers(path.join(tempDataDir, "app-data.sqlite"), [realAdminUser, realForemanUser]);
+  insertExistingBusinessRecords(path.join(tempDataDir, "app-data.sqlite"));
+  insertJunkBusinessRecords(path.join(tempDataDir, "app-data.sqlite"));
+
+  const demoServer = await startServer({
+    DEMO_MODE: "true",
+    PUBLIC_ESTIMATE_REQUEST_ENABLED: "true",
+  }, { dataDir: tempDataDir });
+
+  try {
+    const demoAdminLogin = await login(demoServer.baseUrl, {
+      email: "demo.admin@concreteops.app",
+      password: "demo12345",
+    });
+    const demoBootstrap = await assertOk(demoServer.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${demoAdminLogin.token}` },
+    });
+
+    assert.deepEqual(
+      demoBootstrap.users.map((user) => user.name).sort(),
+      ["Demo Admin", "Demo Employee", "Demo Foreman"],
+    );
+    assert.equal(demoBootstrap.customers.some((customer) => customer.name === "john berlan" || customer.name === "asas"), false);
+    assert.equal(demoBootstrap.leads.some((lead) => lead.project === "gfsghyrh"), false);
+    assert.equal(demoBootstrap.jobs.some((job) => job.title === "hhhh"), false);
+    assert.equal(demoBootstrap.queueItems.some((item) => item.title === "Follow up with john"), false);
+    assert.equal(demoBootstrap.activity.some((item) => item.title === "riley" || item.detail === "gfsghyrh"), false);
+
+    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Martinez Residence"));
+    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Keizer Patio Project"));
+    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Valley View Apartments"));
+    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Salem Dental Office"));
+    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Northwest Storage Yard"));
+    assert.ok(demoBootstrap.leads.some((lead) => lead.project === "Driveway replacement estimate"));
+    assert.ok(demoBootstrap.jobs.some((job) => job.title === "Martinez Driveway Replacement"));
+
+    const realAdminLogin = await login(demoServer.baseUrl, {
+      email: "real.admin@example.test",
+      password: "realadmin123",
+    });
+    const realBootstrap = await assertOk(demoServer.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${realAdminLogin.token}` },
+    });
+    assert.ok(realBootstrap.customers.some((customer) => customer.name === "john berlan"));
+    assert.ok(realBootstrap.leads.some((lead) => lead.project === "gfsghyrh"));
+    assert.ok(realBootstrap.jobs.some((job) => job.title === "hhhh"));
+  } finally {
+    await demoServer.stop();
     await fs.rm(tempDataDir, { recursive: true, force: true });
   }
 });

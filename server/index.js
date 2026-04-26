@@ -5,7 +5,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
 
-import { DEMO_CREDENTIALS, DEMO_USER_EMAILS } from "./seed-data.js";
+import {
+  DEMO_CREDENTIALS,
+  DEMO_USER_EMAILS,
+  DEMO_USERS,
+  INITIAL_ACTIVITY,
+  INITIAL_CUSTOMERS,
+  INITIAL_JOBS,
+  INITIAL_LEADS,
+  INITIAL_QUEUE_ITEMS,
+} from "./seed-data.js";
 import { serverConfig } from "./config.js";
 import { logger, serializeError } from "./logger.js";
 import {
@@ -573,10 +582,10 @@ function calculatorResultsForJob(state, job, user) {
 
 function visibleCalculatorResultsForUser(state, user) {
   if (!user || !canUseCalculator(user)) return [];
-  return (state.calculatorResults || [])
+  return filterDemoRecordsForUser(state, user, (state.calculatorResults || [])
     .map((result) => sanitizeCalculatorResultForUser(result, state, user))
     .filter(Boolean)
-    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
+    .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime()), "calculatorResults");
 }
 
 function findRequiredRecord(records, id, resourceName) {
@@ -594,10 +603,331 @@ function companySettingsForState(state = null) {
   };
 }
 
+const DEMO_USER_ID_SET = new Set(DEMO_USERS.map((user) => user.id));
+const DEMO_USER_NAME_SET = new Set(DEMO_USERS.map((user) => user.name));
+const DEMO_CUSTOMER_NAME_SET = new Set(INITIAL_CUSTOMERS.map((customer) => customer.name));
+const DEMO_LEAD_PROJECT_SET = new Set(INITIAL_LEADS.map((lead) => lead.project));
+const DEMO_JOB_TITLE_SET = new Set(INITIAL_JOBS.map((job) => job.title));
+const DEMO_QUEUE_TITLE_SET = new Set(INITIAL_QUEUE_ITEMS.map((item) => item.title));
+const DEMO_ACTIVITY_TITLE_SET = new Set(INITIAL_ACTIVITY.map((item) => item.title));
+const DEMO_ACTIVITY_DETAIL_SET = new Set(INITIAL_ACTIVITY.map((item) => item.detail));
+
+function isDemoModeUser(user) {
+  const email = String(user?.email || "").toLowerCase();
+  return serverConfig.demoMode && DEMO_USER_EMAILS.includes(email);
+}
+
+function isDemoId(value) {
+  return String(value || "").toUpperCase().includes("DEMO");
+}
+
+function hasDemoReference(value, allowedIds) {
+  return Boolean(value) && allowedIds.has(String(value));
+}
+
+function buildDemoScope(state) {
+  const users = Array.isArray(state?.users) ? state.users : [];
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const leads = Array.isArray(state?.leads) ? state.leads : [];
+  const jobs = Array.isArray(state?.jobs) ? state.jobs : [];
+  const estimates = Array.isArray(state?.estimates) ? state.estimates : [];
+  const timeEntries = Array.isArray(state?.timeEntries) ? state.timeEntries : [];
+  const dailyReports = Array.isArray(state?.dailyReports) ? state.dailyReports : [];
+  const uploads = Array.isArray(state?.uploads) ? state.uploads : [];
+  const safetyAcknowledgments = Array.isArray(state?.safetyAcknowledgments) ? state.safetyAcknowledgments : [];
+  const safetyIncidents = Array.isArray(state?.safetyIncidents) ? state.safetyIncidents : [];
+  const toolChecklists = Array.isArray(state?.toolChecklists) ? state.toolChecklists : [];
+  const toolChecklistItems = Array.isArray(state?.toolChecklistItems) ? state.toolChecklistItems : [];
+  const calculatorResults = Array.isArray(state?.calculatorResults) ? state.calculatorResults : [];
+  const prePourChecklists = Array.isArray(state?.prePourChecklists) ? state.prePourChecklists : [];
+  const prePourChecklistItems = Array.isArray(state?.prePourChecklistItems) ? state.prePourChecklistItems : [];
+  const postPourChecklists = Array.isArray(state?.postPourChecklists) ? state.postPourChecklists : [];
+  const postPourChecklistItems = Array.isArray(state?.postPourChecklistItems) ? state.postPourChecklistItems : [];
+  const changeOrderRequests = Array.isArray(state?.changeOrderRequests) ? state.changeOrderRequests : [];
+  const deliveryTickets = Array.isArray(state?.deliveryTickets) ? state.deliveryTickets : [];
+  const queueItems = Array.isArray(state?.queueItems) ? state.queueItems : [];
+  const activity = Array.isArray(state?.activity) ? state.activity : [];
+  const auditEvents = Array.isArray(state?.auditEvents) ? state.auditEvents : [];
+  const leadStatusHistory = Array.isArray(state?.leadStatusHistory) ? state.leadStatusHistory : [];
+
+  const userIds = new Set(
+    users
+      .filter((entry) => DEMO_USER_ID_SET.has(String(entry?.id || ""))
+        || DEMO_USER_EMAILS.includes(String(entry?.email || "").toLowerCase())
+        || DEMO_USER_NAME_SET.has(String(entry?.name || ""))
+        || isDemoId(entry?.id))
+      .map((entry) => String(entry.id)),
+  );
+  for (const demoUser of DEMO_USERS) userIds.add(demoUser.id);
+
+  const customerIds = new Set(
+    customers
+      .filter((entry) => isDemoId(entry?.id) || DEMO_CUSTOMER_NAME_SET.has(String(entry?.name || "")))
+      .map((entry) => String(entry.id)),
+  );
+  const leadIds = new Set(
+    leads
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.customerId, customerIds)
+        || DEMO_CUSTOMER_NAME_SET.has(String(entry?.customer || ""))
+        || DEMO_LEAD_PROJECT_SET.has(String(entry?.project || "")))
+      .map((entry) => String(entry.id)),
+  );
+  const jobIds = new Set(
+    jobs
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.customerId, customerIds)
+        || hasDemoReference(entry?.leadId, leadIds)
+        || DEMO_CUSTOMER_NAME_SET.has(String(entry?.customer || ""))
+        || DEMO_JOB_TITLE_SET.has(String(entry?.title || entry?.job || "")))
+      .map((entry) => String(entry.id)),
+  );
+  const estimateIds = new Set(
+    estimates
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.customerId, customerIds)
+        || hasDemoReference(entry?.leadId, leadIds)
+        || hasDemoReference(entry?.jobId, jobIds))
+      .map((entry) => String(entry.id)),
+  );
+  const timeEntryIds = new Set(
+    timeEntries
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.userId, userIds)
+        || hasDemoReference(entry?.jobId, jobIds))
+      .map((entry) => String(entry.id)),
+  );
+  const dailyReportIds = new Set(
+    dailyReports
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.createdBy, userIds)
+        || hasDemoReference(entry?.submittedBy, userIds)
+        || hasDemoReference(entry?.reviewedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const uploadIds = new Set(
+    uploads
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.customerId, customerIds)
+        || hasDemoReference(entry?.reportId, dailyReportIds)
+        || hasDemoReference(entry?.uploadedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const safetyAcknowledgmentIds = new Set(
+    safetyAcknowledgments
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.userId, userIds)
+        || hasDemoReference(entry?.jobId, jobIds))
+      .map((entry) => String(entry.id)),
+  );
+  const safetyIncidentIds = new Set(
+    safetyIncidents
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.submittedBy, userIds)
+        || hasDemoReference(entry?.reviewedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const toolChecklistIds = new Set(
+    toolChecklists
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.createdBy, userIds)
+        || hasDemoReference(entry?.assignedForemanId, userIds)
+        || hasDemoReference(entry?.submittedBy, userIds)
+        || hasDemoReference(entry?.reviewedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const toolChecklistItemIds = new Set(
+    toolChecklistItems
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.checklistId, toolChecklistIds)
+        || hasDemoReference(entry?.addedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const calculatorResultIds = new Set(
+    calculatorResults
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.createdBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const prePourChecklistIds = new Set(
+    prePourChecklists
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.createdBy, userIds)
+        || hasDemoReference(entry?.completedBy, userIds)
+        || hasDemoReference(entry?.reviewedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const prePourChecklistItemIds = new Set(
+    prePourChecklistItems
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.checklistId, prePourChecklistIds)
+        || hasDemoReference(entry?.checkedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const postPourChecklistIds = new Set(
+    postPourChecklists
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.createdBy, userIds)
+        || hasDemoReference(entry?.completedBy, userIds)
+        || hasDemoReference(entry?.reviewedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const postPourChecklistItemIds = new Set(
+    postPourChecklistItems
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.checklistId, postPourChecklistIds)
+        || hasDemoReference(entry?.checkedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const changeOrderRequestIds = new Set(
+    changeOrderRequests
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.customerId, customerIds)
+        || hasDemoReference(entry?.requestedBy, userIds)
+        || hasDemoReference(entry?.reviewedBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const deliveryTicketIds = new Set(
+    deliveryTickets
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.jobId, jobIds)
+        || hasDemoReference(entry?.reportId, dailyReportIds)
+        || hasDemoReference(entry?.createdBy, userIds)
+        || hasDemoReference(entry?.ticketUploadId, uploadIds))
+      .map((entry) => String(entry.id)),
+  );
+  const queueItemIds = new Set(
+    queueItems
+      .filter((entry) => isDemoId(entry?.id) || DEMO_QUEUE_TITLE_SET.has(String(entry?.title || "")))
+      .map((entry) => String(entry.id)),
+  );
+  const activityIds = new Set(
+    activity
+      .filter((entry) => isDemoId(entry?.id)
+        || DEMO_ACTIVITY_TITLE_SET.has(String(entry?.title || ""))
+        || DEMO_ACTIVITY_DETAIL_SET.has(String(entry?.detail || "")))
+      .map((entry) => String(entry.id)),
+  );
+  const leadStatusHistoryIds = new Set(
+    leadStatusHistory
+      .filter((entry) => isDemoId(entry?.id) || hasDemoReference(entry?.leadId, leadIds))
+      .map((entry) => String(entry.id)),
+  );
+  const auditEventIds = new Set(
+    auditEvents
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.actorUserId, userIds)
+        || hasDemoReference(entry?.entityId, customerIds)
+        || hasDemoReference(entry?.entityId, leadIds)
+        || hasDemoReference(entry?.entityId, jobIds)
+        || hasDemoReference(entry?.entityId, estimateIds)
+        || hasDemoReference(entry?.entityId, timeEntryIds)
+        || hasDemoReference(entry?.entityId, dailyReportIds)
+        || hasDemoReference(entry?.entityId, uploadIds)
+        || hasDemoReference(entry?.entityId, safetyAcknowledgmentIds)
+        || hasDemoReference(entry?.entityId, safetyIncidentIds)
+        || hasDemoReference(entry?.entityId, toolChecklistIds)
+        || hasDemoReference(entry?.entityId, toolChecklistItemIds)
+        || hasDemoReference(entry?.entityId, calculatorResultIds)
+        || hasDemoReference(entry?.entityId, prePourChecklistIds)
+        || hasDemoReference(entry?.entityId, prePourChecklistItemIds)
+        || hasDemoReference(entry?.entityId, postPourChecklistIds)
+        || hasDemoReference(entry?.entityId, postPourChecklistItemIds)
+        || hasDemoReference(entry?.entityId, changeOrderRequestIds)
+        || hasDemoReference(entry?.entityId, deliveryTicketIds))
+      .map((entry) => String(entry.id)),
+  );
+
+  return {
+    userIds,
+    customerIds,
+    leadIds,
+    leadStatusHistoryIds,
+    jobIds,
+    estimateIds,
+    timeEntryIds,
+    dailyReportIds,
+    uploadIds,
+    safetyAcknowledgmentIds,
+    safetyIncidentIds,
+    toolChecklistIds,
+    toolChecklistItemIds,
+    calculatorResultIds,
+    prePourChecklistIds,
+    prePourChecklistItemIds,
+    postPourChecklistIds,
+    postPourChecklistItemIds,
+    changeOrderRequestIds,
+    deliveryTicketIds,
+    queueItemIds,
+    activityIds,
+    auditEventIds,
+  };
+}
+
+function filterDemoRecordsForUser(state, user, records, entityType) {
+  if (!isDemoModeUser(user)) return records;
+  const entries = Array.isArray(records) ? records : [];
+  const scope = buildDemoScope(state);
+
+  switch (entityType) {
+    case "users":
+      return entries.filter((entry) => scope.userIds.has(String(entry?.id || "")));
+    case "customers":
+      return entries.filter((entry) => scope.customerIds.has(String(entry?.id || "")));
+    case "leads":
+      return entries.filter((entry) => scope.leadIds.has(String(entry?.id || "")));
+    case "leadStatusHistory":
+      return entries.filter((entry) => scope.leadStatusHistoryIds.has(String(entry?.id || "")));
+    case "jobs":
+      return entries.filter((entry) => scope.jobIds.has(String(entry?.id || "")));
+    case "estimates":
+      return entries.filter((entry) => scope.estimateIds.has(String(entry?.id || "")));
+    case "timeEntries":
+      return entries.filter((entry) => scope.timeEntryIds.has(String(entry?.id || "")));
+    case "dailyReports":
+      return entries.filter((entry) => scope.dailyReportIds.has(String(entry?.id || "")));
+    case "uploads":
+      return entries.filter((entry) => scope.uploadIds.has(String(entry?.id || "")));
+    case "safetyAcknowledgments":
+      return entries.filter((entry) => scope.safetyAcknowledgmentIds.has(String(entry?.id || "")));
+    case "safetyIncidents":
+      return entries.filter((entry) => scope.safetyIncidentIds.has(String(entry?.id || "")));
+    case "toolChecklists":
+      return entries.filter((entry) => scope.toolChecklistIds.has(String(entry?.id || "")));
+    case "calculatorResults":
+      return entries.filter((entry) => scope.calculatorResultIds.has(String(entry?.id || "")));
+    case "prePourChecklists":
+      return entries.filter((entry) => scope.prePourChecklistIds.has(String(entry?.id || "")));
+    case "postPourChecklists":
+      return entries.filter((entry) => scope.postPourChecklistIds.has(String(entry?.id || "")));
+    case "changeOrderRequests":
+      return entries.filter((entry) => scope.changeOrderRequestIds.has(String(entry?.id || "")));
+    case "deliveryTickets":
+      return entries.filter((entry) => scope.deliveryTicketIds.has(String(entry?.id || "")));
+    case "queueItems":
+      return entries.filter((entry) => scope.queueItemIds.has(String(entry?.id || "")));
+    case "activity":
+      return entries.filter((entry) => scope.activityIds.has(String(entry?.id || "")));
+    case "auditEvents":
+      return entries.filter((entry) => scope.auditEventIds.has(String(entry?.id || "")));
+    default:
+      return entries;
+  }
+}
+
 function visibleUsers(state, user) {
   if (!user) return [];
   if (isOfficeManager(user) || isEstimator(user)) {
-    return state.users.map((entry) => publicUser(entry));
+    return filterDemoRecordsForUser(state, user, state.users.map((entry) => publicUser(entry)), "users");
   }
 
   return [publicUser(user)];
@@ -712,7 +1042,12 @@ function sanitizeJobForUser(job, user, state) {
 
 function visibleJobsForUser(state, user) {
   if (!user) return [];
-  return state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state));
+  return filterDemoRecordsForUser(
+    state,
+    user,
+    state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state)),
+    "jobs",
+  );
 }
 
 function safetyPolicyStatusLabel(status = "active") {
@@ -795,7 +1130,7 @@ function canViewSafetyAcknowledgment(user, acknowledgmentJob, acknowledgmentUser
 function visibleSafetyAcknowledgmentsForUser(state, user) {
   if (!user || !canViewSafety(user)) return [];
 
-  return (state.safetyAcknowledgments || [])
+  return filterDemoRecordsForUser(state, user, (state.safetyAcknowledgments || [])
     .map((acknowledgment) => {
       const job = acknowledgment.jobId ? state.jobs.find((entry) => entry.id === acknowledgment.jobId) || null : null;
       if (!canViewSafetyAcknowledgment(user, job, acknowledgment.userId)) return null;
@@ -816,7 +1151,7 @@ function visibleSafetyAcknowledgmentsForUser(state, user) {
       };
     })
     .filter(Boolean)
-    .sort((left, right) => new Date(right.acknowledgedAt || 0).getTime() - new Date(left.acknowledgedAt || 0).getTime());
+    .sort((left, right) => new Date(right.acknowledgedAt || 0).getTime() - new Date(left.acknowledgedAt || 0).getTime()), "safetyAcknowledgments");
 }
 
 function canViewSafetyIncidentRecord(user, incident, job) {
@@ -863,10 +1198,10 @@ function sanitizeSafetyIncidentForUser(incident, state, user) {
 function visibleSafetyIncidentsForUser(state, user) {
   if (!user || !canViewSafety(user)) return [];
 
-  return (state.safetyIncidents || [])
+  return filterDemoRecordsForUser(state, user, (state.safetyIncidents || [])
     .map((incident) => sanitizeSafetyIncidentForUser(incident, state, user))
     .filter(Boolean)
-    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime()), "safetyIncidents");
 }
 
 function toolChecklistStatusLabel(status = "draft") {
@@ -1018,14 +1353,14 @@ function visibleToolChecklistsForUser(state, user) {
   const settings = companySettingsForState(state);
   if (!canUseToolChecklist(user, settings) && !canViewAllToolChecklists(user)) return [];
 
-  return (state.toolChecklists || [])
+  return filterDemoRecordsForUser(state, user, (state.toolChecklists || [])
     .map((checklist) => sanitizeToolChecklistForUser(checklist, state, user, settings))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
-      });
+      }), "toolChecklists");
 }
 
 function canViewPrePourChecklistRecord(user, checklist, job) {
@@ -1110,14 +1445,14 @@ function sanitizePrePourChecklistForUser(checklist, state, user) {
 
 function visiblePrePourChecklistsForUser(state, user) {
   if (!user || !canViewPrePour(user)) return [];
-  return (state.prePourChecklists || [])
+  return filterDemoRecordsForUser(state, user, (state.prePourChecklists || [])
     .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
-    });
+    }), "prePourChecklists");
 }
 
 function prePourChecklistSummaryForJob(state, job, user) {
@@ -1229,14 +1564,14 @@ function sanitizePostPourChecklistForUser(checklist, state, user) {
 
 function visiblePostPourChecklistsForUser(state, user) {
   if (!user || !canViewPostPour(user)) return [];
-  return (state.postPourChecklists || [])
+  return filterDemoRecordsForUser(state, user, (state.postPourChecklists || [])
     .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
-    });
+    }), "postPourChecklists");
 }
 
 function postPourChecklistSummaryForJob(state, job, user) {
@@ -1350,14 +1685,14 @@ function sanitizeEstimateForUser(estimate, state, user) {
 
 function visibleEstimatesForUser(state, user) {
   if (!user || !canViewEstimates(user)) return [];
-  return (state.estimates || [])
+  return filterDemoRecordsForUser(state, user, (state.estimates || [])
     .map((estimate) => sanitizeEstimateForUser(estimate, state, user))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
-    });
+    }), "estimates");
 }
 
 function normalizeEstimateItemsPayload(items, changedAt, estimateId = "") {
@@ -1513,14 +1848,14 @@ function sanitizeChangeOrderRequestForUser(request, state, user) {
 
 function visibleChangeOrderRequestsForUser(state, user) {
   if (!user || !canViewChangeOrders(user)) return [];
-  return (state.changeOrderRequests || [])
+  return filterDemoRecordsForUser(state, user, (state.changeOrderRequests || [])
     .map((request) => sanitizeChangeOrderRequestForUser(request, state, user))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
-      });
+      }), "changeOrderRequests");
 }
 
 function canViewDeliveryTicketRecord(user, ticket, job) {
@@ -1591,10 +1926,10 @@ function sanitizeDeliveryTicketForUser(ticket, state, user) {
 
 function visibleDeliveryTicketsForUser(state, user) {
   if (!user || !canViewDeliveryTickets(user)) return [];
-  return (state.deliveryTickets || [])
+  return filterDemoRecordsForUser(state, user, (state.deliveryTickets || [])
     .map((ticket) => sanitizeDeliveryTicketForUser(ticket, state, user))
     .filter(Boolean)
-    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime()), "deliveryTickets");
 }
 
 function changeOrderRequestStatusLabel(status = "requested") {
@@ -1692,14 +2027,14 @@ function sanitizeDailyReportForUser(report, state, user) {
 function visibleDailyReportsForUser(state, user) {
   if (!user || !canViewReports(user)) return [];
 
-  return (state.dailyReports || [])
+  return filterDemoRecordsForUser(state, user, (state.dailyReports || [])
     .map((report) => sanitizeDailyReportForUser(report, state, user))
     .filter(Boolean)
     .sort((left, right) => {
       const dateCompare = String(right.reportDate || "").localeCompare(String(left.reportDate || ""));
       if (dateCompare !== 0) return dateCompare;
       return new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime();
-    });
+    }), "dailyReports");
 }
 
 function canCreateUploadForJob(user, job) {
@@ -1798,16 +2133,16 @@ function createDemoUploadPlaceholder(upload) {
 
 function visibleUploadsForUser(state, user) {
   if (!user || !canViewUploads(user)) return [];
-  return (state.uploads || [])
+  return filterDemoRecordsForUser(state, user, (state.uploads || [])
     .map((upload) => sanitizeUploadForUser(upload, state, user))
     .filter(Boolean)
-    .sort((left, right) => new Date(right.uploadedAt || right.createdAt || 0).getTime() - new Date(left.uploadedAt || left.createdAt || 0).getTime());
+    .sort((left, right) => new Date(right.uploadedAt || right.createdAt || 0).getTime() - new Date(left.uploadedAt || left.createdAt || 0).getTime()), "uploads");
 }
 
 function visibleQueueItemsForUser(state, user) {
   if (!user) return [];
   if (isOfficeManager(user)) {
-    return state.queueItems;
+    return filterDemoRecordsForUser(state, user, state.queueItems, "queueItems");
   }
   return [];
 }
@@ -1815,7 +2150,7 @@ function visibleQueueItemsForUser(state, user) {
 function visibleActivityForUser(state, user) {
   if (!user) return [];
   if (canViewAudit(user)) {
-    return state.activity;
+    return filterDemoRecordsForUser(state, user, state.activity, "activity");
   }
   return [];
 }
@@ -2349,27 +2684,27 @@ function visibleTimeEntriesForUser(state, user) {
     entries = (state.timeEntries || []).filter((entry) => entry.userId === user.id);
   }
 
-  return [...entries]
+  return filterDemoRecordsForUser(state, user, [...entries]
     .sort((left, right) => new Date(right.clockInAt).getTime() - new Date(left.clockInAt).getTime())
-    .map((entry) => sanitizeTimeEntry(entry, state, user));
+    .map((entry) => sanitizeTimeEntry(entry, state, user)), "timeEntries");
 }
 
 function visibleAuditEventsForUser(state, user) {
   if (!user) return [];
   if (canViewAudit(user)) {
-    return state.auditEvents;
+    return filterDemoRecordsForUser(state, user, state.auditEvents, "auditEvents");
   }
   return [];
 }
 
 function visibleLeadsForUser(state, user) {
   if (!canViewLeads(user)) return [];
-  return state.leads;
+  return filterDemoRecordsForUser(state, user, state.leads, "leads");
 }
 
 function visibleLeadStatusHistoryForUser(state, user) {
   if (!canViewLeads(user)) return [];
-  return state.leadStatusHistory;
+  return filterDemoRecordsForUser(state, user, state.leadStatusHistory, "leadStatusHistory");
 }
 
 function customerPermissionsForUser(state, user) {
@@ -2387,7 +2722,7 @@ function customerPermissionsForUser(state, user) {
 function visibleCustomersForUser(state, user) {
   if (!user) return [];
   if (canViewCustomers(user)) {
-    return state.customers;
+    return filterDemoRecordsForUser(state, user, state.customers, "customers");
   }
 
   return [];
@@ -3357,12 +3692,21 @@ function statsFromState(state) {
 }
 
 function statsForUser(state, user) {
-  if (canViewLeads(user)) {
-    return statsFromState(state);
-  }
-
   const liveJobs = visibleJobsForUser(state, user).filter((job) => !job.archivedAt);
   const liveQueueItems = visibleQueueItemsForUser(state, user).filter((item) => !item.archivedAt);
+
+  if (canViewLeads(user)) {
+    const liveLeads = visibleLeadsForUser(state, user).filter((lead) => !lead.archivedAt);
+    return {
+      newLeads: liveLeads.filter((lead) => lead.status === "New").length,
+      highPriorityLeads: liveLeads.filter((lead) => lead.priority === "High").length,
+      pipelineValue: liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0),
+      activeJobs: liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "in_progress").length,
+      scheduledJobs: liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "scheduled").length,
+      reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
+      queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
+    };
+  }
 
   return {
     newLeads: 0,
