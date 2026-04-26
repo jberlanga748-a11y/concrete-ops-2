@@ -4328,14 +4328,19 @@ function ActivityPanel({ activity }) {
 }
 
 function AuditTrailPanel({ auditEvents }) {
+  const safeAuditEvents = normalizeObjectArray(auditEvents).map((event) => ({
+    ...event,
+    changedFields: Array.isArray(event?.changedFields) ? event.changedFields : [],
+  }));
+
   return (
     <Card className="p-5">
       <SectionHeader title="Audit trail" description="Track record changes, resets, and key workspace events in one place." />
-      {auditEvents.length === 0 ? (
+      {safeAuditEvents.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, bootstrapped, converted, and reset.</div>
       ) : (
         <div className="space-y-3">
-          {auditEvents.slice(0, 10).map((event) => (
+          {safeAuditEvents.slice(0, 10).map((event) => (
             <div key={event.id} className="rounded-2xl border border-blue-100 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
