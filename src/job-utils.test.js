@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveJobListState, filterJobs, jobStatusLabel, normalizeJobStatus } from "./job-utils.js";
+import { deriveJobListState, filterJobs, jobStatusLabel, matchesJobDateFilter, normalizeJobStatus } from "./job-utils.js";
 
 const FIXTURE_JOBS = [
   {
@@ -79,4 +79,12 @@ test("job list helpers tolerate missing job arrays", () => {
   assert.deepEqual(state.filteredJobs, []);
   assert.deepEqual(state.customerOptions, []);
   assert.deepEqual(state.foremanOptions, []);
+});
+
+test("job date helpers support This Week", () => {
+  const now = new Date("2026-04-20T09:00:00Z");
+
+  assert.equal(matchesJobDateFilter({ scheduledStart: "2026-04-20T16:00:00Z", status: "scheduled" }, "This Week", now), true);
+  assert.equal(matchesJobDateFilter({ scheduledStart: "2026-04-25T16:00:00Z", status: "in_progress" }, "This Week", now), true);
+  assert.equal(matchesJobDateFilter({ scheduledStart: "2026-04-28T16:00:00Z", status: "scheduled" }, "This Week", now), false);
 });

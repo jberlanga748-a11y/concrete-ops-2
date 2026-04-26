@@ -61,6 +61,13 @@ function endOfToday(now = new Date()) {
   return next;
 }
 
+function endOfThisWeek(now = new Date()) {
+  const next = endOfToday(now);
+  next.setDate(next.getDate() + 6);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
 export function matchesJobDateFilter(job, dateFilter, now = new Date()) {
   if (dateFilter === "All dates") return true;
   if (!job?.scheduledStart) {
@@ -74,10 +81,15 @@ export function matchesJobDateFilter(job, dateFilter, now = new Date()) {
 
   const dayStart = startOfToday(now);
   const dayEnd = endOfToday(now);
+  const weekEnd = endOfThisWeek(now);
   const closedStatuses = new Set(["completed", "billing_ready", "closed"]);
 
   if (dateFilter === "Today") {
     return scheduled >= dayStart && scheduled <= dayEnd;
+  }
+
+  if (dateFilter === "This Week") {
+    return scheduled >= dayStart && scheduled <= weekEnd;
   }
 
   if (dateFilter === "Upcoming") {

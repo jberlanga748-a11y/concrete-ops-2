@@ -103,7 +103,7 @@ import { calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateList
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
-import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
+import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
@@ -810,8 +810,8 @@ function StatusBadge({ status }) {
   return <Badge tone={tone}>{status}</Badge>;
 }
 
-function Card({ children, className = "" }) {
-  return <div className={`panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel ${className}`}>{children}</div>;
+function Card({ children, className = "", ...props }) {
+  return <div className={`panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel ${className}`} {...props}>{children}</div>;
 }
 
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
@@ -4424,11 +4424,40 @@ function DashboardPage({
   onRestoreTask,
   onDeleteTask,
   setActive,
+  dashboardShortcuts,
+  dashboardFocusTarget,
+  onRunDashboardShortcut,
   busy,
 }) {
-  const tabs = ["Today", "This Week", "Needs Action", "Ready to Bill"].map((tab, index) => (
-    <button key={tab} type="button" className={`rounded-2xl px-3 py-2 text-xs font-black ${index === 0 ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
-      {tab}
+  const queueRef = useRef(null);
+  const jobsRef = useRef(null);
+  const leadPipelineRef = useRef(null);
+
+  useEffect(() => {
+    const targets = {
+      queue: queueRef.current,
+      jobs: jobsRef.current,
+      leads: leadPipelineRef.current,
+    };
+    const nextTarget = targets[dashboardFocusTarget];
+    if (!nextTarget) return;
+    nextTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+    nextTarget.focus({ preventScroll: true });
+  }, [dashboardFocusTarget]);
+
+  const tabs = (Array.isArray(dashboardShortcuts) ? dashboardShortcuts : []).map((shortcut) => (
+    <button
+      key={shortcut.id}
+      type="button"
+      onClick={() => onRunDashboardShortcut?.(shortcut.id)}
+      aria-label={shortcut.ariaLabel || shortcut.label}
+      className={`min-w-0 rounded-2xl border px-3 py-2 text-left text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+        shortcut.id === "today"
+          ? "border-blue-700 bg-blue-700 text-white hover:bg-blue-800"
+          : "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200 hover:bg-white"
+      }`}
+    >
+      <span className="block break-words">{shortcut.label}</span>
     </button>
   ));
 
@@ -4464,23 +4493,29 @@ function DashboardPage({
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
         <div className="grid min-w-0 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card className="overflow-hidden">
-            <div className="p-4">
-              <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
-            </div>
-            <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
-            <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
-          </Card>
+          <div ref={leadPipelineRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+            <Card className="overflow-hidden">
+              <div className="p-4">
+                <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
+              </div>
+              <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
+              <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
+            </Card>
+          </div>
           <div className="min-w-0 space-y-4">
-            <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
+            <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+              <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
+            </div>
             <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
           </div>
         </div>
         <div className="grid min-w-0 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <Card className="overflow-hidden">
-            <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
-            <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={selectedJobId} onSelect={onSelectJob} />
-          </Card>
+          <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+            <Card className="overflow-hidden">
+              <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
+              <JobsTable rows={jobs.filter((job) => !job.archivedAt).slice(0, 5)} selectedId={selectedJobId} onSelect={onSelectJob} />
+            </Card>
+          </div>
           <ActivityPanel activity={activity} />
         </div>
       </div>
@@ -4665,6 +4700,7 @@ function JobsPage({
             <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
               <option>All dates</option>
               <option>Today</option>
+              <option>This Week</option>
               <option>Upcoming</option>
               <option>Overdue</option>
               <option>Unscheduled</option>
@@ -7434,6 +7470,7 @@ export default function App() {
   const [jobCustomerFilter, setJobCustomerFilter] = useState("All customers");
   const [jobForemanFilter, setJobForemanFilter] = useState("All foremen");
   const [jobDateFilter, setJobDateFilter] = useState("All dates");
+  const [dashboardFocusTarget, setDashboardFocusTarget] = useState("");
   const [reportFilter, setReportFilter] = useState("All");
   const [reportSearch, setReportSearch] = useState("");
   const [reportJobFilter, setReportJobFilter] = useState("All jobs");
@@ -7478,6 +7515,12 @@ export default function App() {
   const selectedReport = appState.dailyReports.find((report) => report.id === selectedReportId) || null;
   const selectedTimeEntry = appState.timeEntries.find((entry) => entry.id === selectedTimeEntryId) || null;
 
+  useEffect(() => {
+    if (active !== "dashboard" && dashboardFocusTarget) {
+      setDashboardFocusTarget("");
+    }
+  }, [active, dashboardFocusTarget]);
+
   function navigateTo(nextPath, { replace = false } = {}) {
     const normalized = normalizePathname(nextPath);
     if (window.location.pathname !== normalized) {
@@ -7492,6 +7535,27 @@ export default function App() {
 
   function setActive(nextActive) {
     navigateTo(getModulePath(nextActive));
+  }
+
+  function runDashboardShortcut(shortcutId) {
+    const shortcut = resolveDashboardShortcut(shortcutId, appState.user, appState.companySettings);
+    if (!shortcut) return;
+
+    if (shortcut.moduleId === "jobs") {
+      setJobFilter(shortcut.filters?.status || "All");
+      setJobSearch(shortcut.filters?.query || "");
+      setJobCustomerFilter(shortcut.filters?.customer || "All customers");
+      setJobForemanFilter(shortcut.filters?.foremanId || "All foremen");
+      setJobDateFilter(shortcut.filters?.date || "All dates");
+      setDashboardFocusTarget("");
+      setActive("jobs");
+      return;
+    }
+
+    if (shortcut.moduleId === "dashboard") {
+      setDashboardFocusTarget(shortcut.focusTarget || "");
+      setActive("dashboard");
+    }
   }
 
   function openPublicEstimateRequest() {
@@ -7950,6 +8014,7 @@ export default function App() {
     reports: appState.permissions.reports.canView ? appState.dailyReports.filter((report) => !report.archivedAt).length : null,
     copilot: 1,
   };
+  const dashboardShortcuts = useMemo(() => getDashboardShortcuts(appState.user, appState.companySettings), [appState.companySettings, appState.user]);
 
   async function runMutation(task) {
     if (!sessionToken) return;
@@ -9360,6 +9425,9 @@ export default function App() {
               setReportCreatorFilter={setReportCreatorFilter}
               reportDateFilter={reportDateFilter}
               setReportDateFilter={setReportDateFilter}
+              dashboardShortcuts={dashboardShortcuts}
+              dashboardFocusTarget={dashboardFocusTarget}
+              onRunDashboardShortcut={runDashboardShortcut}
               selectedLeadId={selectedLeadId}
               onSelectLead={navigateToLead}
               selectedLead={selectedLead}

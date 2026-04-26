@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils.js";
+import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils.js";
 import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
@@ -135,4 +135,30 @@ test("office roles keep tool checklist access even when the field module is disa
   const owner = { role: "Owner" };
 
   assert.equal(canAccessModule("toolChecklist", owner, { toolChecklistEnabled: false }), true);
+});
+
+test("dashboard shortcuts route This Week to jobs with a week filter", () => {
+  const administrator = { role: "Administrator" };
+  const shortcut = resolveDashboardShortcut("thisWeek", administrator, { toolChecklistEnabled: true });
+
+  assert.equal(shortcut?.moduleId, "jobs");
+  assert.equal(shortcut?.filters?.date, "This Week");
+  assert.equal(shortcut?.filters?.status, "All");
+});
+
+test("ready to bill shortcut stays hidden from field roles", () => {
+  const foreman = { role: "Foreman" };
+  const employee = { role: "Employee" };
+
+  assert.equal(resolveDashboardShortcut("readyToBill", foreman, { toolChecklistEnabled: true }), null);
+  assert.equal(resolveDashboardShortcut("readyToBill", employee, { toolChecklistEnabled: true }), null);
+  assert.equal(getDashboardShortcuts(foreman, { toolChecklistEnabled: true }).some((item) => item.id === "readyToBill"), false);
+  assert.equal(getDashboardShortcuts(employee, { toolChecklistEnabled: true }).some((item) => item.id === "readyToBill"), false);
+});
+
+test("field roles do not get dashboard shortcuts that lead into office workspace", () => {
+  const foreman = { role: "Foreman" };
+
+  assert.equal(resolveDashboardShortcut("needsAction", foreman, { toolChecklistEnabled: true }), null);
+  assert.equal(resolveDashboardShortcut("today", foreman, { toolChecklistEnabled: true }), null);
 });
