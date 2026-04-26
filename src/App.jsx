@@ -986,12 +986,12 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
 
 function SectionHeader({ title, description, action }) {
   return (
-    <div className="mb-3 flex min-w-0 items-start justify-between gap-4">
+    <div className="mb-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h2 className="text-base font-black text-slate-950">{title}</h2>
+        <h2 className="break-words text-base font-black text-slate-950">{title}</h2>
         {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-500">{description}</p> : null}
       </div>
-      {action ? <div className="min-w-0 max-w-full shrink-0">{action}</div> : null}
+      {action ? <div className="min-w-0 max-w-full w-full sm:w-auto sm:shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -1008,8 +1008,8 @@ function StatCard({ title, value, detail }) {
 
 function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   return (
-    <div className="flex min-w-0 max-w-full flex-col gap-3 border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex min-w-0 max-w-full gap-2 overflow-x-auto">
+    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
+      <div className="scrollbar-none -mx-1 flex min-w-0 max-w-full gap-2 overflow-x-auto overflow-y-hidden px-1 pb-1">
         {filters.map((filter) => (
           <button
             key={filter}
@@ -1021,7 +1021,9 @@ function FilterBar({ filters, active, setActive, search, setSearch, placeholder 
           </button>
         ))}
       </div>
-      <input className="field-input w-full md:w-72" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
+      <div className="min-w-0 w-full md:w-72">
+        <input className="field-input w-full" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
+      </div>
     </div>
   );
 }
@@ -1516,8 +1518,55 @@ function KpiCard({ item }) {
 
 function LeadsTable({ rows, selectedId, onSelect }) {
   return (
-    <div className="table-shell">
-      <table className="w-full min-w-[860px] text-left">
+    <>
+      <div className="space-y-3 md:hidden">
+        {rows.map((row) => {
+          const selected = row.id === selectedId;
+          return (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onSelect(row.id)}
+              className={`w-full rounded-[28px] border p-4 text-left transition ${selected ? "border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-lg font-black text-slate-950">{row.customer}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
+                </div>
+                <div className="shrink-0">
+                  <StatusBadge status={row.status} />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Project</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.project}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next step</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.nextStep}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Owner</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.owner}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Value</p>
+                  <p className="mt-1 break-words text-sm font-black text-slate-950">{currency(row.value)}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
+                <Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge>
+                {selected ? <Badge tone="blue">Selected</Badge> : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="hidden md:block">
+        <div className="table-shell">
+          <table className="w-full min-w-[860px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
             <th className="px-4 py-3">Lead</th>
@@ -1548,15 +1597,67 @@ function LeadsTable({ rows, selectedId, onSelect }) {
             );
           })}
         </tbody>
-      </table>
-    </div>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 
 function JobsTable({ rows, selectedId, onSelect }) {
   return (
-    <div className="table-shell">
-      <table className="w-full min-w-[980px] text-left">
+    <>
+      <div className="space-y-3 md:hidden">
+        {rows.map((row) => {
+          const selected = row.id === selectedId;
+          return (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onSelect(row.id)}
+              className={`w-full rounded-[28px] border p-4 text-left transition ${selected ? "border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-lg font-black text-slate-950">{jobTitle(row)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
+                </div>
+                <div className="shrink-0">
+                  <StatusBadge status={jobStatusLabel(row.status || row.stage)} />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Customer</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.customer}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Scheduled</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{jobScheduleLabel(row)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Foreman</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.assignedForemanName || row.assignedForemanId || "Unassigned"}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Crew</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.crew}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex min-w-0 items-center gap-3">
+                <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-blue-50">
+                  <div className="h-full rounded-full bg-blue-700" style={{ width: `${row.progress}%` }} />
+                </div>
+                <span className="shrink-0 text-xs font-black text-slate-500">{row.progress}%</span>
+                {selected ? <Badge tone="blue">Selected</Badge> : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="hidden md:block">
+        <div className="table-shell">
+          <table className="w-full min-w-[980px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
             <th className="px-4 py-3">Job</th>
@@ -1594,8 +1695,10 @@ function JobsTable({ rows, selectedId, onSelect }) {
             );
           })}
         </tbody>
-      </table>
-    </div>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1650,14 +1753,14 @@ function QueueList({ items, onToggleTask, onArchiveTask, onRestoreTask, onDelete
       <form className="mt-4 grid gap-3" onSubmit={onAddTask}>
         <InputField label="Add queue item" value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send concrete order" />
         <InputField label="Context" value={taskDraft.meta} onChange={(event) => setTaskDraft((current) => ({ ...current, meta: event.target.value }))} placeholder="Job, customer, or blocker" />
-        <div className="flex items-end gap-3">
+        <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-end">
           <SelectField label="Status" value={taskDraft.status} onChange={(event) => setTaskDraft((current) => ({ ...current, status: event.target.value }))}>
             <option>Due today</option>
             <option>Ready</option>
             <option>This week</option>
             <option>Blocked</option>
           </SelectField>
-          <Button className="mb-0.5 shrink-0" type="submit" disabled={disabled}>
+          <Button className="mb-0 sm:mb-0.5 sm:shrink-0" type="submit" disabled={disabled}>
             <Icon name="plus" />
             Add task
           </Button>
@@ -1698,24 +1801,24 @@ function LeadDetailPanel({
         title={lead.customer}
         description={`${lead.id} · ${lead.city}`}
         action={
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {!canManage ? <Badge tone="slate">Read only</Badge> : null}
             {lead.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
-            <Button size="sm" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
+            <Button size="sm" className="w-full sm:w-auto" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
               <Icon name="users" />
               Convert to customer
             </Button>
-            <Button size="sm" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
+            <Button size="sm" className="w-full sm:w-auto" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
               <Icon name="arrowUpRight" />
               Create job
             </Button>
             {lead.archivedAt ? (
               <>
-                <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled || !canManage}>Restore</Button>
-                <Button variant="danger" size="sm" onClick={onDelete} disabled={disabled || !canManage}>Delete</Button>
+                <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={onRestore} disabled={disabled || !canManage}>Restore</Button>
+                <Button variant="danger" size="sm" className="w-full sm:w-auto" onClick={onDelete} disabled={disabled || !canManage}>Delete</Button>
               </>
             ) : (
-              <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled || !canManage}>Archive</Button>
+              <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={onArchive} disabled={disabled || !canManage}>Archive</Button>
             )}
           </div>
         }
@@ -10035,13 +10138,13 @@ export default function App() {
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-transparent text-slate-950">
-      <div className="flex">
+    <div className="min-h-screen overflow-x-hidden bg-transparent text-slate-950">
+      <div className="flex min-w-0 max-w-full">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} />
-        <div className="min-w-0 flex-1 pb-20 lg:pb-0">
+        <div className="mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
           <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} companyName={workspaceCompanyName} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
-          <main className="py-0">
+          <main className="min-w-0 overflow-x-hidden py-0">
             <MainContent
               active={active}
               setActive={setActive}
@@ -10256,7 +10359,7 @@ export default function App() {
           </main>
         </div>
       </div>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
+      <nav className="mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
         <div className="grid grid-cols-5 gap-1">
           {mobileItems.map((id) => {
             const item = allItems.find((nav) => nav.id === id);
