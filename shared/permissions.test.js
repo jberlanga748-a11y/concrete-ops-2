@@ -16,8 +16,10 @@ import {
   canReviewReports,
   canReviewSafetyIncidents,
   canSubmitSafetyIncidents,
+  canToggleToolChecklist,
   canUseCalculator,
   canUseToolChecklist,
+  canViewAllToolChecklists,
   canViewAllTime,
   canViewCrewTime,
   canViewCustomers,
@@ -54,6 +56,8 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canViewUploads(operations), true);
   assert.equal(canCreateUploads(operations), true);
   assert.equal(canManageUploads(operations), true);
+  assert.equal(canToggleToolChecklist(operations), true);
+  assert.equal(canViewAllToolChecklists(operations), true);
   assert.equal(modules.has("employees"), true);
 });
 
@@ -120,4 +124,11 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(modules.has("reports"), false);
   assert.equal(modules.has("calculator"), true);
   assert.equal(modules.has("toolChecklist"), false);
+});
+
+test("office can still access tool checklist records while the field module is disabled", () => {
+  const owner = { role: "Owner" };
+
+  assert.equal(canUseToolChecklist(owner, { toolChecklistEnabled: false }), true);
+  assert.equal(canViewAllToolChecklists(owner), true);
 });

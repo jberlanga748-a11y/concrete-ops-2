@@ -47,12 +47,16 @@ import {
   canManageSafety,
   canReviewSafetyIncidents,
   canSubmitSafetyIncidents,
+  canContributeToolChecklist,
+  canManageJobToolChecklist,
   canManageToolChecklist,
   canManageUploads,
   canManageUsers,
   canReviewReports,
+  canReviewToolChecklists,
   canUseCalculator,
   canUseToolChecklist,
+  canToggleToolChecklist,
   canViewAudit,
   canViewChangeOrders,
   canViewCustomers,
@@ -64,6 +68,7 @@ import {
   canViewSettings,
   canViewSafety,
   canViewAllTime,
+  canViewAllToolChecklists,
   canViewCrewTime,
   canViewUploads,
   canViewUsers,
@@ -98,6 +103,9 @@ const SAFETY_POLICY_STATUSES = new Set(["active", "archived"]);
 const SAFETY_INCIDENT_TYPES = new Set(["concern", "near_miss", "injury", "property_damage", "hazard", "other"]);
 const SAFETY_INCIDENT_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
 const SAFETY_INCIDENT_STATUSES = new Set(["open", "reviewed", "resolved", "archived"]);
+const TOOL_CHECKLIST_STATUSES = new Set(["draft", "active", "submitted", "reviewed", "archived"]);
+const TOOL_CHECKLIST_ITEM_CATEGORIES = new Set(["hand_tools", "power_tools", "concrete_finishing", "forms_layout", "safety_ppe", "small_equipment", "consumables", "other"]);
+const TOOL_CHECKLIST_ITEM_STATUSES = new Set(["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"]);
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const serverStartedAt = Date.now();
@@ -175,6 +183,15 @@ function optionalNonNegativeNumber(value, fieldName, fallback = 0) {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized < 0) {
     throw new ApiError(400, `${fieldName} must be a non-negative number.`);
+  }
+  return normalized;
+}
+
+function optionalPositiveInteger(value, fieldName, fallback = 1) {
+  if (value == null || value === "") return fallback;
+  const normalized = Number(value);
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    throw new ApiError(400, `${fieldName} must be a positive whole number.`);
   }
   return normalized;
 }
@@ -419,8 +436,11 @@ function findRequiredRecord(records, id, resourceName) {
   return record;
 }
 
-function companySettingsForState() {
-  return DEFAULT_COMPANY_SETTINGS;
+function companySettingsForState(state = null) {
+  return {
+    ...DEFAULT_COMPANY_SETTINGS,
+    ...(state?.companySettings || {}),
+  };
 }
 
 function visibleUsers(state, user) {
@@ -440,6 +460,18 @@ function userPermissionsForUser(user) {
   return {
     canView: canViewUsers(user),
     canManage: canManageUsers(user),
+  };
+}
+
+function toolChecklistPermissionsForUser(user, settings = DEFAULT_COMPANY_SETTINGS) {
+  return {
+    canUse: canUseToolChecklist(user, settings),
+    canManage: canManageToolChecklist(user, settings),
+    canManageAll: canViewAllToolChecklists(user),
+    canManageJob: canManageJobToolChecklist(user, settings),
+    canContribute: canContributeToolChecklist(user, settings),
+    canReview: canReviewToolChecklists(user),
+    canToggle: canToggleToolChecklist(user),
   };
 }
 
@@ -658,6 +690,125 @@ function visibleSafetyIncidentsForUser(state, user) {
     .map((incident) => sanitizeSafetyIncidentForUser(incident, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+}
+
+function toolChecklistStatusLabel(status = "draft") {
+  const labels = {
+    draft: "Draft",
+    active: "Active",
+    submitted: "Submitted",
+    reviewed: "Reviewed",
+    archived: "Archived",
+  };
+  return labels[optionalEnum(status, TOOL_CHECKLIST_STATUSES, "Checklist status", "draft")] || "Draft";
+}
+
+function toolChecklistItemStatusLabel(status = "needed") {
+  const labels = {
+    needed: "Needed",
+    loaded: "Loaded",
+    on_site: "On Site",
+    missing: "Missing",
+    damaged: "Damaged",
+    returned: "Returned",
+    not_needed: "Not Needed",
+  };
+  return labels[optionalEnum(status, TOOL_CHECKLIST_ITEM_STATUSES, "Checklist item status", "needed")] || "Needed";
+}
+
+function canViewToolChecklistRecord(user, checklist, job, settings) {
+  if (!user) return false;
+  if (canViewAllToolChecklists(user)) return true;
+  if (!canUseToolChecklist(user, settings)) return false;
+  if (!job) return false;
+  return canViewJob(job, user);
+}
+
+function findToolChecklist(state, checklistId) {
+  return findRequiredRecord(state.toolChecklists || [], checklistId, "Tool checklist");
+}
+
+function findToolChecklistItem(state, itemId) {
+  return findRequiredRecord(state.toolChecklistItems || [], itemId, "Tool checklist item");
+}
+
+function sanitizeToolChecklistItemForUser(item, state, user, checklist, settings) {
+  const job = checklist?.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  if (!canViewToolChecklistRecord(user, checklist, job, settings)) return null;
+  if (item.archivedAt && !canViewAllToolChecklists(user)) return null;
+  const addedBy = findUserById(state, item.addedBy);
+  return {
+    id: item.id,
+    checklistId: item.checklistId,
+    name: item.name,
+    category: item.category || "other",
+    quantity: Number(item.quantity || 1),
+    status: optionalEnum(item.status, TOOL_CHECKLIST_ITEM_STATUSES, "Checklist item status", "needed"),
+    statusLabel: toolChecklistItemStatusLabel(item.status),
+    addedBy: item.addedBy,
+    addedByName: addedBy?.name || item.addedBy,
+    notes: item.notes || "",
+    missingNotes: item.missingNotes || "",
+    damagedNotes: item.damagedNotes || "",
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    archivedAt: item.archivedAt || null,
+    flaggedMissing: optionalEnum(item.status, TOOL_CHECKLIST_ITEM_STATUSES, "Checklist item status", "needed") === "missing",
+    flaggedDamaged: optionalEnum(item.status, TOOL_CHECKLIST_ITEM_STATUSES, "Checklist item status", "needed") === "damaged",
+  };
+}
+
+function sanitizeToolChecklistForUser(checklist, state, user, settings = companySettingsForState(state)) {
+  const job = checklist.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  if (!canViewToolChecklistRecord(user, checklist, job, settings)) return null;
+  if (checklist.archivedAt && !canViewAllToolChecklists(user)) return null;
+  const createdBy = findUserById(state, checklist.createdBy);
+  const submittedBy = findUserById(state, checklist.submittedBy);
+  const reviewedBy = findUserById(state, checklist.reviewedBy);
+  const items = (state.toolChecklistItems || [])
+    .filter((item) => item.checklistId === checklist.id)
+    .map((item) => sanitizeToolChecklistItemForUser(item, state, user, checklist, settings))
+    .filter(Boolean);
+
+  return {
+    id: checklist.id,
+    jobId: checklist.jobId || "",
+    title: checklist.title,
+    status: optionalEnum(checklist.status, TOOL_CHECKLIST_STATUSES, "Checklist status", "draft"),
+    statusLabel: toolChecklistStatusLabel(checklist.status),
+    createdBy: checklist.createdBy,
+    createdByName: createdBy?.name || checklist.createdBy,
+    assignedForemanId: checklist.assignedForemanId || "",
+    submittedBy: checklist.submittedBy || "",
+    submittedByName: submittedBy?.name || checklist.submittedBy || "",
+    reviewedBy: checklist.reviewedBy || "",
+    reviewedByName: reviewedBy?.name || checklist.reviewedBy || "",
+    notes: checklist.notes || "",
+    createdAt: checklist.createdAt,
+    updatedAt: checklist.updatedAt,
+    submittedAt: checklist.submittedAt || "",
+    reviewedAt: checklist.reviewedAt || "",
+    archivedAt: checklist.archivedAt || null,
+    job: job ? sanitizeJobForUser(job, user, state) : null,
+    items,
+    missingItemCount: items.filter((item) => item.status === "missing").length,
+    damagedItemCount: items.filter((item) => item.status === "damaged").length,
+  };
+}
+
+function visibleToolChecklistsForUser(state, user) {
+  if (!user) return [];
+  const settings = companySettingsForState(state);
+  if (!canUseToolChecklist(user, settings) && !canViewAllToolChecklists(user)) return [];
+
+  return (state.toolChecklists || [])
+    .map((checklist) => sanitizeToolChecklistForUser(checklist, state, user, settings))
+    .filter(Boolean)
+    .sort((left, right) => {
+      const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
+      if (archivedCompare !== 0) return archivedCompare;
+      return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
+    });
 }
 
 function dailyReportStatusLabel(status = "draft") {
@@ -917,6 +1068,42 @@ function assertCanSubmitSafetyIncidents(user) {
 function assertCanReviewSafetyIncidents(user) {
   if (!canReviewSafetyIncidents(user)) {
     throw new ApiError(403, "You do not have permission to review safety concerns.");
+  }
+}
+
+function assertCanViewToolChecklist(user, settings) {
+  if (!canUseToolChecklist(user, settings) && !canViewAllToolChecklists(user)) {
+    throw new ApiError(403, "You do not have permission to view tool checklists.");
+  }
+}
+
+function assertCanManageToolChecklist(user, settings) {
+  if (!canManageToolChecklist(user, settings)) {
+    throw new ApiError(403, "You do not have permission to manage tool checklists.");
+  }
+}
+
+function assertCanManageJobToolChecklist(user, settings) {
+  if (!canManageJobToolChecklist(user, settings)) {
+    throw new ApiError(403, "You do not have permission to manage that job checklist.");
+  }
+}
+
+function assertCanContributeToolChecklist(user, settings) {
+  if (!canContributeToolChecklist(user, settings)) {
+    throw new ApiError(403, "You do not have permission to update tool checklist items.");
+  }
+}
+
+function assertCanReviewToolChecklists(user) {
+  if (!canReviewToolChecklists(user)) {
+    throw new ApiError(403, "You do not have permission to review tool checklists.");
+  }
+}
+
+function assertCanToggleToolChecklist(user) {
+  if (!canToggleToolChecklist(user)) {
+    throw new ApiError(403, "You do not have permission to change tool checklist settings.");
   }
 }
 
@@ -1474,6 +1661,43 @@ function createSafetyIncidentShape(payload, user, changedAt) {
   };
 }
 
+function createToolChecklistShape(payload, user, changedAt) {
+  return {
+    id: makeId("TC"),
+    jobId: optionalString(payload.jobId, ""),
+    title: requiredString(payload.title, "Checklist title"),
+    status: optionalEnum(payload.status, TOOL_CHECKLIST_STATUSES, "Checklist status", "draft"),
+    createdBy: user.id,
+    assignedForemanId: optionalString(payload.assignedForemanId, ""),
+    submittedBy: "",
+    reviewedBy: "",
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    submittedAt: "",
+    reviewedAt: "",
+    archivedAt: null,
+    notes: optionalString(payload.notes, ""),
+  };
+}
+
+function createToolChecklistItemShape(payload, user, checklistId, changedAt) {
+  return {
+    id: makeId("TCI"),
+    checklistId,
+    name: requiredString(payload.name, "Tool name"),
+    category: optionalEnum(payload.category, TOOL_CHECKLIST_ITEM_CATEGORIES, "Tool category", "other"),
+    quantity: optionalPositiveInteger(payload.quantity, "Quantity", 1),
+    status: optionalEnum(payload.status, TOOL_CHECKLIST_ITEM_STATUSES, "Tool status", "needed"),
+    addedBy: user.id,
+    notes: optionalString(payload.notes, ""),
+    missingNotes: optionalString(payload.missingNotes, ""),
+    damagedNotes: optionalString(payload.damagedNotes, ""),
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    archivedAt: null,
+  };
+}
+
 function activeJobAssignments(state, jobId) {
   return (state.jobAssignments || []).filter((assignment) => assignment.jobId === jobId && !assignment.removedAt);
 }
@@ -1919,7 +2143,7 @@ function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
-  const settings = companySettingsForState();
+  const settings = companySettingsForState(state);
   return {
     user: publicUser(user),
     companySettings: settings,
@@ -1932,6 +2156,7 @@ function sanitizeBootstrap(state, user) {
     ppeItems: visiblePpeItemsForUser(state, user),
     safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
     safetyIncidents: visibleSafetyIncidentsForUser(state, user),
+    toolChecklists: visibleToolChecklistsForUser(state, user),
     uploads: visibleUploadsForUser(state, user),
     dailyReports: visibleDailyReportsForUser(state, user),
     timeEntries: visibleTimeEntriesForUser(state, user),
@@ -1963,8 +2188,7 @@ function sanitizeBootstrap(state, user) {
         canUse: canUseCalculator(user),
       },
       toolChecklist: {
-        canUse: canUseToolChecklist(user, settings),
-        canManage: canManageToolChecklist(user, settings),
+        ...toolChecklistPermissionsForUser(user, settings),
       },
       settings: {
         canView: canViewSettings(user),
@@ -2325,6 +2549,367 @@ app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
 app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json(sanitizeBootstrap(state, req.auth.user));
+}));
+
+app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
+  assertCanToggleToolChecklist(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.companySettings = companySettingsForState(draft);
+    const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, draft.companySettings.toolChecklistEnabled);
+    draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
+
+    appendActivity(draft, nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled", `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`);
+    appendAuditEvent(draft, {
+      entityType: "companySettings",
+      entityId: "toolChecklistEnabled",
+      action: nextToolChecklistEnabled ? "enabled" : "disabled",
+      summary: nextToolChecklistEnabled ? "Tool checklist enabled" : "Tool checklist disabled",
+      detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
+      actor: req.auth.user,
+      changedFields: ["toolChecklistEnabled", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanViewToolChecklist(req.auth.user, settings);
+  res.json({
+    toolChecklists: visibleToolChecklistsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanManageToolChecklist(req.auth.user, settings);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.companySettings = companySettingsForState(draft);
+    draft.toolChecklists ||= [];
+    draft.toolChecklistItems ||= [];
+    const checklist = createToolChecklistShape(payload, req.auth.user, changedAt);
+    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    if (!job) {
+      throw new ApiError(400, "A job is required for a tool checklist.");
+    }
+    if (isForeman(req.auth.user) && !canViewJob(job, req.auth.user)) {
+      throw new ApiError(403, "You do not have permission to create a checklist for that job.");
+    }
+    if (!checklist.assignedForemanId && job.assignedForemanId) {
+      checklist.assignedForemanId = job.assignedForemanId;
+    }
+    draft.toolChecklists.unshift(checklist);
+    appendActivity(draft, "Tool checklist created", `${req.auth.user.name} created ${checklist.title} for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklist",
+      entityId: checklist.id,
+      action: "created",
+      summary: "Tool checklist created",
+      detail: `${req.auth.user.name} created ${checklist.title} for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "title", "status"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/tool-checklists/:id", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.companySettings = companySettingsForState(draft);
+    draft.toolChecklists ||= [];
+    const checklist = findToolChecklist(draft, req.params.id);
+    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    if (canViewAllToolChecklists(req.auth.user)) {
+      // full access
+    } else {
+      assertCanManageJobToolChecklist(req.auth.user, draft.companySettings);
+      if (!job || !canViewJob(job, req.auth.user)) {
+        throw new ApiError(403, "You do not have permission to update that checklist.");
+      }
+      if (optionalEnum(checklist.status, TOOL_CHECKLIST_STATUSES, "Checklist status", "draft") === "submitted") {
+        throw new ApiError(409, "Submitted checklists must be reviewed or reopened by the office.");
+      }
+    }
+
+    const changedFields = [];
+    if (payload.title != null && checklist.title !== requiredString(payload.title, "Checklist title")) {
+      checklist.title = requiredString(payload.title, "Checklist title");
+      changedFields.push("title");
+    }
+    if (payload.notes != null && (checklist.notes || "") !== optionalString(payload.notes, "")) {
+      checklist.notes = optionalString(payload.notes, "");
+      changedFields.push("notes");
+    }
+    if (payload.status != null && canViewAllToolChecklists(req.auth.user)) {
+      const nextStatus = optionalEnum(payload.status, TOOL_CHECKLIST_STATUSES, "Checklist status", checklist.status || "draft");
+      if (checklist.status !== nextStatus) {
+        checklist.status = nextStatus;
+        changedFields.push("status");
+      }
+    }
+
+    checklist.updatedAt = changedAt;
+    changedFields.push("updatedAt");
+    appendActivity(draft, "Tool checklist updated", `${req.auth.user.name} updated ${checklist.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklist",
+      entityId: checklist.id,
+      action: "updated",
+      summary: "Tool checklist updated",
+      detail: `${req.auth.user.name} updated ${checklist.title}.`,
+      actor: req.auth.user,
+      changedFields: [...new Set(changedFields)],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/tool-checklists/:id/items", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanContributeToolChecklist(req.auth.user, settings);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.companySettings = companySettingsForState(draft);
+    draft.toolChecklists ||= [];
+    draft.toolChecklistItems ||= [];
+    const checklist = findToolChecklist(draft, req.params.id);
+    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    if (!job || !canViewJob(job, req.auth.user)) {
+      throw new ApiError(403, "You do not have permission to add items to that checklist.");
+    }
+    const item = createToolChecklistItemShape(payload, req.auth.user, checklist.id, changedAt);
+    if (isEmployee(req.auth.user) && !new Set(["needed", "loaded", "on_site", "missing", "damaged", "not_needed"]).has(item.status)) {
+      throw new ApiError(403, "Employees cannot create checklist items with that status.");
+    }
+    draft.toolChecklistItems.unshift(item);
+    checklist.updatedAt = changedAt;
+    appendActivity(draft, "Tool checklist item added", `${req.auth.user.name} added ${item.name} to ${checklist.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklistItem",
+      entityId: item.id,
+      action: "added",
+      summary: "Tool checklist item added",
+      detail: `${req.auth.user.name} added ${item.name}.`,
+      actor: req.auth.user,
+      changedFields: ["name", "category", "quantity", "status"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/tool-checklists/:id/items/:itemId", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanContributeToolChecklist(req.auth.user, settings);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.companySettings = companySettingsForState(draft);
+    draft.toolChecklists ||= [];
+    draft.toolChecklistItems ||= [];
+    const checklist = findToolChecklist(draft, req.params.id);
+    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    if (!job || !canViewJob(job, req.auth.user)) {
+      throw new ApiError(403, "You do not have permission to update that checklist item.");
+    }
+    const item = findToolChecklistItem(draft, req.params.itemId);
+    if (item.checklistId !== checklist.id) {
+      throw new ApiError(404, "Tool checklist item not found.");
+    }
+
+    const changedFields = [];
+    if (payload.name != null && canManageJobToolChecklist(req.auth.user, draft.companySettings)) {
+      const nextName = requiredString(payload.name, "Tool name");
+      if (item.name !== nextName) {
+        item.name = nextName;
+        changedFields.push("name");
+      }
+    }
+    if (payload.category != null && canManageJobToolChecklist(req.auth.user, draft.companySettings)) {
+      const nextCategory = optionalEnum(payload.category, TOOL_CHECKLIST_ITEM_CATEGORIES, "Tool category", item.category || "other");
+      if (item.category !== nextCategory) {
+        item.category = nextCategory;
+        changedFields.push("category");
+      }
+    }
+    if (payload.quantity != null && canManageJobToolChecklist(req.auth.user, draft.companySettings)) {
+      const nextQuantity = optionalPositiveInteger(payload.quantity, "Quantity", item.quantity || 1);
+      if (Number(item.quantity || 1) !== nextQuantity) {
+        item.quantity = nextQuantity;
+        changedFields.push("quantity");
+      }
+    }
+    if (payload.status != null) {
+      const nextStatus = optionalEnum(payload.status, TOOL_CHECKLIST_ITEM_STATUSES, "Tool status", item.status || "needed");
+      if (isEmployee(req.auth.user) && !new Set(["needed", "loaded", "on_site", "missing", "damaged", "not_needed"]).has(nextStatus)) {
+        throw new ApiError(403, "Employees cannot set that tool status.");
+      }
+      if (item.status !== nextStatus) {
+        item.status = nextStatus;
+        changedFields.push("status");
+      }
+    }
+    if (payload.notes != null) {
+      const nextNotes = optionalString(payload.notes, "");
+      if ((item.notes || "") !== nextNotes) {
+        item.notes = nextNotes;
+        changedFields.push("notes");
+      }
+    }
+    if (payload.missingNotes != null) {
+      const nextMissingNotes = optionalString(payload.missingNotes, "");
+      if ((item.missingNotes || "") !== nextMissingNotes) {
+        item.missingNotes = nextMissingNotes;
+        changedFields.push("missingNotes");
+      }
+    }
+    if (payload.damagedNotes != null) {
+      const nextDamagedNotes = optionalString(payload.damagedNotes, "");
+      if ((item.damagedNotes || "") !== nextDamagedNotes) {
+        item.damagedNotes = nextDamagedNotes;
+        changedFields.push("damagedNotes");
+      }
+    }
+
+    item.updatedAt = changedAt;
+    checklist.updatedAt = changedAt;
+    changedFields.push("updatedAt");
+    const statusAction = item.status === "missing" ? "marked_missing" : item.status === "damaged" ? "marked_damaged" : item.status === "returned" ? "marked_returned" : "updated";
+    appendActivity(draft, "Tool checklist item updated", `${req.auth.user.name} updated ${item.name} on ${checklist.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklistItem",
+      entityId: item.id,
+      action: statusAction,
+      summary: "Tool checklist item updated",
+      detail: `${req.auth.user.name} updated ${item.name}.`,
+      actor: req.auth.user,
+      changedFields: [...new Set(changedFields)],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/tool-checklists/:id/submit", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanManageJobToolChecklist(req.auth.user, settings);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.companySettings = companySettingsForState(draft);
+    draft.toolChecklists ||= [];
+    const checklist = findToolChecklist(draft, req.params.id);
+    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    if (!job || !canViewJob(job, req.auth.user)) {
+      throw new ApiError(403, "You do not have permission to submit that checklist.");
+    }
+    checklist.status = "submitted";
+    checklist.submittedBy = req.auth.user.id;
+    checklist.submittedAt = changedAt;
+    checklist.updatedAt = changedAt;
+    appendActivity(draft, "Tool checklist submitted", `${req.auth.user.name} submitted ${checklist.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklist",
+      entityId: checklist.id,
+      action: "submitted",
+      summary: "Tool checklist submitted",
+      detail: `${req.auth.user.name} submitted ${checklist.title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "submittedBy", "submittedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/tool-checklists/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanReviewToolChecklists(req.auth.user);
+  assertCanViewToolChecklist(req.auth.user, settings);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.toolChecklists ||= [];
+    const checklist = findToolChecklist(draft, req.params.id);
+    checklist.status = "reviewed";
+    checklist.reviewedBy = req.auth.user.id;
+    checklist.reviewedAt = changedAt;
+    checklist.updatedAt = changedAt;
+    appendActivity(draft, "Tool checklist reviewed", `${req.auth.user.name} reviewed ${checklist.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklist",
+      entityId: checklist.id,
+      action: "reviewed",
+      summary: "Tool checklist reviewed",
+      detail: `${req.auth.user.name} reviewed ${checklist.title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/tool-checklists/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  const settings = companySettingsForState(state);
+  assertCanViewToolChecklist(req.auth.user, settings);
+  if (!canViewAllToolChecklists(req.auth.user)) {
+    throw new ApiError(403, "You do not have permission to archive tool checklists.");
+  }
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.toolChecklists ||= [];
+    const checklist = findToolChecklist(draft, req.params.id);
+    checklist.status = "archived";
+    checklist.archivedAt = changedAt;
+    checklist.updatedAt = changedAt;
+    appendActivity(draft, "Tool checklist archived", `${req.auth.user.name} archived ${checklist.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "toolChecklist",
+      entityId: checklist.id,
+      action: "archived",
+      summary: "Tool checklist archived",
+      detail: `${req.auth.user.name} archived ${checklist.title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.get("/api/safety", requireAuth, asyncRoute(async (req, res) => {

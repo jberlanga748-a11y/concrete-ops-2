@@ -124,3 +124,9 @@ test("tool checklist hides from field roles when disabled", () => {
     ["jobs", "calculator"],
   );
 });
+
+test("office roles keep tool checklist access even when the field module is disabled", () => {
+  const owner = { role: "Owner" };
+
+  assert.equal(canAccessModule("toolChecklist", owner, { toolChecklistEnabled: false }), true);
+});

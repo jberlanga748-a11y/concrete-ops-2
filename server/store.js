@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { DEMO_CREDENTIALS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
+import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 
 const SCHEMA_VERSION_KEY = "schema_version";
 export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
@@ -159,6 +160,35 @@ const INITIAL_PPE_ITEMS = [
   { id: "PPE-006", label: "Hearing protection", description: "Use hearing protection around saws, compactors, generators, or loud equipment.", requiredByDefault: true, status: "active" },
   { id: "PPE-007", label: "Respirator/dust mask when needed", description: "Use when cutting, grinding, or working in dusty conditions that call for respiratory protection.", requiredByDefault: false, status: "active" },
   { id: "PPE-008", label: "Fall protection when required", description: "Use when task conditions create fall exposure and a protection plan is required.", requiredByDefault: false, status: "active" },
+];
+
+const INITIAL_TOOL_CHECKLIST_TEMPLATES = [
+  {
+    title: "Concrete finishing tools",
+    items: [
+      { name: "Bull float", category: "concrete_finishing", quantity: 1, status: "needed", notes: "" },
+      { name: "Mag float", category: "concrete_finishing", quantity: 2, status: "needed", notes: "" },
+      { name: "Edger", category: "concrete_finishing", quantity: 2, status: "needed", notes: "" },
+      { name: "Groover", category: "concrete_finishing", quantity: 1, status: "needed", notes: "" },
+    ],
+  },
+  {
+    title: "Forms and layout tools",
+    items: [
+      { name: "Tape measure", category: "forms_layout", quantity: 2, status: "needed", notes: "" },
+      { name: "String line", category: "forms_layout", quantity: 2, status: "needed", notes: "" },
+      { name: "Stakes", category: "forms_layout", quantity: 20, status: "needed", notes: "" },
+      { name: "Hammer", category: "hand_tools", quantity: 2, status: "needed", notes: "" },
+    ],
+  },
+  {
+    title: "Safety and PPE kit",
+    items: [
+      { name: "Hard hats", category: "safety_ppe", quantity: 4, status: "needed", notes: "" },
+      { name: "Safety glasses", category: "safety_ppe", quantity: 4, status: "needed", notes: "" },
+      { name: "Hearing protection", category: "safety_ppe", quantity: 4, status: "needed", notes: "" },
+    ],
+  },
 ];
 
 function jobStatusValue(status = "scheduled") {
@@ -399,6 +429,7 @@ function createSeedLeadStatusHistory(user, leads) {
 
 export function createEmptyState() {
   return {
+    companySettings: { ...DEFAULT_COMPANY_SETTINGS },
     users: [],
     sessions: [],
     customers: [],
@@ -410,6 +441,8 @@ export function createEmptyState() {
     ppeItems: [],
     safetyAcknowledgments: [],
     safetyIncidents: [],
+    toolChecklists: [],
+    toolChecklistItems: [],
     dailyReports: [],
     uploads: [],
     timeEntries: [],
@@ -456,6 +489,7 @@ export function createSeedState() {
   const leadStatusHistory = createSeedLeadStatusHistory(seedUser, leads);
 
   return {
+    companySettings: { ...DEFAULT_COMPANY_SETTINGS },
     users: [
       seedUser,
     ],
@@ -469,6 +503,8 @@ export function createSeedState() {
     ppeItems,
     safetyAcknowledgments: [],
     safetyIncidents: [],
+    toolChecklists: [],
+    toolChecklistItems: [],
     dailyReports: [],
     uploads: [],
     timeEntries: [],
@@ -531,6 +567,14 @@ export function publicUser(user) {
     createdAt: user.createdAt || "",
     updatedAt: user.updatedAt || "",
     lastLoginAt: user.lastLoginAt || null,
+  };
+}
+
+function normalizeCompanySettings(settings = {}) {
+  return {
+    ...DEFAULT_COMPANY_SETTINGS,
+    ...(settings || {}),
+    toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
   };
 }
 
@@ -1539,6 +1583,78 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 23,
+    description: "Add company settings and tool checklist workflow tables.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS company_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS tool_checklists (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT,
+          title TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          assigned_foreman_id TEXT,
+          submitted_by TEXT,
+          reviewed_by TEXT,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          submitted_at TEXT,
+          reviewed_at TEXT,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (assigned_foreman_id) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tool_checklists_job_id ON tool_checklists(job_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_checklists_status ON tool_checklists(status);
+        CREATE INDEX IF NOT EXISTS idx_tool_checklists_assigned_foreman_id ON tool_checklists(assigned_foreman_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_checklists_sort_index ON tool_checklists(sort_index);
+
+        CREATE TABLE IF NOT EXISTS tool_checklist_items (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          checklist_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          quantity INTEGER NOT NULL DEFAULT 1,
+          status TEXT NOT NULL,
+          added_by TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          missing_notes TEXT NOT NULL,
+          damaged_notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (checklist_id) REFERENCES tool_checklists(id) ON DELETE CASCADE,
+          FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tool_checklist_items_checklist_id ON tool_checklist_items(checklist_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_checklist_items_status ON tool_checklist_items(status);
+        CREATE INDEX IF NOT EXISTS idx_tool_checklist_items_sort_index ON tool_checklist_items(sort_index);
+      `);
+
+      const now = isoNow();
+      const insertSetting = database.prepare(`
+        INSERT OR IGNORE INTO company_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+      `);
+
+      insertSetting.run("toolChecklistEnabled", "true", now);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1575,6 +1691,11 @@ function writeStateToDb(state) {
   const insertUser = database.prepare(`
     INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertCompanySetting = database.prepare(`
+    INSERT INTO company_settings (key, value, updated_at)
+    VALUES (?, ?, ?)
   `);
 
   const insertSession = database.prepare(`
@@ -1627,6 +1748,16 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertToolChecklist = database.prepare(`
+    INSERT INTO tool_checklists (id, sort_index, job_id, title, status, created_by, assigned_foreman_id, submitted_by, reviewed_by, notes, created_at, updated_at, submitted_at, reviewed_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertToolChecklistItem = database.prepare(`
+    INSERT INTO tool_checklist_items (id, sort_index, checklist_id, name, category, quantity, status, added_by, notes, missing_notes, damaged_notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   const insertTimeEntry = database.prepare(`
     INSERT INTO time_entries (id, sort_index, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1657,9 +1788,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  runInTransaction(database, () => {
-    const derivedAssignmentState = buildDerivedJobAssignments(state.jobs, state.jobAssignments);
-    database.exec(`
+    runInTransaction(database, () => {
+      const derivedAssignmentState = buildDerivedJobAssignments(state.jobs, state.jobAssignments);
+      const normalizedCompanySettings = normalizeCompanySettings(state.companySettings);
+      database.exec(`
+      DELETE FROM company_settings;
       DELETE FROM sessions;
       DELETE FROM users;
       DELETE FROM customers;
@@ -1671,6 +1804,8 @@ function writeStateToDb(state) {
       DELETE FROM safety_incidents;
       DELETE FROM safety_policies;
       DELETE FROM ppe_items;
+      DELETE FROM tool_checklist_items;
+      DELETE FROM tool_checklists;
       DELETE FROM daily_reports;
       DELETE FROM uploads;
       DELETE FROM time_entries;
@@ -1678,6 +1813,8 @@ function writeStateToDb(state) {
       DELETE FROM activity;
       DELETE FROM audit_events;
     `);
+
+    insertCompanySetting.run("toolChecklistEnabled", normalizedCompanySettings.toolChecklistEnabled ? "true" : "false", isoNow());
 
     state.users.forEach((user) => {
       insertUser.run(
@@ -1880,6 +2017,45 @@ function writeStateToDb(state) {
       );
     });
 
+    (state.toolChecklists || []).forEach((checklist, index) => {
+      insertToolChecklist.run(
+        checklist.id,
+        index,
+        checklist.jobId || null,
+        checklist.title,
+        checklist.status || "draft",
+        checklist.createdBy,
+        checklist.assignedForemanId || null,
+        checklist.submittedBy || null,
+        checklist.reviewedBy || null,
+        checklist.notes || "",
+        checklist.createdAt || isoNow(),
+        checklist.updatedAt || checklist.createdAt || isoNow(),
+        checklist.submittedAt || null,
+        checklist.reviewedAt || null,
+        checklist.archivedAt || null,
+      );
+    });
+
+    (state.toolChecklistItems || []).forEach((item, index) => {
+      insertToolChecklistItem.run(
+        item.id,
+        index,
+        item.checklistId,
+        item.name,
+        item.category || "other",
+        Number(item.quantity || 1),
+        item.status || "needed",
+        item.addedBy,
+        item.notes || "",
+        item.missingNotes || "",
+        item.damagedNotes || "",
+        item.createdAt || isoNow(),
+        item.updatedAt || item.createdAt || isoNow(),
+        item.archivedAt || null,
+      );
+    });
+
     (state.timeEntries || []).forEach((entry, index) => {
       insertTimeEntry.run(
         entry.id,
@@ -1990,6 +2166,18 @@ function writeStateToDb(state) {
 function readTableState() {
   const database = createDatabaseConnection();
 
+  const companySettingsRows = database.prepare(`
+    SELECT key, value
+    FROM company_settings
+    ORDER BY key
+  `).all();
+  const companySettings = normalizeCompanySettings(
+    Object.fromEntries(companySettingsRows.map((row) => [
+      row.key,
+      row.key === "toolChecklistEnabled" ? row.value === "true" : row.value,
+    ])),
+  );
+
   const users = database.prepare(`
     SELECT id, email, name, phone, role, status, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
@@ -2065,6 +2253,22 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
+  const toolChecklists = database.prepare(`
+    SELECT id, job_id AS jobId, title, status, created_by AS createdBy, assigned_foreman_id AS assignedForemanId,
+           submitted_by AS submittedBy, reviewed_by AS reviewedBy, notes, created_at AS createdAt, updated_at AS updatedAt,
+           submitted_at AS submittedAt, reviewed_at AS reviewedAt, archived_at AS archivedAt
+    FROM tool_checklists
+    ORDER BY sort_index ASC
+  `).all();
+
+  const toolChecklistItems = database.prepare(`
+    SELECT id, checklist_id AS checklistId, name, category, quantity, status, added_by AS addedBy, notes,
+           missing_notes AS missingNotes, damaged_notes AS damagedNotes, created_at AS createdAt, updated_at AS updatedAt,
+           archived_at AS archivedAt
+    FROM tool_checklist_items
+    ORDER BY sort_index ASC
+  `).all();
+
   const timeEntries = database.prepare(`
     SELECT id, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
@@ -2118,6 +2322,7 @@ function readTableState() {
   }));
 
   return {
+    companySettings,
     users,
     sessions,
     customers,
@@ -2129,6 +2334,8 @@ function readTableState() {
     ppeItems,
     safetyAcknowledgments,
     safetyIncidents,
+    toolChecklists,
+    toolChecklistItems,
     dailyReports,
     uploads,
     timeEntries,

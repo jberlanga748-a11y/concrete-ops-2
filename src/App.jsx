@@ -6,10 +6,12 @@ import {
   archivePpeItem,
   archiveSafetyIncident,
   archiveSafetyPolicy,
+  archiveToolChecklist,
   archiveCustomer,
   createPpeItem,
   createSafetyIncident,
   createSafetyPolicy,
+  createToolChecklist,
   archiveJob,
   archiveLead,
   archiveQueueItem,
@@ -39,6 +41,7 @@ import {
   logout,
   resetWorkspace,
   reviewDailyReport,
+  reviewToolChecklist,
   reopenDailyReport,
   resolveSafetyIncident,
   reviewSafetyIncident,
@@ -57,8 +60,13 @@ import {
   updateLead,
   updatePpeItem,
   updateSafetyPolicy,
+  updateCompanySettings,
+  updateToolChecklist,
+  updateToolChecklistItem,
   updateUpload,
   updateUser,
+  addToolChecklistItem,
+  submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
@@ -70,6 +78,7 @@ import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navi
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
+import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, gpsStatusLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
@@ -150,6 +159,7 @@ const EMPTY_APP_STATE = {
   ppeItems: [],
   safetyAcknowledgments: [],
   safetyIncidents: [],
+  toolChecklists: [],
   uploads: [],
   dailyReports: [],
   timeEntries: [],
@@ -213,6 +223,11 @@ const EMPTY_APP_STATE = {
     toolChecklist: {
       canUse: false,
       canManage: false,
+      canManageAll: false,
+      canManageJob: false,
+      canContribute: false,
+      canReview: false,
+      canToggle: false,
     },
     settings: {
       canView: false,
@@ -259,12 +274,13 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     customers: Array.isArray(source.customers) ? source.customers : Array.isArray(fallback.customers) ? fallback.customers : EMPTY_APP_STATE.customers,
     leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
     leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
-    jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
-    safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
-    ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
-    safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
-    safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
-    uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
+      jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
+      safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
+      ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
+      safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
+      safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
+      toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
+      uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
     dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
     timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
     queueItems: Array.isArray(source.queueItems) ? source.queueItems : Array.isArray(fallback.queueItems) ? fallback.queueItems : EMPTY_APP_STATE.queueItems,
@@ -279,9 +295,9 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
       uploads: mergePermissionScope(EMPTY_APP_STATE.permissions.uploads, source.permissions?.uploads || fallback.permissions?.uploads),
       time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
-      safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
-      calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
-      toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
+        safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
+        calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
+        toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
       audit: mergePermissionScope(EMPTY_APP_STATE.permissions.audit, source.permissions?.audit || fallback.permissions?.audit),
@@ -422,6 +438,22 @@ const INITIAL_SAFETY_INCIDENT_FORM = {
   title: "",
   description: "",
   immediateAction: "",
+};
+
+const INITIAL_TOOL_CHECKLIST_FORM = {
+  jobId: "",
+  title: "",
+  notes: "",
+};
+
+const INITIAL_TOOL_CHECKLIST_ITEM_FORM = {
+  name: "",
+  category: "other",
+  quantity: 1,
+  status: "needed",
+  notes: "",
+  missingNotes: "",
+  damagedNotes: "",
 };
 
 const INITIAL_UPLOAD_FORM = {
@@ -4685,7 +4717,7 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   );
 }
 
-function SettingsPage({ user, onReset, busy, auditEvents, demoMode }) {
+function SettingsPage({ user, onReset, busy, auditEvents, demoMode, companySettings, permissions, onUpdateCompanySettings }) {
   return (
     <div>
       <PageHeader eyebrow="System" title="Settings" description={demoMode ? "This workspace uses authenticated server state with optional seeded demo data." : "This workspace uses authenticated server state with production-style admin setup."} />
@@ -4701,6 +4733,30 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode }) {
             {demoMode ? <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button> : null}
           </Card>
           <Card className="p-5">
+            <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-slate-950">Tool Checklist</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">Field roles only see this module when it is enabled. Existing checklist data is preserved when it is off.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant={companySettings.toolChecklistEnabled ? "secondary" : "primary"}
+                  onClick={() => onUpdateCompanySettings({ toolChecklistEnabled: !companySettings.toolChecklistEnabled })}
+                  disabled={busy || !permissions.toolChecklist.canToggle}
+                >
+                  {companySettings.toolChecklistEnabled ? "Disable module" : "Enable module"}
+                </Button>
+              </div>
+              <div className="mt-3">
+                <Badge tone={companySettings.toolChecklistEnabled ? "green" : "slate"}>
+                  {companySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
+                </Badge>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5">
             <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
             <div className="space-y-3 text-sm text-slate-600">
               <div className="rounded-2xl border border-blue-100 p-4">Add role-based permissions and password rotation for multiple office users.</div>
@@ -4710,6 +4766,269 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode }) {
           </Card>
         </div>
         <AuditTrailPanel auditEvents={auditEvents} />
+      </div>
+    </div>
+  );
+}
+
+function ToolChecklistPage({
+  user,
+  jobs,
+  toolChecklists,
+  permissions,
+  companySettings,
+  onCreateChecklist,
+  onSaveChecklist,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onSubmitChecklist,
+  onReviewChecklist,
+  onArchiveChecklist,
+  busy,
+}) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [foremanFilter, setForemanFilter] = useState("All foremen");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [issueFilter, setIssueFilter] = useState("All items");
+  const [search, setSearch] = useState("");
+  const [selectedChecklistId, setSelectedChecklistId] = useState("");
+  const [checklistDraft, setChecklistDraft] = useState(INITIAL_TOOL_CHECKLIST_FORM);
+  const [itemDraft, setItemDraft] = useState(INITIAL_TOOL_CHECKLIST_ITEM_FORM);
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const checklistRows = Array.isArray(toolChecklists) ? toolChecklists : [];
+  const filteredRows = useMemo(() => filterToolChecklists(checklistRows, {
+    status: statusFilter,
+    job: jobFilter,
+    foreman: foremanFilter,
+    archived: archiveFilter,
+    missingDamaged: issueFilter,
+    search,
+  }), [archiveFilter, checklistRows, foremanFilter, issueFilter, jobFilter, search, statusFilter]);
+  const listState = useMemo(() => deriveToolChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedChecklist = filteredRows.find((checklist) => checklist.id === selectedChecklistId) || filteredRows[0] || checklistRows.find((checklist) => checklist.id === selectedChecklistId) || null;
+  const selectedItems = deriveChecklistItems(selectedChecklist?.items || [], { includeArchived: permissions.toolChecklist.canManageAll });
+  const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
+
+  useEffect(() => {
+    if (!selectedChecklistId && filteredRows[0]?.id) {
+      setSelectedChecklistId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedChecklistId]);
+
+  useEffect(() => {
+    if (singleJobId && !checklistDraft.jobId) {
+      setChecklistDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [singleJobId, checklistDraft.jobId]);
+
+  const canCreateChecklist = permissions.toolChecklist.canManage;
+  const canAddItems = permissions.toolChecklist.canContribute && Boolean(selectedChecklist);
+  const noFieldJob = !permissions.toolChecklist.canManageAll && visibleJobs.length === 0;
+
+  if (!permissions.toolChecklist.canUse && !permissions.toolChecklist.canManageAll) {
+    return (
+      <div>
+        <PageHeader eyebrow="Field Tools" title="Tool Checklist" description="This module is currently disabled for field roles." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Tool Checklist is off" description="The office can re-enable this module in Settings without deleting saved checklist data." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Tools" title="Tool Checklist" description={permissions.toolChecklist.canManageAll ? "Manage job checklists, review submissions, and keep field tool status visible to the office." : "Keep job tools organized, flag missing or damaged items, and submit the field checklist without exposing office-only data."} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-4">
+            <SectionHeader title="Filters" description="Keep the checklist list scoped to the work you need right now." />
+            <div className="grid gap-3">
+              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {["All", "Draft", "Active", "Submitted", "Reviewed", "Archived"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Issue focus" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
+                {["All items", "Missing only", "Damaged only", "Missing or damaged"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search checklists or tool notes..." />
+            </div>
+          </Card>
+          <Card className="p-4">
+            <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
+            {filteredRows.length === 0 ? (
+              <StateCard title={noFieldJob ? "No assigned job yet" : "No checklists match these filters"} description={noFieldJob ? "Contact office if a checklist should already be on your phone." : "Clear a filter or create a checklist for the job."} tone="slate" />
+            ) : (
+              <div className="space-y-3">
+                {filteredRows.map((checklist) => (
+                  <button
+                    key={checklist.id}
+                    type="button"
+                    onClick={() => setSelectedChecklistId(checklist.id)}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{checklist.title}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.title || "General checklist"} · {checklist.job?.customer || "Field work"}</p>
+                      </div>
+                      <StatusBadge status={toolChecklistStatusLabel(checklist.status)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {checklist.missingItemCount ? <Badge tone="amber">{checklist.missingItemCount} missing</Badge> : null}
+                      {checklist.damagedItemCount ? <Badge tone="red">{checklist.damagedItemCount} damaged</Badge> : null}
+                      <Badge tone="slate">{checklist.items?.length || 0} items</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+        <div className="space-y-4">
+          {canCreateChecklist ? (
+            <Card className="p-4">
+              <SectionHeader title="Create checklist" description="Start with a job-level checklist for the crew." />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField label="Job" value={checklistDraft.jobId} onChange={(event) => setChecklistDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                  <option value="">Select a job</option>
+                  {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                </SelectField>
+                <InputField label="Title" value={checklistDraft.title} onChange={(event) => setChecklistDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Pour day loadout" />
+              </div>
+              <div className="mt-3">
+                <TextAreaField label="Notes" value={checklistDraft.notes} onChange={(event) => setChecklistDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="What should the crew prep before leaving the yard?" />
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onCreateChecklist(checklistDraft);
+                    setChecklistDraft({ ...INITIAL_TOOL_CHECKLIST_FORM, jobId: singleJobId });
+                  }}
+                  disabled={busy || !checklistDraft.jobId || !checklistDraft.title.trim()}
+                >
+                  Create checklist
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedChecklist ? (
+            <Card className="p-4">
+              <SectionHeader
+                title={selectedChecklist.title}
+                description={`${selectedChecklist.job?.title || "General checklist"} · ${selectedChecklist.job?.customer || "Field work"}`}
+                action={<StatusBadge status={toolChecklistStatusLabel(selectedChecklist.status)} />}
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Updated:</span> {formatDateTime(selectedChecklist.updatedAt)}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Missing:</span> {selectedChecklist.missingItemCount}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Damaged:</span> {selectedChecklist.damagedItemCount}</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <TextAreaField
+                  label="Checklist notes"
+                  key={`${selectedChecklist.id}-notes`}
+                  defaultValue={selectedChecklist.notes || ""}
+                  onBlur={(event) => onSaveChecklist(selectedChecklist.id, { notes: event.target.value })}
+                  disabled={busy || (!permissions.toolChecklist.canManageAll && !permissions.toolChecklist.canManageJob)}
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {permissions.toolChecklist.canManageJob ? <Button type="button" variant="secondary" onClick={() => onSubmitChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "submitted" || selectedChecklist.status === "reviewed" || selectedChecklist.status === "archived"}>Submit checklist</Button> : null}
+                {permissions.toolChecklist.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.status === "archived"}>Review checklist</Button> : null}
+                {permissions.toolChecklist.canManageAll ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "archived"}>Archive checklist</Button> : null}
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedChecklist ? (
+            <Card className="p-4">
+              <SectionHeader title="Checklist items" description="Track what the crew needs, what is loaded, and what needs attention." />
+              {selectedItems.length === 0 ? (
+                <StateCard title="No items yet" description="Add the first tool or checklist note to get the crew started." tone="slate" />
+              ) : (
+                <div className="space-y-3">
+                  {selectedItems.map((item) => (
+                    <div key={item.id} className="rounded-3xl border border-blue-100 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-slate-950">{item.name}</p>
+                          <p className="mt-1 break-words text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{item.category.replaceAll("_", " ")}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge status={toolChecklistItemStatusLabel(item.status)} />
+                          <Badge tone="slate">Qty {item.quantity}</Badge>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <TextAreaField label="Notes" key={`${item.id}-notes`} defaultValue={item.notes || ""} onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { notes: event.target.value })} disabled={busy || !permissions.toolChecklist.canContribute} />
+                        <div className="grid gap-3">
+                          <SelectField label="Status" value={item.status} onChange={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: event.target.value })} disabled={busy || !permissions.toolChecklist.canContribute}>
+                            {["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"].map((option) => <option key={option} value={option}>{toolChecklistItemStatusLabel(option)}</option>)}
+                          </SelectField>
+                          <InputField label="Missing notes" key={`${item.id}-missing`} defaultValue={item.missingNotes || ""} onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { missingNotes: event.target.value })} disabled={busy || !permissions.toolChecklist.canContribute} />
+                          <InputField label="Damaged notes" key={`${item.id}-damaged`} defaultValue={item.damagedNotes || ""} onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { damagedNotes: event.target.value })} disabled={busy || !permissions.toolChecklist.canContribute} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : null}
+
+          {canAddItems ? (
+            <Card className="p-4">
+              <SectionHeader title="Add item" description="Employees can add needed tools or flag missing and damaged items. Foremen and office roles can add the full checklist." />
+              <div className="grid gap-3 md:grid-cols-2">
+                <InputField label="Tool name" value={itemDraft.name} onChange={(event) => setItemDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Power screed" />
+                <SelectField label="Category" value={itemDraft.category} onChange={(event) => setItemDraft((current) => ({ ...current, category: event.target.value }))}>
+                  {["hand_tools", "power_tools", "concrete_finishing", "forms_layout", "safety_ppe", "small_equipment", "consumables", "other"].map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}
+                </SelectField>
+                <InputField label="Quantity" type="number" min="1" value={itemDraft.quantity} onChange={(event) => setItemDraft((current) => ({ ...current, quantity: event.target.value }))} />
+                <SelectField label="Initial status" value={itemDraft.status} onChange={(event) => setItemDraft((current) => ({ ...current, status: event.target.value }))}>
+                  {["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"].map((option) => <option key={option} value={option}>{toolChecklistItemStatusLabel(option)}</option>)}
+                </SelectField>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <TextAreaField label="Notes" value={itemDraft.notes} onChange={(event) => setItemDraft((current) => ({ ...current, notes: event.target.value }))} />
+                <div className="grid gap-3">
+                  <InputField label="Missing notes" value={itemDraft.missingNotes} onChange={(event) => setItemDraft((current) => ({ ...current, missingNotes: event.target.value }))} />
+                  <InputField label="Damaged notes" value={itemDraft.damagedNotes} onChange={(event) => setItemDraft((current) => ({ ...current, damagedNotes: event.target.value }))} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onAddChecklistItem(selectedChecklist.id, itemDraft);
+                    setItemDraft(INITIAL_TOOL_CHECKLIST_ITEM_FORM);
+                  }}
+                  disabled={busy || !itemDraft.name.trim()}
+                >
+                  Add item
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -4827,6 +5146,9 @@ function MainContent(props) {
   if (active === "ppe" || active === "incidents") {
     return <SafetyPage {...props} />;
   }
+  if (active === "toolChecklist") {
+    return <ToolChecklistPage {...props} toolChecklists={props.toolChecklists} />;
+  }
   if (active === "time") {
     return <TimePage {...props} rows={props.timeEntries} />;
   }
@@ -4854,7 +5176,7 @@ function MainContent(props) {
   if (active === "calculator") return <CalculatorPage />;
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
-  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} />;
+  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} companySettings={props.companySettings} permissions={props.permissions} onUpdateCompanySettings={props.onUpdateCompanySettings} />;
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 
@@ -5006,11 +5328,12 @@ export default function App() {
         companySettings: normalizedNextState.companySettings,
         users: normalizedNextState.users,
         customers: kind === "customer" && !shouldReplaceRecord ? current.customers : normalizedNextState.customers,
-        safetyPolicies: normalizedNextState.safetyPolicies,
-        ppeItems: normalizedNextState.ppeItems,
-        safetyAcknowledgments: normalizedNextState.safetyAcknowledgments,
-        safetyIncidents: normalizedNextState.safetyIncidents,
-        activity: normalizedNextState.activity,
+          safetyPolicies: normalizedNextState.safetyPolicies,
+          ppeItems: normalizedNextState.ppeItems,
+          safetyAcknowledgments: normalizedNextState.safetyAcknowledgments,
+          safetyIncidents: normalizedNextState.safetyIncidents,
+          toolChecklists: normalizedNextState.toolChecklists,
+          activity: normalizedNextState.activity,
         auditEvents: normalizedNextState.auditEvents,
         permissions: normalizedNextState.permissions,
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
@@ -5979,6 +6302,142 @@ export default function App() {
     }
   }
 
+  async function handleUpdateCompanySettings(payload) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canToggle) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateCompanySettings(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateToolChecklist(payload) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createToolChecklist(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveToolChecklist(checklistId, payload) {
+    if (!sessionToken || !(appState.permissions.toolChecklist.canManageAll || appState.permissions.toolChecklist.canManageJob)) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateToolChecklist(sessionToken, checklistId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAddToolChecklistItem(checklistId, payload) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canContribute) return false;
+    setBusy(true);
+    try {
+      const nextState = await addToolChecklistItem(sessionToken, checklistId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateToolChecklistItem(checklistId, itemId, payload) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canContribute) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateToolChecklistItem(sessionToken, checklistId, itemId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSubmitToolChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canManageJob) return false;
+    setBusy(true);
+    try {
+      const nextState = await submitToolChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReviewToolChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await reviewToolChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveToolChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.toolChecklist.canManageAll) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveToolChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleReviewReport() {
     if (!selectedReport || !appState.permissions.reports.canReview) return;
     runMutation(() => reviewDailyReport(sessionToken, selectedReport.id));
@@ -6129,6 +6588,7 @@ export default function App() {
               ppeItems={appState.ppeItems}
               safetyAcknowledgments={appState.safetyAcknowledgments}
               safetyIncidents={appState.safetyIncidents}
+              toolChecklists={appState.toolChecklists}
               dailyReports={appState.dailyReports}
               timeEntries={appState.timeEntries}
               queueItems={appState.queueItems}
@@ -6232,6 +6692,14 @@ export default function App() {
               onReviewSafetyIncident={handleReviewSafetyIncident}
               onResolveSafetyIncident={handleResolveSafetyIncident}
               onArchiveSafetyIncident={handleArchiveSafetyIncident}
+              onUpdateCompanySettings={handleUpdateCompanySettings}
+              onCreateChecklist={handleCreateToolChecklist}
+              onSaveChecklist={handleSaveToolChecklist}
+              onAddChecklistItem={handleAddToolChecklistItem}
+              onUpdateChecklistItem={handleUpdateToolChecklistItem}
+              onSubmitChecklist={handleSubmitToolChecklist}
+              onReviewChecklist={handleReviewToolChecklist}
+              onArchiveChecklist={handleArchiveToolChecklist}
               selectedReportId={selectedReportId}
               onSelectReport={navigateToReport}
               selectedReport={selectedReport}

@@ -62,6 +62,10 @@ export function getBootstrap(token) {
   return request("/api/bootstrap", { token });
 }
 
+export function updateCompanySettings(token, payload) {
+  return request("/api/settings/company", { method: "PATCH", token, body: payload });
+}
+
 export function createCustomer(token, customer) {
   return request("/api/customers", { method: "POST", token, body: customer });
 }
@@ -212,6 +216,38 @@ export function resolveSafetyIncident(token, id) {
 
 export function archiveSafetyIncident(token, id) {
   return request(`/api/safety/incidents/${id}/archive`, { method: "POST", token });
+}
+
+export function getToolChecklists(token) {
+  return request("/api/tool-checklists", { token });
+}
+
+export function createToolChecklist(token, payload) {
+  return request("/api/tool-checklists", { method: "POST", token, body: payload });
+}
+
+export function updateToolChecklist(token, id, payload) {
+  return request(`/api/tool-checklists/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function addToolChecklistItem(token, checklistId, payload) {
+  return request(`/api/tool-checklists/${checklistId}/items`, { method: "POST", token, body: payload });
+}
+
+export function updateToolChecklistItem(token, checklistId, itemId, payload) {
+  return request(`/api/tool-checklists/${checklistId}/items/${itemId}`, { method: "PATCH", token, body: payload });
+}
+
+export function submitToolChecklist(token, id) {
+  return request(`/api/tool-checklists/${id}/submit`, { method: "POST", token });
+}
+
+export function reviewToolChecklist(token, id) {
+  return request(`/api/tool-checklists/${id}/review`, { method: "POST", token });
+}
+
+export function archiveToolChecklist(token, id) {
+  return request(`/api/tool-checklists/${id}/archive`, { method: "POST", token });
 }
 
 export function updateUpload(token, id, payload) {

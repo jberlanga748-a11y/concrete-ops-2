@@ -217,13 +217,39 @@ export function canReviewSafetyIncidents(user) {
 }
 
 export function canUseToolChecklist(user, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  if (isOfficeManager(user)) return true;
   if (!companySettings.toolChecklistEnabled) return false;
-  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+  return isForeman(user) || isEmployee(user);
 }
 
 export function canManageToolChecklist(user, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  if (isOfficeManager(user)) return true;
   if (!companySettings.toolChecklistEnabled) return false;
-  return isOfficeManager(user) || isForeman(user);
+  return isForeman(user);
+}
+
+export function canToggleToolChecklist(user) {
+  return isOfficeManager(user);
+}
+
+export function canViewAllToolChecklists(user) {
+  return isOfficeManager(user);
+}
+
+export function canReviewToolChecklists(user) {
+  return isOfficeManager(user);
+}
+
+export function canManageJobToolChecklist(user, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  if (isOfficeManager(user)) return true;
+  if (!companySettings.toolChecklistEnabled) return false;
+  return isForeman(user);
+}
+
+export function canContributeToolChecklist(user, companySettings = DEFAULT_COMPANY_SETTINGS) {
+  if (isOfficeManager(user)) return true;
+  if (!companySettings.toolChecklistEnabled) return false;
+  return isForeman(user) || isEmployee(user);
 }
 
 export function canViewSettings(user) {
