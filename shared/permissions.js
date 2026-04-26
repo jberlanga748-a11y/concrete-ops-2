@@ -2,6 +2,14 @@ export const DEFAULT_COMPANY_SETTINGS = {
   companyName: "",
   logoInitials: "",
   accentColor: "blue",
+  businessPhone: "",
+  businessEmail: "",
+  website: "",
+  businessAddress: "",
+  serviceArea: "",
+  licenseText: "",
+  printPacketFooter: "",
+  printPacketDisclaimer: "",
   toolChecklistEnabled: true,
 };
 

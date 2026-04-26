@@ -2908,6 +2908,11 @@ function optionalAccentColor(value, fallback = DEFAULT_COMPANY_SETTINGS.accentCo
   return normalized;
 }
 
+function optionalCompanySettingText(value, fallback = "", maxLength = 160) {
+  if (value == null) return fallback;
+  return String(value).trim().slice(0, maxLength);
+}
+
 function resolveOptionalUserId(state, value, fieldName) {
   const normalized = optionalString(value, "");
   if (!normalized) return "";
@@ -4278,6 +4283,10 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const previousToolChecklistEnabled = draft.companySettings.toolChecklistEnabled;
     const brandingChanges = [];
     const brandingChangedFields = [];
+    const profileChanges = [];
+    const profileChangedFields = [];
+    const printPacketChanges = [];
+    const printPacketChangedFields = [];
     const hasToolChecklistEnabledUpdate = Object.prototype.hasOwnProperty.call(payload, "toolChecklistEnabled");
     const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, previousToolChecklistEnabled);
     const nextCompanyName = payload.companyName == null
@@ -4289,6 +4298,30 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const nextAccentColor = payload.accentColor == null
       ? draft.companySettings.accentColor
       : optionalAccentColor(payload.accentColor, draft.companySettings.accentColor);
+    const nextBusinessPhone = payload.businessPhone == null
+      ? draft.companySettings.businessPhone
+      : optionalCompanySettingText(payload.businessPhone, "", 40);
+    const nextBusinessEmail = payload.businessEmail == null
+      ? draft.companySettings.businessEmail
+      : optionalEmail(payload.businessEmail, "");
+    const nextWebsite = payload.website == null
+      ? draft.companySettings.website
+      : optionalCompanySettingText(payload.website, "", 160);
+    const nextBusinessAddress = payload.businessAddress == null
+      ? draft.companySettings.businessAddress
+      : optionalCompanySettingText(payload.businessAddress, "", 200);
+    const nextServiceArea = payload.serviceArea == null
+      ? draft.companySettings.serviceArea
+      : optionalCompanySettingText(payload.serviceArea, "", 160);
+    const nextLicenseText = payload.licenseText == null
+      ? draft.companySettings.licenseText
+      : optionalCompanySettingText(payload.licenseText, "", 200);
+    const nextPrintPacketFooter = payload.printPacketFooter == null
+      ? draft.companySettings.printPacketFooter
+      : optionalCompanySettingText(payload.printPacketFooter, "", 240);
+    const nextPrintPacketDisclaimer = payload.printPacketDisclaimer == null
+      ? draft.companySettings.printPacketDisclaimer
+      : optionalCompanySettingText(payload.printPacketDisclaimer, "", 320);
 
     if (hasToolChecklistEnabledUpdate && previousToolChecklistEnabled !== nextToolChecklistEnabled) {
       draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
@@ -4319,6 +4352,46 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       brandingChangedFields.push("accentColor");
       brandingChanges.push("accent color");
     }
+    if (draft.companySettings.businessPhone !== nextBusinessPhone) {
+      draft.companySettings.businessPhone = nextBusinessPhone;
+      profileChangedFields.push("businessPhone");
+      profileChanges.push("business phone");
+    }
+    if (draft.companySettings.businessEmail !== nextBusinessEmail) {
+      draft.companySettings.businessEmail = nextBusinessEmail;
+      profileChangedFields.push("businessEmail");
+      profileChanges.push("business email");
+    }
+    if (draft.companySettings.website !== nextWebsite) {
+      draft.companySettings.website = nextWebsite;
+      profileChangedFields.push("website");
+      profileChanges.push("website");
+    }
+    if (draft.companySettings.businessAddress !== nextBusinessAddress) {
+      draft.companySettings.businessAddress = nextBusinessAddress;
+      profileChangedFields.push("businessAddress");
+      profileChanges.push("business address");
+    }
+    if (draft.companySettings.serviceArea !== nextServiceArea) {
+      draft.companySettings.serviceArea = nextServiceArea;
+      profileChangedFields.push("serviceArea");
+      profileChanges.push("service area");
+    }
+    if (draft.companySettings.licenseText !== nextLicenseText) {
+      draft.companySettings.licenseText = nextLicenseText;
+      profileChangedFields.push("licenseText");
+      profileChanges.push("license text");
+    }
+    if (draft.companySettings.printPacketFooter !== nextPrintPacketFooter) {
+      draft.companySettings.printPacketFooter = nextPrintPacketFooter;
+      printPacketChangedFields.push("printPacketFooter");
+      printPacketChanges.push("packet footer");
+    }
+    if (draft.companySettings.printPacketDisclaimer !== nextPrintPacketDisclaimer) {
+      draft.companySettings.printPacketDisclaimer = nextPrintPacketDisclaimer;
+      printPacketChangedFields.push("printPacketDisclaimer");
+      printPacketChanges.push("packet disclaimer");
+    }
 
     if (brandingChanges.length > 0) {
       const detail = `${req.auth.user.name} updated the workspace ${brandingChanges.join(", ")}.`;
@@ -4331,6 +4404,32 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         detail,
         actor: req.auth.user,
         changedFields: [...brandingChangedFields, "updatedAt"],
+      });
+    }
+    if (profileChanges.length > 0) {
+      const detail = `${req.auth.user.name} updated the company profile ${profileChanges.join(", ")}.`;
+      appendActivity(draft, "Company profile updated", detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "companyProfile",
+        action: "updated",
+        summary: "Company profile updated",
+        detail,
+        actor: req.auth.user,
+        changedFields: [...profileChangedFields, "updatedAt"],
+      });
+    }
+    if (printPacketChanges.length > 0) {
+      const detail = `${req.auth.user.name} updated the print packet ${printPacketChanges.join(", ")}.`;
+      appendActivity(draft, "Print packet settings updated", detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "printPacketSettings",
+        action: "updated",
+        summary: "Print packet settings updated",
+        detail,
+        actor: req.auth.user,
+        changedFields: [...printPacketChangedFields, "updatedAt"],
       });
     }
 
