@@ -106,6 +106,7 @@ import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
+import { deriveDailyReportPrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
@@ -1817,6 +1818,7 @@ function JobDetailPanel({
   saveState,
   disabled,
   permissions,
+  onPrintPacket,
 }) {
   if (!job) {
     return (
@@ -1844,6 +1846,7 @@ function JobDetailPanel({
           <div className="flex flex-wrap gap-2">
             {!canManageAll ? <Badge tone="slate">Field view</Badge> : null}
             {job.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+            {(canManageAll || job.canManageField || permissions?.jobs?.canViewMoney) ? <Button variant="secondary" size="sm" onClick={onPrintPacket} disabled={disabled || typeof onPrintPacket !== "function"}>Print Job Packet</Button> : null}
             {job.archivedAt ? (
               <>
                 <Button variant="secondary" size="sm" onClick={onRestore} disabled={disabled || !canArchive}>Restore</Button>
@@ -2849,6 +2852,7 @@ function DailyReportDetailPanel({
   canArchive,
   disabled,
   notFound,
+  onPrintReport,
 }) {
   if (!canView) {
     return (
@@ -2886,6 +2890,7 @@ function DailyReportDetailPanel({
           action={
             <div className="flex flex-wrap gap-2">
               <DailyReportStatusBadge status={report.status} />
+              {canView ? <Button variant="secondary" size="sm" onClick={onPrintReport} disabled={disabled || typeof onPrintReport !== "function"}>Print Daily Report</Button> : null}
               {canReview && ["submitted", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReview} disabled={disabled}>Review</Button> : null}
               {canReview && ["submitted", "reviewed"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReopen} disabled={disabled}>Reopen</Button> : null}
               {canArchive && !report.archivedAt ? <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button> : null}
@@ -3938,6 +3943,7 @@ function ReportsPage({
             canArchive={permissions.reports.canManageAll}
             disabled={busy}
             notFound={notFound}
+            onPrintReport={onPrintDailyReport}
           />
         </div>
       </div>
@@ -4724,6 +4730,7 @@ function JobsPage({
             saveState={jobSaveState}
             disabled={busy}
             permissions={permissions}
+            onPrintPacket={onPrintJobPacket}
           />
         </div>
       </div>
@@ -8712,6 +8719,50 @@ export default function App() {
     }
   }
 
+  function handlePrintDailyReport() {
+    if (!selectedReport || !appState.permissions.reports.canView) return false;
+    const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
+    const packet = deriveDailyReportPrintPacket({
+      companyName: COMPANY_NAME,
+      report: selectedReport,
+      deliveryTickets: appState.deliveryTickets,
+      uploads: appState.uploads,
+      packetMode,
+    });
+    const opened = openPrintDocument(packet);
+    if (!opened) {
+      setErrorMessage("Allow pop-ups to open the daily report print view.");
+    }
+    return opened;
+  }
+
+  function handlePrintJobPacket() {
+    if (!selectedJob) return false;
+    const canPrint = appState.permissions.jobs.canManageAll || selectedJob.canManageField || appState.permissions.jobs.canViewMoney;
+    if (!canPrint) return false;
+
+    const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
+    const packet = deriveJobPrintPacket({
+      companyName: COMPANY_NAME,
+      job: selectedJob,
+      dailyReports: appState.dailyReports,
+      uploads: appState.uploads,
+      prePourChecklists: appState.prePourChecklists,
+      postPourChecklists: appState.postPourChecklists,
+      deliveryTickets: appState.deliveryTickets,
+      changeOrderRequests: appState.changeOrderRequests,
+      calculatorResults: appState.calculatorResults,
+      safetyIncidents: appState.safetyIncidents,
+      toolChecklists: appState.toolChecklists,
+      packetMode,
+    });
+    const opened = openPrintDocument(packet);
+    if (!opened) {
+      setErrorMessage("Allow pop-ups to open the job packet print view.");
+    }
+    return opened;
+  }
+
   async function handleCreatePrePourChecklist(payload) {
     if (!sessionToken || !appState.permissions.prePour.canManage) return false;
     setBusy(true);
@@ -9514,6 +9565,8 @@ export default function App() {
               onCreateDeliveryTicket={handleCreateDeliveryTicket}
               onUpdateDeliveryTicket={handleUpdateDeliveryTicket}
               onArchiveDeliveryTicket={handleArchiveDeliveryTicket}
+              onPrintJobPacket={handlePrintJobPacket}
+              onPrintDailyReport={handlePrintDailyReport}
                 onArchiveSafetyIncident={handleArchiveSafetyIncident}
                 onUpdateCompanySettings={handleUpdateCompanySettings}
                 onCreateChecklist={handleCreateToolChecklist}

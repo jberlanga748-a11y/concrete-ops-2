@@ -1,0 +1,114 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { buildPrintDocumentHtml, deriveDailyReportPrintPacket, deriveJobPrintPacket } from "./print-packets.js";
+
+test("daily report print packet includes core report fields and related records", () => {
+  const packet = deriveDailyReportPrintPacket({
+    companyName: "Concrete Ops Demo",
+    report: {
+      id: "R-1",
+      jobId: "J-1",
+      reportDate: "2026-04-26",
+      status: "submitted",
+      createdBy: "U-1",
+      createdByName: "Demo Foreman",
+      submittedAt: "2026-04-26T16:30:00Z",
+      reviewedAt: "2026-04-26T18:00:00Z",
+      crewSummary: "2 finishers and 1 foreman",
+      workPerformed: "Placed and finished the front walk.",
+      delays: "None",
+      safetyNotes: "PPE check completed.",
+      equipmentUsed: "Bull float and saw",
+      materialNotes: "Fiber mix",
+      concretePoured: true,
+      yardsPoured: 8.5,
+      weather: "Cloudy",
+      visitorNotes: "Homeowner walkthrough complete.",
+      inspectionNotes: "City inspection passed.",
+      generalNotes: "Ready for cure.",
+      timeSummary: { totalEntries: 3, totalMinutes: 480, breakMinutes: 30 },
+      crewAssignments: [{ id: "A-1", userId: "U-1", userName: "Demo Foreman", roleOnJob: "foreman" }],
+      job: { id: "J-1", title: "Martinez Driveway", address: "123 Demo Ln" },
+    },
+    deliveryTickets: [{ id: "DT-1", jobId: "J-1", reportId: "R-1", supplier: "Knife River", ticketNumber: "T-42", yardsDelivered: 8.5 }],
+    uploads: [{ id: "UPL-1", jobId: "J-1", reportId: "R-1", fileName: "finish.jpg", caption: "Finished broom finish", uploadedAt: "2026-04-26T18:15:00Z" }],
+  });
+
+  assert.equal(packet.title, "Daily Report Packet");
+  assert.equal(packet.sections.some((section) => section.title === "Work Performed"), true);
+  assert.equal(packet.sections.some((section) => section.title === "Related Delivery Tickets"), true);
+  assert.equal(packet.sections.some((section) => section.title === "Related Uploads / Photos"), true);
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.match(html, /Concrete Ops Demo/);
+  assert.match(html, /Martinez Driveway/);
+  assert.match(html, /Placed and finished the front walk\./);
+  assert.match(html, /Knife River/);
+  assert.match(html, /Finished broom finish/);
+});
+
+test("job packet includes linked operational records for office packets", () => {
+  const packet = deriveJobPrintPacket({
+    companyName: "Concrete Ops Demo",
+    packetMode: "internal",
+    job: {
+      id: "J-1",
+      title: "Martinez Driveway",
+      customer: "Martinez Residence",
+      address: "123 Demo Ln",
+      status: "billing_ready",
+      scheduledStart: "2026-04-26T07:00:00Z",
+      scopeSummary: "Replace cracked driveway panels.",
+      notes: "Customer asked for extra cleanup.",
+      fieldNotes: "Crew staged forms on the west side.",
+      assignments: [{ id: "A-1", userId: "U-1", userName: "Demo Foreman", roleOnJob: "foreman" }],
+    },
+    dailyReports: [{ id: "R-1", jobId: "J-1", reportDate: "2026-04-26", status: "reviewed", createdByName: "Demo Foreman", workPerformed: "Removed and repoured the driveway." }],
+    uploads: [{ id: "UPL-1", jobId: "J-1", fileName: "before.jpg", caption: "Before demo photo" }],
+    prePourChecklists: [{ id: "PP-1", jobId: "J-1", status: "reviewed", items: [{ label: "Forms set", status: "checked" }] }],
+    postPourChecklists: [{ id: "POP-1", jobId: "J-1", status: "completed", items: [{ label: "Completion photos taken", status: "checked" }] }],
+    deliveryTickets: [{ id: "DT-1", jobId: "J-1", supplier: "Knife River", ticketNumber: "T-42", yardsDelivered: 8 }],
+    changeOrderRequests: [{ id: "CO-1", jobId: "J-1", reason: "Extra apron width", status: "under_review", scopeDescription: "Add 2 feet to the apron", officeNotes: "Price with premium broom finish." }],
+    calculatorResults: [{ id: "CALC-1", jobId: "J-1", calculatorType: "slab", summary: "Driveway slab", cubicYards: 7.2, cubicYardsWithWaste: 7.92 }],
+    safetyIncidents: [{ id: "SI-1", jobId: "J-1", title: "Loose form stake", severity: "low", status: "resolved", description: "Stake reset before pour." }],
+    toolChecklists: [{ id: "TC-1", jobId: "J-1", title: "Pour day tools", status: "submitted", items: [{ name: "Bull float", status: "on_site" }] }],
+  });
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.match(html, /Martinez Residence/);
+  assert.match(html, /Extra apron width/);
+  assert.match(html, /Price with premium broom finish\./);
+  assert.match(html, /Loose form stake/);
+  assert.match(html, /Driveway slab/);
+});
+
+test("field-safe packet excludes office-only notes and safety incidents", () => {
+  const packet = deriveJobPrintPacket({
+    packetMode: "field_safe",
+    job: {
+      id: "J-1",
+      title: "Martinez Driveway",
+      customer: "Martinez Residence",
+      notes: "Office-only cleanup commitment.",
+      fieldNotes: "Crew staged forms on site.",
+      status: "in_progress",
+    },
+    changeOrderRequests: [{ id: "CO-1", jobId: "J-1", reason: "Extra apron width", status: "requested", scopeDescription: "Add 2 feet to the apron", officeNotes: "Price with premium broom finish." }],
+    safetyIncidents: [{ id: "SI-1", jobId: "J-1", title: "Loose form stake", severity: "low", status: "resolved", description: "Stake reset before pour." }],
+  });
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.doesNotMatch(html, /Office-only cleanup commitment\./);
+  assert.match(html, /Crew staged forms on site\./);
+  assert.doesNotMatch(html, /Price with premium broom finish\./);
+  assert.doesNotMatch(html, /Loose form stake/);
+});
+
+test("print packet helpers tolerate missing linked arrays and render clean empty states", () => {
+  const reportPacket = deriveDailyReportPrintPacket({ companyName: "Concrete Ops Demo", report: null });
+  const jobPacket = deriveJobPrintPacket({ companyName: "Concrete Ops Demo", job: { id: "J-1", title: "Empty Job", status: "draft" } });
+
+  assert.match(buildPrintDocumentHtml(reportPacket), /No report selected/);
+  assert.match(buildPrintDocumentHtml(jobPacket), /Nothing recorded\./);
+});
