@@ -2943,9 +2943,20 @@ export function publicUser(user) {
 }
 
 function normalizeCompanySettings(settings = {}) {
+  const normalizedCompanyName = typeof settings?.companyName === "string" ? settings.companyName.trim().slice(0, 80) : "";
+  const normalizedLogoInitials = typeof settings?.logoInitials === "string"
+    ? settings.logoInitials.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3)
+    : "";
+  const normalizedAccentColor = typeof settings?.accentColor === "string" ? settings.accentColor.trim().toLowerCase() : "";
+
   return {
     ...DEFAULT_COMPANY_SETTINGS,
     ...(settings || {}),
+    companyName: normalizedCompanyName,
+    logoInitials: normalizedLogoInitials,
+    accentColor: new Set(["blue", "slate", "emerald", "amber", "orange"]).has(normalizedAccentColor)
+      ? normalizedAccentColor
+      : DEFAULT_COMPANY_SETTINGS.accentColor,
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
   };
 }
@@ -4519,6 +4530,9 @@ function writeStateToDb(state) {
       DELETE FROM audit_events;
     `);
 
+    insertCompanySetting.run("companyName", normalizedCompanySettings.companyName || "", isoNow());
+    insertCompanySetting.run("logoInitials", normalizedCompanySettings.logoInitials || "", isoNow());
+    insertCompanySetting.run("accentColor", normalizedCompanySettings.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor, isoNow());
     insertCompanySetting.run("toolChecklistEnabled", normalizedCompanySettings.toolChecklistEnabled ? "true" : "false", isoNow());
 
     state.users.forEach((user) => {

@@ -117,12 +117,20 @@ import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOpti
 const APP_NAME = "Concrete Ops";
 const DEFAULT_COMPANY_NAME = "Concrete Ops Workspace";
 const DEMO_COMPANY_NAME = "Concrete Ops Demo Company";
+const DEFAULT_LOGO_INITIALS = "CO";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "public_request_form"];
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
 const uploadPreviewCache = new Map();
+const BRANDING_ACCENT_OPTIONS = [
+  { value: "blue", label: "Blue", swatchClassName: "bg-blue-700", buttonClassName: "bg-blue-700 text-white shadow-sm shadow-blue-700/20", badgeClassName: "bg-blue-50 text-blue-700 ring-blue-100", previewClassName: "bg-blue-700 text-white" },
+  { value: "slate", label: "Slate", swatchClassName: "bg-slate-700", buttonClassName: "bg-slate-700 text-white shadow-sm shadow-slate-700/20", badgeClassName: "bg-slate-100 text-slate-700 ring-slate-200", previewClassName: "bg-slate-700 text-white" },
+  { value: "emerald", label: "Emerald", swatchClassName: "bg-emerald-600", buttonClassName: "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20", badgeClassName: "bg-emerald-50 text-emerald-700 ring-emerald-100", previewClassName: "bg-emerald-600 text-white" },
+  { value: "amber", label: "Amber", swatchClassName: "bg-amber-500", buttonClassName: "bg-amber-500 text-white shadow-sm shadow-amber-500/20", badgeClassName: "bg-amber-50 text-amber-700 ring-amber-100", previewClassName: "bg-amber-500 text-white" },
+  { value: "orange", label: "Orange", swatchClassName: "bg-orange-500", buttonClassName: "bg-orange-500 text-white shadow-sm shadow-orange-500/20", badgeClassName: "bg-orange-50 text-orange-700 ring-orange-100", previewClassName: "bg-orange-500 text-white" },
+];
 
 const TOKENS = {
   colors: [
@@ -188,6 +196,9 @@ const NAV_GROUPS = [
 const EMPTY_APP_STATE = {
   user: null,
   companySettings: {
+    companyName: "",
+    logoInitials: "",
+    accentColor: "blue",
     toolChecklistEnabled: true,
   },
   users: [],
@@ -391,6 +402,38 @@ function resolveWorkspaceCompanyName({ companySettings, user, demoMode } = {}) {
 
   if (explicitCompanyName) return explicitCompanyName.trim();
   return demoMode ? DEMO_COMPANY_NAME : DEFAULT_COMPANY_NAME;
+}
+
+function sanitizeLogoInitials(value) {
+  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+function deriveLogoInitialsFromCompanyName(companyName) {
+  const words = String(companyName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return "";
+}
+
+function resolveWorkspaceLogoInitials({ companySettings, companyName } = {}) {
+  const explicitLogoInitials = sanitizeLogoInitials(companySettings?.logoInitials);
+  if (explicitLogoInitials) return explicitLogoInitials;
+
+  const derivedInitials = sanitizeLogoInitials(deriveLogoInitialsFromCompanyName(companyName));
+  return derivedInitials || DEFAULT_LOGO_INITIALS;
+}
+
+function normalizeAccentColor(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return BRANDING_ACCENT_OPTIONS.some((option) => option.value === normalized) ? normalized : "blue";
+}
+
+function getAccentTheme(accentColor) {
+  return BRANDING_ACCENT_OPTIONS.find((option) => option.value === normalizeAccentColor(accentColor)) || BRANDING_ACCENT_OPTIONS[0];
 }
 
 function normalizeObjectArray(value, fallback = []) {
@@ -1356,12 +1399,12 @@ function PublicEstimateRequestPage({
   );
 }
 
-function Sidebar({ active, setActive, counts, navGroups }) {
+function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   return (
     <aside className="hidden h-screen w-72 shrink-0 border-r border-blue-100 bg-white/90 backdrop-blur lg:sticky lg:top-0 lg:block">
       <div className="border-b border-blue-100 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-sm font-black text-white">CO</div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-sm font-black text-white">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
           <div>
             <p className="text-sm font-black leading-none text-slate-950">{APP_NAME}</p>
             <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
@@ -5808,6 +5851,42 @@ function SettingsPage({
   const canViewSettings = Boolean(safePermissions.settings?.canView);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
+  const [brandingDraft, setBrandingDraft] = useState(() => ({
+    companyName: safeCompanySettings.companyName || "",
+    logoInitials: safeCompanySettings.logoInitials || "",
+    accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
+  }));
+  const [brandingNotice, setBrandingNotice] = useState("");
+
+  useEffect(() => {
+    setBrandingDraft({
+      companyName: safeCompanySettings.companyName || "",
+      logoInitials: safeCompanySettings.logoInitials || "",
+      accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
+    });
+  }, [safeCompanySettings.accentColor, safeCompanySettings.companyName, safeCompanySettings.logoInitials]);
+
+  const previewCompanyName = brandingDraft.companyName.trim() || workspaceCompanyName;
+  const previewAccentColor = normalizeAccentColor(brandingDraft.accentColor);
+  const previewTheme = getAccentTheme(previewAccentColor);
+  const previewLogoInitials = resolveWorkspaceLogoInitials({
+    companySettings: { logoInitials: brandingDraft.logoInitials },
+    companyName: previewCompanyName,
+  });
+  const brandingDirty = brandingDraft.companyName !== (safeCompanySettings.companyName || "")
+    || sanitizeLogoInitials(brandingDraft.logoInitials) !== (safeCompanySettings.logoInitials || "")
+    || previewAccentColor !== normalizeAccentColor(safeCompanySettings.accentColor);
+
+  async function handleBrandingSave(event) {
+    event.preventDefault();
+    if (typeof onUpdateCompanySettings !== "function") return;
+    const saved = await onUpdateCompanySettings({
+      companyName: brandingDraft.companyName.trim(),
+      logoInitials: sanitizeLogoInitials(brandingDraft.logoInitials),
+      accentColor: previewAccentColor,
+    });
+    setBrandingNotice(saved ? "Branding saved." : "Could not save branding. Please try again.");
+  }
 
   if (!canViewSettings) {
     return (
@@ -5852,6 +5931,75 @@ function SettingsPage({
                   <Button variant="danger" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button>
                 </div>
               ) : null}
+            </Card>
+            <Card className="p-5">
+              <SectionHeader title="Branding & appearance" description="Set the workspace name, logo initials, and preview accent color without changing the rest of the app." />
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
+                <form className="grid gap-4" onSubmit={handleBrandingSave}>
+                  <InputField
+                    label="Company / workspace name"
+                    value={brandingDraft.companyName}
+                    onChange={(event) => {
+                      setBrandingDraft((current) => ({ ...current, companyName: event.target.value }));
+                      setBrandingNotice("");
+                    }}
+                    placeholder={workspaceCompanyName}
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <InputField
+                    label="Logo initials"
+                    value={brandingDraft.logoInitials}
+                    onChange={(event) => {
+                      setBrandingDraft((current) => ({ ...current, logoInitials: sanitizeLogoInitials(event.target.value) }));
+                      setBrandingNotice("");
+                    }}
+                    placeholder={resolveWorkspaceLogoInitials({ companySettings: safeCompanySettings, companyName: workspaceCompanyName })}
+                    maxLength={3}
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <SelectField
+                    label="Accent color"
+                    value={previewAccentColor}
+                    onChange={(event) => {
+                      setBrandingDraft((current) => ({ ...current, accentColor: event.target.value }));
+                      setBrandingNotice("");
+                    }}
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  >
+                    {BRANDING_ACCENT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </SelectField>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button type="submit" disabled={busy || !brandingDirty || typeof onUpdateCompanySettings !== "function"}>
+                      Save branding
+                    </Button>
+                    <p className="text-sm text-slate-500">{brandingNotice || "Accent color is saved here and used in the preview card while the main app styling stays unchanged."}</p>
+                  </div>
+                </form>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Preview</p>
+                  <div className="mt-4 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black ${previewTheme.previewClassName}`}>
+                        {previewLogoInitials}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-black text-slate-950">{previewCompanyName}</p>
+                        <p className="mt-1 text-xs text-slate-500">Brand preview inside Settings</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <span className={`inline-flex items-center rounded-2xl px-4 py-2 text-sm font-black ${previewTheme.buttonClassName}`}>Primary button</span>
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black ring-1 ${previewTheme.badgeClassName}`}>Sample badge</span>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                      <span className={`h-3 w-3 rounded-full ${previewTheme.swatchClassName}`} aria-hidden="true" />
+                      <span>{BRANDING_ACCENT_OPTIONS.find((option) => option.value === previewAccentColor)?.label || "Blue"} accent</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </Card>
             <Card className="p-5">
               <SectionHeader title="Workspace setup" description="Practical notes for keeping office and field records clean." />
@@ -8074,6 +8222,13 @@ export default function App() {
     }),
     [appState.companySettings, appState.user, setupStatus.demoMode],
   );
+  const workspaceLogoInitials = useMemo(
+    () => resolveWorkspaceLogoInitials({
+      companySettings: appState.companySettings,
+      companyName: workspaceCompanyName,
+    }),
+    [appState.companySettings, workspaceCompanyName],
+  );
 
   useEffect(() => {
     if (!selectedUser) {
@@ -9676,7 +9831,7 @@ export default function App() {
   return (
     <div className="min-h-screen overflow-x-clip bg-transparent text-slate-950">
       <div className="flex">
-        <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} />
+        <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
           <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} companyName={workspaceCompanyName} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
