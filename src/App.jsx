@@ -550,7 +550,7 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
           <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
           {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
         </div>
-        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+        {actions ? <div className="flex max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
       </div>
       {tabs ? <div className="mt-5 flex gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
     </div>
@@ -560,9 +560,9 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
 function SectionHeader({ title, description, action }) {
   return (
     <div className="mb-3 flex items-start justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         <h2 className="text-base font-black text-slate-950">{title}</h2>
-        {description ? <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p> : null}
+        {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-500">{description}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -894,7 +894,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
   const current = navItems.find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{COMPANY_NAME}</p>
           <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
@@ -908,13 +908,21 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
             Log out
           </Button>
         </div>
-        <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-40 py-2 text-xs font-black text-blue-700 md:hidden">
-          {navItems.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+        <div className="grid gap-2 md:hidden">
+          <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-full min-w-0 py-2 text-xs font-black text-blue-700">
+            {navItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
+            <Button variant="ghost" size="sm" onClick={onLogout}>
+              Log out
+            </Button>
+          </div>
+        </div>
       </div>
       {syncing ? <div className="h-1 bg-gradient-to-r from-blue-200 via-blue-600 to-blue-200" /> : null}
     </div>
@@ -2000,7 +2008,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
 
 function TimeEntriesTable({ rows, selectedId, onSelect }) {
   return (
-    <table className="w-full min-w-[960px] text-left">
+    <table className="w-full min-w-[860px] text-left">
       <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
         <tr>
           <th className="px-4 py-3">User</th>
@@ -2052,6 +2060,10 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
     <Card className="p-5">
       <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} · ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
       <div className="grid gap-3">
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="slate">{entry.id}</Badge>
+          <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
+        </div>
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Work category" value={draft.workCategory} onChange={(event) => setDraft((current) => ({ ...current, workCategory: event.target.value }))} disabled={!canCorrect || disabled}>
             {["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"].map((category) => (
