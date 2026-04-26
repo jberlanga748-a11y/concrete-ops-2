@@ -9,7 +9,7 @@ export const DEMO_CREDENTIALS = {
 
 export const DEMO_USERS = [
   {
-    id: "U-002",
+    id: "DEMO-U-ADMIN",
     email: "demo.admin@concreteops.app",
     password: "demo12345",
     name: "Demo Admin",
@@ -17,7 +17,7 @@ export const DEMO_USERS = [
     phone: "503-555-0100",
   },
   {
-    id: "U-003",
+    id: "DEMO-U-FOREMAN",
     email: "demo.foreman@concreteops.app",
     password: "demo12345",
     name: "Demo Foreman",
@@ -25,7 +25,7 @@ export const DEMO_USERS = [
     phone: "503-555-0101",
   },
   {
-    id: "U-004",
+    id: "DEMO-U-EMPLOYEE",
     email: "demo.employee@concreteops.app",
     password: "demo12345",
     name: "Demo Employee",

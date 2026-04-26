@@ -76,3 +76,5 @@ Demo mode safety:
 - Demo reset should only be used when `DEMO_MODE=true`.
 - Public estimate requests can be disabled with `PUBLIC_ESTIMATE_REQUEST_ENABLED=false`.
 - Demo data is fake and intentionally separated from real contractor records.
+- Do not enable `DEMO_MODE` on the real production app with real customer data. Use a separate demo deployment and separate SQLite volume whenever possible.
+- On an existing database, demo backfill should be additive only: demo users and demo-prefixed records may be added, but real users and real contractor records must not be overwritten.

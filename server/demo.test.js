@@ -303,15 +303,34 @@ test("existing database backfills missing demo users when demo mode is enabled",
     await firstServer.stop();
   }
 
-  const realUser = createUserRecord({
+  const realAdminUser = createUserRecord({
+    id: "U-REAL-ADMIN",
+    email: "real.admin@example.test",
+    password: "realadmin123",
+    name: "Real Admin",
+    role: "Administrator",
+  });
+  const realForemanUser = createUserRecord({
+    id: "U-REAL-FOREMAN",
+    email: "real.foreman@example.test",
+    password: "realforeman123",
+    name: "Real Foreman",
+    role: "Foreman",
+  });
+  const realEmployeeUser = createUserRecord({
     id: "U-REAL-001",
     email: "real.user@example.test",
     password: "realpass123",
     name: "Real User",
     role: "Employee",
   });
-  insertUsers(path.join(tempDataDir, "app-data.sqlite"), [realUser]);
-  insertExistingBusinessRecords(path.join(tempDataDir, "app-data.sqlite"));
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
+  insertUsers(sqliteFile, [realAdminUser, realForemanUser, realEmployeeUser]);
+  insertExistingBusinessRecords(sqliteFile);
+  const beforeDatabase = new DatabaseSync(sqliteFile);
+  const beforeRealAdmin = beforeDatabase.prepare(`SELECT * FROM users WHERE email = ?`).get("real.admin@example.test");
+  const beforeRealForeman = beforeDatabase.prepare(`SELECT * FROM users WHERE email = ?`).get("real.foreman@example.test");
+  beforeDatabase.close();
 
   const secondServer = await startServer({
     DEMO_MODE: "true",
@@ -322,6 +341,18 @@ test("existing database backfills missing demo users when demo mode is enabled",
     const setupStatus = await assertOk(secondServer.baseUrl, "/api/setup/status");
     assert.equal(setupStatus.demoMode, true);
     assert.equal(setupStatus.demoUserExists, true);
+
+    const realAdminSession = await login(secondServer.baseUrl, {
+      email: "real.admin@example.test",
+      password: "realadmin123",
+    });
+    assert.ok(realAdminSession.token);
+
+    const realForemanSession = await login(secondServer.baseUrl, {
+      email: "real.foreman@example.test",
+      password: "realforeman123",
+    });
+    assert.ok(realForemanSession.token);
 
     const realUserSession = await login(secondServer.baseUrl, {
       email: "real.user@example.test",
@@ -353,11 +384,36 @@ test("existing database backfills missing demo users when demo mode is enabled",
     assert.ok(adminBootstrap.customers.some((customer) => customer.id === "C-REAL-001"));
     assert.ok(adminBootstrap.leads.some((lead) => lead.id === "L-REAL-001"));
     assert.ok(adminBootstrap.jobs.some((job) => job.id === "J-REAL-001"));
-    assert.ok(adminBootstrap.customers.some((customer) => customer.id === "C-1001"));
-    assert.ok(adminBootstrap.leads.some((lead) => lead.id === "L-1048"));
-    assert.ok(adminBootstrap.jobs.some((job) => job.id === "J-2201"));
+    assert.ok(adminBootstrap.customers.some((customer) => customer.id === "DEMO-C-1001"));
+    assert.ok(adminBootstrap.leads.some((lead) => lead.id === "DEMO-L-1048"));
+    assert.ok(adminBootstrap.jobs.some((job) => job.id === "DEMO-J-2201"));
   } finally {
     await secondServer.stop();
+
+    const afterDatabase = new DatabaseSync(sqliteFile);
+    const afterRealAdmin = afterDatabase.prepare(`SELECT * FROM users WHERE email = ?`).get("real.admin@example.test");
+    const afterRealForeman = afterDatabase.prepare(`SELECT * FROM users WHERE email = ?`).get("real.foreman@example.test");
+    const demoUsers = afterDatabase.prepare(`
+      SELECT id, email, name, role
+      FROM users
+      WHERE email IN (?, ?, ?)
+      ORDER BY email
+    `).all(
+      "demo.admin@concreteops.app",
+      "demo.employee@concreteops.app",
+      "demo.foreman@concreteops.app",
+    );
+    afterDatabase.close();
+
+    assert.equal(afterRealAdmin.name, beforeRealAdmin.name);
+    assert.equal(afterRealAdmin.role, beforeRealAdmin.role);
+    assert.equal(afterRealAdmin.password_hash, beforeRealAdmin.password_hash);
+    assert.equal(afterRealForeman.name, beforeRealForeman.name);
+    assert.equal(afterRealForeman.role, beforeRealForeman.role);
+    assert.equal(afterRealForeman.password_hash, beforeRealForeman.password_hash);
+    assert.equal(demoUsers.length, 3);
+    assert.equal(demoUsers.every((user) => user.id.startsWith("DEMO-U-")), true);
+
     await fs.rm(tempDataDir, { recursive: true, force: true });
   }
 });

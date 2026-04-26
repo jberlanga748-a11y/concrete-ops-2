@@ -1745,6 +1745,7 @@ function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
   let usersEnsured = 0;
   let usersUpdated = 0;
   const actualUserIdsByEmail = new Map();
+  const usedIds = new Set(existingUsers.map((user) => user.id));
 
   for (const demoUser of DEMO_USERS) {
     const email = demoUser.email.toLowerCase();
@@ -1752,8 +1753,13 @@ function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
     const nextHash = passwordHash(demoUser.password);
 
     if (!existingUser) {
+      let safeDemoUserId = demoUser.id;
+      if (usedIds.has(safeDemoUserId)) {
+        safeDemoUserId = `${demoUser.id}-${crypto.randomUUID()}`;
+      }
       const createdUser = createUserRecord({
         ...demoUser,
+        id: safeDemoUserId,
         createdAt: changedAt,
         updatedAt: changedAt,
       });
@@ -1770,6 +1776,7 @@ function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
         createdUser.passwordHash,
       );
       actualUserIdsByEmail.set(email, createdUser.id);
+      usedIds.add(createdUser.id);
       usersEnsured += 1;
       continue;
     }
@@ -1802,6 +1809,200 @@ function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
     usersEnsured,
     usersUpdated,
     actualUserIdsByEmail,
+  };
+}
+
+function prefixDemoId(value) {
+  if (value == null || value === "") {
+    return value;
+  }
+  const normalized = String(value);
+  return normalized.startsWith("DEMO-") ? normalized : `DEMO-${normalized}`;
+}
+
+function namespaceDemoSeedState(seedState) {
+  const mapRows = (rows, mapper) => (rows || []).map((row) => mapper({ ...row }));
+  const idMapFor = (rows) => new Map((rows || []).map((row) => [row.id, prefixDemoId(row.id)]));
+  const customerIds = idMapFor(seedState.customers);
+  const leadIds = idMapFor(seedState.leads);
+  const leadStatusHistoryIds = idMapFor(seedState.leadStatusHistory);
+  const jobIds = idMapFor(seedState.jobs);
+  const jobAssignmentIds = idMapFor(seedState.jobAssignments);
+  const estimateIds = idMapFor(seedState.estimates);
+  const estimateItemIds = idMapFor(seedState.estimateItems);
+  const safetyAcknowledgmentIds = idMapFor(seedState.safetyAcknowledgments);
+  const safetyIncidentIds = idMapFor(seedState.safetyIncidents);
+  const changeOrderIds = idMapFor(seedState.changeOrderRequests);
+  const prePourChecklistIds = idMapFor(seedState.prePourChecklists);
+  const prePourItemIds = idMapFor(seedState.prePourChecklistItems);
+  const postPourChecklistIds = idMapFor(seedState.postPourChecklists);
+  const postPourItemIds = idMapFor(seedState.postPourChecklistItems);
+  const toolChecklistIds = idMapFor(seedState.toolChecklists);
+  const toolChecklistItemIds = idMapFor(seedState.toolChecklistItems);
+  const calculatorResultIds = idMapFor(seedState.calculatorResults);
+  const timeEntryIds = idMapFor(seedState.timeEntries);
+  const dailyReportIds = idMapFor(seedState.dailyReports);
+  const uploadIds = idMapFor(seedState.uploads);
+  const deliveryTicketIds = idMapFor(seedState.deliveryTickets);
+  const queueItemIds = idMapFor(seedState.queueItems);
+  const activityIds = idMapFor(seedState.activity);
+  const auditEventIds = idMapFor(seedState.auditEvents);
+
+  return {
+    ...seedState,
+    customers: mapRows(seedState.customers, (customer) => ({
+      ...customer,
+      id: customerIds.get(customer.id),
+    })),
+    leads: mapRows(seedState.leads, (lead) => ({
+      ...lead,
+      id: leadIds.get(lead.id),
+      customerId: customerIds.get(lead.customerId) || lead.customerId || "",
+    })),
+    leadStatusHistory: mapRows(seedState.leadStatusHistory, (entry) => ({
+      ...entry,
+      id: leadStatusHistoryIds.get(entry.id),
+      leadId: leadIds.get(entry.leadId) || entry.leadId,
+    })),
+    jobs: mapRows(seedState.jobs, (job) => ({
+      ...job,
+      id: jobIds.get(job.id),
+      customerId: customerIds.get(job.customerId) || job.customerId || "",
+      leadId: leadIds.get(job.leadId) || job.leadId || "",
+    })),
+    jobAssignments: mapRows(seedState.jobAssignments, (assignment) => ({
+      ...assignment,
+      id: jobAssignmentIds.get(assignment.id),
+      jobId: jobIds.get(assignment.jobId) || assignment.jobId,
+    })),
+    estimates: mapRows(seedState.estimates, (estimate) => ({
+      ...estimate,
+      id: estimateIds.get(estimate.id),
+      customerId: customerIds.get(estimate.customerId) || estimate.customerId || "",
+      leadId: leadIds.get(estimate.leadId) || estimate.leadId || "",
+      jobId: jobIds.get(estimate.jobId) || estimate.jobId || "",
+    })),
+    estimateItems: mapRows(seedState.estimateItems, (item) => ({
+      ...item,
+      id: estimateItemIds.get(item.id),
+      estimateId: estimateIds.get(item.estimateId) || item.estimateId,
+    })),
+    safetyAcknowledgments: mapRows(seedState.safetyAcknowledgments, (entry) => ({
+      ...entry,
+      id: safetyAcknowledgmentIds.get(entry.id),
+      jobId: jobIds.get(entry.jobId) || entry.jobId || "",
+    })),
+    safetyIncidents: mapRows(seedState.safetyIncidents, (incident) => ({
+      ...incident,
+      id: safetyIncidentIds.get(incident.id),
+      jobId: jobIds.get(incident.jobId) || incident.jobId || "",
+    })),
+    changeOrderRequests: mapRows(seedState.changeOrderRequests, (request) => ({
+      ...request,
+      id: changeOrderIds.get(request.id),
+      jobId: jobIds.get(request.jobId) || request.jobId || "",
+      customerId: customerIds.get(request.customerId) || request.customerId || "",
+    })),
+    prePourChecklists: mapRows(seedState.prePourChecklists, (checklist) => ({
+      ...checklist,
+      id: prePourChecklistIds.get(checklist.id),
+      jobId: jobIds.get(checklist.jobId) || checklist.jobId,
+    })),
+    prePourChecklistItems: mapRows(seedState.prePourChecklistItems, (item) => ({
+      ...item,
+      id: prePourItemIds.get(item.id),
+      checklistId: prePourChecklistIds.get(item.checklistId) || item.checklistId,
+    })),
+    postPourChecklists: mapRows(seedState.postPourChecklists, (checklist) => ({
+      ...checklist,
+      id: postPourChecklistIds.get(checklist.id),
+      jobId: jobIds.get(checklist.jobId) || checklist.jobId,
+    })),
+    postPourChecklistItems: mapRows(seedState.postPourChecklistItems, (item) => ({
+      ...item,
+      id: postPourItemIds.get(item.id),
+      checklistId: postPourChecklistIds.get(item.checklistId) || item.checklistId,
+    })),
+    toolChecklists: mapRows(seedState.toolChecklists, (checklist) => ({
+      ...checklist,
+      id: toolChecklistIds.get(checklist.id),
+      jobId: jobIds.get(checklist.jobId) || checklist.jobId || "",
+    })),
+    toolChecklistItems: mapRows(seedState.toolChecklistItems, (item) => ({
+      ...item,
+      id: toolChecklistItemIds.get(item.id),
+      checklistId: toolChecklistIds.get(item.checklistId) || item.checklistId,
+    })),
+    calculatorResults: mapRows(seedState.calculatorResults, (result) => ({
+      ...result,
+      id: calculatorResultIds.get(result.id),
+      jobId: jobIds.get(result.jobId) || result.jobId || "",
+    })),
+    timeEntries: mapRows(seedState.timeEntries, (entry) => ({
+      ...entry,
+      id: timeEntryIds.get(entry.id),
+      jobId: jobIds.get(entry.jobId) || entry.jobId || "",
+    })),
+    dailyReports: mapRows(seedState.dailyReports, (report) => ({
+      ...report,
+      id: dailyReportIds.get(report.id),
+      jobId: jobIds.get(report.jobId) || report.jobId || "",
+    })),
+    uploads: mapRows(seedState.uploads, (upload) => ({
+      ...upload,
+      id: uploadIds.get(upload.id),
+      jobId: jobIds.get(upload.jobId) || upload.jobId || "",
+      customerId: customerIds.get(upload.customerId) || upload.customerId || "",
+      reportId: dailyReportIds.get(upload.reportId) || upload.reportId || "",
+      incidentId: safetyIncidentIds.get(upload.incidentId) || upload.incidentId || "",
+      changeOrderId: changeOrderIds.get(upload.changeOrderId) || upload.changeOrderId || "",
+      toolChecklistItemId: toolChecklistItemIds.get(upload.toolChecklistItemId) || upload.toolChecklistItemId || "",
+    })),
+    deliveryTickets: mapRows(seedState.deliveryTickets, (ticket) => ({
+      ...ticket,
+      id: deliveryTicketIds.get(ticket.id),
+      jobId: jobIds.get(ticket.jobId) || ticket.jobId || "",
+      reportId: dailyReportIds.get(ticket.reportId) || ticket.reportId || "",
+      ticketUploadId: uploadIds.get(ticket.ticketUploadId) || ticket.ticketUploadId || "",
+    })),
+    queueItems: mapRows(seedState.queueItems, (item) => ({
+      ...item,
+      id: queueItemIds.get(item.id),
+    })),
+    activity: mapRows(seedState.activity, (item) => ({
+      ...item,
+      id: activityIds.get(item.id),
+    })),
+    auditEvents: mapRows(seedState.auditEvents, (event) => ({
+      ...event,
+      id: auditEventIds.get(event.id),
+      entityId:
+        customerIds.get(event.entityId)
+        || leadIds.get(event.entityId)
+        || leadStatusHistoryIds.get(event.entityId)
+        || jobIds.get(event.entityId)
+        || jobAssignmentIds.get(event.entityId)
+        || estimateIds.get(event.entityId)
+        || estimateItemIds.get(event.entityId)
+        || safetyAcknowledgmentIds.get(event.entityId)
+        || safetyIncidentIds.get(event.entityId)
+        || changeOrderIds.get(event.entityId)
+        || prePourChecklistIds.get(event.entityId)
+        || prePourItemIds.get(event.entityId)
+        || postPourChecklistIds.get(event.entityId)
+        || postPourItemIds.get(event.entityId)
+        || toolChecklistIds.get(event.entityId)
+        || toolChecklistItemIds.get(event.entityId)
+        || calculatorResultIds.get(event.entityId)
+        || timeEntryIds.get(event.entityId)
+        || dailyReportIds.get(event.entityId)
+        || uploadIds.get(event.entityId)
+        || deliveryTicketIds.get(event.entityId)
+        || queueItemIds.get(event.entityId)
+        || activityIds.get(event.entityId)
+        || event.entityId
+        || null,
+    })),
   };
 }
 
@@ -1933,7 +2134,7 @@ function remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail) {
 
 function buildDemoSeedData(actualUserIdsByEmail) {
   const seedState = createSeedState();
-  return remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail);
+  return namespaceDemoSeedState(remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail));
 }
 
 function ensureDefaultSafetyContentInDatabase(database, state, changedAt = isoNow()) {
@@ -2004,6 +2205,32 @@ function ensureDefaultSafetyContentInDatabase(database, state, changedAt = isoNo
 
 function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
   const demoSeed = buildDemoSeedData(actualUserIdsByEmail);
+  const attempted = [
+    demoSeed.customers,
+    demoSeed.leads,
+    demoSeed.leadStatusHistory,
+    demoSeed.jobs,
+    demoSeed.jobAssignments,
+    demoSeed.estimates,
+    demoSeed.estimateItems,
+    demoSeed.safetyAcknowledgments,
+    demoSeed.safetyIncidents,
+    demoSeed.changeOrderRequests,
+    demoSeed.prePourChecklists,
+    demoSeed.prePourChecklistItems,
+    demoSeed.postPourChecklists,
+    demoSeed.postPourChecklistItems,
+    demoSeed.toolChecklists,
+    demoSeed.toolChecklistItems,
+    demoSeed.calculatorResults,
+    demoSeed.timeEntries,
+    demoSeed.dailyReports,
+    demoSeed.uploads,
+    demoSeed.deliveryTickets,
+    demoSeed.queueItems,
+    demoSeed.activity,
+    demoSeed.auditEvents,
+  ].reduce((total, rows) => total + (rows?.length || 0), 0);
   let inserted = 0;
 
   inserted += insertRecordsIfMissing(
@@ -2630,6 +2857,8 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
 
   return {
     inserted,
+    skipped: Math.max(0, attempted - inserted),
+    attempted,
   };
 }
 
@@ -2650,6 +2879,8 @@ function logDemoStartupSummary(summary) {
   });
   console.info(`Demo data backfill ${summary.demoData}`, {
     demoData: summary.demoData,
+    demoRecordsInserted: summary.demoRecordsInserted ?? 0,
+    demoRecordsSkipped: summary.demoRecordsSkipped ?? 0,
   });
 
   demoStartupLogged = true;
@@ -5173,13 +5404,22 @@ export async function ensureDb() {
       if (serverConfig.seedDemoData) {
         const demoDataResult = ensureDemoSeedDataInDatabase(db, demoUsers.actualUserIdsByEmail);
         demoData = demoDataResult.inserted > 0 ? "complete" : "skipped";
+        demoSummary = {
+          usersEnsured: demoUsers.usersEnsured,
+          usersUpdated: demoUsers.usersUpdated,
+          demoData,
+          demoRecordsInserted: demoDataResult.inserted,
+          demoRecordsSkipped: demoDataResult.skipped,
+        };
+      } else {
+        demoSummary = {
+          usersEnsured: demoUsers.usersEnsured,
+          usersUpdated: demoUsers.usersUpdated,
+          demoData,
+          demoRecordsInserted: 0,
+          demoRecordsSkipped: 0,
+        };
       }
-
-      demoSummary = {
-        usersEnsured: demoUsers.usersEnsured,
-        usersUpdated: demoUsers.usersUpdated,
-        demoData,
-      };
     }
     logDemoStartupSummary(demoSummary);
     return;
@@ -5195,6 +5435,8 @@ export async function ensureDb() {
         usersEnsured: demoBackfill.usersEnsured,
         usersUpdated: demoBackfill.usersUpdated,
         demoData: serverConfig.seedDemoData ? "complete" : "skipped",
+        demoRecordsInserted: 0,
+        demoRecordsSkipped: 0,
       };
     }
     writeStateToDb(nextState);
@@ -5213,6 +5455,8 @@ export async function ensureDb() {
           usersEnsured: demoBackfill.usersEnsured,
           usersUpdated: demoBackfill.usersUpdated,
           demoData: "skipped",
+          demoRecordsInserted: 0,
+          demoRecordsSkipped: 0,
         };
       }
       writeStateToDb(nextState);
@@ -5227,6 +5471,8 @@ export async function ensureDb() {
           usersEnsured: 0,
           usersUpdated: 0,
           demoData: serverConfig.seedDemoData ? "complete" : "skipped",
+          demoRecordsInserted: 0,
+          demoRecordsSkipped: 0,
         }
         : null);
       return;
@@ -5241,6 +5487,8 @@ export async function ensureDb() {
         usersEnsured: demoBackfill.usersEnsured,
         usersUpdated: demoBackfill.usersUpdated,
         demoData: "skipped",
+        demoRecordsInserted: 0,
+        demoRecordsSkipped: 0,
       };
     }
     writeStateToDb(nextState);
