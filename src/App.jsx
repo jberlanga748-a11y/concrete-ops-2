@@ -69,6 +69,7 @@ import {
   submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
+import { buildCalculatorCopyText, calculateConcreteResult, CALCULATOR_TYPES, formatCubicFeet, formatCubicYards, WASTE_OPTIONS } from "./calculator-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
@@ -4629,16 +4630,75 @@ function EmployeesPage({
   );
 }
 
+const CALCULATOR_INPUT_DEFAULTS = {
+  slab: { length: "", width: "", thicknessInches: "" },
+  footing: { length: "", width: "", depth: "" },
+  wall: { length: "", height: "", thicknessInches: "" },
+  roundColumn: { diameterInches: "", height: "" },
+};
+
+const CALCULATOR_FIELD_CONFIG = {
+  slab: [
+    { key: "length", label: "Length (ft)", placeholder: "20" },
+    { key: "width", label: "Width (ft)", placeholder: "12" },
+    { key: "thicknessInches", label: "Thickness (in)", placeholder: "4" },
+  ],
+  footing: [
+    { key: "length", label: "Length (ft)", placeholder: "30" },
+    { key: "width", label: "Width (ft)", placeholder: "2" },
+    { key: "depth", label: "Depth (ft)", placeholder: "1.5" },
+  ],
+  wall: [
+    { key: "length", label: "Length (ft)", placeholder: "24" },
+    { key: "height", label: "Height (ft)", placeholder: "6" },
+    { key: "thicknessInches", label: "Thickness (in)", placeholder: "8" },
+  ],
+  roundColumn: [
+    { key: "diameterInches", label: "Diameter (in)", placeholder: "24" },
+    { key: "height", label: "Height (ft)", placeholder: "10" },
+  ],
+};
+
 function CalculatorPage() {
-  const [length, setLength] = useState(40);
-  const [width, setWidth] = useState(20);
-  const [thickness, setThickness] = useState(4);
+  const [calculatorType, setCalculatorType] = useState("slab");
+  const [draftByType, setDraftByType] = useState(CALCULATOR_INPUT_DEFAULTS);
+  const [wastePreset, setWastePreset] = useState("10");
+  const [customWastePercent, setCustomWastePercent] = useState("");
   const [resultCopied, setResultCopied] = useState(false);
-  const yards = useMemo(() => ((length * width * (thickness / 12)) / 27) * 1.1, [length, width, thickness]);
+  const activeDraft = draftByType[calculatorType] || CALCULATOR_INPUT_DEFAULTS.slab;
+  const activeWastePercent = wastePreset === "custom" ? customWastePercent : wastePreset;
+  const activeFields = CALCULATOR_FIELD_CONFIG[calculatorType] || [];
+  const result = useMemo(
+    () => calculateConcreteResult(calculatorType, activeDraft, activeWastePercent),
+    [activeDraft, activeWastePercent, calculatorType],
+  );
+
+  function updateField(key, value) {
+    setDraftByType((current) => ({
+      ...current,
+      [calculatorType]: {
+        ...(current[calculatorType] || {}),
+        [key]: value,
+      },
+    }));
+  }
+
+  function resetCalculator() {
+    setDraftByType((current) => ({
+      ...current,
+      [calculatorType]: { ...CALCULATOR_INPUT_DEFAULTS[calculatorType] },
+    }));
+    setWastePreset("10");
+    setCustomWastePercent("");
+    setResultCopied(false);
+  }
 
   async function copyResult() {
+    const copyText = buildCalculatorCopyText(result);
+    if (!copyText) return;
+
     try {
-      await navigator.clipboard.writeText(`${yards.toFixed(2)} cubic yards`);
+      await navigator.clipboard.writeText(copyText);
       setResultCopied(true);
       window.setTimeout(() => setResultCopied(false), 1500);
     } catch {
@@ -4648,38 +4708,132 @@ function CalculatorPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Tools" title="Concrete Calculator" description="Large inputs, clear units, and a one-click copyable result for quick field use." />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[420px_1fr] lg:px-8">
-        <Card className="p-5">
-          <SectionHeader title="Slab input" description="Includes a 10% waste factor." />
-          <div className="grid gap-3">
-            <InputField label="Length (ft)" type="number" value={length} onChange={(event) => setLength(Number(event.target.value))} />
-            <InputField label="Width (ft)" type="number" value={width} onChange={(event) => setWidth(Number(event.target.value))} />
-            <InputField label="Thickness (in)" type="number" value={thickness} onChange={(event) => setThickness(Number(event.target.value))} />
-          </div>
-        </Card>
-        <Card className="overflow-hidden">
-          <div className="bg-blue-950 p-6 text-white">
-            <p className="text-xs font-black uppercase tracking-widest text-blue-200">Recommended order</p>
-            <p className="mt-3 text-6xl font-black">{yards.toFixed(2)}</p>
-            <p className="text-lg font-black text-blue-100">cubic yards</p>
-            <Button className="mt-5" variant="secondary" onClick={copyResult}>{resultCopied ? "Copied" : "Copy result"}</Button>
-          </div>
-          <div className="grid gap-3 p-6 text-sm text-slate-600 sm:grid-cols-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Square feet</p>
-              <p className="mt-1 text-lg font-black text-slate-950">{length * width}</p>
+      <PageHeader eyebrow="Tools" title="Concrete Calculator" description="Estimate concrete volume in cubic yards." />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
+          <Card className="p-4 sm:p-5">
+            <SectionHeader title="Calculator type" description="Pick the shape you are pouring and enter the dimensions below." />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {CALCULATOR_TYPES.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setCalculatorType(option.id)}
+                  className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
+                    calculatorType === option.id
+                      ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20"
+                      : "bg-blue-50 text-slate-700 ring-1 ring-blue-100 hover:bg-blue-100"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Volume</p>
-              <p className="mt-1 text-lg font-black text-slate-950">{((length * width * (thickness / 12)) / 27).toFixed(2)} yd^3</p>
+          </Card>
+
+          <Card className="p-4 sm:p-5">
+            <SectionHeader title="Dimensions" description="Every field is labeled with feet or inches so the result stays quick and field-friendly." />
+            <div className="grid gap-3">
+              {activeFields.map((field) => (
+                <InputField
+                  key={field.key}
+                  label={field.label}
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder={field.placeholder}
+                  value={activeDraft[field.key] ?? ""}
+                  onChange={(event) => updateField(field.key, event.target.value)}
+                />
+              ))}
             </div>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Waste factor</p>
-              <p className="mt-1 text-lg font-black text-slate-950">10%</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,140px)]">
+              <SelectField label="Waste factor" value={wastePreset} onChange={(event) => setWastePreset(event.target.value)}>
+                {WASTE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </SelectField>
+              {wastePreset === "custom" ? (
+                <InputField
+                  label="Custom waste (%)"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="12"
+                  value={customWastePercent}
+                  onChange={(event) => setCustomWastePercent(event.target.value)}
+                />
+              ) : null}
             </div>
-          </div>
-        </Card>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={resetCalculator}>Reset</Button>
+              <Button type="button" variant="ghost" onClick={copyResult} disabled={result.status !== "ready"}>
+                {resultCopied ? "Copied" : "Copy result"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        <div className="min-w-0">
+          <Card className="overflow-hidden">
+            <div className="bg-blue-950 p-5 text-white sm:p-6">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Result</p>
+              {result.status === "ready" ? (
+                <>
+                  <p className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">{formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "")}</p>
+                  <p className="text-base font-black text-blue-100 sm:text-lg">yd^3 with waste</p>
+                  <p className="mt-3 text-sm leading-6 text-blue-100">{result.summary}</p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-3 text-2xl font-black tracking-tight text-white">Ready when you are</p>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">
+                    {result.status === "invalid"
+                      ? "Use zero or positive numbers only. Negative dimensions do not calculate."
+                      : "Enter the dimensions for this pour to see cubic feet, cubic yards, and the waste-adjusted total."}
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-6">
+              <div className="rounded-2xl bg-blue-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Base</p>
+                <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicYards(result.baseCubicYards) : "--"}</p>
+              </div>
+              <div className="rounded-2xl bg-blue-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">With waste</p>
+                <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicYards(result.cubicYardsWithWaste) : "--"}</p>
+              </div>
+              <div className="rounded-2xl bg-blue-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Cubic feet</p>
+                <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicFeet(result.baseCubicFeet) : "--"}</p>
+              </div>
+            </div>
+            <div className="border-t border-blue-100 bg-white p-4 sm:p-6">
+              <SectionHeader
+                title="Calculation summary"
+                description={result.status === "ready" ? "Copy this into a text or note for quick field coordination." : "The summary will appear once enough dimensions are entered."}
+              />
+              {result.status === "ready" ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700">
+                  <p className="font-bold text-slate-950">{result.summary}</p>
+                  <p className="mt-2">
+                    Base: <span className="font-black">{formatCubicYards(result.baseCubicYards)}</span>
+                  </p>
+                  <p className="mt-1">
+                    With {result.wastePercent}% waste: <span className="font-black">{formatCubicYards(result.cubicYardsWithWaste)}</span>
+                  </p>
+                </div>
+              ) : (
+                <StateCard
+                  title={result.status === "invalid" ? "Dimensions need a quick fix" : "No calculation yet"}
+                  description={result.status === "invalid" ? "Update the negative value above and the result card will recalculate." : "Missing inputs stay blank on purpose so the page never falls back to NaN or misleading totals."}
+                  tone={result.status === "invalid" ? "red" : "slate"}
+                />
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

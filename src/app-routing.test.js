@@ -57,3 +57,14 @@ test("employees module route resolves directly instead of falling back to dashbo
     reportId: "",
   });
 });
+
+test("calculator module route resolves directly", () => {
+  assert.equal(getModulePath("calculator"), "/calculator");
+  assert.deepEqual(parseAppPath("/calculator"), {
+    active: "calculator",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+  });
+});
