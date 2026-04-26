@@ -38,9 +38,11 @@ import {
   canCreateUploads,
   canDeleteJobs,
   canCorrectTimeEntries,
+  canCreateDeliveryTickets,
   canExportData,
   canManageChangeOrders,
   canManageCustomers,
+  canManageDeliveryTickets,
   canManageEstimates,
   canManageJobFieldUpdates,
   canManageLeads,
@@ -67,6 +69,7 @@ import {
   canViewAudit,
   canViewChangeOrders,
   canViewCustomers,
+  canViewDeliveryTickets,
   canViewEstimates,
   canViewJob,
   canViewJobMoney,
@@ -1264,7 +1267,81 @@ function visibleChangeOrderRequestsForUser(state, user) {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
-    });
+      });
+}
+
+function canViewDeliveryTicketRecord(user, ticket, job) {
+  if (!user || !job) return false;
+  if (canManageDeliveryTickets(user)) return true;
+  return canViewJob(job, user);
+}
+
+function canCreateDeliveryTicketForJob(user, job) {
+  if (!user || !job || job.archivedAt || !canCreateDeliveryTickets(user)) return false;
+  if (canManageDeliveryTickets(user)) return true;
+  return isForeman(user) && canViewJob(job, user);
+}
+
+function canEditDeliveryTicketRecord(user, ticket, job) {
+  if (!user || !ticket || !job) return false;
+  if (canManageDeliveryTickets(user)) return true;
+  return isForeman(user) && ticket.createdBy === user.id && canViewJob(job, user) && !ticket.archivedAt;
+}
+
+function sanitizeDeliveryTicketForUser(ticket, state, user) {
+  const job = ticket.jobId ? state.jobs.find((entry) => entry.id === ticket.jobId) || null : null;
+  if (!canViewDeliveryTicketRecord(user, ticket, job)) return null;
+  if (ticket.archivedAt && !canManageDeliveryTickets(user)) return null;
+
+  const createdByUser = findUserById(state, ticket.createdBy);
+  const report = ticket.reportId ? state.dailyReports.find((entry) => entry.id === ticket.reportId) || null : null;
+  const upload = ticket.ticketUploadId ? state.uploads.find((entry) => entry.id === ticket.ticketUploadId) || null : null;
+  const visibleUpload = upload ? sanitizeUploadForUser(upload, state, user) : null;
+
+  return {
+    id: ticket.id,
+    jobId: ticket.jobId,
+    reportId: ticket.reportId || "",
+    createdBy: ticket.createdBy,
+    createdByName: createdByUser?.name || ticket.createdBy,
+    supplier: ticket.supplier || "",
+    truckNumber: ticket.truckNumber || "",
+    ticketNumber: ticket.ticketNumber || "",
+    yardsDelivered: Number(ticket.yardsDelivered || 0),
+    arrivalTime: ticket.arrivalTime || "",
+    dischargeTime: ticket.dischargeTime || "",
+    mixNotes: ticket.mixNotes || "",
+    psi: ticket.psi == null || ticket.psi === "" ? null : Number(ticket.psi),
+    slump: ticket.slump == null || ticket.slump === "" ? null : Number(ticket.slump),
+    ticketUploadId: ticket.ticketUploadId || "",
+    notes: ticket.notes || "",
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
+    archivedAt: ticket.archivedAt || null,
+    job: job ? sanitizeJobForUser(job, user, state) : null,
+    report: report ? {
+      id: report.id,
+      reportDate: report.reportDate || "",
+      status: optionalDailyReportStatus(report.status, "draft"),
+      statusLabel: dailyReportStatusLabel(report.status),
+    } : null,
+    ticketUpload: visibleUpload ? {
+      id: visibleUpload.id,
+      caption: visibleUpload.caption || visibleUpload.fileName,
+      fileName: visibleUpload.fileName,
+      contentUrl: visibleUpload.contentUrl,
+      takenAt: visibleUpload.takenAt || "",
+      uploadedAt: visibleUpload.uploadedAt || "",
+    } : null,
+  };
+}
+
+function visibleDeliveryTicketsForUser(state, user) {
+  if (!user || !canViewDeliveryTickets(user)) return [];
+  return (state.deliveryTickets || [])
+    .map((ticket) => sanitizeDeliveryTicketForUser(ticket, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
 }
 
 function changeOrderRequestStatusLabel(status = "requested") {
@@ -1552,6 +1629,15 @@ function changeOrderPermissionsForUser(user) {
   };
 }
 
+function deliveryTicketPermissionsForUser(user) {
+  return {
+    canView: canViewDeliveryTickets(user),
+    canCreate: canCreateDeliveryTickets(user),
+    canManageAll: canManageDeliveryTickets(user),
+    canEditOwn: isForeman(user),
+  };
+}
+
 function assertCanViewToolChecklist(user, settings) {
   if (!canUseToolChecklist(user, settings) && !canViewAllToolChecklists(user)) {
     throw new ApiError(403, "You do not have permission to view tool checklists.");
@@ -1633,6 +1719,18 @@ function assertCanViewChangeOrders(user) {
 function assertCanManageChangeOrders(user) {
   if (!canManageChangeOrders(user) && !canRequestChangeOrders(user)) {
     throw new ApiError(403, "You do not have permission to manage change order requests.");
+  }
+}
+
+function assertCanViewDeliveryTickets(user) {
+  if (!canViewDeliveryTickets(user)) {
+    throw new ApiError(403, "You do not have permission to view delivery tickets.");
+  }
+}
+
+function assertCanCreateDeliveryTickets(user) {
+  if (!canCreateDeliveryTickets(user)) {
+    throw new ApiError(403, "You do not have permission to create delivery tickets.");
   }
 }
 
@@ -2579,6 +2677,33 @@ function createChangeOrderRequestShape(payload, user, changedAt, job) {
   };
 }
 
+function findDeliveryTicket(state, ticketId) {
+  return findRequiredRecord(state.deliveryTickets || [], ticketId, "Delivery ticket");
+}
+
+function createDeliveryTicketShape(payload, user, changedAt, job) {
+  return {
+    id: makeId("DTK"),
+    jobId: job.id,
+    reportId: optionalString(payload.reportId, ""),
+    createdBy: user.id,
+    supplier: optionalString(payload.supplier, ""),
+    truckNumber: optionalString(payload.truckNumber, ""),
+    ticketNumber: optionalString(payload.ticketNumber, ""),
+    yardsDelivered: optionalNonNegativeNumber(payload.yardsDelivered, "Yards delivered", 0),
+    arrivalTime: optionalDateTimeString(payload.arrivalTime, "Arrival time", ""),
+    dischargeTime: optionalDateTimeString(payload.dischargeTime, "Discharge time", ""),
+    mixNotes: optionalString(payload.mixNotes, ""),
+    psi: optionalNumberInRange(payload.psi, "PSI", { min: 0, max: 20000, fallback: null }),
+    slump: optionalNumberInRange(payload.slump, "Slump", { min: 0, max: 24, fallback: null }),
+    ticketUploadId: optionalString(payload.ticketUploadId, ""),
+    notes: optionalString(payload.notes, ""),
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    archivedAt: null,
+  };
+}
+
 function activeForemanAssignment(state, jobId) {
   return activeJobAssignments(state, jobId).find((assignment) => assignment.roleOnJob === "foreman") || null;
 }
@@ -2912,10 +3037,11 @@ function sanitizeBootstrap(state, user) {
     jobs: visibleJobsForUser(state, user),
     safetyPolicies: visibleSafetyPoliciesForUser(state, user),
     ppeItems: visiblePpeItemsForUser(state, user),
-    safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
-    safetyIncidents: visibleSafetyIncidentsForUser(state, user),
-    changeOrderRequests: visibleChangeOrderRequestsForUser(state, user),
-    prePourChecklists: visiblePrePourChecklistsForUser(state, user),
+      safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
+      safetyIncidents: visibleSafetyIncidentsForUser(state, user),
+      changeOrderRequests: visibleChangeOrderRequestsForUser(state, user),
+      deliveryTickets: visibleDeliveryTicketsForUser(state, user),
+      prePourChecklists: visiblePrePourChecklistsForUser(state, user),
       postPourChecklists: visiblePostPourChecklistsForUser(state, user),
       toolChecklists: visibleToolChecklistsForUser(state, user),
     calculatorResults: visibleCalculatorResultsForUser(state, user),
@@ -2960,6 +3086,7 @@ function sanitizeBootstrap(state, user) {
         canExport: canExportData(user),
       },
       changeOrders: changeOrderPermissionsForUser(user),
+      deliveryTickets: deliveryTicketPermissionsForUser(user),
       audit: {
         canView: canViewAudit(user),
       },
@@ -3943,6 +4070,167 @@ app.post("/api/post-pour-checklists/:id/archive", requireAuth, asyncRoute(async 
       detail: `${req.auth.user.name} archived the post-pour checklist for ${normalizeJobRecord(job).title}.`,
       actor: req.auth.user,
       changedFields: ["status", "archivedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/delivery-tickets", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewDeliveryTickets(req.auth.user);
+  const state = await readDb();
+  res.json({
+    deliveryTickets: visibleDeliveryTicketsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/delivery-tickets", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateDeliveryTickets(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.deliveryTickets ||= [];
+    const job = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+    if (!canCreateDeliveryTicketForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to create a delivery ticket for that job.");
+    }
+
+    const ticket = createDeliveryTicketShape(payload, req.auth.user, changedAt, job);
+    if (payload.yardsDelivered != null && payload.yardsDelivered !== "" && ticket.yardsDelivered <= 0) {
+      throw new ApiError(400, "Yards delivered must be greater than zero when provided.");
+    }
+    if (!ticket.supplier && !ticket.truckNumber && !ticket.ticketNumber && ticket.yardsDelivered <= 0 && !ticket.mixNotes && !ticket.notes) {
+      throw new ApiError(400, "Add at least one delivery ticket detail before saving.");
+    }
+    if (ticket.reportId) {
+      const report = findRequiredRecord(draft.dailyReports || [], ticket.reportId, "Daily report");
+      if (report.jobId !== job.id) {
+        throw new ApiError(400, "Selected daily report must belong to the same job.");
+      }
+    }
+    if (ticket.ticketUploadId) {
+      const upload = findRequiredRecord(draft.uploads || [], ticket.ticketUploadId, "Upload");
+      if (upload.jobId !== job.id) {
+        throw new ApiError(400, "Selected ticket upload must belong to the same job.");
+      }
+    }
+
+    draft.deliveryTickets.unshift(ticket);
+    appendActivity(draft, "Delivery ticket created", `${req.auth.user.name} recorded a delivery ticket for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "deliveryTicket",
+      entityId: ticket.id,
+      action: "created",
+      summary: `Delivery ticket ${ticket.ticketNumber || ticket.id} created`,
+      detail: `${req.auth.user.name} created a delivery ticket for ${normalizeJobRecord(job).title}.`,
+      actorUserId: req.auth.user.id,
+      actorName: req.auth.user.name,
+      changedFields: ["jobId", "reportId", "supplier", "truckNumber", "ticketNumber", "yardsDelivered", "ticketUploadId"],
+      createdAt: changedAt,
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/delivery-tickets/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewDeliveryTickets(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.deliveryTickets ||= [];
+    const ticket = findDeliveryTicket(draft, req.params.id);
+    const job = findRequiredRecord(draft.jobs, ticket.jobId, "Job");
+    if (!canEditDeliveryTicketRecord(req.auth.user, ticket, job)) {
+      throw new ApiError(403, "You do not have permission to edit that delivery ticket.");
+    }
+
+    if ("jobId" in payload) {
+      const nextJob = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+      if (!canCreateDeliveryTicketForJob(req.auth.user, nextJob)) {
+        throw new ApiError(403, "You do not have permission to move this delivery ticket to that job.");
+      }
+      ticket.jobId = nextJob.id;
+    }
+    if ("reportId" in payload) {
+      ticket.reportId = optionalString(payload.reportId, "");
+      if (ticket.reportId) {
+        const report = findRequiredRecord(draft.dailyReports || [], ticket.reportId, "Daily report");
+        if (report.jobId !== ticket.jobId) {
+          throw new ApiError(400, "Selected daily report must belong to the same job.");
+        }
+      }
+    }
+    if ("ticketUploadId" in payload) {
+      ticket.ticketUploadId = optionalString(payload.ticketUploadId, "");
+      if (ticket.ticketUploadId) {
+        const upload = findRequiredRecord(draft.uploads || [], ticket.ticketUploadId, "Upload");
+        if (upload.jobId !== ticket.jobId) {
+          throw new ApiError(400, "Selected ticket upload must belong to the same job.");
+        }
+      }
+    }
+    if ("supplier" in payload) ticket.supplier = optionalString(payload.supplier, "");
+    if ("truckNumber" in payload) ticket.truckNumber = optionalString(payload.truckNumber, "");
+    if ("ticketNumber" in payload) ticket.ticketNumber = optionalString(payload.ticketNumber, "");
+    if ("yardsDelivered" in payload) ticket.yardsDelivered = optionalNonNegativeNumber(payload.yardsDelivered, "Yards delivered", 0);
+    if ("yardsDelivered" in payload && payload.yardsDelivered !== "" && ticket.yardsDelivered <= 0) {
+      throw new ApiError(400, "Yards delivered must be greater than zero when provided.");
+    }
+    if ("arrivalTime" in payload) ticket.arrivalTime = optionalDateTimeString(payload.arrivalTime, "Arrival time", "");
+    if ("dischargeTime" in payload) ticket.dischargeTime = optionalDateTimeString(payload.dischargeTime, "Discharge time", "");
+    if ("mixNotes" in payload) ticket.mixNotes = optionalString(payload.mixNotes, "");
+    if ("psi" in payload) ticket.psi = optionalNumberInRange(payload.psi, "PSI", { min: 0, max: 20000, fallback: null });
+    if ("slump" in payload) ticket.slump = optionalNumberInRange(payload.slump, "Slump", { min: 0, max: 24, fallback: null });
+    if ("notes" in payload) ticket.notes = optionalString(payload.notes, "");
+    markUpdated(ticket, changedAt);
+
+    appendActivity(draft, "Delivery ticket updated", `${req.auth.user.name} updated delivery ticket ${ticket.ticketNumber || ticket.id}.`);
+    appendAuditEvent(draft, {
+      entityType: "deliveryTicket",
+      entityId: ticket.id,
+      action: "updated",
+      summary: `Delivery ticket ${ticket.ticketNumber || ticket.id} updated`,
+      detail: `${req.auth.user.name} updated delivery ticket details.`,
+      actorUserId: req.auth.user.id,
+      actorName: req.auth.user.name,
+      changedFields: Object.keys(payload),
+      createdAt: changedAt,
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/delivery-tickets/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  if (!canManageDeliveryTickets(req.auth.user)) {
+    throw new ApiError(403, "You do not have permission to archive delivery tickets.");
+  }
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.deliveryTickets ||= [];
+    const ticket = findDeliveryTicket(draft, req.params.id);
+    if (ticket.archivedAt) return;
+    ticket.archivedAt = changedAt;
+    markUpdated(ticket, changedAt);
+    appendActivity(draft, "Delivery ticket archived", `${req.auth.user.name} archived delivery ticket ${ticket.ticketNumber || ticket.id}.`);
+    appendAuditEvent(draft, {
+      entityType: "deliveryTicket",
+      entityId: ticket.id,
+      action: "archived",
+      summary: `Delivery ticket ${ticket.ticketNumber || ticket.id} archived`,
+      detail: `${req.auth.user.name} archived a delivery ticket.`,
+      actorUserId: req.auth.user.id,
+      actorName: req.auth.user.name,
+      changedFields: ["archivedAt"],
+      createdAt: changedAt,
     });
     return draft;
   });

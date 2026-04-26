@@ -101,3 +101,14 @@ test("change-orders module route resolves directly", () => {
     reportId: "",
   });
 });
+
+test("delivery-tickets module route resolves directly", () => {
+  assert.equal(getModulePath("deliveryTickets"), "/deliveryTickets");
+  assert.deepEqual(parseAppPath("/deliveryTickets"), {
+    active: "deliveryTickets",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+  });
+});

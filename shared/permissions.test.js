@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   canAcknowledgeSafety,
   canCreateDailyReports,
+  canCreateDeliveryTickets,
   canCreateUploads,
   canManageCustomers,
+  canManageDeliveryTickets,
   canManageEstimates,
   canManageLeads,
   canManageOwnTime,
@@ -26,6 +28,7 @@ import {
   canViewAllTime,
   canViewCrewTime,
   canViewCustomers,
+  canViewDeliveryTickets,
   canViewEstimates,
   canViewChangeOrders,
   canViewLeads,
@@ -46,6 +49,9 @@ test("owner has full office access and export rights", () => {
   assert.equal(canManageCustomers(owner), true);
   assert.equal(canManageEstimates(owner), true);
   assert.equal(canManageChangeOrders(owner), true);
+  assert.equal(canViewDeliveryTickets(owner), true);
+  assert.equal(canCreateDeliveryTickets(owner), true);
+  assert.equal(canManageDeliveryTickets(owner), true);
   assert.equal(canManageUsers(owner), true);
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
@@ -60,6 +66,9 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canViewAllTime(operations), true);
   assert.equal(canManageReports(operations), true);
   assert.equal(canManageChangeOrders(operations), true);
+  assert.equal(canViewDeliveryTickets(operations), true);
+  assert.equal(canCreateDeliveryTickets(operations), true);
+  assert.equal(canManageDeliveryTickets(operations), true);
   assert.equal(canManagePrePour(operations), true);
   assert.equal(canManagePostPour(operations), true);
   assert.equal(canReviewReports(operations), true);
@@ -83,6 +92,9 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageEstimates(estimator), true);
   assert.equal(canViewChangeOrders(estimator), true);
   assert.equal(canManageChangeOrders(estimator), true);
+  assert.equal(canViewDeliveryTickets(estimator), false);
+  assert.equal(canCreateDeliveryTickets(estimator), false);
+  assert.equal(canManageDeliveryTickets(estimator), false);
   assert.equal(canManageOwnTime(estimator), true);
   assert.equal(modules.has("time"), true);
   assert.equal(canViewSafety(estimator), false);
@@ -99,13 +111,16 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canViewEstimates(foreman), false);
   assert.equal(canViewReports(foreman), true);
   assert.equal(canViewChangeOrders(foreman), true);
+  assert.equal(canViewDeliveryTickets(foreman), true);
   assert.equal(canViewPrePour(foreman), true);
   assert.equal(canViewPostPour(foreman), true);
   assert.equal(canCreateDailyReports(foreman), true);
+  assert.equal(canCreateDeliveryTickets(foreman), true);
   assert.equal(canManagePrePour(foreman), true);
   assert.equal(canManagePostPour(foreman), true);
   assert.equal(canManageReports(foreman), false);
   assert.equal(canManageChangeOrders(foreman), false);
+  assert.equal(canManageDeliveryTickets(foreman), false);
   assert.equal(canViewUploads(foreman), true);
   assert.equal(canCreateUploads(foreman), true);
   assert.equal(canManageUploads(foreman), false);
@@ -128,11 +143,14 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canViewEstimates(employee), false);
   assert.equal(canViewReports(employee), false);
   assert.equal(canViewChangeOrders(employee), false);
+  assert.equal(canViewDeliveryTickets(employee), true);
   assert.equal(canViewPrePour(employee), true);
   assert.equal(canViewPostPour(employee), true);
   assert.equal(canCreateDailyReports(employee), false);
+  assert.equal(canCreateDeliveryTickets(employee), false);
   assert.equal(canManagePrePour(employee), false);
   assert.equal(canManagePostPour(employee), false);
+  assert.equal(canManageDeliveryTickets(employee), false);
   assert.equal(canViewUploads(employee), true);
   assert.equal(canCreateUploads(employee), true);
   assert.equal(canManageUploads(employee), false);

@@ -10,6 +10,7 @@ import {
   archiveToolChecklist,
   archiveCustomer,
   archiveChangeOrderRequest,
+  archiveDeliveryTicket,
   createPpeItem,
   createSafetyIncident,
   createSafetyPolicy,
@@ -23,6 +24,7 @@ import {
   createChangeOrderRequest,
   createCustomer,
   createDailyReport,
+  createDeliveryTicket,
   createJobAssignment,
   createJob,
   createLead,
@@ -66,6 +68,7 @@ import {
   updateChangeOrderRequest,
   updateCustomer,
   updateDailyReport,
+  updateDeliveryTicket,
   updateJobAssignment,
   updateJob,
   updateLead,
@@ -91,6 +94,7 @@ import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResul
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
+import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
@@ -137,6 +141,7 @@ const NAV_GROUPS = [
       { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
       { id: "postPour", label: "Post-Pour", icon: "clipboard" },
       { id: "uploads", label: "Uploads", icon: "upload" },
+      { id: "deliveryTickets", label: "Delivery Tickets", icon: "clipboard" },
     ],
   },
   {
@@ -184,6 +189,7 @@ const EMPTY_APP_STATE = {
   safetyAcknowledgments: [],
   safetyIncidents: [],
   changeOrderRequests: [],
+  deliveryTickets: [],
   prePourChecklists: [],
   postPourChecklists: [],
   toolChecklists: [],
@@ -281,6 +287,12 @@ const EMPTY_APP_STATE = {
       canManage: false,
       canRequest: false,
     },
+    deliveryTickets: {
+      canView: false,
+      canCreate: false,
+      canManageAll: false,
+      canEditOwn: false,
+    },
     audit: {
       canView: false,
     },
@@ -323,6 +335,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
         safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
         safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
         changeOrderRequests: Array.isArray(source.changeOrderRequests) ? source.changeOrderRequests : Array.isArray(fallback.changeOrderRequests) ? fallback.changeOrderRequests : EMPTY_APP_STATE.changeOrderRequests,
+        deliveryTickets: Array.isArray(source.deliveryTickets) ? source.deliveryTickets : Array.isArray(fallback.deliveryTickets) ? fallback.deliveryTickets : EMPTY_APP_STATE.deliveryTickets,
         prePourChecklists: Array.isArray(source.prePourChecklists) ? source.prePourChecklists : Array.isArray(fallback.prePourChecklists) ? fallback.prePourChecklists : EMPTY_APP_STATE.prePourChecklists,
         postPourChecklists: Array.isArray(source.postPourChecklists) ? source.postPourChecklists : Array.isArray(fallback.postPourChecklists) ? fallback.postPourChecklists : EMPTY_APP_STATE.postPourChecklists,
         toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
@@ -349,6 +362,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
+      deliveryTickets: mergePermissionScope(EMPTY_APP_STATE.permissions.deliveryTickets, source.permissions?.deliveryTickets || fallback.permissions?.deliveryTickets),
       audit: mergePermissionScope(EMPTY_APP_STATE.permissions.audit, source.permissions?.audit || fallback.permissions?.audit),
     },
     stats: {
@@ -494,6 +508,22 @@ const INITIAL_CHANGE_ORDER_REQUEST_FORM = {
   reason: "",
   scopeDescription: "",
   fieldNotes: "",
+};
+
+const INITIAL_DELIVERY_TICKET_FORM = {
+  jobId: "",
+  reportId: "",
+  supplier: "",
+  truckNumber: "",
+  ticketNumber: "",
+  yardsDelivered: "",
+  arrivalTime: "",
+  dischargeTime: "",
+  psi: "",
+  slump: "",
+  mixNotes: "",
+  notes: "",
+  ticketUploadId: "",
 };
 
 const INITIAL_TOOL_CHECKLIST_FORM = {
@@ -1856,8 +1886,9 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
   const quickActions = permissions.jobs.canManageField
     ? [
-        { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
-        { title: "Pre-Pour Checklist", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
+          { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
+          { title: "Delivery Tickets", description: "Record concrete truck and ticket details from the field.", icon: "clipboard", moduleId: "deliveryTickets", badge: "Open", tone: "blue" },
+          { title: "Pre-Pour Checklist", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
         { title: "Post-Pour Checklist", description: "Track finish, cleanup, cure, and closeout readiness after placement.", icon: "clipboard", moduleId: "postPour", badge: "Open", tone: "blue" },
         { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
         { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
@@ -1867,9 +1898,10 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
         { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
       ]
     : [
-        { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
-        { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
-        { title: "Pre-Pour Checklist", description: "Review the assigned-job readiness checklist when it is available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
+          { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
+          { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
+          { title: "Delivery Tickets", description: "Review assigned-job concrete ticket records when available.", icon: "clipboard", moduleId: permissions.deliveryTickets.canView ? "deliveryTickets" : null, badge: permissions.deliveryTickets.canView ? "Open" : "Off", tone: permissions.deliveryTickets.canView ? "blue" : "slate" },
+          { title: "Pre-Pour Checklist", description: "Review the assigned-job readiness checklist when it is available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
         { title: "Post-Pour Checklist", description: "Review the assigned-job finish checklist when it is available.", icon: "clipboard", moduleId: permissions.postPour.canView ? "postPour" : null, badge: permissions.postPour.canView ? "Open" : "Off", tone: permissions.postPour.canView ? "blue" : "slate" },
         { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
         { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
@@ -6095,6 +6127,300 @@ function ChangeOrdersPage({
   );
 }
 
+function DeliveryTicketsPage({
+  user,
+  jobs,
+  deliveryTickets,
+  uploads,
+  dailyReports,
+  permissions,
+  busy,
+  onCreateTicket,
+  onUpdateTicket,
+  onArchiveTicket,
+}) {
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [supplierFilter, setSupplierFilter] = useState("All suppliers");
+  const [creatorFilter, setCreatorFilter] = useState("All creators");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedTicketId, setSelectedTicketId] = useState("");
+  const [createDraft, setCreateDraft] = useState(INITIAL_DELIVERY_TICKET_FORM);
+  const [detailDraft, setDetailDraft] = useState(INITIAL_DELIVERY_TICKET_FORM);
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const ticketRows = Array.isArray(deliveryTickets) ? deliveryTickets : [];
+  const filteredRows = useMemo(() => filterDeliveryTickets(ticketRows, {
+    job: jobFilter,
+    supplier: supplierFilter,
+    createdBy: creatorFilter,
+    date: dateFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, creatorFilter, dateFilter, jobFilter, search, supplierFilter, ticketRows]);
+  const listState = useMemo(() => deriveDeliveryTicketListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedTicket = filteredRows.find((ticket) => ticket.id === selectedTicketId)
+    || filteredRows[0]
+    || ticketRows.find((ticket) => ticket.id === selectedTicketId)
+    || null;
+  const singleJobId = listState.defaultJobId || "";
+  const createJobId = createDraft.jobId || singleJobId;
+  const canCreate = permissions.deliveryTickets.canCreate || permissions.deliveryTickets.canManageAll;
+  const canManageAll = permissions.deliveryTickets.canManageAll;
+  const canEditSelected = Boolean(selectedTicket) && (canManageAll || (permissions.deliveryTickets.canEditOwn && selectedTicket.createdBy === user?.id && !selectedTicket.archivedAt));
+  const scopedUploads = (Array.isArray(uploads) ? uploads : []).filter((upload) => !upload.archivedAt);
+  const scopedReports = (Array.isArray(dailyReports) ? dailyReports : []).filter((report) => !report.archivedAt);
+  const createUploadOptions = scopedUploads.filter((upload) => !createJobId || upload.jobId === createJobId);
+  const createReportOptions = scopedReports.filter((report) => !createJobId || report.jobId === createJobId);
+  const detailUploadOptions = scopedUploads.filter((upload) => !detailDraft.jobId || upload.jobId === detailDraft.jobId);
+  const detailReportOptions = scopedReports.filter((report) => !detailDraft.jobId || report.jobId === detailDraft.jobId);
+
+  useEffect(() => {
+    if (!selectedTicketId && filteredRows[0]?.id) {
+      setSelectedTicketId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedTicketId]);
+
+  useEffect(() => {
+    if (singleJobId && !createDraft.jobId) {
+      setCreateDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [createDraft.jobId, singleJobId]);
+
+  useEffect(() => {
+    setDetailDraft({
+      jobId: selectedTicket?.jobId || "",
+      reportId: selectedTicket?.reportId || "",
+      supplier: selectedTicket?.supplier || "",
+      truckNumber: selectedTicket?.truckNumber || "",
+      ticketNumber: selectedTicket?.ticketNumber || "",
+      yardsDelivered: selectedTicket?.yardsDelivered ?? "",
+      arrivalTime: selectedTicket?.arrivalTime || "",
+      dischargeTime: selectedTicket?.dischargeTime || "",
+      psi: selectedTicket?.psi ?? "",
+      slump: selectedTicket?.slump ?? "",
+      mixNotes: selectedTicket?.mixNotes || "",
+      notes: selectedTicket?.notes || "",
+      ticketUploadId: selectedTicket?.ticketUploadId || "",
+    });
+  }, [selectedTicket?.id, selectedTicket?.updatedAt]);
+
+  if (!permissions.deliveryTickets.canView) {
+    return (
+      <div>
+        <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Delivery ticket access unavailable" description="Only office, foreman, and assigned field users can open delivery tickets in this pass." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-4">
+            <SectionHeader title="Filters" description="Focus on the deliveries that matter right now." />
+            <div className="grid gap-3">
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Supplier" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)}>
+                {listState.supplierOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search supplier, ticket, truck, mix notes, or job..." />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Ticket list" description={`${filteredRows.length} visible ticket${filteredRows.length === 1 ? "" : "s"}.`} />
+            {filteredRows.length === 0 ? (
+              <StateCard
+                title={visibleJobs.length === 0 && !canManageAll ? "No assigned job yet" : "No delivery tickets match these filters"}
+                description={visibleJobs.length === 0 && !canManageAll ? "Contact office if you should be able to record or view deliveries for this job." : "Clear a filter or create a new ticket for a visible job."}
+                tone="slate"
+              />
+            ) : (
+              <div className="space-y-3">
+                {filteredRows.map((ticket) => (
+                  <button
+                    key={ticket.id}
+                    type="button"
+                    onClick={() => setSelectedTicketId(ticket.id)}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedTicket?.id === ticket.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} · {ticket.supplier || "Supplier pending"}</p>
+                      </div>
+                      {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone="blue">{ticket.yardsDelivered ? `${ticket.yardsDelivered} yd³` : "Ticket"}</Badge>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          {canCreate ? (
+            <Card className="p-4">
+              <SectionHeader title="Create ticket" description="Record truck and ticket details from the field without any pricing data." />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+                  <option value="">Select a job</option>
+                  {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                </SelectField>
+                <InputField label="Supplier" value={createDraft.supplier} onChange={(event) => setCreateDraft((current) => ({ ...current, supplier: event.target.value }))} placeholder="Knife River, Cadman, etc." />
+                <InputField label="Truck number" value={createDraft.truckNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+                <InputField label="Ticket number" value={createDraft.ticketNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+                <InputField label="Yards delivered" type="number" min="0" step="0.1" value={createDraft.yardsDelivered} onChange={(event) => setCreateDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+                <InputField label="PSI" type="number" min="0" step="1" value={createDraft.psi} onChange={(event) => setCreateDraft((current) => ({ ...current, psi: event.target.value }))} />
+                <InputField label="Arrival time" type="datetime-local" value={createDraft.arrivalTime} onChange={(event) => setCreateDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+                <InputField label="Discharge time" type="datetime-local" value={createDraft.dischargeTime} onChange={(event) => setCreateDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+                <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
+                <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
+                  <option value="">No linked report</option>
+                  {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} · ${report.reportDate || "No date"}`}</option>)}
+                </SelectField>
+                <div className="md:col-span-2">
+                  <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+                    <option value="">No linked upload</option>
+                    {createUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+                  </SelectField>
+                </div>
+                <div className="md:col-span-2">
+                  <TextAreaField label="Mix notes" value={createDraft.mixNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, mixNotes: event.target.value }))} placeholder="Mix design, pump notes, temperature, additives, or placement details." />
+                </div>
+                <div className="md:col-span-2">
+                  <TextAreaField label="Notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Any additional field notes for this delivery ticket." />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    const saved = await onCreateTicket(createDraft);
+                    if (saved) {
+                      setCreateDraft({ ...INITIAL_DELIVERY_TICKET_FORM, jobId: singleJobId });
+                    }
+                  }}
+                  disabled={busy || !createDraft.jobId}
+                >
+                  Save delivery ticket
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedTicket ? (
+            <Card className="p-4">
+              <SectionHeader
+                title={deliveryTicketTitle(selectedTicket)}
+                description={`${selectedTicket.job?.title || "Assigned job"} · ${selectedTicket.createdByName} · ${formatDateTime(selectedTicket.createdAt)}`}
+                action={selectedTicket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{selectedTicket.yardsDelivered ? `${selectedTicket.yardsDelivered} yd³` : "Visible"}</Badge>}
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Supplier:</span> {selectedTicket.supplier || "Not provided"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Truck:</span> {selectedTicket.truckNumber || "Not provided"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Ticket:</span> {selectedTicket.ticketNumber || "Not provided"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Yards delivered:</span> {selectedTicket.yardsDelivered || "0"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Arrival:</span> {selectedTicket.arrivalTime ? formatDateTime(selectedTicket.arrivalTime) : "Not provided"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Discharge:</span> {selectedTicket.dischargeTime ? formatDateTime(selectedTicket.dischargeTime) : "Not provided"}</p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-700">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Mix notes</p>
+                  <p className="mt-2 whitespace-pre-wrap">{selectedTicket.mixNotes || "No mix notes provided."}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-700">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Notes</p>
+                  <p className="mt-2 whitespace-pre-wrap">{selectedTicket.notes || "No notes provided."}</p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">PSI:</span> {selectedTicket.psi ?? "Not provided"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Slump:</span> {selectedTicket.slump ?? "Not provided"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Daily report:</span> {selectedTicket.report?.reportDate || "Not linked"}</p>
+                </div>
+              </div>
+              {selectedTicket.ticketUpload ? (
+                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/30 p-4 text-sm text-slate-700">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Linked ticket upload</p>
+                  <p className="mt-2 font-bold text-slate-900">{selectedTicket.ticketUpload.caption || selectedTicket.ticketUpload.fileName}</p>
+                  <a className="mt-2 inline-flex text-sm font-black text-blue-700 underline-offset-4 hover:underline" href={selectedTicket.ticketUpload.contentUrl} target="_blank" rel="noreferrer">Open linked upload</a>
+                </div>
+              ) : null}
+              {canEditSelected ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <SelectField label="Job" value={detailDraft.jobId} onChange={(event) => setDetailDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+                    {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                  </SelectField>
+                  <InputField label="Supplier" value={detailDraft.supplier} onChange={(event) => setDetailDraft((current) => ({ ...current, supplier: event.target.value }))} />
+                  <InputField label="Truck number" value={detailDraft.truckNumber} onChange={(event) => setDetailDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+                  <InputField label="Ticket number" value={detailDraft.ticketNumber} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+                  <InputField label="Yards delivered" type="number" min="0" step="0.1" value={detailDraft.yardsDelivered} onChange={(event) => setDetailDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+                  <InputField label="PSI" type="number" min="0" step="1" value={detailDraft.psi} onChange={(event) => setDetailDraft((current) => ({ ...current, psi: event.target.value }))} />
+                  <InputField label="Arrival time" type="datetime-local" value={detailDraft.arrivalTime} onChange={(event) => setDetailDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+                  <InputField label="Discharge time" type="datetime-local" value={detailDraft.dischargeTime} onChange={(event) => setDetailDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+                  <InputField label="Slump" type="number" min="0" step="0.1" value={detailDraft.slump} onChange={(event) => setDetailDraft((current) => ({ ...current, slump: event.target.value }))} />
+                  <SelectField label="Daily report link" value={detailDraft.reportId} onChange={(event) => setDetailDraft((current) => ({ ...current, reportId: event.target.value }))}>
+                    <option value="">No linked report</option>
+                    {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} · ${report.reportDate || "No date"}`}</option>)}
+                  </SelectField>
+                  <div className="md:col-span-2">
+                    <SelectField label="Ticket photo/upload" value={detailDraft.ticketUploadId} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+                      <option value="">No linked upload</option>
+                      {detailUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+                    </SelectField>
+                  </div>
+                  <div className="md:col-span-2">
+                    <TextAreaField label="Mix notes" value={detailDraft.mixNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, mixNotes: event.target.value }))} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <TextAreaField label="Notes" value={detailDraft.notes} onChange={(event) => setDetailDraft((current) => ({ ...current, notes: event.target.value }))} />
+                  </div>
+                  <div className="md:col-span-2 flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => onUpdateTicket(selectedTicket.id, detailDraft)} disabled={busy}>Save ticket</Button>
+                    {canManageAll ? <Button type="button" variant="danger" onClick={() => onArchiveTicket(selectedTicket.id)} disabled={busy || selectedTicket.archivedAt}>Archive</Button> : null}
+                  </div>
+                </div>
+              ) : null}
+            </Card>
+          ) : (
+            <Card className="p-4">
+              <SectionHeader title="Ticket details" description="Select a delivery ticket to review truck, mix, and yardage details." />
+              <StateCard title="No delivery ticket selected" description="Choose a delivery ticket from the list or create one for a visible job." tone="slate" />
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToolChecklistPage({
   user,
   jobs,
@@ -6532,6 +6858,9 @@ function MainContent(props) {
   }
   if (active === "changeOrders") {
     return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
+  }
+  if (active === "deliveryTickets") {
+    return <DeliveryTicketsPage {...props} deliveryTickets={props.deliveryTickets} onCreateTicket={props.onCreateDeliveryTicket} onUpdateTicket={props.onUpdateDeliveryTicket} onArchiveTicket={props.onArchiveDeliveryTicket} />;
   }
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
@@ -7988,6 +8317,57 @@ export default function App() {
     }
   }
 
+  async function handleCreateDeliveryTicket(payload) {
+    if (!sessionToken || !appState.permissions.deliveryTickets.canCreate) return false;
+    setBusy(true);
+    try {
+      const nextState = await createDeliveryTicket(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateDeliveryTicket(ticketId, payload) {
+    if (!sessionToken || !(appState.permissions.deliveryTickets.canManageAll || appState.permissions.deliveryTickets.canEditOwn)) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateDeliveryTicket(sessionToken, ticketId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveDeliveryTicket(ticketId) {
+    if (!sessionToken || !appState.permissions.deliveryTickets.canManageAll) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveDeliveryTicket(sessionToken, ticketId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateToolChecklist(payload) {
     if (!sessionToken || !appState.permissions.toolChecklist.canManage) return false;
     setBusy(true);
@@ -8258,6 +8638,7 @@ export default function App() {
                 safetyAcknowledgments={appState.safetyAcknowledgments}
                 safetyIncidents={appState.safetyIncidents}
                 changeOrderRequests={appState.changeOrderRequests}
+                deliveryTickets={appState.deliveryTickets}
                 prePourChecklists={appState.prePourChecklists}
                 postPourChecklists={appState.postPourChecklists}
                 toolChecklists={appState.toolChecklists}
@@ -8368,6 +8749,9 @@ export default function App() {
               onCreateChangeOrderRequest={handleCreateChangeOrderRequest}
               onUpdateChangeOrderRequest={handleUpdateChangeOrderRequest}
               onArchiveChangeOrderRequest={handleArchiveChangeOrderRequest}
+              onCreateDeliveryTicket={handleCreateDeliveryTicket}
+              onUpdateDeliveryTicket={handleUpdateDeliveryTicket}
+              onArchiveDeliveryTicket={handleArchiveDeliveryTicket}
                 onArchiveSafetyIncident={handleArchiveSafetyIncident}
                 onUpdateCompanySettings={handleUpdateCompanySettings}
                 onCreateChecklist={handleCreateToolChecklist}

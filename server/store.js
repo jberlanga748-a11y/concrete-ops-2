@@ -580,6 +580,7 @@ export function createEmptyState() {
     safetyAcknowledgments: [],
     safetyIncidents: [],
     changeOrderRequests: [],
+    deliveryTickets: [],
     prePourChecklists: [],
     prePourChecklistItems: [],
     postPourChecklists: [],
@@ -648,6 +649,7 @@ export function createSeedState() {
     safetyAcknowledgments: [],
     safetyIncidents: [],
     changeOrderRequests: [],
+    deliveryTickets: [],
     prePourChecklists: [],
     prePourChecklistItems: [],
     postPourChecklists: [],
@@ -1981,9 +1983,47 @@ const MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_change_order_requests_requested_by ON change_order_requests(requested_by);
         CREATE INDEX IF NOT EXISTS idx_change_order_requests_sort_index ON change_order_requests(sort_index);
       `);
+      },
     },
-  },
-];
+    {
+      version: 28,
+      description: "Add concrete delivery tickets tied to jobs and optional reports/uploads.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS delivery_tickets (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            job_id TEXT NOT NULL,
+            report_id TEXT,
+            created_by TEXT NOT NULL,
+            supplier TEXT NOT NULL,
+            truck_number TEXT NOT NULL,
+            ticket_number TEXT NOT NULL,
+            yards_delivered REAL NOT NULL,
+            arrival_time TEXT NOT NULL,
+            discharge_time TEXT NOT NULL,
+            mix_notes TEXT NOT NULL,
+            psi REAL,
+            slump REAL,
+            ticket_upload_id TEXT,
+            notes TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT,
+            FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+            FOREIGN KEY (report_id) REFERENCES daily_reports(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (ticket_upload_id) REFERENCES uploads(id) ON DELETE SET NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_delivery_tickets_job_id ON delivery_tickets(job_id);
+          CREATE INDEX IF NOT EXISTS idx_delivery_tickets_report_id ON delivery_tickets(report_id);
+          CREATE INDEX IF NOT EXISTS idx_delivery_tickets_created_by ON delivery_tickets(created_by);
+          CREATE INDEX IF NOT EXISTS idx_delivery_tickets_sort_index ON delivery_tickets(sort_index);
+        `);
+      },
+    },
+  ];
 
 function runInTransaction(database, work) {
   try {
@@ -2081,6 +2121,11 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertDeliveryTicket = database.prepare(`
+    INSERT INTO delivery_tickets (id, sort_index, job_id, report_id, created_by, supplier, truck_number, ticket_number, yards_delivered, arrival_time, discharge_time, mix_notes, psi, slump, ticket_upload_id, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
     const insertPrePourChecklist = database.prepare(`
       INSERT INTO pre_pour_checklists (id, sort_index, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2164,6 +2209,7 @@ function writeStateToDb(state) {
         DELETE FROM safety_acknowledgments;
         DELETE FROM safety_incidents;
         DELETE FROM change_order_requests;
+        DELETE FROM delivery_tickets;
         DELETE FROM safety_policies;
         DELETE FROM ppe_items;
         DELETE FROM pre_pour_checklist_items;
@@ -2589,8 +2635,8 @@ function writeStateToDb(state) {
       );
     });
 
-    (state.uploads || []).forEach((upload, index) => {
-      insertUpload.run(
+      (state.uploads || []).forEach((upload, index) => {
+        insertUpload.run(
         upload.id,
         index,
         upload.jobId,
@@ -2615,11 +2661,35 @@ function writeStateToDb(state) {
         upload.locationUnavailableReason || "",
         upload.createdAt || upload.uploadedAt || isoNow(),
         upload.updatedAt || upload.createdAt || upload.uploadedAt || isoNow(),
-        upload.archivedAt || null,
-      );
-    });
+          upload.archivedAt || null,
+        );
+      });
 
-    state.queueItems.forEach((item, index) => {
+      (state.deliveryTickets || []).forEach((ticket, index) => {
+        insertDeliveryTicket.run(
+          ticket.id,
+          ticket.sortIndex ?? index,
+          ticket.jobId,
+          ticket.reportId || null,
+          ticket.createdBy,
+          ticket.supplier || "",
+          ticket.truckNumber || "",
+          ticket.ticketNumber || "",
+          Number(ticket.yardsDelivered || 0),
+          ticket.arrivalTime || "",
+          ticket.dischargeTime || "",
+          ticket.mixNotes || "",
+          ticket.psi == null || ticket.psi === "" ? null : Number(ticket.psi),
+          ticket.slump == null || ticket.slump === "" ? null : Number(ticket.slump),
+          ticket.ticketUploadId || null,
+          ticket.notes || "",
+          ticket.createdAt || isoNow(),
+          ticket.updatedAt || ticket.createdAt || isoNow(),
+          ticket.archivedAt || null,
+        );
+      });
+
+      state.queueItems.forEach((item, index) => {
       insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
     });
 
@@ -2740,6 +2810,15 @@ function readTableState() {
              field_notes AS fieldNotes, status, office_notes AS officeNotes, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt,
              created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM change_order_requests
+      ORDER BY sort_index ASC
+    `).all();
+
+    const deliveryTickets = database.prepare(`
+      SELECT id, job_id AS jobId, report_id AS reportId, created_by AS createdBy, supplier, truck_number AS truckNumber,
+             ticket_number AS ticketNumber, yards_delivered AS yardsDelivered, arrival_time AS arrivalTime,
+             discharge_time AS dischargeTime, mix_notes AS mixNotes, psi, slump, ticket_upload_id AS ticketUploadId,
+             notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM delivery_tickets
       ORDER BY sort_index ASC
     `).all();
 
@@ -2866,6 +2945,7 @@ function readTableState() {
     safetyAcknowledgments,
     safetyIncidents,
     changeOrderRequests,
+    deliveryTickets,
     prePourChecklists,
     prePourChecklistItems,
     postPourChecklists,

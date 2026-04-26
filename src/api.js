@@ -178,6 +178,22 @@ export function archiveChangeOrderRequest(token, id) {
   return request(`/api/change-order-requests/${id}/archive`, { method: "POST", token });
 }
 
+export function getDeliveryTickets(token) {
+  return request("/api/delivery-tickets", { token });
+}
+
+export function createDeliveryTicket(token, payload) {
+  return request("/api/delivery-tickets", { method: "POST", token, body: payload });
+}
+
+export function updateDeliveryTicket(token, id, payload) {
+  return request(`/api/delivery-tickets/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archiveDeliveryTicket(token, id) {
+  return request(`/api/delivery-tickets/${id}/archive`, { method: "POST", token });
+}
+
 export function getUploads(token) {
   return request("/api/uploads", { token });
 }
