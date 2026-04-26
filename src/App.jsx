@@ -1846,26 +1846,33 @@ function workCategoryLabel(workCategory = "") {
   return labels[workCategory] || "Other";
 }
 
-function WeekSummaryCard({ summary, title = "This Week", description, accent = "blue" }) {
+function WeekSummaryCard({ summary, title = "This Week", description, accent = "blue", compactMobile = false }) {
+  const cardClassName = compactMobile ? "p-3.5 md:p-5" : "p-5";
+  const metricCardClassName = compactMobile ? "rounded-2xl border border-blue-100 bg-blue-50/50 p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-blue-50/50 p-4";
+  const metricValueClassName = compactMobile ? "mt-1 text-lg font-black text-slate-950 md:mt-2 md:text-xl" : "mt-2 text-xl font-black text-slate-950";
+  const sectionCardClassName = compactMobile ? "rounded-2xl border border-blue-100 p-3 md:p-4" : "rounded-2xl border border-blue-100 p-4";
+  const outerGridClassName = compactMobile ? "grid gap-2.5 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-3";
+  const lowerGridClassName = compactMobile ? "mt-3 grid gap-3 lg:grid-cols-2" : "mt-4 grid gap-4 lg:grid-cols-2";
+
   return (
-    <Card className="p-5">
+    <Card className={cardClassName}>
       <SectionHeader title={title} description={description} action={summary.activeEntry ? <TimeStatusBadge status={summary.activeEntry.status} /> : null} />
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+      <div className={outerGridClassName}>
+        <div className={metricCardClassName}>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Worked</p>
-          <p className="mt-2 text-xl font-black text-slate-950">{formatMinutes(summary.totalMinutes)}</p>
+          <p className={metricValueClassName}>{formatMinutes(summary.totalMinutes)}</p>
         </div>
-        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+        <div className={metricCardClassName}>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Breaks</p>
-          <p className="mt-2 text-xl font-black text-slate-950">{formatMinutes(summary.breakMinutes)}</p>
+          <p className={metricValueClassName}>{formatMinutes(summary.breakMinutes)}</p>
         </div>
-        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+        <div className={metricCardClassName}>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Categories</p>
-          <p className="mt-2 text-xl font-black text-slate-950">{summary.groupedBreakdown.length}</p>
+          <p className={metricValueClassName}>{summary.groupedBreakdown.length}</p>
         </div>
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-blue-100 p-4">
+      <div className={lowerGridClassName}>
+        <div className={sectionCardClassName}>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Daily breakdown</p>
           <div className="mt-3 space-y-2">
             {summary.dayBreakdown.map((day) => (
@@ -1876,7 +1883,7 @@ function WeekSummaryCard({ summary, title = "This Week", description, accent = "
             ))}
           </div>
         </div>
-        <div className="rounded-2xl border border-blue-100 p-4">
+        <div className={sectionCardClassName}>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Job / category breakdown</p>
           {summary.groupedBreakdown.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">No time logged this week yet.</p>
@@ -1896,59 +1903,59 @@ function WeekSummaryCard({ summary, title = "This Week", description, accent = "
   );
 }
 
-function RecentTimeEntriesCard({ entries, title = "Recent entries", description, emptyTitle = "No time entries yet", emptyDescription = "Clock in to start your first time entry.", showUser = false, compact = false }) {
+function RecentTimeEntriesCard({ entries, title = "Recent entries", description, emptyTitle = "No time entries yet", emptyDescription = "Clock in to start your first time entry.", showUser = false, compact = false, compactMobile = false }) {
   const safeEntries = Array.isArray(entries) ? entries : [];
 
   return (
-    <Card className="p-5">
+    <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
       <SectionHeader title={title} description={description} />
       {safeEntries.length === 0 ? (
         <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />
       ) : (
-        <div className="space-y-3">
-          {safeEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} showUser={showUser} compact={compact} />)}
+        <div className={compactMobile ? "space-y-2.5 md:space-y-3" : "space-y-3"}>
+          {safeEntries.map((entry) => <TimeEntryCard key={entry.id} entry={entry} showUser={showUser} compact={compact} compactMobile={compactMobile} />)}
         </div>
       )}
     </Card>
   );
 }
 
-function TimeEntryCard({ entry, showUser = false, compact = false }) {
+function TimeEntryCard({ entry, showUser = false, compact = false, compactMobile = false }) {
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className={compactMobile ? "rounded-2xl border border-blue-100 bg-white p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-white p-4"}>
+      <div className={compactMobile ? "flex flex-wrap items-start justify-between gap-2.5" : "flex flex-wrap items-start justify-between gap-3"}>
         <div className="min-w-0">
-          <p className="break-words text-sm font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+          <p className={compactMobile ? "break-words text-[13px] font-black text-slate-950 md:text-sm" : "break-words text-sm font-black text-slate-950"}>{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
           <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.workCategory === "job" ? (entry.address || "Jobsite details pending") : workCategoryLabel(entry.workCategory)}</p>
           {showUser ? <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.userName}</p> : null}
         </div>
         <TimeStatusBadge status={entry.status} />
       </div>
-      <div className={`mt-3 grid gap-3 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+      <div className={`${compactMobile ? "mt-2.5 gap-2.5 md:mt-3 md:gap-3" : "mt-3 gap-3"} grid ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clock in</p>
-          <p className="mt-1 text-sm font-bold text-slate-700">{formatDateTime(entry.clockInAt)}</p>
+          <p className={compactMobile ? "mt-1 text-[13px] font-bold text-slate-700 md:text-sm" : "mt-1 text-sm font-bold text-slate-700"}>{formatDateTime(entry.clockInAt)}</p>
         </div>
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clock out</p>
-          <p className="mt-1 text-sm font-bold text-slate-700">{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still active"}</p>
+          <p className={compactMobile ? "mt-1 text-[13px] font-bold text-slate-700 md:text-sm" : "mt-1 text-sm font-bold text-slate-700"}>{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still active"}</p>
         </div>
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Total</p>
-          <p className="mt-1 text-sm font-bold text-slate-700">{entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</p>
+          <p className={compactMobile ? "mt-1 text-[13px] font-bold text-slate-700 md:text-sm" : "mt-1 text-sm font-bold text-slate-700"}>{entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</p>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className={compactMobile ? "mt-2.5 flex flex-wrap gap-1.5 md:mt-3 md:gap-2" : "mt-3 flex flex-wrap gap-2"}>
         <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
         <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
         {entry.scheduledStart ? <Badge tone="blue">{formatDateTime(entry.scheduledStart)}</Badge> : null}
       </div>
-      {entry.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{entry.notes}</p> : null}
+      {entry.notes ? <p className={compactMobile ? "mt-2.5 text-[13px] leading-5 text-slate-600 md:mt-3 md:text-sm md:leading-6" : "mt-3 text-sm leading-6 text-slate-600"}>{entry.notes}</p> : null}
     </div>
   );
 }
 
-function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories." }) {
+function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false }) {
   const safeAllowedCategories = Array.isArray(allowedCategories) ? allowedCategories : [];
   const safeAvailableJobs = Array.isArray(availableJobs) ? availableJobs : [];
   const defaultCategory = safeAllowedCategories[0] || "job";
@@ -1970,15 +1977,15 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
 
   if (activeEntry) {
     return (
-      <Card className="p-5">
+      <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
         <SectionHeader title="Active clock" description="Keep your current time entry accurate before heading back to the job." />
-        <TimeEntryCard entry={activeEntry} compact />
-        <div className="mt-4 flex flex-wrap gap-2">
-          {activeEntry.status === "active" ? <Button onClick={() => onStartBreak(activeEntry.id)} disabled={disabled}>Start break</Button> : null}
-          {activeEntry.status === "on_break" ? <Button onClick={() => onEndBreak(activeEntry.id)} disabled={disabled}>End break</Button> : null}
-          <Button variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={disabled}>Clock out</Button>
+        <TimeEntryCard entry={activeEntry} compact compactMobile={compactMobile} />
+        <div className={compactMobile ? "mt-3 flex flex-wrap gap-1.5 md:mt-4 md:gap-2" : "mt-4 flex flex-wrap gap-2"}>
+          {activeEntry.status === "active" ? <Button size={compactMobile ? "sm" : "md"} onClick={() => onStartBreak(activeEntry.id)} disabled={disabled}>Start break</Button> : null}
+          {activeEntry.status === "on_break" ? <Button size={compactMobile ? "sm" : "md"} onClick={() => onEndBreak(activeEntry.id)} disabled={disabled}>End break</Button> : null}
+          <Button size={compactMobile ? "sm" : "md"} variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={disabled}>Clock out</Button>
         </div>
-        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+        <p className={compactMobile ? "mt-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 md:mt-3 md:text-xs" : "mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400"}>
           {activeEntry.status === "on_break" ? "You are currently on break." : "You are already clocked in."}
         </p>
       </Card>
@@ -1986,13 +1993,13 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
   }
 
   return (
-      <Card className="p-5">
+      <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
         <SectionHeader title="Clock in" description={description} />
       {safeAllowedCategories.length === 0 ? (
         <StateCard title="Clock-in not available" description="This role is not set up for self time tracking right now." tone="slate" />
       ) : (
         <form
-          className="grid gap-3"
+          className={compactMobile ? "grid gap-2.5 md:gap-3" : "grid gap-3"}
           onSubmit={(event) => {
             event.preventDefault();
             if (workCategory === "job" && !jobId) return;
@@ -2013,7 +2020,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
             )
           ) : null}
           <TextAreaField label="Clock-in note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional note for the office or foreman." />
-          <Button type="submit" disabled={disabled || (workCategory === "job" && !jobId)}>
+          <Button type="submit" size={compactMobile ? "sm" : "md"} disabled={disabled || (workCategory === "job" && !jobId)}>
             <Icon name="clock" />
             Clock in
           </Button>
@@ -2063,7 +2070,7 @@ function TimeEntriesTable({ rows, selectedId, onSelect }) {
   );
 }
 
-function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorrect }) {
+function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorrect, compactMobile = false }) {
   if (!entry) {
     return (
       <Card className="p-5">
@@ -2076,8 +2083,8 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
   return (
     <Card className="p-5">
       <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} · ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
-      <div className="grid gap-3">
-        <div className="flex flex-wrap gap-2">
+      <div className={compactMobile ? "grid gap-2.5 md:gap-3" : "grid gap-3"}>
+        <div className={compactMobile ? "flex flex-wrap gap-1.5 md:gap-2" : "flex flex-wrap gap-2"}>
           <Badge tone="slate">{entry.id}</Badge>
           <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
         </div>
@@ -2102,7 +2109,7 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
           <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
           <Badge tone="slate">Total {entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress"}</Badge>
         </div>
-        {canCorrect ? <Button onClick={onSave} disabled={disabled}>Save correction</Button> : <StateCard title="Read-only" description="Only office leadership can correct time entries." tone="slate" />}
+        {canCorrect ? <Button size={compactMobile ? "sm" : "md"} onClick={onSave} disabled={disabled}>Save correction</Button> : <StateCard title="Read-only" description="Only office leadership can correct time entries." tone="slate" />}
       </div>
     </Card>
   );
@@ -2148,26 +2155,29 @@ function TimePage({
                 onEndBreak={onEndBreak}
                 disabled={busy}
                 description="Clock your own office or field work while keeping payroll data out of this workspace."
+                compactMobile
               />
-              <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours only." />
+              <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours only." compactMobile />
               <RecentTimeEntriesCard
                 entries={ownRecentEntries}
                 title="My recent entries"
                 description="Your own clock-ins stay first on mobile before company-wide time management."
                 emptyDescription="Use the clock-in card above to create your first time entry."
                 compact
+                compactMobile
               />
             </div>
           ) : null}
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-3.5 md:gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className="space-y-4">
-              <WeekSummaryCard summary={deriveCrewWeeklySummary(rows)} title="All Visible Time This Week" description="Role-scoped weekly totals across the time entries you are allowed to view." />
-              <Card className="overflow-hidden">
-                <div className="p-4"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
+              <WeekSummaryCard summary={deriveCrewWeeklySummary(rows)} title="All Visible Time This Week" description="Role-scoped weekly totals across the time entries you are allowed to view." compactMobile />
+              <Card className="overflow-hidden border-blue-100/80 bg-slate-50/35">
+                <div className="border-b border-blue-100/80 p-3 md:p-4"><SectionHeader title="Admin time management" description="All-company review and correction tools stay below your personal clock cards on mobile." /></div>
+                <div className="p-3 pt-0 md:p-4 md:pt-0"><SectionHeader title="All time entries" description="Office-admin view across every active and completed entry." /></div>
                 {rows.length === 0 ? <div className="p-4"><StateCard title="No time entries yet" description="Field clock-ins will appear here once crews start using the time tools." tone="slate" /></div> : <div className="overflow-x-auto"><TimeEntriesTable rows={rows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} /></div>}
               </Card>
             </div>
-            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} />
+            <TimeCorrectionPanel entry={selectedTimeEntry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
           </div>
         </div>
       </div>
@@ -2529,7 +2539,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
 
   if (!upload) {
     return (
-      <Card className="p-5">
+      <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
         <SectionHeader title="Upload details" description="Select an upload to review evidence and metadata." />
         <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and location metadata." tone="slate" />
       </Card>
@@ -2537,7 +2547,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
   }
 
   return (
-    <Card className="p-5">
+    <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
       <SectionHeader
         title={upload.caption || upload.fileName}
         description={`${upload.job?.title || upload.jobId} · ${formatFileSize(upload.fileSize)}`}
