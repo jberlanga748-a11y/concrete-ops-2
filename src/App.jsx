@@ -5592,7 +5592,39 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   );
 }
 
-function SettingsPage({ user, onReset, busy, auditEvents, demoMode, companySettings, permissions, onUpdateCompanySettings }) {
+function SettingsPage({
+  user,
+  onReset,
+  busy,
+  auditEvents,
+  demoMode,
+  companySettings,
+  permissions,
+  onUpdateCompanySettings,
+  publicEstimateRequestEnabled,
+}) {
+  const safeCompanySettings = {
+    ...EMPTY_APP_STATE.companySettings,
+    ...(companySettings || {}),
+  };
+  const safePermissions = {
+    ...EMPTY_APP_STATE.permissions,
+    ...(permissions || {}),
+    toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, permissions?.toolChecklist),
+    settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, permissions?.settings),
+  };
+  const canViewSettings = Boolean(safePermissions.settings?.canView);
+  const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
+  const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
+
+  if (!canViewSettings) {
+    return (
+      <div className="px-5 sm:px-6 lg:px-8">
+        <StateCard title="Settings unavailable" description="Only owner, administrator, or operations manager roles can open system settings." tone="slate" />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader eyebrow="System" title="Settings" description={demoMode ? "This workspace uses authenticated server state with optional seeded demo data." : "This workspace uses authenticated server state with production-style admin setup."} />
@@ -5601,11 +5633,11 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode, companySetti
           <Card className="p-5">
             <SectionHeader title="Account" description="Current signed-in operator." />
             <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-              <p><span className="font-black text-slate-950">Name:</span> {user?.name}</p>
-              <p className="mt-1"><span className="font-black text-slate-950">Email:</span> {user?.email}</p>
-              <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role}</p>
+              <p><span className="font-black text-slate-950">Name:</span> {user?.name || "Unknown user"}</p>
+              <p className="mt-1 break-words"><span className="font-black text-slate-950">Email:</span> {user?.email || "No email on file"}</p>
+              <p className="mt-1"><span className="font-black text-slate-950">Role:</span> {user?.role || "Unknown role"}</p>
             </div>
-            {demoMode ? <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy}>Reset demo data</Button> : null}
+            {demoMode ? <Button variant="danger" className="mt-4" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button> : null}
           </Card>
           <Card className="p-5">
             <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
@@ -5617,19 +5649,32 @@ function SettingsPage({ user, onReset, busy, auditEvents, demoMode, companySetti
                 </div>
                 <Button
                   type="button"
-                  variant={companySettings.toolChecklistEnabled ? "secondary" : "primary"}
-                  onClick={() => onUpdateCompanySettings({ toolChecklistEnabled: !companySettings.toolChecklistEnabled })}
-                  disabled={busy || !permissions.toolChecklist.canToggle}
+                  variant={safeCompanySettings.toolChecklistEnabled ? "secondary" : "primary"}
+                  onClick={() => onUpdateCompanySettings?.({ toolChecklistEnabled: !safeCompanySettings.toolChecklistEnabled })}
+                  disabled={busy || !canToggleToolChecklist || typeof onUpdateCompanySettings !== "function"}
                 >
-                  {companySettings.toolChecklistEnabled ? "Disable module" : "Enable module"}
+                  {safeCompanySettings.toolChecklistEnabled ? "Disable module" : "Enable module"}
                 </Button>
               </div>
               <div className="mt-3">
-                <Badge tone={companySettings.toolChecklistEnabled ? "green" : "slate"}>
-                  {companySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
+                <Badge tone={safeCompanySettings.toolChecklistEnabled ? "green" : "slate"}>
+                  {safeCompanySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
                 </Badge>
               </div>
             </div>
+            {showPublicEstimateRequestStatus ? (
+              <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950">Public Estimate Request</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">Public request availability is controlled by environment-safe server settings and shown here as status only.</p>
+                  </div>
+                  <Badge tone={publicEstimateRequestEnabled ? "green" : "slate"}>
+                    {publicEstimateRequestEnabled ? "Public form enabled" : "Public form disabled"}
+                  </Badge>
+                </div>
+              </div>
+            ) : null}
           </Card>
           <Card className="p-5">
             <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
@@ -7437,7 +7482,7 @@ function MainContent(props) {
   }
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
-  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} companySettings={props.companySettings} permissions={props.permissions} onUpdateCompanySettings={props.onUpdateCompanySettings} />;
+  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} companySettings={props.companySettings} permissions={props.permissions} onUpdateCompanySettings={props.onUpdateCompanySettings} publicEstimateRequestEnabled={props.publicEstimateRequestEnabled} />;
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 
@@ -8651,7 +8696,7 @@ export default function App() {
   }
 
   async function handleUpdateCompanySettings(payload) {
-    if (!sessionToken || !appState.permissions.toolChecklist.canToggle) return false;
+    if (!sessionToken || !appState.permissions?.toolChecklist?.canToggle) return false;
     setBusy(true);
     try {
       const nextState = await updateCompanySettings(sessionToken, payload);
@@ -9358,6 +9403,7 @@ export default function App() {
               activity={appState.activity}
               auditEvents={appState.auditEvents}
               demoMode={setupStatus.demoMode}
+              publicEstimateRequestEnabled={setupStatus.publicEstimateRequestEnabled}
               permissions={appState.permissions}
               users={appState.users}
               customerFilter={customerFilter}
