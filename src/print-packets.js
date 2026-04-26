@@ -124,13 +124,30 @@ function renderSection(section) {
 function buildPacket(packet) {
   return {
     ...packet,
+    companyProfileRows: safeArray(packet.companyProfileRows),
+    footerNote: String(packet.footerNote || "").trim(),
+    disclaimerNote: String(packet.disclaimerNote || "").trim(),
     metadataRows: safeArray(packet.metadataRows),
     sections: safeArray(packet.sections),
   };
 }
 
+function deriveCompanyProfileRows(companyProfile = {}) {
+  return [
+    { label: "Phone", value: companyProfile.businessPhone || "" },
+    { label: "Email", value: companyProfile.businessEmail || "" },
+    { label: "Website", value: companyProfile.website || "" },
+    { label: "Address", value: companyProfile.businessAddress || "" },
+    { label: "Service area", value: companyProfile.serviceArea || "" },
+    { label: "License", value: companyProfile.licenseText || "" },
+  ].filter((row) => row.value);
+}
+
 export function deriveDailyReportPrintPacket({
   companyName = "Concrete Ops",
+  companyProfile = {},
+  printPacketFooter = "",
+  printPacketDisclaimer = "",
   report,
   deliveryTickets = [],
   uploads = [],
@@ -139,6 +156,9 @@ export function deriveDailyReportPrintPacket({
   if (!report) {
     return buildPacket({
       companyName,
+      companyProfileRows: deriveCompanyProfileRows(companyProfile),
+      footerNote: printPacketFooter,
+      disclaimerNote: printPacketDisclaimer,
       title: "Daily Report Packet",
       subtitle: "No report selected",
       packetMode,
@@ -152,6 +172,9 @@ export function deriveDailyReportPrintPacket({
 
   return buildPacket({
     companyName,
+    companyProfileRows: deriveCompanyProfileRows(companyProfile),
+    footerNote: printPacketFooter,
+    disclaimerNote: printPacketDisclaimer,
     title: "Daily Report Packet",
     subtitle: `${jobTitle(report.job)} · ${formatDate(report.reportDate)}`,
     packetMode,
@@ -253,6 +276,9 @@ export function deriveDailyReportPrintPacket({
 
 export function deriveJobPrintPacket({
   companyName = "Concrete Ops",
+  companyProfile = {},
+  printPacketFooter = "",
+  printPacketDisclaimer = "",
   job,
   dailyReports = [],
   uploads = [],
@@ -268,6 +294,9 @@ export function deriveJobPrintPacket({
   if (!job) {
     return buildPacket({
       companyName,
+      companyProfileRows: deriveCompanyProfileRows(companyProfile),
+      footerNote: printPacketFooter,
+      disclaimerNote: printPacketDisclaimer,
       title: "Job Packet",
       subtitle: "No job selected",
       packetMode,
@@ -427,6 +456,9 @@ export function deriveJobPrintPacket({
 
   return buildPacket({
     companyName,
+    companyProfileRows: deriveCompanyProfileRows(companyProfile),
+    footerNote: printPacketFooter,
+    disclaimerNote: printPacketDisclaimer,
     title: "Job Packet",
     subtitle: `${jobTitle(job)} · ${packetMode === "internal" ? "Internal Packet" : "Field Packet"}`,
     packetMode,
@@ -487,6 +519,9 @@ export function buildPrintDocumentHtml(packetInput) {
         margin: 10px 0 0;
         color: #475569;
         font-size: 14px;
+      }
+      .header-supporting {
+        margin-top: 18px;
       }
       .kv-grid {
         display: grid;
@@ -568,8 +603,17 @@ export function buildPrintDocumentHtml(packetInput) {
         color: #334155;
       }
       .footer-note {
-        margin-top: 28px;
+        margin-top: 12px;
         color: #64748b;
+        font-size: 12px;
+      }
+      .footer-disclaimer {
+        margin-top: 28px;
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        padding: 12px 14px;
+        background: #f8fafc;
+        color: #334155;
         font-size: 12px;
       }
       @media print {
@@ -584,10 +628,12 @@ export function buildPrintDocumentHtml(packetInput) {
         <div class="eyebrow">${escapeHtml(packet.companyName)}</div>
         <h1>${escapeHtml(packet.title)}</h1>
         ${packet.subtitle ? `<p class="subtitle">${escapeHtml(packet.subtitle)}</p>` : ""}
+        ${packet.companyProfileRows.length ? `<div class="header-supporting">${renderKeyValueGrid(packet.companyProfileRows)}</div>` : ""}
       </header>
       ${renderKeyValueGrid(packet.metadataRows)}
       ${packet.sections.map((section) => renderSection(section)).join("")}
-      <p class="footer-note">Generated from Concrete Ops ${packet.packetMode === "internal" ? "internal company packet" : "field-safe packet"} view.</p>
+      ${packet.disclaimerNote ? `<p class="footer-disclaimer">${escapeHtml(packet.disclaimerNote)}</p>` : ""}
+      <p class="footer-note">${escapeHtml(packet.footerNote || `Generated from Concrete Ops ${packet.packetMode === "internal" ? "internal company packet" : "field-safe packet"} view.`)}</p>
     </main>
   </body>
 </html>`;

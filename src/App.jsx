@@ -199,6 +199,14 @@ const EMPTY_APP_STATE = {
     companyName: "",
     logoInitials: "",
     accentColor: "blue",
+    businessPhone: "",
+    businessEmail: "",
+    website: "",
+    businessAddress: "",
+    serviceArea: "",
+    licenseText: "",
+    printPacketFooter: "",
+    printPacketDisclaimer: "",
     toolChecklistEnabled: true,
   },
   users: [],
@@ -5857,6 +5865,20 @@ function SettingsPage({
     accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
   }));
   const [brandingNotice, setBrandingNotice] = useState("");
+  const [profileDraft, setProfileDraft] = useState(() => ({
+    businessPhone: safeCompanySettings.businessPhone || "",
+    businessEmail: safeCompanySettings.businessEmail || "",
+    website: safeCompanySettings.website || "",
+    businessAddress: safeCompanySettings.businessAddress || "",
+    serviceArea: safeCompanySettings.serviceArea || "",
+    licenseText: safeCompanySettings.licenseText || "",
+  }));
+  const [profileNotice, setProfileNotice] = useState("");
+  const [printPacketDraft, setPrintPacketDraft] = useState(() => ({
+    printPacketFooter: safeCompanySettings.printPacketFooter || "",
+    printPacketDisclaimer: safeCompanySettings.printPacketDisclaimer || "",
+  }));
+  const [printPacketNotice, setPrintPacketNotice] = useState("");
 
   useEffect(() => {
     setBrandingDraft({
@@ -5865,6 +5887,31 @@ function SettingsPage({
       accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
     });
   }, [safeCompanySettings.accentColor, safeCompanySettings.companyName, safeCompanySettings.logoInitials]);
+
+  useEffect(() => {
+    setProfileDraft({
+      businessPhone: safeCompanySettings.businessPhone || "",
+      businessEmail: safeCompanySettings.businessEmail || "",
+      website: safeCompanySettings.website || "",
+      businessAddress: safeCompanySettings.businessAddress || "",
+      serviceArea: safeCompanySettings.serviceArea || "",
+      licenseText: safeCompanySettings.licenseText || "",
+    });
+  }, [
+    safeCompanySettings.businessAddress,
+    safeCompanySettings.businessEmail,
+    safeCompanySettings.businessPhone,
+    safeCompanySettings.licenseText,
+    safeCompanySettings.serviceArea,
+    safeCompanySettings.website,
+  ]);
+
+  useEffect(() => {
+    setPrintPacketDraft({
+      printPacketFooter: safeCompanySettings.printPacketFooter || "",
+      printPacketDisclaimer: safeCompanySettings.printPacketDisclaimer || "",
+    });
+  }, [safeCompanySettings.printPacketDisclaimer, safeCompanySettings.printPacketFooter]);
 
   const previewCompanyName = brandingDraft.companyName.trim() || workspaceCompanyName;
   const previewAccentColor = normalizeAccentColor(brandingDraft.accentColor);
@@ -5876,6 +5923,14 @@ function SettingsPage({
   const brandingDirty = brandingDraft.companyName !== (safeCompanySettings.companyName || "")
     || sanitizeLogoInitials(brandingDraft.logoInitials) !== (safeCompanySettings.logoInitials || "")
     || previewAccentColor !== normalizeAccentColor(safeCompanySettings.accentColor);
+  const profileDirty = profileDraft.businessPhone !== (safeCompanySettings.businessPhone || "")
+    || profileDraft.businessEmail !== (safeCompanySettings.businessEmail || "")
+    || profileDraft.website !== (safeCompanySettings.website || "")
+    || profileDraft.businessAddress !== (safeCompanySettings.businessAddress || "")
+    || profileDraft.serviceArea !== (safeCompanySettings.serviceArea || "")
+    || profileDraft.licenseText !== (safeCompanySettings.licenseText || "");
+  const printPacketDirty = printPacketDraft.printPacketFooter !== (safeCompanySettings.printPacketFooter || "")
+    || printPacketDraft.printPacketDisclaimer !== (safeCompanySettings.printPacketDisclaimer || "");
 
   async function handleBrandingSave(event) {
     event.preventDefault();
@@ -5886,6 +5941,30 @@ function SettingsPage({
       accentColor: previewAccentColor,
     });
     setBrandingNotice(saved ? "Branding saved." : "Could not save branding. Please try again.");
+  }
+
+  async function handleCompanyProfileSave(event) {
+    event.preventDefault();
+    if (typeof onUpdateCompanySettings !== "function") return;
+    const saved = await onUpdateCompanySettings({
+      businessPhone: profileDraft.businessPhone.trim(),
+      businessEmail: profileDraft.businessEmail.trim(),
+      website: profileDraft.website.trim(),
+      businessAddress: profileDraft.businessAddress.trim(),
+      serviceArea: profileDraft.serviceArea.trim(),
+      licenseText: profileDraft.licenseText.trim(),
+    });
+    setProfileNotice(saved ? "Company profile saved." : "Could not save the company profile. Please try again.");
+  }
+
+  async function handlePrintPacketSettingsSave(event) {
+    event.preventDefault();
+    if (typeof onUpdateCompanySettings !== "function") return;
+    const saved = await onUpdateCompanySettings({
+      printPacketFooter: printPacketDraft.printPacketFooter.trim(),
+      printPacketDisclaimer: printPacketDraft.printPacketDisclaimer.trim(),
+    });
+    setPrintPacketNotice(saved ? "Print packet settings saved." : "Could not save print packet settings. Please try again.");
   }
 
   if (!canViewSettings) {
@@ -6000,6 +6079,112 @@ function SettingsPage({
                   </div>
                 </div>
               </div>
+            </Card>
+            <Card className="p-5">
+              <SectionHeader title="Company profile" description="Keep the main business contact details ready for office records, demos, and printed job packets." />
+              <form className="grid gap-4" onSubmit={handleCompanyProfileSave}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <InputField
+                    label="Business phone"
+                    value={profileDraft.businessPhone}
+                    onChange={(event) => {
+                      setProfileDraft((current) => ({ ...current, businessPhone: event.target.value }));
+                      setProfileNotice("");
+                    }}
+                    placeholder="(503) 555-0100"
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <InputField
+                    label="Business email"
+                    type="email"
+                    value={profileDraft.businessEmail}
+                    onChange={(event) => {
+                      setProfileDraft((current) => ({ ...current, businessEmail: event.target.value }));
+                      setProfileNotice("");
+                    }}
+                    placeholder="office@concreteopsdemo.com"
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <InputField
+                    label="Website"
+                    type="url"
+                    value={profileDraft.website}
+                    onChange={(event) => {
+                      setProfileDraft((current) => ({ ...current, website: event.target.value }));
+                      setProfileNotice("");
+                    }}
+                    placeholder="https://concreteopsdemo.com"
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <InputField
+                    label="Service area"
+                    value={profileDraft.serviceArea}
+                    onChange={(event) => {
+                      setProfileDraft((current) => ({ ...current, serviceArea: event.target.value }));
+                      setProfileNotice("");
+                    }}
+                    placeholder="Portland metro, Salem, and nearby concrete work"
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                </div>
+                <TextAreaField
+                  label="Business address"
+                  value={profileDraft.businessAddress}
+                  onChange={(event) => {
+                    setProfileDraft((current) => ({ ...current, businessAddress: event.target.value }));
+                    setProfileNotice("");
+                  }}
+                  placeholder="1234 Concrete Way, Salem, OR 97301"
+                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                />
+                <TextAreaField
+                  label="License / bonded / insured text"
+                  value={profileDraft.licenseText}
+                  onChange={(event) => {
+                    setProfileDraft((current) => ({ ...current, licenseText: event.target.value }));
+                    setProfileNotice("");
+                  }}
+                  placeholder="CCB #123456 · Bonded and insured for residential and commercial flatwork."
+                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="submit" disabled={busy || !profileDirty || typeof onUpdateCompanySettings !== "function"}>
+                    Save company profile
+                  </Button>
+                  <p className="text-sm text-slate-500">{profileNotice || "These details can be reused in daily report and job packet printouts when they are available."}</p>
+                </div>
+              </form>
+            </Card>
+            <Card className="p-5">
+              <SectionHeader title="Print packet settings" description="Set default footer text and internal notes that should appear at the bottom of printed daily reports and job packets." />
+              <form className="grid gap-4" onSubmit={handlePrintPacketSettingsSave}>
+                <TextAreaField
+                  label="Default packet footer"
+                  value={printPacketDraft.printPacketFooter}
+                  onChange={(event) => {
+                    setPrintPacketDraft((current) => ({ ...current, printPacketFooter: event.target.value }));
+                    setPrintPacketNotice("");
+                  }}
+                  placeholder="Generated by Concrete Ops for job documentation, field reports, and closeout records."
+                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                />
+                <TextAreaField
+                  label="Default disclaimer / note"
+                  value={printPacketDraft.printPacketDisclaimer}
+                  onChange={(event) => {
+                    setPrintPacketDraft((current) => ({ ...current, printPacketDisclaimer: event.target.value }));
+                    setPrintPacketNotice("");
+                  }}
+                  placeholder="Internal job documentation. Review all details before sharing outside the company."
+                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="submit" disabled={busy || !printPacketDirty || typeof onUpdateCompanySettings !== "function"}>
+                    Save print packet settings
+                  </Button>
+                  <p className="text-sm text-slate-500">{printPacketNotice || "Saved footer and disclaimer text stays optional and only appears on packets when it has been entered here."}</p>
+                </div>
+              </form>
             </Card>
             <Card className="p-5">
               <SectionHeader title="Workspace setup" description="Practical notes for keeping office and field records clean." />
@@ -8229,6 +8414,16 @@ export default function App() {
     }),
     [appState.companySettings, workspaceCompanyName],
   );
+  const workspacePrintProfile = useMemo(() => ({
+    businessPhone: appState.companySettings?.businessPhone || "",
+    businessEmail: appState.companySettings?.businessEmail || "",
+    website: appState.companySettings?.website || "",
+    businessAddress: appState.companySettings?.businessAddress || "",
+    serviceArea: appState.companySettings?.serviceArea || "",
+    licenseText: appState.companySettings?.licenseText || "",
+  }), [appState.companySettings]);
+  const workspacePrintPacketFooter = appState.companySettings?.printPacketFooter || "";
+  const workspacePrintPacketDisclaimer = appState.companySettings?.printPacketDisclaimer || "";
 
   useEffect(() => {
     if (!selectedUser) {
@@ -9131,6 +9326,9 @@ export default function App() {
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveDailyReportPrintPacket({
       companyName: workspaceCompanyName,
+      companyProfile: workspacePrintProfile,
+      printPacketFooter: workspacePrintPacketFooter,
+      printPacketDisclaimer: workspacePrintPacketDisclaimer,
       report,
       deliveryTickets: appState.deliveryTickets,
       uploads: appState.uploads,
@@ -9151,6 +9349,9 @@ export default function App() {
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveJobPrintPacket({
       companyName: workspaceCompanyName,
+      companyProfile: workspacePrintProfile,
+      printPacketFooter: workspacePrintPacketFooter,
+      printPacketDisclaimer: workspacePrintPacketDisclaimer,
       job,
       dailyReports: appState.dailyReports,
       uploads: appState.uploads,

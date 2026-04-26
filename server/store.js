@@ -2948,6 +2948,7 @@ function normalizeCompanySettings(settings = {}) {
     ? settings.logoInitials.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3)
     : "";
   const normalizedAccentColor = typeof settings?.accentColor === "string" ? settings.accentColor.trim().toLowerCase() : "";
+  const normalizeText = (value, limit) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
 
   return {
     ...DEFAULT_COMPANY_SETTINGS,
@@ -2957,6 +2958,14 @@ function normalizeCompanySettings(settings = {}) {
     accentColor: new Set(["blue", "slate", "emerald", "amber", "orange"]).has(normalizedAccentColor)
       ? normalizedAccentColor
       : DEFAULT_COMPANY_SETTINGS.accentColor,
+    businessPhone: normalizeText(settings?.businessPhone, 40),
+    businessEmail: normalizeText(settings?.businessEmail, 120),
+    website: normalizeText(settings?.website, 160),
+    businessAddress: normalizeText(settings?.businessAddress, 200),
+    serviceArea: normalizeText(settings?.serviceArea, 160),
+    licenseText: normalizeText(settings?.licenseText, 200),
+    printPacketFooter: normalizeText(settings?.printPacketFooter, 240),
+    printPacketDisclaimer: normalizeText(settings?.printPacketDisclaimer, 320),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
   };
 }
@@ -4533,6 +4542,14 @@ function writeStateToDb(state) {
     insertCompanySetting.run("companyName", normalizedCompanySettings.companyName || "", isoNow());
     insertCompanySetting.run("logoInitials", normalizedCompanySettings.logoInitials || "", isoNow());
     insertCompanySetting.run("accentColor", normalizedCompanySettings.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor, isoNow());
+    insertCompanySetting.run("businessPhone", normalizedCompanySettings.businessPhone || "", isoNow());
+    insertCompanySetting.run("businessEmail", normalizedCompanySettings.businessEmail || "", isoNow());
+    insertCompanySetting.run("website", normalizedCompanySettings.website || "", isoNow());
+    insertCompanySetting.run("businessAddress", normalizedCompanySettings.businessAddress || "", isoNow());
+    insertCompanySetting.run("serviceArea", normalizedCompanySettings.serviceArea || "", isoNow());
+    insertCompanySetting.run("licenseText", normalizedCompanySettings.licenseText || "", isoNow());
+    insertCompanySetting.run("printPacketFooter", normalizedCompanySettings.printPacketFooter || "", isoNow());
+    insertCompanySetting.run("printPacketDisclaimer", normalizedCompanySettings.printPacketDisclaimer || "", isoNow());
     insertCompanySetting.run("toolChecklistEnabled", normalizedCompanySettings.toolChecklistEnabled ? "true" : "false", isoNow());
 
     state.users.forEach((user) => {
