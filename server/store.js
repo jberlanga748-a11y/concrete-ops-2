@@ -12,6 +12,7 @@ export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
 
 let db;
 let writeChain = Promise.resolve();
+let demoStartupLogged = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1641,6 +1642,1017 @@ export function createSeedState() {
     activity,
     auditEvents: includeDemoRecords ? auditEvents : createSeedAuditEvents(officeActor, customers, leads, jobs, queueItems),
   };
+}
+
+function ensureDemoUsersInState(state, changedAt = isoNow()) {
+  let usersEnsured = 0;
+  let usersUpdated = 0;
+  let changed = false;
+  const users = Array.isArray(state.users) ? state.users : [];
+
+  for (const demoUser of DEMO_USERS) {
+    const email = demoUser.email.toLowerCase();
+    const existingUser = users.find((user) => String(user.email || "").toLowerCase() === email);
+
+    if (!existingUser) {
+      users.push(createUserRecord({
+        ...demoUser,
+        createdAt: changedAt,
+        updatedAt: changedAt,
+      }));
+      usersEnsured += 1;
+      changed = true;
+      continue;
+    }
+
+    let touched = false;
+
+    if (existingUser.name !== demoUser.name) {
+      existingUser.name = demoUser.name;
+      touched = true;
+    }
+    if (existingUser.role !== demoUser.role) {
+      existingUser.role = demoUser.role;
+      touched = true;
+    }
+    if ((existingUser.phone || "") !== (demoUser.phone || "")) {
+      existingUser.phone = demoUser.phone || "";
+      touched = true;
+    }
+    if (String(existingUser.status || "").toLowerCase() !== "active") {
+      existingUser.status = "active";
+      touched = true;
+    }
+    if (!existingUser.passwordHash || !verifyPassword(demoUser.password, existingUser.passwordHash)) {
+      existingUser.passwordHash = passwordHash(demoUser.password);
+      touched = true;
+    }
+
+    if (touched) {
+      existingUser.updatedAt = changedAt;
+      usersUpdated += 1;
+      changed = true;
+    }
+  }
+
+  return {
+    state,
+    changed,
+    usersEnsured,
+    usersUpdated,
+  };
+}
+
+function insertRecordsIfMissing(database, tableName, columns, rows, toValues) {
+  if (!rows.length) {
+    return 0;
+  }
+
+  const placeholders = columns.map(() => "?").join(", ");
+  const statement = database.prepare(`
+    INSERT OR IGNORE INTO ${tableName} (${columns.join(", ")})
+    VALUES (${placeholders})
+  `);
+  let inserted = 0;
+
+  for (const row of rows) {
+    const result = statement.run(...toValues(row));
+    if (Number(result.changes || 0) > 0) {
+      inserted += 1;
+    }
+  }
+
+  return inserted;
+}
+
+function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
+  const existingUsers = Array.isArray(users) ? users : [];
+  const insertUser = database.prepare(`
+    INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const updateUser = database.prepare(`
+    UPDATE users
+    SET name = ?,
+        role = ?,
+        phone = ?,
+        status = ?,
+        updated_at = ?,
+        password_hash = ?
+    WHERE id = ?
+  `);
+
+  let usersEnsured = 0;
+  let usersUpdated = 0;
+  const actualUserIdsByEmail = new Map();
+
+  for (const demoUser of DEMO_USERS) {
+    const email = demoUser.email.toLowerCase();
+    const existingUser = existingUsers.find((user) => String(user.email || "").toLowerCase() === email);
+    const nextHash = passwordHash(demoUser.password);
+
+    if (!existingUser) {
+      const createdUser = createUserRecord({
+        ...demoUser,
+        createdAt: changedAt,
+        updatedAt: changedAt,
+      });
+      insertUser.run(
+        createdUser.id,
+        createdUser.email,
+        createdUser.name,
+        createdUser.role,
+        createdUser.phone,
+        createdUser.status,
+        createdUser.createdAt,
+        createdUser.updatedAt,
+        createdUser.lastLoginAt,
+        createdUser.passwordHash,
+      );
+      actualUserIdsByEmail.set(email, createdUser.id);
+      usersEnsured += 1;
+      continue;
+    }
+
+    const needsUpdate =
+      existingUser.name !== demoUser.name
+      || existingUser.role !== demoUser.role
+      || (existingUser.phone || "") !== (demoUser.phone || "")
+      || String(existingUser.status || "").toLowerCase() !== "active"
+      || !existingUser.passwordHash
+      || !verifyPassword(demoUser.password, existingUser.passwordHash);
+
+    if (needsUpdate) {
+      updateUser.run(
+        demoUser.name,
+        demoUser.role,
+        demoUser.phone || "",
+        "active",
+        changedAt,
+        nextHash,
+        existingUser.id,
+      );
+      usersUpdated += 1;
+    }
+
+    actualUserIdsByEmail.set(email, existingUser.id);
+  }
+
+  return {
+    usersEnsured,
+    usersUpdated,
+    actualUserIdsByEmail,
+  };
+}
+
+function remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail) {
+  const canonicalByEmail = new Map(DEMO_USERS.map((user) => [user.email.toLowerCase(), user.id]));
+  const replacementByCanonicalId = new Map();
+
+  for (const demoUser of DEMO_USERS) {
+    const email = demoUser.email.toLowerCase();
+    replacementByCanonicalId.set(
+      canonicalByEmail.get(email),
+      actualUserIdsByEmail.get(email) || canonicalByEmail.get(email),
+    );
+  }
+
+  const replaceUserId = (value) => replacementByCanonicalId.get(value) || value || "";
+  const mapRows = (rows, mapper) => (rows || []).map((row) => mapper({ ...row }));
+
+  return {
+    customers: seedState.customers || [],
+    leads: mapRows(seedState.leads, (lead) => ({
+      ...lead,
+      ownerId: replaceUserId(lead.ownerId),
+    })),
+    leadStatusHistory: mapRows(seedState.leadStatusHistory, (entry) => ({
+      ...entry,
+      actorUserId: replaceUserId(entry.actorUserId),
+    })),
+    jobs: mapRows(seedState.jobs, (job) => ({
+      ...job,
+      assignedForemanId: replaceUserId(job.assignedForemanId),
+      assignedUserId: replaceUserId(job.assignedUserId),
+    })),
+    jobAssignments: mapRows(seedState.jobAssignments, (assignment) => ({
+      ...assignment,
+      userId: replaceUserId(assignment.userId),
+      assignedBy: replaceUserId(assignment.assignedBy),
+    })),
+    estimates: mapRows(seedState.estimates, (estimate) => ({
+      ...estimate,
+      createdBy: replaceUserId(estimate.createdBy),
+    })),
+    estimateItems: seedState.estimateItems || [],
+    safetyPolicies: mapRows(seedState.safetyPolicies, (policy) => ({
+      ...policy,
+      createdBy: replaceUserId(policy.createdBy),
+    })),
+    ppeItems: mapRows(seedState.ppeItems, (item) => ({
+      ...item,
+      createdBy: replaceUserId(item.createdBy),
+    })),
+    safetyAcknowledgments: mapRows(seedState.safetyAcknowledgments, (entry) => ({
+      ...entry,
+      userId: replaceUserId(entry.userId),
+    })),
+    safetyIncidents: mapRows(seedState.safetyIncidents, (incident) => ({
+      ...incident,
+      submittedBy: replaceUserId(incident.submittedBy),
+      reviewedBy: replaceUserId(incident.reviewedBy),
+    })),
+    changeOrderRequests: mapRows(seedState.changeOrderRequests, (request) => ({
+      ...request,
+      requestedBy: replaceUserId(request.requestedBy),
+      reviewedBy: replaceUserId(request.reviewedBy),
+    })),
+    prePourChecklists: mapRows(seedState.prePourChecklists, (checklist) => ({
+      ...checklist,
+      createdBy: replaceUserId(checklist.createdBy),
+      completedBy: replaceUserId(checklist.completedBy),
+      reviewedBy: replaceUserId(checklist.reviewedBy),
+      reopenedBy: replaceUserId(checklist.reopenedBy),
+    })),
+    prePourChecklistItems: mapRows(seedState.prePourChecklistItems, (item) => ({
+      ...item,
+      checkedBy: replaceUserId(item.checkedBy),
+    })),
+    postPourChecklists: mapRows(seedState.postPourChecklists, (checklist) => ({
+      ...checklist,
+      createdBy: replaceUserId(checklist.createdBy),
+      completedBy: replaceUserId(checklist.completedBy),
+      reviewedBy: replaceUserId(checklist.reviewedBy),
+      reopenedBy: replaceUserId(checklist.reopenedBy),
+    })),
+    postPourChecklistItems: mapRows(seedState.postPourChecklistItems, (item) => ({
+      ...item,
+      checkedBy: replaceUserId(item.checkedBy),
+    })),
+    toolChecklists: mapRows(seedState.toolChecklists, (checklist) => ({
+      ...checklist,
+      createdBy: replaceUserId(checklist.createdBy),
+      assignedForemanId: replaceUserId(checklist.assignedForemanId),
+      submittedBy: replaceUserId(checklist.submittedBy),
+      reviewedBy: replaceUserId(checklist.reviewedBy),
+    })),
+    toolChecklistItems: mapRows(seedState.toolChecklistItems, (item) => ({
+      ...item,
+      addedBy: replaceUserId(item.addedBy),
+    })),
+    calculatorResults: mapRows(seedState.calculatorResults, (result) => ({
+      ...result,
+      createdBy: replaceUserId(result.createdBy),
+    })),
+    dailyReports: mapRows(seedState.dailyReports, (report) => ({
+      ...report,
+      createdBy: replaceUserId(report.createdBy),
+      submittedBy: replaceUserId(report.submittedBy),
+      reviewedBy: replaceUserId(report.reviewedBy),
+    })),
+    uploads: mapRows(seedState.uploads, (upload) => ({
+      ...upload,
+      uploadedBy: replaceUserId(upload.uploadedBy),
+    })),
+    timeEntries: mapRows(seedState.timeEntries, (entry) => ({
+      ...entry,
+      userId: replaceUserId(entry.userId),
+    })),
+    deliveryTickets: mapRows(seedState.deliveryTickets, (ticket) => ({
+      ...ticket,
+      createdBy: replaceUserId(ticket.createdBy),
+    })),
+    queueItems: seedState.queueItems || [],
+    activity: seedState.activity || [],
+    auditEvents: mapRows(seedState.auditEvents, (event) => ({
+      ...event,
+      actorUserId: replaceUserId(event.actorUserId),
+    })),
+  };
+}
+
+function buildDemoSeedData(actualUserIdsByEmail) {
+  const seedState = createSeedState();
+  return remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail);
+}
+
+function ensureDefaultSafetyContentInDatabase(database, state, changedAt = isoNow()) {
+  const fallbackUserId = state.users[0]?.id || "system";
+  if (!state.users?.length) {
+    return 0;
+  }
+  let inserted = 0;
+
+  if (!Array.isArray(state.safetyPolicies) || state.safetyPolicies.length === 0) {
+    inserted += insertRecordsIfMissing(
+      database,
+      "safety_policies",
+      ["id", "sort_index", "title", "body", "category", "status", "created_by", "created_at", "updated_at", "archived_at"],
+      INITIAL_SAFETY_POLICIES.map((policy, index) => ({
+        ...policy,
+        createdBy: fallbackUserId,
+        createdAt: changedAt,
+        updatedAt: changedAt,
+        archivedAt: null,
+        sortIndex: index,
+      })),
+      (policy) => [
+        policy.id,
+        policy.sortIndex ?? 0,
+        policy.title,
+        policy.body,
+        policy.category || "",
+        policy.status || "active",
+        policy.createdBy || "",
+        policy.createdAt || changedAt,
+        policy.updatedAt || policy.createdAt || changedAt,
+        policy.archivedAt || null,
+      ],
+    );
+  }
+
+  if (!Array.isArray(state.ppeItems) || state.ppeItems.length === 0) {
+    inserted += insertRecordsIfMissing(
+      database,
+      "ppe_items",
+      ["id", "sort_index", "label", "description", "required_by_default", "status", "created_by", "created_at", "updated_at", "archived_at"],
+      INITIAL_PPE_ITEMS.map((item, index) => ({
+        ...item,
+        createdBy: fallbackUserId,
+        createdAt: changedAt,
+        updatedAt: changedAt,
+        archivedAt: null,
+        sortIndex: index,
+      })),
+      (item) => [
+        item.id,
+        item.sortIndex ?? 0,
+        item.label,
+        item.description || "",
+        item.requiredByDefault ? 1 : 0,
+        item.status || "active",
+        item.createdBy || "",
+        item.createdAt || changedAt,
+        item.updatedAt || item.createdAt || changedAt,
+        item.archivedAt || null,
+      ],
+    );
+  }
+
+  return inserted;
+}
+
+function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
+  const demoSeed = buildDemoSeedData(actualUserIdsByEmail);
+  let inserted = 0;
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "customers",
+    ["id", "sort_index", "name", "company", "phone", "email", "city", "service_area", "status", "notes", "created_at", "updated_at", "archived_at"],
+    demoSeed.customers,
+    (customer) => [
+      customer.id,
+      customer.sortIndex ?? 0,
+      customer.name,
+      customer.company || "",
+      customer.phone || "",
+      customer.email || "",
+      customer.city || "",
+      customer.serviceArea || "",
+      customer.status || "Active",
+      customer.notes || "",
+      customer.createdAt || isoNow(),
+      customer.updatedAt || customer.createdAt || isoNow(),
+      customer.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "leads",
+    ["id", "sort_index", "customer_id", "customer", "city", "project", "status", "priority", "value", "owner", "owner_id", "age", "source", "follow_up_due_at", "next_step", "notes", "created_at", "updated_at", "archived_at"],
+    demoSeed.leads,
+    (lead) => [
+      lead.id,
+      lead.sortIndex ?? 0,
+      lead.customerId || null,
+      lead.customer,
+      lead.city,
+      lead.project,
+      lead.status,
+      lead.priority,
+      lead.value,
+      lead.owner,
+      lead.ownerId || null,
+      lead.age || "",
+      lead.source || "",
+      lead.followUpDueAt || "",
+      lead.nextStep || "",
+      lead.notes || "",
+      lead.createdAt || isoNow(),
+      lead.updatedAt || lead.createdAt || isoNow(),
+      lead.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "lead_status_history",
+    ["id", "sort_index", "lead_id", "from_status", "to_status", "note", "actor_user_id", "actor_name", "created_at"],
+    demoSeed.leadStatusHistory,
+    (entry) => [
+      entry.id,
+      entry.sortIndex ?? 0,
+      entry.leadId,
+      entry.fromStatus || null,
+      entry.toStatus,
+      entry.note || "",
+      entry.actorUserId || null,
+      entry.actorName || "",
+      entry.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "jobs",
+    ["id", "sort_index", "customer_id", "lead_id", "title", "job", "customer", "address", "site_contact", "scope_summary", "scheduled_start", "scheduled_end", "estimated_duration", "crew_size_needed", "equipment_notes", "safety_notes", "material_notes", "field_notes", "assigned_foreman_id", "assigned_user_id", "field_planning_visible", "visible_to_foreman", "status", "stage", "crew", "next_step", "next_step_v2", "due", "progress", "notes", "created_at", "updated_at", "archived_at"],
+    demoSeed.jobs,
+    (job) => [
+      job.id,
+      job.sortIndex ?? 0,
+      job.customerId || null,
+      job.leadId || null,
+      job.title || job.job,
+      job.job || job.title,
+      job.customer || "",
+      job.address || "",
+      job.siteContact || "",
+      job.scopeSummary || "",
+      job.scheduledStart || "",
+      job.scheduledEnd || "",
+      job.estimatedDuration || "",
+      job.crewSizeNeeded || 0,
+      job.equipmentNotes || "",
+      job.safetyNotes || "",
+      job.materialNotes || "",
+      job.fieldNotes || "",
+      job.assignedForemanId || "",
+      job.assignedUserId || "",
+      job.fieldPlanningVisible ? 1 : 0,
+      job.visibleToForeman ? 1 : 0,
+      job.status || "scheduled",
+      job.stage || jobStatusLabel(job.status),
+      job.crew || "",
+      job.next || job.nextStep || "",
+      job.nextStep || job.next || "",
+      job.due || "",
+      job.progress || 0,
+      job.notes || "",
+      job.createdAt || isoNow(),
+      job.updatedAt || job.createdAt || isoNow(),
+      job.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "job_assignments",
+    ["id", "sort_index", "job_id", "user_id", "role_on_job", "assigned_by", "assigned_at", "removed_at", "notes", "created_at", "updated_at"],
+    demoSeed.jobAssignments,
+    (assignment) => [
+      assignment.id,
+      assignment.sortIndex ?? 0,
+      assignment.jobId,
+      assignment.userId,
+      assignment.roleOnJob,
+      assignment.assignedBy || "",
+      assignment.assignedAt || assignment.createdAt || isoNow(),
+      assignment.removedAt || null,
+      assignment.notes || "",
+      assignment.createdAt || isoNow(),
+      assignment.updatedAt || assignment.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "estimates",
+    ["id", "sort_index", "customer_id", "lead_id", "job_id", "title", "status", "scope_summary", "internal_notes", "customer_notes", "subtotal", "tax_rate", "tax_total", "fees_total", "grand_total", "created_by", "sent_at", "approved_at", "rejected_at", "archived_at", "created_at", "updated_at"],
+    demoSeed.estimates,
+    (estimate) => [
+      estimate.id,
+      estimate.sortIndex ?? 0,
+      estimate.customerId,
+      estimate.leadId || null,
+      estimate.jobId || null,
+      estimate.title,
+      estimate.status,
+      estimate.scopeSummary || "",
+      estimate.internalNotes || "",
+      estimate.customerNotes || "",
+      estimate.subtotal ?? 0,
+      estimate.taxRate ?? null,
+      estimate.taxTotal ?? null,
+      estimate.feesTotal ?? null,
+      estimate.grandTotal ?? 0,
+      estimate.createdBy || "",
+      estimate.sentAt || null,
+      estimate.approvedAt || null,
+      estimate.rejectedAt || null,
+      estimate.archivedAt || null,
+      estimate.createdAt || isoNow(),
+      estimate.updatedAt || estimate.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "estimate_items",
+    ["id", "sort_index", "estimate_id", "description", "quantity", "unit", "unit_price", "line_total", "sort_order", "created_at", "updated_at"],
+    demoSeed.estimateItems,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.estimateId,
+      item.description || "",
+      item.quantity ?? 0,
+      item.unit || "",
+      item.unitPrice ?? 0,
+      item.lineTotal ?? 0,
+      item.sortOrder ?? 0,
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "safety_policies",
+    ["id", "sort_index", "title", "body", "category", "status", "created_by", "created_at", "updated_at", "archived_at"],
+    demoSeed.safetyPolicies,
+    (policy) => [
+      policy.id,
+      policy.sortIndex ?? 0,
+      policy.title,
+      policy.body,
+      policy.category || "",
+      policy.status || "active",
+      policy.createdBy || "",
+      policy.createdAt || isoNow(),
+      policy.updatedAt || policy.createdAt || isoNow(),
+      policy.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "ppe_items",
+    ["id", "sort_index", "label", "description", "required_by_default", "status", "created_by", "created_at", "updated_at", "archived_at"],
+    demoSeed.ppeItems,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.label,
+      item.description || "",
+      item.requiredByDefault ? 1 : 0,
+      item.status || "active",
+      item.createdBy || "",
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+      item.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "safety_acknowledgments",
+    ["id", "sort_index", "user_id", "job_id", "policy_id", "acknowledged_at", "notes", "created_at"],
+    demoSeed.safetyAcknowledgments,
+    (entry) => [
+      entry.id,
+      entry.sortIndex ?? 0,
+      entry.userId,
+      entry.jobId || null,
+      entry.policyId || null,
+      entry.acknowledgedAt || isoNow(),
+      entry.notes || "",
+      entry.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "safety_incidents",
+    ["id", "sort_index", "job_id", "submitted_by", "type", "severity", "status", "title", "description", "immediate_action", "created_at", "updated_at", "reviewed_by", "reviewed_at", "resolved_at", "archived_at"],
+    demoSeed.safetyIncidents,
+    (incident) => [
+      incident.id,
+      incident.sortIndex ?? 0,
+      incident.jobId || null,
+      incident.submittedBy || "",
+      incident.type || "other",
+      incident.severity || "low",
+      incident.status || "open",
+      incident.title || "",
+      incident.description || "",
+      incident.immediateAction || "",
+      incident.createdAt || isoNow(),
+      incident.updatedAt || incident.createdAt || isoNow(),
+      incident.reviewedBy || null,
+      incident.reviewedAt || null,
+      incident.resolvedAt || null,
+      incident.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "change_order_requests",
+    ["id", "sort_index", "job_id", "customer_id", "requested_by", "reason", "scope_description", "field_notes", "status", "office_notes", "reviewed_by", "reviewed_at", "created_at", "updated_at", "archived_at"],
+    demoSeed.changeOrderRequests,
+    (request) => [
+      request.id,
+      request.sortIndex ?? 0,
+      request.jobId,
+      request.customerId || null,
+      request.requestedBy || "",
+      request.reason || "",
+      request.scopeDescription || "",
+      request.fieldNotes || "",
+      request.status || "requested",
+      request.officeNotes || "",
+      request.reviewedBy || null,
+      request.reviewedAt || null,
+      request.createdAt || isoNow(),
+      request.updatedAt || request.createdAt || isoNow(),
+      request.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "pre_pour_checklists",
+    ["id", "sort_index", "job_id", "status", "created_by", "completed_by", "reviewed_by", "reopened_by", "notes", "created_at", "updated_at", "completed_at", "reviewed_at", "reopened_at", "archived_at"],
+    demoSeed.prePourChecklists,
+    (checklist) => [
+      checklist.id,
+      checklist.sortIndex ?? 0,
+      checklist.jobId,
+      checklist.status || "draft",
+      checklist.createdBy || "",
+      checklist.completedBy || null,
+      checklist.reviewedBy || null,
+      checklist.reopenedBy || null,
+      checklist.notes || "",
+      checklist.createdAt || isoNow(),
+      checklist.updatedAt || checklist.createdAt || isoNow(),
+      checklist.completedAt || null,
+      checklist.reviewedAt || null,
+      checklist.reopenedAt || null,
+      checklist.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "pre_pour_checklist_items",
+    ["id", "sort_index", "checklist_id", "key", "label", "status", "notes", "checked_by", "checked_at", "created_at", "updated_at", "archived_at"],
+    demoSeed.prePourChecklistItems,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.checklistId,
+      item.key,
+      item.label,
+      item.status || "unchecked",
+      item.notes || "",
+      item.checkedBy || null,
+      item.checkedAt || null,
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+      item.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "post_pour_checklists",
+    ["id", "sort_index", "job_id", "status", "created_by", "completed_by", "reviewed_by", "reopened_by", "notes", "created_at", "updated_at", "completed_at", "reviewed_at", "reopened_at", "archived_at"],
+    demoSeed.postPourChecklists,
+    (checklist) => [
+      checklist.id,
+      checklist.sortIndex ?? 0,
+      checklist.jobId,
+      checklist.status || "draft",
+      checklist.createdBy || "",
+      checklist.completedBy || null,
+      checklist.reviewedBy || null,
+      checklist.reopenedBy || null,
+      checklist.notes || "",
+      checklist.createdAt || isoNow(),
+      checklist.updatedAt || checklist.createdAt || isoNow(),
+      checklist.completedAt || null,
+      checklist.reviewedAt || null,
+      checklist.reopenedAt || null,
+      checklist.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "post_pour_checklist_items",
+    ["id", "sort_index", "checklist_id", "key", "label", "status", "notes", "checked_by", "checked_at", "created_at", "updated_at", "archived_at"],
+    demoSeed.postPourChecklistItems,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.checklistId,
+      item.key,
+      item.label,
+      item.status || "unchecked",
+      item.notes || "",
+      item.checkedBy || null,
+      item.checkedAt || null,
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+      item.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "tool_checklists",
+    ["id", "sort_index", "job_id", "title", "status", "created_by", "assigned_foreman_id", "submitted_by", "reviewed_by", "notes", "created_at", "updated_at", "submitted_at", "reviewed_at", "archived_at"],
+    demoSeed.toolChecklists,
+    (checklist) => [
+      checklist.id,
+      checklist.sortIndex ?? 0,
+      checklist.jobId || null,
+      checklist.title || "",
+      checklist.status || "draft",
+      checklist.createdBy || "",
+      checklist.assignedForemanId || null,
+      checklist.submittedBy || null,
+      checklist.reviewedBy || null,
+      checklist.notes || "",
+      checklist.createdAt || isoNow(),
+      checklist.updatedAt || checklist.createdAt || isoNow(),
+      checklist.submittedAt || null,
+      checklist.reviewedAt || null,
+      checklist.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "tool_checklist_items",
+    ["id", "sort_index", "checklist_id", "name", "category", "quantity", "status", "added_by", "notes", "missing_notes", "damaged_notes", "created_at", "updated_at", "archived_at"],
+    demoSeed.toolChecklistItems,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.checklistId,
+      item.name || "",
+      item.category || "other",
+      item.quantity ?? 0,
+      item.status || "needed",
+      item.addedBy || "",
+      item.notes || "",
+      item.missingNotes || "",
+      item.damagedNotes || "",
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+      item.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "calculator_results",
+    ["id", "sort_index", "job_id", "created_by", "calculator_type", "inputs_json", "waste_percent", "cubic_feet", "cubic_yards", "cubic_yards_with_waste", "summary", "visibility", "notes", "created_at", "updated_at", "archived_at"],
+    demoSeed.calculatorResults,
+    (result) => [
+      result.id,
+      result.sortIndex ?? 0,
+      result.jobId || null,
+      result.createdBy || "",
+      result.calculatorType || "slab",
+      JSON.stringify(result.inputsJson || {}),
+      result.wastePercent ?? 0,
+      result.cubicFeet ?? 0,
+      result.cubicYards ?? 0,
+      result.cubicYardsWithWaste ?? 0,
+      result.summary || "",
+      result.visibility || "internal",
+      result.notes || "",
+      result.createdAt || isoNow(),
+      result.updatedAt || result.createdAt || isoNow(),
+      result.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "time_entries",
+    ["id", "sort_index", "user_id", "job_id", "work_category", "clock_in_at", "clock_out_at", "break_start_at", "break_end_at", "total_minutes", "break_minutes", "status", "notes", "created_at", "updated_at"],
+    demoSeed.timeEntries,
+    (entry) => [
+      entry.id,
+      entry.sortIndex ?? 0,
+      entry.userId,
+      entry.jobId || null,
+      entry.workCategory || "job",
+      entry.clockInAt || isoNow(),
+      entry.clockOutAt || null,
+      entry.breakStartAt || null,
+      entry.breakEndAt || null,
+      entry.totalMinutes ?? 0,
+      entry.breakMinutes ?? 0,
+      entry.status || "completed",
+      entry.notes || "",
+      entry.createdAt || isoNow(),
+      entry.updatedAt || entry.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "daily_reports",
+    ["id", "sort_index", "job_id", "report_date", "status", "created_by", "submitted_by", "reviewed_by", "crew_summary", "work_performed", "delays", "safety_notes", "equipment_used", "material_notes", "concrete_poured", "yards_poured", "weather", "visitor_notes", "inspection_notes", "general_notes", "created_at", "updated_at", "submitted_at", "reviewed_at", "reopened_at", "archived_at"],
+    demoSeed.dailyReports,
+    (report) => [
+      report.id,
+      report.sortIndex ?? 0,
+      report.jobId,
+      report.reportDate,
+      report.status || "draft",
+      report.createdBy || "",
+      report.submittedBy || null,
+      report.reviewedBy || null,
+      report.crewSummary || "",
+      report.workPerformed || "",
+      report.delays || "",
+      report.safetyNotes || "",
+      report.equipmentUsed || "",
+      report.materialNotes || "",
+      report.concretePoured ? 1 : 0,
+      report.yardsPoured ?? null,
+      report.weather || "",
+      report.visitorNotes || "",
+      report.inspectionNotes || "",
+      report.generalNotes || "",
+      report.createdAt || isoNow(),
+      report.updatedAt || report.createdAt || isoNow(),
+      report.submittedAt || null,
+      report.reviewedAt || null,
+      report.reopenedAt || null,
+      report.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "uploads",
+    ["id", "sort_index", "job_id", "customer_id", "report_id", "incident_id", "change_order_id", "tool_checklist_item_id", "uploaded_by", "file_name", "file_type", "file_size", "storage_path", "caption", "notes", "taken_at", "uploaded_at", "latitude", "longitude", "location_accuracy", "location_captured_at", "location_unavailable_reason", "created_at", "updated_at", "archived_at"],
+    demoSeed.uploads,
+    (upload) => [
+      upload.id,
+      upload.sortIndex ?? 0,
+      upload.jobId || null,
+      upload.customerId || null,
+      upload.reportId || null,
+      upload.incidentId || null,
+      upload.changeOrderId || null,
+      upload.toolChecklistItemId || null,
+      upload.uploadedBy || "",
+      upload.fileName || "",
+      upload.fileType || "",
+      upload.fileSize ?? 0,
+      upload.storagePath || "",
+      upload.caption || "",
+      upload.notes || "",
+      upload.takenAt || null,
+      upload.uploadedAt || upload.createdAt || isoNow(),
+      upload.latitude ?? null,
+      upload.longitude ?? null,
+      upload.locationAccuracy ?? null,
+      upload.locationCapturedAt || null,
+      upload.locationUnavailableReason || "",
+      upload.createdAt || isoNow(),
+      upload.updatedAt || upload.createdAt || isoNow(),
+      upload.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "delivery_tickets",
+    ["id", "sort_index", "job_id", "report_id", "created_by", "supplier", "truck_number", "ticket_number", "yards_delivered", "arrival_time", "discharge_time", "mix_notes", "psi", "slump", "ticket_upload_id", "notes", "created_at", "updated_at", "archived_at"],
+    demoSeed.deliveryTickets,
+    (ticket) => [
+      ticket.id,
+      ticket.sortIndex ?? 0,
+      ticket.jobId,
+      ticket.reportId || null,
+      ticket.createdBy || "",
+      ticket.supplier || "",
+      ticket.truckNumber || "",
+      ticket.ticketNumber || "",
+      ticket.yardsDelivered ?? null,
+      ticket.arrivalTime || "",
+      ticket.dischargeTime || "",
+      ticket.mixNotes || "",
+      ticket.psi ?? null,
+      ticket.slump ?? null,
+      ticket.ticketUploadId || null,
+      ticket.notes || "",
+      ticket.createdAt || isoNow(),
+      ticket.updatedAt || ticket.createdAt || isoNow(),
+      ticket.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "queue_items",
+    ["id", "sort_index", "title", "meta", "status", "done", "created_at", "updated_at", "archived_at"],
+    demoSeed.queueItems,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.title || "",
+      item.meta || "",
+      item.status || "",
+      item.done ? 1 : 0,
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+      item.archivedAt || null,
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "activity",
+    ["id", "sort_index", "time", "title", "detail", "created_at", "updated_at"],
+    demoSeed.activity,
+    (item) => [
+      item.id,
+      item.sortIndex ?? 0,
+      item.time || "",
+      item.title || "",
+      item.detail || "",
+      item.createdAt || isoNow(),
+      item.updatedAt || item.createdAt || isoNow(),
+    ],
+  );
+
+  inserted += insertRecordsIfMissing(
+    database,
+    "audit_events",
+    ["id", "sort_index", "entity_type", "entity_id", "action", "summary", "detail", "actor_user_id", "actor_name", "changed_fields", "created_at"],
+    demoSeed.auditEvents,
+    (event) => [
+      event.id,
+      event.sortIndex ?? 0,
+      event.entityType || "",
+      event.entityId || null,
+      event.action || "",
+      event.summary || "",
+      event.detail || "",
+      event.actorUserId || null,
+      event.actorName || "",
+      JSON.stringify(event.changedFields || []),
+      event.createdAt || isoNow(),
+    ],
+  );
+
+  return {
+    inserted,
+  };
+}
+
+function logDemoStartupSummary(summary) {
+  if (!serverConfig.demoMode || demoStartupLogged || !summary) {
+    return;
+  }
+
+  console.info("Demo mode enabled", {
+    dataDir: getDataDir(),
+    usersEnsured: summary.usersEnsured,
+    usersUpdated: summary.usersUpdated,
+    demoData: summary.demoData,
+  });
+  console.info("Demo users ensured", {
+    usersEnsured: summary.usersEnsured,
+    usersUpdated: summary.usersUpdated,
+  });
+  console.info(`Demo data backfill ${summary.demoData}`, {
+    demoData: summary.demoData,
+  });
+
+  demoStartupLogged = true;
 }
 
 function createBootstrapAdminState(adminConfig) {
@@ -4143,43 +5155,96 @@ async function loadInitialState() {
 
 export async function ensureDb() {
   await fs.mkdir(getDataDir(), { recursive: true });
+  const hadSqlite = await dbExists();
+  const hasLegacyJson = await jsonExists();
   createDatabaseConnection();
   runMigrations(db);
-
-  const hasSqlite = await dbExists();
-  const hasLegacyJson = await jsonExists();
   const currentState = readTableState();
 
-  if (hasSqlite && currentState.users.length > 0) {
-    const nextState = withDefaultSafetyContent(currentState);
-    if (
-      nextState.safetyPolicies !== currentState.safetyPolicies
-      || nextState.ppeItems !== currentState.ppeItems
-      || nextState.safetyAcknowledgments !== currentState.safetyAcknowledgments
-      || nextState.safetyIncidents !== currentState.safetyIncidents
-    ) {
-      writeStateToDb(nextState);
+  if (hadSqlite) {
+    const changedAt = isoNow();
+    ensureDefaultSafetyContentInDatabase(db, currentState, changedAt);
+
+    let demoSummary = null;
+    if (serverConfig.demoMode) {
+      const demoUsers = ensureDemoUsersInDatabase(db, currentState.users, changedAt);
+      let demoData = "skipped";
+
+      if (serverConfig.seedDemoData) {
+        const demoDataResult = ensureDemoSeedDataInDatabase(db, demoUsers.actualUserIdsByEmail);
+        demoData = demoDataResult.inserted > 0 ? "complete" : "skipped";
+      }
+
+      demoSummary = {
+        usersEnsured: demoUsers.usersEnsured,
+        usersUpdated: demoUsers.usersUpdated,
+        demoData,
+      };
     }
+    logDemoStartupSummary(demoSummary);
     return;
   }
 
   if (hasLegacyJson) {
-    writeStateToDb(await loadInitialState());
+    let nextState = await loadInitialState();
+    let demoSummary = null;
+    if (serverConfig.demoMode) {
+      const demoBackfill = ensureDemoUsersInState(nextState, isoNow());
+      nextState = demoBackfill.state;
+      demoSummary = {
+        usersEnsured: demoBackfill.usersEnsured,
+        usersUpdated: demoBackfill.usersUpdated,
+        demoData: serverConfig.seedDemoData ? "complete" : "skipped",
+      };
+    }
+    writeStateToDb(nextState);
+    logDemoStartupSummary(demoSummary);
     return;
   }
 
   if (currentState.users.length === 0) {
     if (serverConfig.bootstrapAdmin) {
-      writeStateToDb(createBootstrapAdminState(serverConfig.bootstrapAdmin));
+      let nextState = createBootstrapAdminState(serverConfig.bootstrapAdmin);
+      let demoSummary = null;
+      if (serverConfig.demoMode) {
+        const demoBackfill = ensureDemoUsersInState(nextState, isoNow());
+        nextState = demoBackfill.state;
+        demoSummary = {
+          usersEnsured: demoBackfill.usersEnsured,
+          usersUpdated: demoBackfill.usersUpdated,
+          demoData: "skipped",
+        };
+      }
+      writeStateToDb(nextState);
+      logDemoStartupSummary(demoSummary);
       return;
     }
 
     if (serverConfig.seedWorkspaceData || serverConfig.seedDemoData) {
       writeStateToDb(createSeedState());
+      logDemoStartupSummary(serverConfig.demoMode
+        ? {
+          usersEnsured: 0,
+          usersUpdated: 0,
+          demoData: serverConfig.seedDemoData ? "complete" : "skipped",
+        }
+        : null);
       return;
     }
 
-    writeStateToDb(createEmptyState());
+    let nextState = createEmptyState();
+    let demoSummary = null;
+    if (serverConfig.demoMode) {
+      const demoBackfill = ensureDemoUsersInState(nextState, isoNow());
+      nextState = demoBackfill.state;
+      demoSummary = {
+        usersEnsured: demoBackfill.usersEnsured,
+        usersUpdated: demoBackfill.usersUpdated,
+        demoData: "skipped",
+      };
+    }
+    writeStateToDb(nextState);
+    logDemoStartupSummary(demoSummary);
   }
 }
 

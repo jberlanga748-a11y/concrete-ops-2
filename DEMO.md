@@ -7,7 +7,7 @@ Demo logins:
 - Admin: `demo.admin@concreteops.app`
 - Foreman: `demo.foreman@concreteops.app`
 - Employee: `demo.employee@concreteops.app`
-- Password: demo-only placeholder, shared privately with the demo deployment
+- Password: shared privately for the demo deployment. If the deployment explicitly uses the shared demo password, it is `demo12345` and is demo-only.
 
 Public estimate request:
 - Public form placeholder: [https://concrete-ops-demo.fly.dev/request-estimate](https://concrete-ops-demo.fly.dev/request-estimate)

@@ -4,9 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import { createServerConfig } from "./config.js";
+import { createUserRecord } from "./store.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,8 +30,9 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Demo test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer(envOverrides = {}) {
-  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-"));
+async function startServer(envOverrides = {}, options = {}) {
+  const tempDataDir = options.dataDir || await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-"));
+  const cleanupDataDir = !options.dataDir;
   const port = createPort();
   const baseUrl = `http://localhost:${port}`;
   let output = "";
@@ -57,10 +60,12 @@ async function startServer(envOverrides = {}) {
   async function stop() {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.once("exit", resolve));
-    await fs.rm(tempDataDir, { recursive: true, force: true });
+    if (cleanupDataDir) {
+      await fs.rm(tempDataDir, { recursive: true, force: true });
+    }
   }
 
-  return { baseUrl, stop };
+  return { baseUrl, stop, dataDir: tempDataDir };
 }
 
 async function requestJson(baseUrl, pathname, options = {}) {
@@ -81,6 +86,124 @@ async function login(baseUrl, credentials) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
   });
+}
+
+function insertUsers(sqliteFile, users) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const insertUser = database.prepare(`
+      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const user of users) {
+      insertUser.run(
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.phone || "",
+        user.status || "active",
+        user.createdAt || new Date().toISOString(),
+        user.updatedAt || user.createdAt || new Date().toISOString(),
+        user.lastLoginAt || null,
+        user.passwordHash,
+      );
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function insertExistingBusinessRecords(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const createdAt = new Date().toISOString();
+    database.prepare(`
+      INSERT INTO customers (id, sort_index, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "C-REAL-001",
+      999,
+      "Existing Real Customer",
+      "",
+      "503-555-0900",
+      "real.customer@example.test",
+      "Portland",
+      "Portland",
+      "Active",
+      "Pre-existing customer that must survive demo backfill.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "L-REAL-001",
+      999,
+      "C-REAL-001",
+      "Existing Real Customer",
+      "Portland",
+      "Existing real lead",
+      "Contacted",
+      "Normal",
+      3500,
+      "Ops Manager",
+      "U-001",
+      "0d",
+      "Referral",
+      "2026-05-01",
+      "Follow up tomorrow",
+      "Pre-existing lead that must survive demo backfill.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "J-REAL-001",
+      999,
+      "C-REAL-001",
+      "L-REAL-001",
+      "Existing Real Job",
+      "Existing Real Job",
+      "Existing Real Customer",
+      "123 Existing Way, Portland, OR",
+      "Real Contact · 503-555-0900",
+      "Pre-existing real job that must survive demo backfill.",
+      "2026-05-02T08:00",
+      "2026-05-02T16:00",
+      "1 day",
+      2,
+      "Existing equipment notes",
+      "Existing safety notes",
+      "Existing material notes",
+      "Existing field notes",
+      "",
+      "",
+      0,
+      0,
+      "scheduled",
+      "Scheduled",
+      "Existing crew",
+      "Existing next step",
+      "Existing next step",
+      "2026-05-02",
+      5,
+      "Pre-existing real job note.",
+      createdAt,
+      createdAt,
+      null,
+    );
+  } finally {
+    database.close();
+  }
 }
 
 test("demo config keeps production safe unless demo mode is explicitly enabled", () => {
@@ -161,6 +284,172 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     assert.equal(employeeBootstrap.estimates.length, 0);
     assert.ok(employeeBootstrap.jobs.length > 0);
     assert.equal(employeeBootstrap.jobs.every((job) => !("grandTotal" in job) && !("subtotal" in job)), true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("existing database backfills missing demo users when demo mode is enabled", async () => {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-existing-"));
+  const firstServer = await startServer({}, { dataDir: tempDataDir });
+
+  try {
+    const officeLogin = await login(firstServer.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    assert.ok(officeLogin.token);
+  } finally {
+    await firstServer.stop();
+  }
+
+  const realUser = createUserRecord({
+    id: "U-REAL-001",
+    email: "real.user@example.test",
+    password: "realpass123",
+    name: "Real User",
+    role: "Employee",
+  });
+  insertUsers(path.join(tempDataDir, "app-data.sqlite"), [realUser]);
+  insertExistingBusinessRecords(path.join(tempDataDir, "app-data.sqlite"));
+
+  const secondServer = await startServer({
+    DEMO_MODE: "true",
+    PUBLIC_ESTIMATE_REQUEST_ENABLED: "true",
+  }, { dataDir: tempDataDir });
+
+  try {
+    const setupStatus = await assertOk(secondServer.baseUrl, "/api/setup/status");
+    assert.equal(setupStatus.demoMode, true);
+    assert.equal(setupStatus.demoUserExists, true);
+
+    const realUserSession = await login(secondServer.baseUrl, {
+      email: "real.user@example.test",
+      password: "realpass123",
+    });
+    assert.ok(realUserSession.token);
+
+    for (const email of [
+      "demo.admin@concreteops.app",
+      "demo.foreman@concreteops.app",
+      "demo.employee@concreteops.app",
+    ]) {
+      const session = await login(secondServer.baseUrl, {
+        email,
+        password: "demo12345",
+      });
+      assert.ok(session.token, `${email} should be able to log in after demo backfill.`);
+    }
+
+    const officeLogin = await login(secondServer.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    assert.ok(officeLogin.token);
+
+    const adminBootstrap = await assertOk(secondServer.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${officeLogin.token}` },
+    });
+    assert.ok(adminBootstrap.customers.some((customer) => customer.id === "C-REAL-001"));
+    assert.ok(adminBootstrap.leads.some((lead) => lead.id === "L-REAL-001"));
+    assert.ok(adminBootstrap.jobs.some((job) => job.id === "J-REAL-001"));
+    assert.ok(adminBootstrap.customers.some((customer) => customer.id === "C-1001"));
+    assert.ok(adminBootstrap.leads.some((lead) => lead.id === "L-1048"));
+    assert.ok(adminBootstrap.jobs.some((job) => job.id === "J-2201"));
+  } finally {
+    await secondServer.stop();
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+});
+
+test("demo mode resets only demo-user passwords in an existing database", async () => {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-password-"));
+  const firstServer = await startServer({}, { dataDir: tempDataDir });
+
+  try {
+    await login(firstServer.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+  } finally {
+    await firstServer.stop();
+  }
+
+  const database = new DatabaseSync(path.join(tempDataDir, "app-data.sqlite"));
+  const createdAt = new Date().toISOString();
+  const insertUser = database.prepare(`
+    INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const [index, user] of [
+    { email: "demo.admin@concreteops.app", name: "Legacy Demo Admin" },
+    { email: "demo.foreman@concreteops.app", name: "Legacy Demo Foreman" },
+    { email: "demo.employee@concreteops.app", name: "Legacy Demo Employee" },
+  ].entries()) {
+    const wrongDemoUser = createUserRecord({
+      id: `U-DEMO-LEGACY-${index + 1}`,
+      email: user.email,
+      password: "wrongpass123",
+      name: user.name,
+      role: "Employee",
+      phone: "",
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    insertUser.run(
+      wrongDemoUser.id,
+      wrongDemoUser.email,
+      wrongDemoUser.name,
+      wrongDemoUser.role,
+      wrongDemoUser.phone,
+      wrongDemoUser.status,
+      wrongDemoUser.createdAt,
+      wrongDemoUser.updatedAt,
+      wrongDemoUser.lastLoginAt,
+      wrongDemoUser.passwordHash,
+    );
+  }
+  database.close();
+
+  const secondServer = await startServer({
+    DEMO_MODE: "true",
+  }, { dataDir: tempDataDir });
+
+  try {
+    for (const email of [
+      "demo.admin@concreteops.app",
+      "demo.foreman@concreteops.app",
+      "demo.employee@concreteops.app",
+    ]) {
+      const session = await login(secondServer.baseUrl, {
+        email,
+        password: "demo12345",
+      });
+      assert.ok(session.token, `${email} should accept the demo password after backfill.`);
+    }
+
+    const officeLogin = await login(secondServer.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    assert.ok(officeLogin.token);
+  } finally {
+    await secondServer.stop();
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+});
+
+test("production without demo mode does not seed demo users", async () => {
+  const fixture = await startServer({
+    NODE_ENV: "production",
+  });
+
+  try {
+    const setupStatus = await assertOk(fixture.baseUrl, "/api/setup/status");
+    assert.equal(setupStatus.demoMode, false);
+    assert.equal(setupStatus.demoUserExists, false);
   } finally {
     await fixture.stop();
   }
