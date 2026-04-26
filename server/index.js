@@ -56,6 +56,7 @@ import {
   canManageToolChecklist,
   canManageUploads,
   canManageUsers,
+  canRequestChangeOrders,
   canReviewReports,
   canReviewPrePour,
   canReviewPostPour,
@@ -107,6 +108,7 @@ const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Est
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
 const TIME_WORK_CATEGORIES = new Set(["job", "office_admin", "estimating", "lead_follow_up", "shop_yard", "travel", "training", "meeting", "maintenance", "other"]);
 const DAILY_REPORT_STATUSES = new Set(["draft", "submitted", "reviewed", "reopened", "archived"]);
+const CHANGE_ORDER_REQUEST_STATUSES = new Set(["requested", "under_review", "approved_for_pricing", "rejected", "archived"]);
 const SAFETY_POLICY_STATUSES = new Set(["active", "archived"]);
 const SAFETY_INCIDENT_TYPES = new Set(["concern", "near_miss", "injury", "property_damage", "hazard", "other"]);
 const SAFETY_INCIDENT_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
@@ -293,6 +295,14 @@ function optionalDailyReportStatus(value, fallback = "draft") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!DAILY_REPORT_STATUSES.has(normalized)) {
     throw new ApiError(400, `Daily report status must be one of: ${Array.from(DAILY_REPORT_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalChangeOrderRequestStatus(value, fallback = "requested") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!CHANGE_ORDER_REQUEST_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Change order request status must be one of: ${Array.from(CHANGE_ORDER_REQUEST_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -1207,6 +1217,67 @@ function postPourChecklistSummaryForJob(state, job, user) {
   };
 }
 
+function canViewChangeOrderRequestRecord(user, request, job) {
+  if (!user || !canViewChangeOrders(user)) return false;
+  if (canManageChangeOrders(user)) return true;
+  if (!job) return false;
+  if (isForeman(user)) return canViewJob(job, user);
+  return false;
+}
+
+function sanitizeChangeOrderRequestForUser(request, state, user) {
+  const job = request.jobId ? state.jobs.find((entry) => entry.id === request.jobId) || null : null;
+  if (!canViewChangeOrderRequestRecord(user, request, job)) return null;
+  const requestedByUser = findUserById(state, request.requestedBy);
+  const reviewedByUser = findUserById(state, request.reviewedBy);
+  const customer = request.customerId ? state.customers.find((entry) => entry.id === request.customerId) || null : null;
+
+  return {
+    id: request.id,
+    jobId: request.jobId,
+    customerId: request.customerId || "",
+    requestedBy: request.requestedBy,
+    requestedByName: requestedByUser?.name || request.requestedBy,
+    reason: request.reason || "",
+    scopeDescription: request.scopeDescription || "",
+    fieldNotes: request.fieldNotes || "",
+    status: optionalChangeOrderRequestStatus(request.status, "requested"),
+    statusLabel: changeOrderRequestStatusLabel(request.status),
+    officeNotes: canManageChangeOrders(user) ? (request.officeNotes || "") : "",
+    reviewedBy: request.reviewedBy || "",
+    reviewedByName: reviewedByUser?.name || request.reviewedBy || "",
+    reviewedAt: request.reviewedAt || "",
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
+    archivedAt: request.archivedAt || null,
+    job: job ? sanitizeJobForUser(job, user, state) : null,
+    customerName: canViewCustomers(user) ? (customer?.name || "") : "",
+  };
+}
+
+function visibleChangeOrderRequestsForUser(state, user) {
+  if (!user || !canViewChangeOrders(user)) return [];
+  return (state.changeOrderRequests || [])
+    .map((request) => sanitizeChangeOrderRequestForUser(request, state, user))
+    .filter(Boolean)
+    .sort((left, right) => {
+      const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
+      if (archivedCompare !== 0) return archivedCompare;
+      return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
+    });
+}
+
+function changeOrderRequestStatusLabel(status = "requested") {
+  const labels = {
+    requested: "Requested",
+    under_review: "Under Review",
+    approved_for_pricing: "Approved for Pricing",
+    rejected: "Rejected",
+    archived: "Archived",
+  };
+  return labels[optionalChangeOrderRequestStatus(status, "requested")] || "Requested";
+}
+
 function dailyReportStatusLabel(status = "draft") {
   const labels = {
     draft: "Draft",
@@ -1473,6 +1544,14 @@ function assertCanReviewSafetyIncidents(user) {
   }
 }
 
+function changeOrderPermissionsForUser(user) {
+  return {
+    canView: canViewChangeOrders(user),
+    canManage: canManageChangeOrders(user),
+    canRequest: canRequestChangeOrders(user),
+  };
+}
+
 function assertCanViewToolChecklist(user, settings) {
   if (!canUseToolChecklist(user, settings) && !canViewAllToolChecklists(user)) {
     throw new ApiError(403, "You do not have permission to view tool checklists.");
@@ -1542,6 +1621,18 @@ function assertCanManagePrePour(user) {
 function assertCanReviewPrePour(user) {
   if (!canReviewPrePour(user)) {
     throw new ApiError(403, "You do not have permission to review pre-pour checklists.");
+  }
+}
+
+function assertCanViewChangeOrders(user) {
+  if (!canViewChangeOrders(user)) {
+    throw new ApiError(403, "You do not have permission to view change order requests.");
+  }
+}
+
+function assertCanManageChangeOrders(user) {
+  if (!canManageChangeOrders(user) && !canRequestChangeOrders(user)) {
+    throw new ApiError(403, "You do not have permission to manage change order requests.");
   }
 }
 
@@ -2454,6 +2545,40 @@ function createPostPourChecklistShape(payload, user, changedAt) {
   };
 }
 
+function findChangeOrderRequest(state, requestId) {
+  return findRequiredRecord(state.changeOrderRequests || [], requestId, "Change order request");
+}
+
+function canCreateChangeOrderRequestForJob(user, job) {
+  if (!job || job.archivedAt) return false;
+  if (canManageChangeOrders(user)) return true;
+  if (!canRequestChangeOrders(user)) return false;
+  return canViewJob(job, user);
+}
+
+function canEditChangeOrderRequest(user) {
+  return canManageChangeOrders(user);
+}
+
+function createChangeOrderRequestShape(payload, user, changedAt, job) {
+  return {
+    id: makeId("COR"),
+    jobId: requiredString(payload.jobId, "Job"),
+    customerId: job?.customerId || "",
+    requestedBy: user.id,
+    reason: requiredString(payload.reason, "Reason"),
+    scopeDescription: requiredString(payload.scopeDescription, "Scope description"),
+    fieldNotes: optionalString(payload.fieldNotes, ""),
+    status: "requested",
+    officeNotes: "",
+    reviewedBy: "",
+    reviewedAt: "",
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    archivedAt: null,
+  };
+}
+
 function activeForemanAssignment(state, jobId) {
   return activeJobAssignments(state, jobId).find((assignment) => assignment.roleOnJob === "foreman") || null;
 }
@@ -2787,9 +2912,10 @@ function sanitizeBootstrap(state, user) {
     jobs: visibleJobsForUser(state, user),
     safetyPolicies: visibleSafetyPoliciesForUser(state, user),
     ppeItems: visiblePpeItemsForUser(state, user),
-      safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
-      safetyIncidents: visibleSafetyIncidentsForUser(state, user),
-      prePourChecklists: visiblePrePourChecklistsForUser(state, user),
+    safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
+    safetyIncidents: visibleSafetyIncidentsForUser(state, user),
+    changeOrderRequests: visibleChangeOrderRequestsForUser(state, user),
+    prePourChecklists: visiblePrePourChecklistsForUser(state, user),
       postPourChecklists: visiblePostPourChecklistsForUser(state, user),
       toolChecklists: visibleToolChecklistsForUser(state, user),
     calculatorResults: visibleCalculatorResultsForUser(state, user),
@@ -2833,10 +2959,7 @@ function sanitizeBootstrap(state, user) {
         canManageUsers: canManageUsers(user),
         canExport: canExportData(user),
       },
-      changeOrders: {
-        canView: canViewChangeOrders(user),
-        canManage: canManageChangeOrders(user),
-      },
+      changeOrders: changeOrderPermissionsForUser(user),
       audit: {
         canView: canViewAudit(user),
       },
@@ -3208,6 +3331,122 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       detail: `${req.auth.user.name} ${nextToolChecklistEnabled ? "enabled" : "disabled"} the Tool Checklist module.`,
       actor: req.auth.user,
       changedFields: ["toolChecklistEnabled", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/change-order-requests", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanViewChangeOrders(req.auth.user);
+  res.json({
+    changeOrderRequests: visibleChangeOrderRequestsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/change-order-requests", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageChangeOrders(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.changeOrderRequests ||= [];
+    const job = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+    if (!canCreateChangeOrderRequestForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to create a change order request for that job.");
+    }
+    const newRequest = createChangeOrderRequestShape(payload, req.auth.user, changedAt, job);
+    draft.changeOrderRequests.unshift(newRequest);
+    appendActivity(draft, "Change order request created", `${req.auth.user.name} requested a change order for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "changeOrderRequest",
+      entityId: newRequest.id,
+      action: "created",
+      summary: "Change order request created",
+      detail: `${req.auth.user.name} requested a change order for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "reason", "scopeDescription", "status"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/change-order-requests/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewChangeOrders(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.changeOrderRequests ||= [];
+    const request = findChangeOrderRequest(draft, id);
+    const job = findRequiredRecord(draft.jobs, request.jobId, "Job");
+    if (!canViewChangeOrderRequestRecord(req.auth.user, request, job)) {
+      throw new ApiError(403, "You do not have permission to access this change order request.");
+    }
+
+    const changedFields = [];
+    if (canEditChangeOrderRequest(req.auth.user)) {
+      const nextStatus = payload.status == null ? request.status : optionalChangeOrderRequestStatus(payload.status, request.status);
+      const nextOfficeNotes = payload.officeNotes == null ? request.officeNotes || "" : optionalString(payload.officeNotes, "");
+      if (nextStatus !== request.status) changedFields.push("status");
+      if (nextOfficeNotes !== (request.officeNotes || "")) changedFields.push("officeNotes");
+      request.status = nextStatus;
+      request.officeNotes = nextOfficeNotes;
+      request.reviewedBy = req.auth.user.id;
+      request.reviewedAt = changedAt;
+      changedFields.push("reviewedBy", "reviewedAt");
+    } else {
+      throw new ApiError(403, "You do not have permission to review or update this change order request.");
+    }
+
+    markUpdated(request, changedAt);
+    appendActivity(draft, "Change order request updated", `${req.auth.user.name} updated the change order request for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "changeOrderRequest",
+      entityId: request.id,
+      action: "reviewed",
+      summary: "Change order request updated",
+      detail: `${req.auth.user.name} updated the change order request for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: changedFields.length > 0 ? changedFields : ["updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/change-order-requests/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  if (!canManageChangeOrders(req.auth.user)) {
+    throw new ApiError(403, "You do not have permission to archive change order requests.");
+  }
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.changeOrderRequests ||= [];
+    const request = findChangeOrderRequest(draft, id);
+    const job = findRequiredRecord(draft.jobs, request.jobId, "Job");
+    request.status = "archived";
+    request.archivedAt = changedAt;
+    request.reviewedBy = req.auth.user.id;
+    request.reviewedAt = changedAt;
+    markUpdated(request, changedAt);
+    appendActivity(draft, "Change order request archived", `${req.auth.user.name} archived the change order request for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "changeOrderRequest",
+      entityId: request.id,
+      action: "archived",
+      summary: "Change order request archived",
+      detail: `${req.auth.user.name} archived the change order request for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt", "reviewedBy", "reviewedAt", "updatedAt"],
     });
     return draft;
   });

@@ -90,3 +90,14 @@ test("post-pour module route resolves directly", () => {
     reportId: "",
   });
 });
+
+test("change-orders module route resolves directly", () => {
+  assert.equal(getModulePath("changeOrders"), "/changeOrders");
+  assert.deepEqual(parseAppPath("/changeOrders"), {
+    active: "changeOrders",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+  });
+});

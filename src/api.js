@@ -162,6 +162,22 @@ export function getDailyReports(token) {
   return request("/api/daily-reports", { token });
 }
 
+export function getChangeOrderRequests(token) {
+  return request("/api/change-order-requests", { token });
+}
+
+export function createChangeOrderRequest(token, payload) {
+  return request("/api/change-order-requests", { method: "POST", token, body: payload });
+}
+
+export function updateChangeOrderRequest(token, id, payload) {
+  return request(`/api/change-order-requests/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archiveChangeOrderRequest(token, id) {
+  return request(`/api/change-order-requests/${id}/archive`, { method: "POST", token });
+}
+
 export function getUploads(token) {
   return request("/api/uploads", { token });
 }

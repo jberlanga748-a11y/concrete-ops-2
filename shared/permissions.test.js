@@ -9,6 +9,7 @@ import {
   canManageEstimates,
   canManageLeads,
   canManageOwnTime,
+  canManageChangeOrders,
   canManagePrePour,
   canManagePostPour,
   canManageReports,
@@ -26,6 +27,7 @@ import {
   canViewCrewTime,
   canViewCustomers,
   canViewEstimates,
+  canViewChangeOrders,
   canViewLeads,
   canViewPrePour,
   canViewPostPour,
@@ -43,6 +45,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canManageLeads(owner), true);
   assert.equal(canManageCustomers(owner), true);
   assert.equal(canManageEstimates(owner), true);
+  assert.equal(canManageChangeOrders(owner), true);
   assert.equal(canManageUsers(owner), true);
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
@@ -56,6 +59,7 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canManageUsers(operations), true);
   assert.equal(canViewAllTime(operations), true);
   assert.equal(canManageReports(operations), true);
+  assert.equal(canManageChangeOrders(operations), true);
   assert.equal(canManagePrePour(operations), true);
   assert.equal(canManagePostPour(operations), true);
   assert.equal(canReviewReports(operations), true);
@@ -77,6 +81,8 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageCustomers(estimator), true);
   assert.equal(canViewEstimates(estimator), true);
   assert.equal(canManageEstimates(estimator), true);
+  assert.equal(canViewChangeOrders(estimator), true);
+  assert.equal(canManageChangeOrders(estimator), true);
   assert.equal(canManageOwnTime(estimator), true);
   assert.equal(modules.has("time"), true);
   assert.equal(canViewSafety(estimator), false);
@@ -92,12 +98,14 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canViewCustomers(foreman), false);
   assert.equal(canViewEstimates(foreman), false);
   assert.equal(canViewReports(foreman), true);
+  assert.equal(canViewChangeOrders(foreman), true);
   assert.equal(canViewPrePour(foreman), true);
   assert.equal(canViewPostPour(foreman), true);
   assert.equal(canCreateDailyReports(foreman), true);
   assert.equal(canManagePrePour(foreman), true);
   assert.equal(canManagePostPour(foreman), true);
   assert.equal(canManageReports(foreman), false);
+  assert.equal(canManageChangeOrders(foreman), false);
   assert.equal(canViewUploads(foreman), true);
   assert.equal(canCreateUploads(foreman), true);
   assert.equal(canManageUploads(foreman), false);
@@ -119,6 +127,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canViewCustomers(employee), false);
   assert.equal(canViewEstimates(employee), false);
   assert.equal(canViewReports(employee), false);
+  assert.equal(canViewChangeOrders(employee), false);
   assert.equal(canViewPrePour(employee), true);
   assert.equal(canViewPostPour(employee), true);
   assert.equal(canCreateDailyReports(employee), false);

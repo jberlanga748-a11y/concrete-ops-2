@@ -9,6 +9,7 @@ import {
   archiveSafetyPolicy,
   archiveToolChecklist,
   archiveCustomer,
+  archiveChangeOrderRequest,
   createPpeItem,
   createSafetyIncident,
   createSafetyPolicy,
@@ -19,6 +20,7 @@ import {
   bootstrapAdminAccount,
   convertLead,
   convertLeadToCustomer,
+  createChangeOrderRequest,
   createCustomer,
   createDailyReport,
   createJobAssignment,
@@ -61,6 +63,7 @@ import {
   startBreak,
   toggleQueueItem,
   archiveDailyReport,
+  updateChangeOrderRequest,
   updateCustomer,
   updateDailyReport,
   updateJobAssignment,
@@ -85,6 +88,7 @@ import {
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
+import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
@@ -179,6 +183,7 @@ const EMPTY_APP_STATE = {
   ppeItems: [],
   safetyAcknowledgments: [],
   safetyIncidents: [],
+  changeOrderRequests: [],
   prePourChecklists: [],
   postPourChecklists: [],
   toolChecklists: [],
@@ -274,6 +279,7 @@ const EMPTY_APP_STATE = {
     changeOrders: {
       canView: false,
       canManage: false,
+      canRequest: false,
     },
     audit: {
       canView: false,
@@ -316,6 +322,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
         ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
         safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
         safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
+        changeOrderRequests: Array.isArray(source.changeOrderRequests) ? source.changeOrderRequests : Array.isArray(fallback.changeOrderRequests) ? fallback.changeOrderRequests : EMPTY_APP_STATE.changeOrderRequests,
         prePourChecklists: Array.isArray(source.prePourChecklists) ? source.prePourChecklists : Array.isArray(fallback.prePourChecklists) ? fallback.prePourChecklists : EMPTY_APP_STATE.prePourChecklists,
         postPourChecklists: Array.isArray(source.postPourChecklists) ? source.postPourChecklists : Array.isArray(fallback.postPourChecklists) ? fallback.postPourChecklists : EMPTY_APP_STATE.postPourChecklists,
         toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
@@ -339,7 +346,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
         safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
         calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
-        toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
+      toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
       audit: mergePermissionScope(EMPTY_APP_STATE.permissions.audit, source.permissions?.audit || fallback.permissions?.audit),
@@ -480,6 +487,13 @@ const INITIAL_SAFETY_INCIDENT_FORM = {
   title: "",
   description: "",
   immediateAction: "",
+};
+
+const INITIAL_CHANGE_ORDER_REQUEST_FORM = {
+  jobId: "",
+  reason: "",
+  scopeDescription: "",
+  fieldNotes: "",
 };
 
 const INITIAL_TOOL_CHECKLIST_FORM = {
@@ -5870,6 +5884,217 @@ function PostPourPage({
   );
 }
 
+function ChangeOrdersPage({
+  user,
+  jobs,
+  changeOrderRequests,
+  permissions,
+  busy,
+  onCreateRequest,
+  onUpdateRequest,
+  onArchiveRequest,
+}) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [requesterFilter, setRequesterFilter] = useState("All requesters");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [createDraft, setCreateDraft] = useState(INITIAL_CHANGE_ORDER_REQUEST_FORM);
+  const [detailDraft, setDetailDraft] = useState({ status: "requested", officeNotes: "" });
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const rows = Array.isArray(changeOrderRequests) ? changeOrderRequests : [];
+  const filteredRows = useMemo(() => filterChangeOrderRequests(rows, {
+    status: statusFilter,
+    job: jobFilter,
+    requestedBy: requesterFilter,
+    date: dateFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, dateFilter, jobFilter, requesterFilter, rows, search, statusFilter]);
+  const listState = useMemo(() => deriveChangeOrderListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedRequest = filteredRows.find((request) => request.id === selectedRequestId)
+    || filteredRows[0]
+    || rows.find((request) => request.id === selectedRequestId)
+    || null;
+  const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
+  const canCreate = permissions.changeOrders.canRequest || permissions.changeOrders.canManage;
+  const canManage = permissions.changeOrders.canManage;
+
+  useEffect(() => {
+    if (!selectedRequestId && filteredRows[0]?.id) {
+      setSelectedRequestId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedRequestId]);
+
+  useEffect(() => {
+    if (singleJobId && !createDraft.jobId) {
+      setCreateDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [createDraft.jobId, singleJobId]);
+
+  useEffect(() => {
+    setDetailDraft({
+      status: selectedRequest?.status || "requested",
+      officeNotes: selectedRequest?.officeNotes || "",
+    });
+  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.officeNotes]);
+
+  if (!permissions.changeOrders.canView) {
+    return (
+      <div>
+        <PageHeader eyebrow="Field Tools" title="Change Order Requests" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Change order access unavailable" description="Only office roles and foremen can open change order requests in this first pass." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Tools" title="Change Order Requests" description={canManage ? "Review field scope-change requests across every job and keep pricing decisions on the office side." : "Request a scope change from the field without exposing pricing, billing, or profit data."} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-4">
+            <SectionHeader title="Filters" description="Focus on the requests that need action." />
+            <div className="grid gap-3">
+              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {["All", "Requested", "Under Review", "Approved for Pricing", "Rejected", "Archived"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Requested by" value={requesterFilter} onChange={(event) => setRequesterFilter(event.target.value)}>
+                {listState.requesterOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reasons, scope, notes, or jobs..." />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Request list" description={`${filteredRows.length} visible request${filteredRows.length === 1 ? "" : "s"}.`} />
+            {filteredRows.length === 0 ? (
+              <StateCard title={visibleJobs.length === 0 && !canManage ? "No assigned job yet" : "No change order requests match these filters"} description={visibleJobs.length === 0 && !canManage ? "Contact office if you should be able to request a scope change for this job." : "Clear a filter or create a new request for a visible job."} tone="slate" />
+            ) : (
+              <div className="space-y-3">
+                {filteredRows.map((request) => (
+                  <button
+                    key={request.id}
+                    type="button"
+                    onClick={() => setSelectedRequestId(request.id)}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedRequest?.id === request.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{request.job?.title || "Change order request"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{request.requestedByName} · {request.reason}</p>
+                      </div>
+                      <StatusBadge status={changeOrderStatusLabel(request.status)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {request.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+                      <Badge tone="amber">{request.job?.customer || "Assigned site"}</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          {canCreate ? (
+            <Card className="p-4">
+              <SectionHeader title="Create request" description="Capture field scope changes for office review without adding pricing." />
+              <div className="grid gap-3">
+                <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                  <option value="">Select a job</option>
+                  {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                </SelectField>
+                <InputField label="Reason" value={createDraft.reason} onChange={(event) => setCreateDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Why does this change need review?" />
+                <TextAreaField label="Scope description" value={createDraft.scopeDescription} onChange={(event) => setCreateDraft((current) => ({ ...current, scopeDescription: event.target.value }))} placeholder="Describe the requested scope change clearly." />
+                <TextAreaField label="Field notes" value={createDraft.fieldNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, fieldNotes: event.target.value }))} placeholder="Optional site notes for the office team." />
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onCreateRequest(createDraft);
+                    setCreateDraft({ ...INITIAL_CHANGE_ORDER_REQUEST_FORM, jobId: singleJobId });
+                  }}
+                  disabled={busy || !createDraft.jobId || !createDraft.reason || !createDraft.scopeDescription}
+                >
+                  Submit request
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedRequest ? (
+            <Card className="p-4">
+              <SectionHeader
+                title={selectedRequest.job?.title || "Change order request"}
+                description={`${selectedRequest.requestedByName} · ${formatDateTime(selectedRequest.createdAt)}`}
+                action={<StatusBadge status={changeOrderStatusLabel(selectedRequest.status)} />}
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Reason:</span> {selectedRequest.reason || "Not provided"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Requested by:</span> {selectedRequest.requestedByName}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Status:</span> {selectedRequest.statusLabel}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedRequest.reviewedByName || "Not reviewed"}</p>
+                </div>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-700">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Scope description</p>
+                  <p className="mt-2 whitespace-pre-wrap">{selectedRequest.scopeDescription || "No scope description provided."}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-700">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
+                  <p className="mt-2 whitespace-pre-wrap">{selectedRequest.fieldNotes || "No field notes provided."}</p>
+                </div>
+              </div>
+              {canManage ? (
+                <div className="mt-4 space-y-3">
+                  <SelectField label="Status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
+                    <option value="requested">Requested</option>
+                    <option value="under_review">Under Review</option>
+                    <option value="approved_for_pricing">Approved for Pricing</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="archived">Archived</option>
+                  </SelectField>
+                  <TextAreaField label="Office notes" value={detailDraft.officeNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, officeNotes: event.target.value }))} placeholder="Internal office notes only." />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => onUpdateRequest(selectedRequest.id, detailDraft)} disabled={busy}>Save review</Button>
+                    <Button type="button" variant="danger" onClick={() => onArchiveRequest(selectedRequest.id)} disabled={busy || selectedRequest.archivedAt}>Archive</Button>
+                  </div>
+                </div>
+              ) : selectedRequest.officeNotes ? null : null}
+            </Card>
+          ) : (
+            <Card className="p-4">
+              <SectionHeader title="Request details" description="Select a request to review the field description and office status." />
+              <StateCard title="No request selected" description="Choose a change order request from the list or create a new request for a visible job." tone="slate" />
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToolChecklistPage({
   user,
   jobs,
@@ -6304,6 +6529,9 @@ function MainContent(props) {
   }
   if (active === "calculator") {
     return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
+  }
+  if (active === "changeOrders") {
+    return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
   }
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
@@ -7709,6 +7937,57 @@ export default function App() {
     }
   }
 
+  async function handleCreateChangeOrderRequest(payload) {
+    if (!sessionToken || !(appState.permissions.changeOrders.canRequest || appState.permissions.changeOrders.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await createChangeOrderRequest(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateChangeOrderRequest(requestId, payload) {
+    if (!sessionToken || !appState.permissions.changeOrders.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateChangeOrderRequest(sessionToken, requestId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveChangeOrderRequest(requestId) {
+    if (!sessionToken || !appState.permissions.changeOrders.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveChangeOrderRequest(sessionToken, requestId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateToolChecklist(payload) {
     if (!sessionToken || !appState.permissions.toolChecklist.canManage) return false;
     setBusy(true);
@@ -7978,6 +8257,7 @@ export default function App() {
                 ppeItems={appState.ppeItems}
                 safetyAcknowledgments={appState.safetyAcknowledgments}
                 safetyIncidents={appState.safetyIncidents}
+                changeOrderRequests={appState.changeOrderRequests}
                 prePourChecklists={appState.prePourChecklists}
                 postPourChecklists={appState.postPourChecklists}
                 toolChecklists={appState.toolChecklists}
@@ -8085,6 +8365,9 @@ export default function App() {
               onCreateSafetyIncident={handleCreateSafetyIncident}
               onReviewSafetyIncident={handleReviewSafetyIncident}
               onResolveSafetyIncident={handleResolveSafetyIncident}
+              onCreateChangeOrderRequest={handleCreateChangeOrderRequest}
+              onUpdateChangeOrderRequest={handleUpdateChangeOrderRequest}
+              onArchiveChangeOrderRequest={handleArchiveChangeOrderRequest}
                 onArchiveSafetyIncident={handleArchiveSafetyIncident}
                 onUpdateCompanySettings={handleUpdateCompanySettings}
                 onCreateChecklist={handleCreateToolChecklist}

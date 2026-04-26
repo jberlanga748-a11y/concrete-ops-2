@@ -579,6 +579,7 @@ export function createEmptyState() {
     ppeItems: [],
     safetyAcknowledgments: [],
     safetyIncidents: [],
+    changeOrderRequests: [],
     prePourChecklists: [],
     prePourChecklistItems: [],
     postPourChecklists: [],
@@ -646,6 +647,7 @@ export function createSeedState() {
     ppeItems,
     safetyAcknowledgments: [],
     safetyIncidents: [],
+    changeOrderRequests: [],
     prePourChecklists: [],
     prePourChecklistItems: [],
     postPourChecklists: [],
@@ -1947,6 +1949,40 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 27,
+    description: "Add basic change order request workflow tables.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS change_order_requests (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          customer_id TEXT,
+          requested_by TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          scope_description TEXT NOT NULL,
+          field_notes TEXT NOT NULL,
+          status TEXT NOT NULL,
+          office_notes TEXT NOT NULL,
+          reviewed_by TEXT,
+          reviewed_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+          FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_change_order_requests_job_id ON change_order_requests(job_id);
+        CREATE INDEX IF NOT EXISTS idx_change_order_requests_status ON change_order_requests(status);
+        CREATE INDEX IF NOT EXISTS idx_change_order_requests_requested_by ON change_order_requests(requested_by);
+        CREATE INDEX IF NOT EXISTS idx_change_order_requests_sort_index ON change_order_requests(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -2035,10 +2071,15 @@ function writeStateToDb(state) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-    const insertSafetyIncident = database.prepare(`
-      INSERT INTO safety_incidents (id, sort_index, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  const insertSafetyIncident = database.prepare(`
+    INSERT INTO safety_incidents (id, sort_index, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertChangeOrderRequest = database.prepare(`
+    INSERT INTO change_order_requests (id, sort_index, job_id, customer_id, requested_by, reason, scope_description, field_notes, status, office_notes, reviewed_by, reviewed_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
     const insertPrePourChecklist = database.prepare(`
       INSERT INTO pre_pour_checklists (id, sort_index, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
@@ -2122,6 +2163,7 @@ function writeStateToDb(state) {
       DELETE FROM jobs;
         DELETE FROM safety_acknowledgments;
         DELETE FROM safety_incidents;
+        DELETE FROM change_order_requests;
         DELETE FROM safety_policies;
         DELETE FROM ppe_items;
         DELETE FROM pre_pour_checklist_items;
@@ -2339,6 +2381,26 @@ function writeStateToDb(state) {
         incident.reviewedAt || null,
         incident.resolvedAt || null,
         incident.archivedAt || null,
+        );
+      });
+
+      (state.changeOrderRequests || []).forEach((request, index) => {
+        insertChangeOrderRequest.run(
+          request.id,
+          request.sortIndex ?? index,
+          request.jobId,
+          request.customerId || null,
+          request.requestedBy,
+          request.reason || "",
+          request.scopeDescription || "",
+          request.fieldNotes || "",
+          request.status || "requested",
+          request.officeNotes || "",
+          request.reviewedBy || null,
+          request.reviewedAt || null,
+          request.createdAt || isoNow(),
+          request.updatedAt || request.createdAt || isoNow(),
+          request.archivedAt || null,
         );
       });
 
@@ -2666,10 +2728,18 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
-    const safetyIncidents = database.prepare(`
+  const safetyIncidents = database.prepare(`
       SELECT id, job_id AS jobId, submitted_by AS submittedBy, type, severity, status, title, description, immediate_action AS immediateAction,
              created_at AS createdAt, updated_at AS updatedAt, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt, resolved_at AS resolvedAt, archived_at AS archivedAt
       FROM safety_incidents
+      ORDER BY sort_index ASC
+    `).all();
+
+    const changeOrderRequests = database.prepare(`
+      SELECT id, job_id AS jobId, customer_id AS customerId, requested_by AS requestedBy, reason, scope_description AS scopeDescription,
+             field_notes AS fieldNotes, status, office_notes AS officeNotes, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt,
+             created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM change_order_requests
       ORDER BY sort_index ASC
     `).all();
 
@@ -2795,6 +2865,7 @@ function readTableState() {
     ppeItems,
     safetyAcknowledgments,
     safetyIncidents,
+    changeOrderRequests,
     prePourChecklists,
     prePourChecklistItems,
     postPourChecklists,
