@@ -639,34 +639,76 @@ export function buildPrintDocumentHtml(packetInput) {
 </html>`;
 }
 
-export function openPrintDocument(packet, existingWindow = null) {
-  if (typeof window === "undefined") return false;
-  const printWindow = existingWindow || window.open("", "_blank", "noopener,noreferrer");
-  if (!printWindow) return false;
+export function openPrintDocument(packet) {
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
 
-  let hasPrinted = false;
+  const html = buildPrintDocumentHtml(packet);
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+
+  let cleanedUp = false;
+  let printQueued = false;
+
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    try {
+      iframe.onload = null;
+      iframe.contentWindow?.removeEventListener?.("afterprint", cleanup);
+    } catch {}
+    try {
+      iframe.remove();
+    } catch {}
+  };
+
+  const queueCleanup = () => {
+    window.setTimeout(cleanup, 1000);
+  };
+
   const printWhenReady = () => {
-    if (hasPrinted || printWindow.closed) return;
-    hasPrinted = true;
-    printWindow.focus();
-    printWindow.print();
+    if (printQueued) return;
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+      cleanup();
+      return;
+    }
+    printQueued = true;
+    try {
+      frameWindow.addEventListener("afterprint", cleanup, { once: true });
+    } catch {}
+    frameWindow.focus();
+    frameWindow.print();
+    queueCleanup();
   };
 
   try {
-    printWindow.onload = printWhenReady;
-    printWindow.document.open();
-    printWindow.document.write(buildPrintDocumentHtml(packet));
-    printWindow.document.close();
-    if (printWindow.document.readyState === "complete") {
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
       window.setTimeout(printWhenReady, 50);
-    } else {
-      window.setTimeout(printWhenReady, 250);
+    };
+
+    const frameWindow = iframe.contentWindow;
+    const frameDocument = frameWindow?.document;
+    if (!frameWindow || !frameDocument) {
+      cleanup();
+      return false;
     }
+
+    frameDocument.open();
+    frameDocument.write(html);
+    frameDocument.close();
+    window.setTimeout(printWhenReady, 250);
     return true;
   } catch {
-    try {
-      printWindow.close();
-    } catch {}
+    cleanup();
     return false;
   }
 }
