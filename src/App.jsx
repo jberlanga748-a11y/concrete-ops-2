@@ -70,7 +70,7 @@ import {
   submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
-import { buildCalculatorCopyText, calculateConcreteResult, calculatorTypeLabel, CALCULATOR_TYPES, formatCubicFeet, formatCubicYards, WASTE_OPTIONS } from "./calculator-utils";
+import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
@@ -1651,36 +1651,61 @@ function JobCalculationsCard({ calculations, title = "Internal calculations", de
         <StateCard title="No saved calculations yet" description="Calculator results saved to this job will appear here for allowed company users." tone="slate" />
       ) : (
         <div className="space-y-3">
-          {safeCalculations.map((calculation) => (
-            <div key={calculation.id} className="rounded-2xl border border-blue-100 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-black text-slate-950">{calculatorTypeLabel(calculation.calculatorType)}</p>
-                  <p className="mt-1 break-words text-sm text-slate-600">{calculation.summary || "Saved internal calculation"}</p>
+          {safeCalculations.map((calculation) => {
+            const sectionRows = Array.isArray(calculation.inputsJson?.sections) ? calculation.inputsJson.sections : [];
+            const sectionCount = Number(calculation.inputsJson?.sectionCount || sectionRows.length || 0);
+
+            return (
+              <div key={calculation.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{calculatorTypeLabel(calculation.calculatorType)}</p>
+                    <p className="mt-1 break-words text-sm text-slate-600">{calculation.summary || "Saved internal calculation"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sectionCount > 0 ? <Badge tone="blue">{sectionCount} sections</Badge> : null}
+                    <Badge tone="slate">Internal only</Badge>
+                  </div>
                 </div>
-                <Badge tone="slate">Internal only</Badge>
+                <div className={`mt-3 grid gap-3 ${sectionCount > 0 ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Base</p>
+                    <p className="mt-1 text-sm font-bold text-slate-700">{formatCubicYards(calculation.cubicYards)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">With waste</p>
+                    <p className="mt-1 text-sm font-bold text-slate-700">{formatCubicYards(calculation.cubicYardsWithWaste)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Created by</p>
+                    <p className="mt-1 text-sm font-bold text-slate-700">{calculation.createdByName || calculation.createdBy}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Saved at</p>
+                    <p className="mt-1 text-sm font-bold text-slate-700">{formatDateTime(calculation.createdAt)}</p>
+                  </div>
+                  {sectionCount > 0 ? (
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Sections</p>
+                      <p className="mt-1 text-sm font-bold text-slate-700">{sectionCount}</p>
+                    </div>
+                  ) : null}
+                </div>
+                {sectionRows.length > 0 ? (
+                  <div className="mt-3 space-y-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                    {sectionRows.map((section, index) => (
+                      <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
+                        <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
+                        <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
+                        {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {calculation.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{calculation.notes}</p> : null}
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Base</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{formatCubicYards(calculation.cubicYards)}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">With waste</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{formatCubicYards(calculation.cubicYardsWithWaste)}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Created by</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{calculation.createdByName || calculation.createdBy}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Saved at</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{formatDateTime(calculation.createdAt)}</p>
-                </div>
-              </div>
-              {calculation.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{calculation.notes}</p> : null}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Card>
@@ -4692,6 +4717,11 @@ const CALCULATOR_INPUT_DEFAULTS = {
   roundColumn: { diameterInches: "", height: "" },
 };
 
+const INITIAL_TAKEOFF_SECTION_FORM = {
+  label: "",
+  notes: "",
+};
+
 const CALCULATOR_FIELD_CONFIG = {
   slab: [
     { key: "length", label: "Length (ft)", placeholder: "20" },
@@ -4714,9 +4744,22 @@ const CALCULATOR_FIELD_CONFIG = {
   ],
 };
 
+function createCalculatorSectionId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `section-${Date.now()}-${Math.round(Math.random() * 100000)}`;
+}
+
+function defaultTakeoffSectionLabel(index) {
+  return `Section ${index + 1}`;
+}
+
 function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
+  const [calculatorMode, setCalculatorMode] = useState("single");
   const [calculatorType, setCalculatorType] = useState("slab");
   const [draftByType, setDraftByType] = useState(CALCULATOR_INPUT_DEFAULTS);
+  const [takeoffSections, setTakeoffSections] = useState([]);
+  const [sectionForm, setSectionForm] = useState(INITIAL_TAKEOFF_SECTION_FORM);
+  const [editingSectionId, setEditingSectionId] = useState("");
   const [wastePreset, setWastePreset] = useState("10");
   const [customWastePercent, setCustomWastePercent] = useState("");
   const [resultCopied, setResultCopied] = useState(false);
@@ -4727,10 +4770,15 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
   const activeWastePercent = wastePreset === "custom" ? customWastePercent : wastePreset;
   const activeFields = CALCULATOR_FIELD_CONFIG[calculatorType] || [];
   const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
-  const result = useMemo(
+  const singleResult = useMemo(
     () => calculateConcreteResult(calculatorType, activeDraft, activeWastePercent),
     [activeDraft, activeWastePercent, calculatorType],
   );
+  const takeoffResult = useMemo(
+    () => calculateTakeoffResult(takeoffSections, activeWastePercent),
+    [activeWastePercent, takeoffSections],
+  );
+  const result = calculatorMode === "multi_section" ? takeoffResult : singleResult;
 
   useEffect(() => {
     const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
@@ -4762,11 +4810,35 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
     }));
   }
 
-  function resetCalculator() {
+  function updateSectionForm(key, value) {
+    setSectionForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function resetSectionBuilder(clearType = false) {
+    setSectionForm(INITIAL_TAKEOFF_SECTION_FORM);
+    setEditingSectionId("");
     setDraftByType((current) => ({
       ...current,
-      [calculatorType]: { ...CALCULATOR_INPUT_DEFAULTS[calculatorType] },
+      [clearType ? "slab" : calculatorType]: { ...CALCULATOR_INPUT_DEFAULTS[clearType ? "slab" : calculatorType] },
     }));
+    if (clearType) {
+      setCalculatorType("slab");
+    }
+  }
+
+  function resetCalculator() {
+    if (calculatorMode === "multi_section") {
+      setTakeoffSections([]);
+      resetSectionBuilder();
+    } else {
+      setDraftByType((current) => ({
+        ...current,
+        [calculatorType]: { ...CALCULATOR_INPUT_DEFAULTS[calculatorType] },
+      }));
+    }
     setWastePreset("10");
     setCustomWastePercent("");
     setResultCopied(false);
@@ -4775,6 +4847,68 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
       ...INITIAL_CALCULATOR_SAVE_FORM,
       jobId: current.jobId,
     }));
+    setSaveMessage("");
+  }
+
+  function addOrUpdateSection() {
+    const sectionResult = calculateConcreteResult(calculatorType, activeDraft, 0);
+    if (sectionResult.status !== "ready") return;
+
+    const nextSection = createTakeoffSection({
+      id: editingSectionId || createCalculatorSectionId(),
+      label: sectionForm.label || defaultTakeoffSectionLabel(takeoffSections.length),
+      calculatorType,
+      inputs: activeDraft,
+      notes: sectionForm.notes,
+    });
+
+    setTakeoffSections((current) => {
+      if (editingSectionId) {
+        return current.map((section) => (section.id === editingSectionId ? nextSection : section));
+      }
+      return [...current, nextSection];
+    });
+    setResultCopied(false);
+    setSaveMessage("");
+    resetSectionBuilder();
+  }
+
+  function editSection(section) {
+    if (!section) return;
+    setEditingSectionId(section.id);
+    setCalculatorType(section.calculatorType === "round_column" ? "roundColumn" : section.calculatorType);
+    setSectionForm({
+      label: section.label || "",
+      notes: section.notes || "",
+    });
+    setDraftByType((current) => ({
+      ...current,
+      [section.calculatorType === "round_column" ? "roundColumn" : section.calculatorType]: {
+        ...(section.inputs || {}),
+      },
+    }));
+  }
+
+  function removeSection(sectionId) {
+    setTakeoffSections((current) => current.filter((section) => section.id !== sectionId));
+    if (editingSectionId === sectionId) {
+      resetSectionBuilder();
+    }
+    setResultCopied(false);
+    setSaveMessage("");
+  }
+
+  function duplicateSection(section) {
+    if (!section) return;
+    setTakeoffSections((current) => [
+      ...current,
+      {
+        ...section,
+        id: createCalculatorSectionId(),
+        label: `${section.label || defaultTakeoffSectionLabel(current.length)} copy`,
+      },
+    ]);
+    setResultCopied(false);
     setSaveMessage("");
   }
 
@@ -4795,8 +4929,14 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
     if (result.status !== "ready" || !saveDraft.jobId || !onSaveCalculatorResult) return;
     const success = await onSaveCalculatorResult({
       jobId: saveDraft.jobId,
-      calculatorType,
-      inputsJson: result.normalizedInputs,
+      calculatorType: calculatorMode === "multi_section" ? "multi_section" : calculatorType,
+      inputsJson: calculatorMode === "multi_section"
+        ? result.inputsJson
+        : {
+          mode: "single",
+          calculatorType,
+          inputs: result.normalizedInputs,
+        },
       wastePercent: result.wastePercent,
       cubicFeet: result.baseCubicFeet,
       cubicYards: result.baseCubicYards,
@@ -4820,7 +4960,27 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4 sm:p-5">
-            <SectionHeader title="Calculator type" description="Pick the shape you are pouring and enter the dimensions below." />
+            <SectionHeader title="Mode" description="Use a single quick calculation or build a multi-section takeoff." />
+            <div className="grid grid-cols-2 gap-2">
+              {CALCULATOR_MODE_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setCalculatorMode(option.id)}
+                  className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
+                    calculatorMode === option.id
+                      ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20"
+                      : "bg-blue-50 text-slate-700 ring-1 ring-blue-100 hover:bg-blue-100"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-4 sm:p-5">
+            <SectionHeader title={calculatorMode === "multi_section" ? "Section type" : "Calculator type"} description={calculatorMode === "multi_section" ? "Choose a shape for the next section in this takeoff." : "Pick the shape you are pouring and enter the dimensions below."} />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {CALCULATOR_TYPES.map((option) => (
                 <button
@@ -4840,7 +5000,13 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
           </Card>
 
           <Card className="p-4 sm:p-5">
-            <SectionHeader title="Dimensions" description="Every field is labeled with feet or inches so the result stays quick and field-friendly." />
+            <SectionHeader title={calculatorMode === "multi_section" ? (editingSectionId ? "Edit section" : "Add section") : "Dimensions"} description={calculatorMode === "multi_section" ? "Build one section at a time, then total the takeoff together." : "Every field is labeled with feet or inches so the result stays quick and field-friendly."} />
+            {calculatorMode === "multi_section" ? (
+              <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                <InputField label="Section label" placeholder={`e.g. ${defaultTakeoffSectionLabel(takeoffSections.length)}`} value={sectionForm.label} onChange={(event) => updateSectionForm("label", event.target.value)} />
+                <TextAreaField label="Section note" value={sectionForm.notes} onChange={(event) => updateSectionForm("notes", event.target.value)} placeholder="Optional note for this section." />
+              </div>
+            ) : null}
             <div className="grid gap-3">
               {activeFields.map((field) => (
                 <InputField
@@ -4874,9 +5040,17 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
               ) : null}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={resetCalculator}>Reset</Button>
+              {calculatorMode === "multi_section" ? (
+                <Button type="button" onClick={addOrUpdateSection} disabled={calculateConcreteResult(calculatorType, activeDraft, 0).status !== "ready"}>
+                  {editingSectionId ? "Save section" : "Add section"}
+                </Button>
+              ) : null}
+              {calculatorMode === "multi_section" && editingSectionId ? (
+                <Button type="button" variant="secondary" onClick={() => resetSectionBuilder()}>Cancel edit</Button>
+              ) : null}
+              <Button type="button" variant="secondary" onClick={resetCalculator}>{calculatorMode === "multi_section" ? "Reset takeoff" : "Reset"}</Button>
               <Button type="button" variant="ghost" onClick={copyResult} disabled={result.status !== "ready"}>
-                {resultCopied ? "Copied" : "Copy result"}
+                {resultCopied ? "Copied" : calculatorMode === "multi_section" ? "Copy takeoff" : "Copy result"}
               </Button>
               <Button type="button" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>
                 {savePanelOpen ? "Hide Save to Job" : "Save to Job"}
@@ -4901,6 +5075,34 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
             ) : null}
             {saveMessage ? <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{saveMessage}</div> : null}
           </Card>
+
+          {calculatorMode === "multi_section" ? (
+            <Card className="p-4 sm:p-5">
+              <SectionHeader title="Takeoff sections" description="Each section keeps its own dimensions so the full takeoff can be copied or saved to the job." />
+              {takeoffSections.length === 0 ? (
+                <StateCard title="No sections added yet" description="Add one or more panels, runs, or pours to build a running total." tone="slate" />
+              ) : (
+                <div className="space-y-3">
+                  {takeoffSections.map((section, index) => (
+                    <div key={section.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
+                          <p className="mt-1 text-sm text-slate-600">{calculatorTypeLabel(section.calculatorType)} · {formatCubicYards(section.cubicYards)}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="secondary" onClick={() => editSection(section)}>Edit</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => duplicateSection(section)}>Duplicate</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => removeSection(section.id)}>Remove</Button>
+                        </div>
+                      </div>
+                      {section.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : null}
         </div>
 
         <div className="min-w-0">
@@ -4911,7 +5113,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                 <>
                   <p className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">{formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "")}</p>
                   <p className="text-base font-black text-blue-100 sm:text-lg">yd^3 with waste</p>
-                  <p className="mt-3 text-sm leading-6 text-blue-100">{result.summary}</p>
+                  <p className="mt-3 text-sm leading-6 text-blue-100">{result.summary || "Ready to copy or save internally."}</p>
                 </>
               ) : (
                 <>
@@ -4919,12 +5121,14 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                   <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">
                     {result.status === "invalid"
                       ? "Use zero or positive numbers only. Negative dimensions do not calculate."
-                      : "Enter the dimensions for this pour to see cubic feet, cubic yards, and the waste-adjusted total."}
+                      : calculatorMode === "multi_section"
+                        ? "Add one or more valid sections to build the total takeoff."
+                        : "Enter the dimensions for this pour to see cubic feet, cubic yards, and the waste-adjusted total."}
                   </p>
                 </>
               )}
             </div>
-            <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-6">
+            <div className={`grid gap-3 p-4 sm:p-6 ${calculatorMode === "multi_section" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
               <div className="rounded-2xl bg-blue-50 p-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Base</p>
                 <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicYards(result.baseCubicYards) : "--"}</p>
@@ -4937,6 +5141,12 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Cubic feet</p>
                 <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicFeet(result.baseCubicFeet) : "--"}</p>
               </div>
+              {calculatorMode === "multi_section" ? (
+                <div className="rounded-2xl bg-blue-50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Sections</p>
+                  <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? result.sectionCount : takeoffSections.length}</p>
+                </div>
+              ) : null}
             </div>
             <div className="border-t border-blue-100 bg-white p-4 sm:p-6">
               <SectionHeader
@@ -4952,11 +5162,22 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                   <p className="mt-1">
                     With {result.wastePercent}% waste: <span className="font-black">{formatCubicYards(result.cubicYardsWithWaste)}</span>
                   </p>
+                  {calculatorMode === "multi_section" && Array.isArray(result.sections) && result.sections.length > 0 ? (
+                    <div className="mt-3 space-y-2 border-t border-blue-100 pt-3">
+                      {result.sections.map((section, index) => (
+                        <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white/70 p-3">
+                          <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
+                          <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
+                          {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <StateCard
                   title={result.status === "invalid" ? "Dimensions need a quick fix" : "No calculation yet"}
-                  description={result.status === "invalid" ? "Update the negative value above and the result card will recalculate." : "Missing inputs stay blank on purpose so the page never falls back to NaN or misleading totals."}
+                  description={result.status === "invalid" ? "Update the negative value above and the result card will recalculate." : calculatorMode === "multi_section" ? "Add at least one valid section so the page can total the takeoff without ever falling back to NaN." : "Missing inputs stay blank on purpose so the page never falls back to NaN or misleading totals."}
                   tone={result.status === "invalid" ? "red" : "slate"}
                 />
               )}

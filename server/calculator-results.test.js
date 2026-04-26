@@ -158,6 +158,52 @@ function calculationPayload(jobId, overrides = {}) {
   };
 }
 
+function multiSectionPayload(jobId, overrides = {}) {
+  return {
+    jobId,
+    calculatorType: "multi_section",
+    inputsJson: {
+      mode: "multi_section",
+      sections: [
+        {
+          id: "S1",
+          label: "Panel 1",
+          calculatorType: "slab",
+          inputs: { length: 5, width: 6, thicknessInches: 4 },
+          cubicFeet: 10,
+          cubicYards: 0.37,
+          notes: "Front walk",
+          summary: "5 ft x 6 ft x 4 in slab",
+        },
+        {
+          id: "S2",
+          label: "Panel 2",
+          calculatorType: "slab",
+          inputs: { length: 4, width: 8, thicknessInches: 4 },
+          cubicFeet: 10.6667,
+          cubicYards: 0.40,
+          notes: "",
+          summary: "4 ft x 8 ft x 4 in slab",
+        },
+      ],
+      totals: {
+        cubicFeet: 20.6667,
+        cubicYards: 0.77,
+        cubicYardsWithWaste: 0.85,
+      },
+      wastePercent: 10,
+      sectionCount: 2,
+    },
+    wastePercent: 10,
+    cubicFeet: 20.6667,
+    cubicYards: 0.77,
+    cubicYardsWithWaste: 0.85,
+    summary: "2 sections totaling 0.77 yd^3 base",
+    notes: "Internal sidewalk takeoff.",
+    ...overrides,
+  };
+}
+
 test("calculator results save to allowed jobs with internal-only visibility", async () => {
   const fixture = await startServer();
 
@@ -205,6 +251,18 @@ test("calculator results save to allowed jobs with internal-only visibility", as
     });
     assert.ok(officeState.calculatorResults.some((result) => result.jobId === "J-2192"));
 
+    const officeMultiSectionState = await assertOk(fixture.baseUrl, "/api/calculator-results", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify(multiSectionPayload("J-2192")),
+    });
+    const officeTakeoff = officeMultiSectionState.calculatorResults.find((result) => result.calculatorType === "multi_section");
+    assert.ok(officeTakeoff);
+    assert.equal(officeTakeoff.visibility, "internal");
+    assert.equal(Array.isArray(officeTakeoff.inputsJson?.sections), true);
+    assert.equal(officeTakeoff.inputsJson.sections.length, 2);
+    assert.equal(officeTakeoff.inputsJson.sections[0].label, "Panel 1");
+
     const foremanAssignedState = await assertOk(fixture.baseUrl, "/api/calculator-results", {
       method: "POST",
       headers: foremanHeaders,
@@ -228,6 +286,13 @@ test("calculator results save to allowed jobs with internal-only visibility", as
       body: JSON.stringify(calculationPayload("J-2201", { summary: "Employee assigned slab" })),
     });
     assert.ok(employeeState.calculatorResults.some((result) => result.summary === "Employee assigned slab"));
+
+    const employeeTakeoffState = await assertOk(fixture.baseUrl, "/api/calculator-results", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify(multiSectionPayload("J-2201", { summary: "Employee sidewalk takeoff" })),
+    });
+    assert.ok(employeeTakeoffState.calculatorResults.some((result) => result.summary === "Employee sidewalk takeoff" && result.inputsJson?.sections?.length === 2));
 
     const deniedEmployeeSave = await requestJson(fixture.baseUrl, "/api/calculator-results", {
       method: "POST",
@@ -266,6 +331,7 @@ test("calculator results save to allowed jobs with internal-only visibility", as
     assert.ok(officeBootstrap.auditEvents.some((event) => event.entityType === "calculatorResult" && event.action === "saved"));
     const officeJob = officeBootstrap.jobs.find((job) => job.id === "J-2192");
     assert.ok(officeJob?.calculatorResults?.some((result) => result.calculatorType === "round_column"));
+    assert.ok(officeJob?.calculatorResults?.some((result) => result.calculatorType === "multi_section" && result.inputsJson?.sections?.length === 2));
   } finally {
     await fixture.stop();
   }
