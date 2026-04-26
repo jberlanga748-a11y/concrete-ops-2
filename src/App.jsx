@@ -842,6 +842,16 @@ function SectionHeader({ title, description, action }) {
   );
 }
 
+function StatCard({ title, value, detail }) {
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+      <p className="mt-2 break-words text-xl font-black text-slate-950">{value}</p>
+      {detail ? <p className="mt-1 break-words text-sm text-slate-500">{detail}</p> : null}
+    </div>
+  );
+}
+
 function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   return (
     <div className="flex flex-col gap-3 border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
