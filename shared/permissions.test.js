@@ -85,7 +85,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canViewLeads(employee), false);
   assert.equal(canViewCustomers(employee), false);
   assert.equal(canViewEstimates(employee), false);
-  assert.equal(canViewReports(employee), true);
+  assert.equal(canViewReports(employee), false);
   assert.equal(canCreateDailyReports(employee), false);
   assert.equal(canManageOwnTime(employee), true);
   assert.equal(canUseCalculator(employee), true);
@@ -94,6 +94,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(modules.has("customers"), false);
   assert.equal(modules.has("settings"), false);
   assert.equal(modules.has("jobs"), true);
+  assert.equal(modules.has("reports"), false);
   assert.equal(modules.has("calculator"), true);
   assert.equal(modules.has("toolChecklist"), false);
 });

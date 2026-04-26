@@ -267,11 +267,16 @@ test("daily reports respect foreman workflow, office review, employee restrictio
     });
     assert.equal(deniedSubmittedEdit.response.status, 403);
 
-    const employeeReports = await assertOk(fixture.baseUrl, "/api/daily-reports", {
+    const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: employeeHeaders,
     });
-    assert.deepEqual(employeeReports.dailyReports.map((report) => report.id), [createdReport.id]);
-    assert.equal(employeeReports.dailyReports[0].timeSummary.participants.every((participant) => participant.userId === employeeUser.id), true);
+    assert.deepEqual(employeeBootstrap.dailyReports, []);
+    assert.equal(employeeBootstrap.permissions.reports.canView, false);
+
+    const employeeReports = await requestJson(fixture.baseUrl, "/api/daily-reports", {
+      headers: employeeHeaders,
+    });
+    assert.equal(employeeReports.response.status, 403);
 
     const deniedEmployeeMutation = await requestJson(fixture.baseUrl, `/api/daily-reports/${createdReport.id}/submit`, {
       method: "POST",

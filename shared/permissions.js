@@ -91,7 +91,7 @@ export function canCorrectTimeEntries(user) {
 }
 
 export function canViewReports(user) {
-  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+  return isOfficeManager(user) || isForeman(user);
 }
 
 export function canManageReports(user) {
@@ -224,7 +224,7 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   } else if (isForeman(user)) {
     ["jobs", "time", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEmployee(user)) {
-    ["jobs", "time", "reports", "uploads", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["jobs", "time", "uploads", "incidents", "toolbox", "ppe", "calculator"].forEach((moduleId) => modules.add(moduleId));
   }
 
   if (canUseToolChecklist(user, companySettings)) {

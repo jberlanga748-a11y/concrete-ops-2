@@ -1743,10 +1743,13 @@ function readTableState() {
 
 function isRetryableSqliteError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return error?.code === "SQLITE_BUSY" || error?.code === "SQLITE_LOCKED" || /database is locked/i.test(message);
+  return error?.code === "SQLITE_BUSY"
+    || error?.code === "SQLITE_LOCKED"
+    || /database is locked/i.test(message)
+    || /database is busy/i.test(message);
 }
 
-async function withSqliteRetry(task, { attempts = 5, delayMs = 40 } = {}) {
+async function withSqliteRetry(task, { attempts = 10, delayMs = 75 } = {}) {
   let lastError;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {

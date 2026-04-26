@@ -59,12 +59,13 @@ test("employees do not see leads in navigation and default to field workspace", 
   assert.equal(canAccessModule("leads", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("employees", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("customers", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("reports", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("settings", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("dashboard", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "reports", "calculator", "toolChecklist"],
+    ["jobs", "calculator", "toolChecklist"],
   );
 });
 
@@ -92,6 +93,14 @@ test("field roles are redirected away from office-only modules by access rules",
   assert.equal(getDefaultModuleId(employee), "jobs");
 });
 
+test("employees are also redirected away from reports while foremen keep access", () => {
+  const foreman = { role: "Foreman" };
+  const employee = { role: "Employee" };
+
+  assert.equal(canAccessModule("reports", foreman, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("reports", employee, { toolChecklistEnabled: true }), false);
+});
+
 test("estimators keep sales navigation but not settings", () => {
   const estimator = { role: "Estimator" };
 
@@ -112,6 +121,6 @@ test("tool checklist hides from field roles when disabled", () => {
   assert.equal(canAccessModule("toolChecklist", foreman, { toolChecklistEnabled: false }), false);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: false }).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "reports", "calculator"],
+    ["jobs", "calculator"],
   );
 });
