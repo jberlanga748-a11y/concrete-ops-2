@@ -68,14 +68,39 @@ test("estimate filters support status customer lead creator archive and search",
 
 test("derive estimate list state tolerates sparse inputs", () => {
   const state = deriveEstimateListState(
-    [{ customer: { name: "Martinez Residence" }, lead: { customer: "Martinez Residence", project: "Driveway replacement estimate" }, createdByName: "Demo Admin" }],
-    [{ name: "Salem Dental Office" }],
-    [{ customer: "Keizer Patio Project", project: "Stamped patio quote" }],
+    [null, { customer: { name: "Martinez Residence" }, lead: { customer: "Martinez Residence", project: "Driveway replacement estimate" }, createdByName: "Demo Admin" }],
+    [undefined, { name: "Salem Dental Office" }],
+    [null, { customer: "Keizer Patio Project", project: "Stamped patio quote" }],
   );
 
   assert.deepEqual(state.customerOptions, ["All customers", "Martinez Residence", "Salem Dental Office"]);
   assert.deepEqual(state.creatorOptions, ["All creators", "Demo Admin"]);
   assert.equal(state.leadOptions.includes("Keizer Patio Project — Stamped patio quote"), true);
+});
+
+test("estimate helpers tolerate sparse estimate rows and missing item arrays", () => {
+  const sparseRows = [
+    null,
+    undefined,
+    {
+      id: "EST-1",
+      title: "Sparse draft",
+      status: "draft",
+      customer: null,
+      lead: null,
+      createdByName: null,
+      items: null,
+    },
+  ];
+
+  assert.equal(filterEstimates(sparseRows, { search: "sparse" }).length, 1);
+  assert.deepEqual(calculateEstimateTotals(undefined), {
+    subtotal: 0,
+    taxRate: null,
+    taxTotal: null,
+    feesTotal: null,
+    grandTotal: 0,
+  });
 });
 
 test("status labels and currency formatting stay human friendly", () => {

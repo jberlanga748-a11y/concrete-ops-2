@@ -323,6 +323,23 @@ function mergePermissionScope(defaults, incoming) {
   };
 }
 
+function normalizeObjectArray(value, fallback = []) {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item && typeof item === "object");
+  }
+  if (Array.isArray(fallback)) {
+    return fallback.filter((item) => item && typeof item === "object");
+  }
+  return [];
+}
+
+function normalizeEstimateArray(value, fallback = []) {
+  return normalizeObjectArray(value, fallback).map((estimate) => ({
+    ...estimate,
+    items: normalizeObjectArray(estimate?.items),
+  }));
+}
+
 function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
   const source = nextState || {};
   const fallback = fallbackState || EMPTY_APP_STATE;
@@ -333,28 +350,28 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       ...(fallback.companySettings || {}),
       ...(source.companySettings || {}),
     },
-    users: Array.isArray(source.users) ? source.users : Array.isArray(fallback.users) ? fallback.users : EMPTY_APP_STATE.users,
-    customers: Array.isArray(source.customers) ? source.customers : Array.isArray(fallback.customers) ? fallback.customers : EMPTY_APP_STATE.customers,
-    leads: Array.isArray(source.leads) ? source.leads : Array.isArray(fallback.leads) ? fallback.leads : EMPTY_APP_STATE.leads,
-    leadStatusHistory: Array.isArray(source.leadStatusHistory) ? source.leadStatusHistory : Array.isArray(fallback.leadStatusHistory) ? fallback.leadStatusHistory : EMPTY_APP_STATE.leadStatusHistory,
-    estimates: Array.isArray(source.estimates) ? source.estimates : Array.isArray(fallback.estimates) ? fallback.estimates : EMPTY_APP_STATE.estimates,
-      jobs: Array.isArray(source.jobs) ? source.jobs : Array.isArray(fallback.jobs) ? fallback.jobs : EMPTY_APP_STATE.jobs,
-        safetyPolicies: Array.isArray(source.safetyPolicies) ? source.safetyPolicies : Array.isArray(fallback.safetyPolicies) ? fallback.safetyPolicies : EMPTY_APP_STATE.safetyPolicies,
-        ppeItems: Array.isArray(source.ppeItems) ? source.ppeItems : Array.isArray(fallback.ppeItems) ? fallback.ppeItems : EMPTY_APP_STATE.ppeItems,
-        safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
-        safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
-        changeOrderRequests: Array.isArray(source.changeOrderRequests) ? source.changeOrderRequests : Array.isArray(fallback.changeOrderRequests) ? fallback.changeOrderRequests : EMPTY_APP_STATE.changeOrderRequests,
-        deliveryTickets: Array.isArray(source.deliveryTickets) ? source.deliveryTickets : Array.isArray(fallback.deliveryTickets) ? fallback.deliveryTickets : EMPTY_APP_STATE.deliveryTickets,
-        prePourChecklists: Array.isArray(source.prePourChecklists) ? source.prePourChecklists : Array.isArray(fallback.prePourChecklists) ? fallback.prePourChecklists : EMPTY_APP_STATE.prePourChecklists,
-        postPourChecklists: Array.isArray(source.postPourChecklists) ? source.postPourChecklists : Array.isArray(fallback.postPourChecklists) ? fallback.postPourChecklists : EMPTY_APP_STATE.postPourChecklists,
-        toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
-      calculatorResults: Array.isArray(source.calculatorResults) ? source.calculatorResults : Array.isArray(fallback.calculatorResults) ? fallback.calculatorResults : EMPTY_APP_STATE.calculatorResults,
-      uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
-    dailyReports: Array.isArray(source.dailyReports) ? source.dailyReports : Array.isArray(fallback.dailyReports) ? fallback.dailyReports : EMPTY_APP_STATE.dailyReports,
-    timeEntries: Array.isArray(source.timeEntries) ? source.timeEntries : Array.isArray(fallback.timeEntries) ? fallback.timeEntries : EMPTY_APP_STATE.timeEntries,
-    queueItems: Array.isArray(source.queueItems) ? source.queueItems : Array.isArray(fallback.queueItems) ? fallback.queueItems : EMPTY_APP_STATE.queueItems,
-    activity: Array.isArray(source.activity) ? source.activity : Array.isArray(fallback.activity) ? fallback.activity : EMPTY_APP_STATE.activity,
-    auditEvents: Array.isArray(source.auditEvents) ? source.auditEvents : Array.isArray(fallback.auditEvents) ? fallback.auditEvents : EMPTY_APP_STATE.auditEvents,
+    users: normalizeObjectArray(source.users, fallback.users),
+    customers: normalizeObjectArray(source.customers, fallback.customers),
+    leads: normalizeObjectArray(source.leads, fallback.leads),
+    leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
+    estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
+    jobs: normalizeObjectArray(source.jobs, fallback.jobs),
+    safetyPolicies: normalizeObjectArray(source.safetyPolicies, fallback.safetyPolicies),
+    ppeItems: normalizeObjectArray(source.ppeItems, fallback.ppeItems),
+    safetyAcknowledgments: normalizeObjectArray(source.safetyAcknowledgments, fallback.safetyAcknowledgments),
+    safetyIncidents: normalizeObjectArray(source.safetyIncidents, fallback.safetyIncidents),
+    changeOrderRequests: normalizeObjectArray(source.changeOrderRequests, fallback.changeOrderRequests),
+    deliveryTickets: normalizeObjectArray(source.deliveryTickets, fallback.deliveryTickets),
+    prePourChecklists: normalizeObjectArray(source.prePourChecklists, fallback.prePourChecklists),
+    postPourChecklists: normalizeObjectArray(source.postPourChecklists, fallback.postPourChecklists),
+    toolChecklists: normalizeObjectArray(source.toolChecklists, fallback.toolChecklists),
+    calculatorResults: normalizeObjectArray(source.calculatorResults, fallback.calculatorResults),
+    uploads: normalizeObjectArray(source.uploads, fallback.uploads),
+    dailyReports: normalizeObjectArray(source.dailyReports, fallback.dailyReports),
+    timeEntries: normalizeObjectArray(source.timeEntries, fallback.timeEntries),
+    queueItems: normalizeObjectArray(source.queueItems, fallback.queueItems),
+    activity: normalizeObjectArray(source.activity, fallback.activity),
+    auditEvents: normalizeObjectArray(source.auditEvents, fallback.auditEvents),
     permissions: {
       users: mergePermissionScope(EMPTY_APP_STATE.permissions.users, source.permissions?.users || fallback.permissions?.users),
       customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
@@ -6130,9 +6147,9 @@ function EstimatesPage({
   const [createDraft, setCreateDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [detailDraft, setDetailDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
 
-  const visibleCustomers = Array.isArray(customers) ? customers.filter((customer) => !customer.archivedAt) : [];
-  const visibleLeads = Array.isArray(leads) ? leads.filter((lead) => !lead.archivedAt) : [];
-  const rows = Array.isArray(estimates) ? estimates : [];
+  const visibleCustomers = normalizeObjectArray(customers).filter((customer) => !customer.archivedAt);
+  const visibleLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
+  const rows = normalizeEstimateArray(estimates);
   const filteredRows = useMemo(() => filterEstimates(rows, {
     status: statusFilter,
     customer: customerFilter,
@@ -6142,11 +6159,11 @@ function EstimatesPage({
     search,
   }), [archiveFilter, creatorFilter, customerFilter, leadFilter, rows, search, statusFilter]);
   const listState = useMemo(() => deriveEstimateListState(filteredRows, visibleCustomers, visibleLeads), [filteredRows, visibleCustomers, visibleLeads]);
-  const selectedEstimate = filteredRows.find((estimate) => estimate.id === selectedEstimateId)
+  const selectedEstimate = filteredRows.find((estimate) => estimate?.id === selectedEstimateId)
     || filteredRows[0]
-    || rows.find((estimate) => estimate.id === selectedEstimateId)
+    || rows.find((estimate) => estimate?.id === selectedEstimateId)
     || null;
-  const canManage = permissions.estimates.canManage;
+  const canManage = Boolean(permissions?.estimates?.canManage);
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const createTotals = useMemo(() => calculateEstimateTotals(createDraft.items, { taxRate: createDraft.taxRate, feesTotal: createDraft.feesTotal }), [createDraft.feesTotal, createDraft.items, createDraft.taxRate]);
   const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
@@ -6191,7 +6208,7 @@ function EstimatesPage({
     });
   }
 
-  if (!permissions.estimates.canView) {
+  if (!permissions?.estimates?.canView) {
     return (
       <div>
         <PageHeader eyebrow="Office Sales" title="Estimates" description="Estimates are only available to office and estimator roles." />

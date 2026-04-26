@@ -85,7 +85,7 @@ test("foreman also stays in field-only navigation for now", () => {
 test("field roles are redirected away from office-only modules by access rules", () => {
   const foreman = { role: "Foreman" };
   const employee = { role: "Employee" };
-  const blockedModules = ["dashboard", "leads", "customers", "employees", "settings"];
+  const blockedModules = ["dashboard", "leads", "customers", "employees", "estimates", "settings"];
 
   blockedModules.forEach((moduleId) => {
     assert.equal(canAccessModule(moduleId, foreman, { toolChecklistEnabled: true }), false);
@@ -112,6 +112,7 @@ test("estimators keep sales navigation but not settings", () => {
   assert.equal(isEstimator(estimator), true);
   assert.equal(canAccessModule("leads", estimator, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("customers", estimator, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("estimates", estimator, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("employees", estimator, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("settings", estimator, { toolChecklistEnabled: true }), false);
 });

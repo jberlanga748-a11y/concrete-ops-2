@@ -2,6 +2,10 @@ function roundCurrency(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object";
+}
+
 export function estimateStatusLabel(status = "draft") {
   const labels = {
     draft: "Draft",
@@ -48,7 +52,7 @@ function normalizeSearch(value) {
 }
 
 export function filterEstimates(rows = [], filters = {}) {
-  const source = Array.isArray(rows) ? rows : [];
+  const source = Array.isArray(rows) ? rows.filter(isRecord) : [];
   const {
     status = "All",
     customer = "All customers",
@@ -90,7 +94,7 @@ export function filterEstimates(rows = [], filters = {}) {
 }
 
 export function deriveEstimateListState(rows = [], customers = [], leads = []) {
-  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeRows = Array.isArray(rows) ? rows.filter(isRecord) : [];
   const customerOptions = new Set(["All customers"]);
   const leadOptions = new Set(["All leads"]);
   const creatorOptions = new Set(["All creators"]);
@@ -103,11 +107,11 @@ export function deriveEstimateListState(rows = [], customers = [], leads = []) {
     if (row?.createdByName) creatorOptions.add(row.createdByName);
   });
 
-  (Array.isArray(customers) ? customers : []).forEach((customer) => {
+  (Array.isArray(customers) ? customers.filter(isRecord) : []).forEach((customer) => {
     if (customer?.name) customerOptions.add(customer.name);
   });
 
-  (Array.isArray(leads) ? leads : []).forEach((lead) => {
+  (Array.isArray(leads) ? leads.filter(isRecord) : []).forEach((lead) => {
     if (lead?.project || lead?.customer) {
       leadOptions.add(`${lead?.customer || "Lead"} — ${lead?.project || "Untitled lead"}`);
     }
