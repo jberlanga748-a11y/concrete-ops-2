@@ -115,7 +115,7 @@ import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSel
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
-const DEFAULT_COMPANY_NAME = "Last Yard Concrete";
+const DEFAULT_COMPANY_NAME = "Concrete Ops Workspace";
 const DEMO_COMPANY_NAME = "Concrete Ops Demo Company";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
@@ -3542,6 +3542,8 @@ function SafetyPage({
   onArchiveSafetyIncident,
 }) {
   const incidentFocused = active === "incidents";
+  const toolboxFocused = active === "toolbox";
+  const ppeFocused = active === "ppe";
   const canManage = permissions.safety.canManage;
   const canAcknowledge = permissions.safety.canAcknowledge;
   const canSubmitIncidents = permissions.safety.canSubmitIncidents;
@@ -3659,10 +3661,30 @@ function SafetyPage({
     }));
   }
 
-  const headerTitle = canManage ? "Safety & PPE" : incidentFocused ? "Report Incident" : "Safety & PPE";
+  const headerTitle = canManage
+    ? incidentFocused
+      ? "Incidents"
+      : toolboxFocused
+        ? "Toolbox Talks"
+        : "Safety & PPE"
+    : incidentFocused
+      ? "Report Incident"
+      : toolboxFocused
+        ? "Toolbox Talks"
+        : ppeFocused
+          ? "Safety & PPE"
+          : "Safety";
   const headerDescription = canManage
-    ? "Manage field-safe policies, PPE expectations, acknowledgments, and incidents without exposing payroll or pricing."
-    : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
+    ? incidentFocused
+      ? "Review, resolve, and archive field incident submissions without exposing payroll or pricing."
+      : toolboxFocused
+        ? "Keep safety guidance, PPE expectations, and field reminders easy for crews to review before work starts."
+        : "Manage field-safe policies, PPE expectations, acknowledgments, and incidents without exposing payroll or pricing."
+    : incidentFocused
+      ? "Submit a field concern quickly without exposing office-only data."
+      : toolboxFocused
+        ? "Review toolbox-ready safety guidance and PPE reminders for the work in front of the crew."
+        : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
 
   return (
     <div>
