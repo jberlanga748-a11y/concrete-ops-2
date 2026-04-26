@@ -115,7 +115,8 @@ import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSel
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 
 const APP_NAME = "Concrete Ops";
-const COMPANY_NAME = "Last Yard Concrete";
+const DEFAULT_COMPANY_NAME = "Last Yard Concrete";
+const DEMO_COMPANY_NAME = "Concrete Ops Demo Company";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
@@ -357,6 +358,39 @@ function storeUploadPreviewUrl(cacheKey, previewUrl) {
     }
     uploadPreviewCache.delete(oldestKey);
   }
+}
+
+async function fetchAuthenticatedUploadPreviewUrl(upload, token) {
+  if (!upload?.contentUrl || !token) {
+    throw new Error("Could not load the upload preview.");
+  }
+
+  const cacheKey = getUploadPreviewCacheKey(upload);
+  const cachedPreviewUrl = getCachedUploadPreviewUrl(cacheKey);
+  if (cachedPreviewUrl) return cachedPreviewUrl;
+
+  const response = await fetch(upload.contentUrl, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not load the upload preview.");
+  }
+
+  const blob = await response.blob();
+  const previewUrl = URL.createObjectURL(blob);
+  storeUploadPreviewUrl(cacheKey, previewUrl);
+  return previewUrl;
+}
+
+function resolveWorkspaceCompanyName({ companySettings, user, demoMode } = {}) {
+  const explicitCompanyName = [companySettings?.companyName, user?.companyName]
+    .find((value) => typeof value === "string" && value.trim());
+
+  if (explicitCompanyName) return explicitCompanyName.trim();
+  return demoMode ? DEMO_COMPANY_NAME : DEFAULT_COMPANY_NAME;
 }
 
 function normalizeObjectArray(value, fallback = []) {
@@ -1062,7 +1096,7 @@ function LoadingScreen({ label = "Loading workspace..." }) {
           <Icon name="database" className="h-6 w-6" />
         </div>
         <p className="mt-4 text-lg font-black text-slate-950">{label}</p>
-        <p className="mt-2 text-sm text-slate-500">Reconnecting to the Concrete Ops API.</p>
+        <p className="mt-2 text-sm text-slate-500">Reconnecting to your Concrete Ops workspace.</p>
       </Card>
     </div>
   );
@@ -1102,7 +1136,7 @@ function LoginScreen({
   onOpenPublicEstimateRequest,
 }) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
-  const backendLabel = backendStatus === "online" ? "API online" : backendStatus === "offline" ? "API offline" : "Checking API";
+  const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const canShowDemoCredentials = setupStatus.demoUserExists && !isSetupMode;
   return (
@@ -1110,25 +1144,25 @@ function LoginScreen({
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="overflow-hidden p-8">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="blue">API-backed workspace</Badge>
+            <Badge tone="blue">Team workspace</Badge>
             {setupStatus.demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
           </div>
-          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950">Concrete operations that actually persist.</h1>
+          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950">Run office, crews, and field work from one concrete workspace.</h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-            This version runs with a real Node API, token auth, and server-backed records for leads, jobs, queue items, and activity.
+            Keep leads, jobs, reports, photos, safety, and field coordination in sync without juggling separate tools.
           </p>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Auth</p>
-              <p className="mt-2 text-sm text-slate-500">Login, logout, and first-run admin setup are backed by API requests.</p>
+              <p className="text-sm font-black text-slate-950">Team sign-in</p>
+              <p className="mt-2 text-sm text-slate-500">Office and field users sign in to the same shared workspace with role-based access.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Persistence</p>
-              <p className="mt-2 text-sm text-slate-500">Data lives in SQLite with migrations, backups, and request tracing.</p>
+              <p className="text-sm font-black text-slate-950">Shared records</p>
+              <p className="mt-2 text-sm text-slate-500">Leads, jobs, queue items, and activity stay current for the whole team.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Deployment-ready</p>
-              <p className="mt-2 text-sm text-slate-500">Fresh production installs can now bootstrap a real admin without shipping a default demo user.</p>
+              <p className="text-sm font-black text-slate-950">Ready for daily work</p>
+              <p className="mt-2 text-sm text-slate-500">Schedule crews, capture field updates, and keep the office aligned from one place.</p>
             </div>
           </div>
         </Card>
@@ -1151,8 +1185,8 @@ function LoginScreen({
           <div className="mt-5 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
             <span>
               {backendStatus === "online" && !setupStatus.checked
-                ? "Checking workspace setup state."
-                : "If login fails with a connection error, the frontend cannot see the Node API."}
+                ? "Checking workspace access."
+                : "If sign-in fails, confirm this workspace is online and available."}
             </span>
             <Badge tone={backendTone}>{backendLabel}</Badge>
           </div>
@@ -1178,9 +1212,9 @@ function LoginScreen({
             </form>
           )}
           <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-600">
-            <p className="font-black text-slate-950">How to run it</p>
-            <p className="mt-2">Use `npm run dev` while developing, or `npm run build` then `npm run serve` for the production build.</p>
-            <p className="mt-2">A static frontend alone cannot handle login because this app needs the bundled Node API.</p>
+            <p className="font-black text-slate-950">Need help signing in?</p>
+            <p className="mt-2">Use the office account for this workspace, or the shared demo users when you are opening the demo deployment.</p>
+            <p className="mt-2">Public estimate requests can also be opened from here when that workflow is enabled.</p>
           </div>
           {setupStatus.publicEstimateRequestEnabled ? (
             <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-slate-600">
@@ -1236,7 +1270,7 @@ function PublicEstimateRequestPage({
           </div>
           <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Request a concrete estimate without logging in.</h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-            This public demo flow creates a lead for the office team without exposing customers, jobs, pricing, or internal dashboard data.
+            This public request creates a lead for the office team without exposing customers, jobs, pricing, or job and crew data.
           </p>
           <div className="mt-8 space-y-3 text-sm text-slate-600">
             <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
@@ -1245,7 +1279,7 @@ function PublicEstimateRequestPage({
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
               <p className="font-black text-slate-950">Spam protection</p>
-              <p className="mt-2">This form uses a honeypot and a basic rate limit. It never exposes internal records back to public visitors.</p>
+              <p className="mt-2">This form includes basic spam protection and never exposes workspace records back to public visitors.</p>
             </div>
             <div className="rounded-3xl border border-blue-100 bg-white p-4">
               <p className="font-black text-slate-950">Photos</p>
@@ -1270,7 +1304,7 @@ function PublicEstimateRequestPage({
             </div>
           ) : backendStatus === "offline" ? (
             <div className="mt-6">
-              <StateCard title="API unavailable" description="The public estimate request form needs the Concrete Ops API to be online." tone="red" />
+              <StateCard title="Workspace unavailable" description="The public estimate request form needs the Concrete Ops workspace to be online." tone="red" />
             </div>
           ) : !enabled ? (
             <div className="mt-6">
@@ -1330,7 +1364,7 @@ function Sidebar({ active, setActive, counts, navGroups }) {
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-sm font-black text-white">CO</div>
           <div>
             <p className="text-sm font-black leading-none text-slate-950">{APP_NAME}</p>
-            <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Authenticated Workspace</p>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
           </div>
         </div>
       </div>
@@ -1364,21 +1398,21 @@ function Sidebar({ active, setActive, counts, navGroups }) {
           ))}
         </div>
         <Card className="p-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Server-backed mode</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Records and auth now round-trip through the local API instead of living only in the browser.</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Live workspace</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Scheduling, reporting, uploads, and safety updates stay shared across the office and field.</p>
         </Card>
       </div>
     </aside>
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName }) {
   const current = navItems.find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
       <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{COMPANY_NAME}</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{companyName || APP_NAME}</p>
           <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
@@ -3037,35 +3071,13 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
       return undefined;
     }
 
-    const cachedPreviewUrl = getCachedUploadPreviewUrl(cacheKey);
-    if (cachedPreviewUrl) {
-      setPreviewUrl(cachedPreviewUrl);
-      setStatus("ready");
-      return undefined;
-    }
-
-    let revokedUrl = "";
     let cancelled = false;
-    let cached = false;
     setStatus("loading");
 
-    fetch(upload.contentUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Could not load upload preview.");
-        }
-        return response.blob();
-      })
-      .then((blob) => {
+    fetchAuthenticatedUploadPreviewUrl(upload, token)
+      .then((nextPreviewUrl) => {
         if (cancelled) return;
-        revokedUrl = URL.createObjectURL(blob);
-        storeUploadPreviewUrl(cacheKey, revokedUrl);
-        cached = true;
-        setPreviewUrl(revokedUrl);
+        setPreviewUrl(nextPreviewUrl);
         setStatus("ready");
       })
       .catch(() => {
@@ -3077,7 +3089,6 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
 
     return () => {
       cancelled = true;
-      if (revokedUrl && !cached) URL.revokeObjectURL(revokedUrl);
     };
   }, [cacheKey, token, upload?.contentUrl]);
 
@@ -3994,7 +4005,7 @@ function ReportsPage({
                 </SelectField>
               </div>
               {busy && visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="Loading reports" description="Pulling field reports from the API." /></div>
+                <div className="p-5"><StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." /></div>
               ) : visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="No reports yet" description="Create the first daily report or adjust the filters to widen the list." /></div>
               ) : (
@@ -4297,7 +4308,7 @@ function ActivityPanel({ activity }) {
 function AuditTrailPanel({ auditEvents }) {
   return (
     <Card className="p-5">
-      <SectionHeader title="Audit trail" description="Durable backend history for record changes and resets." />
+      <SectionHeader title="Audit trail" description="Track record changes, resets, and key workspace events in one place." />
       {auditEvents.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Audit history will appear here as records are created, updated, bootstrapped, converted, and reset.</div>
       ) : (
@@ -4344,7 +4355,7 @@ function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, cu
 
   return (
     <Card className="p-5">
-      <SectionHeader title="New lead intake" description="Create a real record in the API-backed queue." />
+      <SectionHeader title="New lead intake" description="Create a new lead record for the office team." />
       <form className="grid gap-3" onSubmit={onCreateLead}>
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Existing customer" value={draft.customerId} onChange={(event) => {
@@ -4558,6 +4569,17 @@ function DashboardPage({
   }, [leadFilter, leadSearch, leads]);
   const liveLeadCount = dashboardMetrics?.liveLeadCount ?? 0;
   const liveJobsPreview = Array.isArray(dashboardMetrics?.liveJobsPreview) ? dashboardMetrics.liveJobsPreview : [];
+  const canViewLeads = Boolean(permissions?.leads?.canView);
+  const fieldDashboardActions = useMemo(() => (
+    [
+      { title: "My jobs", description: "Open assigned jobs and field-visible planning work.", icon: "briefcase", moduleId: "jobs", badge: "Open", tone: "blue" },
+      { title: "Daily reports", description: "Capture field progress and crew updates for visible jobs.", icon: "document", moduleId: permissions?.reports?.canView ? "reports" : null, badge: permissions?.reports?.canView ? "Open" : "Off", tone: permissions?.reports?.canView ? "blue" : "slate" },
+      { title: "Upload photo", description: "Send jobsite photos and documentation to the office.", icon: "upload", moduleId: permissions?.uploads?.canView ? "uploads" : null, badge: permissions?.uploads?.canView ? "Open" : "Off", tone: permissions?.uploads?.canView ? "blue" : "slate" },
+      { title: "Time tracking", description: "Clock in, clock out, and review your field time.", icon: "clock", moduleId: permissions?.time?.canView ? "time" : null, badge: permissions?.time?.canView ? "Open" : "Off", tone: permissions?.time?.canView ? "blue" : "slate" },
+      { title: "Safety & PPE", description: "Review site safety reminders and submit field concerns.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+      { title: "Tool checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions?.toolChecklist?.canUse ? "toolChecklist" : null, badge: permissions?.toolChecklist?.canUse ? "Open" : "Off", tone: permissions?.toolChecklist?.canUse ? "green" : "slate" },
+    ]
+  ), [permissions?.reports?.canView, permissions?.time?.canView, permissions?.toolChecklist?.canUse, permissions?.uploads?.canView]);
   const kpis = useMemo(() => ([
     { label: "Leads needing review", value: `${stats.newLeads}`, helper: `${stats.highPriorityLeads} high priority`, icon: "inbox" },
     { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${liveLeadCount} active opportunities`, icon: "quote" },
@@ -4565,12 +4587,43 @@ function DashboardPage({
     { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
   ]), [liveLeadCount, stats.activeJobs, stats.highPriorityLeads, stats.pipelineValue, stats.queueBlocked, stats.reportsDue, stats.scheduledJobs]);
 
+  if (!canViewLeads) {
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Field Workspace"
+          title="Daily workspace"
+          description="Open assigned jobs, reports, uploads, safety tools, and time tracking without exposing office-only data."
+          actions={
+            <>
+              <Button variant="secondary" onClick={() => setActive("jobs")}>My jobs</Button>
+              <Button onClick={() => setActive(permissions?.reports?.canView ? "reports" : "time")}>{permissions?.reports?.canView ? "Daily reports" : "Time tracking"}</Button>
+            </>
+          }
+          tabs={tabs}
+        />
+        <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+          <Card className="p-4">
+            <SectionHeader title="Field shortcuts" description="Big tap targets for the field tools crews use most often." />
+            <FieldActionGrid actions={fieldDashboardActions} onOpen={setActive} />
+          </Card>
+          <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+            <Card className="overflow-hidden">
+              <div className="p-4"><SectionHeader title="Visible jobs" description="Only assigned and field-visible jobs appear here." /></div>
+              <JobsTable rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} />
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
         eyebrow="Operations Command"
         title="Daily workspace"
-        description="The prototype now authenticates to a real API. Leads, jobs, queue actions, and activity all load from the server and stay synchronized."
+        description="Review leads, jobs, queue actions, and team activity from one office workspace."
         actions={
           <>
             <Button variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
@@ -4601,7 +4654,7 @@ function DashboardPage({
         <div className="grid min-w-0 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
-              <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps from the live backend." /></div>
+              <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps for current work." /></div>
               <JobsTable rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} />
             </Card>
           </div>
@@ -4646,7 +4699,7 @@ function LeadsPage({
 }) {
   return (
     <div>
-      <PageHeader eyebrow="Office" title="Leads" description="This queue now reads and writes against the backend. Create fresh opportunities and keep ownership and next steps accurate." actions={<Badge tone="blue">{rows.length} records</Badge>} />
+      <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
@@ -4864,7 +4917,7 @@ function CustomersPage({
             <>
               <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
               {busy && visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records from the API." /></div>
+                <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records for this workspace." /></div>
               ) : errorMessage && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
               ) : visibleRows.length === 0 ? (
@@ -5154,7 +5207,7 @@ function EmployeesPage({
             </SelectField>
           </div>
           {busy && visibleRows.length === 0 ? (
-            <div className="p-5"><StateCard title="Loading users" description="Pulling employee and office accounts from the API." /></div>
+            <div className="p-5"><StateCard title="Loading users" description="Pulling employee and office accounts for this workspace." /></div>
           ) : errorMessage && visibleRows.length === 0 ? (
             <div className="p-5"><StateCard title="Users unavailable" description={errorMessage} tone="red" /></div>
           ) : visibleRows.length === 0 ? (
@@ -5661,7 +5714,7 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
 
   return (
     <div>
-      <PageHeader eyebrow="System" title="Ops Copilot" description="A lightweight operations summary page derived from live backend state." />
+      <PageHeader eyebrow="System" title="Ops Copilot" description="A lightweight operations summary page based on current workspace activity." />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
           <SectionHeader title="Suggested actions" description="Derived from the current state of leads, jobs, and the queue." />
@@ -5718,7 +5771,7 @@ function SettingsPage({
 
   return (
     <div>
-      <PageHeader eyebrow="System" title="Settings" description={demoMode ? "This workspace uses authenticated server state with optional seeded demo data." : "This workspace uses authenticated server state with production-style admin setup."} />
+      <PageHeader eyebrow="System" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace access, admin details, and field tools for your team."} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_360px]">
           <Card className="p-5">
@@ -5768,11 +5821,11 @@ function SettingsPage({
             ) : null}
           </Card>
           <Card className="p-5">
-            <SectionHeader title="Roadmap" description="Good next steps if we keep pushing this into production." />
+            <SectionHeader title="Admin notes" description="Quick reminders for managing this workspace safely." />
             <div className="space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl border border-blue-100 p-4">Add role-based permissions and password rotation for multiple office users.</div>
-              <div className="rounded-2xl border border-blue-100 p-4">Deploy the Docker build with persistent storage and a real production domain.</div>
-              <div className="rounded-2xl border border-blue-100 p-4">Split modules like reports, uploads, and estimates into their own resource APIs.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Tool Checklist can be turned on or off without deleting saved checklist records.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">Public estimate request status is shown here only when that workflow is enabled for this workspace.</div>
+              <div className="rounded-2xl border border-blue-100 p-4">{demoMode ? "Reset demo data only when you want to refresh the fake company records for a fresh demo." : "Field tools remain scoped by role so office-only data stays out of field views."}</div>
             </div>
           </Card>
         </div>
@@ -6824,6 +6877,7 @@ function ChangeOrdersPage({
 
 function DeliveryTicketsPage({
   user,
+  sessionToken,
   jobs,
   deliveryTickets,
   uploads,
@@ -6841,6 +6895,7 @@ function DeliveryTicketsPage({
   const [archiveFilter, setArchiveFilter] = useState("Active");
   const [search, setSearch] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState("");
+  const [linkedUploadError, setLinkedUploadError] = useState("");
   const [createDraft, setCreateDraft] = useState(INITIAL_DELIVERY_TICKET_FORM);
   const [detailDraft, setDetailDraft] = useState(INITIAL_DELIVERY_TICKET_FORM);
 
@@ -6900,6 +6955,38 @@ function DeliveryTicketsPage({
       ticketUploadId: selectedTicket?.ticketUploadId || "",
     });
   }, [selectedTicket?.id, selectedTicket?.updatedAt]);
+
+  useEffect(() => {
+    setLinkedUploadError("");
+  }, [selectedTicket?.id]);
+
+  async function handleOpenLinkedUpload(upload) {
+    if (!upload?.contentUrl || !sessionToken) return false;
+    setLinkedUploadError("");
+    const popup = window.open("", "_blank", "noopener,noreferrer");
+
+    if (popup) {
+      popup.document.title = "Loading upload";
+      popup.document.body.innerHTML = "<div style='font-family:Arial,sans-serif;padding:24px;color:#0f172a;'>Loading linked upload...</div>";
+    }
+
+    try {
+      const previewUrl = await fetchAuthenticatedUploadPreviewUrl(upload, sessionToken);
+      if (popup) {
+        popup.location.href = previewUrl;
+        return true;
+      }
+      const fallbackWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+      if (!fallbackWindow) {
+        throw new Error("Allow pop-ups to open the linked upload.");
+      }
+      return true;
+    } catch (error) {
+      if (popup) popup.close();
+      setLinkedUploadError(error?.message || "Could not open the linked upload.");
+      return false;
+    }
+  }
 
   if (!permissions.deliveryTickets.canView) {
     return (
@@ -7065,7 +7152,15 @@ function DeliveryTicketsPage({
                 <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/30 p-4 text-sm text-slate-700">
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Linked ticket upload</p>
                   <p className="mt-2 font-bold text-slate-900">{selectedTicket.ticketUpload.caption || selectedTicket.ticketUpload.fileName}</p>
-                  <a className="mt-2 inline-flex text-sm font-black text-blue-700 underline-offset-4 hover:underline" href={selectedTicket.ticketUpload.contentUrl} target="_blank" rel="noreferrer">Open linked upload</a>
+                  <button
+                    type="button"
+                    className="mt-2 inline-flex text-left text-sm font-black text-blue-700 underline-offset-4 hover:underline disabled:text-slate-400"
+                    onClick={() => handleOpenLinkedUpload(selectedTicket.ticketUpload)}
+                    disabled={!selectedTicket.ticketUpload.contentUrl || !sessionToken}
+                  >
+                    Open linked upload
+                  </button>
+                  {linkedUploadError ? <p className="mt-2 text-xs font-bold text-red-600">{linkedUploadError}</p> : null}
                 </div>
               ) : null}
               {canEditSelected ? (
@@ -7532,7 +7627,7 @@ function MainContent(props) {
         />
       );
     }
-    if (active === "ppe" || active === "incidents") {
+    if (active === "ppe" || active === "incidents" || active === "toolbox") {
       return <SafetyPage {...props} />;
     }
   if (active === "toolChecklist") {
@@ -7895,6 +7990,15 @@ export default function App() {
     setLeadDraft((current) => (current.ownerId ? current : { ...current, ownerId: appState.user.id, owner: appState.user.name }));
   }, [appState.user]);
 
+  const workspaceCompanyName = useMemo(
+    () => resolveWorkspaceCompanyName({
+      companySettings: appState.companySettings,
+      user: appState.user,
+      demoMode: setupStatus.demoMode,
+    }),
+    [appState.companySettings, appState.user, setupStatus.demoMode],
+  );
+
   useEffect(() => {
     if (!selectedUser) {
       setUserEditDraft(INITIAL_USER_FORM);
@@ -7965,7 +8069,7 @@ export default function App() {
         setLoginError(error.message || "Your session is no longer valid. Sign in again.");
         clearSession();
       } else {
-        setStartupError(error.message || "Could not load the authenticated workspace.");
+        setStartupError(error.message || "Could not load the team workspace.");
         setErrorMessage(error.message);
       }
     } finally {
@@ -8795,7 +8899,7 @@ export default function App() {
     if (!report || !appState.permissions?.reports?.canView) return false;
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveDailyReportPrintPacket({
-      companyName: COMPANY_NAME,
+      companyName: workspaceCompanyName,
       report,
       deliveryTickets: appState.deliveryTickets,
       uploads: appState.uploads,
@@ -8815,7 +8919,7 @@ export default function App() {
 
     const packetMode = appState.permissions.jobs.canManageAll ? "internal" : "field_safe";
     const packet = deriveJobPrintPacket({
-      companyName: COMPANY_NAME,
+      companyName: workspaceCompanyName,
       job,
       dailyReports: appState.dailyReports,
       uploads: appState.uploads,
@@ -9467,7 +9571,7 @@ export default function App() {
     if (startupError) {
       return <StartupFallbackScreen message={startupError} onRetry={() => bootstrap(sessionToken)} onClearSession={clearSession} />;
     }
-    return <LoadingScreen label="Loading authenticated workspace..." />;
+    return <LoadingScreen label="Loading team workspace..." />;
   }
 
   if (authStatus === "loggedOut") {
@@ -9498,12 +9602,13 @@ export default function App() {
       <div className="flex">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} />
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} />
+          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} companyName={workspaceCompanyName} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="py-0">
             <MainContent
               active={active}
               setActive={setActive}
+              sessionToken={sessionToken}
               user={appState.user}
               companySettings={appState.companySettings}
               stats={stats}
@@ -9617,7 +9722,6 @@ export default function App() {
               selectedJob={selectedJob}
               uploads={appState.uploads}
               calculatorResults={appState.calculatorResults}
-              sessionToken={sessionToken}
               onCreateUpload={handleCreateUpload}
               onUpdateUpload={handleUpdateUpload}
               onArchiveUpload={handleArchiveUpload}
