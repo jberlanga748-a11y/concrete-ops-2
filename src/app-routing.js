@@ -13,6 +13,7 @@ export const MODULE_PATHS = {
   toolbox: "/toolbox",
   ppe: "/ppe",
   prePour: "/prePour",
+  postPour: "/postPour",
   toolChecklist: "/toolChecklist",
   calculator: "/calculator",
   copilot: "/copilot",

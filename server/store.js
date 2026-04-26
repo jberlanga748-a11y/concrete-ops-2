@@ -224,6 +224,39 @@ export function createDefaultPrePourChecklistItems(checklistId, addedBy, created
   }));
 }
 
+const INITIAL_POST_POUR_CHECKLIST_ITEMS = [
+  { key: "edges_finished", label: "Edges finished" },
+  { key: "joints_cut_or_tooled", label: "Joints cut/tooled" },
+  { key: "cure_method_applied", label: "Cure method applied" },
+  { key: "site_cleaned", label: "Site cleaned" },
+  { key: "forms_stripped_if_applicable", label: "Forms stripped if applicable" },
+  { key: "customer_walkthrough", label: "Customer walkthrough" },
+  { key: "completion_photos_taken", label: "Completion photos taken" },
+  { key: "sawcut_reminder_set", label: "Saw-cut reminder set" },
+  { key: "sealant_reminder_if_needed", label: "Sealant reminder if needed" },
+  { key: "trash_debris_removed", label: "Trash/debris removed" },
+  { key: "access_restored", label: "Access restored" },
+  { key: "finish_quality_checked", label: "Finish quality checked" },
+  { key: "foreman_signoff", label: "Foreman sign-off" },
+];
+
+export function createDefaultPostPourChecklistItems(checklistId, addedBy, createdAt = isoNow()) {
+  return INITIAL_POST_POUR_CHECKLIST_ITEMS.map((item, index) => ({
+    id: makeId("POI"),
+    checklistId,
+    key: item.key,
+    label: item.label,
+    status: "unchecked",
+    notes: "",
+    checkedBy: "",
+    checkedAt: "",
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt: null,
+    sortIndex: index,
+  }));
+}
+
 function jobStatusValue(status = "scheduled") {
   const normalized = String(status || "").trim().toLowerCase();
   const legacyMap = {
@@ -545,11 +578,13 @@ export function createEmptyState() {
     safetyPolicies: [],
     ppeItems: [],
     safetyAcknowledgments: [],
-      safetyIncidents: [],
-      prePourChecklists: [],
-      prePourChecklistItems: [],
-      toolChecklists: [],
-      toolChecklistItems: [],
+    safetyIncidents: [],
+    prePourChecklists: [],
+    prePourChecklistItems: [],
+    postPourChecklists: [],
+    postPourChecklistItems: [],
+    toolChecklists: [],
+    toolChecklistItems: [],
     calculatorResults: [],
     dailyReports: [],
     uploads: [],
@@ -610,11 +645,13 @@ export function createSeedState() {
     safetyPolicies,
     ppeItems,
     safetyAcknowledgments: [],
-      safetyIncidents: [],
-      prePourChecklists: [],
-      prePourChecklistItems: [],
-      toolChecklists: [],
-      toolChecklistItems: [],
+    safetyIncidents: [],
+    prePourChecklists: [],
+    prePourChecklistItems: [],
+    postPourChecklists: [],
+    postPourChecklistItems: [],
+    toolChecklists: [],
+    toolChecklistItems: [],
     calculatorResults: [],
     dailyReports: [],
     uploads: [],
@@ -1854,6 +1891,62 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 26,
+    description: "Add post-pour checklist workflow tables.",
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS post_pour_checklists (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          job_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          completed_by TEXT,
+          reviewed_by TEXT,
+          reopened_by TEXT,
+          notes TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT,
+          reviewed_at TEXT,
+          reopened_at TEXT,
+          archived_at TEXT,
+          FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+          FOREIGN KEY (reopened_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklists_job_id ON post_pour_checklists(job_id);
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklists_status ON post_pour_checklists(status);
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklists_created_by ON post_pour_checklists(created_by);
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklists_sort_index ON post_pour_checklists(sort_index);
+
+        CREATE TABLE IF NOT EXISTS post_pour_checklist_items (
+          id TEXT PRIMARY KEY,
+          sort_index INTEGER NOT NULL,
+          checklist_id TEXT NOT NULL,
+          key TEXT NOT NULL,
+          label TEXT NOT NULL,
+          status TEXT NOT NULL,
+          notes TEXT NOT NULL,
+          checked_by TEXT,
+          checked_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          archived_at TEXT,
+          FOREIGN KEY (checklist_id) REFERENCES post_pour_checklists(id) ON DELETE CASCADE,
+          FOREIGN KEY (checked_by) REFERENCES users(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklist_items_checklist_id ON post_pour_checklist_items(checklist_id);
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklist_items_status ON post_pour_checklist_items(status);
+        CREATE INDEX IF NOT EXISTS idx_post_pour_checklist_items_sort_index ON post_pour_checklist_items(sort_index);
+      `);
+    },
+  },
 ];
 
 function runInTransaction(database, work) {
@@ -1957,6 +2050,16 @@ function writeStateToDb(state) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    const insertPostPourChecklist = database.prepare(`
+      INSERT INTO post_pour_checklists (id, sort_index, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertPostPourChecklistItem = database.prepare(`
+      INSERT INTO post_pour_checklist_items (id, sort_index, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
     const insertToolChecklist = database.prepare(`
       INSERT INTO tool_checklists (id, sort_index, job_id, title, status, created_by, assigned_foreman_id, submitted_by, reviewed_by, notes, created_at, updated_at, submitted_at, reviewed_at, archived_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2023,6 +2126,8 @@ function writeStateToDb(state) {
         DELETE FROM ppe_items;
         DELETE FROM pre_pour_checklist_items;
         DELETE FROM pre_pour_checklists;
+        DELETE FROM post_pour_checklist_items;
+        DELETE FROM post_pour_checklists;
         DELETE FROM tool_checklist_items;
         DELETE FROM tool_checklists;
         DELETE FROM calculator_results;
@@ -2259,6 +2364,43 @@ function writeStateToDb(state) {
 
       (state.prePourChecklistItems || []).forEach((item, index) => {
         insertPrePourChecklistItem.run(
+          item.id,
+          item.sortIndex ?? index,
+          item.checklistId,
+          item.key,
+          item.label,
+          item.status,
+          item.notes || "",
+          item.checkedBy || null,
+          item.checkedAt || null,
+          item.createdAt || isoNow(),
+          item.updatedAt || item.createdAt || isoNow(),
+          item.archivedAt || null,
+        );
+      });
+
+      (state.postPourChecklists || []).forEach((checklist, index) => {
+        insertPostPourChecklist.run(
+          checklist.id,
+          checklist.sortIndex ?? index,
+          checklist.jobId,
+          checklist.status,
+          checklist.createdBy,
+          checklist.completedBy || null,
+          checklist.reviewedBy || null,
+          checklist.reopenedBy || null,
+          checklist.notes || "",
+          checklist.createdAt || isoNow(),
+          checklist.updatedAt || checklist.createdAt || isoNow(),
+          checklist.completedAt || null,
+          checklist.reviewedAt || null,
+          checklist.reopenedAt || null,
+          checklist.archivedAt || null,
+        );
+      });
+
+      (state.postPourChecklistItems || []).forEach((item, index) => {
+        insertPostPourChecklistItem.run(
           item.id,
           item.sortIndex ?? index,
           item.checklistId,
@@ -2546,6 +2688,21 @@ function readTableState() {
       ORDER BY sort_index ASC
     `).all();
 
+    const postPourChecklists = database.prepare(`
+      SELECT id, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
+             reopened_by AS reopenedBy, notes, created_at AS createdAt, updated_at AS updatedAt, completed_at AS completedAt,
+             reviewed_at AS reviewedAt, reopened_at AS reopenedAt, archived_at AS archivedAt
+      FROM post_pour_checklists
+      ORDER BY sort_index ASC
+    `).all();
+
+    const postPourChecklistItems = database.prepare(`
+      SELECT id, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy, checked_at AS checkedAt,
+             created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM post_pour_checklist_items
+      ORDER BY sort_index ASC
+    `).all();
+
     const toolChecklists = database.prepare(`
       SELECT id, job_id AS jobId, title, status, created_by AS createdBy, assigned_foreman_id AS assignedForemanId,
            submitted_by AS submittedBy, reviewed_by AS reviewedBy, notes, created_at AS createdAt, updated_at AS updatedAt,
@@ -2635,13 +2792,15 @@ function readTableState() {
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
     safetyPolicies,
-      ppeItems,
-      safetyAcknowledgments,
-      safetyIncidents,
-      prePourChecklists,
-      prePourChecklistItems,
-      toolChecklists,
-      toolChecklistItems,
+    ppeItems,
+    safetyAcknowledgments,
+    safetyIncidents,
+    prePourChecklists,
+    prePourChecklistItems,
+    postPourChecklists,
+    postPourChecklistItems,
+    toolChecklists,
+    toolChecklistItems,
     calculatorResults,
     dailyReports,
     uploads,

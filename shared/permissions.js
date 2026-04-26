@@ -130,6 +130,18 @@ export function canReviewPrePour(user) {
   return isOfficeManager(user);
 }
 
+export function canViewPostPour(user) {
+  return isOfficeManager(user) || isForeman(user) || isEmployee(user);
+}
+
+export function canManagePostPour(user) {
+  return isOfficeManager(user) || isForeman(user);
+}
+
+export function canReviewPostPour(user) {
+  return isOfficeManager(user);
+}
+
 export function canViewCrewTime(user) {
   return isForeman(user);
 }
@@ -280,13 +292,13 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   const modules = new Set();
 
   if (isOwner(user) || isAdministrator(user) || isOperationsManager(user)) {
-    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "reports", "uploads", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "calculator", "settings", "copilot"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "reports", "uploads", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "settings", "copilot"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEstimator(user)) {
     ["dashboard", "leads", "customers", "estimates", "jobs", "time", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {
-    ["jobs", "time", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "prePour", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["jobs", "time", "reports", "uploads", "changeOrders", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEmployee(user)) {
-    ["jobs", "time", "uploads", "incidents", "toolbox", "ppe", "prePour", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["jobs", "time", "uploads", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator"].forEach((moduleId) => modules.add(moduleId));
   }
 
   if (canUseToolChecklist(user, companySettings)) {

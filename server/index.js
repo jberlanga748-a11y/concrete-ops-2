@@ -10,6 +10,7 @@ import { serverConfig } from "./config.js";
 import { logger, serializeError } from "./logger.js";
 import {
   cleanupExpiredSessions,
+  createDefaultPostPourChecklistItems,
   createDefaultPrePourChecklistItems,
   createUserRecord,
   createSeedState,
@@ -45,6 +46,7 @@ import {
   canManageLeads,
   canManageOwnTime,
   canManagePrePour,
+  canManagePostPour,
   canManageReports,
   canManageSafety,
   canReviewSafetyIncidents,
@@ -56,6 +58,7 @@ import {
   canManageUsers,
   canReviewReports,
   canReviewPrePour,
+  canReviewPostPour,
   canReviewToolChecklists,
   canUseCalculator,
   canUseToolChecklist,
@@ -69,6 +72,7 @@ import {
   canViewLeads,
   canViewReports,
   canViewPrePour,
+  canViewPostPour,
   canViewSettings,
   canViewSafety,
   canViewAllTime,
@@ -112,6 +116,8 @@ const TOOL_CHECKLIST_ITEM_CATEGORIES = new Set(["hand_tools", "power_tools", "co
 const TOOL_CHECKLIST_ITEM_STATUSES = new Set(["needed", "loaded", "on_site", "missing", "damaged", "returned", "not_needed"]);
 const PRE_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
 const PRE_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
+const POST_POUR_CHECKLIST_STATUSES = new Set(["draft", "completed", "reviewed", "reopened", "archived"]);
+const POST_POUR_ITEM_STATUSES = new Set(["unchecked", "checked", "not_applicable"]);
 const ALLOWED_UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
 const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
@@ -303,6 +309,22 @@ function optionalPrePourItemStatus(value, fallback = "unchecked") {
   const normalized = value == null ? fallback : String(value).trim().toLowerCase();
   if (!PRE_POUR_ITEM_STATUSES.has(normalized)) {
     throw new ApiError(400, `Pre-pour checklist item status must be one of: ${Array.from(PRE_POUR_ITEM_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalPostPourChecklistStatus(value, fallback = "draft") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!POST_POUR_CHECKLIST_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Post-pour checklist status must be one of: ${Array.from(POST_POUR_CHECKLIST_STATUSES).join(", ")}.`);
+  }
+  return normalized;
+}
+
+function optionalPostPourItemStatus(value, fallback = "unchecked") {
+  const normalized = value == null ? fallback : String(value).trim().toLowerCase();
+  if (!POST_POUR_ITEM_STATUSES.has(normalized)) {
+    throw new ApiError(400, `Post-pour checklist item status must be one of: ${Array.from(POST_POUR_ITEM_STATUSES).join(", ")}.`);
   }
   return normalized;
 }
@@ -555,6 +577,16 @@ function prePourPermissionsForUser(user) {
   };
 }
 
+function postPourPermissionsForUser(user) {
+  return {
+    canView: canViewPostPour(user),
+    canManage: canManagePostPour(user),
+    canManageAll: isOfficeManager(user),
+    canComplete: isOfficeManager(user) || isForeman(user),
+    canReview: canReviewPostPour(user),
+  };
+}
+
 function sanitizeJobForUser(job, user, state) {
   if (!job) return null;
   const normalizedJob = normalizeJobRecord(job);
@@ -568,6 +600,7 @@ function sanitizeJobForUser(job, user, state) {
         ...assignmentPayload,
         calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
         prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user),
+        postPourChecklist: postPourChecklistSummaryForJob(state, normalizedJob, user),
         canManageField: canManageJobFieldUpdates(user, normalizedJob),
         canManageAll: canViewAllJobs(user),
         canViewMoney: canViewJobMoney(user),
@@ -604,6 +637,7 @@ function sanitizeJobForUser(job, user, state) {
       crew: normalizedJob.crew,
       calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
       prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user),
+      postPourChecklist: postPourChecklistSummaryForJob(state, normalizedJob, user),
       nextStep: normalizedJob.nextStep,
     next: normalizedJob.nextStep,
     due: normalizedJob.due,
@@ -820,6 +854,26 @@ function prePourItemStatusLabel(status = "unchecked") {
   return labels[optionalPrePourItemStatus(status, "unchecked")] || "Unchecked";
 }
 
+function postPourChecklistStatusLabel(status = "draft") {
+  const labels = {
+    draft: "Draft",
+    completed: "Completed",
+    reviewed: "Reviewed",
+    reopened: "Reopened",
+    archived: "Archived",
+  };
+  return labels[optionalPostPourChecklistStatus(status, "draft")] || "Draft";
+}
+
+function postPourItemStatusLabel(status = "unchecked") {
+  const labels = {
+    unchecked: "Unchecked",
+    checked: "Checked",
+    not_applicable: "Not Applicable",
+  };
+  return labels[optionalPostPourItemStatus(status, "unchecked")] || "Unchecked";
+}
+
 function canViewToolChecklistRecord(user, checklist, job, settings) {
   if (!user) return false;
   if (canViewAllToolChecklists(user)) return true;
@@ -1011,6 +1065,125 @@ function prePourChecklistSummaryForJob(state, job, user) {
   const visible = (state.prePourChecklists || [])
     .filter((checklist) => checklist.jobId === job.id)
     .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user))
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
+  if (visible.length === 0) {
+    return {
+      status: "not_started",
+      statusLabel: "Not started",
+      checklistId: "",
+      incompleteItemCount: 0,
+      completedAt: "",
+      reviewedAt: "",
+    };
+  }
+  const latest = visible[0];
+  return {
+    status: latest.status,
+    statusLabel: latest.statusLabel,
+    checklistId: latest.id,
+    incompleteItemCount: latest.incompleteItemCount,
+    completedAt: latest.completedAt || "",
+    reviewedAt: latest.reviewedAt || "",
+  };
+}
+
+function canViewPostPourChecklistRecord(user, checklist, job) {
+  if (!user || !canViewPostPour(user)) return false;
+  if (isOfficeManager(user)) return true;
+  if (!job) return false;
+  return canViewJob(job, user);
+}
+
+function sanitizePostPourChecklistItemForUser(item, state, user, checklist, job) {
+  if (!canViewPostPourChecklistRecord(user, checklist, job)) return null;
+  const checkedByUser = findUserById(state, item.checkedBy);
+  return {
+    id: item.id,
+    checklistId: item.checklistId,
+    key: item.key,
+    label: item.label,
+    status: optionalPostPourItemStatus(item.status, "unchecked"),
+    statusLabel: postPourItemStatusLabel(item.status),
+    notes: item.notes || "",
+    checkedBy: item.checkedBy || "",
+    checkedByName: checkedByUser?.name || item.checkedBy || "",
+    checkedAt: item.checkedAt || "",
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    archivedAt: item.archivedAt || null,
+  };
+}
+
+function sanitizePostPourChecklistForUser(checklist, state, user) {
+  const job = checklist.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  if (!canViewPostPourChecklistRecord(user, checklist, job)) return null;
+  if (checklist.archivedAt && !isOfficeManager(user)) return null;
+  const normalizedJob = job ? normalizeJobRecord(job) : null;
+  const assignmentPayload = normalizedJob ? sanitizeJobAssignments(normalizedJob, state, user, { includeNotes: false }) : {
+    foremanAssignment: null,
+    crewAssignments: [],
+  };
+  const createdBy = findUserById(state, checklist.createdBy);
+  const completedBy = findUserById(state, checklist.completedBy);
+  const reviewedBy = findUserById(state, checklist.reviewedBy);
+  const reopenedBy = findUserById(state, checklist.reopenedBy);
+  const items = (state.postPourChecklistItems || [])
+    .filter((item) => item.checklistId === checklist.id)
+    .map((item) => sanitizePostPourChecklistItemForUser(item, state, user, checklist, job))
+    .filter(Boolean);
+  const incompleteItemCount = items.filter((item) => item.status === "unchecked").length;
+
+  return {
+    id: checklist.id,
+    jobId: checklist.jobId,
+    status: optionalPostPourChecklistStatus(checklist.status, "draft"),
+    statusLabel: postPourChecklistStatusLabel(checklist.status),
+    createdBy: checklist.createdBy,
+    createdByName: createdBy?.name || checklist.createdBy,
+    completedBy: checklist.completedBy || "",
+    completedByName: completedBy?.name || checklist.completedBy || "",
+    reviewedBy: checklist.reviewedBy || "",
+    reviewedByName: reviewedBy?.name || checklist.reviewedBy || "",
+    reopenedBy: checklist.reopenedBy || "",
+    reopenedByName: reopenedBy?.name || checklist.reopenedBy || "",
+    notes: checklist.notes || "",
+    createdAt: checklist.createdAt,
+    updatedAt: checklist.updatedAt,
+    completedAt: checklist.completedAt || "",
+    reviewedAt: checklist.reviewedAt || "",
+    reopenedAt: checklist.reopenedAt || "",
+    archivedAt: checklist.archivedAt || null,
+    job: normalizedJob ? {
+      id: normalizedJob.id,
+      title: normalizedJob.title,
+      customer: normalizedJob.customer,
+      address: normalizedJob.address || "",
+      scheduledStart: normalizedJob.scheduledStart || "",
+      status: normalizedJob.status,
+      foremanAssignment: assignmentPayload.foremanAssignment,
+    } : null,
+    items,
+    incompleteItemCount,
+  };
+}
+
+function visiblePostPourChecklistsForUser(state, user) {
+  if (!user || !canViewPostPour(user)) return [];
+  return (state.postPourChecklists || [])
+    .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user))
+    .filter(Boolean)
+    .sort((left, right) => {
+      const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
+      if (archivedCompare !== 0) return archivedCompare;
+      return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
+    });
+}
+
+function postPourChecklistSummaryForJob(state, job, user) {
+  const visible = (state.postPourChecklists || [])
+    .filter((checklist) => checklist.jobId === job.id)
+    .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
   if (visible.length === 0) {
@@ -1369,6 +1542,24 @@ function assertCanManagePrePour(user) {
 function assertCanReviewPrePour(user) {
   if (!canReviewPrePour(user)) {
     throw new ApiError(403, "You do not have permission to review pre-pour checklists.");
+  }
+}
+
+function assertCanViewPostPour(user) {
+  if (!canViewPostPour(user)) {
+    throw new ApiError(403, "You do not have permission to view post-pour checklists.");
+  }
+}
+
+function assertCanManagePostPour(user) {
+  if (!canManagePostPour(user)) {
+    throw new ApiError(403, "You do not have permission to manage post-pour checklists.");
+  }
+}
+
+function assertCanReviewPostPour(user) {
+  if (!canReviewPostPour(user)) {
+    throw new ApiError(403, "You do not have permission to review post-pour checklists.");
   }
 }
 
@@ -2203,6 +2394,66 @@ function createPrePourChecklistShape(payload, user, changedAt) {
   };
 }
 
+function findPostPourChecklist(state, checklistId) {
+  return findRequiredRecord(state.postPourChecklists || [], checklistId, "Post-pour checklist");
+}
+
+function findPostPourChecklistItem(state, itemId) {
+  return findRequiredRecord(state.postPourChecklistItems || [], itemId, "Post-pour checklist item");
+}
+
+function canCreatePostPourChecklistForJob(user, job) {
+  if (!job || job.archivedAt) return false;
+  if (isOfficeManager(user)) return true;
+  if (!isForeman(user)) return false;
+  return canViewJob(job, user);
+}
+
+function canEditPostPourChecklist(user, job, checklist) {
+  if (!job || !checklist || checklist.archivedAt) return false;
+  if (isOfficeManager(user)) return true;
+  if (!isForeman(user)) return false;
+  if (!canViewJob(job, user)) return false;
+  return ["draft", "reopened"].includes(optionalPostPourChecklistStatus(checklist.status, "draft"));
+}
+
+function canCompletePostPourChecklist(user, job, checklist) {
+  if (!job || !checklist || checklist.archivedAt) return false;
+  if (isOfficeManager(user)) return true;
+  if (!isForeman(user)) return false;
+  if (!canViewJob(job, user)) return false;
+  return ["draft", "reopened"].includes(optionalPostPourChecklistStatus(checklist.status, "draft"));
+}
+
+function canViewPostPourChecklistDetails(user, checklist, job) {
+  return canViewPostPourChecklistRecord(user, checklist, job);
+}
+
+function postPourChecklistHasIncompleteRequiredItems(state, checklistId) {
+  return (state.postPourChecklistItems || [])
+    .filter((item) => item.checklistId === checklistId && !item.archivedAt)
+    .some((item) => optionalPostPourItemStatus(item.status, "unchecked") === "unchecked");
+}
+
+function createPostPourChecklistShape(payload, user, changedAt) {
+  return {
+    id: makeId("PO"),
+    jobId: requiredString(payload.jobId, "Job"),
+    status: "draft",
+    createdBy: user.id,
+    completedBy: "",
+    reviewedBy: "",
+    reopenedBy: "",
+    notes: optionalString(payload.notes, ""),
+    createdAt: changedAt,
+    updatedAt: changedAt,
+    completedAt: "",
+    reviewedAt: "",
+    reopenedAt: "",
+    archivedAt: null,
+  };
+}
+
 function activeForemanAssignment(state, jobId) {
   return activeJobAssignments(state, jobId).find((assignment) => assignment.roleOnJob === "foreman") || null;
 }
@@ -2539,6 +2790,7 @@ function sanitizeBootstrap(state, user) {
       safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
       safetyIncidents: visibleSafetyIncidentsForUser(state, user),
       prePourChecklists: visiblePrePourChecklistsForUser(state, user),
+      postPourChecklists: visiblePostPourChecklistsForUser(state, user),
       toolChecklists: visibleToolChecklistsForUser(state, user),
     calculatorResults: visibleCalculatorResultsForUser(state, user),
     uploads: visibleUploadsForUser(state, user),
@@ -2566,6 +2818,7 @@ function sanitizeBootstrap(state, user) {
       },
         reports: reportPermissionsForUser(user),
         prePour: prePourPermissionsForUser(user),
+        postPour: postPourPermissionsForUser(user),
         uploads: uploadPermissionsForUser(user),
       time: timePermissionsForUser(user),
       safety: safetyPermissionsForUser(user),
@@ -3201,6 +3454,254 @@ app.post("/api/pre-pour-checklists/:id/archive", requireAuth, asyncRoute(async (
       action: "archived",
       summary: "Pre-pour checklist archived",
       detail: `${req.auth.user.name} archived the pre-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/post-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
+  const state = await readDb();
+  assertCanViewPostPour(req.auth.user);
+  res.json({
+    postPourChecklists: visiblePostPourChecklistsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/post-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManagePostPour(req.auth.user);
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+  const newChecklist = createPostPourChecklistShape(payload, req.auth.user, changedAt);
+
+  const nextState = await updateDb((draft) => {
+    draft.postPourChecklists ||= [];
+    draft.postPourChecklistItems ||= [];
+    const job = findRequiredRecord(draft.jobs, newChecklist.jobId, "Job");
+    if (!canCreatePostPourChecklistForJob(req.auth.user, job)) {
+      throw new ApiError(403, "You do not have permission to create a post-pour checklist for that job.");
+    }
+
+    const title = normalizeJobRecord(job).title;
+    draft.postPourChecklists.unshift(newChecklist);
+    const defaultItems = createDefaultPostPourChecklistItems(newChecklist.id, req.auth.user.id, changedAt);
+    draft.postPourChecklistItems.unshift(...defaultItems);
+    appendActivity(draft, "Post-pour checklist created", `${req.auth.user.name} created a post-pour checklist for ${title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklist",
+      entityId: newChecklist.id,
+      action: "created",
+      summary: "Post-pour checklist created",
+      detail: `${req.auth.user.name} created a post-pour checklist for ${title}.`,
+      actor: req.auth.user,
+      changedFields: ["jobId", "status", "items"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/post-pour-checklists/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManagePostPour(req.auth.user);
+  const { id } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.postPourChecklists ||= [];
+    const checklist = findPostPourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    if (!canEditPostPourChecklist(req.auth.user, job, checklist)) {
+      throw new ApiError(403, "You do not have permission to edit this post-pour checklist.");
+    }
+
+    const nextNotes = payload.notes == null ? checklist.notes || "" : optionalString(payload.notes, "");
+    checklist.notes = nextNotes;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Post-pour checklist updated", `${req.auth.user.name} updated the post-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklist",
+      entityId: checklist.id,
+      action: "updated",
+      summary: "Post-pour checklist updated",
+      detail: `${req.auth.user.name} updated the post-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["notes", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/post-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewPostPour(req.auth.user);
+  const { id, itemId } = req.params;
+  const payload = req.body || {};
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPostPourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    if (!canViewPostPourChecklistDetails(req.auth.user, checklist, job)) {
+      throw new ApiError(403, "You do not have permission to access this post-pour checklist.");
+    }
+    if (!canEditPostPourChecklist(req.auth.user, job, checklist)) {
+      throw new ApiError(403, "You do not have permission to update post-pour checklist items.");
+    }
+    const item = findPostPourChecklistItem(draft, itemId);
+    if (item.checklistId !== checklist.id) {
+      throw new ApiError(404, "Post-pour checklist item not found.");
+    }
+
+    const nextStatus = payload.status == null ? item.status : optionalPostPourItemStatus(payload.status, item.status);
+    const nextNotes = payload.notes == null ? item.notes || "" : optionalString(payload.notes, "");
+    const changedFields = [];
+    if (nextStatus !== item.status) changedFields.push("status");
+    if (nextNotes !== (item.notes || "")) changedFields.push("notes");
+
+    item.status = nextStatus;
+    item.notes = nextNotes;
+    item.checkedBy = nextStatus === "checked" ? req.auth.user.id : "";
+    item.checkedAt = nextStatus === "checked" ? changedAt : "";
+    markUpdated(item, changedAt);
+    markUpdated(checklist, changedAt);
+
+    const actionLabel = nextStatus === "checked"
+      ? "item checked"
+      : nextStatus === "not_applicable"
+        ? "item marked not applicable"
+        : "item unchecked";
+    appendActivity(draft, "Post-pour item updated", `${req.auth.user.name} set ${item.label} to ${postPourItemStatusLabel(nextStatus)} on ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklistItem",
+      entityId: item.id,
+      action: actionLabel,
+      summary: "Post-pour item updated",
+      detail: `${req.auth.user.name} set ${item.label} to ${postPourItemStatusLabel(nextStatus)} on ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: changedFields.length > 0 ? changedFields : ["updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/post-pour-checklists/:id/complete", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManagePostPour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPostPourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    if (!canCompletePostPourChecklist(req.auth.user, job, checklist)) {
+      throw new ApiError(403, "You do not have permission to complete this post-pour checklist.");
+    }
+    if (postPourChecklistHasIncompleteRequiredItems(draft, checklist.id)) {
+      throw new ApiError(409, "Complete or mark not applicable for every post-pour item before finishing the checklist.");
+    }
+
+    checklist.status = "completed";
+    checklist.completedBy = req.auth.user.id;
+    checklist.completedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Post-pour checklist completed", `${req.auth.user.name} completed the post-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklist",
+      entityId: checklist.id,
+      action: "completed",
+      summary: "Post-pour checklist completed",
+      detail: `${req.auth.user.name} completed the post-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "completedBy", "completedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/post-pour-checklists/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewPostPour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPostPourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    checklist.status = "reviewed";
+    checklist.reviewedBy = req.auth.user.id;
+    checklist.reviewedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Post-pour checklist reviewed", `${req.auth.user.name} reviewed the post-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklist",
+      entityId: checklist.id,
+      action: "reviewed",
+      summary: "Post-pour checklist reviewed",
+      detail: `${req.auth.user.name} reviewed the post-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reviewedBy", "reviewedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/post-pour-checklists/:id/reopen", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewPostPour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPostPourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    checklist.status = "reopened";
+    checklist.reopenedBy = req.auth.user.id;
+    checklist.reopenedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Post-pour checklist reopened", `${req.auth.user.name} reopened the post-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklist",
+      entityId: checklist.id,
+      action: "reopened",
+      summary: "Post-pour checklist reopened",
+      detail: `${req.auth.user.name} reopened the post-pour checklist for ${normalizeJobRecord(job).title}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "reopenedBy", "reopenedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/post-pour-checklists/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanReviewPostPour(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const checklist = findPostPourChecklist(draft, id);
+    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    checklist.status = "archived";
+    checklist.archivedAt = changedAt;
+    markUpdated(checklist, changedAt);
+    appendActivity(draft, "Post-pour checklist archived", `${req.auth.user.name} archived the post-pour checklist for ${normalizeJobRecord(job).title}.`);
+    appendAuditEvent(draft, {
+      entityType: "postPourChecklist",
+      entityId: checklist.id,
+      action: "archived",
+      summary: "Post-pour checklist archived",
+      detail: `${req.auth.user.name} archived the post-pour checklist for ${normalizeJobRecord(job).title}.`,
       actor: req.auth.user,
       changedFields: ["status", "archivedAt", "updatedAt"],
     });

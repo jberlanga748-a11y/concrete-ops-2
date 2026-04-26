@@ -24,6 +24,7 @@ import {
   createJobAssignment,
   createJob,
   createLead,
+  createPostPourChecklist,
   createPrePourChecklist,
   createQueueItem,
   createCalculatorResult,
@@ -46,9 +47,11 @@ import {
   reviewDailyReport,
   reviewToolChecklist,
   reopenDailyReport,
+  reopenPostPourChecklist,
   reopenPrePourChecklist,
   resolveSafetyIncident,
   reviewSafetyIncident,
+  reviewPostPourChecklist,
   reviewPrePourChecklist,
   restoreCustomer,
   restoreJob,
@@ -64,6 +67,8 @@ import {
   updateJob,
   updateLead,
   updatePpeItem,
+  updatePostPourChecklist,
+  updatePostPourChecklistItem,
   updatePrePourChecklist,
   updatePrePourChecklistItem,
   updateSafetyPolicy,
@@ -73,7 +78,9 @@ import {
   updateUpload,
   updateUser,
   addToolChecklistItem,
+  archivePostPourChecklist,
   completePrePourChecklist,
+  completePostPourChecklist,
   submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
@@ -84,6 +91,7 @@ import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspa
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDefaultModuleId, getVisibleNavGroups } from "./navigation-utils";
+import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
@@ -123,6 +131,7 @@ const NAV_GROUPS = [
       { id: "time", label: "Time", icon: "clock" },
       { id: "reports", label: "Reports", icon: "document" },
       { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
+      { id: "postPour", label: "Post-Pour", icon: "clipboard" },
       { id: "uploads", label: "Uploads", icon: "upload" },
     ],
   },
@@ -171,6 +180,7 @@ const EMPTY_APP_STATE = {
   safetyAcknowledgments: [],
   safetyIncidents: [],
   prePourChecklists: [],
+  postPourChecklists: [],
   toolChecklists: [],
   calculatorResults: [],
   uploads: [],
@@ -211,6 +221,13 @@ const EMPTY_APP_STATE = {
       canReview: false,
     },
     prePour: {
+      canView: false,
+      canManage: false,
+      canManageAll: false,
+      canComplete: false,
+      canReview: false,
+    },
+    postPour: {
       canView: false,
       canManage: false,
       canManageAll: false,
@@ -300,6 +317,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
         safetyAcknowledgments: Array.isArray(source.safetyAcknowledgments) ? source.safetyAcknowledgments : Array.isArray(fallback.safetyAcknowledgments) ? fallback.safetyAcknowledgments : EMPTY_APP_STATE.safetyAcknowledgments,
         safetyIncidents: Array.isArray(source.safetyIncidents) ? source.safetyIncidents : Array.isArray(fallback.safetyIncidents) ? fallback.safetyIncidents : EMPTY_APP_STATE.safetyIncidents,
         prePourChecklists: Array.isArray(source.prePourChecklists) ? source.prePourChecklists : Array.isArray(fallback.prePourChecklists) ? fallback.prePourChecklists : EMPTY_APP_STATE.prePourChecklists,
+        postPourChecklists: Array.isArray(source.postPourChecklists) ? source.postPourChecklists : Array.isArray(fallback.postPourChecklists) ? fallback.postPourChecklists : EMPTY_APP_STATE.postPourChecklists,
         toolChecklists: Array.isArray(source.toolChecklists) ? source.toolChecklists : Array.isArray(fallback.toolChecklists) ? fallback.toolChecklists : EMPTY_APP_STATE.toolChecklists,
       calculatorResults: Array.isArray(source.calculatorResults) ? source.calculatorResults : Array.isArray(fallback.calculatorResults) ? fallback.calculatorResults : EMPTY_APP_STATE.calculatorResults,
       uploads: Array.isArray(source.uploads) ? source.uploads : Array.isArray(fallback.uploads) ? fallback.uploads : EMPTY_APP_STATE.uploads,
@@ -316,6 +334,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
         jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
         reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
         prePour: mergePermissionScope(EMPTY_APP_STATE.permissions.prePour, source.permissions?.prePour || fallback.permissions?.prePour),
+        postPour: mergePermissionScope(EMPTY_APP_STATE.permissions.postPour, source.permissions?.postPour || fallback.permissions?.postPour),
         uploads: mergePermissionScope(EMPTY_APP_STATE.permissions.uploads, source.permissions?.uploads || fallback.permissions?.uploads),
       time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
         safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
@@ -470,6 +489,11 @@ const INITIAL_TOOL_CHECKLIST_FORM = {
 };
 
 const INITIAL_PRE_POUR_FORM = {
+  jobId: "",
+  notes: "",
+};
+
+const INITIAL_POST_POUR_FORM = {
   jobId: "",
   notes: "",
 };
@@ -1622,6 +1646,10 @@ function JobDetailPanel({
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour checklist</p>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
         </div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour checklist</p>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
+        </div>
         <TextAreaField label={canManageAll ? "Office notes" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
         <JobCrewSection
           job={job}
@@ -1816,6 +1844,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
     ? [
         { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
         { title: "Pre-Pour Checklist", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
+        { title: "Post-Pour Checklist", description: "Track finish, cleanup, cure, and closeout readiness after placement.", icon: "clipboard", moduleId: "postPour", badge: "Open", tone: "blue" },
         { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
         { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
         { title: "Report Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
@@ -1827,6 +1856,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
         { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
         { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
         { title: "Pre-Pour Checklist", description: "Review the assigned-job readiness checklist when it is available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
+        { title: "Post-Pour Checklist", description: "Review the assigned-job finish checklist when it is available.", icon: "clipboard", moduleId: permissions.postPour.canView ? "postPour" : null, badge: permissions.postPour.canView ? "Open" : "Off", tone: permissions.postPour.canView ? "blue" : "slate" },
         { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
         { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
         { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
@@ -1859,6 +1889,10 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
             <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour</p>
               <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
             </div>
           </div>
         <div className="mt-4 grid gap-3">
@@ -5572,6 +5606,270 @@ function PrePourPage({
   );
 }
 
+function PostPourPage({
+  user,
+  jobs,
+  postPourChecklists,
+  permissions,
+  onCreateChecklist,
+  onSaveChecklist,
+  onUpdateChecklistItem,
+  onCompleteChecklist,
+  onReviewChecklist,
+  onReopenChecklist,
+  onArchiveChecklist,
+  busy,
+}) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [foremanFilter, setForemanFilter] = useState("All foremen");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedChecklistId, setSelectedChecklistId] = useState("");
+  const [createDraft, setCreateDraft] = useState(INITIAL_POST_POUR_FORM);
+  const [detailNotes, setDetailNotes] = useState("");
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const checklistRows = Array.isArray(postPourChecklists) ? postPourChecklists : [];
+  const filteredRows = useMemo(() => filterPostPourChecklists(checklistRows, {
+    status: statusFilter,
+    job: jobFilter,
+    foreman: foremanFilter,
+    date: dateFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, checklistRows, dateFilter, foremanFilter, jobFilter, search, statusFilter]);
+  const listState = useMemo(() => derivePostPourChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedChecklist = filteredRows.find((checklist) => checklist.id === selectedChecklistId)
+    || filteredRows[0]
+    || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
+    || null;
+  const selectedItems = derivePostPourItems(selectedChecklist?.items || [], { includeArchived: permissions.postPour.canManageAll });
+  const checklistSummary = summarizePostPourChecklist(selectedChecklist);
+  const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
+
+  useEffect(() => {
+    if (!selectedChecklistId && filteredRows[0]?.id) {
+      setSelectedChecklistId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedChecklistId]);
+
+  useEffect(() => {
+    if (singleJobId && !createDraft.jobId) {
+      setCreateDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [createDraft.jobId, singleJobId]);
+
+  useEffect(() => {
+    setDetailNotes(selectedChecklist?.notes || "");
+  }, [selectedChecklist?.id, selectedChecklist?.notes]);
+
+  const canCreateChecklist = permissions.postPour.canManage;
+  const canEditChecklist = Boolean(selectedChecklist)
+    && permissions.postPour.canManage
+    && !selectedChecklist.archivedAt
+    && (permissions.postPour.canManageAll || ["draft", "reopened"].includes(selectedChecklist.status));
+  const canCompleteChecklist = Boolean(selectedChecklist)
+    && permissions.postPour.canComplete
+    && !selectedChecklist.archivedAt
+    && ["draft", "reopened"].includes(selectedChecklist.status);
+  const noFieldJob = !permissions.postPour.canManageAll && visibleJobs.length === 0;
+
+  if (!permissions.postPour.canView) {
+    return (
+      <div>
+        <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Post-pour access unavailable" description="Only office, foreman, or assigned field roles can open this checklist workspace." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job, then reopen checklists when the field needs another pass." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
+      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-4">
+          <Card className="p-4">
+            <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
+            <div className="grid gap-3">
+              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {["All", "Draft", "Completed", "Reviewed", "Reopened", "Archived"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search jobs, notes, or checklist items..." />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
+            {filteredRows.length === 0 ? (
+              <StateCard title={noFieldJob ? "No assigned job yet" : "No post-pour checklists match these filters"} description={noFieldJob ? "Contact office if a post-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
+            ) : (
+              <div className="space-y-3">
+                {filteredRows.map((checklist) => (
+                  <button
+                    key={checklist.id}
+                    type="button"
+                    onClick={() => setSelectedChecklistId(checklist.id)}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{checklist.job?.title || "Assigned post-pour checklist"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} · {checklist.completedByName || checklist.createdByName}</p>
+                      </div>
+                      <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge tone={checklist.incompleteItemCount > 0 ? "amber" : "green"}>{checklist.incompleteItemCount} incomplete</Badge>
+                      {checklist.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          {canCreateChecklist ? (
+            <Card className="p-4">
+              <SectionHeader title="Create checklist" description="Start a post-pour checklist with the default finish and closeout items for a job." />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                  <option value="">Select a job</option>
+                  {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                </SelectField>
+                <TextAreaField label="Checklist notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional finish or closeout note for the crew." />
+              </div>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onCreateChecklist(createDraft);
+                    setCreateDraft({ ...INITIAL_POST_POUR_FORM, jobId: singleJobId });
+                  }}
+                  disabled={busy || !createDraft.jobId}
+                >
+                  Create checklist
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+
+          {selectedChecklist ? (
+            <Card className="p-4">
+              <SectionHeader
+                title={selectedChecklist.job?.title || "Post-pour checklist"}
+                description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
+                action={<StatusBadge status={postPourChecklistStatusLabel(selectedChecklist.status)} />}
+              />
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
+                  <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <TextAreaField
+                  label="Checklist notes"
+                  value={detailNotes}
+                  onChange={(event) => setDetailNotes(event.target.value)}
+                  disabled={busy || !canEditChecklist}
+                  placeholder="Add internal notes for the crew or office."
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {canEditChecklist ? <Button type="button" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
+                {canCompleteChecklist ? <Button type="button" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete checklist</Button> : null}
+                {permissions.postPour.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
+                {permissions.postPour.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
+                {permissions.postPour.canReview ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
+              </div>
+              {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
+                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                  {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
+                </div>
+              ) : null}
+            </Card>
+          ) : (
+            <Card className="p-4">
+              <SectionHeader title="Checklist details" description="Select a checklist to review finish, cleanup, and closeout readiness." />
+              <StateCard title="No checklist selected" description="Choose a post-pour checklist from the list or create a new one for a visible job." tone="slate" />
+            </Card>
+          )}
+
+          {selectedChecklist ? (
+            <Card className="p-4">
+              <SectionHeader title="Checklist items" description="Work through the default post-pour checks before closing out the field work." />
+              <div className="space-y-3">
+                {selectedItems.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-black text-slate-950">{item.label}</p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">{postPourItemStatusLabel(item.status)}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone={item.status === "checked" ? "green" : item.status === "not_applicable" ? "slate" : "amber"}>{postPourItemStatusLabel(item.status)}</Badge>
+                        {canEditChecklist ? (
+                          <>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      {canEditChecklist ? (
+                        <TextAreaField
+                          key={`${item.id}-${item.updatedAt}`}
+                          label="Item note"
+                          defaultValue={item.notes || ""}
+                          onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
+                          disabled={busy}
+                          placeholder="Add a note for this finish or closeout item."
+                        />
+                      ) : (
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+                          {item.notes || "No note for this item yet."}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToolChecklistPage({
   user,
   jobs,
@@ -5956,6 +6254,21 @@ function MainContent(props) {
           onReviewChecklist={props.onReviewPrePourChecklist}
           onReopenChecklist={props.onReopenPrePourChecklist}
           onArchiveChecklist={props.onArchivePrePourChecklist}
+        />
+      );
+    }
+    if (active === "postPour") {
+      return (
+        <PostPourPage
+          {...props}
+          postPourChecklists={props.postPourChecklists}
+          onCreateChecklist={props.onCreatePostPourChecklist}
+          onSaveChecklist={props.onSavePostPourChecklist}
+          onUpdateChecklistItem={props.onUpdatePostPourChecklistItem}
+          onCompleteChecklist={props.onCompletePostPourChecklist}
+          onReviewChecklist={props.onReviewPostPourChecklist}
+          onReopenChecklist={props.onReopenPostPourChecklist}
+          onArchiveChecklist={props.onArchivePostPourChecklist}
         />
       );
     }
@@ -7277,6 +7590,125 @@ export default function App() {
     }
   }
 
+  async function handleCreatePostPourChecklist(payload) {
+    if (!sessionToken || !appState.permissions.postPour.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createPostPourChecklist(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSavePostPourChecklist(checklistId, payload) {
+    if (!sessionToken || !appState.permissions.postPour.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updatePostPourChecklist(sessionToken, checklistId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdatePostPourChecklistItem(checklistId, itemId, payload) {
+    if (!sessionToken || !appState.permissions.postPour.canView) return false;
+    setBusy(true);
+    try {
+      const nextState = await updatePostPourChecklistItem(sessionToken, checklistId, itemId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCompletePostPourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.postPour.canComplete) return false;
+    setBusy(true);
+    try {
+      const nextState = await completePostPourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReviewPostPourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.postPour.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await reviewPostPourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReopenPostPourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.postPour.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await reopenPostPourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchivePostPourChecklist(checklistId) {
+    if (!sessionToken || !appState.permissions.postPour.canReview) return false;
+    setBusy(true);
+    try {
+      const nextState = await archivePostPourChecklist(sessionToken, checklistId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateToolChecklist(payload) {
     if (!sessionToken || !appState.permissions.toolChecklist.canManage) return false;
     setBusy(true);
@@ -7547,6 +7979,7 @@ export default function App() {
                 safetyAcknowledgments={appState.safetyAcknowledgments}
                 safetyIncidents={appState.safetyIncidents}
                 prePourChecklists={appState.prePourChecklists}
+                postPourChecklists={appState.postPourChecklists}
                 toolChecklists={appState.toolChecklists}
               dailyReports={appState.dailyReports}
               timeEntries={appState.timeEntries}
@@ -7668,6 +8101,13 @@ export default function App() {
                 onReviewPrePourChecklist={handleReviewPrePourChecklist}
                 onReopenPrePourChecklist={handleReopenPrePourChecklist}
                 onArchivePrePourChecklist={handleArchivePrePourChecklist}
+                onCreatePostPourChecklist={handleCreatePostPourChecklist}
+                onSavePostPourChecklist={handleSavePostPourChecklist}
+                onUpdatePostPourChecklistItem={handleUpdatePostPourChecklistItem}
+                onCompletePostPourChecklist={handleCompletePostPourChecklist}
+                onReviewPostPourChecklist={handleReviewPostPourChecklist}
+                onReopenPostPourChecklist={handleReopenPostPourChecklist}
+                onArchivePostPourChecklist={handleArchivePostPourChecklist}
                 selectedReportId={selectedReportId}
               onSelectReport={navigateToReport}
               selectedReport={selectedReport}

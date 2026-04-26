@@ -282,6 +282,38 @@ export function archivePrePourChecklist(token, id) {
   return request(`/api/pre-pour-checklists/${id}/archive`, { method: "POST", token });
 }
 
+export function getPostPourChecklists(token) {
+  return request("/api/post-pour-checklists", { token });
+}
+
+export function createPostPourChecklist(token, payload) {
+  return request("/api/post-pour-checklists", { method: "POST", token, body: payload });
+}
+
+export function updatePostPourChecklist(token, id, payload) {
+  return request(`/api/post-pour-checklists/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function updatePostPourChecklistItem(token, checklistId, itemId, payload) {
+  return request(`/api/post-pour-checklists/${checklistId}/items/${itemId}`, { method: "PATCH", token, body: payload });
+}
+
+export function completePostPourChecklist(token, id) {
+  return request(`/api/post-pour-checklists/${id}/complete`, { method: "POST", token });
+}
+
+export function reviewPostPourChecklist(token, id) {
+  return request(`/api/post-pour-checklists/${id}/review`, { method: "POST", token });
+}
+
+export function reopenPostPourChecklist(token, id) {
+  return request(`/api/post-pour-checklists/${id}/reopen`, { method: "POST", token });
+}
+
+export function archivePostPourChecklist(token, id) {
+  return request(`/api/post-pour-checklists/${id}/archive`, { method: "POST", token });
+}
+
 export function updateUpload(token, id, payload) {
   return request(`/api/uploads/${id}`, { method: "PATCH", token, body: payload });
 }

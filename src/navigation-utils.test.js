@@ -12,6 +12,7 @@ const NAV_GROUPS = [
       { id: "jobs", label: "Jobs" },
       { id: "reports", label: "Reports" },
       { id: "prePour", label: "Pre-Pour" },
+      { id: "postPour", label: "Post-Pour" },
     ],
   },
   {
@@ -40,7 +41,7 @@ test("office roles keep full office navigation and dashboard default", () => {
   assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "reports", "prePour", "leads", "customers", "employees", "calculator", "toolChecklist", "settings"],
+    ["dashboard", "jobs", "reports", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "settings"],
   );
   assert.equal(canAccessModule("employees", owner, { toolChecklistEnabled: true }), true);
 });
@@ -66,7 +67,7 @@ test("employees do not see leads in navigation and default to field workspace", 
   assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "prePour", "calculator", "toolChecklist"],
+    ["jobs", "prePour", "postPour", "calculator", "toolChecklist"],
   );
 });
 
@@ -122,7 +123,7 @@ test("tool checklist hides from field roles when disabled", () => {
   assert.equal(canAccessModule("toolChecklist", foreman, { toolChecklistEnabled: false }), false);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: false }).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "prePour", "calculator"],
+    ["jobs", "prePour", "postPour", "calculator"],
   );
 });
 
