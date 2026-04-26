@@ -639,17 +639,34 @@ export function buildPrintDocumentHtml(packetInput) {
 </html>`;
 }
 
-export function openPrintDocument(packet) {
+export function openPrintDocument(packet, existingWindow = null) {
   if (typeof window === "undefined") return false;
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  const printWindow = existingWindow || window.open("", "_blank", "noopener,noreferrer");
   if (!printWindow) return false;
 
-  printWindow.document.open();
-  printWindow.document.write(buildPrintDocumentHtml(packet));
-  printWindow.document.close();
-  printWindow.focus();
-  window.setTimeout(() => {
+  let hasPrinted = false;
+  const printWhenReady = () => {
+    if (hasPrinted || printWindow.closed) return;
+    hasPrinted = true;
+    printWindow.focus();
     printWindow.print();
-  }, 150);
-  return true;
+  };
+
+  try {
+    printWindow.onload = printWhenReady;
+    printWindow.document.open();
+    printWindow.document.write(buildPrintDocumentHtml(packet));
+    printWindow.document.close();
+    if (printWindow.document.readyState === "complete") {
+      window.setTimeout(printWhenReady, 50);
+    } else {
+      window.setTimeout(printWhenReady, 250);
+    }
+    return true;
+  } catch {
+    try {
+      printWindow.close();
+    } catch {}
+    return false;
+  }
 }
