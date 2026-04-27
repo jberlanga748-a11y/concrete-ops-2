@@ -28,7 +28,7 @@ const ROLE_CONFIGS = {
     email: "demo.admin@concreteops.app",
     label: "admin",
     pages: [
-      { slug: "dashboard", path: "/", heading: "Dashboard" },
+      { slug: "dashboard", path: "/", heading: /dashboard|daily workspace/i },
       { slug: "leads", path: "/leads", heading: "Leads" },
       { slug: "jobs", path: "/jobs", heading: "Jobs" },
       { slug: "jobs-print-packet", path: "/jobs", heading: "Jobs", focusButton: /print job packet/i, optional: true },
@@ -40,8 +40,8 @@ const ROLE_CONFIGS = {
       { slug: "ppe", path: "/ppe", heading: /ppe checklist|safety & ppe/i },
       { slug: "tool-checklist", path: "/toolChecklist", heading: "Tool Checklist" },
       { slug: "calculator", path: "/calculator", heading: /concrete calculator|calculator/i },
-      { slug: "pre-pour", path: "/prePour", heading: "Pre-Pour Checklist" },
-      { slug: "post-pour", path: "/postPour", heading: "Post-Pour Checklist" },
+      { slug: "pre-pour", path: "/prePour", heading: /pre-pour|pre-pour checklist/i },
+      { slug: "post-pour", path: "/postPour", heading: /post-pour|post-pour checklist/i },
       { slug: "delivery-tickets", path: "/deliveryTickets", heading: "Delivery Tickets" },
       { slug: "settings", path: "/settings", heading: "Settings" },
     ],
@@ -54,8 +54,8 @@ const ROLE_CONFIGS = {
       { slug: "jobs", path: "/jobs", heading: "Jobs" },
       { slug: "time", path: "/time", heading: "Time" },
       { slug: "reports", path: "/reports", heading: "Daily Reports" },
-      { slug: "pre-pour", path: "/prePour", heading: "Pre-Pour Checklist" },
-      { slug: "post-pour", path: "/postPour", heading: "Post-Pour Checklist" },
+      { slug: "pre-pour", path: "/prePour", heading: /pre-pour|pre-pour checklist/i },
+      { slug: "post-pour", path: "/postPour", heading: /post-pour|post-pour checklist/i },
       { slug: "uploads", path: "/uploads", heading: "Uploads" },
       { slug: "incidents", path: "/incidents", heading: /incidents|report incident/i },
       { slug: "tool-checklist", path: "/toolChecklist", heading: "Tool Checklist" },
@@ -83,6 +83,7 @@ Usage:
 Optional flags:
   --roles=admin,foreman,employee
   --viewports=1440x900,1920x1080
+  --pages=dashboard,pre-pour,post-pour
   --base-url=https://concrete-ops-demo.fly.dev/
   --output-dir=ui-audit/demo-desktop
   --headed
@@ -96,6 +97,7 @@ function parseArgs(argv) {
     outputRoot: DEFAULT_OUTPUT_ROOT,
     roles: Object.keys(ROLE_CONFIGS),
     viewports: DEFAULT_VIEWPORTS,
+    pages: [],
     headed: false,
   };
 
@@ -114,6 +116,10 @@ function parseArgs(argv) {
     }
     if (arg.startsWith("--viewports=")) {
       options.viewports = arg.split("=")[1].split(",").map((value) => value.trim()).filter(Boolean);
+      continue;
+    }
+    if (arg.startsWith("--pages=")) {
+      options.pages = arg.split("=")[1].split(",").map((value) => value.trim()).filter(Boolean);
       continue;
     }
     if (arg.startsWith("--base-url=")) {
@@ -135,6 +141,12 @@ function parseArgs(argv) {
   const invalidViewports = options.viewports.filter((viewport) => !VIEWPORTS[viewport]);
   if (invalidViewports.length > 0) {
     throw new Error(`Unknown viewports: ${invalidViewports.join(", ")}`);
+  }
+
+  const knownPages = new Set(Object.values(ROLE_CONFIGS).flatMap((roleConfig) => roleConfig.pages.map((page) => page.slug)));
+  const invalidPages = options.pages.filter((page) => !knownPages.has(page));
+  if (invalidPages.length > 0) {
+    throw new Error(`Unknown pages: ${invalidPages.join(", ")}`);
   }
 
   return options;
@@ -400,12 +412,19 @@ async function run() {
         });
         context.setDefaultTimeout(DEFAULT_TIMEOUT_MS);
         context.setDefaultNavigationTimeout(DEFAULT_TIMEOUT_MS);
-        const page = await context.newPage();
         const roleViewportDir = path.join(runDir, role, viewportName);
         await ensureDirectory(roleViewportDir);
+        const pageSpecs = options.pages.length > 0
+          ? roleConfig.pages.filter((spec) => options.pages.includes(spec.slug))
+          : roleConfig.pages;
 
-        for (const spec of roleConfig.pages) {
-          await capturePage(page, role, viewportName, spec, roleViewportDir, options.baseUrl, manifest);
+        for (const spec of pageSpecs) {
+          const page = await context.newPage();
+          try {
+            await capturePage(page, role, viewportName, spec, roleViewportDir, options.baseUrl, manifest);
+          } finally {
+            await page.close().catch(() => {});
+          }
         }
 
         await context.close();
