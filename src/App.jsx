@@ -3854,6 +3854,92 @@ function SafetyPage({
       : ppeFocused
         ? `${activePpeItems.length} PPE items`
         : `${visibleIncidents.length} visible incidents`;
+  function renderPoliciesCard() {
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={toolboxFocused ? "Toolbox guidance" : "Safety policies"} description={canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data."} />
+        {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
+          <div className="space-y-3">
+            {visiblePolicies.map((policy) => (
+              <button
+                key={policy.id}
+                type="button"
+                onClick={() => canManage ? setSelectedPolicyId(policy.id) : undefined}
+                className={`w-full rounded-2xl border p-4 text-left ${selectedPolicy?.id === policy.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950">{policy.title}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{policy.category}</p>
+                  </div>
+                  <Badge tone={policy.archivedAt ? "slate" : "green"}>{policy.statusLabel}</Badge>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{policy.body}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  function renderPpeCard() {
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={toolboxFocused ? "PPE reminders" : "PPE checklist"} description="Default PPE stays visible to field users and editable only for office/admin." />
+        {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
+          <div className="space-y-2">
+            {activePpeItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => canManage ? setSelectedPpeId(item.id) : undefined}
+                className={`w-full rounded-2xl border p-3 text-left ${selectedPpeItem?.id === item.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950">{item.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>
+                  </div>
+                  <Badge tone={item.requiredByDefault ? "blue" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  function renderAcknowledgmentCard() {
+    if (!canAcknowledge) return null;
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={toolboxFocused ? "Acknowledge toolbox review" : ppeFocused ? "Acknowledge PPE check" : "Acknowledge safety & PPE"} description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
+        <form className="grid gap-3" onSubmit={handleAcknowledge}>
+          <SelectField label="Job" value={ackDraft.jobId} onChange={(event) => setAckDraft((current) => ({ ...current, jobId: event.target.value }))}>
+            <option value="">General safety review</option>
+            {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+          </SelectField>
+          <SelectField label="Policy" value={ackDraft.policyId} onChange={(event) => setAckDraft((current) => ({ ...current, policyId: event.target.value }))}>
+            <option value="">All current safety guidance</option>
+            {visiblePolicies.filter((policy) => !policy.archivedAt).map((policy) => <option key={policy.id} value={policy.id}>{policy.title}</option>)}
+          </SelectField>
+          <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Crew brief complete, PPE checked, silica controls discussed..." />
+          <Button type="submit" disabled={busy}>Acknowledge</Button>
+        </form>
+        <div className="mt-4 space-y-2">
+          {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
+            <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+              <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
+              <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` - ${acknowledgment.job.title}` : ""}</p>
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div>
@@ -3873,6 +3959,10 @@ function SafetyPage({
       ) : null}
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
         <div className="min-w-0 space-y-4">
+          {toolboxFocused ? renderPoliciesCard() : null}
+          {toolboxFocused ? renderAcknowledgmentCard() : null}
+          {ppeFocused ? renderPpeCard() : null}
+          {ppeFocused ? renderAcknowledgmentCard() : null}
           {canSubmitIncidents ? (
             <Card className="p-4 md:p-5">
               <SectionHeader
@@ -3973,7 +4063,7 @@ function SafetyPage({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{incident.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} · {incident.submittedByName}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} - {incident.submittedByName}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
@@ -3988,6 +4078,7 @@ function SafetyPage({
             )}
           </Card>
 
+          {!toolboxFocused ? (
           <Card className="p-4 md:p-5">
             <SectionHeader title="Safety policies" description={canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data."} />
             {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
@@ -4012,9 +4103,11 @@ function SafetyPage({
               </div>
             )}
           </Card>
+          ) : null}
         </div>
 
         <div className="min-w-0 space-y-4">
+          {!ppeFocused ? (
           <Card className="p-4 md:p-5">
             <SectionHeader title="PPE checklist" description="Default PPE stays visible to field users and editable only for office/admin." />
             {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
@@ -4038,8 +4131,9 @@ function SafetyPage({
               </div>
             )}
           </Card>
+          ) : null}
 
-          {canAcknowledge ? (
+          {canAcknowledge && !toolboxFocused && !ppeFocused ? (
             <Card className="p-4 md:p-5">
               <SectionHeader title="Acknowledge safety & PPE" description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
               <form className="grid gap-3" onSubmit={handleAcknowledge}>
@@ -4058,7 +4152,7 @@ function SafetyPage({
                 {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
                   <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
                     <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` · ${acknowledgment.job.title}` : ""}</p>
+                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` - ${acknowledgment.job.title}` : ""}</p>
                     <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
                   </div>
                 ))}
