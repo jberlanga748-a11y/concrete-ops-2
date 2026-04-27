@@ -19,8 +19,25 @@ The demo account is available by default in development. In production, demo dat
 - `npm run dev` starts the API and frontend together
 - `npm run build` builds the frontend
 - `npm run serve` serves the built app with the Node server
+- `npm run audit:demo-desktop` logs into the demo Fly app and captures desktop screenshots for UI review
 
 If you open only the static frontend without the Node server, login will not work because authentication depends on the local `/api` backend.
+
+## Desktop UI audit
+
+Use the Playwright-based audit runner to capture desktop screenshots from the live demo workspace without modifying demo data:
+
+```bash
+npm run audit:demo-desktop
+```
+
+Optional filters:
+
+```bash
+npm run audit:demo-desktop -- --roles=admin --viewports=1440x900
+```
+
+Screenshots are saved under `ui-audit/demo-desktop/<timestamp>/` and are ignored by git. The script only signs in, navigates, and captures screenshots for the configured routes.
 
 ## Docker
 
