@@ -2089,7 +2089,7 @@ function sanitizeUploadForUser(upload, state, user) {
 }
 
 function isDemoUploadRecord(upload) {
-  return Boolean(upload?.id) && String(upload.id).startsWith("UPL-DEMO-");
+  return Boolean(upload?.id) && /^(DEMO-)?UPL-DEMO-/.test(String(upload.id));
 }
 
 function escapeSvgText(value) {

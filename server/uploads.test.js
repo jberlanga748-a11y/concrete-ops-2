@@ -437,6 +437,33 @@ test("missing demo upload files return a placeholder while missing real upload f
       updatedAt: now,
       archivedAt: null,
     });
+    insertUploadRecord(fixture.sqliteFile, {
+      id: "DEMO-UPL-DEMO-MISSING",
+      sortIndex: 1000,
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: null,
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: "U-001",
+      fileName: "demo-missing-prefixed.jpg",
+      fileType: "image/jpeg",
+      fileSize: 12345,
+      storagePath: "uploads/demo-missing-prefixed-file.jpg",
+      caption: "Missing canonical demo placeholder test",
+      notes: "Canonical demo upload metadata without a backing file.",
+      takenAt: now,
+      uploadedAt: now,
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Not requested",
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    });
 
     const demoContentResponse = await fetch(`${fixture.baseUrl}/api/uploads/UPL-DEMO-MISSING/content`, {
       headers: {
@@ -447,6 +474,14 @@ test("missing demo upload files return a placeholder while missing real upload f
     assert.equal(demoContentResponse.headers.get("content-type"), "image/svg+xml; charset=utf-8");
     const demoContent = await demoContentResponse.text();
     assert.equal(demoContent.includes("Demo Upload Placeholder"), true);
+
+    const prefixedDemoContentResponse = await fetch(`${fixture.baseUrl}/api/uploads/DEMO-UPL-DEMO-MISSING/content`, {
+      headers: {
+        Authorization: `Bearer ${officeLogin.token}`,
+      },
+    });
+    assert.equal(prefixedDemoContentResponse.ok, true);
+    assert.equal(prefixedDemoContentResponse.headers.get("content-type"), "image/svg+xml; charset=utf-8");
 
     const realUploadState = await assertOk(fixture.baseUrl, "/api/uploads", {
       method: "POST",

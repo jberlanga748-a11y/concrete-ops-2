@@ -13,6 +13,8 @@ export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
 let db;
 let writeChain = Promise.resolve();
 let demoStartupLogged = false;
+let ensureDbPromise = null;
+let ensureDbTarget = "";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -2254,9 +2256,84 @@ function remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail) {
   };
 }
 
+function createCanonicalDemoUserIdMap() {
+  return new Map(DEMO_USERS.map((user) => [user.email.toLowerCase(), user.id]));
+}
+
+function createCanonicalDemoSeedState(actualUserIdsByEmail = createCanonicalDemoUserIdMap()) {
+  const baseState = createSeedState();
+  const remappedSeedState = remapDemoSeedStateUserIds(baseState, actualUserIdsByEmail);
+  const namespacedSeedState = namespaceDemoSeedState(remappedSeedState);
+
+  return {
+    ...baseState,
+    ...namespacedSeedState,
+    users: baseState.users,
+  };
+}
+
 function buildDemoSeedData(actualUserIdsByEmail) {
   const seedState = createSeedState();
   return namespaceDemoSeedState(remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail));
+}
+
+function cleanupLegacyDemoSeedDataInDatabase(database) {
+  const legacySeed = createSeedState();
+  const canonicalSeed = createCanonicalDemoSeedState();
+  const pairRows = (legacyRows, canonicalRows) => (legacyRows || [])
+    .map((row, index) => ({
+      legacyId: row?.id,
+      canonicalId: canonicalRows?.[index]?.id || prefixDemoId(row?.id),
+    }))
+    .filter((pair) => pair.legacyId && pair.canonicalId && pair.legacyId !== pair.canonicalId);
+
+  const tableSpecs = [
+    ["customers", pairRows(legacySeed.customers, canonicalSeed.customers)],
+    ["leads", pairRows(legacySeed.leads, canonicalSeed.leads)],
+    ["lead_status_history", pairRows(legacySeed.leadStatusHistory, canonicalSeed.leadStatusHistory)],
+    ["jobs", pairRows(legacySeed.jobs, canonicalSeed.jobs)],
+    ["job_assignments", pairRows(legacySeed.jobAssignments, canonicalSeed.jobAssignments)],
+    ["estimates", pairRows(legacySeed.estimates, canonicalSeed.estimates)],
+    ["estimate_items", pairRows(legacySeed.estimateItems, canonicalSeed.estimateItems)],
+    ["safety_policies", pairRows(legacySeed.safetyPolicies, canonicalSeed.safetyPolicies)],
+    ["ppe_items", pairRows(legacySeed.ppeItems, canonicalSeed.ppeItems)],
+    ["safety_acknowledgments", pairRows(legacySeed.safetyAcknowledgments, canonicalSeed.safetyAcknowledgments)],
+    ["safety_incidents", pairRows(legacySeed.safetyIncidents, canonicalSeed.safetyIncidents)],
+    ["change_order_requests", pairRows(legacySeed.changeOrderRequests, canonicalSeed.changeOrderRequests)],
+    ["pre_pour_checklists", pairRows(legacySeed.prePourChecklists, canonicalSeed.prePourChecklists)],
+    ["pre_pour_checklist_items", pairRows(legacySeed.prePourChecklistItems, canonicalSeed.prePourChecklistItems)],
+    ["post_pour_checklists", pairRows(legacySeed.postPourChecklists, canonicalSeed.postPourChecklists)],
+    ["post_pour_checklist_items", pairRows(legacySeed.postPourChecklistItems, canonicalSeed.postPourChecklistItems)],
+    ["tool_checklists", pairRows(legacySeed.toolChecklists, canonicalSeed.toolChecklists)],
+    ["tool_checklist_items", pairRows(legacySeed.toolChecklistItems, canonicalSeed.toolChecklistItems)],
+    ["calculator_results", pairRows(legacySeed.calculatorResults, canonicalSeed.calculatorResults)],
+    ["time_entries", pairRows(legacySeed.timeEntries, canonicalSeed.timeEntries)],
+    ["daily_reports", pairRows(legacySeed.dailyReports, canonicalSeed.dailyReports)],
+    ["uploads", pairRows(legacySeed.uploads, canonicalSeed.uploads)],
+    ["delivery_tickets", pairRows(legacySeed.deliveryTickets, canonicalSeed.deliveryTickets)],
+    ["queue_items", pairRows(legacySeed.queueItems, canonicalSeed.queueItems)],
+    ["activity", pairRows(legacySeed.activity, canonicalSeed.activity)],
+    ["audit_events", pairRows(legacySeed.auditEvents, canonicalSeed.auditEvents)],
+  ];
+  let deleted = 0;
+
+  for (const [tableName, pairs] of tableSpecs) {
+    if (!pairs.length) continue;
+    const selectById = database.prepare(`SELECT 1 FROM ${tableName} WHERE id = ? LIMIT 1`);
+    const deleteById = database.prepare(`DELETE FROM ${tableName} WHERE id = ?`);
+
+    for (const pair of pairs) {
+      if (!selectById.get(pair.canonicalId) || !selectById.get(pair.legacyId)) {
+        continue;
+      }
+      const result = deleteById.run(pair.legacyId);
+      if (Number(result.changes || 0) > 0) {
+        deleted += 1;
+      }
+    }
+  }
+
+  return deleted;
 }
 
 function ensureDefaultSafetyContentInDatabase(database, state, changedAt = isoNow()) {
@@ -3049,6 +3126,7 @@ function logDemoStartupSummary(summary) {
     demoData: summary.demoData,
     demoRecordsInserted: summary.demoRecordsInserted ?? 0,
     demoRecordsSkipped: summary.demoRecordsSkipped ?? 0,
+    demoRecordsDeleted: summary.demoRecordsDeleted ?? 0,
   });
 
   demoStartupLogged = true;
@@ -5583,7 +5661,7 @@ async function loadInitialState() {
   return createSeedState();
 }
 
-export async function ensureDb() {
+async function ensureDbInternal() {
   await fs.mkdir(getDataDir(), { recursive: true });
   const hadSqlite = await dbExists();
   const hasLegacyJson = await jsonExists();
@@ -5602,6 +5680,7 @@ export async function ensureDb() {
 
       if (serverConfig.seedDemoData) {
         const demoDataResult = ensureDemoSeedDataInDatabase(db, demoUsers.actualUserIdsByEmail);
+        const demoRecordsDeleted = cleanupLegacyDemoSeedDataInDatabase(db);
         demoData = demoDataResult.inserted > 0 ? "complete" : "skipped";
         demoSummary = {
           usersEnsured: demoUsers.usersEnsured,
@@ -5609,6 +5688,7 @@ export async function ensureDb() {
           demoData,
           demoRecordsInserted: demoDataResult.inserted,
           demoRecordsSkipped: demoDataResult.skipped,
+          demoRecordsDeleted,
         };
       } else {
         demoSummary = {
@@ -5617,6 +5697,7 @@ export async function ensureDb() {
           demoData,
           demoRecordsInserted: 0,
           demoRecordsSkipped: 0,
+          demoRecordsDeleted: 0,
         };
       }
     }
@@ -5664,7 +5745,10 @@ export async function ensureDb() {
     }
 
     if (serverConfig.seedWorkspaceData || serverConfig.seedDemoData) {
-      writeStateToDb(createSeedState());
+      const nextState = serverConfig.demoMode && serverConfig.seedDemoData
+        ? createCanonicalDemoSeedState()
+        : createSeedState();
+      writeStateToDb(nextState);
       logDemoStartupSummary(serverConfig.demoMode
         ? {
           usersEnsured: 0,
@@ -5672,6 +5756,7 @@ export async function ensureDb() {
           demoData: serverConfig.seedDemoData ? "complete" : "skipped",
           demoRecordsInserted: 0,
           demoRecordsSkipped: 0,
+          demoRecordsDeleted: 0,
         }
         : null);
       return;
@@ -5693,6 +5778,23 @@ export async function ensureDb() {
     writeStateToDb(nextState);
     logDemoStartupSummary(demoSummary);
   }
+}
+
+export async function ensureDb() {
+  const sqliteFile = getSqliteFile();
+  if (ensureDbPromise && ensureDbTarget === sqliteFile) {
+    return ensureDbPromise;
+  }
+
+  ensureDbTarget = sqliteFile;
+  ensureDbPromise = ensureDbInternal().catch((error) => {
+    if (ensureDbTarget === sqliteFile) {
+      ensureDbPromise = null;
+    }
+    throw error;
+  });
+
+  return ensureDbPromise;
 }
 
 export async function cleanupExpiredSessions(now = new Date().toISOString()) {
@@ -5727,7 +5829,9 @@ export function updateDb(mutator) {
 }
 
 export async function resetDb() {
-  const next = createSeedState();
+  const next = serverConfig.demoMode && serverConfig.seedDemoData
+    ? createCanonicalDemoSeedState()
+    : createSeedState();
   writeStateToDb(next);
   return readTableState();
 }
