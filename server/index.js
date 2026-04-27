@@ -533,6 +533,76 @@ function groupRecordsByKey(records, key) {
   return groups;
 }
 
+function getChecklistItemTimestampMs(record) {
+  for (const candidate of [record?.updatedAt, record?.checkedAt, record?.createdAt]) {
+    const parsed = Date.parse(candidate || "");
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return -Infinity;
+}
+
+function compareChecklistItems(left, right) {
+  const leftSortIndex = Number.isFinite(Number(left?.sortIndex)) ? Number(left.sortIndex) : Number.MAX_SAFE_INTEGER;
+  const rightSortIndex = Number.isFinite(Number(right?.sortIndex)) ? Number(right.sortIndex) : Number.MAX_SAFE_INTEGER;
+  if (leftSortIndex !== rightSortIndex) {
+    return leftSortIndex - rightSortIndex;
+  }
+  return String(left?.label || left?.key || left?.id || "").localeCompare(String(right?.label || right?.key || right?.id || ""));
+}
+
+function preferChecklistItemRecord(existingRecord, nextRecord) {
+  const existingArchived = Boolean(existingRecord?.archivedAt);
+  const nextArchived = Boolean(nextRecord?.archivedAt);
+  if (existingArchived !== nextArchived) {
+    return nextArchived ? existingRecord : nextRecord;
+  }
+
+  const existingTimestampMs = getChecklistItemTimestampMs(existingRecord);
+  const nextTimestampMs = getChecklistItemTimestampMs(nextRecord);
+  if (existingTimestampMs !== nextTimestampMs) {
+    return nextTimestampMs >= existingTimestampMs ? nextRecord : existingRecord;
+  }
+
+  return compareChecklistItems(existingRecord, nextRecord) <= 0 ? nextRecord : existingRecord;
+}
+
+function dedupeChecklistItems(records) {
+  const uniqueItemsByKey = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    const dedupeKey = record?.key || record?.id;
+    if (!dedupeKey) continue;
+    const existingRecord = uniqueItemsByKey.get(dedupeKey);
+    if (!existingRecord) {
+      uniqueItemsByKey.set(dedupeKey, record);
+      continue;
+    }
+    uniqueItemsByKey.set(dedupeKey, preferChecklistItemRecord(existingRecord, record));
+  }
+  return Array.from(uniqueItemsByKey.values()).sort(compareChecklistItems);
+}
+
+function groupChecklistItemsByChecklistId(records) {
+  const groupedRecords = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    const checklistId = record?.checklistId;
+    if (!checklistId) continue;
+    const existing = groupedRecords.get(checklistId);
+    if (existing) {
+      existing.push(record);
+    } else {
+      groupedRecords.set(checklistId, [record]);
+    }
+  }
+
+  const normalizedGroups = new Map();
+  for (const [checklistId, items] of groupedRecords.entries()) {
+    normalizedGroups.set(checklistId, dedupeChecklistItems(items));
+  }
+  return normalizedGroups;
+}
+
 function getHydrationContext(state, user) {
   if (!state) return null;
   let stateCache = hydrationContextCache.get(state);
@@ -546,8 +616,8 @@ function getHydrationContext(state, user) {
     stateCache.set(cacheKey, {
       usersById: mapRecordsById(state.users),
       jobsById: mapRecordsById(state.jobs),
-      prePourItemsByChecklistId: groupRecordsByKey(state.prePourChecklistItems, "checklistId"),
-      postPourItemsByChecklistId: groupRecordsByKey(state.postPourChecklistItems, "checklistId"),
+      prePourItemsByChecklistId: groupChecklistItemsByChecklistId(state.prePourChecklistItems),
+      postPourItemsByChecklistId: groupChecklistItemsByChecklistId(state.postPourChecklistItems),
       prePourChecklistsByJobId: groupRecordsByKey(state.prePourChecklists, "jobId"),
       postPourChecklistsByJobId: groupRecordsByKey(state.postPourChecklists, "jobId"),
       sanitizedJobsById: new Map(),
@@ -3440,8 +3510,8 @@ function canViewPrePourChecklistDetails(user, checklist, job) {
 }
 
 function checklistHasIncompleteRequiredItems(state, checklistId) {
-  return (state.prePourChecklistItems || [])
-    .filter((item) => item.checklistId === checklistId && !item.archivedAt)
+  return dedupeChecklistItems((state.prePourChecklistItems || [])
+    .filter((item) => item.checklistId === checklistId && !item.archivedAt))
     .some((item) => optionalPrePourItemStatus(item.status, "unchecked") === "unchecked");
 }
 
@@ -3500,8 +3570,8 @@ function canViewPostPourChecklistDetails(user, checklist, job) {
 }
 
 function postPourChecklistHasIncompleteRequiredItems(state, checklistId) {
-  return (state.postPourChecklistItems || [])
-    .filter((item) => item.checklistId === checklistId && !item.archivedAt)
+  return dedupeChecklistItems((state.postPourChecklistItems || [])
+    .filter((item) => item.checklistId === checklistId && !item.archivedAt))
     .some((item) => optionalPostPourItemStatus(item.status, "unchecked") === "unchecked");
 }
 

@@ -412,6 +412,55 @@ function readExistingIds(sqliteFile, tableName, ids) {
   }
 }
 
+function duplicateChecklistItems(sqliteFile, tableName, checklistId, duplicateSuffix, copies = 3) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    const rows = database.prepare(`
+      SELECT id, sort_index AS sortIndex, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy,
+             checked_at AS checkedAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      FROM ${tableName}
+      WHERE checklist_id = ?
+      ORDER BY sort_index ASC
+    `).all(checklistId);
+    const insertRow = database.prepare(`
+      INSERT INTO ${tableName} (id, sort_index, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const duplicatedAtBase = Date.now();
+
+    for (let copyIndex = 0; copyIndex < copies; copyIndex += 1) {
+      for (const row of rows) {
+        const duplicatedAt = new Date(duplicatedAtBase + copyIndex * 1000 + Number(row.sortIndex || 0)).toISOString();
+        insertRow.run(
+          `${row.id}-${duplicateSuffix}-${copyIndex}`,
+          row.sortIndex ?? 0,
+          row.checklistId,
+          row.key,
+          row.label,
+          row.status,
+          row.notes || "",
+          row.checkedBy || null,
+          row.checkedAt || null,
+          row.createdAt || duplicatedAt,
+          duplicatedAt,
+          row.archivedAt || null,
+        );
+      }
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function assertChecklistPayloadLooksReasonable(checklists) {
+  for (const checklist of checklists || []) {
+    const itemKeys = checklist.items.map((item) => item.key);
+    assert.equal(new Set(itemKeys).size, itemKeys.length);
+    assert.equal(checklist.items.length < 25, true);
+    assert.equal(checklist.incompleteItemCount <= checklist.items.length, true);
+  }
+}
+
 test("demo config keeps production safe unless demo mode is explicitly enabled", () => {
   const productionExplicitSeed = createServerConfig({
     NODE_ENV: "production",
@@ -562,7 +611,9 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     "uploads",
     "delivery_tickets",
     "pre_pour_checklists",
+    "pre_pour_checklist_items",
     "post_pour_checklists",
+    "post_pour_checklist_items",
     "tool_checklists",
     "activity",
     "audit_events",
@@ -583,6 +634,8 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     });
     assert.ok(bootstrap.customers.length > 0);
     assert.ok(bootstrap.jobs.length > 0);
+    assertChecklistPayloadLooksReasonable(bootstrap.prePourChecklists);
+    assertChecklistPayloadLooksReasonable(bootstrap.postPourChecklists);
   } finally {
     await firstServer.stop();
   }
@@ -604,6 +657,8 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     });
     assert.ok(bootstrap.customers.length > 0);
     assert.ok(bootstrap.jobs.length > 0);
+    assertChecklistPayloadLooksReasonable(bootstrap.prePourChecklists);
+    assertChecklistPayloadLooksReasonable(bootstrap.postPourChecklists);
   } finally {
     await secondServer.stop();
   }
@@ -626,6 +681,55 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     readExistingIds(sqliteFile, "delivery_tickets", ["DT-DEMO-001", "DT-DEMO-002", "DT-DEMO-003"]),
     [],
   );
+
+  await fs.rm(tempDataDir, { recursive: true, force: true });
+});
+
+test("demo bootstrap deduplicates duplicate pre-pour and post-pour checklist items from the database", async () => {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-checklist-dupes-"));
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
+  const firstServer = await startServer({
+    DEMO_MODE: "true",
+    PUBLIC_ESTIMATE_REQUEST_ENABLED: "true",
+  }, { dataDir: tempDataDir });
+
+  try {
+    const adminLogin = await login(firstServer.baseUrl, {
+      email: "demo.admin@concreteops.app",
+      password: "demo12345",
+    });
+    const bootstrap = await assertOk(firstServer.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    assertChecklistPayloadLooksReasonable(bootstrap.prePourChecklists);
+    assertChecklistPayloadLooksReasonable(bootstrap.postPourChecklists);
+  } finally {
+    await firstServer.stop();
+  }
+
+  duplicateChecklistItems(sqliteFile, "pre_pour_checklist_items", "DEMO-PP-DEMO-001", "dupe");
+  duplicateChecklistItems(sqliteFile, "pre_pour_checklist_items", "DEMO-PP-DEMO-002", "dupe");
+  duplicateChecklistItems(sqliteFile, "post_pour_checklist_items", "DEMO-PO-DEMO-001", "dupe");
+  duplicateChecklistItems(sqliteFile, "post_pour_checklist_items", "DEMO-PO-DEMO-002", "dupe");
+
+  const secondServer = await startServer({
+    DEMO_MODE: "true",
+    PUBLIC_ESTIMATE_REQUEST_ENABLED: "true",
+  }, { dataDir: tempDataDir });
+
+  try {
+    const adminLogin = await login(secondServer.baseUrl, {
+      email: "demo.admin@concreteops.app",
+      password: "demo12345",
+    });
+    const bootstrap = await assertOk(secondServer.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    assertChecklistPayloadLooksReasonable(bootstrap.prePourChecklists);
+    assertChecklistPayloadLooksReasonable(bootstrap.postPourChecklists);
+  } finally {
+    await secondServer.stop();
+  }
 
   await fs.rm(tempDataDir, { recursive: true, force: true });
 });
