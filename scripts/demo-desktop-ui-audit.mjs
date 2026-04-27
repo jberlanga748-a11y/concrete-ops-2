@@ -6,11 +6,14 @@ import { chromium } from "playwright";
 const DEFAULT_BASE_URL = "https://concrete-ops-demo.fly.dev/";
 const DEFAULT_OUTPUT_ROOT = path.resolve(process.cwd(), "ui-audit", "demo-desktop");
 const DEFAULT_TIMEOUT_MS = 90_000;
+const PAGE_NAVIGATION_TIMEOUT_MS = 45_000;
 const NETWORK_IDLE_TIMEOUT_MS = 7_500;
 const PAGE_SETTLE_DELAY_MS = 1_200;
+const APP_READY_TIMEOUT_MS = 20_000;
 const DEFAULT_VIEWPORTS = ["1440x900", "1920x1080"];
 const LOGIN_BUTTON_NAME = /enter workspace/i;
 const LOGOUT_BUTTON_NAME = /log out/i;
+const WORKSPACE_LOADING_TEXT = /Loading team workspace/i;
 const FIRST_VIEWPORT = { width: 1440, height: 900 };
 
 const VIEWPORTS = {
@@ -151,12 +154,93 @@ async function waitForIdle(page) {
   await page.waitForLoadState("networkidle", { timeout: NETWORK_IDLE_TIMEOUT_MS }).catch(() => {});
 }
 
-async function waitForHeading(page, heading) {
-  if (!heading) return;
-  const headingLocator = typeof heading === "string"
+function getHeadingLocator(page, heading) {
+  if (!heading) return null;
+  return typeof heading === "string"
     ? page.getByRole("heading", { name: heading, exact: false }).first()
     : page.getByRole("heading", { name: heading }).first();
-  await headingLocator.waitFor({ state: "visible", timeout: DEFAULT_TIMEOUT_MS }).catch(() => {});
+}
+
+async function waitForHeading(page, heading, timeout = DEFAULT_TIMEOUT_MS) {
+  const headingLocator = getHeadingLocator(page, heading);
+  if (!headingLocator) return true;
+  try {
+    await headingLocator.waitFor({ state: "visible", timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForAnyVisible(locators, timeout) {
+  if (locators.length === 0) return false;
+  try {
+    await Promise.any(locators.map((locator) => locator.waitFor({ state: "visible", timeout })));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function captureDiagnosticScreenshot(page, screenshotPath) {
+  try {
+    await page.screenshot({
+      path: screenshotPath,
+      fullPage: false,
+      animations: "disabled",
+      caret: "hide",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForWorkspaceReady(page, heading) {
+  const loadingLocator = page.getByText(WORKSPACE_LOADING_TEXT).first();
+  const loadingVisible = await loadingLocator.isVisible().catch(() => false);
+  if (loadingVisible) {
+    try {
+      await loadingLocator.waitFor({ state: "hidden", timeout: APP_READY_TIMEOUT_MS });
+    } catch {
+      return {
+        ok: false,
+        status: "loading_timeout",
+        reason: "Loading team workspace did not finish before timeout.",
+      };
+    }
+  }
+
+  const readinessLocators = [
+    page.getByRole("button", { name: LOGOUT_BUTTON_NAME }).first(),
+    page.locator("main").first(),
+  ];
+  const headingLocator = getHeadingLocator(page, heading);
+  if (headingLocator) {
+    readinessLocators.unshift(headingLocator);
+  }
+
+  const ready = await waitForAnyVisible(readinessLocators, APP_READY_TIMEOUT_MS);
+  if (!ready) {
+    return {
+      ok: false,
+      status: "error",
+      reason: heading
+        ? "Workspace shell or expected page heading never became visible."
+        : "Workspace shell never became visible.",
+    };
+  }
+
+  const headingVisible = await waitForHeading(page, heading, 10_000);
+  if (!headingVisible) {
+    return {
+      ok: false,
+      status: "error",
+      reason: "Expected page heading never became visible after loading finished.",
+    };
+  }
+
+  return { ok: true };
 }
 
 async function loginAndCaptureState(browser, roleConfig, options) {
@@ -177,11 +261,11 @@ async function loginAndCaptureState(browser, roleConfig, options) {
   await passwordField.fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: LOGIN_BUTTON_NAME }).click();
 
-  await page.getByRole("button", { name: LOGOUT_BUTTON_NAME }).first().waitFor({
-    state: "visible",
-    timeout: DEFAULT_TIMEOUT_MS,
-  });
   await waitForIdle(page);
+  const readyState = await waitForWorkspaceReady(page, null);
+  if (!readyState.ok) {
+    throw new Error(readyState.reason);
+  }
 
   const storageState = await context.storageState();
   await context.close();
@@ -200,9 +284,24 @@ async function maybeFocusButton(page, buttonPattern) {
 async function capturePage(page, role, viewportName, spec, outputDir, baseUrl, manifest) {
   const absoluteUrl = new URL(spec.path, baseUrl).toString();
   try {
-    await page.goto(absoluteUrl, { waitUntil: "domcontentloaded", timeout: DEFAULT_TIMEOUT_MS });
+    await page.goto(absoluteUrl, { waitUntil: "domcontentloaded", timeout: PAGE_NAVIGATION_TIMEOUT_MS });
     await waitForIdle(page);
-    await waitForHeading(page, spec.heading);
+    const readyState = await waitForWorkspaceReady(page, spec.heading);
+    if (!readyState.ok) {
+      const screenshotPath = path.join(outputDir, `${spec.slug}.png`);
+      const savedDiagnostic = await captureDiagnosticScreenshot(page, screenshotPath);
+      manifest.push({
+        role,
+        viewport: viewportName,
+        slug: spec.slug,
+        path: spec.path,
+        status: readyState.status,
+        reason: readyState.reason,
+        screenshotPath: savedDiagnostic ? screenshotPath : undefined,
+      });
+      console.warn(`[skip] ${role} ${viewportName} ${spec.slug}: ${readyState.reason}`);
+      return;
+    }
 
     const focused = await maybeFocusButton(page, spec.focusButton);
     if (!focused) {
@@ -271,11 +370,26 @@ async function run() {
 
   const browser = await chromium.launch({ headless: !options.headed });
   const manifest = [];
+  let fatalError = null;
 
   try {
     for (const role of options.roles) {
       const roleConfig = ROLE_CONFIGS[role];
-      const storageState = await loginAndCaptureState(browser, roleConfig, options);
+      let storageState;
+      try {
+        storageState = await loginAndCaptureState(browser, roleConfig, options);
+      } catch (error) {
+        manifest.push({
+          role,
+          viewport: "login",
+          slug: "login",
+          path: "/",
+          status: "error",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        console.warn(`[skip] ${role} login: ${error instanceof Error ? error.message : error}`);
+        continue;
+      }
 
       for (const viewportName of options.viewports) {
         const viewport = VIEWPORTS[viewportName];
@@ -297,6 +411,8 @@ async function run() {
         await context.close();
       }
     }
+  } catch (error) {
+    fatalError = error;
   } finally {
     await browser.close();
   }
@@ -313,6 +429,10 @@ async function run() {
   console.log(`\nDesktop UI audit complete.`);
   console.log(`Screenshots: ${runDir}`);
   console.log(`Manifest: ${manifestPath}`);
+
+  if (fatalError) {
+    throw fatalError;
+  }
 }
 
 run().catch((error) => {
