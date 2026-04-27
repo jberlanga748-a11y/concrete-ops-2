@@ -1532,7 +1532,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-lg font-black text-slate-950">{row.customer}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} - {row.city}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
                 </div>
                 <div className="shrink-0">
                   <StatusBadge status={row.status} />
@@ -1585,7 +1585,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{row.customer}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id} - {row.city}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project}</td>
                 <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
@@ -1620,7 +1620,7 @@ function JobsTable({ rows, selectedId, onSelect }) {
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-lg font-black text-slate-950">{jobTitle(row)}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} - {jobNextStep(row)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
                 </div>
                 <div className="shrink-0">
                   <StatusBadge status={jobStatusLabel(row.status || row.stage)} />
@@ -1676,7 +1676,7 @@ function JobsTable({ rows, selectedId, onSelect }) {
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{jobTitle(row)}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id} - {jobNextStep(row)}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.customer}</td>
                 <td className="px-4 py-3"><StatusBadge status={jobStatusLabel(row.status || row.stage)} /></td>
@@ -1799,7 +1799,7 @@ function LeadDetailPanel({
     <Card className="p-5">
       <SectionHeader
         title={lead.customer}
-        description={`${lead.id} - ${lead.city}`}
+        description={`${lead.id} · ${lead.city}`}
         action={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {!canManage ? <Badge tone="slate">Read only</Badge> : null}
@@ -1868,7 +1868,7 @@ function LeadDetailPanel({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-black text-slate-950">{related.customer.name}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{related.customer.city || "No city"} - {related.customer.id}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{related.customer.city || "No city"} · {related.customer.id}</p>
                 </div>
                 <StatusBadge status={related.customer.archivedAt ? "Archived" : related.customer.status} />
               </div>
@@ -2000,7 +2000,7 @@ function JobCrewSection({
         ) : (
           <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
             <p className="font-black text-slate-950">{foremanAssignment?.userName || "No foreman assigned"}</p>
-            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} - ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
+            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} · ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
           </div>
         )}
       </div>
@@ -2018,7 +2018,7 @@ function JobCrewSection({
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="font-black text-slate-950">{assignment.userName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} - Assigned {formatDateTime(assignment.assignedAt)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} · Assigned {formatDateTime(assignment.assignedAt)}</p>
                   </div>
                   {canManageAssignments ? (
                     <div className="flex flex-col gap-2 md:flex-row md:items-end">
@@ -2097,7 +2097,7 @@ function JobDetailPanel({
     <Card className="p-5">
       <SectionHeader
         title={jobTitle(job)}
-        description={`${job.id} - ${job.customer}`}
+        description={`${job.id} · ${job.customer}`}
         action={
           <div className="flex flex-wrap gap-2">
             {!canManageAll ? <Badge tone="slate">Field view</Badge> : null}
@@ -2215,7 +2215,7 @@ function formatJobScheduleDetail(job) {
   if (!job?.scheduledStart) return "Schedule pending";
   const startLabel = formatDateTime(job.scheduledStart);
   if (!job?.scheduledEnd) {
-    return job?.estimatedDuration ? `${startLabel} - ${job.estimatedDuration}` : startLabel;
+    return job?.estimatedDuration ? `${startLabel} · ${job.estimatedDuration}` : startLabel;
   }
   return `${startLabel} to ${formatDateTime(job.scheduledEnd)}`;
 }
@@ -2281,7 +2281,7 @@ function JobCalculationsCard({ calculations, title = "Internal calculations", de
                     {sectionRows.map((section, index) => (
                       <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
                         <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                        <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} - {formatCubicFeet(section.cubicFeet)}</p>
+                        <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
                         {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
                       </div>
                     ))}
@@ -2399,7 +2399,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   return (
     <div className="min-w-0 space-y-4">
       <Card className="p-5">
-        <SectionHeader title={jobTitle(job)} description={`${job.id} - ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
+        <SectionHeader title={jobTitle(job)} description={`${job.id} · ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
@@ -2847,7 +2847,7 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
 
   return (
     <Card className="p-5">
-      <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} - ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
+      <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} · ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
       <div className={compactMobile ? "grid gap-2.5 md:gap-3" : "grid gap-3"}>
         <div className={compactMobile ? "flex flex-wrap gap-1.5 md:gap-2" : "flex flex-wrap gap-2"}>
           <Badge tone="slate">{entry.id}</Badge>
@@ -2966,7 +2966,7 @@ function TimePage({
             description="Clock your own assigned or field-visible work, plus approved non-job categories."
           />
           <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your personal weekly hours and categories." />
-          <WeekSummaryCard summary={crewWeeklySummary} title="Crew This Week" description={`Assigned-job crew totals${crewWeeklySummary.activeUserCount ? ` - ${crewWeeklySummary.activeUserCount} active` : ""}.`} />
+          <WeekSummaryCard summary={crewWeeklySummary} title="Crew This Week" description={`Assigned-job crew totals${crewWeeklySummary.activeUserCount ? ` · ${crewWeeklySummary.activeUserCount} active` : ""}.`} />
           {rows.length === 0 ? (
             <StateCard title="No crew time yet" description="Crew time will appear here once assigned field users clock into your jobs." tone="slate" />
           ) : (
@@ -3142,7 +3142,7 @@ function DailyReportDetailPanel({
       <Card className="p-5">
         <SectionHeader
           title={jobTitle(report.job)}
-          description={`${report.reportDate} - ${report.createdByName}`}
+          description={`${report.reportDate} · ${report.createdByName}`}
           action={
             <div className="flex flex-wrap gap-2">
               <DailyReportStatusBadge status={report.status} />
@@ -3264,7 +3264,7 @@ function UploadListCard({ upload, selected, onSelect }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
-          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} - {uploadUploaderLabel(upload)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} · {uploadUploaderLabel(upload)}</p>
         </div>
         <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
       </div>
@@ -3305,7 +3305,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
     <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
       <SectionHeader
         title={uploadTitle(upload)}
-        description={`${uploadJobLabel(upload)} - ${formatFileSize(upload.fileSize)}`}
+        description={`${uploadJobLabel(upload)} · ${formatFileSize(upload.fileSize)}`}
         action={
           <div className="flex flex-wrap gap-2">
             <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
@@ -3425,7 +3425,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
           {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
           <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Location is used for job documentation only when you tap Capture Location.</p>
-          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} - accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
+          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
@@ -3840,332 +3840,18 @@ function SafetyPage({
       : toolboxFocused
         ? "Review toolbox-ready safety guidance and PPE reminders for the work in front of the crew."
         : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
-  const overviewFocused = !incidentFocused && !toolboxFocused && !ppeFocused;
-  const headerEyebrow = canManage
-    ? incidentFocused
-      ? "Incident Review"
-      : toolboxFocused
-        ? "Toolbox Guidance"
-        : ppeFocused
-          ? "PPE"
-          : "Office Safety"
-    : incidentFocused
-      ? "Field Incident"
-      : toolboxFocused
-        ? "Toolbox Guidance"
-        : ppeFocused
-          ? "Field PPE"
-          : "Field Safety";
-  const headerBadgeLabel = incidentFocused
-    ? `${visibleIncidents.length} visible incidents`
-    : toolboxFocused
-      ? `${visiblePolicies.length} guidance items`
-      : ppeFocused
-        ? `${activePpeItems.length} PPE items`
-        : `${visibleIncidents.length} visible incidents`;
-
-  function renderIncidentSubmitCard() {
-    if (!canSubmitIncidents) return null;
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader
-          title={incidentFocused ? "Submit concern or incident" : "Report incident"}
-          description={allowedJobs.length === 0 ? "No assigned job is on your device yet. You can still submit a general safety concern." : "Job options stay scoped to the work you are allowed to see."}
-        />
-        <form className="grid gap-3" onSubmit={handleIncidentSubmit}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <SelectField label="Job" value={incidentDraft.jobId} onChange={(event) => setIncidentDraft((current) => ({ ...current, jobId: event.target.value }))}>
-              <option value="">General safety concern</option>
-              {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
-            </SelectField>
-            <SelectField label="Type" value={incidentDraft.type} onChange={(event) => setIncidentDraft((current) => ({ ...current, type: event.target.value }))}>
-              <option value="concern">Concern</option>
-              <option value="hazard">Hazard</option>
-              <option value="near_miss">Near miss</option>
-              <option value="injury">Injury</option>
-              <option value="property_damage">Property damage</option>
-              <option value="other">Other</option>
-            </SelectField>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <SelectField label="Severity" value={incidentDraft.severity} onChange={(event) => setIncidentDraft((current) => ({ ...current, severity: event.target.value }))}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </SelectField>
-            <InputField label="Title" value={incidentDraft.title} onChange={(event) => setIncidentDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Wet slab edge, exposed rebar, blocked access..." />
-          </div>
-          <TextAreaField label="Description" value={incidentDraft.description} onChange={(event) => setIncidentDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What happened, where it was, and what the crew should know next." />
-          <TextAreaField label="Immediate action" value={incidentDraft.immediateAction} onChange={(event) => setIncidentDraft((current) => ({ ...current, immediateAction: event.target.value }))} placeholder="Stopped work, taped off area, called foreman, moved material..." />
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || !incidentDraft.title || !incidentDraft.description}>Submit safety item</Button>
-          </div>
-        </form>
-      </Card>
-    );
-  }
-
-  function renderIncidentsListCard() {
-    return (
-      <Card className="overflow-hidden">
-        <div className="p-4 md:p-5">
-          <SectionHeader
-            title={incidentFocused ? (canManage ? "Incident review" : "Incident history") : "Incidents & concerns"}
-            description={canManage ? (incidentFocused ? "Review, resolve, and archive field submissions first." : "Review, resolve, and archive field submissions across the company.") : (incidentFocused ? "Stay on top of submitted concerns inside your allowed field scope." : "Only incidents in your allowed field scope appear here.")}
-          />
-        </div>
-        <div className="grid gap-3 border-y border-blue-100 bg-blue-50/35 p-3 md:grid-cols-2 xl:grid-cols-3">
-          <SelectField label="Status" value={incidentStatusFilter} onChange={(event) => setIncidentStatusFilter(event.target.value)}>
-            <option>All</option>
-            <option value="open">Open</option>
-            <option value="reviewed">Reviewed</option>
-            <option value="resolved">Resolved</option>
-            <option value="archived">Archived</option>
-          </SelectField>
-          <SelectField label="Type" value={incidentTypeFilter} onChange={(event) => setIncidentTypeFilter(event.target.value)}>
-            <option>All types</option>
-            <option value="concern">Concern</option>
-            <option value="hazard">Hazard</option>
-            <option value="near_miss">Near miss</option>
-            <option value="injury">Injury</option>
-            <option value="property_damage">Property damage</option>
-            <option value="other">Other</option>
-          </SelectField>
-          <SelectField label="Severity" value={incidentSeverityFilter} onChange={(event) => setIncidentSeverityFilter(event.target.value)}>
-            <option>All severities</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </SelectField>
-          <SelectField label="Job" value={incidentJobFilter} onChange={(event) => setIncidentJobFilter(event.target.value)}>
-            <option>All jobs</option>
-            {incidentListState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </SelectField>
-          <SelectField label="Submitted by" value={incidentReporterFilter} onChange={(event) => setIncidentReporterFilter(event.target.value)}>
-            <option>All reporters</option>
-            {incidentListState.reporterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </SelectField>
-          <SelectField label="Archive" value={incidentArchiveFilter} onChange={(event) => setIncidentArchiveFilter(event.target.value)}>
-            <option>Active only</option>
-            <option>Archived only</option>
-            <option>All</option>
-          </SelectField>
-          <div className="md:col-span-2 xl:col-span-3">
-            <input className="field-input w-full" value={incidentSearch} onChange={(event) => setIncidentSearch(event.target.value)} placeholder="Search incident title, description, job, or reporter..." />
-          </div>
-        </div>
-        {errorMessage && visibleIncidents.length === 0 ? (
-          <div className="p-5"><StateCard title="Safety incidents unavailable" description={errorMessage} tone="red" /></div>
-        ) : visibleIncidents.length === 0 ? (
-          <div className="p-5"><StateCard title="No incidents yet" description="Submitted concerns and incidents will appear here as soon as the field starts using the safety workflow." tone="slate" /></div>
-        ) : (
-          <div className="space-y-3 p-4">
-            {visibleIncidents.map((incident) => (
-              <button
-                key={incident.id}
-                type="button"
-                onClick={() => setSelectedIncidentId(incident.id)}
-                className={`w-full rounded-2xl border p-4 text-left transition ${selectedIncident?.id === incident.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/40"}`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-950">{incident.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} - {incident.submittedByName}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
-                    <Badge tone={incident.status === "resolved" ? "green" : incident.status === "reviewed" ? "blue" : incident.status === "archived" ? "slate" : "amber"}>{incident.statusLabel}</Badge>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{incident.description}</p>
-                <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(incident.createdAt)}</p>
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-    );
-  }
-
-  function renderPoliciesCard() {
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader
-          title={toolboxFocused ? "Toolbox guidance" : "Safety policies"}
-          description={toolboxFocused ? (canManage ? "Use current safety guidance as toolbox-talk-ready content without exposing office-only data." : "Review the current guidance and reminders before the crew starts work.") : (canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data.")}
-        />
-        {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
-          <div className="space-y-3">
-            {visiblePolicies.map((policy) => (
-              <button
-                key={policy.id}
-                type="button"
-                onClick={() => canManage ? setSelectedPolicyId(policy.id) : undefined}
-                className={`w-full rounded-2xl border p-4 text-left ${selectedPolicy?.id === policy.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-950">{policy.title}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{policy.category}</p>
-                  </div>
-                  <Badge tone={policy.archivedAt ? "slate" : "green"}>{policy.statusLabel}</Badge>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{policy.body}</p>
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-    );
-  }
-
-  function renderPpeCard() {
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader title={ppeFocused ? "PPE checklist" : toolboxFocused ? "PPE reminders" : "PPE checklist"} description={ppeFocused ? "Keep the required PPE list front and center for this route." : "Default PPE stays visible to field users and editable only for office/admin."} />
-        {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
-          <div className="space-y-2">
-            {activePpeItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => canManage ? setSelectedPpeId(item.id) : undefined}
-                className={`w-full rounded-2xl border p-3 text-left ${selectedPpeItem?.id === item.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-950">{item.label}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>
-                  </div>
-                  <Badge tone={item.requiredByDefault ? "blue" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-    );
-  }
-
-  function renderAcknowledgmentCard() {
-    if (!canAcknowledge) return null;
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader title={toolboxFocused ? "Acknowledge toolbox review" : ppeFocused ? "Acknowledge PPE check" : "Acknowledge safety & PPE"} description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
-        <form className="grid gap-3" onSubmit={handleAcknowledge}>
-          <SelectField label="Job" value={ackDraft.jobId} onChange={(event) => setAckDraft((current) => ({ ...current, jobId: event.target.value }))}>
-            <option value="">General safety review</option>
-            {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
-          </SelectField>
-          <SelectField label="Policy" value={ackDraft.policyId} onChange={(event) => setAckDraft((current) => ({ ...current, policyId: event.target.value }))}>
-            <option value="">All current safety guidance</option>
-            {visiblePolicies.filter((policy) => !policy.archivedAt).map((policy) => <option key={policy.id} value={policy.id}>{policy.title}</option>)}
-          </SelectField>
-          <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Crew brief complete, PPE checked, silica controls discussed..." />
-          <Button type="submit" disabled={busy}>Acknowledge</Button>
-        </form>
-        <div className="mt-4 space-y-2">
-          {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
-            <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
-              <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
-              <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` - ${acknowledgment.job.title}` : ""}</p>
-              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-    );
-  }
-
-  function renderIncidentDetailCard() {
-    if (!selectedIncident) return null;
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader title={incidentFocused ? "Selected incident" : "Incident detail"} description={selectedIncident.job?.title || "General safety concern"} action={<Badge tone={safetySeverityTone(selectedIncident.severity)}>{selectedIncident.severity}</Badge>} />
-        <p className="text-sm font-black text-slate-950">{selectedIncident.title}</p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">{selectedIncident.description}</p>
-        {selectedIncident.immediateAction ? (
-          <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Immediate action</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{selectedIncident.immediateAction}</p>
-          </div>
-        ) : null}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Badge tone="slate">{safetyIncidentTypeLabel(selectedIncident.type)}</Badge>
-          <Badge tone={selectedIncident.status === "resolved" ? "green" : selectedIncident.status === "reviewed" ? "blue" : selectedIncident.status === "archived" ? "slate" : "amber"}>{selectedIncident.statusLabel}</Badge>
-        </div>
-        {canReview ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => onReviewSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "reviewed" || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Review</Button>
-            <Button type="button" onClick={() => onResolveSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Resolve</Button>
-            <Button type="button" variant="danger" onClick={() => onArchiveSafetyIncident(selectedIncident.id)} disabled={busy || Boolean(selectedIncident.archivedAt)}>Archive</Button>
-          </div>
-        ) : null}
-      </Card>
-    );
-  }
-
-  function renderPolicyEditorCard() {
-    if (!canManage) return null;
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader title={selectedPolicy ? (toolboxFocused ? "Edit toolbox guidance" : "Edit safety policy") : (toolboxFocused ? "Create toolbox guidance" : "Create safety policy")} description="Keep the language practical for the field. Avoid legal or pricing content here." />
-        <form className="grid gap-3" onSubmit={handlePolicySubmit}>
-          <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
-          <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
-          <TextAreaField label="Policy body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save policy</Button>
-            {selectedPolicy ? <Button type="button" variant="secondary" onClick={() => setSelectedPolicyId("")}>New policy</Button> : null}
-            {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchiveSafetyPolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
-          </div>
-        </form>
-      </Card>
-    );
-  }
-
-  function renderPpeEditorCard() {
-    if (!canManage) return null;
-    return (
-      <Card className="p-4 md:p-5">
-        <SectionHeader title={selectedPpeItem ? (ppeFocused ? "Edit PPE checklist item" : "Edit PPE item") : (ppeFocused ? "Add PPE checklist item" : "Add PPE item")} description="Required-by-default items stay surfaced first for field crews." />
-        <form className="grid gap-3" onSubmit={handlePpeSubmit}>
-          <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
-          <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
-          <label className="field-label">
-            <span>Required by default</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-700">
-              <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
-              <span>Surface this item at the top of the PPE checklist.</span>
-            </div>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
-            {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
-            {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
-          </div>
-        </form>
-      </Card>
-    );
-  }
 
   return (
     <div>
       <PageHeader
-        eyebrow={headerEyebrow}
+        eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title={headerTitle}
         description={headerDescription}
-        actions={<Badge tone="blue">{headerBadgeLabel}</Badge>}
+        actions={<Badge tone="blue">{visibleIncidents.length} visible incidents</Badge>}
       />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
         <div className="min-w-0 space-y-4">
-          {toolboxFocused ? renderPoliciesCard() : null}
-          {toolboxFocused ? renderAcknowledgmentCard() : null}
-          {ppeFocused ? renderPpeCard() : null}
-          {ppeFocused ? renderAcknowledgmentCard() : null}
-          {canSubmitIncidents && (incidentFocused || overviewFocused) ? (
+          {canSubmitIncidents ? (
             <Card className="p-4 md:p-5">
               <SectionHeader
                 title={incidentFocused ? "Submit concern or incident" : "Report incident"}
@@ -4204,10 +3890,9 @@ function SafetyPage({
             </Card>
           ) : null}
 
-          {incidentFocused || overviewFocused ? (
           <Card className="overflow-hidden">
             <div className="p-4 md:p-5">
-              <SectionHeader title={incidentFocused ? (canManage ? "Incident review" : "Incident history") : "Incidents & concerns"} description={canManage ? (incidentFocused ? "Review, resolve, and archive field submissions first." : "Review, resolve, and archive field submissions across the company.") : (incidentFocused ? "Stay on top of submitted concerns inside your allowed field scope." : "Only incidents in your allowed field scope appear here.")} />
+              <SectionHeader title="Incidents & concerns" description={canManage ? "Review, resolve, and archive field submissions across the company." : "Only incidents in your allowed field scope appear here."} />
             </div>
             <div className="grid gap-3 border-y border-blue-100 bg-blue-50/35 p-3 md:grid-cols-2 xl:grid-cols-3">
               <SelectField label="Status" value={incidentStatusFilter} onChange={(event) => setIncidentStatusFilter(event.target.value)}>
@@ -4266,7 +3951,7 @@ function SafetyPage({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{incident.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} - {incident.submittedByName}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} · {incident.submittedByName}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
@@ -4280,9 +3965,7 @@ function SafetyPage({
               </div>
             )}
           </Card>
-          ) : null}
 
-          {!toolboxFocused ? (
           <Card className="p-4 md:p-5">
             <SectionHeader title="Safety policies" description={canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data."} />
             {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
@@ -4307,13 +3990,9 @@ function SafetyPage({
               </div>
             )}
           </Card>
-          ) : null}
-          {toolboxFocused || ppeFocused ? renderIncidentSubmitCard() : null}
-          {toolboxFocused || ppeFocused ? renderIncidentsListCard() : null}
         </div>
 
         <div className="min-w-0 space-y-4">
-          {!toolboxFocused && !ppeFocused ? (
           <Card className="p-4 md:p-5">
             <SectionHeader title="PPE checklist" description="Default PPE stays visible to field users and editable only for office/admin." />
             {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
@@ -4337,9 +4016,8 @@ function SafetyPage({
               </div>
             )}
           </Card>
-          ) : null}
 
-          {canAcknowledge && !toolboxFocused && !ppeFocused ? (
+          {canAcknowledge ? (
             <Card className="p-4 md:p-5">
               <SectionHeader title="Acknowledge safety & PPE" description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
               <form className="grid gap-3" onSubmit={handleAcknowledge}>
@@ -4358,7 +4036,7 @@ function SafetyPage({
                 {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
                   <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
                     <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` - ${acknowledgment.job.title}` : ""}</p>
+                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` · ${acknowledgment.job.title}` : ""}</p>
                     <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
                   </div>
                 ))}
@@ -4366,10 +4044,68 @@ function SafetyPage({
             </Card>
           ) : null}
 
-          {renderIncidentDetailCard()}
+          {selectedIncident ? (
+            <Card className="p-4 md:p-5">
+              <SectionHeader title="Incident detail" description={selectedIncident.job?.title || "General safety concern"} action={<Badge tone={safetySeverityTone(selectedIncident.severity)}>{selectedIncident.severity}</Badge>} />
+              <p className="text-sm font-black text-slate-950">{selectedIncident.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{selectedIncident.description}</p>
+              {selectedIncident.immediateAction ? (
+                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Immediate action</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{selectedIncident.immediateAction}</p>
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone="slate">{safetyIncidentTypeLabel(selectedIncident.type)}</Badge>
+                <Badge tone={selectedIncident.status === "resolved" ? "green" : selectedIncident.status === "reviewed" ? "blue" : selectedIncident.status === "archived" ? "slate" : "amber"}>{selectedIncident.statusLabel}</Badge>
+              </div>
+              {canReview ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => onReviewSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "reviewed" || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Review</Button>
+                  <Button type="button" onClick={() => onResolveSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Resolve</Button>
+                  <Button type="button" variant="danger" onClick={() => onArchiveSafetyIncident(selectedIncident.id)} disabled={busy || Boolean(selectedIncident.archivedAt)}>Archive</Button>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
 
-          {renderPolicyEditorCard()}
-          {renderPpeEditorCard()}
+          {canManage ? (
+            <>
+              <Card className="p-4 md:p-5">
+                <SectionHeader title={selectedPolicy ? "Edit safety policy" : "Create safety policy"} description="Keep the language practical for the field. Avoid legal or pricing content here." />
+                <form className="grid gap-3" onSubmit={handlePolicySubmit}>
+                  <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
+                  <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
+                  <TextAreaField label="Policy body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save policy</Button>
+                    {selectedPolicy ? <Button type="button" variant="secondary" onClick={() => setSelectedPolicyId("")}>New policy</Button> : null}
+                    {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchiveSafetyPolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
+                  </div>
+                </form>
+              </Card>
+
+              <Card className="p-4 md:p-5">
+                <SectionHeader title={selectedPpeItem ? "Edit PPE item" : "Add PPE item"} description="Required-by-default items stay surfaced first for field crews." />
+                <form className="grid gap-3" onSubmit={handlePpeSubmit}>
+                  <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
+                  <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
+                  <label className="field-label">
+                    <span>Required by default</span>
+                    <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                      <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
+                      <span>Surface this item at the top of the PPE checklist.</span>
+                    </div>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
+                    {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
+                    {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
+                  </div>
+                </form>
+              </Card>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
@@ -4619,7 +4355,7 @@ function CustomerDetailPanel({
       <Card className="p-5">
         <SectionHeader
           title={customer.name}
-          description={`${customer.id} - ${customer.city || customer.serviceArea || "No service area yet"}`}
+          description={`${customer.id} · ${customer.city || customer.serviceArea || "No service area yet"}`}
           action={
             <div className="flex flex-wrap gap-2">
               {!canManage ? <Badge tone="slate">Read only</Badge> : null}
@@ -4668,7 +4404,7 @@ function CustomerDetailPanel({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-black text-slate-950">{lead.project}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{lead.id} - {lead.city}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{lead.id} · {lead.city}</p>
               </div>
               <StatusBadge status={lead.status} />
             </div>
@@ -4686,7 +4422,7 @@ function CustomerDetailPanel({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-black text-slate-950">{jobTitle(job)}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} - {jobNextStep(job)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} · {jobNextStep(job)}</p>
               </div>
               <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
             </div>
@@ -4904,7 +4640,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <InputField label="Address" value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} placeholder="1452 Orchard View Dr" />
-          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins - 503-555-0187" />
+          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins · 503-555-0187" />
           <InputField label="Crew" value={draft.crew} onChange={(event) => setDraft((current) => ({ ...current, crew: event.target.value }))} placeholder="Juan + 3" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -5597,7 +5333,7 @@ function UserDetailPanel({ user, draft, setDraft, onSaveUser, busy, canManage, n
 
   return (
     <Card className="p-5">
-      <SectionHeader title={user.name} description={`${user.id} - ${user.email}`} action={<UserStatusBadge status={user.status} />} />
+      <SectionHeader title={user.name} description={`${user.id} · ${user.email}`} action={<UserStatusBadge status={user.status} />} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={user.createdAt} updatedAt={user.updatedAt} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -6065,7 +5801,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="break-words text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                          <p className="mt-1 text-sm text-slate-600">{calculatorTypeLabel(section.calculatorType)} - {formatCubicYards(section.cubicYards)}</p>
+                          <p className="mt-1 text-sm text-slate-600">{calculatorTypeLabel(section.calculatorType)} · {formatCubicYards(section.cubicYards)}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" size="sm" variant="secondary" onClick={() => editSection(section)}>Edit</Button>
@@ -6144,7 +5880,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                       {result.sections.map((section, index) => (
                         <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white/70 p-3">
                           <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                          <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} - {formatCubicFeet(section.cubicFeet)}</p>
+                          <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
                           {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
                         </div>
                       ))}
@@ -6512,7 +6248,7 @@ function SettingsPage({
                     setProfileDraft((current) => ({ ...current, licenseText: event.target.value }));
                     setProfileNotice("");
                   }}
-                  placeholder="CCB #123456 - Bonded and insured for residential and commercial flatwork."
+                  placeholder="CCB #123456 · Bonded and insured for residential and commercial flatwork."
                   disabled={busy || typeof onUpdateCompanySettings !== "function"}
                 />
                 <div className="flex flex-wrap items-center gap-3">
@@ -6735,7 +6471,7 @@ function PrePourPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} - {checklist.completedByName || checklist.createdByName}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} · {checklist.completedByName || checklist.createdByName}</p>
                       </div>
                       <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
                     </div>
@@ -6780,7 +6516,7 @@ function PrePourPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Pre-pour checklist"}
-                description={`${selectedChecklist.job?.customer || "Assigned site"} - ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
+                description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={prePourChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-3">
@@ -6999,7 +6735,7 @@ function PostPourPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{checklist.job?.title || "Assigned post-pour checklist"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} - {checklist.completedByName || checklist.createdByName}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} · {checklist.completedByName || checklist.createdByName}</p>
                       </div>
                       <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
                     </div>
@@ -7044,7 +6780,7 @@ function PostPourPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Post-pour checklist"}
-                description={`${selectedChecklist.job?.customer || "Assigned site"} - ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
+                description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={postPourChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-3">
@@ -7274,7 +7010,7 @@ function EstimatesPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{estimate.title || "Estimate draft"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} - {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} · {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
                       </div>
                       <StatusBadge status={estimateStatusLabel(estimate.status)} />
                     </div>
@@ -7363,7 +7099,7 @@ function EstimatesPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedEstimate.title || "Estimate detail"}
-                description={`${selectedEstimate.customer?.name || "No customer"} - ${selectedEstimate.createdByName || "Unknown creator"}`}
+                description={`${selectedEstimate.customer?.name || "No customer"} · ${selectedEstimate.createdByName || "Unknown creator"}`}
                 action={<StatusBadge status={estimateStatusLabel(selectedEstimate.status)} />}
               />
               <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -7553,7 +7289,7 @@ function ChangeOrdersPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{request.job?.title || "Change order request"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{request.requestedByName} - {request.reason}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{request.requestedByName} · {request.reason}</p>
                       </div>
                       <StatusBadge status={changeOrderStatusLabel(request.status)} />
                     </div>
@@ -7600,7 +7336,7 @@ function ChangeOrdersPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedRequest.job?.title || "Change order request"}
-                description={`${selectedRequest.requestedByName} - ${formatDateTime(selectedRequest.createdAt)}`}
+                description={`${selectedRequest.requestedByName} · ${formatDateTime(selectedRequest.createdAt)}`}
                 action={<StatusBadge status={changeOrderStatusLabel(selectedRequest.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-2">
@@ -7823,7 +7559,7 @@ function DeliveryTicketsPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="break-words text-sm font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} - {ticket.supplier || "Supplier pending"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} · {ticket.supplier || "Supplier pending"}</p>
                       </div>
                       {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone="blue">{ticket.yardsDelivered ? `${ticket.yardsDelivered} yd³` : "Ticket"}</Badge>}
                     </div>
@@ -7853,7 +7589,7 @@ function DeliveryTicketsPage({
                 <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
                 <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
                   <option value="">No linked report</option>
-                  {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} - ${report.reportDate || "No date"}`}</option>)}
+                  {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} · ${report.reportDate || "No date"}`}</option>)}
                 </SelectField>
                 <div className="md:col-span-2">
                   <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
@@ -7889,7 +7625,7 @@ function DeliveryTicketsPage({
             <Card className="p-4">
               <SectionHeader
                 title={deliveryTicketTitle(selectedTicket)}
-                description={`${selectedTicket.job?.title || "Assigned job"} - ${selectedTicket.createdByName} - ${formatDateTime(selectedTicket.createdAt)}`}
+                description={`${selectedTicket.job?.title || "Assigned job"} · ${selectedTicket.createdByName} · ${formatDateTime(selectedTicket.createdAt)}`}
                 action={selectedTicket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{selectedTicket.yardsDelivered ? `${selectedTicket.yardsDelivered} yd³` : "Visible"}</Badge>}
               />
               <div className="grid gap-3 md:grid-cols-2">
@@ -7955,7 +7691,7 @@ function DeliveryTicketsPage({
                   <InputField label="Slump" type="number" min="0" step="0.1" value={detailDraft.slump} onChange={(event) => setDetailDraft((current) => ({ ...current, slump: event.target.value }))} />
                   <SelectField label="Daily report link" value={detailDraft.reportId} onChange={(event) => setDetailDraft((current) => ({ ...current, reportId: event.target.value }))}>
                     <option value="">No linked report</option>
-                    {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} - ${report.reportDate || "No date"}`}</option>)}
+                    {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} · ${report.reportDate || "No date"}`}</option>)}
                   </SelectField>
                   <div className="md:col-span-2">
                     <SelectField label="Ticket photo/upload" value={detailDraft.ticketUploadId} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
@@ -8097,7 +7833,7 @@ function ToolChecklistPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{checklist.title}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.title || "General checklist"} - {checklist.job?.customer || "Field work"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.title || "General checklist"} · {checklist.job?.customer || "Field work"}</p>
                       </div>
                       <StatusBadge status={toolChecklistStatusLabel(checklist.status)} />
                     </div>
@@ -8145,7 +7881,7 @@ function ToolChecklistPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedChecklist.title}
-                description={`${selectedChecklist.job?.title || "General checklist"} - ${selectedChecklist.job?.customer || "Field work"}`}
+                description={`${selectedChecklist.job?.title || "General checklist"} · ${selectedChecklist.job?.customer || "Field work"}`}
                 action={<StatusBadge status={toolChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-2">
@@ -8255,9 +7991,9 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
   const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
   const previews = [
-    selectedLead ? `${selectedLead.customer} - ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
-          selectedJob ? `${jobTitle(selectedJob)} - ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
-    safeQueueItems[0] ? `${safeQueueItems[0].title} - ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
+    selectedLead ? `${selectedLead.customer} · ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
+          selectedJob ? `${jobTitle(selectedJob)} · ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
+    safeQueueItems[0] ? `${safeQueueItems[0].title} · ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
   ];
 
   return (
@@ -10640,4 +10376,3 @@ export default function App() {
     </div>
   );
 }
-
