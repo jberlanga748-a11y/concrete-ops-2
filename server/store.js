@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
+import { DEMO_COMPANY_NAME, DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 
@@ -124,30 +124,37 @@ export function leadProjectName(lead) {
 const INITIAL_SAFETY_POLICIES = [
   {
     id: "SP-001",
-    title: "General jobsite PPE",
-    body: "Show up ready with the core PPE for the task. If the site conditions change, stop and confirm what extra protection is needed before work continues.",
+    title: "Morning PPE check",
+    body: "Start each shift by confirming hard hat, gloves, safety glasses, high-vis gear, and boots are ready for the actual task and site conditions.",
     category: "PPE",
     status: "active",
   },
   {
     id: "SP-002",
-    title: "Silica and dust awareness",
-    body: "Use dust-control steps that fit the task. Slow down, keep visibility clear, and speak up if the crew needs a safer cutting or cleanup plan.",
-    category: "Air quality",
+    title: "Silica dust awareness",
+    body: "Before cutting or cleanup starts, confirm dust-control steps, keep visibility clear, and stop if the crew needs a safer saw-cutting or sweeping plan.",
+    category: "Dust control",
     status: "active",
   },
   {
     id: "SP-003",
-    title: "Equipment awareness",
-    body: "Keep clear communication around moving equipment. Walk the site before work starts and call out blind spots, pinch points, and access issues early.",
-    category: "Equipment",
+    title: "Truck access and backing safety",
+    body: "Walk truck access before arrival, assign a spotter, keep pedestrians clear, and pause placement if the driver loses sight of the crew or access path.",
+    category: "Access and traffic",
     status: "active",
   },
   {
     id: "SP-004",
-    title: "Incident reporting expectations",
-    body: "Report hazards, near misses, injuries, and property damage as soon as they happen. Quick reporting helps the office and crew respond before the next task starts.",
-    category: "Reporting",
+    title: "Wet concrete burn prevention",
+    body: "Keep wet concrete off skin and out of boots or gloves, wash off splatter quickly, and speak up right away if clothing or PPE gets saturated.",
+    category: "Concrete placement",
+    status: "active",
+  },
+  {
+    id: "SP-005",
+    title: "Rebar and impalement hazard reminder",
+    body: "Cap exposed rebar, flag sharp reinforcing steel, and keep material staging tight so the crew and visitors do not back into uncapped bars.",
+    category: "Reinforcing steel",
     status: "active",
   },
 ];
@@ -155,9 +162,9 @@ const INITIAL_SAFETY_POLICIES = [
 const INITIAL_PPE_ITEMS = [
   { id: "PPE-001", label: "Hard hat", description: "Wear when overhead or active equipment hazards are present.", requiredByDefault: true, status: "active" },
   { id: "PPE-002", label: "Safety glasses", description: "Use eye protection during cutting, cleanup, or flying-debris tasks.", requiredByDefault: true, status: "active" },
-  { id: "PPE-003", label: "High-vis vest/shirt", description: "Keep visibility high around vehicles, equipment, and deliveries.", requiredByDefault: true, status: "active" },
+  { id: "PPE-003", label: "High-vis", description: "Keep visibility high around vehicles, equipment, and deliveries.", requiredByDefault: true, status: "active" },
   { id: "PPE-004", label: "Gloves", description: "Use task-appropriate gloves for handling forms, rebar, tools, or material.", requiredByDefault: true, status: "active" },
-  { id: "PPE-005", label: "Work boots", description: "Wear work boots suited to uneven ground, heavy material, and wet conditions.", requiredByDefault: true, status: "active" },
+  { id: "PPE-005", label: "Boots", description: "Wear boots suited to uneven ground, heavy material, and wet conditions.", requiredByDefault: true, status: "active" },
   { id: "PPE-006", label: "Hearing protection", description: "Use hearing protection around saws, compactors, generators, or loud equipment.", requiredByDefault: true, status: "active" },
   { id: "PPE-007", label: "Respirator/dust mask when needed", description: "Use when cutting, grinding, or working in dusty conditions that call for respiratory protection.", requiredByDefault: false, status: "active" },
   { id: "PPE-008", label: "Fall protection when required", description: "Use when task conditions create fall exposure and a protection plan is required.", requiredByDefault: false, status: "active" },
@@ -624,6 +631,21 @@ export function createSeedState() {
   const demoForeman = demoUsers.find((user) => user.role === "Foreman") || demoUsers[1];
   const demoEmployee = demoUsers.find((user) => user.role === "Employee") || demoUsers[2];
   const officeActor = includeDemoRecords ? (demoAdmin || seedUser) : seedUser;
+  const demoCompanySettings = {
+    ...DEFAULT_COMPANY_SETTINGS,
+    companyName: DEMO_COMPANY_NAME,
+    logoInitials: "COD",
+    accentColor: "blue",
+    businessPhone: "(503) 555-0120",
+    businessEmail: "office@concreteopsdemo.com",
+    website: "https://concreteopsdemo.com",
+    businessAddress: "1840 River Rd S, Salem, OR 97302",
+    serviceArea: "Salem, Keizer, Albany, and the Mid-Willamette Valley",
+    licenseText: "CCB #123456 - Bonded and insured.",
+    printPacketFooter: "Generated by Concrete Ops for job documentation, field reports, and closeout records.",
+    printPacketDisclaimer: "Internal job documentation. Review all details before sharing outside the company.",
+    toolChecklistEnabled: true,
+  };
   const users = includeDemoRecords ? [seedUser, ...demoUsers] : [seedUser];
   const toIsoMinutesAgo = (minutesAgo) => new Date(seededAt.getTime() - minutesAgo * 60 * 1000).toISOString();
   const toDateOnly = (offsetDays = 0) => {
@@ -741,18 +763,27 @@ export function createSeedState() {
       notes: "Confirmed glasses, vest, gloves, and saw-cut hearing protection.",
       createdAt: toIsoMinutesAgo(710),
     },
+    {
+      id: "SA-DEMO-003",
+      userId: demoForeman.id,
+      jobId: "J-2198",
+      policyId: safetyPolicies[2]?.id || "SP-003",
+      acknowledgedAt: toIsoMinutesAgo(210),
+      notes: "Reviewed truck access, backing spotter assignments, and patient detour control before the first load arrived.",
+      createdAt: toIsoMinutesAgo(210),
+    },
   ];
   const safetyIncidents = [
     {
       id: "SI-DEMO-001",
       jobId: "J-2198",
       submittedBy: demoEmployee.id,
-      type: "concern",
+      type: "hazard",
       severity: "medium",
       status: "open",
-      title: "ADA detour hose crossing patient path",
-      description: "Pump washout hose was resting across the temporary patient detour and needed to be rerouted before discharge.",
-      immediateAction: "Crew paused placement setup, rerouted the hose, and reset cones before truck discharge.",
+      title: "Wet slab edge needs a stronger barricade",
+      description: "Fresh concrete edge near the temporary ADA access path still needs a wider cone and caution-tape buffer before patient traffic resumes.",
+      immediateAction: "Crew added cones at both corners and flagged the edge for the foreman to recheck before reopening the walkway.",
       createdAt: toIsoMinutesAgo(240),
       updatedAt: toIsoMinutesAgo(210),
       reviewedBy: null,
@@ -762,18 +793,35 @@ export function createSeedState() {
     },
     {
       id: "SI-DEMO-002",
-      jobId: "J-2201",
+      jobId: "J-2198",
       submittedBy: demoForeman.id,
-      type: "hazard",
+      type: "near_miss",
+      severity: "high",
+      status: "reviewed",
+      title: "Truck backing near patient detour lost clear spotter view",
+      description: "The ready-mix driver started backing toward the ramp access while the spotter repositioned around parked vehicles, creating a brief blind backing condition.",
+      immediateAction: "Backing stopped immediately, the driver pulled forward, and the crew reset the truck approach with one dedicated spotter and one walkway monitor.",
+      createdAt: toIsoMinutesAgo(330),
+      updatedAt: toIsoMinutesAgo(250),
+      reviewedBy: demoAdmin.id,
+      reviewedAt: toIsoMinutesAgo(250),
+      resolvedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: "SI-DEMO-003",
+      jobId: "J-2201",
+      submittedBy: demoEmployee.id,
+      type: "concern",
       severity: "low",
       status: "resolved",
-      title: "Driveway delivery backing spotter reminder",
-      description: "Residential truck backing needed a dedicated spotter after neighbor traffic increased at mid-morning.",
-      immediateAction: "Foreman reassigned one crew member to spotting and staged cones at the curb cut.",
+      title: "Exposed rebar caps were missing at the driveway tie-in",
+      description: "Two dowels near the apron tie-in were left uncapped after cleanup staging and needed to be flagged before the crew moved around the pour area.",
+      immediateAction: "Crew capped the rebar, moved the staging line, and reviewed cleanup expectations before finish work resumed.",
       createdAt: toIsoMinutesAgo(520),
-      updatedAt: toIsoMinutesAgo(470),
+      updatedAt: toIsoMinutesAgo(455),
       reviewedBy: demoAdmin.id,
-      reviewedAt: toIsoMinutesAgo(460),
+      reviewedAt: toIsoMinutesAgo(470),
       resolvedAt: toIsoMinutesAgo(455),
       archivedAt: null,
     },
@@ -869,18 +917,18 @@ export function createSeedState() {
       createdBy: demoForeman.id,
       submittedBy: demoForeman.id,
       reviewedBy: demoAdmin.id,
-      crewSummary: "Demo Foreman and Demo Employee completed driveway prep, placement, and broom finish closeout.",
-      workPerformed: "Removed remaining cracked driveway panels, set forms, poured replacement panel, and completed broom finish.",
-      delays: "Minor ready-mix delay while the morning school drop-off traffic cleared.",
-      safetyNotes: "Spotter used for truck backing and saw-cut PPE verified during morning huddle.",
-      equipmentUsed: "Mini skid, saw, plate compactor, bull float, edgers.",
-      materialNotes: "4,000 PSI driveway mix placed with fiber mesh and aggregate base confirmed.",
+      crewSummary: "Demo Foreman and Demo Employee completed driveway prep, placement, broom finish, cleanup, and customer walk-through prep.",
+      workPerformed: "Removed the remaining cracked driveway panels, verified base and rebar, placed two ready-mix loads, cut control joints, and completed the final broom finish.",
+      delays: "Minor ready-mix delay while school drop-off traffic cleared at the end of the block.",
+      safetyNotes: "Truck backing used a dedicated spotter, saw PPE was checked during the morning huddle, and exposed rebar was capped before finish work resumed.",
+      equipmentUsed: "Mini skid, saw, plate compactor, screed, bull float, hand edgers, and cure-spray setup.",
+      materialNotes: "4,000 PSI driveway mix with fiber mesh placed over compacted base with apron tie-in reinforcement verified before discharge.",
       concretePoured: true,
       yardsPoured: 9.5,
-      weather: "Cloudy morning, 58F, dry conditions.",
-      visitorNotes: "Customer checked progress mid-day and approved restored driveway access plan.",
-      inspectionNotes: "Slope and finish checked before cure compound was applied.",
-      generalNotes: "Before, forms-set, and finish photos captured for office review.",
+      weather: "Cloudy morning, 58F, dry conditions with light afternoon sun.",
+      visitorNotes: "Customer checked progress mid-day and approved the restored driveway access plan before cleanup started.",
+      inspectionNotes: "Slope, joint spacing, and broom finish were checked before cure compound was applied.",
+      generalNotes: "Before, rebar inspection, delivery ticket, and final finish photos were captured for office review and print packets.",
       createdAt: toIsoMinutesAgo(600),
       updatedAt: toIsoMinutesAgo(540),
       submittedAt: toIsoMinutesAgo(560),
@@ -896,21 +944,48 @@ export function createSeedState() {
       createdBy: demoForeman.id,
       submittedBy: null,
       reviewedBy: null,
-      crewSummary: "Demo Foreman and Demo Employee working ADA ramp forms, prep, and access coordination.",
-      workPerformed: "Maintained temporary patient access, set final forms, and coordinated truck arrival timing.",
-      delays: "Waiting on the second truck arrival window before discharge starts.",
-      safetyNotes: "Detour cones adjusted twice to keep patient traffic separated from truck path.",
-      equipmentUsed: "Saw, compact plate, hand tools, wheelbarrow placement tools.",
-      materialNotes: "ADA ramp mix and warning-strip prep staged without pricing data.",
-      concretePoured: false,
-      yardsPoured: 0,
-      weather: "Light drizzle early, then overcast.",
-      visitorNotes: "Office manager requested final finish photos after patient traffic clears.",
+      crewSummary: "Demo Foreman and Demo Employee handled ADA ramp access control, forms, discharge coordination, and edge finish touch-up.",
+      workPerformed: "Maintained temporary patient access, set final forms, received one truck, placed the ADA ramp load, and left finish notes open for the final walkthrough.",
+      delays: "Truck access paused briefly while the office manager cleared the patient detour route.",
+      safetyNotes: "Detour cones were adjusted twice to keep patient traffic separated from the truck path, and truck backing was reset after a near-miss review.",
+      equipmentUsed: "Saw, compact plate, hand tools, wheelbarrow placement tools, and warning-sign staging.",
+      materialNotes: "ADA ramp mix, warning-strip prep, and edge-tool staging were documented without pricing data.",
+      concretePoured: true,
+      yardsPoured: 5.25,
+      weather: "Light drizzle early, then overcast and calm.",
+      visitorNotes: "Office manager requested final finish photos after patient traffic clears and the warning strips are staged.",
       inspectionNotes: "",
-      generalNotes: "Draft report remains open until discharge and finish notes are complete.",
+      generalNotes: "Draft report remains open until final discharge notes, edge finish, and access reopening photos are complete.",
       createdAt: toIsoMinutesAgo(200),
       updatedAt: toIsoMinutesAgo(180),
       submittedAt: null,
+      reviewedAt: null,
+      reopenedAt: null,
+      archivedAt: null,
+    },
+    {
+      id: "DR-DEMO-003",
+      jobId: "J-2192",
+      reportDate: toDateOnly(-2),
+      status: "submitted",
+      createdBy: demoForeman.id,
+      submittedBy: demoForeman.id,
+      reviewedBy: null,
+      crewSummary: "Demo Foreman completed a site walk with Demo Employee and apartment maintenance.",
+      workPerformed: "Marked the first sidewalk panels, confirmed section layout, checked resident access routes, and saved the multi-section takeoff to the job.",
+      delays: "No weather delay. Work paused briefly while residents cleared the marked path.",
+      safetyNotes: "Trip hazards were flagged for residents, and the playground-side path was marked for temporary closure during the first pour day.",
+      equipmentUsed: "Tape measure, string line, marking paint, and compact plate staging notes.",
+      materialNotes: "Panel replacement mix, base rock, and cure blanket quantities were reviewed for the first phase.",
+      concretePoured: false,
+      yardsPoured: 0,
+      weather: "Dry morning, 62F, light breeze.",
+      visitorNotes: "Maintenance supervisor approved the phase-one repair sequence.",
+      inspectionNotes: "",
+      generalNotes: "Submitted planning report gives the office a clean before-work snapshot before the sidewalk repair starts.",
+      createdAt: toIsoMinutesAgo(880),
+      updatedAt: toIsoMinutesAgo(840),
+      submittedAt: toIsoMinutesAgo(840),
       reviewedAt: null,
       reopenedAt: null,
       archivedAt: null,
@@ -930,7 +1005,7 @@ export function createSeedState() {
       fileType: "image/jpeg",
       fileSize: 128450,
       storagePath: "uploads/demo-before-driveway.jpg",
-      caption: "Before demo photo — cracked driveway panels",
+      caption: "Before demo photo - cracked driveway panels",
       notes: "Use during the customer walk-through and daily report review.",
       takenAt: toIsoMinutesAgo(740),
       uploadedAt: toIsoMinutesAgo(735),
@@ -978,12 +1053,12 @@ export function createSeedState() {
       changeOrderId: null,
       toolChecklistItemId: null,
       uploadedBy: demoForeman.id,
-      fileName: "base-compacted-demo.jpg",
+      fileName: "rebar-inspection-demo.jpg",
       fileType: "image/jpeg",
       fileSize: 120880,
-      storagePath: "uploads/demo-base-compacted.jpg",
-      caption: "Base compacted and ready",
-      notes: "Useful for pre-pour checklist and demo upload walkthrough.",
+      storagePath: "uploads/demo-rebar-inspection.jpg",
+      caption: "Rebar inspection photo",
+      notes: "Useful for pre-pour review and a clean before-placement job packet story.",
       takenAt: toIsoMinutesAgo(690),
       uploadedAt: toIsoMinutesAgo(688),
       latitude: 44.95624,
@@ -1019,6 +1094,32 @@ export function createSeedState() {
       locationUnavailableReason: "",
       createdAt: toIsoMinutesAgo(498),
       updatedAt: toIsoMinutesAgo(498),
+      archivedAt: null,
+    },
+    {
+      id: "UPL-DEMO-005",
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: "DR-DEMO-001",
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: demoForeman.id,
+      fileName: "delivery-ticket-demo.jpg",
+      fileType: "image/jpeg",
+      fileSize: 98760,
+      storagePath: "uploads/demo-delivery-ticket.jpg",
+      caption: "Delivery ticket photo",
+      notes: "Linked to the first Martinez driveway load for reporting and print packet review.",
+      takenAt: toIsoMinutesAgo(610),
+      uploadedAt: toIsoMinutesAgo(607),
+      latitude: 44.95628,
+      longitude: -123.03474,
+      locationAccuracy: 9,
+      locationCapturedAt: toIsoMinutesAgo(608),
+      locationUnavailableReason: "",
+      createdAt: toIsoMinutesAgo(607),
+      updatedAt: toIsoMinutesAgo(607),
       archivedAt: null,
     },
   ];
@@ -1489,20 +1590,40 @@ export function createSeedState() {
       supplier: "Knife River",
       truckNumber: "KR-214",
       ticketNumber: "DRV-18842",
-      yardsDelivered: 9.5,
-      arrivalTime: toLocalDateTime(-1, 9, 10),
-      dischargeTime: toLocalDateTime(-1, 10, 5),
-      mixNotes: "Driveway mix with fiber mesh and standard broom-finish setup.",
+      yardsDelivered: 5,
+      arrivalTime: toLocalDateTime(-1, 8, 42),
+      dischargeTime: toLocalDateTime(-1, 9, 8),
+      mixNotes: "First driveway load with fiber mesh and standard broom-finish setup.",
       psi: 4000,
       slump: 4.5,
-      ticketUploadId: "UPL-DEMO-003",
-      notes: "Primary delivery for the driveway replacement pour.",
+      ticketUploadId: "UPL-DEMO-005",
+      notes: "First driveway load with linked delivery ticket photo.",
       createdAt: toIsoMinutesAgo(590),
       updatedAt: toIsoMinutesAgo(585),
       archivedAt: null,
     },
     {
       id: "DT-DEMO-002",
+      jobId: "J-2201",
+      reportId: "DR-DEMO-001",
+      createdBy: demoForeman.id,
+      supplier: "Knife River",
+      truckNumber: "KR-229",
+      ticketNumber: "DRV-18857",
+      yardsDelivered: 4.5,
+      arrivalTime: toLocalDateTime(-1, 9, 32),
+      dischargeTime: toLocalDateTime(-1, 10, 5),
+      mixNotes: "Second driveway load used to complete the widened apron and finish pass.",
+      psi: 4000,
+      slump: 4.75,
+      ticketUploadId: null,
+      notes: "Second driveway load completed the Martinez replacement pour.",
+      createdAt: toIsoMinutesAgo(560),
+      updatedAt: toIsoMinutesAgo(555),
+      archivedAt: null,
+    },
+    {
+      id: "DT-DEMO-003",
       jobId: "J-2198",
       reportId: "DR-DEMO-002",
       createdBy: demoForeman.id,
@@ -1515,7 +1636,7 @@ export function createSeedState() {
       mixNotes: "ADA ramp mix with finish-friendly slump target and careful discharge spacing.",
       psi: 4500,
       slump: 5,
-      ticketUploadId: "UPL-DEMO-002",
+      ticketUploadId: null,
       notes: "Ramp delivery ticket linked to the in-progress daily report.",
       createdAt: toIsoMinutesAgo(120),
       updatedAt: toIsoMinutesAgo(115),
@@ -1612,7 +1733,7 @@ export function createSeedState() {
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   return {
-    companySettings: { ...DEFAULT_COMPANY_SETTINGS },
+    companySettings: includeDemoRecords ? demoCompanySettings : { ...DEFAULT_COMPANY_SETTINGS },
     users,
     sessions: [],
     customers,
@@ -2022,6 +2143,7 @@ function remapDemoSeedStateUserIds(seedState, actualUserIdsByEmail) {
   const mapRows = (rows, mapper) => (rows || []).map((row) => mapper({ ...row }));
 
   return {
+    companySettings: seedState.companySettings || { ...DEFAULT_COMPANY_SETTINGS },
     customers: seedState.customers || [],
     leads: mapRows(seedState.leads, (lead) => ({
       ...lead,
@@ -2203,6 +2325,50 @@ function ensureDefaultSafetyContentInDatabase(database, state, changedAt = isoNo
   return inserted;
 }
 
+function ensureDemoCompanySettingsInDatabase(database, companySettings, changedAt = isoNow()) {
+  const normalized = normalizeCompanySettings(companySettings);
+  const pairs = [
+    ["companyName", normalized.companyName || ""],
+    ["logoInitials", normalized.logoInitials || ""],
+    ["accentColor", normalized.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor],
+    ["businessPhone", normalized.businessPhone || ""],
+    ["businessEmail", normalized.businessEmail || ""],
+    ["website", normalized.website || ""],
+    ["businessAddress", normalized.businessAddress || ""],
+    ["serviceArea", normalized.serviceArea || ""],
+    ["licenseText", normalized.licenseText || ""],
+    ["printPacketFooter", normalized.printPacketFooter || ""],
+    ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
+    ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
+  ];
+  const selectSetting = database.prepare(`
+    SELECT value
+    FROM company_settings
+    WHERE key = ?
+  `);
+  const upsertSetting = database.prepare(`
+    INSERT INTO company_settings (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `);
+  let changed = 0;
+
+  for (const [key, value] of pairs) {
+    const existing = selectSetting.get(key);
+    const existingValue = typeof existing?.value === "string" ? existing.value.trim() : "";
+    if (existing && existingValue) {
+      continue;
+    }
+    if (!existing && value === "") {
+      continue;
+    }
+    upsertSetting.run(key, value, changedAt);
+    changed += 1;
+  }
+
+  return changed;
+}
+
 function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
   const demoSeed = buildDemoSeedData(actualUserIdsByEmail);
   const attempted = [
@@ -2232,6 +2398,8 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
     demoSeed.auditEvents,
   ].reduce((total, rows) => total + (rows?.length || 0), 0);
   let inserted = 0;
+
+  inserted += ensureDemoCompanySettingsInDatabase(database, demoSeed.companySettings, isoNow());
 
   inserted += insertRecordsIfMissing(
     database,
