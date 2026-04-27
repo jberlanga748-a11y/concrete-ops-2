@@ -4475,7 +4475,6 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
     authSessionCleanupMs: req.authPerf?.sessionCleanupMs || 0,
     authSessionLookupMs: req.authPerf?.sessionLookupMs || 0,
     authSessionTouchMs: req.authPerf?.sessionTouchMs || 0,
-    payloadBytes: measurePayloadBytes(payload),
     jobCount: Array.isArray(payload.jobs) ? payload.jobs.length : 0,
     prePourCount: Array.isArray(payload.prePourChecklists) ? payload.prePourChecklists.length : 0,
     postPourCount: Array.isArray(payload.postPourChecklists) ? payload.postPourChecklists.length : 0,
