@@ -3840,18 +3840,332 @@ function SafetyPage({
       : toolboxFocused
         ? "Review toolbox-ready safety guidance and PPE reminders for the work in front of the crew."
         : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
+  const overviewFocused = !incidentFocused && !toolboxFocused && !ppeFocused;
+  const headerEyebrow = canManage
+    ? incidentFocused
+      ? "Incident Review"
+      : toolboxFocused
+        ? "Toolbox Guidance"
+        : ppeFocused
+          ? "PPE"
+          : "Office Safety"
+    : incidentFocused
+      ? "Field Incident"
+      : toolboxFocused
+        ? "Toolbox Guidance"
+        : ppeFocused
+          ? "Field PPE"
+          : "Field Safety";
+  const headerBadgeLabel = incidentFocused
+    ? `${visibleIncidents.length} visible incidents`
+    : toolboxFocused
+      ? `${visiblePolicies.length} guidance items`
+      : ppeFocused
+        ? `${activePpeItems.length} PPE items`
+        : `${visibleIncidents.length} visible incidents`;
+
+  function renderIncidentSubmitCard() {
+    if (!canSubmitIncidents) return null;
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader
+          title={incidentFocused ? "Submit concern or incident" : "Report incident"}
+          description={allowedJobs.length === 0 ? "No assigned job is on your device yet. You can still submit a general safety concern." : "Job options stay scoped to the work you are allowed to see."}
+        />
+        <form className="grid gap-3" onSubmit={handleIncidentSubmit}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField label="Job" value={incidentDraft.jobId} onChange={(event) => setIncidentDraft((current) => ({ ...current, jobId: event.target.value }))}>
+              <option value="">General safety concern</option>
+              {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+            </SelectField>
+            <SelectField label="Type" value={incidentDraft.type} onChange={(event) => setIncidentDraft((current) => ({ ...current, type: event.target.value }))}>
+              <option value="concern">Concern</option>
+              <option value="hazard">Hazard</option>
+              <option value="near_miss">Near miss</option>
+              <option value="injury">Injury</option>
+              <option value="property_damage">Property damage</option>
+              <option value="other">Other</option>
+            </SelectField>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField label="Severity" value={incidentDraft.severity} onChange={(event) => setIncidentDraft((current) => ({ ...current, severity: event.target.value }))}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </SelectField>
+            <InputField label="Title" value={incidentDraft.title} onChange={(event) => setIncidentDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Wet slab edge, exposed rebar, blocked access..." />
+          </div>
+          <TextAreaField label="Description" value={incidentDraft.description} onChange={(event) => setIncidentDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What happened, where it was, and what the crew should know next." />
+          <TextAreaField label="Immediate action" value={incidentDraft.immediateAction} onChange={(event) => setIncidentDraft((current) => ({ ...current, immediateAction: event.target.value }))} placeholder="Stopped work, taped off area, called foreman, moved material..." />
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || !incidentDraft.title || !incidentDraft.description}>Submit safety item</Button>
+          </div>
+        </form>
+      </Card>
+    );
+  }
+
+  function renderIncidentsListCard() {
+    return (
+      <Card className="overflow-hidden">
+        <div className="p-4 md:p-5">
+          <SectionHeader
+            title={incidentFocused ? (canManage ? "Incident review" : "Incident history") : "Incidents & concerns"}
+            description={canManage ? (incidentFocused ? "Review, resolve, and archive field submissions first." : "Review, resolve, and archive field submissions across the company.") : (incidentFocused ? "Stay on top of submitted concerns inside your allowed field scope." : "Only incidents in your allowed field scope appear here.")}
+          />
+        </div>
+        <div className="grid gap-3 border-y border-blue-100 bg-blue-50/35 p-3 md:grid-cols-2 xl:grid-cols-3">
+          <SelectField label="Status" value={incidentStatusFilter} onChange={(event) => setIncidentStatusFilter(event.target.value)}>
+            <option>All</option>
+            <option value="open">Open</option>
+            <option value="reviewed">Reviewed</option>
+            <option value="resolved">Resolved</option>
+            <option value="archived">Archived</option>
+          </SelectField>
+          <SelectField label="Type" value={incidentTypeFilter} onChange={(event) => setIncidentTypeFilter(event.target.value)}>
+            <option>All types</option>
+            <option value="concern">Concern</option>
+            <option value="hazard">Hazard</option>
+            <option value="near_miss">Near miss</option>
+            <option value="injury">Injury</option>
+            <option value="property_damage">Property damage</option>
+            <option value="other">Other</option>
+          </SelectField>
+          <SelectField label="Severity" value={incidentSeverityFilter} onChange={(event) => setIncidentSeverityFilter(event.target.value)}>
+            <option>All severities</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </SelectField>
+          <SelectField label="Job" value={incidentJobFilter} onChange={(event) => setIncidentJobFilter(event.target.value)}>
+            <option>All jobs</option>
+            {incidentListState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </SelectField>
+          <SelectField label="Submitted by" value={incidentReporterFilter} onChange={(event) => setIncidentReporterFilter(event.target.value)}>
+            <option>All reporters</option>
+            {incidentListState.reporterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </SelectField>
+          <SelectField label="Archive" value={incidentArchiveFilter} onChange={(event) => setIncidentArchiveFilter(event.target.value)}>
+            <option>Active only</option>
+            <option>Archived only</option>
+            <option>All</option>
+          </SelectField>
+          <div className="md:col-span-2 xl:col-span-3">
+            <input className="field-input w-full" value={incidentSearch} onChange={(event) => setIncidentSearch(event.target.value)} placeholder="Search incident title, description, job, or reporter..." />
+          </div>
+        </div>
+        {errorMessage && visibleIncidents.length === 0 ? (
+          <div className="p-5"><StateCard title="Safety incidents unavailable" description={errorMessage} tone="red" /></div>
+        ) : visibleIncidents.length === 0 ? (
+          <div className="p-5"><StateCard title="No incidents yet" description="Submitted concerns and incidents will appear here as soon as the field starts using the safety workflow." tone="slate" /></div>
+        ) : (
+          <div className="space-y-3 p-4">
+            {visibleIncidents.map((incident) => (
+              <button
+                key={incident.id}
+                type="button"
+                onClick={() => setSelectedIncidentId(incident.id)}
+                className={`w-full rounded-2xl border p-4 text-left transition ${selectedIncident?.id === incident.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/40"}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950">{incident.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} Â· {incident.submittedByName}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
+                    <Badge tone={incident.status === "resolved" ? "green" : incident.status === "reviewed" ? "blue" : incident.status === "archived" ? "slate" : "amber"}>{incident.statusLabel}</Badge>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{incident.description}</p>
+                <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(incident.createdAt)}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  function renderPoliciesCard() {
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader
+          title={toolboxFocused ? "Toolbox guidance" : "Safety policies"}
+          description={toolboxFocused ? (canManage ? "Use current safety guidance as toolbox-talk-ready content without exposing office-only data." : "Review the current guidance and reminders before the crew starts work.") : (canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data.")}
+        />
+        {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
+          <div className="space-y-3">
+            {visiblePolicies.map((policy) => (
+              <button
+                key={policy.id}
+                type="button"
+                onClick={() => canManage ? setSelectedPolicyId(policy.id) : undefined}
+                className={`w-full rounded-2xl border p-4 text-left ${selectedPolicy?.id === policy.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950">{policy.title}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{policy.category}</p>
+                  </div>
+                  <Badge tone={policy.archivedAt ? "slate" : "green"}>{policy.statusLabel}</Badge>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{policy.body}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  function renderPpeCard() {
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={ppeFocused ? "PPE checklist" : toolboxFocused ? "PPE reminders" : "PPE checklist"} description={ppeFocused ? "Keep the required PPE list front and center for this route." : "Default PPE stays visible to field users and editable only for office/admin."} />
+        {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
+          <div className="space-y-2">
+            {activePpeItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => canManage ? setSelectedPpeId(item.id) : undefined}
+                className={`w-full rounded-2xl border p-3 text-left ${selectedPpeItem?.id === item.id ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white"}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-950">{item.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>
+                  </div>
+                  <Badge tone={item.requiredByDefault ? "blue" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  function renderAcknowledgmentCard() {
+    if (!canAcknowledge) return null;
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={toolboxFocused ? "Acknowledge toolbox review" : ppeFocused ? "Acknowledge PPE check" : "Acknowledge safety & PPE"} description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
+        <form className="grid gap-3" onSubmit={handleAcknowledge}>
+          <SelectField label="Job" value={ackDraft.jobId} onChange={(event) => setAckDraft((current) => ({ ...current, jobId: event.target.value }))}>
+            <option value="">General safety review</option>
+            {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+          </SelectField>
+          <SelectField label="Policy" value={ackDraft.policyId} onChange={(event) => setAckDraft((current) => ({ ...current, policyId: event.target.value }))}>
+            <option value="">All current safety guidance</option>
+            {visiblePolicies.filter((policy) => !policy.archivedAt).map((policy) => <option key={policy.id} value={policy.id}>{policy.title}</option>)}
+          </SelectField>
+          <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Crew brief complete, PPE checked, silica controls discussed..." />
+          <Button type="submit" disabled={busy}>Acknowledge</Button>
+        </form>
+        <div className="mt-4 space-y-2">
+          {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
+            <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+              <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
+              <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` Â· ${acknowledgment.job.title}` : ""}</p>
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  function renderIncidentDetailCard() {
+    if (!selectedIncident) return null;
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={incidentFocused ? "Selected incident" : "Incident detail"} description={selectedIncident.job?.title || "General safety concern"} action={<Badge tone={safetySeverityTone(selectedIncident.severity)}>{selectedIncident.severity}</Badge>} />
+        <p className="text-sm font-black text-slate-950">{selectedIncident.title}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{selectedIncident.description}</p>
+        {selectedIncident.immediateAction ? (
+          <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Immediate action</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">{selectedIncident.immediateAction}</p>
+          </div>
+        ) : null}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="slate">{safetyIncidentTypeLabel(selectedIncident.type)}</Badge>
+          <Badge tone={selectedIncident.status === "resolved" ? "green" : selectedIncident.status === "reviewed" ? "blue" : selectedIncident.status === "archived" ? "slate" : "amber"}>{selectedIncident.statusLabel}</Badge>
+        </div>
+        {canReview ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => onReviewSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "reviewed" || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Review</Button>
+            <Button type="button" onClick={() => onResolveSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Resolve</Button>
+            <Button type="button" variant="danger" onClick={() => onArchiveSafetyIncident(selectedIncident.id)} disabled={busy || Boolean(selectedIncident.archivedAt)}>Archive</Button>
+          </div>
+        ) : null}
+      </Card>
+    );
+  }
+
+  function renderPolicyEditorCard() {
+    if (!canManage) return null;
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={selectedPolicy ? (toolboxFocused ? "Edit toolbox guidance" : "Edit safety policy") : (toolboxFocused ? "Create toolbox guidance" : "Create safety policy")} description="Keep the language practical for the field. Avoid legal or pricing content here." />
+        <form className="grid gap-3" onSubmit={handlePolicySubmit}>
+          <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
+          <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
+          <TextAreaField label="Policy body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save policy</Button>
+            {selectedPolicy ? <Button type="button" variant="secondary" onClick={() => setSelectedPolicyId("")}>New policy</Button> : null}
+            {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchiveSafetyPolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
+          </div>
+        </form>
+      </Card>
+    );
+  }
+
+  function renderPpeEditorCard() {
+    if (!canManage) return null;
+    return (
+      <Card className="p-4 md:p-5">
+        <SectionHeader title={selectedPpeItem ? (ppeFocused ? "Edit PPE checklist item" : "Edit PPE item") : (ppeFocused ? "Add PPE checklist item" : "Add PPE item")} description="Required-by-default items stay surfaced first for field crews." />
+        <form className="grid gap-3" onSubmit={handlePpeSubmit}>
+          <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
+          <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
+          <label className="field-label">
+            <span>Required by default</span>
+            <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+              <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
+              <span>Surface this item at the top of the PPE checklist.</span>
+            </div>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
+            {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
+            {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
+          </div>
+        </form>
+      </Card>
+    );
+  }
 
   return (
     <div>
       <PageHeader
-        eyebrow={canManage ? "Office Safety" : "Field Safety"}
+        eyebrow={headerEyebrow}
         title={headerTitle}
         description={headerDescription}
-        actions={<Badge tone="blue">{visibleIncidents.length} visible incidents</Badge>}
+        actions={<Badge tone="blue">{headerBadgeLabel}</Badge>}
       />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
         <div className="min-w-0 space-y-4">
-          {canSubmitIncidents ? (
+          {toolboxFocused ? renderPoliciesCard() : null}
+          {toolboxFocused ? renderAcknowledgmentCard() : null}
+          {ppeFocused ? renderPpeCard() : null}
+          {ppeFocused ? renderAcknowledgmentCard() : null}
+          {canSubmitIncidents && (incidentFocused || overviewFocused) ? (
             <Card className="p-4 md:p-5">
               <SectionHeader
                 title={incidentFocused ? "Submit concern or incident" : "Report incident"}
@@ -3890,9 +4204,10 @@ function SafetyPage({
             </Card>
           ) : null}
 
+          {incidentFocused || overviewFocused ? (
           <Card className="overflow-hidden">
             <div className="p-4 md:p-5">
-              <SectionHeader title="Incidents & concerns" description={canManage ? "Review, resolve, and archive field submissions across the company." : "Only incidents in your allowed field scope appear here."} />
+              <SectionHeader title={incidentFocused ? (canManage ? "Incident review" : "Incident history") : "Incidents & concerns"} description={canManage ? (incidentFocused ? "Review, resolve, and archive field submissions first." : "Review, resolve, and archive field submissions across the company.") : (incidentFocused ? "Stay on top of submitted concerns inside your allowed field scope." : "Only incidents in your allowed field scope appear here.")} />
             </div>
             <div className="grid gap-3 border-y border-blue-100 bg-blue-50/35 p-3 md:grid-cols-2 xl:grid-cols-3">
               <SelectField label="Status" value={incidentStatusFilter} onChange={(event) => setIncidentStatusFilter(event.target.value)}>
@@ -3965,7 +4280,9 @@ function SafetyPage({
               </div>
             )}
           </Card>
+          ) : null}
 
+          {!toolboxFocused ? (
           <Card className="p-4 md:p-5">
             <SectionHeader title="Safety policies" description={canManage ? "Company-wide policies stay editable here for office/admin roles." : "Field-safe policies stay visible here without office-only notes or money data."} />
             {visiblePolicies.length === 0 ? <StateCard title="No safety policies yet" description="Add the first policy to start the Safety & PPE module." tone="slate" /> : (
@@ -3990,9 +4307,13 @@ function SafetyPage({
               </div>
             )}
           </Card>
+          ) : null}
+          {toolboxFocused || ppeFocused ? renderIncidentSubmitCard() : null}
+          {toolboxFocused || ppeFocused ? renderIncidentsListCard() : null}
         </div>
 
         <div className="min-w-0 space-y-4">
+          {!toolboxFocused && !ppeFocused ? (
           <Card className="p-4 md:p-5">
             <SectionHeader title="PPE checklist" description="Default PPE stays visible to field users and editable only for office/admin." />
             {activePpeItems.length === 0 ? <StateCard title="No PPE items yet" description="Add the first PPE item to build the checklist." tone="slate" /> : (
@@ -4016,8 +4337,9 @@ function SafetyPage({
               </div>
             )}
           </Card>
+          ) : null}
 
-          {canAcknowledge ? (
+          {canAcknowledge && !toolboxFocused && !ppeFocused ? (
             <Card className="p-4 md:p-5">
               <SectionHeader title="Acknowledge safety & PPE" description={acknowledgmentState.hasAcknowledged ? `Last acknowledged ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Capture a quick acknowledgment for your current work or general company safety guidance."} />
               <form className="grid gap-3" onSubmit={handleAcknowledge}>
@@ -4044,68 +4366,10 @@ function SafetyPage({
             </Card>
           ) : null}
 
-          {selectedIncident ? (
-            <Card className="p-4 md:p-5">
-              <SectionHeader title="Incident detail" description={selectedIncident.job?.title || "General safety concern"} action={<Badge tone={safetySeverityTone(selectedIncident.severity)}>{selectedIncident.severity}</Badge>} />
-              <p className="text-sm font-black text-slate-950">{selectedIncident.title}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{selectedIncident.description}</p>
-              {selectedIncident.immediateAction ? (
-                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Immediate action</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">{selectedIncident.immediateAction}</p>
-                </div>
-              ) : null}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Badge tone="slate">{safetyIncidentTypeLabel(selectedIncident.type)}</Badge>
-                <Badge tone={selectedIncident.status === "resolved" ? "green" : selectedIncident.status === "reviewed" ? "blue" : selectedIncident.status === "archived" ? "slate" : "amber"}>{selectedIncident.statusLabel}</Badge>
-              </div>
-              {canReview ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" onClick={() => onReviewSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "reviewed" || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Review</Button>
-                  <Button type="button" onClick={() => onResolveSafetyIncident(selectedIncident.id)} disabled={busy || selectedIncident.status === "resolved" || selectedIncident.status === "archived"}>Resolve</Button>
-                  <Button type="button" variant="danger" onClick={() => onArchiveSafetyIncident(selectedIncident.id)} disabled={busy || Boolean(selectedIncident.archivedAt)}>Archive</Button>
-                </div>
-              ) : null}
-            </Card>
-          ) : null}
+          {renderIncidentDetailCard()}
 
-          {canManage ? (
-            <>
-              <Card className="p-4 md:p-5">
-                <SectionHeader title={selectedPolicy ? "Edit safety policy" : "Create safety policy"} description="Keep the language practical for the field. Avoid legal or pricing content here." />
-                <form className="grid gap-3" onSubmit={handlePolicySubmit}>
-                  <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
-                  <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
-                  <TextAreaField label="Policy body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save policy</Button>
-                    {selectedPolicy ? <Button type="button" variant="secondary" onClick={() => setSelectedPolicyId("")}>New policy</Button> : null}
-                    {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchiveSafetyPolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
-                  </div>
-                </form>
-              </Card>
-
-              <Card className="p-4 md:p-5">
-                <SectionHeader title={selectedPpeItem ? "Edit PPE item" : "Add PPE item"} description="Required-by-default items stay surfaced first for field crews." />
-                <form className="grid gap-3" onSubmit={handlePpeSubmit}>
-                  <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
-                  <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
-                  <label className="field-label">
-                    <span>Required by default</span>
-                    <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-700">
-                      <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
-                      <span>Surface this item at the top of the PPE checklist.</span>
-                    </div>
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
-                    {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
-                    {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
-                  </div>
-                </form>
-              </Card>
-            </>
-          ) : null}
+          {renderPolicyEditorCard()}
+          {renderPpeEditorCard()}
         </div>
       </div>
     </div>
