@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import crypto from "node:crypto";
+import { performance } from "node:perf_hooks";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
@@ -505,20 +506,131 @@ function activeAssignmentsForJob(job) {
   return (job.assignments || []).filter((assignment) => !assignment.removedAt);
 }
 
-function assignmentUser(state, assignment) {
-  return state.users.find((user) => user.id === assignment.userId) || null;
+const hydrationContextCache = new WeakMap();
+
+function mapRecordsById(records) {
+  const lookup = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    if (record?.id) {
+      lookup.set(record.id, record);
+    }
+  }
+  return lookup;
 }
 
-function sanitizeJobAssignments(job, state, user, { includeNotes = false } = {}) {
+function groupRecordsByKey(records, key) {
+  const groups = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    const groupKey = record?.[key];
+    if (!groupKey) continue;
+    const existing = groups.get(groupKey);
+    if (existing) {
+      existing.push(record);
+    } else {
+      groups.set(groupKey, [record]);
+    }
+  }
+  return groups;
+}
+
+function getHydrationContext(state, user) {
+  if (!state) return null;
+  let stateCache = hydrationContextCache.get(state);
+  if (!stateCache) {
+    stateCache = new Map();
+    hydrationContextCache.set(state, stateCache);
+  }
+
+  const cacheKey = user?.id || "__anonymous__";
+  if (!stateCache.has(cacheKey)) {
+    stateCache.set(cacheKey, {
+      usersById: mapRecordsById(state.users),
+      jobsById: mapRecordsById(state.jobs),
+      prePourItemsByChecklistId: groupRecordsByKey(state.prePourChecklistItems, "checklistId"),
+      postPourItemsByChecklistId: groupRecordsByKey(state.postPourChecklistItems, "checklistId"),
+      prePourChecklistsByJobId: groupRecordsByKey(state.prePourChecklists, "jobId"),
+      postPourChecklistsByJobId: groupRecordsByKey(state.postPourChecklists, "jobId"),
+      sanitizedJobsById: new Map(),
+      sanitizedPrePourChecklistsById: new Map(),
+      sanitizedPostPourChecklistsById: new Map(),
+      prePourSummariesByJobId: new Map(),
+      postPourSummariesByJobId: new Map(),
+    });
+  }
+
+  return stateCache.get(cacheKey);
+}
+
+function lookupUserById(state, userId, context = null) {
+  if (!userId) return null;
+  if (context?.usersById?.has(userId)) {
+    return context.usersById.get(userId) || null;
+  }
+  return findUserById(state, userId);
+}
+
+function lookupJobById(state, jobId, context = null) {
+  if (!jobId) return null;
+  if (context?.jobsById?.has(jobId)) {
+    return context.jobsById.get(jobId) || null;
+  }
+  return state.jobs.find((job) => job.id === jobId) || null;
+}
+
+function measurePayloadBytes(payload) {
+  try {
+    return Buffer.byteLength(JSON.stringify(payload));
+  } catch {
+    return null;
+  }
+}
+
+function roundDurationMs(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function createRouteProfiler(route, requestId) {
+  const startedAt = performance.now();
+  let phaseStartedAt = startedAt;
+  const phases = {};
+
+  return {
+    mark(phaseName) {
+      const now = performance.now();
+      phases[phaseName] = roundDurationMs(now - phaseStartedAt);
+      phaseStartedAt = now;
+    },
+    snapshot(extra = {}) {
+      return {
+        totalMs: roundDurationMs(performance.now() - startedAt),
+        ...phases,
+        ...extra,
+      };
+    },
+    log(extra = {}) {
+      logger.info("Route performance", {
+        route,
+        requestId,
+        ...this.snapshot(extra),
+      });
+    },
+  };
+}
+
+function assignmentUser(state, assignment, context = null) {
+  return lookupUserById(state, assignment?.userId, context);
+}
+
+function sanitizeJobAssignments(job, state, user, { includeNotes = false, context = null } = {}) {
   const activeAssignments = activeAssignmentsForJob(job);
   const sanitizedAssignments = activeAssignments.map((assignment) => {
-    const user = assignmentUser(state, assignment);
+    const assignedUser = assignmentUser(state, assignment, context);
     return {
       id: assignment.id,
       jobId: assignment.jobId,
       userId: assignment.userId,
-      userName: user?.name || assignment.userId,
-      userRole: user?.role || "",
+      userName: assignedUser?.name || assignment.userId,
+      userRole: assignedUser?.role || "",
       roleOnJob: assignment.roleOnJob,
       assignedBy: assignment.assignedBy || "",
       assignedAt: assignment.assignedAt,
@@ -983,76 +1095,84 @@ function postPourPermissionsForUser(user) {
   };
 }
 
-function sanitizeJobForUser(job, user, state) {
+function sanitizeJobForUser(job, user, state, context = null) {
   if (!job) return null;
   const normalizedJob = normalizeJobRecord(job);
+  const hydrationContext = context || getHydrationContext(state, user);
+  const cachedJob = hydrationContext?.sanitizedJobsById?.get(normalizedJob.id);
+  if (cachedJob) {
+    return cachedJob;
+  }
   const assignmentPayload = sanitizeJobAssignments(normalizedJob, state, user, {
     includeNotes: canViewAllJobs(user),
+    context: hydrationContext,
   });
 
-    if (canViewAllJobs(user) || isEstimator(user)) {
-      return {
-        ...normalizedJob,
-        ...assignmentPayload,
-        calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
-        prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user),
-        postPourChecklist: postPourChecklistSummaryForJob(state, normalizedJob, user),
-        canManageField: canManageJobFieldUpdates(user, normalizedJob),
-        canManageAll: canViewAllJobs(user),
-        canViewMoney: canViewJobMoney(user),
-      };
-  }
-
-  return {
-    id: normalizedJob.id,
-    customerId: normalizedJob.customerId || "",
-    leadId: normalizedJob.leadId || "",
-    title: normalizedJob.title,
-    job: normalizedJob.title,
-    customer: normalizedJob.customer,
-    address: normalizedJob.address || "",
-    siteContact: normalizedJob.siteContact || "",
-    scopeSummary: normalizedJob.scopeSummary || "",
-    scheduledStart: normalizedJob.scheduledStart || "",
-    scheduledEnd: normalizedJob.scheduledEnd || "",
-    estimatedDuration: normalizedJob.estimatedDuration || "",
-    crewSizeNeeded: Number(normalizedJob.crewSizeNeeded || 0),
-    equipmentNotes: normalizedJob.equipmentNotes || "",
-    safetyNotes: normalizedJob.safetyNotes || "",
-    materialNotes: normalizedJob.materialNotes || "",
-    fieldNotes: normalizedJob.fieldNotes || "",
-    assignedForemanId: normalizedJob.assignedForemanId || "",
-    assignedUserId: normalizedJob.assignedUserId || "",
-    foremanAssignment: assignmentPayload.foremanAssignment,
-    crewAssignments: assignmentPayload.crewAssignments,
-    assignments: assignmentPayload.assignments,
-    fieldPlanningVisible: Boolean(normalizedJob.fieldPlanningVisible),
-    visibleToForeman: Boolean(normalizedJob.visibleToForeman),
-    status: normalizedJob.status,
-    stage: normalizedJob.stage,
+  const sanitizedJob = canViewAllJobs(user) || isEstimator(user)
+    ? {
+      ...normalizedJob,
+      ...assignmentPayload,
+      calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
+      prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user, hydrationContext),
+      postPourChecklist: postPourChecklistSummaryForJob(state, normalizedJob, user, hydrationContext),
+      canManageField: canManageJobFieldUpdates(user, normalizedJob),
+      canManageAll: canViewAllJobs(user),
+      canViewMoney: canViewJobMoney(user),
+    }
+    : {
+      id: normalizedJob.id,
+      customerId: normalizedJob.customerId || "",
+      leadId: normalizedJob.leadId || "",
+      title: normalizedJob.title,
+      job: normalizedJob.title,
+      customer: normalizedJob.customer,
+      address: normalizedJob.address || "",
+      siteContact: normalizedJob.siteContact || "",
+      scopeSummary: normalizedJob.scopeSummary || "",
+      scheduledStart: normalizedJob.scheduledStart || "",
+      scheduledEnd: normalizedJob.scheduledEnd || "",
+      estimatedDuration: normalizedJob.estimatedDuration || "",
+      crewSizeNeeded: Number(normalizedJob.crewSizeNeeded || 0),
+      equipmentNotes: normalizedJob.equipmentNotes || "",
+      safetyNotes: normalizedJob.safetyNotes || "",
+      materialNotes: normalizedJob.materialNotes || "",
+      fieldNotes: normalizedJob.fieldNotes || "",
+      assignedForemanId: normalizedJob.assignedForemanId || "",
+      assignedUserId: normalizedJob.assignedUserId || "",
+      foremanAssignment: assignmentPayload.foremanAssignment,
+      crewAssignments: assignmentPayload.crewAssignments,
+      assignments: assignmentPayload.assignments,
+      fieldPlanningVisible: Boolean(normalizedJob.fieldPlanningVisible),
+      visibleToForeman: Boolean(normalizedJob.visibleToForeman),
+      status: normalizedJob.status,
+      stage: normalizedJob.stage,
       crew: normalizedJob.crew,
       calculatorResults: calculatorResultsForJob(state, normalizedJob, user),
-      prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user),
-      postPourChecklist: postPourChecklistSummaryForJob(state, normalizedJob, user),
+      prePourChecklist: prePourChecklistSummaryForJob(state, normalizedJob, user, hydrationContext),
+      postPourChecklist: postPourChecklistSummaryForJob(state, normalizedJob, user, hydrationContext),
       nextStep: normalizedJob.nextStep,
-    next: normalizedJob.nextStep,
-    due: normalizedJob.due,
-    progress: normalizedJob.progress,
-    createdAt: normalizedJob.createdAt,
-    updatedAt: normalizedJob.updatedAt,
-    archivedAt: normalizedJob.archivedAt || null,
-    canManageField: canManageJobFieldUpdates(user, normalizedJob),
-    canManageAll: false,
-    canViewMoney: false,
-  };
+      next: normalizedJob.nextStep,
+      due: normalizedJob.due,
+      progress: normalizedJob.progress,
+      createdAt: normalizedJob.createdAt,
+      updatedAt: normalizedJob.updatedAt,
+      archivedAt: normalizedJob.archivedAt || null,
+      canManageField: canManageJobFieldUpdates(user, normalizedJob),
+      canManageAll: false,
+      canViewMoney: false,
+    };
+
+  hydrationContext?.sanitizedJobsById?.set(normalizedJob.id, sanitizedJob);
+  return sanitizedJob;
 }
 
-function visibleJobsForUser(state, user) {
+function visibleJobsForUser(state, user, context = null) {
   if (!user) return [];
+  const hydrationContext = context || getHydrationContext(state, user);
   return filterDemoRecordsForUser(
     state,
     user,
-    state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state)),
+    state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state, hydrationContext)),
     "jobs",
   );
 }
@@ -1377,9 +1497,9 @@ function canViewPrePourChecklistRecord(user, checklist, job) {
   return canViewJob(job, user);
 }
 
-function sanitizePrePourChecklistItemForUser(item, state, user, checklist, job) {
+function sanitizePrePourChecklistItemForUser(item, state, user, checklist, job, context = null) {
   if (!canViewPrePourChecklistRecord(user, checklist, job)) return null;
-  const checkedByUser = findUserById(state, item.checkedBy);
+  const checkedByUser = lookupUserById(state, item.checkedBy, context);
   return {
     id: item.id,
     checklistId: item.checklistId,
@@ -1397,26 +1517,36 @@ function sanitizePrePourChecklistItemForUser(item, state, user, checklist, job) 
   };
 }
 
-function sanitizePrePourChecklistForUser(checklist, state, user) {
-  const job = checklist.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
-  if (!canViewPrePourChecklistRecord(user, checklist, job)) return null;
-  if (checklist.archivedAt && !isOfficeManager(user)) return null;
+function sanitizePrePourChecklistForUser(checklist, state, user, context = null) {
+  const hydrationContext = context || getHydrationContext(state, user);
+  if (hydrationContext?.sanitizedPrePourChecklistsById?.has(checklist.id)) {
+    return hydrationContext.sanitizedPrePourChecklistsById.get(checklist.id);
+  }
+  const job = lookupJobById(state, checklist.jobId, hydrationContext);
+  const canViewChecklist = canViewPrePourChecklistRecord(user, checklist, job);
+  const isArchivedHidden = checklist.archivedAt && !isOfficeManager(user);
+  if (!canViewChecklist || isArchivedHidden) {
+    hydrationContext?.sanitizedPrePourChecklistsById?.set(checklist.id, null);
+    return null;
+  }
   const normalizedJob = job ? normalizeJobRecord(job) : null;
-  const assignmentPayload = normalizedJob ? sanitizeJobAssignments(normalizedJob, state, user, { includeNotes: false }) : {
+  const assignmentPayload = normalizedJob ? sanitizeJobAssignments(normalizedJob, state, user, {
+    includeNotes: false,
+    context: hydrationContext,
+  }) : {
     foremanAssignment: null,
     crewAssignments: [],
   };
-  const createdBy = findUserById(state, checklist.createdBy);
-  const completedBy = findUserById(state, checklist.completedBy);
-  const reviewedBy = findUserById(state, checklist.reviewedBy);
-  const reopenedBy = findUserById(state, checklist.reopenedBy);
-  const items = (state.prePourChecklistItems || [])
-    .filter((item) => item.checklistId === checklist.id)
-    .map((item) => sanitizePrePourChecklistItemForUser(item, state, user, checklist, job))
+  const createdBy = lookupUserById(state, checklist.createdBy, hydrationContext);
+  const completedBy = lookupUserById(state, checklist.completedBy, hydrationContext);
+  const reviewedBy = lookupUserById(state, checklist.reviewedBy, hydrationContext);
+  const reopenedBy = lookupUserById(state, checklist.reopenedBy, hydrationContext);
+  const items = (hydrationContext?.prePourItemsByChecklistId?.get(checklist.id) || [])
+    .map((item) => sanitizePrePourChecklistItemForUser(item, state, user, checklist, job, hydrationContext))
     .filter(Boolean);
   const incompleteItemCount = items.filter((item) => item.status === "unchecked").length;
 
-  return {
+  const sanitizedChecklist = {
     id: checklist.id,
     jobId: checklist.jobId,
     status: optionalPrePourChecklistStatus(checklist.status, "draft"),
@@ -1448,12 +1578,16 @@ function sanitizePrePourChecklistForUser(checklist, state, user) {
     items,
     incompleteItemCount,
   };
+
+  hydrationContext?.sanitizedPrePourChecklistsById?.set(checklist.id, sanitizedChecklist);
+  return sanitizedChecklist;
 }
 
-function visiblePrePourChecklistsForUser(state, user) {
+function visiblePrePourChecklistsForUser(state, user, context = null) {
   if (!user || !canViewPrePour(user)) return [];
+  const hydrationContext = context || getHydrationContext(state, user);
   return filterDemoRecordsForUser(state, user, (state.prePourChecklists || [])
-    .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user))
+    .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user, hydrationContext))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
@@ -1462,31 +1596,38 @@ function visiblePrePourChecklistsForUser(state, user) {
     }), "prePourChecklists");
 }
 
-function prePourChecklistSummaryForJob(state, job, user) {
-  const visible = (state.prePourChecklists || [])
-    .filter((checklist) => checklist.jobId === job.id)
-    .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user))
-    .filter(Boolean)
-    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
-  if (visible.length === 0) {
-    return {
-      status: "not_started",
-      statusLabel: "Not started",
-      checklistId: "",
-      incompleteItemCount: 0,
-      completedAt: "",
-      reviewedAt: "",
-    };
+function prePourChecklistSummaryForJob(state, job, user, context = null) {
+  const hydrationContext = context || getHydrationContext(state, user);
+  const cachedSummary = hydrationContext?.prePourSummariesByJobId?.get(job.id);
+  if (cachedSummary) return cachedSummary;
+  let latest = null;
+  let latestUpdatedAt = -Infinity;
+  for (const checklist of hydrationContext?.prePourChecklistsByJobId?.get(job.id) || []) {
+    const sanitizedChecklist = sanitizePrePourChecklistForUser(checklist, state, user, hydrationContext);
+    if (!sanitizedChecklist) continue;
+    const updatedAt = new Date(sanitizedChecklist.updatedAt || sanitizedChecklist.createdAt || 0).getTime();
+    if (!latest || updatedAt > latestUpdatedAt) {
+      latest = sanitizedChecklist;
+      latestUpdatedAt = updatedAt;
+    }
   }
-  const latest = visible[0];
-  return {
+  const summary = latest ? {
     status: latest.status,
     statusLabel: latest.statusLabel,
     checklistId: latest.id,
     incompleteItemCount: latest.incompleteItemCount,
     completedAt: latest.completedAt || "",
     reviewedAt: latest.reviewedAt || "",
+  } : {
+    status: "not_started",
+    statusLabel: "Not started",
+    checklistId: "",
+    incompleteItemCount: 0,
+    completedAt: "",
+    reviewedAt: "",
   };
+  hydrationContext?.prePourSummariesByJobId?.set(job.id, summary);
+  return summary;
 }
 
 function canViewPostPourChecklistRecord(user, checklist, job) {
@@ -1496,9 +1637,9 @@ function canViewPostPourChecklistRecord(user, checklist, job) {
   return canViewJob(job, user);
 }
 
-function sanitizePostPourChecklistItemForUser(item, state, user, checklist, job) {
+function sanitizePostPourChecklistItemForUser(item, state, user, checklist, job, context = null) {
   if (!canViewPostPourChecklistRecord(user, checklist, job)) return null;
-  const checkedByUser = findUserById(state, item.checkedBy);
+  const checkedByUser = lookupUserById(state, item.checkedBy, context);
   return {
     id: item.id,
     checklistId: item.checklistId,
@@ -1516,26 +1657,36 @@ function sanitizePostPourChecklistItemForUser(item, state, user, checklist, job)
   };
 }
 
-function sanitizePostPourChecklistForUser(checklist, state, user) {
-  const job = checklist.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
-  if (!canViewPostPourChecklistRecord(user, checklist, job)) return null;
-  if (checklist.archivedAt && !isOfficeManager(user)) return null;
+function sanitizePostPourChecklistForUser(checklist, state, user, context = null) {
+  const hydrationContext = context || getHydrationContext(state, user);
+  if (hydrationContext?.sanitizedPostPourChecklistsById?.has(checklist.id)) {
+    return hydrationContext.sanitizedPostPourChecklistsById.get(checklist.id);
+  }
+  const job = lookupJobById(state, checklist.jobId, hydrationContext);
+  const canViewChecklist = canViewPostPourChecklistRecord(user, checklist, job);
+  const isArchivedHidden = checklist.archivedAt && !isOfficeManager(user);
+  if (!canViewChecklist || isArchivedHidden) {
+    hydrationContext?.sanitizedPostPourChecklistsById?.set(checklist.id, null);
+    return null;
+  }
   const normalizedJob = job ? normalizeJobRecord(job) : null;
-  const assignmentPayload = normalizedJob ? sanitizeJobAssignments(normalizedJob, state, user, { includeNotes: false }) : {
+  const assignmentPayload = normalizedJob ? sanitizeJobAssignments(normalizedJob, state, user, {
+    includeNotes: false,
+    context: hydrationContext,
+  }) : {
     foremanAssignment: null,
     crewAssignments: [],
   };
-  const createdBy = findUserById(state, checklist.createdBy);
-  const completedBy = findUserById(state, checklist.completedBy);
-  const reviewedBy = findUserById(state, checklist.reviewedBy);
-  const reopenedBy = findUserById(state, checklist.reopenedBy);
-  const items = (state.postPourChecklistItems || [])
-    .filter((item) => item.checklistId === checklist.id)
-    .map((item) => sanitizePostPourChecklistItemForUser(item, state, user, checklist, job))
+  const createdBy = lookupUserById(state, checklist.createdBy, hydrationContext);
+  const completedBy = lookupUserById(state, checklist.completedBy, hydrationContext);
+  const reviewedBy = lookupUserById(state, checklist.reviewedBy, hydrationContext);
+  const reopenedBy = lookupUserById(state, checklist.reopenedBy, hydrationContext);
+  const items = (hydrationContext?.postPourItemsByChecklistId?.get(checklist.id) || [])
+    .map((item) => sanitizePostPourChecklistItemForUser(item, state, user, checklist, job, hydrationContext))
     .filter(Boolean);
   const incompleteItemCount = items.filter((item) => item.status === "unchecked").length;
 
-  return {
+  const sanitizedChecklist = {
     id: checklist.id,
     jobId: checklist.jobId,
     status: optionalPostPourChecklistStatus(checklist.status, "draft"),
@@ -1567,12 +1718,16 @@ function sanitizePostPourChecklistForUser(checklist, state, user) {
     items,
     incompleteItemCount,
   };
+
+  hydrationContext?.sanitizedPostPourChecklistsById?.set(checklist.id, sanitizedChecklist);
+  return sanitizedChecklist;
 }
 
-function visiblePostPourChecklistsForUser(state, user) {
+function visiblePostPourChecklistsForUser(state, user, context = null) {
   if (!user || !canViewPostPour(user)) return [];
+  const hydrationContext = context || getHydrationContext(state, user);
   return filterDemoRecordsForUser(state, user, (state.postPourChecklists || [])
-    .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user))
+    .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user, hydrationContext))
     .filter(Boolean)
     .sort((left, right) => {
       const archivedCompare = Number(Boolean(left.archivedAt)) - Number(Boolean(right.archivedAt));
@@ -1581,31 +1736,38 @@ function visiblePostPourChecklistsForUser(state, user) {
     }), "postPourChecklists");
 }
 
-function postPourChecklistSummaryForJob(state, job, user) {
-  const visible = (state.postPourChecklists || [])
-    .filter((checklist) => checklist.jobId === job.id)
-    .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user))
-    .filter(Boolean)
-    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime());
-  if (visible.length === 0) {
-    return {
-      status: "not_started",
-      statusLabel: "Not started",
-      checklistId: "",
-      incompleteItemCount: 0,
-      completedAt: "",
-      reviewedAt: "",
-    };
+function postPourChecklistSummaryForJob(state, job, user, context = null) {
+  const hydrationContext = context || getHydrationContext(state, user);
+  const cachedSummary = hydrationContext?.postPourSummariesByJobId?.get(job.id);
+  if (cachedSummary) return cachedSummary;
+  let latest = null;
+  let latestUpdatedAt = -Infinity;
+  for (const checklist of hydrationContext?.postPourChecklistsByJobId?.get(job.id) || []) {
+    const sanitizedChecklist = sanitizePostPourChecklistForUser(checklist, state, user, hydrationContext);
+    if (!sanitizedChecklist) continue;
+    const updatedAt = new Date(sanitizedChecklist.updatedAt || sanitizedChecklist.createdAt || 0).getTime();
+    if (!latest || updatedAt > latestUpdatedAt) {
+      latest = sanitizedChecklist;
+      latestUpdatedAt = updatedAt;
+    }
   }
-  const latest = visible[0];
-  return {
+  const summary = latest ? {
     status: latest.status,
     statusLabel: latest.statusLabel,
     checklistId: latest.id,
     incompleteItemCount: latest.incompleteItemCount,
     completedAt: latest.completedAt || "",
     reviewedAt: latest.reviewedAt || "",
+  } : {
+    status: "not_started",
+    statusLabel: "Not started",
+    checklistId: "",
+    incompleteItemCount: 0,
+    completedAt: "",
+    reviewedAt: "",
   };
+  hydrationContext?.postPourSummariesByJobId?.set(job.id, summary);
+  return summary;
 }
 
 function estimateStatusLabel(status = "draft") {
@@ -3722,12 +3884,12 @@ function statsFromState(state) {
   };
 }
 
-function statsForUser(state, user) {
-  const liveJobs = visibleJobsForUser(state, user).filter((job) => !job.archivedAt);
-  const liveQueueItems = visibleQueueItemsForUser(state, user).filter((item) => !item.archivedAt);
+function statsForUser(state, user, { jobs = null, leads = null, queueItems = null } = {}) {
+  const liveJobs = (Array.isArray(jobs) ? jobs : visibleJobsForUser(state, user)).filter((job) => !job.archivedAt);
+  const liveQueueItems = (Array.isArray(queueItems) ? queueItems : visibleQueueItemsForUser(state, user)).filter((item) => !item.archivedAt);
 
   if (canViewLeads(user)) {
-    const liveLeads = visibleLeadsForUser(state, user).filter((lead) => !lead.archivedAt);
+    const liveLeads = (Array.isArray(leads) ? leads : visibleLeadsForUser(state, user)).filter((lead) => !lead.archivedAt);
     return {
       newLeads: liveLeads.filter((lead) => lead.status === "New").length,
       highPriorityLeads: liveLeads.filter((lead) => lead.priority === "High").length,
@@ -3755,32 +3917,55 @@ function sanitizeBootstrap(state, user) {
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
   const settings = companySettingsForState(state);
+  const hydrationContext = getHydrationContext(state, user);
+  const users = visibleUsers(state, user);
+  const customers = visibleCustomersForUser(state, user);
+  const leads = visibleLeadsForUser(state, user);
+  const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
+  const estimates = visibleEstimatesForUser(state, user);
+  const jobs = visibleJobsForUser(state, user, hydrationContext);
+  const safetyPolicies = visibleSafetyPoliciesForUser(state, user);
+  const ppeItems = visiblePpeItemsForUser(state, user);
+  const safetyAcknowledgments = visibleSafetyAcknowledgmentsForUser(state, user);
+  const safetyIncidents = visibleSafetyIncidentsForUser(state, user);
+  const changeOrderRequests = visibleChangeOrderRequestsForUser(state, user);
+  const deliveryTickets = visibleDeliveryTicketsForUser(state, user);
+  const prePourChecklists = visiblePrePourChecklistsForUser(state, user, hydrationContext);
+  const postPourChecklists = visiblePostPourChecklistsForUser(state, user, hydrationContext);
+  const toolChecklists = visibleToolChecklistsForUser(state, user);
+  const calculatorResults = visibleCalculatorResultsForUser(state, user);
+  const uploads = visibleUploadsForUser(state, user);
+  const dailyReports = visibleDailyReportsForUser(state, user);
+  const timeEntries = visibleTimeEntriesForUser(state, user);
+  const queueItems = visibleQueueItemsForUser(state, user);
+  const activity = visibleActivityForUser(state, user);
+  const auditEvents = visibleAuditEventsForUser(state, user);
   return {
     user: publicUser(user),
     companySettings: settings,
-    users: visibleUsers(state, user),
-    customers: visibleCustomersForUser(state, user),
-    leads: visibleLeadsForUser(state, user),
-    leadStatusHistory: visibleLeadStatusHistoryForUser(state, user),
-    estimates: visibleEstimatesForUser(state, user),
-    jobs: visibleJobsForUser(state, user),
-    safetyPolicies: visibleSafetyPoliciesForUser(state, user),
-    ppeItems: visiblePpeItemsForUser(state, user),
-      safetyAcknowledgments: visibleSafetyAcknowledgmentsForUser(state, user),
-      safetyIncidents: visibleSafetyIncidentsForUser(state, user),
-      changeOrderRequests: visibleChangeOrderRequestsForUser(state, user),
-      deliveryTickets: visibleDeliveryTicketsForUser(state, user),
-      prePourChecklists: visiblePrePourChecklistsForUser(state, user),
-      postPourChecklists: visiblePostPourChecklistsForUser(state, user),
-      toolChecklists: visibleToolChecklistsForUser(state, user),
-    calculatorResults: visibleCalculatorResultsForUser(state, user),
-    uploads: visibleUploadsForUser(state, user),
-    dailyReports: visibleDailyReportsForUser(state, user),
-    timeEntries: visibleTimeEntriesForUser(state, user),
-    queueItems: visibleQueueItemsForUser(state, user),
-    activity: visibleActivityForUser(state, user),
-    auditEvents: visibleAuditEventsForUser(state, user),
-    stats: statsForUser(state, user),
+    users,
+    customers,
+    leads,
+    leadStatusHistory,
+    estimates,
+    jobs,
+    safetyPolicies,
+    ppeItems,
+    safetyAcknowledgments,
+    safetyIncidents,
+    changeOrderRequests,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    calculatorResults,
+    uploads,
+    dailyReports,
+    timeEntries,
+    queueItems,
+    activity,
+    auditEvents,
+    stats: statsForUser(state, user, { jobs, leads, queueItems }),
     permissions: {
       users: userPermissions,
       customers: customerPermissions,
@@ -3889,6 +4074,7 @@ app.use((req, res, next) => {
 });
 
 async function requireAuth(req, res, next) {
+  const authProfiler = createRouteProfiler(`${req.method} ${req.path} auth`, res.locals.requestId);
   const now = new Date().toISOString();
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -3898,8 +4084,10 @@ async function requireAuth(req, res, next) {
   }
 
   await cleanupExpiredSessions(now);
+  authProfiler.mark("sessionCleanupMs");
   const tokenHash = hashToken(token);
   const authRecord = await findSessionAuthRecordByTokenHash(tokenHash);
+  authProfiler.mark("sessionLookupMs");
   const session = authRecord?.session || null;
 
   if (!session) {
@@ -3935,7 +4123,12 @@ async function requireAuth(req, res, next) {
       lastSeenAt: now,
       expiresAt: nextSessionExpiry(),
     });
+    authProfiler.mark("sessionTouchMs");
+  } else {
+    authProfiler.mark("sessionTouchMs");
   }
+
+  req.authPerf = authProfiler.snapshot();
 
   return next();
 }
@@ -4216,16 +4409,23 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/auth/login", asyncRoute(async (req, res) => {
+  const routeProfiler = createRouteProfiler("POST /api/auth/login", res.locals.requestId);
   await cleanupExpiredSessions();
+  routeProfiler.mark("sessionCleanupMs");
   const email = requiredString(req.body?.email, "Email").toLowerCase();
   const password = requiredString(req.body?.password, "Password");
   const user = await findUserAuthRecordByEmail(email);
+  routeProfiler.mark("userLookupMs");
+  const passwordValid = Boolean(user && verifyPassword(password, user.passwordHash));
+  routeProfiler.mark("passwordVerifyMs");
 
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  if (!passwordValid) {
+    routeProfiler.log({ result: "invalid_credentials" });
     return jsonError(res, 401, "Invalid email or password.");
   }
 
   if (optionalUserStatus(user.status, "active") !== "active") {
+    routeProfiler.log({ result: "inactive_account" });
     return jsonError(res, 403, "Account inactive.");
   }
 
@@ -4239,11 +4439,19 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
     lastSeenAt: loginAt,
     expiresAt: nextSessionExpiry(),
   });
+  routeProfiler.mark("sessionWriteMs");
 
-  return res.json({
+  const payload = {
     token,
     user: publicUser(user),
+  };
+  routeProfiler.mark("payloadBuildMs");
+  routeProfiler.log({
+    payloadBytes: measurePayloadBytes(payload),
+    result: "success",
   });
+
+  return res.json(payload);
 }));
 
 app.get("/api/auth/me", requireAuth, asyncRoute(async (req, res) => {
@@ -4257,8 +4465,22 @@ app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
+  const routeProfiler = createRouteProfiler("GET /api/bootstrap", res.locals.requestId);
   const state = await readDb();
-  res.json(sanitizeBootstrap(state, req.auth.user));
+  routeProfiler.mark("readDbMs");
+  const payload = sanitizeBootstrap(state, req.auth.user);
+  routeProfiler.mark("sanitizeMs");
+  routeProfiler.log({
+    authMs: req.authPerf?.totalMs || 0,
+    authSessionCleanupMs: req.authPerf?.sessionCleanupMs || 0,
+    authSessionLookupMs: req.authPerf?.sessionLookupMs || 0,
+    authSessionTouchMs: req.authPerf?.sessionTouchMs || 0,
+    payloadBytes: measurePayloadBytes(payload),
+    jobCount: Array.isArray(payload.jobs) ? payload.jobs.length : 0,
+    prePourCount: Array.isArray(payload.prePourChecklists) ? payload.prePourChecklists.length : 0,
+    postPourCount: Array.isArray(payload.postPourChecklists) ? payload.postPourChecklists.length : 0,
+  });
+  res.json(payload);
 }));
 
 app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
@@ -4771,12 +4993,25 @@ app.post("/api/change-order-requests/:id/archive", requireAuth, asyncRoute(async
 }));
 
 app.get("/api/pre-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
+  const routeProfiler = createRouteProfiler("GET /api/pre-pour-checklists", res.locals.requestId);
   const state = await readDb();
+  routeProfiler.mark("readDbMs");
   assertCanViewPrePour(req.auth.user);
-  res.json({
-    prePourChecklists: visiblePrePourChecklistsForUser(state, req.auth.user),
+  const prePourChecklists = visiblePrePourChecklistsForUser(state, req.auth.user);
+  routeProfiler.mark("hydrateMs");
+  const payload = {
+    prePourChecklists,
     requestId: res.locals.requestId,
+  };
+  routeProfiler.log({
+    authMs: req.authPerf?.totalMs || 0,
+    authSessionCleanupMs: req.authPerf?.sessionCleanupMs || 0,
+    authSessionLookupMs: req.authPerf?.sessionLookupMs || 0,
+    authSessionTouchMs: req.authPerf?.sessionTouchMs || 0,
+    payloadBytes: measurePayloadBytes(payload),
+    checklistCount: prePourChecklists.length,
   });
+  res.json(payload);
 }));
 
 app.post("/api/pre-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
@@ -5019,12 +5254,25 @@ app.post("/api/pre-pour-checklists/:id/archive", requireAuth, asyncRoute(async (
 }));
 
 app.get("/api/post-pour-checklists", requireAuth, asyncRoute(async (req, res) => {
+  const routeProfiler = createRouteProfiler("GET /api/post-pour-checklists", res.locals.requestId);
   const state = await readDb();
+  routeProfiler.mark("readDbMs");
   assertCanViewPostPour(req.auth.user);
-  res.json({
-    postPourChecklists: visiblePostPourChecklistsForUser(state, req.auth.user),
+  const postPourChecklists = visiblePostPourChecklistsForUser(state, req.auth.user);
+  routeProfiler.mark("hydrateMs");
+  const payload = {
+    postPourChecklists,
     requestId: res.locals.requestId,
+  };
+  routeProfiler.log({
+    authMs: req.authPerf?.totalMs || 0,
+    authSessionCleanupMs: req.authPerf?.sessionCleanupMs || 0,
+    authSessionLookupMs: req.authPerf?.sessionLookupMs || 0,
+    authSessionTouchMs: req.authPerf?.sessionTouchMs || 0,
+    payloadBytes: measurePayloadBytes(payload),
+    checklistCount: postPourChecklists.length,
   });
+  res.json(payload);
 }));
 
 app.post("/api/post-pour-checklists", requireAuth, asyncRoute(async (req, res) => {

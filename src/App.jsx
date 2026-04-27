@@ -6503,12 +6503,20 @@ function PrePourPage({
     search,
   }), [archiveFilter, checklistRows, dateFilter, foremanFilter, jobFilter, search, statusFilter]);
   const listState = useMemo(() => derivePrePourChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const checklistRowsById = useMemo(
+    () => new Map(checklistRows.map((checklist) => [checklist.id, checklist])),
+    [checklistRows],
+  );
+  const filteredRowsById = useMemo(
+    () => new Map(filteredRows.map((checklist) => [checklist.id, checklist])),
+    [filteredRows],
+  );
   const selectedChecklist = useMemo(
-    () => filteredRows.find((checklist) => checklist.id === selectedChecklistId)
+    () => filteredRowsById.get(selectedChecklistId)
       || filteredRows[0]
-      || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
+      || checklistRowsById.get(selectedChecklistId)
       || null,
-    [checklistRows, filteredRows, selectedChecklistId],
+    [checklistRowsById, filteredRows, filteredRowsById, selectedChecklistId],
   );
   const selectedItems = useMemo(
     () => derivePrePourItems(selectedChecklist?.items || [], { includeArchived: permissions.prePour.canManageAll }),
@@ -6779,12 +6787,20 @@ function PostPourPage({
     search,
   }), [archiveFilter, checklistRows, dateFilter, foremanFilter, jobFilter, search, statusFilter]);
   const listState = useMemo(() => derivePostPourChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const checklistRowsById = useMemo(
+    () => new Map(checklistRows.map((checklist) => [checklist.id, checklist])),
+    [checklistRows],
+  );
+  const filteredRowsById = useMemo(
+    () => new Map(filteredRows.map((checklist) => [checklist.id, checklist])),
+    [filteredRows],
+  );
   const selectedChecklist = useMemo(
-    () => filteredRows.find((checklist) => checklist.id === selectedChecklistId)
+    () => filteredRowsById.get(selectedChecklistId)
       || filteredRows[0]
-      || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
+      || checklistRowsById.get(selectedChecklistId)
       || null,
-    [checklistRows, filteredRows, selectedChecklistId],
+    [checklistRowsById, filteredRows, filteredRowsById, selectedChecklistId],
   );
   const selectedItems = useMemo(
     () => derivePostPourItems(selectedChecklist?.items || [], { includeArchived: permissions.postPour.canManageAll }),
