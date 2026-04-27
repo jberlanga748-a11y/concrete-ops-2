@@ -1532,7 +1532,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-lg font-black text-slate-950">{row.customer}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} - {row.city}</p>
                 </div>
                 <div className="shrink-0">
                   <StatusBadge status={row.status} />
@@ -1585,7 +1585,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{row.customer}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} - {row.city}</p>
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project}</td>
                 <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
@@ -1620,7 +1620,7 @@ function JobsTable({ rows, selectedId, onSelect }) {
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-lg font-black text-slate-950">{jobTitle(row)}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} - {jobNextStep(row)}</p>
                 </div>
                 <div className="shrink-0">
                   <StatusBadge status={jobStatusLabel(row.status || row.stage)} />
@@ -1676,7 +1676,7 @@ function JobsTable({ rows, selectedId, onSelect }) {
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{jobTitle(row)}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} - {jobNextStep(row)}</p>
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.customer}</td>
                 <td className="px-4 py-3"><StatusBadge status={jobStatusLabel(row.status || row.stage)} /></td>
@@ -1799,7 +1799,7 @@ function LeadDetailPanel({
     <Card className="p-5">
       <SectionHeader
         title={lead.customer}
-        description={`${lead.id} · ${lead.city}`}
+        description={`${lead.id} - ${lead.city}`}
         action={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {!canManage ? <Badge tone="slate">Read only</Badge> : null}
@@ -1868,7 +1868,7 @@ function LeadDetailPanel({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-black text-slate-950">{related.customer.name}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{related.customer.city || "No city"} · {related.customer.id}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{related.customer.city || "No city"} - {related.customer.id}</p>
                 </div>
                 <StatusBadge status={related.customer.archivedAt ? "Archived" : related.customer.status} />
               </div>
@@ -2000,7 +2000,7 @@ function JobCrewSection({
         ) : (
           <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
             <p className="font-black text-slate-950">{foremanAssignment?.userName || "No foreman assigned"}</p>
-            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} · ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
+            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} - ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
           </div>
         )}
       </div>
@@ -2018,7 +2018,7 @@ function JobCrewSection({
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="font-black text-slate-950">{assignment.userName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} · Assigned {formatDateTime(assignment.assignedAt)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} - Assigned {formatDateTime(assignment.assignedAt)}</p>
                   </div>
                   {canManageAssignments ? (
                     <div className="flex flex-col gap-2 md:flex-row md:items-end">
@@ -2097,7 +2097,7 @@ function JobDetailPanel({
     <Card className="p-5">
       <SectionHeader
         title={jobTitle(job)}
-        description={`${job.id} · ${job.customer}`}
+        description={`${job.id} - ${job.customer}`}
         action={
           <div className="flex flex-wrap gap-2">
             {!canManageAll ? <Badge tone="slate">Field view</Badge> : null}
@@ -2215,7 +2215,7 @@ function formatJobScheduleDetail(job) {
   if (!job?.scheduledStart) return "Schedule pending";
   const startLabel = formatDateTime(job.scheduledStart);
   if (!job?.scheduledEnd) {
-    return job?.estimatedDuration ? `${startLabel} · ${job.estimatedDuration}` : startLabel;
+    return job?.estimatedDuration ? `${startLabel} - ${job.estimatedDuration}` : startLabel;
   }
   return `${startLabel} to ${formatDateTime(job.scheduledEnd)}`;
 }
@@ -2281,7 +2281,7 @@ function JobCalculationsCard({ calculations, title = "Internal calculations", de
                     {sectionRows.map((section, index) => (
                       <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
                         <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                        <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
+                        <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} - {formatCubicFeet(section.cubicFeet)}</p>
                         {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
                       </div>
                     ))}
@@ -2399,7 +2399,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   return (
     <div className="min-w-0 space-y-4">
       <Card className="p-5">
-        <SectionHeader title={jobTitle(job)} description={`${job.id} · ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
+        <SectionHeader title={jobTitle(job)} description={`${job.id} - ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
@@ -2847,7 +2847,7 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
 
   return (
     <Card className="p-5">
-      <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} · ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
+      <SectionHeader title={entry.userName} description={`${entry.jobTitle || entry.jobId} - ${entry.id}`} action={<TimeStatusBadge status={entry.status} />} />
       <div className={compactMobile ? "grid gap-2.5 md:gap-3" : "grid gap-3"}>
         <div className={compactMobile ? "flex flex-wrap gap-1.5 md:gap-2" : "flex flex-wrap gap-2"}>
           <Badge tone="slate">{entry.id}</Badge>
@@ -2966,7 +2966,7 @@ function TimePage({
             description="Clock your own assigned or field-visible work, plus approved non-job categories."
           />
           <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your personal weekly hours and categories." />
-          <WeekSummaryCard summary={crewWeeklySummary} title="Crew This Week" description={`Assigned-job crew totals${crewWeeklySummary.activeUserCount ? ` · ${crewWeeklySummary.activeUserCount} active` : ""}.`} />
+          <WeekSummaryCard summary={crewWeeklySummary} title="Crew This Week" description={`Assigned-job crew totals${crewWeeklySummary.activeUserCount ? ` - ${crewWeeklySummary.activeUserCount} active` : ""}.`} />
           {rows.length === 0 ? (
             <StateCard title="No crew time yet" description="Crew time will appear here once assigned field users clock into your jobs." tone="slate" />
           ) : (
@@ -3142,7 +3142,7 @@ function DailyReportDetailPanel({
       <Card className="p-5">
         <SectionHeader
           title={jobTitle(report.job)}
-          description={`${report.reportDate} · ${report.createdByName}`}
+          description={`${report.reportDate} - ${report.createdByName}`}
           action={
             <div className="flex flex-wrap gap-2">
               <DailyReportStatusBadge status={report.status} />
@@ -3264,7 +3264,7 @@ function UploadListCard({ upload, selected, onSelect }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
-          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} · {uploadUploaderLabel(upload)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} - {uploadUploaderLabel(upload)}</p>
         </div>
         <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
       </div>
@@ -3305,7 +3305,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
     <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
       <SectionHeader
         title={uploadTitle(upload)}
-        description={`${uploadJobLabel(upload)} · ${formatFileSize(upload.fileSize)}`}
+        description={`${uploadJobLabel(upload)} - ${formatFileSize(upload.fileSize)}`}
         action={
           <div className="flex flex-wrap gap-2">
             <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
@@ -3425,7 +3425,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
           {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
           <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Location is used for job documentation only when you tap Capture Location.</p>
-          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
+          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} - accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
@@ -3972,7 +3972,7 @@ function SafetyPage({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-black text-slate-950">{incident.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} Â· {incident.submittedByName}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} - {incident.submittedByName}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
@@ -4070,7 +4070,7 @@ function SafetyPage({
           {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
             <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
               <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
-              <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` Â· ${acknowledgment.job.title}` : ""}</p>
+              <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` - ${acknowledgment.job.title}` : ""}</p>
               <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
             </div>
           ))}
@@ -4266,7 +4266,7 @@ function SafetyPage({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{incident.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} · {incident.submittedByName}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{incident.job?.title || "General safety concern"} - {incident.submittedByName}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge tone={safetySeverityTone(incident.severity)}>{safetyIncidentTypeLabel(incident.type)}</Badge>
@@ -4358,7 +4358,7 @@ function SafetyPage({
                 {(safetyAcknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
                   <div key={acknowledgment.id} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
                     <p className="text-sm font-black text-slate-950">{acknowledgment.policyTitle || "General safety & PPE review"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` · ${acknowledgment.job.title}` : ""}</p>
+                    <p className="mt-1 text-xs text-slate-500">{acknowledgment.userName}{acknowledgment.job?.title ? ` - ${acknowledgment.job.title}` : ""}</p>
                     <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{formatDateTime(acknowledgment.acknowledgedAt)}</p>
                   </div>
                 ))}
@@ -4619,7 +4619,7 @@ function CustomerDetailPanel({
       <Card className="p-5">
         <SectionHeader
           title={customer.name}
-          description={`${customer.id} · ${customer.city || customer.serviceArea || "No service area yet"}`}
+          description={`${customer.id} - ${customer.city || customer.serviceArea || "No service area yet"}`}
           action={
             <div className="flex flex-wrap gap-2">
               {!canManage ? <Badge tone="slate">Read only</Badge> : null}
@@ -4668,7 +4668,7 @@ function CustomerDetailPanel({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-black text-slate-950">{lead.project}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{lead.id} · {lead.city}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{lead.id} - {lead.city}</p>
               </div>
               <StatusBadge status={lead.status} />
             </div>
@@ -4686,7 +4686,7 @@ function CustomerDetailPanel({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-black text-slate-950">{jobTitle(job)}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} · {jobNextStep(job)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{job.id} - {jobNextStep(job)}</p>
               </div>
               <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
             </div>
@@ -4904,7 +4904,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <InputField label="Address" value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} placeholder="1452 Orchard View Dr" />
-          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins · 503-555-0187" />
+          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins - 503-555-0187" />
           <InputField label="Crew" value={draft.crew} onChange={(event) => setDraft((current) => ({ ...current, crew: event.target.value }))} placeholder="Juan + 3" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -5597,7 +5597,7 @@ function UserDetailPanel({ user, draft, setDraft, onSaveUser, busy, canManage, n
 
   return (
     <Card className="p-5">
-      <SectionHeader title={user.name} description={`${user.id} · ${user.email}`} action={<UserStatusBadge status={user.status} />} />
+      <SectionHeader title={user.name} description={`${user.id} - ${user.email}`} action={<UserStatusBadge status={user.status} />} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={user.createdAt} updatedAt={user.updatedAt} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -6065,7 +6065,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="break-words text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                          <p className="mt-1 text-sm text-slate-600">{calculatorTypeLabel(section.calculatorType)} · {formatCubicYards(section.cubicYards)}</p>
+                          <p className="mt-1 text-sm text-slate-600">{calculatorTypeLabel(section.calculatorType)} - {formatCubicYards(section.cubicYards)}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" size="sm" variant="secondary" onClick={() => editSection(section)}>Edit</Button>
@@ -6144,7 +6144,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
                       {result.sections.map((section, index) => (
                         <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white/70 p-3">
                           <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                          <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
+                          <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} - {formatCubicFeet(section.cubicFeet)}</p>
                           {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
                         </div>
                       ))}
@@ -6512,7 +6512,7 @@ function SettingsPage({
                     setProfileDraft((current) => ({ ...current, licenseText: event.target.value }));
                     setProfileNotice("");
                   }}
-                  placeholder="CCB #123456 · Bonded and insured for residential and commercial flatwork."
+                  placeholder="CCB #123456 - Bonded and insured for residential and commercial flatwork."
                   disabled={busy || typeof onUpdateCompanySettings !== "function"}
                 />
                 <div className="flex flex-wrap items-center gap-3">
@@ -6735,7 +6735,7 @@ function PrePourPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} · {checklist.completedByName || checklist.createdByName}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} - {checklist.completedByName || checklist.createdByName}</p>
                       </div>
                       <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
                     </div>
@@ -6780,7 +6780,7 @@ function PrePourPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Pre-pour checklist"}
-                description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
+                description={`${selectedChecklist.job?.customer || "Assigned site"} - ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={prePourChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-3">
@@ -6999,7 +6999,7 @@ function PostPourPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{checklist.job?.title || "Assigned post-pour checklist"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} · {checklist.completedByName || checklist.createdByName}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} - {checklist.completedByName || checklist.createdByName}</p>
                       </div>
                       <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
                     </div>
@@ -7044,7 +7044,7 @@ function PostPourPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Post-pour checklist"}
-                description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
+                description={`${selectedChecklist.job?.customer || "Assigned site"} - ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={postPourChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-3">
@@ -7274,7 +7274,7 @@ function EstimatesPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{estimate.title || "Estimate draft"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} · {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} - {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
                       </div>
                       <StatusBadge status={estimateStatusLabel(estimate.status)} />
                     </div>
@@ -7363,7 +7363,7 @@ function EstimatesPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedEstimate.title || "Estimate detail"}
-                description={`${selectedEstimate.customer?.name || "No customer"} · ${selectedEstimate.createdByName || "Unknown creator"}`}
+                description={`${selectedEstimate.customer?.name || "No customer"} - ${selectedEstimate.createdByName || "Unknown creator"}`}
                 action={<StatusBadge status={estimateStatusLabel(selectedEstimate.status)} />}
               />
               <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -7553,7 +7553,7 @@ function ChangeOrdersPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{request.job?.title || "Change order request"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{request.requestedByName} · {request.reason}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{request.requestedByName} - {request.reason}</p>
                       </div>
                       <StatusBadge status={changeOrderStatusLabel(request.status)} />
                     </div>
@@ -7600,7 +7600,7 @@ function ChangeOrdersPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedRequest.job?.title || "Change order request"}
-                description={`${selectedRequest.requestedByName} · ${formatDateTime(selectedRequest.createdAt)}`}
+                description={`${selectedRequest.requestedByName} - ${formatDateTime(selectedRequest.createdAt)}`}
                 action={<StatusBadge status={changeOrderStatusLabel(selectedRequest.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-2">
@@ -7823,7 +7823,7 @@ function DeliveryTicketsPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="break-words text-sm font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} · {ticket.supplier || "Supplier pending"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} - {ticket.supplier || "Supplier pending"}</p>
                       </div>
                       {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone="blue">{ticket.yardsDelivered ? `${ticket.yardsDelivered} yd³` : "Ticket"}</Badge>}
                     </div>
@@ -7853,7 +7853,7 @@ function DeliveryTicketsPage({
                 <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
                 <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
                   <option value="">No linked report</option>
-                  {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} · ${report.reportDate || "No date"}`}</option>)}
+                  {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} - ${report.reportDate || "No date"}`}</option>)}
                 </SelectField>
                 <div className="md:col-span-2">
                   <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
@@ -7889,7 +7889,7 @@ function DeliveryTicketsPage({
             <Card className="p-4">
               <SectionHeader
                 title={deliveryTicketTitle(selectedTicket)}
-                description={`${selectedTicket.job?.title || "Assigned job"} · ${selectedTicket.createdByName} · ${formatDateTime(selectedTicket.createdAt)}`}
+                description={`${selectedTicket.job?.title || "Assigned job"} - ${selectedTicket.createdByName} - ${formatDateTime(selectedTicket.createdAt)}`}
                 action={selectedTicket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{selectedTicket.yardsDelivered ? `${selectedTicket.yardsDelivered} yd³` : "Visible"}</Badge>}
               />
               <div className="grid gap-3 md:grid-cols-2">
@@ -7955,7 +7955,7 @@ function DeliveryTicketsPage({
                   <InputField label="Slump" type="number" min="0" step="0.1" value={detailDraft.slump} onChange={(event) => setDetailDraft((current) => ({ ...current, slump: event.target.value }))} />
                   <SelectField label="Daily report link" value={detailDraft.reportId} onChange={(event) => setDetailDraft((current) => ({ ...current, reportId: event.target.value }))}>
                     <option value="">No linked report</option>
-                    {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} · ${report.reportDate || "No date"}`}</option>)}
+                    {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} - ${report.reportDate || "No date"}`}</option>)}
                   </SelectField>
                   <div className="md:col-span-2">
                     <SelectField label="Ticket photo/upload" value={detailDraft.ticketUploadId} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
@@ -8097,7 +8097,7 @@ function ToolChecklistPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{checklist.title}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.title || "General checklist"} · {checklist.job?.customer || "Field work"}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.title || "General checklist"} - {checklist.job?.customer || "Field work"}</p>
                       </div>
                       <StatusBadge status={toolChecklistStatusLabel(checklist.status)} />
                     </div>
@@ -8145,7 +8145,7 @@ function ToolChecklistPage({
             <Card className="p-4">
               <SectionHeader
                 title={selectedChecklist.title}
-                description={`${selectedChecklist.job?.title || "General checklist"} · ${selectedChecklist.job?.customer || "Field work"}`}
+                description={`${selectedChecklist.job?.title || "General checklist"} - ${selectedChecklist.job?.customer || "Field work"}`}
                 action={<StatusBadge status={toolChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-2">
@@ -8255,9 +8255,9 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
   const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
   const previews = [
-    selectedLead ? `${selectedLead.customer} · ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
-          selectedJob ? `${jobTitle(selectedJob)} · ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
-    safeQueueItems[0] ? `${safeQueueItems[0].title} · ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
+    selectedLead ? `${selectedLead.customer} - ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
+          selectedJob ? `${jobTitle(selectedJob)} - ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
+    safeQueueItems[0] ? `${safeQueueItems[0].title} - ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
   ];
 
   return (
@@ -10640,3 +10640,4 @@ export default function App() {
     </div>
   );
 }
+
