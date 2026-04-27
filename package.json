@@ -33,7 +33,8 @@
     "verify:estimates": "node --test --test-concurrency=1 server/estimates.test.js src/estimate-utils.test.js src/app-routing.test.js shared/permissions.test.js",
     "verify:demo": "node --test --test-concurrency=1 server/demo.test.js",
     "verify:public-request": "node --test --test-concurrency=1 server/public-request.test.js",
-    "verify:print-packets": "node --test --test-concurrency=1 src/print-packets.test.js"
+    "verify:print-packets": "node --test --test-concurrency=1 src/print-packets.test.js",
+    "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -46,6 +47,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
+    "playwright": "^1.59.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "vite": "^7.0.0"
