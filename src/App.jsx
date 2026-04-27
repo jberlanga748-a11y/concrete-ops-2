@@ -6573,8 +6573,8 @@ function PrePourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
-      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
-        <div className="min-w-0 space-y-4">
+      <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
+        <div className="min-w-0 space-y-4 lg:self-start">
           <Card className="p-5">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
@@ -6628,7 +6628,7 @@ function PrePourPage({
           </Card>
         </div>
 
-        <div className={`min-w-0 space-y-4 ${canCreateChecklist ? "xl:grid xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] xl:items-start xl:gap-5 xl:space-y-0" : ""}`}>
+        <div className={`min-w-0 space-y-4 lg:self-start ${canCreateChecklist ? "xl:grid xl:auto-rows-min xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
             <Card className="p-5 xl:self-start">
               <SectionHeader title="Create checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
@@ -6655,50 +6655,56 @@ function PrePourPage({
           ) : null}
 
           {selectedChecklist ? (
-            <Card className="p-5 xl:self-start">
+            <Card className="min-w-0 p-5 xl:self-start">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Pre-pour checklist"}
                 description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={prePourChecklistStatusLabel(selectedChecklist.status)} />}
               />
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
-                  <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+              <div className="mt-3 xl:grid xl:grid-cols-[minmax(0,1fr)_250px] xl:items-start xl:gap-4">
+                <div className="min-w-0">
+                  <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                      <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
+                      <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                      <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
+                      <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600 md:col-span-2 2xl:col-span-1">
+                      <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
+                      <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <TextAreaField
+                      label="Checklist notes"
+                      value={detailNotes}
+                      onChange={(event) => setDetailNotes(event.target.value)}
+                      disabled={busy || !canEditChecklist}
+                      placeholder="Add internal notes for the crew or office."
+                    />
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
-                  <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
-                  <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                <div className="mt-4 min-w-0 xl:mt-0 xl:self-start">
+                  <div className="flex flex-wrap gap-2 xl:flex-col xl:items-stretch">
+                    {canEditChecklist ? <Button type="button" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
+                    {canCompleteChecklist ? <Button type="button" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete checklist</Button> : null}
+                    {permissions.prePour.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
+                    {permissions.prePour.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
+                    {permissions.prePour.canReview ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
+                  </div>
+                  {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
+                    <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                      {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
+                    </div>
+                  ) : null}
                 </div>
               </div>
-              <div className="mt-3">
-                <TextAreaField
-                  label="Checklist notes"
-                  value={detailNotes}
-                  onChange={(event) => setDetailNotes(event.target.value)}
-                  disabled={busy || !canEditChecklist}
-                  placeholder="Add internal notes for the crew or office."
-                />
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {canEditChecklist ? <Button type="button" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
-                {canCompleteChecklist ? <Button type="button" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete checklist</Button> : null}
-                {permissions.prePour.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
-                {permissions.prePour.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
-                {permissions.prePour.canReview ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
-              </div>
-              {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
-                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-                  {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
-                </div>
-              ) : null}
             </Card>
           ) : (
-            <Card className="p-5 xl:self-start">
+            <Card className="min-w-0 p-5 xl:self-start">
               <SectionHeader title="Checklist details" description="Select a checklist to review site readiness and completion details." />
               <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
             </Card>
@@ -6857,8 +6863,8 @@ function PostPourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job, then reopen checklists when the field needs another pass." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
-      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
-        <div className="min-w-0 space-y-4">
+      <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
+        <div className="min-w-0 space-y-4 lg:self-start">
           <Card className="p-5">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
@@ -6912,7 +6918,7 @@ function PostPourPage({
           </Card>
         </div>
 
-        <div className={`min-w-0 space-y-4 ${canCreateChecklist ? "xl:grid xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] xl:items-start xl:gap-5 xl:space-y-0" : ""}`}>
+        <div className={`min-w-0 space-y-4 lg:self-start ${canCreateChecklist ? "xl:grid xl:auto-rows-min xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
             <Card className="p-5 xl:self-start">
               <SectionHeader title="Create checklist" description="Start a post-pour checklist with the default finish and closeout items for a job." />
@@ -6939,50 +6945,56 @@ function PostPourPage({
           ) : null}
 
           {selectedChecklist ? (
-            <Card className="p-5 xl:self-start">
+            <Card className="min-w-0 p-5 xl:self-start">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Post-pour checklist"}
                 description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={postPourChecklistStatusLabel(selectedChecklist.status)} />}
               />
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
-                  <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+              <div className="mt-3 xl:grid xl:grid-cols-[minmax(0,1fr)_250px] xl:items-start xl:gap-4">
+                <div className="min-w-0">
+                  <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                      <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
+                      <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                      <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
+                      <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600 md:col-span-2 2xl:col-span-1">
+                      <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
+                      <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <TextAreaField
+                      label="Checklist notes"
+                      value={detailNotes}
+                      onChange={(event) => setDetailNotes(event.target.value)}
+                      disabled={busy || !canEditChecklist}
+                      placeholder="Add internal notes for the crew or office."
+                    />
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
-                  <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
-                  <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                <div className="mt-4 min-w-0 xl:mt-0 xl:self-start">
+                  <div className="flex flex-wrap gap-2 xl:flex-col xl:items-stretch">
+                    {canEditChecklist ? <Button type="button" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
+                    {canCompleteChecklist ? <Button type="button" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete checklist</Button> : null}
+                    {permissions.postPour.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
+                    {permissions.postPour.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
+                    {permissions.postPour.canReview ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
+                  </div>
+                  {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
+                    <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                      {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
+                    </div>
+                  ) : null}
                 </div>
               </div>
-              <div className="mt-3">
-                <TextAreaField
-                  label="Checklist notes"
-                  value={detailNotes}
-                  onChange={(event) => setDetailNotes(event.target.value)}
-                  disabled={busy || !canEditChecklist}
-                  placeholder="Add internal notes for the crew or office."
-                />
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {canEditChecklist ? <Button type="button" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
-                {canCompleteChecklist ? <Button type="button" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete checklist</Button> : null}
-                {permissions.postPour.canReview ? <Button type="button" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
-                {permissions.postPour.canReview ? <Button type="button" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
-                {permissions.postPour.canReview ? <Button type="button" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
-              </div>
-              {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
-                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-                  {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
-                </div>
-              ) : null}
             </Card>
           ) : (
-            <Card className="p-5 xl:self-start">
+            <Card className="min-w-0 p-5 xl:self-start">
               <SectionHeader title="Checklist details" description="Select a checklist to review finish, cleanup, and closeout readiness." />
               <StateCard title="No checklist selected" description="Choose a post-pour checklist from the list or create a new one for a visible job." tone="slate" />
             </Card>
