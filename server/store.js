@@ -237,6 +237,10 @@ export function createDefaultPrePourChecklistItems(checklistId, addedBy, created
   }));
 }
 
+function createStableChecklistItemId(prefix, checklistId, itemKey) {
+  return `${prefix}-${String(checklistId || "").trim()}-${String(itemKey || "").trim()}`;
+}
+
 const INITIAL_POST_POUR_CHECKLIST_ITEMS = [
   { key: "edges_finished", label: "Edges finished" },
   { key: "joints_cut_or_tooled", label: "Joints cut/tooled" },
@@ -1483,6 +1487,7 @@ export function createSeedState() {
   const prePourChecklistItems = [
     ...createDefaultPrePourChecklistItems(prePourReviewedId, demoForeman.id, toIsoMinutesAgo(780)).map((item) => ({
       ...item,
+      id: createStableChecklistItemId("PPI", prePourReviewedId, item.key),
       status: "checked",
       notes: item.key === "before_photos_taken" ? "Before photos captured and uploaded." : "",
       checkedBy: demoForeman.id,
@@ -1491,6 +1496,7 @@ export function createSeedState() {
     })),
     ...createDefaultPrePourChecklistItems(prePourDraftId, demoForeman.id, toIsoMinutesAgo(320)).map((item) => ({
       ...item,
+      id: createStableChecklistItemId("PPI", prePourDraftId, item.key),
       status: item.key === "utilities_marked_clear" ? "not_applicable" : item.key === "forms_set" || item.key === "subgrade_checked" ? "checked" : "unchecked",
       notes: item.key === "forms_set" ? "Layout started at building C." : item.key === "utilities_marked_clear" ? "No buried utilities inside the repair path." : "",
       checkedBy: item.key === "forms_set" || item.key === "subgrade_checked" ? demoForeman.id : item.key === "utilities_marked_clear" ? demoForeman.id : "",
@@ -1537,6 +1543,7 @@ export function createSeedState() {
   const postPourChecklistItems = [
     ...createDefaultPostPourChecklistItems(postPourReviewedId, demoForeman.id, toIsoMinutesAgo(560)).map((item) => ({
       ...item,
+      id: createStableChecklistItemId("POI", postPourReviewedId, item.key),
       status: "checked",
       notes: item.key === "completion_photos_taken" ? "Final broom-finish photos uploaded to the job." : "",
       checkedBy: demoForeman.id,
@@ -1545,6 +1552,7 @@ export function createSeedState() {
     })),
     ...createDefaultPostPourChecklistItems(postPourDraftId, demoForeman.id, toIsoMinutesAgo(160)).map((item) => ({
       ...item,
+      id: createStableChecklistItemId("POI", postPourDraftId, item.key),
       status: item.key === "site_cleaned" ? "checked" : item.key === "sealant_reminder_if_needed" ? "not_applicable" : "unchecked",
       notes: item.key === "site_cleaned" ? "Ramp edges broomed clean while waiting for discharge closeout." : "",
       checkedBy: item.key === "site_cleaned" || item.key === "sealant_reminder_if_needed" ? demoForeman.id : "",
