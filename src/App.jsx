@@ -3142,11 +3142,13 @@ function DailyReportDetailPanel({
   return (
     <div className="min-w-0 space-y-4">
       <Card className="p-5">
-        <SectionHeader
-          title={jobTitle(report.job)}
-          description={`${report.reportDate} · ${report.createdByName}`}
-          action={
-            <div className="flex flex-wrap gap-2">
+        <div className="mb-3 grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="min-w-0">
+            <h2 className="break-words text-base font-black text-slate-950">{jobTitle(report.job)}</h2>
+            <p className="mt-1 break-words text-sm leading-5 text-slate-500">{`${report.reportDate} - ${report.createdByName}`}</p>
+          </div>
+          <div className="min-w-0 max-w-full">
+            <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
               <DailyReportStatusBadge status={report.status} />
               {canView ? <Button variant="secondary" size="sm" onClick={onPrintReport} disabled={disabled || typeof onPrintReport !== "function"}>Print Daily Report</Button> : null}
               {canReview && ["submitted", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReview} disabled={disabled}>Review</Button> : null}
@@ -3155,8 +3157,8 @@ function DailyReportDetailPanel({
               {canEdit && ["draft", "reopened"].includes(report.status) ? <Button size="sm" onClick={onSave} disabled={disabled}>Save report</Button> : null}
               {canEdit && ["draft", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onSubmit} disabled={disabled}>Submit</Button> : null}
             </div>
-          }
-        />
+          </div>
+        </div>
         <div className="grid gap-3">
           <TimestampMeta createdAt={report.createdAt} updatedAt={report.updatedAt} />
           <div className="grid gap-3 md:grid-cols-2">
@@ -5144,8 +5146,8 @@ function JobsPage({
   return (
     <div>
       <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
-        <Card className="overflow-hidden">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
+        <Card className="self-start overflow-hidden">
           <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
             <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
@@ -5167,7 +5169,7 @@ function JobsPage({
           </div>
           <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 self-start space-y-4">
           <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
           <JobDetailPanel
             job={selectedJob}
@@ -6201,9 +6203,9 @@ function SettingsPage({
     <div>
       <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace details, admin access, and field tools for your team."} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-          <div className="grid min-w-0 gap-4">
-            <Card className="p-5">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
+          <div className="grid min-w-0 self-start gap-4">
+            <Card className="self-start p-5">
               <SectionHeader title="Account" description="Current signed-in operator and workspace." />
               <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-600">
                 <div className="flex flex-wrap items-center gap-2">
@@ -6458,7 +6460,9 @@ function SettingsPage({
                 ) : null}
               </div>
             </Card>
-            <AuditTrailPanel auditEvents={auditEvents} />
+            <div className="self-start">
+              <AuditTrailPanel auditEvents={auditEvents} />
+            </div>
           </div>
         </div>
       </div>
