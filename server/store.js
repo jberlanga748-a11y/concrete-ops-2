@@ -15,6 +15,9 @@ let writeChain = Promise.resolve();
 let demoStartupLogged = false;
 let ensureDbPromise = null;
 let ensureDbTarget = "";
+let cleanupSessionsPromise = null;
+let lastExpiredSessionCleanupAtMs = 0;
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -5833,14 +5836,27 @@ export async function ensureDb() {
 
 export async function cleanupExpiredSessions(now = new Date().toISOString()) {
   await ensureDb();
-  await withSqliteRetry(async () => {
+  const nowMs = new Date(now).getTime();
+  if (cleanupSessionsPromise) {
+    return cleanupSessionsPromise;
+  }
+  if (Number.isFinite(nowMs) && nowMs - lastExpiredSessionCleanupAtMs < SESSION_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+
+  cleanupSessionsPromise = withSqliteRetry(async () => {
     const database = createDatabaseConnection();
     database.prepare(`
       DELETE FROM sessions
       WHERE expires_at IS NOT NULL
         AND expires_at <= ?
     `).run(now);
+    lastExpiredSessionCleanupAtMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  }).finally(() => {
+    cleanupSessionsPromise = null;
   });
+
+  return cleanupSessionsPromise;
 }
 
 export async function readDb() {
