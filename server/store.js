@@ -15,6 +15,9 @@ let writeChain = Promise.resolve();
 let demoStartupLogged = false;
 let ensureDbPromise = null;
 let ensureDbTarget = "";
+let cleanupSessionsPromise = null;
+let lastExpiredSessionCleanupAtMs = 0;
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -5652,6 +5655,40 @@ async function withSqliteRetry(task, { attempts = 10, delayMs = 75 } = {}) {
   throw lastError;
 }
 
+function queueWrite(task) {
+  const runWrite = writeChain.catch(() => undefined).then(async () => withSqliteRetry(task));
+  writeChain = runWrite.then(() => undefined, () => undefined);
+  return runWrite;
+}
+
+function mapUserRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    phone: row.phone || "",
+    role: row.role,
+    status: row.status || "active",
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lastLoginAt: row.lastLoginAt || null,
+    passwordHash: row.passwordHash,
+  };
+}
+
+function mapSessionRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.userId,
+    tokenHash: row.tokenHash,
+    createdAt: row.createdAt,
+    lastSeenAt: row.lastSeenAt,
+    expiresAt: row.expiresAt || "",
+  };
+}
+
 async function loadInitialState() {
   if (await jsonExists()) {
     const raw = await fs.readFile(getLegacyJsonFile(), "utf8");
@@ -5799,14 +5836,27 @@ export async function ensureDb() {
 
 export async function cleanupExpiredSessions(now = new Date().toISOString()) {
   await ensureDb();
-  await withSqliteRetry(async () => {
+  const nowMs = new Date(now).getTime();
+  if (cleanupSessionsPromise) {
+    return cleanupSessionsPromise;
+  }
+  if (Number.isFinite(nowMs) && nowMs - lastExpiredSessionCleanupAtMs < SESSION_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+
+  cleanupSessionsPromise = withSqliteRetry(async () => {
     const database = createDatabaseConnection();
     database.prepare(`
       DELETE FROM sessions
       WHERE expires_at IS NOT NULL
         AND expires_at <= ?
     `).run(now);
+    lastExpiredSessionCleanupAtMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  }).finally(() => {
+    cleanupSessionsPromise = null;
   });
+
+  return cleanupSessionsPromise;
 }
 
 export async function readDb() {
@@ -5815,7 +5865,7 @@ export async function readDb() {
 }
 
 export function updateDb(mutator) {
-  const runUpdate = writeChain.catch(() => undefined).then(async () => {
+  return queueWrite(async () => {
     return withSqliteRetry(async () => {
       const current = await readDb();
       const next = await mutator(structuredClone(current));
@@ -5823,9 +5873,121 @@ export function updateDb(mutator) {
       return readTableState();
     });
   });
+}
 
-  writeChain = runUpdate.then(() => undefined, () => undefined);
-  return runUpdate;
+export async function findUserAuthRecordByEmail(email) {
+  await ensureDb();
+  return withSqliteRetry(async () => {
+    const database = createDatabaseConnection();
+    const row = database.prepare(`
+      SELECT id, email, name, phone, role, status, created_at AS createdAt, updated_at AS updatedAt,
+             last_login_at AS lastLoginAt, password_hash AS passwordHash
+      FROM users
+      WHERE email = ?
+      LIMIT 1
+    `).get(String(email || "").trim().toLowerCase());
+    return mapUserRecord(row);
+  });
+}
+
+export async function findSessionAuthRecordByTokenHash(tokenHash) {
+  await ensureDb();
+  return withSqliteRetry(async () => {
+    const database = createDatabaseConnection();
+    const row = database.prepare(`
+      SELECT
+        s.id AS sessionId,
+        s.user_id AS sessionUserId,
+        s.token_hash AS sessionTokenHash,
+        s.created_at AS sessionCreatedAt,
+        s.last_seen_at AS sessionLastSeenAt,
+        s.expires_at AS sessionExpiresAt,
+        u.id,
+        u.email,
+        u.name,
+        u.phone,
+        u.role,
+        u.status,
+        u.created_at AS createdAt,
+        u.updated_at AS updatedAt,
+        u.last_login_at AS lastLoginAt,
+        u.password_hash AS passwordHash
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.token_hash = ?
+      LIMIT 1
+    `).get(tokenHash);
+
+    if (!row) return null;
+
+    return {
+      session: mapSessionRecord({
+        id: row.sessionId,
+        userId: row.sessionUserId,
+        tokenHash: row.sessionTokenHash,
+        createdAt: row.sessionCreatedAt,
+        lastSeenAt: row.sessionLastSeenAt,
+        expiresAt: row.sessionExpiresAt,
+      }),
+      user: mapUserRecord(row),
+    };
+  });
+}
+
+export async function replaceSessionForUser(userId, { tokenHash, createdAt, lastSeenAt = createdAt, expiresAt, sessionId = makeId("S") } = {}) {
+  await ensureDb();
+  return queueWrite(async () => {
+    const database = createDatabaseConnection();
+    runInTransaction(database, () => {
+      database.prepare(`
+        DELETE FROM sessions
+        WHERE user_id = ?
+      `).run(userId);
+      database.prepare(`
+        INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(sessionId, userId, tokenHash, createdAt, lastSeenAt, expiresAt || nextSessionExpiry());
+      database.prepare(`
+        UPDATE users
+        SET last_login_at = ?, updated_at = ?
+        WHERE id = ?
+      `).run(createdAt, createdAt, userId);
+    });
+
+    return {
+      id: sessionId,
+      userId,
+      tokenHash,
+      createdAt,
+      lastSeenAt,
+      expiresAt: expiresAt || nextSessionExpiry(),
+    };
+  });
+}
+
+export async function deleteSessionByTokenHash(tokenHash) {
+  await ensureDb();
+  return queueWrite(async () => {
+    const database = createDatabaseConnection();
+    const result = database.prepare(`
+      DELETE FROM sessions
+      WHERE token_hash = ?
+    `).run(tokenHash);
+    return Number(result.changes || 0);
+  });
+}
+
+export async function touchSessionByTokenHash(tokenHash, { lastSeenAt, expiresAt } = {}) {
+  await ensureDb();
+  return queueWrite(async () => {
+    const database = createDatabaseConnection();
+    const result = database.prepare(`
+      UPDATE sessions
+      SET last_seen_at = ?, expires_at = ?
+      WHERE token_hash = ?
+    `).run(lastSeenAt || isoNow(), expiresAt || nextSessionExpiry(), tokenHash);
+    return Number(result.changes || 0) > 0;
+  });
 }
 
 export async function resetDb() {

@@ -22,8 +22,11 @@ import {
   createDefaultPostPourChecklistItems,
   createDefaultPrePourChecklistItems,
   createUserRecord,
+  deleteSessionByTokenHash,
   createSeedState,
   ensureDb,
+  findSessionAuthRecordByTokenHash,
+  findUserAuthRecordByEmail,
   generateToken,
   getDataPaths,
   hashToken,
@@ -33,8 +36,10 @@ import {
   makeId,
   publicUser,
   readDb,
+  replaceSessionForUser,
   nextSessionExpiry,
   timestamp,
+  touchSessionByTokenHash,
   updateDb,
   verifyPassword,
 } from "./store.js";
@@ -139,6 +144,7 @@ const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
 const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_REQUEST_RATE_LIMIT_MAX = 5;
+const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
 
@@ -3892,32 +3898,26 @@ async function requireAuth(req, res, next) {
   }
 
   await cleanupExpiredSessions(now);
-  const state = await readDb();
   const tokenHash = hashToken(token);
-  const session = state.sessions.find((entry) => entry.tokenHash === tokenHash);
+  const authRecord = await findSessionAuthRecordByTokenHash(tokenHash);
+  const session = authRecord?.session || null;
 
   if (!session) {
     return jsonError(res, 401, "Session expired.");
   }
 
   if (session.expiresAt && session.expiresAt <= now) {
-    await updateDb((draft) => {
-      draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== tokenHash);
-      return draft;
-    });
+    await deleteSessionByTokenHash(tokenHash);
     return jsonError(res, 401, "Session expired.");
   }
 
-  const user = state.users.find((entry) => entry.id === session.userId);
+  const user = authRecord?.user || null;
   if (!user) {
     return jsonError(res, 401, "Account missing.");
   }
 
   if (optionalUserStatus(user.status, "active") !== "active") {
-    await updateDb((draft) => {
-      draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== tokenHash);
-      return draft;
-    });
+    await deleteSessionByTokenHash(tokenHash);
     return jsonError(res, 403, "Account inactive.");
   }
 
@@ -3927,14 +3927,15 @@ async function requireAuth(req, res, next) {
     user,
   };
 
-  await updateDb((draft) => {
-    const liveSession = draft.sessions.find((entry) => entry.tokenHash === tokenHash);
-    if (liveSession) {
-      liveSession.lastSeenAt = now;
-      liveSession.expiresAt = nextSessionExpiry();
-    }
-    return draft;
-  });
+  const lastSeenAtMs = session.lastSeenAt ? new Date(session.lastSeenAt).getTime() : 0;
+  const shouldTouchSession = Number.isNaN(lastSeenAtMs)
+    || Math.abs(Date.now() - lastSeenAtMs) >= SESSION_TOUCH_INTERVAL_MS;
+  if (shouldTouchSession) {
+    await touchSessionByTokenHash(tokenHash, {
+      lastSeenAt: now,
+      expiresAt: nextSessionExpiry(),
+    });
+  }
 
   return next();
 }
@@ -4218,8 +4219,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   await cleanupExpiredSessions();
   const email = requiredString(req.body?.email, "Email").toLowerCase();
   const password = requiredString(req.body?.password, "Password");
-  const state = await readDb();
-  const user = state.users.find((entry) => entry.email.toLowerCase() === email);
+  const user = await findUserAuthRecordByEmail(email);
 
   if (!user || !verifyPassword(password, user.passwordHash)) {
     return jsonError(res, 401, "Invalid email or password.");
@@ -4233,22 +4233,11 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   const tokenHash = hashToken(token);
   const loginAt = new Date().toISOString();
 
-  await updateDb((draft) => {
-    draft.sessions = draft.sessions.filter((entry) => entry.userId !== user.id);
-    draft.sessions.push({
-      id: makeId("S"),
-      userId: user.id,
-      tokenHash,
-      createdAt: loginAt,
-      lastSeenAt: loginAt,
-      expiresAt: nextSessionExpiry(),
-    });
-    const liveUser = draft.users.find((entry) => entry.id === user.id);
-    if (liveUser) {
-      liveUser.lastLoginAt = loginAt;
-      liveUser.updatedAt = loginAt;
-    }
-    return draft;
+  await replaceSessionForUser(user.id, {
+    tokenHash,
+    createdAt: loginAt,
+    lastSeenAt: loginAt,
+    expiresAt: nextSessionExpiry(),
   });
 
   return res.json({
@@ -4262,10 +4251,7 @@ app.get("/api/auth/me", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
-  await updateDb((draft) => {
-    draft.sessions = draft.sessions.filter((entry) => entry.tokenHash !== req.auth.tokenHash);
-    return draft;
-  });
+  await deleteSessionByTokenHash(req.auth.tokenHash);
 
   res.status(204).end();
 }));

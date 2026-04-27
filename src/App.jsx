@@ -6489,7 +6489,10 @@ function PrePourPage({
   const [createDraft, setCreateDraft] = useState(INITIAL_PRE_POUR_FORM);
   const [detailNotes, setDetailNotes] = useState("");
 
-  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const visibleJobs = useMemo(
+    () => (Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : []),
+    [jobs],
+  );
   const checklistRows = Array.isArray(prePourChecklists) ? prePourChecklists : [];
   const filteredRows = useMemo(() => filterPrePourChecklists(checklistRows, {
     status: statusFilter,
@@ -6500,12 +6503,21 @@ function PrePourPage({
     search,
   }), [archiveFilter, checklistRows, dateFilter, foremanFilter, jobFilter, search, statusFilter]);
   const listState = useMemo(() => derivePrePourChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
-  const selectedChecklist = filteredRows.find((checklist) => checklist.id === selectedChecklistId)
-    || filteredRows[0]
-    || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
-    || null;
-  const selectedItems = derivePrePourItems(selectedChecklist?.items || [], { includeArchived: permissions.prePour.canManageAll });
-  const checklistSummary = summarizePrePourChecklist(selectedChecklist);
+  const selectedChecklist = useMemo(
+    () => filteredRows.find((checklist) => checklist.id === selectedChecklistId)
+      || filteredRows[0]
+      || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
+      || null,
+    [checklistRows, filteredRows, selectedChecklistId],
+  );
+  const selectedItems = useMemo(
+    () => derivePrePourItems(selectedChecklist?.items || [], { includeArchived: permissions.prePour.canManageAll }),
+    [permissions.prePour.canManageAll, selectedChecklist?.items],
+  );
+  const checklistSummary = useMemo(
+    () => summarizePrePourChecklist(selectedChecklist),
+    [selectedChecklist],
+  );
   const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
 
   useEffect(() => {
@@ -6753,7 +6765,10 @@ function PostPourPage({
   const [createDraft, setCreateDraft] = useState(INITIAL_POST_POUR_FORM);
   const [detailNotes, setDetailNotes] = useState("");
 
-  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const visibleJobs = useMemo(
+    () => (Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : []),
+    [jobs],
+  );
   const checklistRows = Array.isArray(postPourChecklists) ? postPourChecklists : [];
   const filteredRows = useMemo(() => filterPostPourChecklists(checklistRows, {
     status: statusFilter,
@@ -6764,12 +6779,21 @@ function PostPourPage({
     search,
   }), [archiveFilter, checklistRows, dateFilter, foremanFilter, jobFilter, search, statusFilter]);
   const listState = useMemo(() => derivePostPourChecklistListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
-  const selectedChecklist = filteredRows.find((checklist) => checklist.id === selectedChecklistId)
-    || filteredRows[0]
-    || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
-    || null;
-  const selectedItems = derivePostPourItems(selectedChecklist?.items || [], { includeArchived: permissions.postPour.canManageAll });
-  const checklistSummary = summarizePostPourChecklist(selectedChecklist);
+  const selectedChecklist = useMemo(
+    () => filteredRows.find((checklist) => checklist.id === selectedChecklistId)
+      || filteredRows[0]
+      || checklistRows.find((checklist) => checklist.id === selectedChecklistId)
+      || null,
+    [checklistRows, filteredRows, selectedChecklistId],
+  );
+  const selectedItems = useMemo(
+    () => derivePostPourItems(selectedChecklist?.items || [], { includeArchived: permissions.postPour.canManageAll }),
+    [permissions.postPour.canManageAll, selectedChecklist?.items],
+  );
+  const checklistSummary = useMemo(
+    () => summarizePostPourChecklist(selectedChecklist),
+    [selectedChecklist],
+  );
   const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
 
   useEffect(() => {

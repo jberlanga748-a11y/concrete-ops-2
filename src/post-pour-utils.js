@@ -1,3 +1,24 @@
+function safeChecklistItems(items) {
+  return Array.isArray(items) ? items : [];
+}
+
+function buildChecklistSearchText(checklist) {
+  const fragments = [
+    checklist?.notes,
+    checklist?.job?.title,
+    checklist?.job?.customer,
+    checklist?.createdByName,
+    checklist?.completedByName,
+  ];
+
+  for (const item of safeChecklistItems(checklist?.items)) {
+    if (item?.label) fragments.push(item.label);
+    if (item?.notes) fragments.push(item.notes);
+  }
+
+  return fragments.filter(Boolean).join(" ").toLowerCase();
+}
+
 export function postPourChecklistStatusLabel(status = "draft") {
   const labels = {
     draft: "Draft",
@@ -19,9 +40,14 @@ export function postPourItemStatusLabel(status = "unchecked") {
 }
 
 export function derivePostPourItems(items = [], { includeArchived = false } = {}) {
-  return (Array.isArray(items) ? items : [])
-    .filter((item) => includeArchived || !item.archivedAt)
-    .sort((left, right) => {
+  const visibleItems = [];
+  for (const item of safeChecklistItems(items)) {
+    if (includeArchived || !item.archivedAt) {
+      visibleItems.push(item);
+    }
+  }
+
+  return visibleItems.sort((left, right) => {
       const leftChecked = left.status === "checked" || left.status === "not_applicable";
       const rightChecked = right.status === "checked" || right.status === "not_applicable";
       if (leftChecked !== rightChecked) return Number(leftChecked) - Number(rightChecked);
@@ -49,25 +75,28 @@ export function filterPostPourChecklists(checklists = [], {
     if (date !== "All dates" && String(checklist.createdAt || checklist.completedAt || "").slice(0, 10) !== date) return false;
     if (!query) return true;
 
-    const items = Array.isArray(checklist.items) ? checklist.items : [];
-    const haystack = [
-      checklist.notes,
-      checklist.job?.title,
-      checklist.job?.customer,
-      checklist.createdByName,
-      checklist.completedByName,
-      ...items.flatMap((item) => [item.label, item.notes]),
-    ].filter(Boolean).join(" ").toLowerCase();
-
-    return haystack.includes(query);
+    return buildChecklistSearchText(checklist).includes(query);
   });
 }
 
 export function derivePostPourChecklistListState(checklists = [], jobs = []) {
   const rows = Array.isArray(checklists) ? checklists : [];
-  const jobOptions = ["All jobs", ...new Set(rows.map((checklist) => checklist.job?.title || checklist.jobTitle).filter(Boolean))];
-  const foremanOptions = ["All foremen", ...new Set(rows.map((checklist) => checklist.job?.foremanAssignment?.userName || checklist.assignedForemanName).filter(Boolean))];
-  const dateOptions = ["All dates", ...new Set(rows.map((checklist) => String(checklist.createdAt || checklist.completedAt || "").slice(0, 10)).filter(Boolean))];
+  const jobOptionSet = new Set();
+  const foremanOptionSet = new Set();
+  const dateOptionSet = new Set();
+
+  for (const checklist of rows) {
+    const jobName = checklist?.job?.title || checklist?.jobTitle;
+    const foremanName = checklist?.job?.foremanAssignment?.userName || checklist?.assignedForemanName;
+    const dateValue = String(checklist?.createdAt || checklist?.completedAt || "").slice(0, 10);
+    if (jobName) jobOptionSet.add(jobName);
+    if (foremanName) foremanOptionSet.add(foremanName);
+    if (dateValue) dateOptionSet.add(dateValue);
+  }
+
+  const jobOptions = ["All jobs", ...jobOptionSet];
+  const foremanOptions = ["All foremen", ...foremanOptionSet];
+  const dateOptions = ["All dates", ...dateOptionSet];
   const defaultJobId = (Array.isArray(jobs) ? jobs : []).length === 1 ? jobs[0].id : "";
 
   return {
@@ -80,11 +109,21 @@ export function derivePostPourChecklistListState(checklists = [], jobs = []) {
 }
 
 export function summarizePostPourChecklist(checklist) {
-  const items = Array.isArray(checklist?.items) ? checklist.items : [];
-  const completedCount = items.filter((item) => item.status === "checked" || item.status === "not_applicable").length;
-  const incompleteCount = items.filter((item) => item.status === "unchecked").length;
+  let totalCount = 0;
+  let completedCount = 0;
+  let incompleteCount = 0;
+
+  for (const item of safeChecklistItems(checklist?.items)) {
+    totalCount += 1;
+    if (item.status === "checked" || item.status === "not_applicable") {
+      completedCount += 1;
+    } else if (item.status === "unchecked") {
+      incompleteCount += 1;
+    }
+  }
+
   return {
-    totalCount: items.length,
+    totalCount,
     completedCount,
     incompleteCount,
   };
