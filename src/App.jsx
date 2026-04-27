@@ -971,15 +971,17 @@ function Card({ children, className = "", ...props }) {
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
   return (
     <div className="mb-5 border-b border-blue-100/80 bg-white/80 px-5 py-5 backdrop-blur sm:px-6">
-      <div className="flex min-w-0 max-w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
-          {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
+      <div className="mx-auto w-full max-w-[1520px]">
+        <div className="flex min-w-0 max-w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
+            {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
+          </div>
+          {actions ? <div className="flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
         </div>
-        {actions ? <div className="flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
+        {tabs ? <div className="mt-5 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
       </div>
-      {tabs ? <div className="mt-5 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
     </div>
   );
 }
@@ -4916,7 +4918,7 @@ function DashboardPage({
           }
           tabs={tabs}
         />
-        <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
           <Card className="p-4">
             <SectionHeader title="Field shortcuts" description="Big tap targets for the field tools crews use most often." />
             <FieldActionGrid actions={fieldDashboardActions} onOpen={setActive} />
@@ -4946,9 +4948,9 @@ function DashboardPage({
         }
         tabs={tabs}
       />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
           <div ref={leadPipelineRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
               <div className="p-4">
@@ -4965,7 +4967,7 @@ function DashboardPage({
             <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
           </div>
         </div>
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
           <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
               <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps for current work." /></div>
@@ -6547,9 +6549,9 @@ function PrePourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
-          <Card className="p-4">
+          <Card className="p-5">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
               <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -6571,7 +6573,7 @@ function PrePourPage({
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-5">
             <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
               <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
@@ -6582,7 +6584,7 @@ function PrePourPage({
                     key={checklist.id}
                     type="button"
                     onClick={() => setSelectedChecklistId(checklist.id)}
-                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-200 bg-slate-50/95 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-slate-50/80"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -6602,9 +6604,9 @@ function PrePourPage({
           </Card>
         </div>
 
-        <div className="min-w-0 space-y-4">
+        <div className={`min-w-0 space-y-4 ${canCreateChecklist ? "xl:grid xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] xl:items-start xl:gap-5 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
-            <Card className="p-4">
+            <Card className="p-5 xl:self-start">
               <SectionHeader title="Create checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
@@ -6629,22 +6631,22 @@ function PrePourPage({
           ) : null}
 
           {selectedChecklist ? (
-            <Card className="p-4">
+            <Card className="p-5 xl:self-start">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Pre-pour checklist"}
                 description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={prePourChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
                   <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
                   <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
                 </div>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
                   <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
                   <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
                 </div>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
                   <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
                   <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
                 </div>
@@ -6672,14 +6674,14 @@ function PrePourPage({
               ) : null}
             </Card>
           ) : (
-            <Card className="p-4">
+            <Card className="p-5 xl:self-start">
               <SectionHeader title="Checklist details" description="Select a checklist to review site readiness and completion details." />
               <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
             </Card>
           )}
 
           {selectedChecklist ? (
-            <Card className="p-4">
+            <Card className={`p-5 ${canCreateChecklist ? "xl:col-span-2" : ""}`}>
               <SectionHeader title="Checklist items" description="Work through the default pre-pour checks before the concrete is placed." />
               <div className="space-y-3">
                 {selectedItems.map((item) => (
@@ -6711,7 +6713,7 @@ function PrePourPage({
                           placeholder="Add a note for this readiness item."
                         />
                       ) : (
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
                           {item.notes || "No note for this item yet."}
                         </div>
                       )}
@@ -6811,9 +6813,9 @@ function PostPourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job, then reopen checklists when the field needs another pass." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
-          <Card className="p-4">
+          <Card className="p-5">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
               <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -6835,7 +6837,7 @@ function PostPourPage({
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-5">
             <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
               <StateCard title={noFieldJob ? "No assigned job yet" : "No post-pour checklists match these filters"} description={noFieldJob ? "Contact office if a post-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
@@ -6846,7 +6848,7 @@ function PostPourPage({
                     key={checklist.id}
                     type="button"
                     onClick={() => setSelectedChecklistId(checklist.id)}
-                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-200 bg-slate-50/95 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-slate-50/80"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -6866,9 +6868,9 @@ function PostPourPage({
           </Card>
         </div>
 
-        <div className="min-w-0 space-y-4">
+        <div className={`min-w-0 space-y-4 ${canCreateChecklist ? "xl:grid xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] xl:items-start xl:gap-5 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
-            <Card className="p-4">
+            <Card className="p-5 xl:self-start">
               <SectionHeader title="Create checklist" description="Start a post-pour checklist with the default finish and closeout items for a job." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
@@ -6893,22 +6895,22 @@ function PostPourPage({
           ) : null}
 
           {selectedChecklist ? (
-            <Card className="p-4">
+            <Card className="p-5 xl:self-start">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Post-pour checklist"}
                 description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
                 action={<StatusBadge status={postPourChecklistStatusLabel(selectedChecklist.status)} />}
               />
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
                   <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
                   <p className="mt-1"><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
                 </div>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
                   <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
                   <p className="mt-1"><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
                 </div>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
                   <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
                   <p className="mt-1"><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
                 </div>
@@ -6936,14 +6938,14 @@ function PostPourPage({
               ) : null}
             </Card>
           ) : (
-            <Card className="p-4">
+            <Card className="p-5 xl:self-start">
               <SectionHeader title="Checklist details" description="Select a checklist to review finish, cleanup, and closeout readiness." />
               <StateCard title="No checklist selected" description="Choose a post-pour checklist from the list or create a new one for a visible job." tone="slate" />
             </Card>
           )}
 
           {selectedChecklist ? (
-            <Card className="p-4">
+            <Card className={`p-5 ${canCreateChecklist ? "xl:col-span-2" : ""}`}>
               <SectionHeader title="Checklist items" description="Work through the default post-pour checks before closing out the field work." />
               <div className="space-y-3">
                 {selectedItems.map((item) => (
@@ -6975,7 +6977,7 @@ function PostPourPage({
                           placeholder="Add a note for this finish or closeout item."
                         />
                       ) : (
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
                           {item.notes || "No note for this item yet."}
                         </div>
                       )}
