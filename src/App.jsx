@@ -3821,25 +3821,39 @@ function SafetyPage({
       ? "Incidents"
       : toolboxFocused
         ? "Toolbox Talks"
-        : "Safety & PPE"
+        : ppeFocused
+          ? "PPE Checklist"
+          : "Safety & PPE"
     : incidentFocused
       ? "Report Incident"
       : toolboxFocused
         ? "Toolbox Talks"
         : ppeFocused
-          ? "Safety & PPE"
+          ? "PPE Checklist"
           : "Safety";
-  const headerDescription = canManage
-    ? incidentFocused
-      ? "Review, resolve, and archive field incident submissions without exposing payroll or pricing."
-      : toolboxFocused
-        ? "Keep safety guidance, PPE expectations, and field reminders easy for crews to review before work starts."
-        : "Manage field-safe policies, PPE expectations, acknowledgments, and incidents without exposing payroll or pricing."
-    : incidentFocused
-      ? "Submit a field concern quickly without exposing office-only data."
-      : toolboxFocused
-        ? "Review toolbox-ready safety guidance and PPE reminders for the work in front of the crew."
-        : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
+  const headerDescription = incidentFocused
+    ? "Submit, review, and track safety concerns, hazards, near misses, injuries, and property damage."
+    : toolboxFocused
+      ? "Review safety guidance and toolbox talk reminders before work starts."
+      : ppeFocused
+        ? "Review required PPE and acknowledge current safety expectations."
+        : canManage
+          ? "Manage field-safe policies, PPE expectations, acknowledgments, and incidents without exposing payroll or pricing."
+          : "Review current safety guidance, acknowledge PPE, and submit field concerns without exposing office-only data.";
+  const routeCallout = incidentFocused
+    ? "Use this page when something happened on the job or the crew needs a safety concern documented."
+    : toolboxFocused
+      ? "Use this page for quick crew safety reminders, PPE expectations, and jobsite safety guidance."
+      : ppeFocused
+        ? "Use this page to confirm PPE expectations and field safety requirements."
+        : "";
+  const headerBadgeLabel = incidentFocused
+    ? `${visibleIncidents.length} visible incidents`
+    : toolboxFocused
+      ? `${visiblePolicies.length} guidance items`
+      : ppeFocused
+        ? `${activePpeItems.length} PPE items`
+        : `${visibleIncidents.length} visible incidents`;
 
   return (
     <div>
@@ -3847,8 +3861,16 @@ function SafetyPage({
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title={headerTitle}
         description={headerDescription}
-        actions={<Badge tone="blue">{visibleIncidents.length} visible incidents</Badge>}
+        actions={<Badge tone="blue">{headerBadgeLabel}</Badge>}
       />
+      {routeCallout ? (
+        <div className="px-5 pb-4 sm:px-6 lg:px-8">
+          <Card className="p-4">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">When to use this page</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{routeCallout}</p>
+          </Card>
+        </div>
+      ) : null}
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8">
         <div className="min-w-0 space-y-4">
           {canSubmitIncidents ? (
