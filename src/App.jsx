@@ -4282,8 +4282,8 @@ function ReportsPage({
   return (
     <div>
       <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture work performed, delays, safety notes, crew coverage, and concrete details without exposing payroll or pricing." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
-        <Card className="overflow-hidden">
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
+        <Card className="self-start overflow-hidden">
           {canView ? (
             <>
               <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
@@ -4313,7 +4313,7 @@ function ReportsPage({
             <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
           )}
         </Card>
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0 self-start space-y-4">
           <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
           <DailyReportDetailPanel
             report={selectedReport}
