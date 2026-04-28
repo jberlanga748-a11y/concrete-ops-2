@@ -3066,9 +3066,11 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
   }
 
   return (
-    <Card className="p-5">
-      <SectionHeader title="New daily report" description="Create a draft report for today’s work, delays, safety, and materials." />
-      <form className="grid gap-3" onSubmit={onCreate}>
+    <Card className="overflow-hidden">
+      <div className="border-b border-blue-100 bg-white p-5">
+        <SectionHeader title="Start daily report" description="Capture crew, work, weather, and pour details while the day is fresh." />
+      </div>
+      <form className="grid gap-4 p-5" onSubmit={onCreate}>
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
             <option value="">Select a job</option>
@@ -3076,11 +3078,11 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           </SelectField>
           <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
         </div>
-        <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." />
-        <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." />
-        <div className="grid gap-3 md:grid-cols-2">
+        <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-20 resize-y" />
+        <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-20 resize-y" />
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-          <label className="field-label">
+          <label className="field-label min-h-[68px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
             <span>Concrete poured</span>
             <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
           </label>
@@ -3088,7 +3090,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
         {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
         <Button type="submit" disabled={disabled}>
           <Icon name="plus" />
-          Create draft
+          Start draft
         </Button>
       </form>
     </Card>
@@ -3132,9 +3134,21 @@ function DailyReportDetailPanel({
 
   if (!report) {
     return (
-      <Card className="p-5">
-        <SectionHeader title="Report details" description="Select a report to view job progress, safety notes, and field documentation." />
-        <StateCard title="No report selected" description="Pick a report from the list or create a new draft to get started." tone="slate" />
+      <Card className="overflow-hidden">
+        <div className="border-b border-blue-100 bg-white p-5">
+          <SectionHeader title="Report details" description="Select a report to review, print, or update field documentation." />
+        </div>
+        <div className="p-5">
+          <div className="rounded-3xl border border-dashed border-blue-200 bg-blue-50/50 p-6">
+            <p className="text-sm font-black text-slate-950">No report selected</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Choose a report from the log, or start a draft above for today's job.</p>
+            <div className="mt-4 grid gap-2 text-xs font-bold text-slate-500 sm:grid-cols-3">
+              <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Crew</span>
+              <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Work</span>
+              <span className="rounded-2xl bg-white px-3 py-2 text-center shadow-sm">Pour details</span>
+            </div>
+          </div>
+        </div>
       </Card>
     );
   }
@@ -4281,11 +4295,14 @@ function ReportsPage({
 
   return (
     <div>
-      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture work performed, delays, safety notes, crew coverage, and concrete details without exposing payroll or pricing." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
+      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture crew notes, job progress, weather, and pour details in one daily field report." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
+      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-start lg:px-8 xl:grid-cols-[minmax(0,1fr)_460px]">
         <Card className="self-start overflow-hidden">
           {canView ? (
             <>
+              <div className="border-b border-blue-100 bg-white p-5">
+                <SectionHeader title="Report log" description="Filter daily reports by status, job, creator, or report date." />
+              </div>
               <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
               <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
                 <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
@@ -4304,7 +4321,12 @@ function ReportsPage({
               {busy && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." /></div>
               ) : visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="No reports yet" description="Create the first daily report or adjust the filters to widen the list." /></div>
+                <div className="p-5">
+                  <div className="rounded-3xl border border-dashed border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-6 text-center">
+                    <p className="text-sm font-black text-slate-950">No reports yet</p>
+                    <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">Start the first daily report from the panel on the right, then use this log to review drafts, submitted reports, and printed packets.</p>
+                  </div>
+                </div>
               ) : (
                 <DailyReportsTable rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} />
               )}
