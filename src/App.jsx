@@ -99,14 +99,14 @@ import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRe
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
-import { deriveDailyReportPrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
+import { deriveDailyReportPrintPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
@@ -7058,6 +7058,9 @@ function EstimatesPage({
   onCreateEstimate,
   onSaveEstimate,
   onConvertEstimate,
+  onPrintEstimate,
+  companyName = DEFAULT_COMPANY_NAME,
+  companyProfile = {},
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [customerFilter, setCustomerFilter] = useState("All customers");
@@ -7068,6 +7071,8 @@ function EstimatesPage({
   const [selectedEstimateId, setSelectedEstimateId] = useState("");
   const [createDraft, setCreateDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [detailDraft, setDetailDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const copyFeedbackTimeoutRef = useRef(null);
 
   const visibleCustomers = normalizeObjectArray(customers).filter((customer) => !customer.archivedAt);
   const visibleLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
@@ -7089,6 +7094,26 @@ function EstimatesPage({
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const createTotals = useMemo(() => calculateEstimateTotals(createDraft.items, { taxRate: createDraft.taxRate, feesTotal: createDraft.feesTotal }), [createDraft.feesTotal, createDraft.items, createDraft.taxRate]);
   const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
+  const detailCustomer = useMemo(
+    () => visibleCustomers.find((customer) => customer.id === detailDraft.customerId) || selectedEstimate?.customer || null,
+    [detailDraft.customerId, selectedEstimate?.customer, visibleCustomers],
+  );
+  const detailLead = useMemo(
+    () => visibleLeads.find((lead) => lead.id === detailDraft.leadId) || selectedEstimate?.lead || null,
+    [detailDraft.leadId, selectedEstimate?.lead, visibleLeads],
+  );
+  const detailEstimatePreview = useMemo(() => {
+    if (!selectedEstimate) return null;
+    return {
+      ...selectedEstimate,
+      ...detailDraft,
+      items: Array.isArray(detailDraft.items) ? detailDraft.items : [],
+      customer: detailCustomer || (detailLead?.customer ? { name: detailLead.customer } : null),
+      lead: detailLead,
+    };
+  }, [detailCustomer, detailDraft, detailLead, selectedEstimate]);
+  const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
+  const canMarkSent = canManage && detailDraft.status === "draft";
 
   useEffect(() => {
     if (!selectedEstimateId && filteredRows[0]?.id) {
@@ -7105,6 +7130,12 @@ function EstimatesPage({
   useEffect(() => {
     setDetailDraft(createEstimateDraft(selectedEstimate || INITIAL_ESTIMATE_FORM));
   }, [selectedEstimate?.id, selectedEstimate?.updatedAt]);
+
+  useEffect(() => () => {
+    if (copyFeedbackTimeoutRef.current) {
+      window.clearTimeout(copyFeedbackTimeoutRef.current);
+    }
+  }, []);
 
   function updateDraftItem(setDraft, index, field, value) {
     setDraft((current) => ({
@@ -7128,6 +7159,34 @@ function EstimatesPage({
         items: nextItems.length > 0 ? nextItems : [createEstimateLineItemDraft()],
       };
     });
+  }
+
+  function showCopyFeedback(message) {
+    if (copyFeedbackTimeoutRef.current) {
+      window.clearTimeout(copyFeedbackTimeoutRef.current);
+    }
+    setCopyFeedback(message);
+    copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setCopyFeedback("");
+      copyFeedbackTimeoutRef.current = null;
+    }, 1800);
+  }
+
+  async function copyEstimateText(buildText, successMessage) {
+    const text = buildText();
+    if (!text || !navigator?.clipboard?.writeText) {
+      showCopyFeedback("Clipboard unavailable on this browser.");
+      return false;
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      showCopyFeedback(successMessage);
+      return true;
+    } catch {
+      showCopyFeedback("Clipboard unavailable on this browser.");
+      return false;
+    }
   }
 
   if (!permissions?.estimates?.canView) {
@@ -7332,12 +7391,60 @@ function EstimatesPage({
                   <StatCard title="Fees" value={formatEstimateCurrency(detailTotals.feesTotal || 0)} />
                   <StatCard title="Grand total" value={formatEstimateCurrency(detailTotals.grandTotal)} />
                 </div>
+                {copyFeedback ? (
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+                    {copyFeedback}
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-3">
-                  <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => copyEstimateText(
+                      () => buildEstimateCopyText({
+                        companyName,
+                        companyProfile,
+                        estimate: detailEstimatePreview,
+                      }),
+                      "Estimate copied.",
+                    )}
+                    disabled={!detailEstimatePreview}
+                  >
+                    Copy estimate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => copyEstimateText(
+                      () => buildEstimateCustomerMessage({
+                        companyName,
+                        companyProfile,
+                        estimate: detailEstimatePreview,
+                      }),
+                      "Customer message copied.",
+                    )}
+                    disabled={!detailEstimatePreview}
+                  >
+                    Copy customer message
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
+                    Print estimate
+                  </Button>
+                  {canMarkSent ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
+                      disabled={detailSaveDisabled}
+                    >
+                      Mark sent
+                    </Button>
+                  ) : null}
+                  <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled}>
                     Save estimate
                   </Button>
                   {selectedEstimate.status === "approved" && !selectedEstimate.jobId ? (
-                    <Button type="button" tone="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
+                    <Button type="button" variant="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
                       Convert to job
                     </Button>
                   ) : null}
@@ -8229,9 +8336,12 @@ function MainContent(props) {
           estimates={props.estimates}
           permissions={props.permissions}
           busy={props.busy}
+          companyName={props.companyName}
+          companyProfile={props.companyProfile}
           onCreateEstimate={props.onCreateEstimate}
           onSaveEstimate={props.onSaveEstimate}
           onConvertEstimate={props.onConvertEstimate}
+          onPrintEstimate={props.onPrintEstimate}
         />
       );
     }
@@ -9621,6 +9731,24 @@ export default function App() {
     return opened;
   }
 
+  function handlePrintEstimate(estimate) {
+    if (!estimate || !appState.permissions?.estimates?.canView) return false;
+    const packet = deriveEstimatePrintPacket({
+      companyName: workspaceCompanyName,
+      companyProfile: workspacePrintProfile,
+      printPacketFooter: workspacePrintPacketFooter,
+      printPacketDisclaimer: workspacePrintPacketDisclaimer,
+      estimate,
+    });
+    const opened = openPrintDocument(packet);
+    if (!opened) {
+      setErrorMessage(PRINT_VIEW_ERROR_MESSAGE);
+    } else {
+      setErrorMessage("");
+    }
+    return opened;
+  }
+
   function handlePrintJobPacket(job = selectedJob) {
     if (!job) return false;
     const canPrint = appState.permissions.jobs.canManageAll || job.canManageField || appState.permissions.jobs.canViewMoney;
@@ -10325,6 +10453,8 @@ export default function App() {
               sessionToken={sessionToken}
               user={appState.user}
               companySettings={appState.companySettings}
+              companyName={workspaceCompanyName}
+              companyProfile={workspacePrintProfile}
               stats={stats}
               dashboardMetrics={dashboardMetrics}
               customers={appState.customers}
@@ -10382,6 +10512,7 @@ export default function App() {
                 onCreateEstimate={handleCreateEstimate}
                 onSaveEstimate={handleSaveEstimate}
                 onConvertEstimate={handleConvertEstimate}
+                onPrintEstimate={handlePrintEstimate}
                 relatedRecords={customerRelated}
               customerRouteRequested={Boolean(routeState.customerId)}
               leadFilter={leadFilter}
