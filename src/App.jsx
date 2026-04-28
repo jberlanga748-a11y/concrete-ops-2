@@ -1792,7 +1792,7 @@ function LeadDetailPanel({
     return (
       <Card className="p-5">
         <SectionHeader title="Lead details" description="Select a lead to edit ownership, next steps, and notes." />
-        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Choose a lead from the list to confirm the next call, site visit, or estimate step.</div>
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-slate-500">Pick a lead from the table to inspect and update it.</div>
       </Card>
     );
   }
@@ -3067,7 +3067,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
 
   return (
     <Card className="p-5">
-      <SectionHeader title="New daily report" description="Start today’s report with the crew, work performed, weather, and concrete details." />
+      <SectionHeader title="New daily report" description="Create a draft report for today’s work, delays, safety, and materials." />
       <form className="grid gap-3" onSubmit={onCreate}>
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
@@ -3088,7 +3088,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
         {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
         <Button type="submit" disabled={disabled}>
           <Icon name="plus" />
-          Start draft
+          Create draft
         </Button>
       </form>
     </Card>
@@ -3150,12 +3150,12 @@ function DailyReportDetailPanel({
           <div className="min-w-0 max-w-full">
             <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
               <DailyReportStatusBadge status={report.status} />
-              {canEdit && ["draft", "reopened"].includes(report.status) ? <Button size="sm" onClick={onSave} disabled={disabled}>Save report</Button> : null}
-              {canEdit && ["draft", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onSubmit} disabled={disabled}>Submit</Button> : null}
               {canView ? <Button variant="secondary" size="sm" onClick={onPrintReport} disabled={disabled || typeof onPrintReport !== "function"}>Print Daily Report</Button> : null}
               {canReview && ["submitted", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReview} disabled={disabled}>Review</Button> : null}
               {canReview && ["submitted", "reviewed"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReopen} disabled={disabled}>Reopen</Button> : null}
               {canArchive && !report.archivedAt ? <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button> : null}
+              {canEdit && ["draft", "reopened"].includes(report.status) ? <Button size="sm" onClick={onSave} disabled={disabled}>Save report</Button> : null}
+              {canEdit && ["draft", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onSubmit} disabled={disabled}>Submit</Button> : null}
             </div>
           </div>
         </div>
@@ -3300,7 +3300,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
     return (
       <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
         <SectionHeader title="Upload details" description="Select an upload to review evidence and metadata." />
-        <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and crew notes." tone="slate" />
+        <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and location metadata." tone="slate" />
       </Card>
     );
   }
@@ -3387,14 +3387,14 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
     return (
       <Card className="p-5">
         <SectionHeader title="Upload photo" description="A job link is required for photo evidence." />
-        <StateCard title="No assigned job available for upload" description="Ask the office team to assign the job first so photos stay tied to the right project." tone="slate" />
+        <StateCard title="No assigned job available for upload" description="Contact office if this is wrong or if the job should already be assigned." tone="slate" />
       </Card>
     );
   }
 
   return (
     <Card className="p-5">
-      <SectionHeader title="Upload photo" description="Capture jobsite photos with optional location details. Upload still works even if location is denied." />
+      <SectionHeader title="Upload photo" description="Capture field documentation with optional location metadata. Upload still works if location is denied." />
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
       <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
       <form className="grid gap-3" onSubmit={onSubmit} noValidate>
@@ -3612,9 +3612,9 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
 
   return (
     <div>
-      <PageHeader eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"} title="Uploads" description="Keep jobsite photos, delivery evidence, and timestamped field documentation together." actions={<Badge tone="blue">{visibleRows.length} uploads</Badge>} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start lg:px-8">
-        <Card className="self-start overflow-hidden">
+      <PageHeader eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"} title="Uploads" description="Job-linked photo evidence with timestamp metadata and optional GPS capture for field documentation." actions={<Badge tone="blue">{visibleRows.length} uploads</Badge>} />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+        <Card className="overflow-hidden">
           <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-2 xl:grid-cols-4">
             <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
@@ -3639,14 +3639,14 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
           {errorMessage && visibleRows.length === 0 ? (
             <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
           ) : visibleRows.length === 0 ? (
-            <div className="p-5"><StateCard title="No uploads yet" description="Upload the first jobsite photo to start the project record." tone="slate" /></div>
+            <div className="p-5"><StateCard title="No uploads yet" description="Photo evidence will appear here after the first field upload." tone="slate" /></div>
           ) : (
             <div className="space-y-3 p-4">
               {visibleRows.map((upload) => <UploadListCard key={upload.id} upload={upload} selected={selectedUpload?.id === upload.id} onSelect={setSelectedUploadId} />)}
             </div>
           )}
         </Card>
-        <div className="min-w-0 self-start space-y-4">
+        <div className="min-w-0 space-y-4">
           <UploadCreateCard
             canCreate={permissions.uploads.canCreate}
             jobs={allowedJobs}
@@ -4281,9 +4281,9 @@ function ReportsPage({
 
   return (
     <div>
-      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Review field progress, delays, crew coverage, and pour details from one daily log." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
-        <Card className="self-start overflow-hidden">
+      <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture work performed, delays, safety notes, crew coverage, and concrete details without exposing payroll or pricing." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
           {canView ? (
             <>
               <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
@@ -4304,7 +4304,7 @@ function ReportsPage({
               {busy && visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." /></div>
               ) : visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="No reports yet" description="Start the first daily report or clear a filter to pull more reports into view." /></div>
+                <div className="p-5"><StateCard title="No reports yet" description="Create the first daily report or adjust the filters to widen the list." /></div>
               ) : (
                 <DailyReportsTable rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} />
               )}
@@ -4313,7 +4313,7 @@ function ReportsPage({
             <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
           )}
         </Card>
-        <div className="min-w-0 self-start space-y-4">
+        <div className="min-w-0 space-y-4">
           <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
           <DailyReportDetailPanel
             report={selectedReport}
@@ -4673,7 +4673,7 @@ function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, cu
 
   return (
     <Card className="p-5">
-      <SectionHeader title="New lead intake" description="Capture a new concrete lead, assign the right owner, and keep the next follow-up clear." />
+      <SectionHeader title="New lead intake" description="Create a new lead record for the office team." />
       <form className="grid gap-3" onSubmit={onCreateLead}>
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Existing customer" value={draft.customerId} onChange={(event) => {
@@ -4941,22 +4941,22 @@ function DashboardPage({
       <PageHeader
         eyebrow="Operations Command"
         title="Daily workspace"
-        description="Start the day with your lead pipeline, active jobs, crew follow-ups, and office action items in one place."
+        description="Review leads, jobs, queue actions, and team activity from one office workspace."
         actions={
           <>
-            <Button variant="secondary" onClick={() => setActive("leads")}>Leads</Button>
-            <Button onClick={() => setActive("jobs")}>Jobs</Button>
+            <Button variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
+            <Button onClick={() => setActive("jobs")}>Open jobs</Button>
           </>
         }
         tabs={tabs}
       />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:px-8 xl:gap-5">
+      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] xl:items-start xl:gap-5">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
           <div ref={leadPipelineRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
               <div className="p-4">
-                <SectionHeader title="Lead pipeline" description="Filter the pipeline, open the right record, and keep the next follow-up moving." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
+                <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
               </div>
               <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
               <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
@@ -4969,10 +4969,10 @@ function DashboardPage({
             <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
           </div>
         </div>
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] xl:items-start xl:gap-5">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
           <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
-              <div className="p-4"><SectionHeader title="Active jobs" description="See today’s field progress, foreman ownership, and the next move for each job." /></div>
+              <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps for current work." /></div>
               <JobsTable rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} />
             </Card>
           </div>
@@ -5017,9 +5017,9 @@ function LeadsPage({
 }) {
   return (
     <div>
-      <PageHeader eyebrow="Office" title="Leads" description="Track new concrete work, assign the right follow-up, and keep site visits and estimates moving." actions={<Badge tone="blue">{rows.length} records</Badge>} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
-        <Card className="self-start overflow-hidden">
+      <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
             <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
@@ -5038,15 +5038,9 @@ function LeadsPage({
               <option>No due date</option>
             </SelectField>
           </div>
-          {rows.length === 0 ? (
-            <div className="p-5">
-              <StateCard title="No leads match this view" description="Clear a filter or add a new lead to keep the pipeline moving." tone="slate" />
-            </div>
-          ) : (
-            <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
-          )}
+          <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
         </Card>
-        <div className="min-w-0 self-start space-y-4">
+        <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
           <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
         </div>
@@ -5137,7 +5131,7 @@ function JobsPage({
     );
   }
 
-  const roleLabel = permissions.jobs.canManageAll ? "Plan jobs, crew coverage, and next steps from one scheduling workspace." : "Review scope, schedule, and field handoff details before work starts.";
+  const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : "scope review";
   const pageTitle = "Jobs";
   const pageEyebrow = permissions.jobs.canManageAll ? "Field Ops" : "Job Scope";
   const jobListState = useMemo(() => deriveJobListState(rows, {
@@ -5151,8 +5145,8 @@ function JobsPage({
 
   return (
     <div>
-      <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={roleLabel} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
+      <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
         <Card className="self-start overflow-hidden">
           <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
@@ -5173,13 +5167,7 @@ function JobsPage({
               <option>Unscheduled</option>
             </SelectField>
           </div>
-          {visibleRows.length === 0 ? (
-            <div className="p-5">
-              <StateCard title="No jobs match this view" description="Clear a filter or create the next job so the schedule keeps moving." tone="slate" />
-            </div>
-          ) : (
-            <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
-          )}
+          <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
         </Card>
         <div className="min-w-0 self-start space-y-4">
           <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
@@ -6213,8 +6201,8 @@ function SettingsPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage branding, print details, and field tools for this demo workspace." : "Manage branding, company details, print packets, and field tools for your team."} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+      <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace details, admin access, and field tools for your team."} />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
           <div className="grid min-w-0 self-start gap-4">
             <Card className="self-start p-5">
@@ -6235,7 +6223,7 @@ function SettingsPage({
                     <p className="mt-1 break-words text-xs text-slate-500">{user?.email || "No email on file"}</p>
                   </div>
                 </div>
-                <p className="mt-4 text-sm leading-6 text-slate-600">Use this page to keep branding, company details, and field-facing tools organized without changing field access rules.</p>
+                <p className="mt-4 text-sm leading-6 text-slate-600">Use this page to manage admin-level workspace details without changing field role access or saved records.</p>
               </div>
               {demoMode ? (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 p-4">
@@ -6392,7 +6380,7 @@ function SettingsPage({
               </form>
             </Card>
             <Card className="p-5">
-              <SectionHeader title="Print packet settings" description="Set the default footer and disclaimer text that should appear on printed daily reports and job packets." />
+              <SectionHeader title="Print packet settings" description="Set default footer text and internal notes that should appear at the bottom of printed daily reports and job packets." />
               <form className="grid gap-4" onSubmit={handlePrintPacketSettingsSave}>
                 <TextAreaField
                   label="Default packet footer"
@@ -6432,8 +6420,8 @@ function SettingsPage({
               </div>
             </Card>
           </div>
-          <div className="grid min-w-0 self-start gap-4">
-            <Card className="self-start p-5">
+          <div className="grid min-w-0 gap-4">
+            <Card className="p-5">
               <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
               <div className="space-y-4">
                 <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
@@ -6584,7 +6572,7 @@ function PrePourPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Keep site readiness moving across every job and review what still needs attention before the truck arrives." : "Walk the crew through site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
+      <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
       <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
         <div className="min-w-0 space-y-4 lg:self-start">
           <Card className="p-5">
@@ -6612,7 +6600,7 @@ function PrePourPage({
           <Card className="p-5">
             <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
-              <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or start a checklist for a visible job."} tone="slate" />
+              <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
             ) : (
               <div className="space-y-3">
                 {filteredRows.map((checklist) => (
@@ -6643,7 +6631,7 @@ function PrePourPage({
         <div className={`min-w-0 space-y-4 lg:self-start ${canCreateChecklist ? "xl:grid xl:auto-rows-min xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
             <Card className="p-5 xl:self-start">
-              <SectionHeader title="Start checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
+              <SectionHeader title="Create checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
                   <option value="">Select a job</option>
@@ -6660,7 +6648,7 @@ function PrePourPage({
                   }}
                   disabled={busy || !createDraft.jobId}
                 >
-                  Start checklist
+                  Create checklist
                 </Button>
               </div>
             </Card>
@@ -6718,7 +6706,7 @@ function PrePourPage({
           ) : (
             <Card className="min-w-0 p-5 xl:self-start">
               <SectionHeader title="Checklist details" description="Select a checklist to review site readiness and completion details." />
-              <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or start one for today’s job." tone="slate" />
+              <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
             </Card>
           )}
 
@@ -6874,7 +6862,7 @@ function PostPourPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job so the last field steps stay organized." : "Walk the crew through finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
+      <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job, then reopen checklists when the field needs another pass." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
       <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
         <div className="min-w-0 space-y-4 lg:self-start">
           <Card className="p-5">
@@ -6902,7 +6890,7 @@ function PostPourPage({
           <Card className="p-5">
             <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
-              <StateCard title={noFieldJob ? "No assigned job yet" : "No post-pour checklists match these filters"} description={noFieldJob ? "Contact office if a post-pour checklist should already be on your phone." : "Clear a filter or start a checklist for a visible job."} tone="slate" />
+              <StateCard title={noFieldJob ? "No assigned job yet" : "No post-pour checklists match these filters"} description={noFieldJob ? "Contact office if a post-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
             ) : (
               <div className="space-y-3">
                 {filteredRows.map((checklist) => (
@@ -6933,7 +6921,7 @@ function PostPourPage({
         <div className={`min-w-0 space-y-4 lg:self-start ${canCreateChecklist ? "xl:grid xl:auto-rows-min xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
             <Card className="p-5 xl:self-start">
-              <SectionHeader title="Start checklist" description="Start a post-pour checklist with the default finish and closeout items for a job." />
+              <SectionHeader title="Create checklist" description="Start a post-pour checklist with the default finish and closeout items for a job." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
                   <option value="">Select a job</option>
@@ -6950,7 +6938,7 @@ function PostPourPage({
                   }}
                   disabled={busy || !createDraft.jobId}
                 >
-                  Start checklist
+                  Create checklist
                 </Button>
               </div>
             </Card>
@@ -7008,7 +6996,7 @@ function PostPourPage({
           ) : (
             <Card className="min-w-0 p-5 xl:self-start">
               <SectionHeader title="Checklist details" description="Select a checklist to review finish, cleanup, and closeout readiness." />
-              <StateCard title="No checklist selected" description="Choose a post-pour checklist from the list or start one for today’s job." tone="slate" />
+              <StateCard title="No checklist selected" description="Choose a post-pour checklist from the list or create a new one for a visible job." tone="slate" />
             </Card>
           )}
 
@@ -7214,11 +7202,11 @@ function EstimatesPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Office Sales" title="Estimates" description="Build clean customer estimates, share them, and move approved work into jobs." />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start lg:px-8">
-        <div className="min-w-0 self-start space-y-4">
+      <PageHeader eyebrow="Office Sales" title="Estimates" description="Build customer proposals with line items, pricing totals, and approved-to-job conversion while keeping field payloads money-safe." />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
-            <SectionHeader title="Filters" description="Focus on active estimates or pull older proposals back into view." />
+            <SectionHeader title="Filters" description="Focus on active estimates or pull archived proposals back into view." />
             <div className="grid gap-3">
               <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 {["All", "Draft", "Sent", "Approved", "Rejected", "Archived"].map((option) => <option key={option}>{option}</option>)}
@@ -7242,7 +7230,7 @@ function EstimatesPage({
           <Card className="p-4">
             <SectionHeader title="Estimate list" description={`${filteredRows.length} visible estimate${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
-              <StateCard title="No estimates yet" description="Start the first estimate from a customer or lead so you have something ready to send." tone="blue" />
+              <StateCard title="No estimates yet" description="Create a draft estimate from a customer or lead to start the proposal workflow." tone="blue" />
             ) : (
               <div className="space-y-3">
                 {filteredRows.map((estimate) => (
@@ -7271,10 +7259,10 @@ function EstimatesPage({
           </Card>
         </div>
 
-        <div className="min-w-0 self-start space-y-4">
+        <div className="min-w-0 space-y-4">
           {canManage ? (
             <Card className="p-4">
-              <SectionHeader title="New estimate" description="Link the estimate to a customer or lead, add line items, and keep the customer-facing scope clear." />
+              <SectionHeader title="Create estimate" description="Link the proposal to a customer or lead, add line items, and keep pricing inside the office workspace." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => ({ ...current, customerId: event.target.value }))}>
                   <option value="">Select a customer</option>
@@ -7409,22 +7397,6 @@ function EstimatesPage({
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-3">
-                  <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled}>
-                    Save estimate
-                  </Button>
-                  {canMarkSent ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
-                      disabled={detailSaveDisabled}
-                    >
-                      Mark sent
-                    </Button>
-                  ) : null}
-                  <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
-                    Print estimate
-                  </Button>
                   <Button
                     type="button"
                     variant="secondary"
@@ -7454,6 +7426,22 @@ function EstimatesPage({
                     disabled={!detailEstimatePreview}
                   >
                     Copy customer message
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
+                    Print estimate
+                  </Button>
+                  {canMarkSent ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
+                      disabled={detailSaveDisabled}
+                    >
+                      Mark sent
+                    </Button>
+                  ) : null}
+                  <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled}>
+                    Save estimate
                   </Button>
                   {selectedEstimate.status === "approved" && !selectedEstimate.jobId ? (
                     <Button type="button" variant="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
@@ -7807,9 +7795,9 @@ function DeliveryTicketsPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description={canManageAll ? "Review delivery records, truck details, and linked ticket photos across active jobs." : "Record delivery details and linked ticket photos for visible jobs without exposing pricing data."} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start lg:px-8">
-        <div className="min-w-0 self-start space-y-4">
+      <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."} />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+        <div className="min-w-0 space-y-4">
           <Card className="p-4">
             <SectionHeader title="Filters" description="Focus on the deliveries that matter right now." />
             <div className="grid gap-3">
@@ -7863,10 +7851,10 @@ function DeliveryTicketsPage({
           </Card>
         </div>
 
-        <div className="min-w-0 self-start space-y-4">
+        <div className="min-w-0 space-y-4">
           {canCreate ? (
             <Card className="p-4">
-              <SectionHeader title="New ticket" description="Record truck, ticket, and mix details while the delivery is still fresh." />
+              <SectionHeader title="Create ticket" description="Record truck and ticket details from the field without any pricing data." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
                   <option value="">Select a job</option>
@@ -8008,7 +7996,7 @@ function DeliveryTicketsPage({
           ) : (
             <Card className="p-4">
               <SectionHeader title="Ticket details" description="Select a delivery ticket to review truck, mix, and yardage details." />
-              <StateCard title="No delivery ticket selected" description="Choose a ticket from the list or record a new delivery for a visible job." tone="slate" />
+              <StateCard title="No delivery ticket selected" description="Choose a delivery ticket from the list or create one for a visible job." tone="slate" />
             </Card>
           )}
         </div>
