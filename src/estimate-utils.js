@@ -132,3 +132,117 @@ export function formatEstimateCurrency(value) {
     maximumFractionDigits: 2,
   }).format(Number.isFinite(Number(value)) ? Number(value) : 0);
 }
+
+function nonEmptyLines(lines = []) {
+  return lines.map((line) => String(line || "").trim()).filter(Boolean);
+}
+
+function estimateCustomerName(estimate = {}) {
+  return String(estimate?.customer?.name || estimate?.lead?.customer || "").trim();
+}
+
+function estimateProjectName(estimate = {}) {
+  return String(estimate?.lead?.project || estimate?.title || "").trim();
+}
+
+function estimateLineItemText(item = {}, index = 0) {
+  const description = String(item?.description || `Line item ${index + 1}`).trim();
+  const quantity = item?.quantity == null || item.quantity === "" ? "" : String(item.quantity).trim();
+  const unit = String(item?.unit || "").trim();
+  const quantityLabel = [quantity, unit].filter(Boolean).join(" ");
+
+  return [
+    description,
+    quantityLabel ? `  Quantity: ${quantityLabel}` : "",
+    `  Unit price: ${formatEstimateCurrency(item?.unitPrice || 0)}`,
+    `  Line total: ${formatEstimateCurrency(calculateEstimateLineTotal(item))}`,
+  ].filter(Boolean);
+}
+
+function estimateContactLines(companyProfile = {}) {
+  return [
+    companyProfile.businessPhone ? `Phone: ${companyProfile.businessPhone}` : "",
+    companyProfile.businessEmail ? `Email: ${companyProfile.businessEmail}` : "",
+    companyProfile.website ? `Website: ${companyProfile.website}` : "",
+    companyProfile.businessAddress ? `Address: ${companyProfile.businessAddress}` : "",
+    companyProfile.serviceArea ? `Service area: ${companyProfile.serviceArea}` : "",
+    companyProfile.licenseText ? `License: ${companyProfile.licenseText}` : "",
+  ].filter(Boolean);
+}
+
+function buildEstimateBodyLines({ companyName, companyProfile = {}, estimate, introLines = [] } = {}) {
+  if (!estimate) return [];
+
+  const customerName = estimateCustomerName(estimate);
+  const projectName = estimateProjectName(estimate);
+  const totals = calculateEstimateTotals(estimate?.items, {
+    taxRate: estimate?.taxRate,
+    feesTotal: estimate?.feesTotal,
+  });
+  const lineItems = Array.isArray(estimate?.items) && estimate.items.length > 0
+    ? estimate.items.flatMap((item, index) => estimateLineItemText(item, index))
+    : ["No line items recorded."];
+  const lines = [];
+
+  lines.push(...nonEmptyLines(introLines));
+  if (lines.length > 0) lines.push("");
+  lines.push(...nonEmptyLines([
+    companyName,
+    estimate?.title || "Estimate",
+    customerName ? `Customer: ${customerName}` : "",
+    projectName ? `Project: ${projectName}` : "",
+    estimate?.status ? `Status: ${estimateStatusLabel(estimate.status)}` : "",
+  ]));
+  lines.push("");
+  lines.push("Scope summary:");
+  lines.push(String(estimate?.scopeSummary || "No scope summary recorded.").trim());
+  lines.push("");
+  lines.push("Line items:");
+  lines.push(...lineItems);
+  lines.push("");
+  lines.push("Totals:");
+  lines.push(`Subtotal: ${formatEstimateCurrency(totals.subtotal)}`);
+  if (totals.taxRate != null) {
+    lines.push(`Tax (${totals.taxRate}%): ${formatEstimateCurrency(totals.taxTotal || 0)}`);
+  }
+  if (totals.feesTotal != null) {
+    lines.push(`Fees: ${formatEstimateCurrency(totals.feesTotal || 0)}`);
+  }
+  lines.push(`Grand total: ${formatEstimateCurrency(totals.grandTotal)}`);
+
+  if (String(estimate?.customerNotes || "").trim()) {
+    lines.push("");
+    lines.push("Customer notes / terms:");
+    lines.push(String(estimate.customerNotes).trim());
+  }
+
+  const contactLines = estimateContactLines(companyProfile);
+  if (contactLines.length > 0) {
+    lines.push("");
+    lines.push("Contact:");
+    lines.push(...contactLines);
+  }
+
+  return lines;
+}
+
+export function buildEstimateCopyText({ companyName = "Concrete Ops Workspace", companyProfile = {}, estimate } = {}) {
+  return buildEstimateBodyLines({ companyName, companyProfile, estimate }).join("\n").trim();
+}
+
+export function buildEstimateCustomerMessage({ companyName = "Concrete Ops Workspace", companyProfile = {}, estimate } = {}) {
+  if (!estimate) return "";
+  const customerName = estimateCustomerName(estimate) || "there";
+  const projectName = estimateProjectName(estimate) || estimate?.title || "your project";
+
+  return buildEstimateBodyLines({
+    companyName,
+    companyProfile,
+    estimate,
+    introLines: [
+      `Hi ${customerName},`,
+      `Thanks for the opportunity to quote ${projectName}. Here is your estimate from ${companyName}.`,
+      "Reply with any questions or if you would like to move forward.",
+    ],
+  }).join("\n").trim();
+}

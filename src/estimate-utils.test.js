@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildEstimateCopyText,
+  buildEstimateCustomerMessage,
   calculateEstimateLineTotal,
   calculateEstimateTotals,
   deriveEstimateListState,
@@ -106,4 +108,50 @@ test("estimate helpers tolerate sparse estimate rows and missing item arrays", (
 test("status labels and currency formatting stay human friendly", () => {
   assert.equal(estimateStatusLabel("approved"), "Approved");
   assert.equal(formatEstimateCurrency(2386.1), "$2,386.10");
+});
+
+test("estimate copy helpers include customer-facing pricing content without internal notes", () => {
+  const estimate = {
+    title: "Martinez Driveway Proposal",
+    status: "sent",
+    scopeSummary: "Replace cracked driveway panels and pour a broom-finish apron.",
+    internalNotes: "Office-only follow-up note.",
+    customerNotes: "Estimate is valid for 30 days.",
+    customer: { name: "Martinez Residence" },
+    lead: { customer: "Martinez Residence", project: "Driveway replacement estimate" },
+    items: [
+      { description: "Demo and haul off", quantity: 1, unit: "LS", unitPrice: 1850 },
+      { description: "Concrete placement", quantity: 9, unit: "yd", unitPrice: 215 },
+    ],
+    taxRate: 0,
+    feesTotal: 125,
+  };
+  const companyProfile = {
+    businessPhone: "(503) 555-0100",
+    businessEmail: "office@concreteopsdemo.com",
+  };
+
+  const estimateCopy = buildEstimateCopyText({
+    companyName: "Concrete Ops Demo Company",
+    companyProfile,
+    estimate,
+  });
+  const customerMessage = buildEstimateCustomerMessage({
+    companyName: "Concrete Ops Demo Company",
+    companyProfile,
+    estimate,
+  });
+
+  assert.match(estimateCopy, /Concrete Ops Demo Company/);
+  assert.match(estimateCopy, /Martinez Residence/);
+  assert.match(estimateCopy, /Driveway replacement estimate/);
+  assert.match(estimateCopy, /Grand total:/);
+  assert.match(estimateCopy, /Estimate is valid for 30 days\./);
+  assert.match(estimateCopy, /office@concreteopsdemo\.com/);
+  assert.doesNotMatch(estimateCopy, /Office-only follow-up note\./);
+
+  assert.match(customerMessage, /Hi Martinez Residence,/);
+  assert.match(customerMessage, /Here is your estimate from Concrete Ops Demo Company\./);
+  assert.match(customerMessage, /Concrete placement/);
+  assert.doesNotMatch(customerMessage, /Office-only follow-up note\./);
 });
