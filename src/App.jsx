@@ -7202,11 +7202,11 @@ function EstimatesPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Office Sales" title="Estimates" description="Build customer proposals with line items, pricing totals, and approved-to-job conversion while keeping field payloads money-safe." />
+      <PageHeader eyebrow="Office Sales" title="Estimates" description="Build clean customer estimates, share them, and move approved work into jobs." />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4">
-            <SectionHeader title="Filters" description="Focus on active estimates or pull archived proposals back into view." />
+            <SectionHeader title="Filters" description="Focus on active estimates or pull older proposals back into view." />
             <div className="grid gap-3">
               <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 {["All", "Draft", "Sent", "Approved", "Rejected", "Archived"].map((option) => <option key={option}>{option}</option>)}
@@ -7230,7 +7230,7 @@ function EstimatesPage({
           <Card className="p-4">
             <SectionHeader title="Estimate list" description={`${filteredRows.length} visible estimate${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
-              <StateCard title="No estimates yet" description="Create a draft estimate from a customer or lead to start the proposal workflow." tone="blue" />
+              <StateCard title="No estimates yet" description="Start the first estimate from a customer or lead so you have something ready to send." tone="blue" />
             ) : (
               <div className="space-y-3">
                 {filteredRows.map((estimate) => (
@@ -7262,7 +7262,7 @@ function EstimatesPage({
         <div className="min-w-0 space-y-4">
           {canManage ? (
             <Card className="p-4">
-              <SectionHeader title="Create estimate" description="Link the proposal to a customer or lead, add line items, and keep pricing inside the office workspace." />
+              <SectionHeader title="Create estimate" description="Link the estimate to a customer or lead, add line items, and keep the customer-facing scope clear." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => ({ ...current, customerId: event.target.value }))}>
                   <option value="">Select a customer</option>
