@@ -3067,10 +3067,10 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
 
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-blue-100 bg-white p-5">
+      <div className="border-b border-blue-100 bg-white p-4">
         <SectionHeader title="Start daily report" description="Capture crew, work, weather, and pour details while the day is fresh." />
       </div>
-      <form className="grid gap-4 p-5" onSubmit={onCreate}>
+      <form className="grid gap-3 p-4" onSubmit={onCreate}>
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
             <option value="">Select a job</option>
@@ -3078,11 +3078,11 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           </SelectField>
           <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
         </div>
-        <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-20 resize-y" />
-        <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-20 resize-y" />
+        <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-16 resize-y" />
+        <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-          <label className="field-label min-h-[68px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+          <label className="field-label min-h-[60px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
             <span>Concrete poured</span>
             <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
           </label>
@@ -4296,65 +4296,67 @@ function ReportsPage({
   return (
     <div>
       <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture crew notes, job progress, weather, and pour details in one daily field report." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
-      <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-start lg:px-8 xl:grid-cols-[minmax(0,1fr)_460px]">
-        <Card className="self-start overflow-hidden">
-          {canView ? (
-            <>
-              <div className="border-b border-blue-100 bg-white p-5">
-                <SectionHeader title="Report log" description="Filter daily reports by status, job, creator, or report date." />
-              </div>
-              <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
-              <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
-                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                  <option>All jobs</option>
-                  {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </SelectField>
-                <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
-                  <option>All creators</option>
-                  {listState.creatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </SelectField>
-                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-                  <option>All dates</option>
-                  {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
-                </SelectField>
-              </div>
-              {busy && visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." /></div>
-              ) : visibleRows.length === 0 ? (
-                <div className="p-5">
-                  <div className="rounded-3xl border border-dashed border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-6 text-center">
-                    <p className="text-sm font-black text-slate-950">No reports yet</p>
-                    <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">Start the first daily report from the panel on the right, then use this log to review drafts, submitted reports, and printed packets.</p>
-                  </div>
+      <div className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start xl:grid-cols-[minmax(0,1fr)_420px]">
+          <Card className="self-start overflow-hidden">
+            {canView ? (
+              <>
+                <div className="border-b border-blue-100 bg-white p-5">
+                  <SectionHeader title="Report log" description="Filter daily reports by status, job, creator, or report date." />
                 </div>
-              ) : (
-                <DailyReportsTable rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} />
-              )}
-            </>
-          ) : (
-            <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
-          )}
-        </Card>
-        <div className="min-w-0 self-start space-y-4">
-          <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
-          <DailyReportDetailPanel
-            report={selectedReport}
-            reportDraft={reportDraft}
-            setReportDraft={setReportDraft}
-            onSave={onSaveReport}
-            onSubmit={onSubmitReport}
-            onReview={onReviewReport}
-            onReopen={onReopenReport}
-            onArchive={onArchiveReport}
-            canView={canView}
-            canEdit={canEdit}
-            canReview={canReviewActions}
-            canArchive={permissions.reports.canManageAll}
-            disabled={busy}
-            notFound={notFound}
-            onPrintReport={selectedReport ? () => onPrintDailyReport?.(selectedReport) : undefined}
-          />
+                <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
+                <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
+                  <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                    <option>All jobs</option>
+                    {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                    <option>All creators</option>
+                    {listState.creatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                    <option>All dates</option>
+                    {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </SelectField>
+                </div>
+                {busy && visibleRows.length === 0 ? (
+                  <div className="p-5"><StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." /></div>
+                ) : visibleRows.length === 0 ? (
+                  <div className="p-5">
+                    <div className="rounded-3xl border border-dashed border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-6 text-center">
+                      <p className="text-sm font-black text-slate-950">No reports yet</p>
+                      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">Start the first daily report from the panel on the right, then use this log to review drafts, submitted reports, and printed packets.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <DailyReportsTable rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} />
+                )}
+              </>
+            ) : (
+              <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
+            )}
+          </Card>
+          <div className="min-w-0 self-start">
+            <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
+          </div>
         </div>
+        <DailyReportDetailPanel
+          report={selectedReport}
+          reportDraft={reportDraft}
+          setReportDraft={setReportDraft}
+          onSave={onSaveReport}
+          onSubmit={onSubmitReport}
+          onReview={onReviewReport}
+          onReopen={onReopenReport}
+          onArchive={onArchiveReport}
+          canView={canView}
+          canEdit={canEdit}
+          canReview={canReviewActions}
+          canArchive={permissions.reports.canManageAll}
+          disabled={busy}
+          notFound={notFound}
+          onPrintReport={selectedReport ? () => onPrintDailyReport?.(selectedReport) : undefined}
+        />
       </div>
     </div>
   );
