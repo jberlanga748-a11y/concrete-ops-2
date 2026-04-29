@@ -161,6 +161,7 @@ function buildEstimatePayload({ customerId, leadId = "", ...overrides } = {}) {
     leadId,
     title: "Martinez Driveway Proposal",
     status: "draft",
+    customerEmail: "martinez@example.test",
     scopeSummary: "Replace cracked driveway panels and restore broom-finish apron.",
     internalNotes: "Office-only pricing assumptions stay inside estimates.",
     customerNotes: "Two-day window once approved.",
@@ -225,6 +226,7 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.equal(officeEstimate.subtotal, 2500);
     assert.equal(officeEstimate.taxTotal, 212.5);
     assert.equal(officeEstimate.grandTotal, 2837.5);
+    assert.equal(officeEstimate.customerEmail, "martinez@example.test");
     assert.equal(officeEstimate.items.length, 2);
 
     const unconfiguredSend = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/send`, {
@@ -333,7 +335,11 @@ test("configured estimate email sends before marking estimate sent", async () =>
     const createdState = await assertOk(fixture.baseUrl, "/api/estimates", {
       method: "POST",
       headers: officeHeaders,
-      body: JSON.stringify(buildEstimatePayload({ customerId, leadId })),
+      body: JSON.stringify(buildEstimatePayload({
+        customerId,
+        leadId,
+        customerEmail: "proposal-recipient@example.test",
+      })),
     });
     const estimate = createdState.estimates.find((entry) => entry.title === "Martinez Driveway Proposal");
 
@@ -346,7 +352,7 @@ test("configured estimate email sends before marking estimate sent", async () =>
     const request = emailApi.requests[0];
     assert.equal(request.method, "POST");
     assert.equal(request.authorization, "Bearer test-api-key");
-    assert.deepEqual(request.body.to, ["martinez@example.test"]);
+    assert.deepEqual(request.body.to, ["proposal-recipient@example.test"]);
     assert.equal(request.body.from, "Concrete Ops <estimates@example.test>");
     assert.equal(request.body.reply_to, "office@example.test");
     assert.equal(request.body.subject, "Estimate for Driveway replacement estimate");
@@ -357,13 +363,14 @@ test("configured estimate email sends before marking estimate sent", async () =>
     assert.doesNotMatch(request.body.text, /Concrete placement/);
     assert.doesNotMatch(request.body.text, /Office-only pricing assumptions/);
 
-    assert.equal(sentState.emailSend.sentTo, "martinez@example.test");
+    assert.equal(sentState.emailSend.sentTo, "proposal-recipient@example.test");
     assert.equal(sentState.emailSend.providerMessageId, "msg_test_123");
     const sentEstimate = sentState.estimates.find((entry) => entry.id === estimate.id);
     assert.equal(sentEstimate.status, "sent");
     assert.ok(sentEstimate.sentAt);
     assert.equal(sentEstimate.sentBy, officeBootstrap.user.id);
-    assert.equal(sentEstimate.sentTo, "martinez@example.test");
+    assert.equal(sentEstimate.customerEmail, "proposal-recipient@example.test");
+    assert.equal(sentEstimate.sentTo, "proposal-recipient@example.test");
     assert.equal(sentEstimate.emailSubject, "Estimate for Driveway replacement estimate");
     assert.equal(sentEstimate.providerMessageId, "msg_test_123");
   } finally {

@@ -4600,6 +4600,15 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 31,
+      description: "Add editable estimate customer email recipient.",
+      up(database) {
+        if (!columnExists(database, "estimates", "customer_email")) {
+          database.exec("ALTER TABLE estimates ADD COLUMN customer_email TEXT;");
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4674,8 +4683,8 @@ function writeStateToDb(state) {
   `);
 
   const insertEstimate = database.prepare(`
-    INSERT INTO estimates (id, sort_index, customer_id, lead_id, job_id, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO estimates (id, sort_index, customer_id, lead_id, job_id, customer_email, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimateItem = database.prepare(`
@@ -4971,6 +4980,7 @@ function writeStateToDb(state) {
         estimate.customerId,
         estimate.leadId || null,
         estimate.jobId || null,
+        estimate.customerEmail || "",
         estimate.title || "",
         estimate.status || "draft",
         estimate.scopeSummary || "",
@@ -5423,7 +5433,7 @@ function readTableState() {
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
   const estimates = database.prepare(`
-      SELECT id, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, title, status, scope_summary AS scopeSummary,
+      SELECT id, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, customer_email AS customerEmail, title, status, scope_summary AS scopeSummary,
              internal_notes AS internalNotes, customer_notes AS customerNotes, subtotal, tax_rate AS taxRate,
              tax_total AS taxTotal, fees_total AS feesTotal, grand_total AS grandTotal, created_by AS createdBy,
              sent_at AS sentAt, sent_by AS sentBy, sent_to AS sentTo, email_subject AS emailSubject,
