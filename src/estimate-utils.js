@@ -280,12 +280,3 @@ export function buildEstimateEmailSubject({ estimate } = {}) {
   const projectName = estimateProjectName(estimate) || estimate?.title || "your project";
   return `Estimate for ${projectName}`;
 }
-
-export function buildEstimateMailtoHref({ companyName = "Concrete Ops Workspace", companyProfile = {}, estimate } = {}) {
-  const email = estimateCustomerEmail(estimate);
-  if (!email) return "";
-
-  const subject = encodeURIComponent(buildEstimateEmailSubject({ estimate }));
-  const body = encodeURIComponent(buildEstimateCustomerMessage({ companyName, companyProfile, estimate }));
-  return `mailto:${email}?subject=${subject}&body=${body}`;
-}

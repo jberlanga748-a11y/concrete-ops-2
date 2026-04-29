@@ -17,7 +17,9 @@ import {
   INITIAL_QUEUE_ITEMS,
 } from "./seed-data.js";
 import { serverConfig } from "./config.js";
+import { EmailConfigurationError, EmailDeliveryError, isEstimateEmailConfigured, sendEstimateEmail } from "./email.js";
 import { logger, serializeError } from "./logger.js";
+import { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../src/estimate-utils.js";
 import {
   cleanupExpiredSessions,
   createDefaultPostPourChecklistItems,
@@ -1900,6 +1902,11 @@ function sanitizeEstimateForUser(estimate, state, user) {
     createdBy: estimate.createdBy,
     createdByName: createdByUser?.name || estimate.createdBy,
     sentAt: estimate.sentAt || "",
+    sentBy: estimate.sentBy || "",
+    sentByName: estimate.sentBy ? (findUserById(state, estimate.sentBy)?.name || estimate.sentBy) : "",
+    sentTo: estimate.sentTo || "",
+    emailSubject: estimate.emailSubject || "",
+    providerMessageId: estimate.providerMessageId || "",
     approvedAt: estimate.approvedAt || "",
     rejectedAt: estimate.rejectedAt || "",
     archivedAt: estimate.archivedAt || null,
@@ -1909,6 +1916,7 @@ function sanitizeEstimateForUser(estimate, state, user) {
     customer: customer ? {
       id: customer.id,
       name: customer.name || "",
+      email: customer.email || "",
       city: customer.city || "",
       status: customer.status || "",
     } : null,
@@ -2026,6 +2034,10 @@ function createEstimateShape(payload, user, changedAt, customer, lead, totals) {
     grandTotal: totals.grandTotal,
     createdBy: user.id,
     sentAt: "",
+    sentBy: "",
+    sentTo: "",
+    emailSubject: "",
+    providerMessageId: "",
     approvedAt: "",
     rejectedAt: "",
     archivedAt: null,
@@ -4035,6 +4047,9 @@ function sanitizeBootstrap(state, user) {
     queueItems,
     activity,
     auditEvents,
+    email: {
+      estimateSendingConfigured: isEstimateEmailConfigured(),
+    },
     stats: statsForUser(state, user, { jobs, leads, queueItems }),
     permissions: {
       users: userPermissions,
@@ -4849,6 +4864,77 @@ app.patch("/api/estimates/:id", requireAuth, asyncRoute(async (req, res) => {
   });
 
   res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  if (!isEstimateEmailConfigured()) {
+    throw new ApiError(503, "Email sending is not configured yet.");
+  }
+
+  const state = await readDb();
+  const estimateRecord = findEstimate(state, req.params.id);
+  const estimate = sanitizeEstimateForUser(estimateRecord, state, req.auth.user);
+  const sentTo = estimateCustomerEmail(estimate);
+  if (!sentTo) {
+    throw new ApiError(400, "Add a customer email before sending this estimate.");
+  }
+
+  const settings = companySettingsForState(state);
+  const companyName = settings.companyName || "Concrete Ops Workspace";
+  const emailSubject = buildEstimateEmailSubject({ estimate });
+  const emailText = buildEstimateCustomerMessage({
+    companyName,
+    companyProfile: settings,
+    estimate,
+  });
+
+  let sendResult;
+  try {
+    sendResult = await sendEstimateEmail({
+      to: sentTo,
+      subject: emailSubject,
+      text: emailText,
+      replyTo: settings.businessEmail || "",
+    });
+  } catch (error) {
+    if (error instanceof EmailConfigurationError || error instanceof EmailDeliveryError) {
+      throw new ApiError(error.status, error.message);
+    }
+    throw error;
+  }
+
+  const changedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    const estimateToUpdate = findEstimate(draft, req.params.id);
+    estimateToUpdate.status = "sent";
+    estimateToUpdate.sentAt = changedAt;
+    estimateToUpdate.sentBy = req.auth.user.id;
+    estimateToUpdate.sentTo = sentTo;
+    estimateToUpdate.emailSubject = emailSubject;
+    estimateToUpdate.providerMessageId = sendResult.providerMessageId || "";
+    markUpdated(estimateToUpdate, changedAt);
+    appendActivity(draft, "Estimate emailed", `${req.auth.user.name} sent estimate ${estimateToUpdate.title} to ${sentTo}.`);
+    appendAuditEvent(draft, {
+      entityType: "estimate",
+      entityId: estimateToUpdate.id,
+      action: "sent",
+      summary: "Estimate email sent",
+      detail: `${req.auth.user.name} sent estimate ${estimateToUpdate.title} to ${sentTo}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "sentAt", "sentBy", "sentTo", "emailSubject", "providerMessageId", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    emailSend: {
+      sentTo,
+      emailSubject,
+      providerMessageId: sendResult.providerMessageId || "",
+    },
+  });
 }));
 
 app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req, res) => {
