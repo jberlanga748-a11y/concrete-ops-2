@@ -2113,12 +2113,13 @@ function JobDetailPanel({
   const canManageAssignments = Boolean(permissions?.jobs?.canManageAssignments);
   const notesValue = canManageAll ? (job.notes || "") : (job.fieldNotes || "");
   const statusValue = normalizeJobStatus(job.status || job.stage);
+  const isConvertedEstimateJob = canManageAll && /Created from approved estimate/i.test(job.notes || "");
 
   return (
     <Card className="p-5">
       <SectionHeader
         title={jobTitle(job)}
-        description={`${job.id} · ${job.customer}`}
+        description={`${job.id} - ${job.customer}`}
         action={
           <div className="flex flex-wrap gap-2">
             {!canManageAll ? <Badge tone="slate">Field view</Badge> : null}
@@ -2138,6 +2139,11 @@ function JobDetailPanel({
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={job.createdAt} updatedAt={job.updatedAt} />
+        {isConvertedEstimateJob ? (
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold leading-6 text-emerald-800">
+            Job created from an approved estimate. Next step: set scheduled start/end, confirm the address, and assign foreman/crew.
+          </div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
           <InputField label="Job name" value={jobTitle(job)} onChange={(event) => onFieldChange("title", event.target.value)} disabled={!canManageAll || disabled} />
           <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} disabled={!canManageAll || disabled} />
@@ -2157,7 +2163,7 @@ function JobDetailPanel({
         </div>
         {canManageAll ? (
           <div className="grid gap-3 md:grid-cols-2">
-            <InputField label="Scheduled end" type="datetime-local" value={job.scheduledEnd || ""} onChange={(event) => onFieldChange("scheduledEnd", event.target.value)} disabled={disabled} />
+            <InputField label="Scheduled end (optional)" type="datetime-local" value={job.scheduledEnd || ""} onChange={(event) => onFieldChange("scheduledEnd", event.target.value)} disabled={disabled} />
             <InputField label="Estimated duration" value={job.estimatedDuration || ""} onChange={(event) => onFieldChange("estimatedDuration", event.target.value)} disabled={disabled} />
           </div>
         ) : null}
@@ -2167,7 +2173,7 @@ function JobDetailPanel({
         </label>
         <InputField label="Next step" value={jobNextStep(job)} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canEditField || disabled} />
         <div className="grid gap-3 md:grid-cols-2">
-          <InputField label="Address" value={job.address || ""} onChange={(event) => onFieldChange("address", event.target.value)} disabled={!canManageAll || disabled} />
+          <InputField label="Job address" value={job.address || ""} onChange={(event) => onFieldChange("address", event.target.value)} disabled={!canManageAll || disabled} />
           <InputField label="Site contact" value={job.siteContact || ""} onChange={(event) => onFieldChange("siteContact", event.target.value)} disabled={!canManageAll || disabled} />
         </div>
         <TextAreaField label="Scope summary" value={job.scopeSummary || ""} onChange={(event) => onFieldChange("scopeSummary", event.target.value)} disabled={!canManageAll || disabled} />
@@ -2200,7 +2206,7 @@ function JobDetailPanel({
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour checklist</p>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
         </div>
-        <TextAreaField label={canManageAll ? "Office notes" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
+        <TextAreaField label={canManageAll ? "Office notes (hidden from field)" : "Field notes"} value={notesValue} onChange={(event) => onFieldChange(canManageAll ? "notes" : "fieldNotes", event.target.value)} disabled={!canEditField || disabled} />
         <JobCrewSection
           job={job}
           users={users}
@@ -4803,7 +4809,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <InputField label="Address" value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} placeholder="1452 Orchard View Dr" />
-          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins · 503-555-0187" />
+          <InputField label="Site contact" value={draft.siteContact} onChange={(event) => setDraft((current) => ({ ...current, siteContact: event.target.value }))} placeholder="Rob Jenkins - 503-555-0187" />
           <InputField label="Crew" value={draft.crew} onChange={(event) => setDraft((current) => ({ ...current, crew: event.target.value }))} placeholder="Juan + 3" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -7208,7 +7214,7 @@ function EstimatesPage({
     });
   }
 
-  function showCopyFeedback(message) {
+  function showCopyFeedback(message, duration = 1800) {
     if (copyFeedbackTimeoutRef.current) {
       window.clearTimeout(copyFeedbackTimeoutRef.current);
     }
@@ -7216,7 +7222,7 @@ function EstimatesPage({
     copyFeedbackTimeoutRef.current = window.setTimeout(() => {
       setCopyFeedback("");
       copyFeedbackTimeoutRef.current = null;
-    }, 1800);
+    }, duration);
   }
 
   async function copyEstimateText(buildText, successMessage) {
@@ -7265,6 +7271,15 @@ function EstimatesPage({
       showCopyFeedback(`Estimate sent to ${result.sentTo}.`);
     }
     return true;
+  }
+
+  async function handleConvertApprovedEstimate() {
+    if (!selectedEstimate?.id || typeof onConvertEstimate !== "function") return false;
+    const converted = await onConvertEstimate(selectedEstimate.id);
+    if (converted) {
+      showCopyFeedback("Job created. Next step: schedule the job and assign foreman/crew.", 5000);
+    }
+    return converted;
   }
 
   if (!permissions?.estimates?.canView) {
@@ -7552,8 +7567,8 @@ function EstimatesPage({
                         </Button>
                       ) : null}
                       {selectedEstimate.status === "approved" && !selectedEstimate.jobId ? (
-                        <Button type="button" variant="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
-                          Convert to job
+                        <Button type="button" variant="secondary" onClick={handleConvertApprovedEstimate} disabled={busy}>
+                          Convert approved estimate to job
                         </Button>
                       ) : null}
                     </div>

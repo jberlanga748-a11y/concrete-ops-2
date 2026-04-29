@@ -295,7 +295,18 @@ test("office and estimator users can manage estimates while field roles are bloc
     });
     const convertedEstimate = convertedState.estimates.find((estimate) => estimate.id === officeEstimate.id);
     assert.ok(convertedEstimate.jobId);
-    assert.ok(convertedState.jobs.some((job) => job.id === convertedEstimate.jobId && job.customerId === customerId));
+    const convertedJob = convertedState.jobs.find((job) => job.id === convertedEstimate.jobId);
+    assert.ok(convertedJob);
+    assert.equal(convertedJob.customerId, customerId);
+    assert.equal(convertedJob.leadId, leadId);
+    assert.equal(convertedJob.title, officeEstimate.title);
+    assert.equal(convertedJob.scopeSummary, "Replace cracked driveway panels and restore broom-finish apron.");
+    assert.equal(convertedJob.status, "draft");
+    assert.match(convertedJob.notes, new RegExp(`Created from approved estimate ${officeEstimate.id}: ${officeEstimate.title}\\.`));
+    assert.match(convertedJob.notes, /Lead\/project:/);
+    assert.match(convertedJob.notes, /Customer notes\/terms: Two-day window once approved\./);
+    assert.match(convertedJob.notes, /Next step: schedule the job and assign foreman\/crew\./);
+    assert.doesNotMatch(convertedJob.notes, /Office-only pricing assumptions/);
   } finally {
     await fixture.stop();
   }
