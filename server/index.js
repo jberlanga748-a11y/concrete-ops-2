@@ -19,7 +19,7 @@ import {
 import { serverConfig } from "./config.js";
 import { EmailConfigurationError, EmailDeliveryError, isEstimateEmailConfigured, sendEstimateEmail } from "./email.js";
 import { logger, serializeError } from "./logger.js";
-import { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../src/estimate-utils.js";
+import { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
 import {
   cleanupExpiredSessions,
   createDefaultPostPourChecklistItems,
