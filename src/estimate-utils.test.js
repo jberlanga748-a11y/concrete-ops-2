@@ -5,7 +5,6 @@ import {
   buildEstimateCopyText,
   buildEstimateCustomerMessage,
   buildEstimateEmailSubject,
-  buildEstimateMailtoHref,
   calculateEstimateLineTotal,
   calculateEstimateTotals,
   deriveEstimateListState,
@@ -169,14 +168,4 @@ test("estimate copy helpers include customer-facing pricing content without inte
 
   assert.equal(estimateCustomerEmail(estimate), "martinez@example.test");
   assert.equal(buildEstimateEmailSubject({ estimate }), "Estimate for Driveway replacement estimate");
-
-  const mailtoHref = buildEstimateMailtoHref({
-    companyName: "Concrete Ops Demo Company",
-    companyProfile,
-    estimate,
-  });
-  assert.match(mailtoHref, /^mailto:martinez@example\.test\?/);
-  assert.match(mailtoHref, /subject=Estimate%20for%20Driveway%20replacement%20estimate/);
-  assert.match(mailtoHref, /body=Hi%20Martinez%20Residence/);
-  assert.equal(buildEstimateMailtoHref({ estimate: { ...estimate, customer: { name: "Martinez Residence" } } }), "");
 });

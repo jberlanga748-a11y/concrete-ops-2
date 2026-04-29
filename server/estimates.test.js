@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
+import http from "node:http";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
@@ -29,7 +30,7 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Estimate test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer() {
+async function startServer(envOverrides = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-estimates-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
   const port = createPort();
@@ -42,6 +43,12 @@ async function startServer() {
       PORT: String(port),
       DATA_DIR: tempDataDir,
       LOG_LEVEL: "warn",
+      EMAIL_PROVIDER: "",
+      EMAIL_FROM: "",
+      EMAIL_REPLY_TO_DEFAULT: "",
+      EMAIL_API_KEY: "",
+      EMAIL_API_URL: "",
+      ...envOverrides,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -62,6 +69,36 @@ async function startServer() {
   }
 
   return { baseUrl, sqliteFile, stop };
+}
+
+async function startMockEmailApi({ status = 200, payload = { id: "msg_test_123" } } = {}) {
+  const requests = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      requests.push({
+        method: req.method,
+        url: req.url,
+        authorization: req.headers.authorization || "",
+        body: body ? JSON.parse(body) : null,
+      });
+      res.writeHead(status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(payload));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  return {
+    url: `http://127.0.0.1:${address.port}/emails`,
+    requests,
+    async stop() {
+      await new Promise((resolve) => server.close(resolve));
+    },
+  };
 }
 
 async function requestJson(baseUrl, pathname, options = {}) {
@@ -190,6 +227,13 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.equal(officeEstimate.grandTotal, 2837.5);
     assert.equal(officeEstimate.items.length, 2);
 
+    const unconfiguredSend = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/send`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    assert.equal(unconfiguredSend.response.status, 503);
+    assert.match(unconfiguredSend.payload.error, /Email sending is not configured yet/);
+
     const estimatorState = await assertOk(fixture.baseUrl, "/api/estimates", {
       method: "POST",
       headers: estimatorHeaders,
@@ -204,6 +248,11 @@ test("office and estimator users can manage estimates while field roles are bloc
     const deniedEmployee = await requestJson(fixture.baseUrl, "/api/estimates", { headers: employeeHeaders });
     assert.equal(deniedForeman.response.status, 403);
     assert.equal(deniedEmployee.response.status, 403);
+    const deniedForemanSend = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/send`, {
+      method: "POST",
+      headers: foremanHeaders,
+    });
+    assert.equal(deniedForemanSend.response.status, 403);
 
     const foremanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${foremanLogin.token}` } });
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${employeeLogin.token}` } });
@@ -249,5 +298,107 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.ok(convertedState.jobs.some((job) => job.id === convertedEstimate.jobId && job.customerId === customerId));
   } finally {
     await fixture.stop();
+  }
+});
+
+test("configured estimate email sends before marking estimate sent", async () => {
+  const emailApi = await startMockEmailApi();
+  const fixture = await startServer({
+    EMAIL_PROVIDER: "resend",
+    EMAIL_FROM: "Concrete Ops <estimates@example.test>",
+    EMAIL_REPLY_TO_DEFAULT: "office@example.test",
+    EMAIL_API_KEY: "test-api-key",
+    EMAIL_API_URL: emailApi.url,
+  });
+
+  try {
+    const officeLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const officeHeaders = authHeaders(officeLogin.token);
+    const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${officeLogin.token}` } });
+    assert.equal(officeBootstrap.email.estimateSendingConfigured, true);
+
+    const customerId = officeBootstrap.customers[0].id;
+    const leadId = officeBootstrap.leads[0].id;
+    const createdState = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify(buildEstimatePayload({ customerId, leadId })),
+    });
+    const estimate = createdState.estimates.find((entry) => entry.title === "Martinez Driveway Proposal");
+
+    const sentState = await assertOk(fixture.baseUrl, `/api/estimates/${estimate.id}/send`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+
+    assert.equal(emailApi.requests.length, 1);
+    const request = emailApi.requests[0];
+    assert.equal(request.method, "POST");
+    assert.equal(request.authorization, "Bearer test-api-key");
+    assert.deepEqual(request.body.to, ["martinez@example.test"]);
+    assert.equal(request.body.from, "Concrete Ops <estimates@example.test>");
+    assert.equal(request.body.reply_to, "office@example.test");
+    assert.equal(request.body.subject, "Estimate for Driveway replacement estimate");
+    assert.match(request.body.text, /Hi Martinez Residence,/);
+    assert.match(request.body.text, /Total estimate: \$2,837\.50/);
+    assert.match(request.body.text, /Scope summary:\nReplace cracked driveway panels and restore broom-finish apron\./);
+    assert.match(request.body.text, /Notes:\nTwo-day window once approved\./);
+    assert.doesNotMatch(request.body.text, /Concrete placement/);
+    assert.doesNotMatch(request.body.text, /Office-only pricing assumptions/);
+
+    assert.equal(sentState.emailSend.sentTo, "martinez@example.test");
+    assert.equal(sentState.emailSend.providerMessageId, "msg_test_123");
+    const sentEstimate = sentState.estimates.find((entry) => entry.id === estimate.id);
+    assert.equal(sentEstimate.status, "sent");
+    assert.ok(sentEstimate.sentAt);
+    assert.equal(sentEstimate.sentBy, officeBootstrap.user.id);
+    assert.equal(sentEstimate.sentTo, "martinez@example.test");
+    assert.equal(sentEstimate.emailSubject, "Estimate for Driveway replacement estimate");
+    assert.equal(sentEstimate.providerMessageId, "msg_test_123");
+  } finally {
+    await fixture.stop();
+    await emailApi.stop();
+  }
+});
+
+test("failed estimate email send does not mark estimate sent", async () => {
+  const emailApi = await startMockEmailApi({ status: 500, payload: { message: "Provider unavailable" } });
+  const fixture = await startServer({
+    EMAIL_PROVIDER: "resend",
+    EMAIL_FROM: "Concrete Ops <estimates@example.test>",
+    EMAIL_REPLY_TO_DEFAULT: "office@example.test",
+    EMAIL_API_KEY: "test-api-key",
+    EMAIL_API_URL: emailApi.url,
+  });
+
+  try {
+    const officeLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const officeHeaders = authHeaders(officeLogin.token);
+    const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${officeLogin.token}` } });
+    const createdState = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify(buildEstimatePayload({
+        customerId: officeBootstrap.customers[0].id,
+        leadId: officeBootstrap.leads[0].id,
+      })),
+    });
+    const estimate = createdState.estimates.find((entry) => entry.title === "Martinez Driveway Proposal");
+
+    const failedSend = await requestJson(fixture.baseUrl, `/api/estimates/${estimate.id}/send`, {
+      method: "POST",
+      headers: officeHeaders,
+    });
+    assert.equal(failedSend.response.status, 502);
+    assert.match(failedSend.payload.error, /Provider unavailable/);
+
+    const afterFailureState = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${officeLogin.token}` } });
+    const afterFailureEstimate = afterFailureState.estimates.find((entry) => entry.id === estimate.id);
+    assert.equal(afterFailureEstimate.status, "draft");
+    assert.equal(afterFailureEstimate.sentAt, "");
+    assert.equal(afterFailureEstimate.sentTo, "");
+  } finally {
+    await fixture.stop();
+    await emailApi.stop();
   }
 });

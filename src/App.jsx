@@ -91,6 +91,7 @@ import {
   archivePostPourChecklist,
   completePrePourChecklist,
   completePostPourChecklist,
+  sendEstimate,
   submitToolChecklist,
 } from "./api";
 import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
@@ -99,7 +100,7 @@ import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRe
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateMailtoHref, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
@@ -232,6 +233,9 @@ const EMPTY_APP_STATE = {
   queueItems: [],
   activity: [],
   auditEvents: [],
+  email: {
+    estimateSendingConfigured: false,
+  },
   permissions: {
     users: {
       canView: false,
@@ -526,6 +530,11 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     queueItems: normalizeObjectArray(source.queueItems, fallback.queueItems),
     activity: normalizeObjectArray(source.activity, fallback.activity),
     auditEvents: normalizeObjectArray(source.auditEvents, fallback.auditEvents),
+    email: {
+      ...EMPTY_APP_STATE.email,
+      ...(fallback.email || {}),
+      ...(source.email || {}),
+    },
     permissions: {
       users: mergePermissionScope(EMPTY_APP_STATE.permissions.users, source.permissions?.users || fallback.permissions?.users),
       customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
@@ -7083,6 +7092,8 @@ function EstimatesPage({
   onSaveEstimate,
   onConvertEstimate,
   onPrintEstimate,
+  onSendEstimate,
+  emailSendingConfigured = false,
   companyName = DEFAULT_COMPANY_NAME,
   companyProfile = {},
 }) {
@@ -7137,11 +7148,6 @@ function EstimatesPage({
     };
   }, [detailCustomer, detailDraft, detailLead, selectedEstimate]);
   const detailEstimateCustomerEmail = useMemo(() => estimateCustomerEmail(detailEstimatePreview), [detailEstimatePreview]);
-  const detailEstimateMailtoHref = useMemo(() => buildEstimateMailtoHref({
-    companyName,
-    companyProfile,
-    estimate: detailEstimatePreview,
-  }), [companyName, companyProfile, detailEstimatePreview]);
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
 
@@ -7219,15 +7225,25 @@ function EstimatesPage({
     }
   }
 
-  function handleEmailEstimate() {
+  async function handleSendEstimate() {
     if (!detailEstimatePreview) return false;
-    if (!detailEstimateCustomerEmail || !detailEstimateMailtoHref) {
-      showCopyFeedback("Add a customer email before opening an email draft.");
+    if (!emailSendingConfigured) {
+      showCopyFeedback("Email sending is not configured yet.");
+      return false;
+    }
+    if (!detailEstimateCustomerEmail) {
+      showCopyFeedback("Add a customer email before sending this estimate.");
+      return false;
+    }
+    if (typeof onSendEstimate !== "function") {
+      showCopyFeedback("Email sending is not available right now.");
       return false;
     }
 
-    window.location.href = detailEstimateMailtoHref;
-    showCopyFeedback("Email draft opened. Click Mark sent after sending.");
+    const result = await onSendEstimate(detailEstimatePreview.id);
+    if (result?.sentTo) {
+      showCopyFeedback(`Estimate sent to ${result.sentTo}.`);
+    }
     return true;
   }
 
@@ -7472,8 +7488,8 @@ function EstimatesPage({
                   <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
                     Print estimate
                   </Button>
-                  <Button type="button" variant="secondary" onClick={handleEmailEstimate} disabled={!detailEstimatePreview}>
-                    Email estimate
+                  <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>
+                    Send estimate
                   </Button>
                   {canMarkSent ? (
                     <Button
@@ -8383,10 +8399,12 @@ function MainContent(props) {
           busy={props.busy}
           companyName={props.companyName}
           companyProfile={props.companyProfile}
+          emailSendingConfigured={props.emailSendingConfigured}
           onCreateEstimate={props.onCreateEstimate}
           onSaveEstimate={props.onSaveEstimate}
           onConvertEstimate={props.onConvertEstimate}
           onPrintEstimate={props.onPrintEstimate}
+          onSendEstimate={props.onSendEstimate}
         />
       );
     }
@@ -10115,6 +10133,26 @@ export default function App() {
     }
   }
 
+  async function handleSendEstimate(estimateId) {
+    if (!sessionToken || !appState.permissions.estimates.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await sendEstimate(sessionToken, estimateId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return nextState.emailSend || true;
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message);
+      }
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateChangeOrderRequest(payload) {
     if (!sessionToken || !(appState.permissions.changeOrders.canRequest || appState.permissions.changeOrders.canManage)) return false;
     setBusy(true);
@@ -10500,6 +10538,7 @@ export default function App() {
               companySettings={appState.companySettings}
               companyName={workspaceCompanyName}
               companyProfile={workspacePrintProfile}
+              emailSendingConfigured={Boolean(appState.email?.estimateSendingConfigured)}
               stats={stats}
               dashboardMetrics={dashboardMetrics}
               customers={appState.customers}
@@ -10558,6 +10597,7 @@ export default function App() {
                 onSaveEstimate={handleSaveEstimate}
                 onConvertEstimate={handleConvertEstimate}
                 onPrintEstimate={handlePrintEstimate}
+                onSendEstimate={handleSendEstimate}
                 relatedRecords={customerRelated}
               customerRouteRequested={Boolean(routeState.customerId)}
               leadFilter={leadFilter}

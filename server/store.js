@@ -4582,6 +4582,24 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 30,
+      description: "Add estimate email send metadata.",
+      up(database) {
+        const columns = [
+          ["sent_by", "TEXT"],
+          ["sent_to", "TEXT"],
+          ["email_subject", "TEXT"],
+          ["provider_message_id", "TEXT"],
+        ];
+
+        for (const [columnName, columnType] of columns) {
+          if (!columnExists(database, "estimates", columnName)) {
+            database.exec(`ALTER TABLE estimates ADD COLUMN ${columnName} ${columnType};`);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4656,8 +4674,8 @@ function writeStateToDb(state) {
   `);
 
   const insertEstimate = database.prepare(`
-    INSERT INTO estimates (id, sort_index, customer_id, lead_id, job_id, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, approved_at, rejected_at, archived_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO estimates (id, sort_index, customer_id, lead_id, job_id, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimateItem = database.prepare(`
@@ -4965,6 +4983,10 @@ function writeStateToDb(state) {
         Number(estimate.grandTotal || 0),
         estimate.createdBy,
         estimate.sentAt || null,
+        estimate.sentBy || null,
+        estimate.sentTo || null,
+        estimate.emailSubject || null,
+        estimate.providerMessageId || null,
         estimate.approvedAt || null,
         estimate.rejectedAt || null,
         estimate.archivedAt || null,
@@ -5404,7 +5426,8 @@ function readTableState() {
       SELECT id, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, title, status, scope_summary AS scopeSummary,
              internal_notes AS internalNotes, customer_notes AS customerNotes, subtotal, tax_rate AS taxRate,
              tax_total AS taxTotal, fees_total AS feesTotal, grand_total AS grandTotal, created_by AS createdBy,
-             sent_at AS sentAt, approved_at AS approvedAt, rejected_at AS rejectedAt, archived_at AS archivedAt,
+             sent_at AS sentAt, sent_by AS sentBy, sent_to AS sentTo, email_subject AS emailSubject,
+             provider_message_id AS providerMessageId, approved_at AS approvedAt, rejected_at AS rejectedAt, archived_at AS archivedAt,
              created_at AS createdAt, updated_at AS updatedAt
       FROM estimates
       ORDER BY sort_index ASC
