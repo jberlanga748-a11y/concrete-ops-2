@@ -1017,6 +1017,16 @@ function StatCard({ title, value, detail }) {
   );
 }
 
+function ProposalTotalCard({ value, detail }) {
+  return (
+    <div className="min-w-0 max-w-full rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-700 to-slate-950 p-5 text-white shadow-sm shadow-blue-900/20">
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Proposal total</p>
+      <p className="mt-2 break-words text-3xl font-black tracking-tight sm:text-4xl">{value}</p>
+      {detail ? <p className="mt-2 break-words text-sm font-bold leading-6 text-blue-100">{detail}</p> : null}
+    </div>
+  );
+}
+
 function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
@@ -7107,6 +7117,7 @@ function EstimatesPage({
   const [createDraft, setCreateDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [detailDraft, setDetailDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [copyFeedback, setCopyFeedback] = useState("");
+  const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
 
   const visibleCustomers = normalizeObjectArray(customers).filter((customer) => !customer.archivedAt);
@@ -7225,6 +7236,15 @@ function EstimatesPage({
     }
   }
 
+  function focusNewEstimate() {
+    setCreateDraft((current) => ({
+      ...current,
+      status: current.status || "draft",
+      customerId: current.customerId || singleCustomerId,
+    }));
+    newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
+
   async function handleSendEstimate() {
     if (!detailEstimatePreview) return false;
     if (!emailSendingConfigured) {
@@ -7260,7 +7280,12 @@ function EstimatesPage({
 
   return (
     <div>
-      <PageHeader eyebrow="Office Sales" title="Estimates" description="Build clean customer estimates, share them, and move approved work into jobs." />
+      <PageHeader
+        eyebrow="Office Sales"
+        title="Estimates"
+        description="Build clean customer proposals, share them, and move approved work into jobs."
+        actions={canManage ? <Button type="button" size="lg" onClick={focusNewEstimate}>New Estimate</Button> : null}
+      />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4">
@@ -7301,7 +7326,7 @@ function EstimatesPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-slate-950">{estimate.title || "Estimate draft"}</p>
-                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} · {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
+                        <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimate.customer?.name || "Customer pending"} - {formatEstimateCurrency(estimate.grandTotal || 0)}</p>
                       </div>
                       <StatusBadge status={estimateStatusLabel(estimate.status)} />
                     </div>
@@ -7319,8 +7344,9 @@ function EstimatesPage({
 
         <div className="min-w-0 space-y-4">
           {canManage ? (
-            <Card className="p-4">
-              <SectionHeader title="Create estimate" description="Link the estimate to a customer or lead, add line items, and keep the customer-facing scope clear." />
+            <div ref={newEstimateRef} className="scroll-mt-24">
+              <Card className="p-4">
+              <SectionHeader title="New Estimate" description="Create a customer-ready proposal with scope, terms, line items, and a clear total." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => ({ ...current, customerId: event.target.value }))}>
                   <option value="">Select a customer</option>
@@ -7328,10 +7354,10 @@ function EstimatesPage({
                 </SelectField>
                 <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => ({ ...current, leadId: event.target.value }))}>
                   <option value="">Optional linked lead</option>
-                  {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} — ${lead.project}`}</option>)}
+                  {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                 </SelectField>
                 <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
-                <SelectField label="Status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
+                <SelectField label="Starting status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
                   {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
                 </SelectField>
                 <InputField label="Tax rate (%)" value={createDraft.taxRate} onChange={(event) => setCreateDraft((current) => ({ ...current, taxRate: event.target.value }))} placeholder="Optional" inputMode="decimal" />
@@ -7339,8 +7365,8 @@ function EstimatesPage({
               </div>
               <div className="mt-3 grid gap-3">
                 <TextAreaField label="Scope summary" value={createDraft.scopeSummary} onChange={(event) => setCreateDraft((current) => ({ ...current, scopeSummary: event.target.value }))} placeholder="Summarize the proposed work." />
-                <TextAreaField label="Internal notes" value={createDraft.internalNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, internalNotes: event.target.value }))} placeholder="Office-only sales notes." />
-                <TextAreaField label="Customer notes" value={createDraft.customerNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, customerNotes: event.target.value }))} placeholder="Customer-facing note summary." />
+                <TextAreaField label="Customer notes / terms" value={createDraft.customerNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, customerNotes: event.target.value }))} placeholder="Shown in customer copy, email, and print output." />
+                <TextAreaField label="Internal notes (office only)" value={createDraft.internalNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, internalNotes: event.target.value }))} placeholder="Office-only sales notes. Not included in customer copy, email, or print output." />
               </div>
               <div className="mt-4 space-y-3">
                 <SectionHeader title="Line items" description="Line totals update automatically from quantity and unit price." />
@@ -7358,13 +7384,15 @@ function EstimatesPage({
                     </div>
                   </div>
                 ))}
-                <Button type="button" tone="secondary" onClick={() => appendDraftItem(setCreateDraft)}>Add line item</Button>
+                <Button type="button" variant="secondary" onClick={() => appendDraftItem(setCreateDraft)}>Add line item</Button>
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="mt-4">
+                <ProposalTotalCard value={formatEstimateCurrency(createTotals.grandTotal)} detail="Customer-facing grand total from line items, tax, and fees." />
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
                 <StatCard title="Subtotal" value={formatEstimateCurrency(createTotals.subtotal)} />
                 <StatCard title="Tax" value={formatEstimateCurrency(createTotals.taxTotal || 0)} />
                 <StatCard title="Fees" value={formatEstimateCurrency(createTotals.feesTotal || 0)} />
-                <StatCard title="Grand total" value={formatEstimateCurrency(createTotals.grandTotal)} />
               </div>
               <div className="mt-4">
                 <Button
@@ -7380,17 +7408,18 @@ function EstimatesPage({
                   }}
                   disabled={busy || (!createDraft.customerId && !createDraft.leadId) || !createDraft.title}
                 >
-                  Create estimate
+                  Create New Estimate
                 </Button>
               </div>
-            </Card>
+              </Card>
+            </div>
           ) : null}
 
           {selectedEstimate ? (
             <Card className="p-4">
               <SectionHeader
                 title={selectedEstimate.title || "Estimate detail"}
-                description={`${selectedEstimate.customer?.name || "No customer"} · ${selectedEstimate.createdByName || "Unknown creator"}`}
+                description={`${selectedEstimate.customer?.name || "No customer"} - ${selectedEstimate.createdByName || "Unknown creator"}`}
                 action={<StatusBadge status={estimateStatusLabel(selectedEstimate.status)} />}
               />
               <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -7411,19 +7440,19 @@ function EstimatesPage({
                   </SelectField>
                   <SelectField label="Lead" value={detailDraft.leadId} onChange={(event) => setDetailDraft((current) => ({ ...current, leadId: event.target.value }))}>
                     <option value="">Optional linked lead</option>
-                    {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} — ${lead.project}`}</option>)}
+                    {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                   </SelectField>
                   <InputField label="Title" value={detailDraft.title} onChange={(event) => setDetailDraft((current) => ({ ...current, title: event.target.value }))} />
-                  <SelectField label="Status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
+                  <SelectField label="Workflow status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
                     {["draft", "sent", "approved", "rejected", "archived"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
                   </SelectField>
                   <InputField label="Tax rate (%)" value={detailDraft.taxRate} onChange={(event) => setDetailDraft((current) => ({ ...current, taxRate: event.target.value }))} inputMode="decimal" />
                   <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" />
                 </div>
                 <div className="grid gap-3">
-                  <TextAreaField label="Scope summary" value={detailDraft.scopeSummary} onChange={(event) => setDetailDraft((current) => ({ ...current, scopeSummary: event.target.value }))} />
-                  <TextAreaField label="Internal notes" value={detailDraft.internalNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, internalNotes: event.target.value }))} />
-                  <TextAreaField label="Customer notes" value={detailDraft.customerNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, customerNotes: event.target.value }))} />
+                  <TextAreaField label="Scope summary" value={detailDraft.scopeSummary} onChange={(event) => setDetailDraft((current) => ({ ...current, scopeSummary: event.target.value }))} placeholder="Summarize the proposed work." />
+                  <TextAreaField label="Customer notes / terms" value={detailDraft.customerNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, customerNotes: event.target.value }))} placeholder="Shown in customer copy, email, and print output." />
+                  <TextAreaField label="Internal notes (office only)" value={detailDraft.internalNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, internalNotes: event.target.value }))} placeholder="Office-only sales notes. Not included in customer copy, email, or print output." />
                 </div>
                 <div className="space-y-3">
                   <SectionHeader title="Line items" description="Office pricing lives here and is never shipped to field roles." />
@@ -7441,74 +7470,94 @@ function EstimatesPage({
                       </div>
                     </div>
                   ))}
-                  <Button type="button" tone="secondary" onClick={() => appendDraftItem(setDetailDraft)}>Add line item</Button>
+                  <Button type="button" variant="secondary" onClick={() => appendDraftItem(setDetailDraft)}>Add line item</Button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-4">
+                <ProposalTotalCard value={formatEstimateCurrency(detailTotals.grandTotal)} detail="Customer-facing grand total from the current proposal draft." />
+                <div className="grid gap-3 md:grid-cols-3">
                   <StatCard title="Subtotal" value={formatEstimateCurrency(detailTotals.subtotal)} />
                   <StatCard title="Tax" value={formatEstimateCurrency(detailTotals.taxTotal || 0)} />
                   <StatCard title="Fees" value={formatEstimateCurrency(detailTotals.feesTotal || 0)} />
-                  <StatCard title="Grand total" value={formatEstimateCurrency(detailTotals.grandTotal)} />
                 </div>
                 {copyFeedback ? (
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
                     {copyFeedback}
                   </div>
                 ) : null}
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => copyEstimateText(
-                      () => buildEstimateCopyText({
-                        companyName,
-                        companyProfile,
-                        estimate: detailEstimatePreview,
-                      }),
-                      "Estimate copied.",
-                    )}
-                    disabled={!detailEstimatePreview}
-                  >
-                    Copy estimate
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => copyEstimateText(
-                      () => buildEstimateCustomerMessage({
-                        companyName,
-                        companyProfile,
-                        estimate: detailEstimatePreview,
-                      }),
-                      "Customer message copied.",
-                    )}
-                    disabled={!detailEstimatePreview}
-                  >
-                    Copy customer message
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
-                    Print estimate
-                  </Button>
-                  <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>
-                    Send estimate
-                  </Button>
-                  {canMarkSent ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
-                      disabled={detailSaveDisabled}
-                    >
-                      Mark sent
-                    </Button>
-                  ) : null}
-                  <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled}>
-                    Save estimate
-                  </Button>
-                  {selectedEstimate.status === "approved" && !selectedEstimate.jobId ? (
-                    <Button type="button" variant="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
-                      Convert to job
-                    </Button>
-                  ) : null}
+                <div className="grid gap-3 rounded-3xl border border-blue-100 bg-blue-50/60 p-3 md:grid-cols-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Share proposal</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => copyEstimateText(
+                          () => buildEstimateCopyText({
+                            companyName,
+                            companyProfile,
+                            estimate: detailEstimatePreview,
+                          }),
+                          "Estimate copied.",
+                        )}
+                        disabled={!detailEstimatePreview}
+                      >
+                        Copy estimate
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => copyEstimateText(
+                          () => buildEstimateCustomerMessage({
+                            companyName,
+                            companyProfile,
+                            estimate: detailEstimatePreview,
+                          }),
+                          "Customer message copied.",
+                        )}
+                        disabled={!detailEstimatePreview}
+                      >
+                        Copy customer message
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
+                        Print proposal
+                      </Button>
+                      <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>
+                        Send estimate
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Workflow</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled}>
+                        Save estimate
+                      </Button>
+                      {canMarkSent ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
+                          disabled={detailSaveDisabled}
+                        >
+                          Mark sent
+                        </Button>
+                      ) : null}
+                      {canManage && detailDraft.status !== "approved" && !selectedEstimate.jobId ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "approved" })}
+                          disabled={detailSaveDisabled}
+                        >
+                          Mark approved
+                        </Button>
+                      ) : null}
+                      {selectedEstimate.status === "approved" && !selectedEstimate.jobId ? (
+                        <Button type="button" variant="secondary" onClick={() => onConvertEstimate(selectedEstimate.id)} disabled={busy}>
+                          Convert to job
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -8866,13 +8915,14 @@ export default function App() {
     [appState.companySettings, workspaceCompanyName],
   );
   const workspacePrintProfile = useMemo(() => ({
+    logoInitials: workspaceLogoInitials,
     businessPhone: appState.companySettings?.businessPhone || "",
     businessEmail: appState.companySettings?.businessEmail || "",
     website: appState.companySettings?.website || "",
     businessAddress: appState.companySettings?.businessAddress || "",
     serviceArea: appState.companySettings?.serviceArea || "",
     licenseText: appState.companySettings?.licenseText || "",
-  }), [appState.companySettings]);
+  }), [appState.companySettings, workspaceLogoInitials]);
   const workspacePrintPacketFooter = appState.companySettings?.printPacketFooter || "";
   const workspacePrintPacketDisclaimer = appState.companySettings?.printPacketDisclaimer || "";
 
