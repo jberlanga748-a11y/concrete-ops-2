@@ -4891,7 +4891,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
     companyName,
     estimate,
   });
-  const estimateAttachment = buildEstimatePdfAttachment({
+  const estimateAttachment = await buildEstimatePdfAttachment({
     companyName,
     companyProfile: settings,
     printPacketFooter: settings.printPacketFooter || "",

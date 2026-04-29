@@ -10,6 +10,13 @@ import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
 
+function extractPdfText(buffer) {
+  return Array.from(buffer.toString("latin1").matchAll(/<([0-9A-Fa-f]+)>/g))
+    .map((match) => Buffer.from(match[1], "hex").toString("latin1"))
+    .join("")
+    .replace(/\s+/g, " ");
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -364,15 +371,18 @@ test("configured estimate email sends before marking estimate sent", async () =>
     assert.doesNotMatch(request.body.text, /Office-only pricing assumptions/);
     assert.equal(request.body.attachments.length, 1);
     assert.equal(request.body.attachments[0].filename, "Estimate-Martinez-Residence-Driveway-replacement-estimate.pdf");
-    const pdfText = Buffer.from(request.body.attachments[0].content, "base64").toString("latin1");
-    assert.match(pdfText, /%PDF-1\.4/);
-    assert.match(pdfText, /Concrete Ops Workspace/);
-    assert.match(pdfText, /Martinez Residence/);
-    assert.match(pdfText, /Driveway replacement estimate/);
-    assert.match(pdfText, /Concrete placement/);
-    assert.match(pdfText, /Grand total: \$2,837\.50/);
-    assert.match(pdfText, /Two-day window once approved\./);
-    assert.doesNotMatch(pdfText, /Office-only pricing assumptions/);
+    const pdfBuffer = Buffer.from(request.body.attachments[0].content, "base64");
+    const pdfText = pdfBuffer.toString("latin1");
+    const decodedText = extractPdfText(pdfBuffer);
+    assert.match(pdfText, /%PDF-1\.3/);
+    assert.match(decodedText, /Concrete Ops Workspace/);
+    assert.match(decodedText, /Martinez Residence/);
+    assert.match(decodedText, /Driveway replacement estimate/);
+    assert.match(decodedText, /Concrete placement/);
+    assert.match(decodedText, /GRAND TOTAL/);
+    assert.match(decodedText, /\$2,837\.50/);
+    assert.match(decodedText, /Two-day window once approved\./);
+    assert.doesNotMatch(decodedText, /Office-only pricing assumptions/);
 
     assert.equal(sentState.emailSend.sentTo, "proposal-recipient@example.test");
     assert.equal(sentState.emailSend.providerMessageId, "msg_test_123");
