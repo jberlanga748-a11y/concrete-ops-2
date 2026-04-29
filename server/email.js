@@ -62,6 +62,7 @@ export async function sendEstimateEmail({
   subject,
   text,
   replyTo = "",
+  attachments = [],
 } = {}, env = process.env) {
   const config = getEmailConfig(env);
   if (!config.configured) {
@@ -79,6 +80,14 @@ export async function sendEstimateEmail({
     text,
     html: textToHtml(text),
     ...(replyTo || config.replyTo ? { reply_to: replyTo || config.replyTo } : {}),
+    ...(attachments.length > 0 ? {
+      attachments: attachments.map((attachment) => ({
+        filename: attachment.filename,
+        content: Buffer.isBuffer(attachment.content)
+          ? attachment.content.toString("base64")
+          : String(attachment.content || ""),
+      })),
+    } : {}),
   };
 
   let response;

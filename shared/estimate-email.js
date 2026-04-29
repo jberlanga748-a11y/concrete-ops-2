@@ -2,7 +2,7 @@ function roundCurrency(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
-function calculateEstimateLineTotal(item = {}) {
+export function calculateEstimateLineTotal(item = {}) {
   const quantity = Number(item.quantity || 0);
   const unitPrice = Number(item.unitPrice || 0);
   if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice) || quantity < 0 || unitPrice < 0) {
@@ -11,7 +11,7 @@ function calculateEstimateLineTotal(item = {}) {
   return roundCurrency(quantity * unitPrice);
 }
 
-function calculateEstimateTotals(items = [], { taxRate = null, feesTotal = null } = {}) {
+export function calculateEstimateTotals(items = [], { taxRate = null, feesTotal = null } = {}) {
   const normalizedItems = Array.isArray(items) ? items : [];
   const subtotal = roundCurrency(
     normalizedItems.reduce((sum, item) => sum + calculateEstimateLineTotal(item), 0),
@@ -32,7 +32,7 @@ function calculateEstimateTotals(items = [], { taxRate = null, feesTotal = null 
   };
 }
 
-function formatEstimateCurrency(value) {
+export function formatEstimateCurrency(value) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -41,11 +41,11 @@ function formatEstimateCurrency(value) {
   }).format(Number.isFinite(Number(value)) ? Number(value) : 0);
 }
 
-function estimateCustomerName(estimate = {}) {
+export function estimateCustomerName(estimate = {}) {
   return String(estimate?.customer?.name || estimate?.lead?.customer || "").trim();
 }
 
-function estimateProjectName(estimate = {}) {
+export function estimateProjectName(estimate = {}) {
   return String(estimate?.lead?.project || estimate?.title || "").trim();
 }
 
@@ -94,6 +94,23 @@ export function buildEstimateCustomerMessage({ companyName = "Concrete Ops Works
     "",
     "Thank you,",
     ...contactLines,
+  ].join("\n").trim();
+}
+
+export function buildEstimateAttachmentEmailBody({ companyName = "Concrete Ops Workspace", estimate } = {}) {
+  if (!estimate) return "";
+  const customerName = estimateCustomerName(estimate) || "there";
+  const projectName = estimateProjectName(estimate) || estimate?.title || "your project";
+
+  return [
+    `Hi ${customerName},`,
+    "",
+    `Attached is your estimate for ${projectName}.`,
+    "",
+    "Please reply to this email if you have any questions or would like to move forward.",
+    "",
+    "Thank you,",
+    companyName,
   ].join("\n").trim();
 }
 
