@@ -1,3 +1,5 @@
+import PDFDocument from "pdfkit";
+
 import {
   calculateEstimateLineTotal,
   calculateEstimateTotals,
@@ -6,9 +8,26 @@ import {
   formatEstimateCurrency,
 } from "../shared/estimate-email.js";
 
-const PAGE_WIDTH = 612;
-const PAGE_HEIGHT = 792;
-const PAGE_MARGIN = 50;
+const COLORS = {
+  navy: "#0f2a44",
+  blue: "#2563eb",
+  blueSoft: "#eaf2ff",
+  border: "#d7e1ee",
+  slate: "#475569",
+  slateDark: "#0f172a",
+  slateSoft: "#f8fafc",
+  white: "#ffffff",
+};
+
+const PAGE_MARGIN = 42;
+const CONTENT_WIDTH = 528;
+const TABLE_COLUMNS = {
+  description: 246,
+  quantity: 48,
+  unit: 46,
+  unitPrice: 84,
+  lineTotal: 92,
+};
 
 function cleanText(value, fallback = "") {
   return String(value ?? fallback)
@@ -16,13 +35,6 @@ function cleanText(value, fallback = "") {
     .replace(/[^\x09\x20-\x7E]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function escapePdfString(value) {
-  return cleanText(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)");
 }
 
 function filenamePart(value, fallback) {
@@ -39,65 +51,264 @@ export function buildEstimatePdfFilename(estimate = {}) {
   return `Estimate-${customer}-${project}.pdf`;
 }
 
-function wrapText(value, maxChars = 94) {
-  const words = cleanText(value).split(" ").filter(Boolean);
-  if (words.length === 0) return [""];
-  const lines = [];
-  let current = "";
+function collectPdfBuffer(doc) {
+  const chunks = [];
+  return new Promise((resolve, reject) => {
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    doc.end();
+  });
+}
 
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length <= maxChars) {
-      current = next;
-      continue;
-    }
-    if (current) lines.push(current);
-    current = word;
+function addSectionTitle(doc, title, y = doc.y) {
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(COLORS.navy)
+    .text(title.toUpperCase(), PAGE_MARGIN, y, { width: CONTENT_WIDTH });
+  doc
+    .moveTo(PAGE_MARGIN, doc.y + 5)
+    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, doc.y + 5)
+    .strokeColor(COLORS.border)
+    .lineWidth(1)
+    .stroke();
+  doc.moveDown(0.85);
+}
+
+function ensureSpace(doc, heightNeeded) {
+  if (doc.y + heightNeeded <= doc.page.height - PAGE_MARGIN) return;
+  doc.addPage();
+  doc.y = PAGE_MARGIN;
+}
+
+function drawWrappedText(doc, text, options = {}) {
+  doc
+    .font(options.font || "Helvetica")
+    .fontSize(options.size || 10)
+    .fillColor(options.color || COLORS.slateDark)
+    .text(cleanText(text, options.fallback || ""), options.x || PAGE_MARGIN, options.y ?? doc.y, {
+      width: options.width || CONTENT_WIDTH,
+      lineGap: options.lineGap ?? 3,
+    });
+}
+
+function profileLines(companyProfile = {}) {
+  return [
+    companyProfile.businessPhone,
+    companyProfile.businessEmail,
+    companyProfile.website,
+    companyProfile.businessAddress,
+    companyProfile.serviceArea ? `Service area: ${companyProfile.serviceArea}` : "",
+    companyProfile.licenseText,
+  ].map((value) => cleanText(value)).filter(Boolean);
+}
+
+function drawHeader(doc, { companyName, companyProfile }) {
+  const headerTop = PAGE_MARGIN;
+  const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
+
+  doc.roundedRect(PAGE_MARGIN, headerTop, 48, 48, 10).fill(COLORS.blue);
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(17)
+    .fillColor(COLORS.white)
+    .text(initials, PAGE_MARGIN, headerTop + 15, { width: 48, align: "center" });
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(18)
+    .fillColor(COLORS.navy)
+    .text(cleanText(companyName, "Concrete Ops Workspace"), PAGE_MARGIN + 62, headerTop + 2, { width: 246 });
+
+  const profile = profileLines(companyProfile);
+  doc
+    .font("Helvetica")
+    .fontSize(8.5)
+    .fillColor(COLORS.slate);
+  profile.forEach((line, index) => {
+    doc.text(line, PAGE_MARGIN + 322, headerTop + (index * 11), { width: 206, align: "right" });
+  });
+
+  doc
+    .moveTo(PAGE_MARGIN, headerTop + 62)
+    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, headerTop + 62)
+    .strokeColor(COLORS.border)
+    .lineWidth(1)
+    .stroke();
+  doc.y = headerTop + 82;
+}
+
+function drawProposalIntro(doc, { estimate, customerName, projectName }) {
+  const top = doc.y;
+  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 90, 14).fill(COLORS.slateSoft).strokeColor(COLORS.border).stroke();
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(19)
+    .fillColor(COLORS.navy)
+    .text("Estimate / Proposal", PAGE_MARGIN + 20, top + 18, { width: 292 });
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor(COLORS.slate)
+    .text(cleanText(estimate.title, "Customer Estimate"), PAGE_MARGIN + 20, top + 44, { width: 292 });
+
+  const dateText = estimate.createdAt ? new Date(estimate.createdAt).toLocaleDateString("en-US") : "Not dated";
+  const statusText = cleanText(estimate.status, "draft");
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.slate).text("CUSTOMER", PAGE_MARGIN + 330, top + 16, { width: 170 });
+  doc.font("Helvetica").fontSize(10).fillColor(COLORS.slateDark).text(customerName, PAGE_MARGIN + 330, top + 28, { width: 170 });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.slate).text("PROJECT", PAGE_MARGIN + 330, top + 46, { width: 170 });
+  doc.font("Helvetica").fontSize(10).fillColor(COLORS.slateDark).text(projectName, PAGE_MARGIN + 330, top + 58, { width: 170 });
+  doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.slate).text(`Date: ${dateText}   Status: ${statusText}`, PAGE_MARGIN + 330, top + 74, { width: 170 });
+
+  doc.y = top + 106;
+}
+
+function drawTotalBox(doc, totals) {
+  const top = doc.y;
+  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 70, 16).fill(COLORS.navy);
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .fillColor(COLORS.blueSoft)
+    .text("GRAND TOTAL", PAGE_MARGIN + 22, top + 18, { width: 160 });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(28)
+    .fillColor(COLORS.white)
+    .text(formatEstimateCurrency(totals.grandTotal), PAGE_MARGIN + 250, top + 18, { width: 250, align: "right" });
+  doc.y = top + 92;
+}
+
+function drawLineItemsTable(doc, estimate) {
+  addSectionTitle(doc, "Line Items");
+  const startX = PAGE_MARGIN;
+  const headerHeight = 24;
+  const rowPadding = 8;
+  const items = Array.isArray(estimate.items) ? estimate.items : [];
+
+  function drawHeaderRow() {
+    doc.rect(startX, doc.y, CONTENT_WIDTH, headerHeight).fill(COLORS.navy);
+    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.white);
+    let x = startX + rowPadding;
+    doc.text("Description", x, doc.y + 8, { width: TABLE_COLUMNS.description });
+    x += TABLE_COLUMNS.description;
+    doc.text("Qty", x, doc.y + 8, { width: TABLE_COLUMNS.quantity, align: "right" });
+    x += TABLE_COLUMNS.quantity;
+    doc.text("Unit", x, doc.y + 8, { width: TABLE_COLUMNS.unit, align: "center" });
+    x += TABLE_COLUMNS.unit;
+    doc.text("Unit Price", x, doc.y + 8, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    x += TABLE_COLUMNS.unitPrice;
+    doc.text("Line Total", x, doc.y + 8, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.y += headerHeight;
   }
 
-  if (current) lines.push(current);
-  return lines;
+  drawHeaderRow();
+
+  if (items.length === 0) {
+    doc.rect(startX, doc.y, CONTENT_WIDTH, 36).strokeColor(COLORS.border).stroke();
+    doc.font("Helvetica").fontSize(9).fillColor(COLORS.slate).text("No line items recorded.", startX + rowPadding, doc.y + 12, { width: CONTENT_WIDTH - 16 });
+    doc.y += 44;
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const description = cleanText(item?.description || `Line item ${index + 1}`);
+    const descriptionHeight = doc.heightOfString(description, { width: TABLE_COLUMNS.description - 8 });
+    const rowHeight = Math.max(38, descriptionHeight + 18);
+    ensureSpace(doc, rowHeight + 34);
+    if (doc.y < PAGE_MARGIN + 5) drawHeaderRow();
+
+    const y = doc.y;
+    doc.rect(startX, y, CONTENT_WIDTH, rowHeight).fill(index % 2 === 0 ? COLORS.white : COLORS.slateSoft);
+    doc.rect(startX, y, CONTENT_WIDTH, rowHeight).strokeColor(COLORS.border).lineWidth(0.6).stroke();
+
+    doc.font("Helvetica").fontSize(9).fillColor(COLORS.slateDark);
+    let x = startX + rowPadding;
+    doc.text(description, x, y + 10, { width: TABLE_COLUMNS.description - 8, lineGap: 2 });
+    x += TABLE_COLUMNS.description;
+    doc.text(String(item?.quantity ?? 0), x, y + 10, { width: TABLE_COLUMNS.quantity, align: "right" });
+    x += TABLE_COLUMNS.quantity;
+    doc.text(cleanText(item?.unit), x, y + 10, { width: TABLE_COLUMNS.unit, align: "center" });
+    x += TABLE_COLUMNS.unit;
+    doc.text(formatEstimateCurrency(item?.unitPrice || 0), x, y + 10, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    x += TABLE_COLUMNS.unitPrice;
+    doc.font("Helvetica-Bold").text(formatEstimateCurrency(calculateEstimateLineTotal(item)), x, y + 10, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.y = y + rowHeight;
+  });
+
+  doc.moveDown(1);
 }
 
-function pushLine(lines, text = "", options = {}) {
-  lines.push({
-    text: cleanText(text),
-    size: options.size || 10,
-    font: options.font || "F1",
-    indent: options.indent || 0,
-    gapAfter: options.gapAfter || 0,
+function drawTotals(doc, totals) {
+  ensureSpace(doc, 105);
+  const boxWidth = 230;
+  const x = PAGE_MARGIN + CONTENT_WIDTH - boxWidth;
+  const y = doc.y;
+
+  const rows = [
+    ["Subtotal", formatEstimateCurrency(totals.subtotal), false],
+    ...(totals.taxRate != null ? [[`Tax (${totals.taxRate}%)`, formatEstimateCurrency(totals.taxTotal || 0), false]] : []),
+    ...(totals.feesTotal != null ? [["Fees", formatEstimateCurrency(totals.feesTotal || 0), false]] : []),
+    ["Grand Total", formatEstimateCurrency(totals.grandTotal), true],
+  ];
+
+  rows.forEach(([label, value, highlight], index) => {
+    const rowY = y + (index * 24);
+    if (highlight) doc.roundedRect(x, rowY, boxWidth, 26, 7).fill(COLORS.blueSoft);
+    doc
+      .font(highlight ? "Helvetica-Bold" : "Helvetica")
+      .fontSize(highlight ? 11 : 9.5)
+      .fillColor(highlight ? COLORS.navy : COLORS.slateDark)
+      .text(label, x + 12, rowY + 7, { width: 96 });
+    doc.text(value, x + 108, rowY + 7, { width: 110, align: "right" });
+  });
+
+  doc.y = y + (rows.length * 24) + 18;
+}
+
+function drawAcceptanceBlock(doc) {
+  ensureSpace(doc, 92);
+  addSectionTitle(doc, "Acceptance");
+  const y = doc.y + 6;
+  const columnWidth = 154;
+  [["Accepted by", PAGE_MARGIN], ["Signature", PAGE_MARGIN + 187], ["Date", PAGE_MARGIN + 374]].forEach(([label, x]) => {
+    doc.moveTo(x, y + 32).lineTo(x + columnWidth, y + 32).strokeColor(COLORS.border).lineWidth(1).stroke();
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.slate).text(label.toUpperCase(), x, y + 40, { width: columnWidth });
+  });
+  doc.y = y + 66;
+}
+
+function drawFooter(doc, { printPacketFooter, printPacketDisclaimer }) {
+  const footerY = doc.page.height - 56;
+  doc.moveTo(PAGE_MARGIN, footerY - 10).lineTo(PAGE_MARGIN + CONTENT_WIDTH, footerY - 10).strokeColor(COLORS.border).lineWidth(0.8).stroke();
+  doc.font("Helvetica").fontSize(7.5).fillColor(COLORS.slate);
+  const footer = cleanText(printPacketFooter || "Generated by Concrete Ops for estimate review and customer follow-up.");
+  const disclaimer = cleanText(printPacketDisclaimer);
+  doc.text([footer, disclaimer, "Generated by Concrete Ops"].filter(Boolean).join("  |  "), PAGE_MARGIN, footerY, {
+    width: CONTENT_WIDTH,
+    align: "center",
   });
 }
 
-function pushWrapped(lines, text, options = {}) {
-  const wrapped = wrapText(text, options.maxChars || 94);
-  wrapped.forEach((line, index) => {
-    pushLine(lines, line, {
-      ...options,
-      gapAfter: index === wrapped.length - 1 ? options.gapAfter || 0 : 0,
-    });
-  });
-}
-
-function profileRows(companyProfile = {}) {
-  return [
-    ["Phone", companyProfile.businessPhone],
-    ["Email", companyProfile.businessEmail],
-    ["Website", companyProfile.website],
-    ["Address", companyProfile.businessAddress],
-    ["Service area", companyProfile.serviceArea],
-    ["License", companyProfile.licenseText],
-  ].filter(([, value]) => cleanText(value));
-}
-
-function estimatePdfLines({
+export async function buildEstimatePdfBuffer({
   companyName = "Concrete Ops Workspace",
   companyProfile = {},
   printPacketFooter = "",
   printPacketDisclaimer = "",
   estimate = {},
 } = {}) {
-  const lines = [];
+  const doc = new PDFDocument({
+    size: "LETTER",
+    margin: PAGE_MARGIN,
+    autoFirstPage: true,
+    compress: false,
+    bufferPages: true,
+    info: {
+      Title: `Estimate - ${cleanText(estimate.title, "Customer Estimate")}`,
+      Author: cleanText(companyName, "Concrete Ops Workspace"),
+    },
+  });
   const customerName = estimateCustomerName(estimate) || "Customer pending";
   const projectName = estimateProjectName(estimate) || "Project pending";
   const totals = calculateEstimateTotals(estimate.items, {
@@ -105,132 +316,33 @@ function estimatePdfLines({
     feesTotal: estimate.feesTotal,
   });
 
-  pushLine(lines, companyProfile.logoInitials ? `${companyProfile.logoInitials}  ${companyName}` : companyName, { size: 18, font: "F2" });
-  profileRows(companyProfile).forEach(([label, value]) => pushLine(lines, `${label}: ${value}`, { size: 9 }));
-  pushLine(lines, "", { size: 6, gapAfter: 6 });
-  pushLine(lines, "ESTIMATE / PROPOSAL", { size: 16, font: "F2" });
-  pushLine(lines, `Estimate: ${estimate.title || "Estimate"}`, { size: 11, font: "F2" });
-  pushLine(lines, `Customer: ${customerName}`, { size: 10 });
-  pushLine(lines, `Project: ${projectName}`, { size: 10, gapAfter: 8 });
+  drawHeader(doc, { companyName, companyProfile });
+  drawProposalIntro(doc, { estimate, customerName, projectName });
+  drawTotalBox(doc, totals);
+  addSectionTitle(doc, "Scope Summary");
+  drawWrappedText(doc, estimate.scopeSummary || "No scope summary recorded.", { lineGap: 4 });
+  doc.moveDown(1.1);
+  drawLineItemsTable(doc, estimate);
+  drawTotals(doc, totals);
+  ensureSpace(doc, 72);
+  addSectionTitle(doc, "Customer Notes / Terms");
+  drawWrappedText(doc, estimate.customerNotes || "No customer notes recorded.", { lineGap: 4 });
+  doc.moveDown(1.3);
+  drawAcceptanceBlock(doc);
 
-  pushLine(lines, "Scope Summary", { size: 12, font: "F2" });
-  pushWrapped(lines, estimate.scopeSummary || "No scope summary recorded.", { size: 10, gapAfter: 8 });
-
-  pushLine(lines, "Estimate Line Items", { size: 12, font: "F2" });
-  const items = Array.isArray(estimate.items) ? estimate.items : [];
-  if (items.length === 0) {
-    pushLine(lines, "No line items recorded.", { size: 10, gapAfter: 8 });
-  } else {
-    items.forEach((item, index) => {
-      pushWrapped(lines, `${index + 1}. ${item?.description || `Line item ${index + 1}`}`, { size: 10, font: "F2", maxChars: 88 });
-      pushLine(
-        lines,
-        `Qty: ${item?.quantity ?? 0} ${item?.unit || ""}   Unit price: ${formatEstimateCurrency(item?.unitPrice || 0)}   Line total: ${formatEstimateCurrency(calculateEstimateLineTotal(item))}`,
-        { size: 9, indent: 12, gapAfter: 4 },
-      );
-    });
+  const pageRange = doc.bufferedPageRange();
+  for (let pageIndex = pageRange.start; pageIndex < pageRange.start + pageRange.count; pageIndex += 1) {
+    doc.switchToPage(pageIndex);
+    drawFooter(doc, { printPacketFooter, printPacketDisclaimer });
   }
 
-  pushLine(lines, "Estimate Totals", { size: 12, font: "F2", gapAfter: 2 });
-  pushLine(lines, `Subtotal: ${formatEstimateCurrency(totals.subtotal)}`, { size: 10 });
-  if (totals.taxRate != null) {
-    pushLine(lines, `Tax (${totals.taxRate}%): ${formatEstimateCurrency(totals.taxTotal || 0)}`, { size: 10 });
-  }
-  if (totals.feesTotal != null) {
-    pushLine(lines, `Fees: ${formatEstimateCurrency(totals.feesTotal || 0)}`, { size: 10 });
-  }
-  pushLine(lines, `Grand total: ${formatEstimateCurrency(totals.grandTotal)}`, { size: 13, font: "F2", gapAfter: 8 });
-
-  pushLine(lines, "Customer Notes / Terms", { size: 12, font: "F2" });
-  pushWrapped(lines, estimate.customerNotes || "No customer notes recorded.", { size: 10, gapAfter: 8 });
-
-  const footer = printPacketFooter || "Generated by Concrete Ops for estimate review and customer follow-up.";
-  if (footer) pushWrapped(lines, footer, { size: 8, gapAfter: 4 });
-  if (printPacketDisclaimer) pushWrapped(lines, printPacketDisclaimer, { size: 8 });
-
-  return lines;
+  return collectPdfBuffer(doc);
 }
 
-function paginateLines(lines) {
-  const pages = [[]];
-  let y = PAGE_HEIGHT - PAGE_MARGIN;
-
-  for (const line of lines) {
-    const lineHeight = line.text ? line.size + 5 + line.gapAfter : line.size + line.gapAfter;
-    if (pages[pages.length - 1].length > 0 && y - lineHeight < PAGE_MARGIN) {
-      pages.push([]);
-      y = PAGE_HEIGHT - PAGE_MARGIN;
-    }
-    pages[pages.length - 1].push({ ...line, y });
-    y -= lineHeight;
-  }
-
-  return pages;
-}
-
-function buildContentStream(pageLines) {
-  const commands = ["BT"];
-  for (const line of pageLines) {
-    if (!line.text) continue;
-    const x = PAGE_MARGIN + line.indent;
-    commands.push(`/${line.font} ${line.size} Tf`);
-    commands.push(`1 0 0 1 ${x} ${line.y} Tm`);
-    commands.push(`(${escapePdfString(line.text)}) Tj`);
-  }
-  commands.push("ET");
-  return commands.join("\n");
-}
-
-function buildPdfBuffer(pages) {
-  const objects = [];
-  const pageObjectIds = [];
-  const contentObjectIds = [];
-
-  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-  objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
-  objects[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
-
-  let nextId = 5;
-  pages.forEach((pageLines) => {
-    const pageId = nextId++;
-    const contentId = nextId++;
-    const stream = buildContentStream(pageLines);
-    pageObjectIds.push(pageId);
-    contentObjectIds.push(contentId);
-    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`;
-    objects[contentId] = `<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`;
-  });
-
-  objects[2] = `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageObjectIds.length} >>`;
-
-  let body = "%PDF-1.4\n";
-  const offsets = [0];
-  for (let id = 1; id < objects.length; id += 1) {
-    if (!objects[id]) continue;
-    offsets[id] = Buffer.byteLength(body, "latin1");
-    body += `${id} 0 obj\n${objects[id]}\nendobj\n`;
-  }
-
-  const xrefOffset = Buffer.byteLength(body, "latin1");
-  body += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
-  for (let id = 1; id < objects.length; id += 1) {
-    const offset = String(offsets[id] || 0).padStart(10, "0");
-    body += `${offset} 00000 n \n`;
-  }
-  body += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-
-  return Buffer.from(body, "latin1");
-}
-
-export function buildEstimatePdfBuffer(options = {}) {
-  const lines = estimatePdfLines(options);
-  return buildPdfBuffer(paginateLines(lines));
-}
-
-export function buildEstimatePdfAttachment(options = {}) {
+export async function buildEstimatePdfAttachment(options = {}) {
   return {
     filename: buildEstimatePdfFilename(options.estimate),
     contentType: "application/pdf",
-    content: buildEstimatePdfBuffer(options),
+    content: await buildEstimatePdfBuffer(options),
   };
 }
