@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils.js";
+import { deriveEmployeeWorkspace, deriveForemanWorkspace, deriveNextAssignedJob } from "./field-workspace-utils.js";
 
 const NOW = new Date("2026-04-25T12:00:00.000Z");
 
@@ -13,6 +13,17 @@ const JOBS = [
     foremanAssignment: { userId: "U-FOREMAN" },
     crewAssignments: [{ userId: "U-EMPLOYEE", roleOnJob: "crew" }],
     scheduledStart: "2026-04-25T08:00:00.000Z",
+    archivedAt: null,
+    fieldPlanningVisible: false,
+    visibleToForeman: false,
+  },
+  {
+    id: "J-2202",
+    assignedForemanId: "U-FOREMAN",
+    assignedUserId: "U-EMPLOYEE",
+    foremanAssignment: { userId: "U-FOREMAN" },
+    crewAssignments: [{ userId: "U-EMPLOYEE", roleOnJob: "crew" }],
+    scheduledStart: "2026-04-26T07:00:00.000Z",
     archivedAt: null,
     fieldPlanningVisible: false,
     visibleToForeman: false,
@@ -40,16 +51,24 @@ const JOBS = [
 test("foreman workspace separates assigned jobs from future field-visible jobs", () => {
   const workspace = deriveForemanWorkspace(JOBS, "U-FOREMAN", NOW);
 
-  assert.deepEqual(workspace.assignedJobs.map((job) => job.id), ["J-2201"]);
+  assert.deepEqual(workspace.assignedJobs.map((job) => job.id), ["J-2201", "J-2202"]);
   assert.deepEqual(workspace.upcomingJobs.map((job) => job.id), ["J-2198"]);
   assert.equal(workspace.primaryJob?.id, "J-2201");
+  assert.equal(workspace.nextAssignedJob?.id, "J-2202");
 });
 
 test("employee workspace only includes personally assigned jobs", () => {
-  const workspace = deriveEmployeeWorkspace(JOBS, "U-EMPLOYEE");
+  const workspace = deriveEmployeeWorkspace(JOBS, "U-EMPLOYEE", NOW);
 
-  assert.deepEqual(workspace.assignedJobs.map((job) => job.id), ["J-2201"]);
+  assert.deepEqual(workspace.assignedJobs.map((job) => job.id), ["J-2201", "J-2202"]);
   assert.equal(workspace.primaryJob?.id, "J-2201");
+  assert.equal(workspace.nextAssignedJob?.id, "J-2202");
+});
+
+test("next assigned job chooses the nearest future scheduled assigned job", () => {
+  const nextJob = deriveNextAssignedJob(JOBS.filter((job) => job.assignedUserId === "U-EMPLOYEE"), NOW);
+
+  assert.equal(nextJob?.id, "J-2202");
 });
 
 test("field workspace helpers tolerate missing job arrays", () => {
@@ -59,6 +78,8 @@ test("field workspace helpers tolerate missing job arrays", () => {
   assert.deepEqual(foremanWorkspace.assignedJobs, []);
   assert.deepEqual(foremanWorkspace.upcomingJobs, []);
   assert.equal(foremanWorkspace.primaryJob, null);
+  assert.equal(foremanWorkspace.nextAssignedJob, null);
   assert.deepEqual(employeeWorkspace.assignedJobs, []);
   assert.equal(employeeWorkspace.primaryJob, null);
+  assert.equal(employeeWorkspace.nextAssignedJob, null);
 });
