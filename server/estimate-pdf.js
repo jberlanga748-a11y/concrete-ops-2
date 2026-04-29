@@ -186,22 +186,6 @@ function drawProposalIntro(doc, { estimate, customerName, projectName }) {
   doc.y = top + 106;
 }
 
-function drawTotalBox(doc, totals) {
-  const top = doc.y;
-  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 70, 16).fill(COLORS.navy);
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(10)
-    .fillColor(COLORS.blueSoft)
-    .text("GRAND TOTAL", PAGE_MARGIN + 22, top + 18, { width: 160 });
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(28)
-    .fillColor(COLORS.white)
-    .text(formatEstimateCurrency(totals.grandTotal), PAGE_MARGIN + 250, top + 18, { width: 250, align: "right" });
-  doc.y = top + 92;
-}
-
 function drawLineItemsTable(doc, estimate) {
   addSectionTitle(doc, "Line Items");
   const startX = PAGE_MARGIN;
@@ -268,30 +252,41 @@ function drawLineItemsTable(doc, estimate) {
 }
 
 function drawTotals(doc, totals) {
-  ensureSpace(doc, 96);
-  const boxWidth = 230;
+  ensureSpace(doc, 112);
+  const boxWidth = 260;
   const x = PAGE_MARGIN + CONTENT_WIDTH - boxWidth;
   const y = doc.y;
 
   const rows = [
-    ["Subtotal", formatEstimateCurrency(totals.subtotal), false],
-    ...(totals.taxRate != null ? [[`Tax (${totals.taxRate}%)`, formatEstimateCurrency(totals.taxTotal || 0), false]] : []),
-    ...(totals.feesTotal != null ? [["Fees", formatEstimateCurrency(totals.feesTotal || 0), false]] : []),
-    ["Grand Total", formatEstimateCurrency(totals.grandTotal), true],
+    ["Subtotal", formatEstimateCurrency(totals.subtotal)],
+    ...(totals.taxRate != null ? [[`Tax (${totals.taxRate}%)`, formatEstimateCurrency(totals.taxTotal || 0)]] : []),
+    ...(totals.feesTotal != null ? [["Fees", formatEstimateCurrency(totals.feesTotal || 0)]] : []),
   ];
 
-  rows.forEach(([label, value, highlight], index) => {
-    const rowY = y + (index * 22);
-    if (highlight) doc.roundedRect(x, rowY, boxWidth, 24, 7).fill(COLORS.blueSoft);
+  rows.forEach(([label, value], index) => {
+    const rowY = y + (index * 21);
     doc
-      .font(highlight ? "Helvetica-Bold" : "Helvetica")
-      .fontSize(highlight ? 11 : 9.5)
-      .fillColor(highlight ? COLORS.navy : COLORS.slateDark)
-      .text(label, x + 12, rowY + 6, { width: 96 });
-    doc.text(value, x + 108, rowY + 6, { width: 110, align: "right" });
+      .font("Helvetica")
+      .fontSize(9.5)
+      .fillColor(COLORS.slateDark)
+      .text(label, x + 12, rowY + 5, { width: 100 });
+    doc.text(value, x + 126, rowY + 5, { width: 120, align: "right" });
   });
 
-  doc.y = y + (rows.length * 22) + 16;
+  const totalY = y + (rows.length * 21) + 7;
+  doc.roundedRect(x, totalY, boxWidth, 38, 9).fill(COLORS.navy);
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .fillColor(COLORS.blueSoft)
+    .text("GRAND TOTAL", x + 14, totalY + 12, { width: 110 });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(16)
+    .fillColor(COLORS.white)
+    .text(formatEstimateCurrency(totals.grandTotal), x + 126, totalY + 10, { width: 120, align: "right" });
+
+  doc.y = totalY + 52;
 }
 
 function drawAcceptanceBlock(doc) {
@@ -345,7 +340,6 @@ export async function buildEstimatePdfBuffer({
 
   drawHeader(doc, { companyName, companyProfile });
   drawProposalIntro(doc, { estimate, customerName, projectName });
-  drawTotalBox(doc, totals);
   addSectionTitle(doc, "Scope Summary");
   drawWrappedText(doc, estimate.scopeSummary || "No scope summary recorded.", { lineGap: 4 });
   doc.moveDown(1.1);
