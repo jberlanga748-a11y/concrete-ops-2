@@ -167,6 +167,9 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /Estimate is valid for 30 days\./);
   assert.match(html, /office@concreteopsdemo\.com/);
   assert.doesNotMatch(html, /Office-only follow-up note\./);
+  assert.match(html, /@page \{ margin: 0\.5in; \}/);
+  assert.match(html, /page-break-inside: avoid/);
+  assert.match(html, /page-break-after: avoid/);
 });
 
 test("print packet helpers tolerate missing linked arrays and render clean empty states", () => {
