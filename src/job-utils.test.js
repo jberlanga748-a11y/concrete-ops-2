@@ -21,7 +21,7 @@ const FIXTURE_JOBS = [
     customer: "Megan Carter",
     assignedForemanId: "U-FOREMAN",
     status: "scheduled",
-    scheduledStart: "2026-04-28T08:00",
+    scheduledStart: "2999-04-28T08:00",
     nextStep: "Confirm concrete order",
   },
   {

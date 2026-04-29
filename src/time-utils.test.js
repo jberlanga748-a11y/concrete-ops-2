@@ -74,6 +74,7 @@ test("deriveTimeWorkspace returns allowed job options and a weekly summary", () 
     [{ id: "J-1", archivedAt: null }, { id: "J-2", archivedAt: "2026-04-24T08:00:00.000Z" }],
     "U-1",
     ["job", "travel"],
+    { now: new Date("2026-04-24T12:00:00.000Z") },
   );
 
   assert.equal(workspace.activeEntry, null);
@@ -82,7 +83,9 @@ test("deriveTimeWorkspace returns allowed job options and a weekly summary", () 
 });
 
 test("deriveTimeWorkspace tolerates missing jobs and categories", () => {
-  const workspace = deriveTimeWorkspace(SAMPLE_ENTRIES, undefined, "U-1", undefined);
+  const workspace = deriveTimeWorkspace(SAMPLE_ENTRIES, undefined, "U-1", undefined, {
+    now: new Date("2026-04-24T12:00:00.000Z"),
+  });
 
   assert.deepEqual(workspace.availableJobs, []);
   assert.deepEqual(workspace.allowedCategories, []);
