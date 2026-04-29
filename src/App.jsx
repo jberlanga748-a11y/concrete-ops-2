@@ -632,6 +632,7 @@ const INITIAL_ESTIMATE_LINE_ITEM = {
 const INITIAL_ESTIMATE_FORM = {
   customerId: "",
   leadId: "",
+  customerEmail: "",
   title: "",
   status: "draft",
   scopeSummary: "",
@@ -660,6 +661,7 @@ function createEstimateDraft(record) {
   return {
     customerId: record?.customerId || "",
     leadId: record?.leadId || "",
+    customerEmail: record?.customerEmail || estimateCustomerEmail(record) || "",
     title: record?.title || "",
     status: record?.status || "draft",
     scopeSummary: record?.scopeSummary || "",
@@ -7240,6 +7242,7 @@ function EstimatesPage({
     || null;
   const canManage = Boolean(permissions?.estimates?.canManage);
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
+  const singleCustomerEmail = singleCustomerId ? visibleCustomers.find((customer) => customer.id === singleCustomerId)?.email || "" : "";
   const createTotals = useMemo(() => calculateEstimateTotals(createDraft.items, { taxRate: createDraft.taxRate, feesTotal: createDraft.feesTotal }), [createDraft.feesTotal, createDraft.items, createDraft.taxRate]);
   const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
   const detailCustomer = useMemo(
@@ -7264,6 +7267,23 @@ function EstimatesPage({
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
 
+  function linkedEstimateCustomerEmail(draft = {}) {
+    const customer = visibleCustomers.find((entry) => entry.id === draft.customerId) || null;
+    const lead = visibleLeads.find((entry) => entry.id === draft.leadId) || null;
+    return estimateCustomerEmail({ customer, lead });
+  }
+
+  function updateDraftLinkEmail(current, nextLinks) {
+    const previousLinkedEmail = linkedEstimateCustomerEmail(current);
+    const nextDraft = { ...current, ...nextLinks };
+    const nextLinkedEmail = linkedEstimateCustomerEmail(nextDraft);
+    const shouldPrefill = !current.customerEmail || current.customerEmail === previousLinkedEmail;
+    return {
+      ...nextDraft,
+      customerEmail: shouldPrefill && nextLinkedEmail ? nextLinkedEmail : current.customerEmail,
+    };
+  }
+
   useEffect(() => {
     if (!selectedEstimateId && filteredRows[0]?.id) {
       setSelectedEstimateId(filteredRows[0].id);
@@ -7272,9 +7292,13 @@ function EstimatesPage({
 
   useEffect(() => {
     if (singleCustomerId && !createDraft.customerId && !createDraft.leadId) {
-      setCreateDraft((current) => ({ ...current, customerId: singleCustomerId }));
+      setCreateDraft((current) => ({
+        ...current,
+        customerId: singleCustomerId,
+        customerEmail: current.customerEmail || singleCustomerEmail,
+      }));
     }
-  }, [createDraft.customerId, createDraft.leadId, singleCustomerId]);
+  }, [createDraft.customerId, createDraft.leadId, singleCustomerEmail, singleCustomerId]);
 
   useEffect(() => {
     setDetailDraft(createEstimateDraft(selectedEstimate || INITIAL_ESTIMATE_FORM));
@@ -7343,6 +7367,7 @@ function EstimatesPage({
       ...current,
       status: current.status || "draft",
       customerId: current.customerId || singleCustomerId,
+      customerEmail: current.customerEmail || singleCustomerEmail,
     }));
     newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }
@@ -7459,14 +7484,15 @@ function EstimatesPage({
               <Card className="p-4">
               <SectionHeader title="New Estimate" description="Create a customer-ready proposal with scope, terms, line items, and a clear total." />
               <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => ({ ...current, customerId: event.target.value }))}>
+                <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { customerId: event.target.value }))}>
                   <option value="">Select a customer</option>
                   {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
                 </SelectField>
-                <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => ({ ...current, leadId: event.target.value }))}>
+                <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { leadId: event.target.value }))}>
                   <option value="">Optional linked lead</option>
                   {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                 </SelectField>
+                <InputField label="Customer email / Send estimate to" value={createDraft.customerEmail} onChange={(event) => setCreateDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" />
                 <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
                 <SelectField label="Starting status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
                   {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
@@ -7514,6 +7540,7 @@ function EstimatesPage({
                       setCreateDraft(createEstimateDraft({
                         ...INITIAL_ESTIMATE_FORM,
                         customerId: singleCustomerId,
+                        customerEmail: singleCustomerEmail,
                       }));
                     }
                   }}
@@ -7545,14 +7572,15 @@ function EstimatesPage({
               </div>
               <div className="mt-4 space-y-4">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <SelectField label="Customer" value={detailDraft.customerId} onChange={(event) => setDetailDraft((current) => ({ ...current, customerId: event.target.value }))}>
+                  <SelectField label="Customer" value={detailDraft.customerId} onChange={(event) => setDetailDraft((current) => updateDraftLinkEmail(current, { customerId: event.target.value }))}>
                     <option value="">Select a customer</option>
                     {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
                   </SelectField>
-                  <SelectField label="Lead" value={detailDraft.leadId} onChange={(event) => setDetailDraft((current) => ({ ...current, leadId: event.target.value }))}>
+                  <SelectField label="Lead" value={detailDraft.leadId} onChange={(event) => setDetailDraft((current) => updateDraftLinkEmail(current, { leadId: event.target.value }))}>
                     <option value="">Optional linked lead</option>
                     {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                   </SelectField>
+                  <InputField label="Customer email / Send estimate to" value={detailDraft.customerEmail} onChange={(event) => setDetailDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" />
                   <InputField label="Title" value={detailDraft.title} onChange={(event) => setDetailDraft((current) => ({ ...current, title: event.target.value }))} />
                   <SelectField label="Workflow status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
                     {["draft", "sent", "approved", "rejected", "archived"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}

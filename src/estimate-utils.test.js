@@ -167,5 +167,6 @@ test("estimate copy helpers include customer-facing pricing content without inte
   assert.doesNotMatch(customerMessage, /Office-only follow-up note\./);
 
   assert.equal(estimateCustomerEmail(estimate), "martinez@example.test");
+  assert.equal(estimateCustomerEmail({ ...estimate, customerEmail: "proposal-recipient@example.test" }), "proposal-recipient@example.test");
   assert.equal(buildEstimateEmailSubject({ estimate }), "Estimate for Driveway replacement estimate");
 });

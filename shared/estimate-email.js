@@ -51,7 +51,9 @@ function estimateProjectName(estimate = {}) {
 
 export function estimateCustomerEmail(estimate = {}) {
   return String(
-    estimate?.customer?.email
+    estimate?.customerEmail
+      || estimate?.recipientEmail
+      || estimate?.customer?.email
       || estimate?.lead?.email
       || estimate?.lead?.customerEmail
       || estimate?.lead?.contactEmail

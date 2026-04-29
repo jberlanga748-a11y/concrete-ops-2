@@ -1888,6 +1888,7 @@ function sanitizeEstimateForUser(estimate, state, user) {
     customerId: estimate.customerId,
     leadId: estimate.leadId || "",
     jobId: estimate.jobId || "",
+    customerEmail: estimate.customerEmail || "",
     title: estimate.title || "",
     status: optionalEstimateStatus(estimate.status, "draft"),
     statusLabel: estimateStatusLabel(estimate.status),
@@ -2023,6 +2024,7 @@ function createEstimateShape(payload, user, changedAt, customer, lead, totals) {
     leadId: lead?.id || "",
     jobId: "",
     title: requiredString(payload.title, "Estimate title"),
+    customerEmail: optionalString(payload.customerEmail, ""),
     status: optionalEstimateStatus(payload.status, "draft"),
     scopeSummary: optionalString(payload.scopeSummary, ""),
     internalNotes: optionalString(payload.internalNotes, ""),
@@ -4774,7 +4776,7 @@ app.post("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
       summary: "Estimate created",
       detail: `${req.auth.user.name} created estimate ${estimate.title} for ${customer.name}.`,
       actor: req.auth.user,
-      changedFields: ["customerId", "leadId", "title", "status", "items", "grandTotal"],
+      changedFields: ["customerId", "leadId", "customerEmail", "title", "status", "items", "grandTotal"],
     });
     return draft;
   });
@@ -4809,6 +4811,7 @@ app.patch("/api/estimates/:id", requireAuth, asyncRoute(async (req, res) => {
     const fields = {
       customerId: customer.id,
       leadId: lead?.id || "",
+      customerEmail: payload.customerEmail == null ? (estimate.customerEmail || "") : optionalString(payload.customerEmail, ""),
       title: payload.title == null ? estimate.title : requiredString(payload.title, "Estimate title"),
       scopeSummary: payload.scopeSummary == null ? (estimate.scopeSummary || "") : optionalString(payload.scopeSummary, ""),
       internalNotes: payload.internalNotes == null ? (estimate.internalNotes || "") : optionalString(payload.internalNotes, ""),
