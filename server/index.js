@@ -4972,6 +4972,13 @@ app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req
       throw new ApiError(409, "This estimate has already been converted to a job.");
     }
 
+    const sourceJobNotes = [
+      `Created from approved estimate ${estimate.id}: ${estimate.title}.`,
+      linkedLead ? `Lead/project: ${linkedLead.project || linkedLead.customer}.` : "",
+      estimate.customerNotes ? `Customer notes/terms: ${estimate.customerNotes}` : "",
+      "Next step: schedule the job and assign foreman/crew.",
+    ].filter(Boolean).join("\n");
+
     job = normalizeJobRecord({
       id: makeId("J"),
       customerId: customer.id,
@@ -4997,7 +5004,7 @@ app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req
       crew: "Assign crew",
       nextStep: "Review approved estimate and schedule field kickoff",
       progress: 0,
-      notes: linkedLead ? `Created from approved estimate linked to ${linkedLead.customer}.` : "Created from approved estimate.",
+      notes: sourceJobNotes,
       createdAt: changedAt,
       updatedAt: changedAt,
       archivedAt: null,
