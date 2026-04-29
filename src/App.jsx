@@ -1992,7 +1992,7 @@ function JobCrewSection({
         <div>
           <p className="text-sm font-black text-slate-950">Crew assignments</p>
           <p className="mt-1 text-xs text-slate-500">
-            {canManageAssignments ? "Assign one foreman and multiple crew members to the job." : "View the field-safe crew assigned to this job."}
+            {canManageAssignments ? "Assign the foreman and crew so scheduled jobs show on field users' phones." : "View the field-safe crew assigned to this job."}
           </p>
         </div>
         <Badge tone={visibleCrew.length > 0 || foremanAssignment ? "blue" : "slate"}>
@@ -2021,7 +2021,7 @@ function JobCrewSection({
         ) : (
           <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
             <p className="font-black text-slate-950">{foremanAssignment?.userName || "No foreman assigned"}</p>
-            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} · ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
+            <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} - ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
           </div>
         )}
       </div>
@@ -2039,7 +2039,7 @@ function JobCrewSection({
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="font-black text-slate-950">{assignment.userName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} · Assigned {formatDateTime(assignment.assignedAt)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} - Assigned {formatDateTime(assignment.assignedAt)}</p>
                   </div>
                   {canManageAssignments ? (
                     <div className="flex flex-col gap-2 md:flex-row md:items-end">
@@ -2070,6 +2070,7 @@ function JobCrewSection({
               </SelectField>
             </div>
             <TextAreaField label="Assignment note" value={crewDraft.notes} onChange={(event) => setCrewDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional staging or specialty detail." />
+            <p className="text-xs font-bold leading-5 text-slate-500">Tip: add a scheduled start and field notes so assigned employees know where to be next.</p>
             <Button type="submit" disabled={disabled || !crewDraft.userId}>
               <Icon name="plus" />
               Add crew member
@@ -2242,9 +2243,25 @@ function formatJobScheduleDetail(job) {
   if (!job?.scheduledStart) return "Schedule pending";
   const startLabel = formatDateTime(job.scheduledStart);
   if (!job?.scheduledEnd) {
-    return job?.estimatedDuration ? `${startLabel} · ${job.estimatedDuration}` : startLabel;
+    return job?.estimatedDuration ? `${startLabel} - ${job.estimatedDuration}` : startLabel;
   }
   return `${startLabel} to ${formatDateTime(job.scheduledEnd)}`;
+}
+
+function isTomorrowSchedule(job, now = new Date()) {
+  if (!job?.scheduledStart) return false;
+  const scheduled = new Date(job.scheduledStart);
+  if (Number.isNaN(scheduled.getTime())) return false;
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return scheduled.getFullYear() === tomorrow.getFullYear()
+    && scheduled.getMonth() === tomorrow.getMonth()
+    && scheduled.getDate() === tomorrow.getDate();
+}
+
+function directionsUrl(address = "") {
+  const trimmed = String(address || "").trim();
+  return trimmed ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}` : "";
 }
 
 function humanizeAssignmentRole(roleOnJob = "") {
@@ -2384,6 +2401,83 @@ function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
   );
 }
 
+function FieldNextJobCard({ job, onSelect }) {
+  const title = job && isTomorrowSchedule(job) ? "Tomorrow's job" : "Next assigned job";
+  const mapUrl = directionsUrl(job?.address);
+  const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title={title}
+        description="This is the next scheduled assigned job visible on your phone."
+        action={job ? <Badge tone="blue">Field-safe</Badge> : null}
+      />
+      {job ? (
+        <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="break-words text-xl font-black text-slate-950">{jobTitle(job)}</p>
+              <p className="mt-1 break-words text-sm font-bold text-slate-600">{job.customer || "Assigned site"}</p>
+            </div>
+            <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">When</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Where</p>
+              <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
+              {mapUrl ? (
+                <a className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={mapUrl} target="_blank" rel="noreferrer">
+                  Open directions
+                </a>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Crew</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{crewCount} crew assigned</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Materials</p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment</p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety</p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={() => onSelect(job.id)}>
+              View job details
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <StateCard title="No scheduled assigned job yet" description="When office schedules and assigns a job, the next one will appear here with address and field notes." tone="slate" />
+      )}
+    </Card>
+  );
+}
+
 function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelectModule }) {
   if (!job) {
     return (
@@ -2426,7 +2520,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   return (
     <div className="min-w-0 space-y-4">
       <Card className="p-5">
-        <SectionHeader title={jobTitle(job)} description={`${job.id} · ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
+        <SectionHeader title={jobTitle(job)} description={`${job.id} - ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
@@ -2547,6 +2641,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
             disabled={busy}
             description="Clock your own assigned or field-visible work without exposing payroll or pricing data."
           />
+          <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
           <Card className="p-5">
             <SectionHeader title="Assigned jobs" description="These are the jobs you are currently responsible for in the field." />
             {workspace.assignedJobs.length > 0 ? (
@@ -2598,6 +2693,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
             onEndBreak={onEndBreak}
             disabled={busy}
           />
+          <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
           <Card className="p-5">
             <SectionHeader title="Assigned work" description="Only your assigned jobs appear here. Contact office if something looks wrong." />
             {workspace.assignedJobs.length > 0 ? (
@@ -4792,7 +4888,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
 
   return (
     <Card className="p-5">
-      <SectionHeader title="Create job" description="Create a schedulable field record with safe planning details only." />
+      <SectionHeader title="Create job" description="Create a schedulable field record. Assigned foremen and employees will see scheduled jobs in their field workspace." />
       <form className="grid gap-3" onSubmit={onCreateJob}>
         <div className="grid gap-3 md:grid-cols-2">
           <InputField label="Job name" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez Front Walk" />

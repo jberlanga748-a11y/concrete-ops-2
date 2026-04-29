@@ -20,6 +20,22 @@ function isFutureScheduled(job, now = new Date()) {
   return scheduled.getTime() > now.getTime();
 }
 
+function scheduledTime(job) {
+  if (!job?.scheduledStart) return Number.POSITIVE_INFINITY;
+  const scheduled = new Date(job.scheduledStart).getTime();
+  return Number.isNaN(scheduled) ? Number.POSITIVE_INFINITY : scheduled;
+}
+
+export function deriveNextAssignedJob(jobs, now = new Date()) {
+  const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  const safeNowTime = Number.isNaN(nowTime) ? Date.now() : nowTime;
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+
+  return safeJobs
+    .filter((job) => !job?.archivedAt && job?.scheduledStart && scheduledTime(job) >= safeNowTime)
+    .sort((left, right) => scheduledTime(left) - scheduledTime(right))[0] || null;
+}
+
 function isAssignedForeman(job, userId) {
   if (!job || !userId) return false;
   if (job.foremanAssignment?.userId === userId) return true;
@@ -49,16 +65,18 @@ export function deriveForemanWorkspace(jobs, userId, now = new Date()) {
   return {
     assignedJobs,
     upcomingJobs,
+    nextAssignedJob: deriveNextAssignedJob(assignedJobs, now),
     primaryJob: assignedJobs[0] || upcomingJobs[0] || null,
   };
 }
 
-export function deriveEmployeeWorkspace(jobs, userId) {
+export function deriveEmployeeWorkspace(jobs, userId, now = new Date()) {
   const safeJobs = Array.isArray(jobs) ? jobs : [];
   const assignedJobs = safeJobs.filter((job) => !job.archivedAt && isAssignedCrew(job, userId));
 
   return {
     assignedJobs,
+    nextAssignedJob: deriveNextAssignedJob(assignedJobs, now),
     primaryJob: assignedJobs[0] || null,
   };
 }
