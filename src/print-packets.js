@@ -574,6 +574,7 @@ export function buildPrintDocumentHtml(packetInput) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(packet.title)} - ${escapeHtml(packet.companyName)}</title>
     <style>
+      @page { margin: 0.5in; }
       :root { color-scheme: light; }
       * { box-sizing: border-box; }
       body {
@@ -582,16 +583,20 @@ export function buildPrintDocumentHtml(packetInput) {
         color: #0f172a;
         font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         line-height: 1.45;
+        orphans: 3;
+        widows: 3;
       }
       .page {
         max-width: 980px;
         margin: 0 auto;
-        padding: 28px 24px 48px;
+        padding: 24px 24px 40px;
       }
       .packet-header {
         border-bottom: 2px solid #dbeafe;
-        padding-bottom: 18px;
-        margin-bottom: 24px;
+        padding-bottom: 16px;
+        margin-bottom: 20px;
+        break-inside: avoid;
+        page-break-inside: avoid;
       }
       .eyebrow {
         color: #1d4ed8;
@@ -611,7 +616,7 @@ export function buildPrintDocumentHtml(packetInput) {
         font-size: 14px;
       }
       .header-supporting {
-        margin-top: 18px;
+        margin-top: 14px;
       }
       .kv-grid {
         display: grid;
@@ -624,6 +629,7 @@ export function buildPrintDocumentHtml(packetInput) {
         padding: 12px 14px;
         background: #ffffff;
         break-inside: avoid;
+        page-break-inside: avoid;
       }
       .kv-label {
         color: #64748b;
@@ -638,13 +644,14 @@ export function buildPrintDocumentHtml(packetInput) {
         font-weight: 700;
       }
       .packet-section {
-        margin-top: 22px;
-        break-inside: avoid;
+        margin-top: 18px;
       }
       .section-heading {
         font-size: 18px;
         font-weight: 800;
         margin-bottom: 8px;
+        break-after: avoid;
+        page-break-after: avoid;
       }
       .section-description {
         margin: 0 0 10px;
@@ -709,6 +716,14 @@ export function buildPrintDocumentHtml(packetInput) {
       @media print {
         body { background: #ffffff; }
         .page { max-width: none; padding: 0; }
+        .packet-header { padding-bottom: 12px; margin-bottom: 16px; }
+        .header-supporting { margin-top: 10px; }
+        .kv-grid { gap: 8px; }
+        .kv-card, .record-card { border-radius: 12px; padding: 9px 11px; }
+        .packet-section { margin-top: 14px; }
+        .section-heading { margin-bottom: 6px; }
+        .record-stack { gap: 8px; }
+        .footer-disclaimer { margin-top: 18px; padding: 10px 12px; }
       }
     </style>
   </head>

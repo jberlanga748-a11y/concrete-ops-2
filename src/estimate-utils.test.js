@@ -4,9 +4,12 @@ import test from "node:test";
 import {
   buildEstimateCopyText,
   buildEstimateCustomerMessage,
+  buildEstimateEmailSubject,
+  buildEstimateMailtoHref,
   calculateEstimateLineTotal,
   calculateEstimateTotals,
   deriveEstimateListState,
+  estimateCustomerEmail,
   estimateStatusLabel,
   filterEstimates,
   formatEstimateCurrency,
@@ -117,7 +120,7 @@ test("estimate copy helpers include customer-facing pricing content without inte
     scopeSummary: "Replace cracked driveway panels and pour a broom-finish apron.",
     internalNotes: "Office-only follow-up note.",
     customerNotes: "Estimate is valid for 30 days.",
-    customer: { name: "Martinez Residence" },
+    customer: { name: "Martinez Residence", email: "martinez@example.test" },
     lead: { customer: "Martinez Residence", project: "Driveway replacement estimate" },
     items: [
       { description: "Demo and haul off", quantity: 1, unit: "LS", unitPrice: 1850 },
@@ -151,7 +154,29 @@ test("estimate copy helpers include customer-facing pricing content without inte
   assert.doesNotMatch(estimateCopy, /Office-only follow-up note\./);
 
   assert.match(customerMessage, /Hi Martinez Residence,/);
-  assert.match(customerMessage, /Here is your estimate from Concrete Ops Demo Company\./);
-  assert.match(customerMessage, /Concrete placement/);
+  assert.match(customerMessage, /Thank you for the opportunity to look at your project\./);
+  assert.match(customerMessage, /Driveway replacement estimate/);
+  assert.match(customerMessage, /Total estimate: \$3,910\.00/);
+  assert.match(customerMessage, /Scope summary:\nReplace cracked driveway panels and pour a broom-finish apron\./);
+  assert.match(customerMessage, /Notes:\nEstimate is valid for 30 days\./);
+  assert.match(customerMessage, /Concrete Ops Demo Company/);
+  assert.match(customerMessage, /\(503\) 555-0100/);
+  assert.match(customerMessage, /office@concreteopsdemo\.com/);
+  assert.doesNotMatch(customerMessage, /Line items:/);
+  assert.doesNotMatch(customerMessage, /Concrete placement/);
+  assert.doesNotMatch(customerMessage, /Grand total:/);
   assert.doesNotMatch(customerMessage, /Office-only follow-up note\./);
+
+  assert.equal(estimateCustomerEmail(estimate), "martinez@example.test");
+  assert.equal(buildEstimateEmailSubject({ estimate }), "Estimate for Driveway replacement estimate");
+
+  const mailtoHref = buildEstimateMailtoHref({
+    companyName: "Concrete Ops Demo Company",
+    companyProfile,
+    estimate,
+  });
+  assert.match(mailtoHref, /^mailto:martinez@example\.test\?/);
+  assert.match(mailtoHref, /subject=Estimate%20for%20Driveway%20replacement%20estimate/);
+  assert.match(mailtoHref, /body=Hi%20Martinez%20Residence/);
+  assert.equal(buildEstimateMailtoHref({ estimate: { ...estimate, customer: { name: "Martinez Residence" } } }), "");
 });

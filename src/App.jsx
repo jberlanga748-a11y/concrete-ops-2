@@ -99,7 +99,7 @@ import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRe
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateMailtoHref, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
@@ -7136,6 +7136,12 @@ function EstimatesPage({
       lead: detailLead,
     };
   }, [detailCustomer, detailDraft, detailLead, selectedEstimate]);
+  const detailEstimateCustomerEmail = useMemo(() => estimateCustomerEmail(detailEstimatePreview), [detailEstimatePreview]);
+  const detailEstimateMailtoHref = useMemo(() => buildEstimateMailtoHref({
+    companyName,
+    companyProfile,
+    estimate: detailEstimatePreview,
+  }), [companyName, companyProfile, detailEstimatePreview]);
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
 
@@ -7211,6 +7217,18 @@ function EstimatesPage({
       showCopyFeedback("Clipboard unavailable on this browser.");
       return false;
     }
+  }
+
+  function handleEmailEstimate() {
+    if (!detailEstimatePreview) return false;
+    if (!detailEstimateCustomerEmail || !detailEstimateMailtoHref) {
+      showCopyFeedback("Add a customer email before opening an email draft.");
+      return false;
+    }
+
+    window.location.href = detailEstimateMailtoHref;
+    showCopyFeedback("Email draft opened. Click Mark sent after sending.");
+    return true;
   }
 
   if (!permissions?.estimates?.canView) {
@@ -7453,6 +7471,9 @@ function EstimatesPage({
                   </Button>
                   <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
                     Print estimate
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={handleEmailEstimate} disabled={!detailEstimatePreview}>
+                    Email estimate
                   </Button>
                   {canMarkSent ? (
                     <Button
