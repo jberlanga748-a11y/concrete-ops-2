@@ -80,7 +80,7 @@ export function deriveWeeklySummary(entries, {
   };
 }
 
-export function deriveTimeWorkspace(entries, jobs, userId, allowedCategories = []) {
+export function deriveTimeWorkspace(entries, jobs, userId, allowedCategories = [], { now = new Date() } = {}) {
   const safeAllowedCategories = Array.isArray(allowedCategories) ? allowedCategories : [];
   const sortedEntries = sortTimeEntries(entries);
   const ownEntries = sortedEntries.filter((entry) => entry.userId === userId);
@@ -94,7 +94,7 @@ export function deriveTimeWorkspace(entries, jobs, userId, allowedCategories = [
     activeEntry,
     availableJobs: allowJobCategory ? availableJobs : [],
     allowedCategories: safeAllowedCategories,
-    weeklySummary: deriveWeeklySummary(ownEntries, { activeEntry }),
+    weeklySummary: deriveWeeklySummary(ownEntries, { activeEntry, now }),
   };
 }
 
