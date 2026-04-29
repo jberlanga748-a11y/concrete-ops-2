@@ -1,3 +1,5 @@
+export { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
+
 function roundCurrency(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
@@ -145,16 +147,6 @@ function estimateProjectName(estimate = {}) {
   return String(estimate?.lead?.project || estimate?.title || "").trim();
 }
 
-export function estimateCustomerEmail(estimate = {}) {
-  return String(
-    estimate?.customer?.email
-      || estimate?.lead?.email
-      || estimate?.lead?.customerEmail
-      || estimate?.lead?.contactEmail
-      || "",
-  ).trim();
-}
-
 function estimateLineItemText(item = {}, index = 0) {
   const description = String(item?.description || `Line item ${index + 1}`).trim();
   const quantity = item?.quantity == null || item.quantity === "" ? "" : String(item.quantity).trim();
@@ -240,43 +232,3 @@ export function buildEstimateCopyText({ companyName = "Concrete Ops Workspace", 
   return buildEstimateBodyLines({ companyName, companyProfile, estimate }).join("\n").trim();
 }
 
-export function buildEstimateCustomerMessage({ companyName = "Concrete Ops Workspace", companyProfile = {}, estimate } = {}) {
-  if (!estimate) return "";
-  const customerName = estimateCustomerName(estimate) || "there";
-  const projectName = estimateProjectName(estimate) || estimate?.title || "your project";
-  const totals = calculateEstimateTotals(estimate?.items, {
-    taxRate: estimate?.taxRate,
-    feesTotal: estimate?.feesTotal,
-  });
-  const contactLines = [
-    companyName,
-    companyProfile.businessPhone || "",
-    companyProfile.businessEmail || "",
-  ].filter(Boolean);
-
-  return [
-    `Hi ${customerName},`,
-    "",
-    "Thank you for the opportunity to look at your project. I've prepared an estimate for:",
-    "",
-    projectName,
-    "",
-    `Total estimate: ${formatEstimateCurrency(totals.grandTotal)}`,
-    "",
-    "Scope summary:",
-    String(estimate?.scopeSummary || "No scope summary recorded.").trim(),
-    "",
-    "Notes:",
-    String(estimate?.customerNotes || "No customer notes recorded.").trim(),
-    "",
-    "Please review it and let us know if you have any questions or would like to move forward.",
-    "",
-    "Thank you,",
-    ...contactLines,
-  ].join("\n").trim();
-}
-
-export function buildEstimateEmailSubject({ estimate } = {}) {
-  const projectName = estimateProjectName(estimate) || estimate?.title || "your project";
-  return `Estimate for ${projectName}`;
-}
