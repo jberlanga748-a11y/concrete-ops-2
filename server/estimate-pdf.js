@@ -21,6 +21,7 @@ const COLORS = {
 
 const PAGE_MARGIN = 42;
 const CONTENT_WIDTH = 528;
+const FOOTER_RESERVED_HEIGHT = 34;
 const TABLE_COLUMNS = {
   description: 246,
   quantity: 48,
@@ -77,7 +78,7 @@ function addSectionTitle(doc, title, y = doc.y) {
 }
 
 function ensureSpace(doc, heightNeeded) {
-  if (doc.y + heightNeeded <= doc.page.height - PAGE_MARGIN) return;
+  if (doc.y + heightNeeded <= doc.page.height - PAGE_MARGIN - FOOTER_RESERVED_HEIGHT) return;
   doc.addPage();
   doc.y = PAGE_MARGIN;
 }
@@ -99,6 +100,11 @@ function profileLines(companyProfile = {}) {
     companyProfile.businessEmail,
     companyProfile.website,
     companyProfile.businessAddress,
+  ].map((value) => cleanText(value)).filter(Boolean);
+}
+
+function profileDetailLines(companyProfile = {}) {
+  return [
     companyProfile.serviceArea ? `Service area: ${companyProfile.serviceArea}` : "",
     companyProfile.licenseText,
   ].map((value) => cleanText(value)).filter(Boolean);
@@ -127,16 +133,32 @@ function drawHeader(doc, { companyName, companyProfile }) {
     .fontSize(8.5)
     .fillColor(COLORS.slate);
   profile.forEach((line, index) => {
-    doc.text(line, PAGE_MARGIN + 322, headerTop + (index * 11), { width: 206, align: "right" });
+    doc.text(line, PAGE_MARGIN + 318, headerTop + 2 + (index * 10.5), { width: 210, align: "right" });
   });
 
   doc
-    .moveTo(PAGE_MARGIN, headerTop + 62)
-    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, headerTop + 62)
+    .moveTo(PAGE_MARGIN, headerTop + 64)
+    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, headerTop + 64)
     .strokeColor(COLORS.border)
     .lineWidth(1)
     .stroke();
-  doc.y = headerTop + 82;
+
+  const details = profileDetailLines(companyProfile);
+  if (details.length > 0) {
+    doc
+      .font("Helvetica")
+      .fontSize(7.5)
+      .fillColor(COLORS.slate)
+      .text(details.join("  |  "), PAGE_MARGIN, headerTop + 72, {
+        width: CONTENT_WIDTH,
+        align: "center",
+        lineGap: 2,
+      });
+    doc.y = Math.max(doc.y + 10, headerTop + 96);
+    return;
+  }
+
+  doc.y = headerTop + 88;
 }
 
 function drawProposalIntro(doc, { estimate, customerName, projectName }) {
@@ -185,39 +207,44 @@ function drawLineItemsTable(doc, estimate) {
   const startX = PAGE_MARGIN;
   const headerHeight = 24;
   const rowPadding = 8;
+  const rowTextTop = 8;
   const items = Array.isArray(estimate.items) ? estimate.items : [];
 
   function drawHeaderRow() {
-    doc.rect(startX, doc.y, CONTENT_WIDTH, headerHeight).fill(COLORS.navy);
+    const y = doc.y;
+    doc.rect(startX, y, CONTENT_WIDTH, headerHeight).fill(COLORS.navy);
     doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.white);
     let x = startX + rowPadding;
-    doc.text("Description", x, doc.y + 8, { width: TABLE_COLUMNS.description });
+    doc.text("Description", x, y + 8, { width: TABLE_COLUMNS.description });
     x += TABLE_COLUMNS.description;
-    doc.text("Qty", x, doc.y + 8, { width: TABLE_COLUMNS.quantity, align: "right" });
+    doc.text("Qty", x, y + 8, { width: TABLE_COLUMNS.quantity, align: "right" });
     x += TABLE_COLUMNS.quantity;
-    doc.text("Unit", x, doc.y + 8, { width: TABLE_COLUMNS.unit, align: "center" });
+    doc.text("Unit", x, y + 8, { width: TABLE_COLUMNS.unit, align: "center" });
     x += TABLE_COLUMNS.unit;
-    doc.text("Unit Price", x, doc.y + 8, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    doc.text("Unit Price", x, y + 8, { width: TABLE_COLUMNS.unitPrice, align: "right" });
     x += TABLE_COLUMNS.unitPrice;
-    doc.text("Line Total", x, doc.y + 8, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
-    doc.y += headerHeight;
+    doc.text("Line Total", x, y + 8, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.y = y + headerHeight;
   }
 
+  ensureSpace(doc, headerHeight + 36);
   drawHeaderRow();
 
   if (items.length === 0) {
-    doc.rect(startX, doc.y, CONTENT_WIDTH, 36).strokeColor(COLORS.border).stroke();
-    doc.font("Helvetica").fontSize(9).fillColor(COLORS.slate).text("No line items recorded.", startX + rowPadding, doc.y + 12, { width: CONTENT_WIDTH - 16 });
-    doc.y += 44;
+    const y = doc.y;
+    doc.rect(startX, y, CONTENT_WIDTH, 34).strokeColor(COLORS.border).stroke();
+    doc.font("Helvetica").fontSize(9).fillColor(COLORS.slate).text("No line items recorded.", startX + rowPadding, y + 11, { width: CONTENT_WIDTH - 16 });
+    doc.y = y + 42;
     return;
   }
 
   items.forEach((item, index) => {
     const description = cleanText(item?.description || `Line item ${index + 1}`);
     const descriptionHeight = doc.heightOfString(description, { width: TABLE_COLUMNS.description - 8 });
-    const rowHeight = Math.max(38, descriptionHeight + 18);
-    ensureSpace(doc, rowHeight + 34);
-    if (doc.y < PAGE_MARGIN + 5) drawHeaderRow();
+    const rowHeight = Math.max(32, descriptionHeight + 15);
+    const yBeforeSpaceCheck = doc.y;
+    ensureSpace(doc, rowHeight);
+    if (doc.y < yBeforeSpaceCheck) drawHeaderRow();
 
     const y = doc.y;
     doc.rect(startX, y, CONTENT_WIDTH, rowHeight).fill(index % 2 === 0 ? COLORS.white : COLORS.slateSoft);
@@ -225,23 +252,23 @@ function drawLineItemsTable(doc, estimate) {
 
     doc.font("Helvetica").fontSize(9).fillColor(COLORS.slateDark);
     let x = startX + rowPadding;
-    doc.text(description, x, y + 10, { width: TABLE_COLUMNS.description - 8, lineGap: 2 });
+    doc.text(description, x, y + rowTextTop, { width: TABLE_COLUMNS.description - 8, lineGap: 2 });
     x += TABLE_COLUMNS.description;
-    doc.text(String(item?.quantity ?? 0), x, y + 10, { width: TABLE_COLUMNS.quantity, align: "right" });
+    doc.text(String(item?.quantity ?? 0), x, y + rowTextTop, { width: TABLE_COLUMNS.quantity, align: "right" });
     x += TABLE_COLUMNS.quantity;
-    doc.text(cleanText(item?.unit), x, y + 10, { width: TABLE_COLUMNS.unit, align: "center" });
+    doc.text(cleanText(item?.unit), x, y + rowTextTop, { width: TABLE_COLUMNS.unit, align: "center" });
     x += TABLE_COLUMNS.unit;
-    doc.text(formatEstimateCurrency(item?.unitPrice || 0), x, y + 10, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    doc.text(formatEstimateCurrency(item?.unitPrice || 0), x, y + rowTextTop, { width: TABLE_COLUMNS.unitPrice, align: "right" });
     x += TABLE_COLUMNS.unitPrice;
-    doc.font("Helvetica-Bold").text(formatEstimateCurrency(calculateEstimateLineTotal(item)), x, y + 10, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.font("Helvetica-Bold").text(formatEstimateCurrency(calculateEstimateLineTotal(item)), x, y + rowTextTop, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
     doc.y = y + rowHeight;
   });
 
-  doc.moveDown(1);
+  doc.moveDown(0.8);
 }
 
 function drawTotals(doc, totals) {
-  ensureSpace(doc, 105);
+  ensureSpace(doc, 96);
   const boxWidth = 230;
   const x = PAGE_MARGIN + CONTENT_WIDTH - boxWidth;
   const y = doc.y;
@@ -254,17 +281,17 @@ function drawTotals(doc, totals) {
   ];
 
   rows.forEach(([label, value, highlight], index) => {
-    const rowY = y + (index * 24);
-    if (highlight) doc.roundedRect(x, rowY, boxWidth, 26, 7).fill(COLORS.blueSoft);
+    const rowY = y + (index * 22);
+    if (highlight) doc.roundedRect(x, rowY, boxWidth, 24, 7).fill(COLORS.blueSoft);
     doc
       .font(highlight ? "Helvetica-Bold" : "Helvetica")
       .fontSize(highlight ? 11 : 9.5)
       .fillColor(highlight ? COLORS.navy : COLORS.slateDark)
-      .text(label, x + 12, rowY + 7, { width: 96 });
-    doc.text(value, x + 108, rowY + 7, { width: 110, align: "right" });
+      .text(label, x + 12, rowY + 6, { width: 96 });
+    doc.text(value, x + 108, rowY + 6, { width: 110, align: "right" });
   });
 
-  doc.y = y + (rows.length * 24) + 18;
+  doc.y = y + (rows.length * 22) + 16;
 }
 
 function drawAcceptanceBlock(doc) {
