@@ -18,8 +18,9 @@ import {
 } from "./seed-data.js";
 import { serverConfig } from "./config.js";
 import { EmailConfigurationError, EmailDeliveryError, isEstimateEmailConfigured, sendEstimateEmail } from "./email.js";
+import { buildEstimatePdfAttachment } from "./estimate-pdf.js";
 import { logger, serializeError } from "./logger.js";
-import { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
+import { buildEstimateAttachmentEmailBody, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
 import {
   cleanupExpiredSessions,
   createDefaultPostPourChecklistItems,
@@ -4886,9 +4887,15 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
   const settings = companySettingsForState(state);
   const companyName = settings.companyName || "Concrete Ops Workspace";
   const emailSubject = buildEstimateEmailSubject({ estimate });
-  const emailText = buildEstimateCustomerMessage({
+  const emailText = buildEstimateAttachmentEmailBody({
+    companyName,
+    estimate,
+  });
+  const estimateAttachment = buildEstimatePdfAttachment({
     companyName,
     companyProfile: settings,
+    printPacketFooter: settings.printPacketFooter || "",
+    printPacketDisclaimer: settings.printPacketDisclaimer || "",
     estimate,
   });
 
@@ -4899,6 +4906,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
       subject: emailSubject,
       text: emailText,
       replyTo: settings.businessEmail || "",
+      attachments: [estimateAttachment],
     });
   } catch (error) {
     if (error instanceof EmailConfigurationError || error instanceof EmailDeliveryError) {
@@ -4936,6 +4944,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
       sentTo,
       emailSubject,
       providerMessageId: sendResult.providerMessageId || "",
+      attachmentFilename: estimateAttachment.filename,
     },
   });
 }));
