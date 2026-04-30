@@ -361,6 +361,9 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
     ...assignment,
     roleOnJob: normalizeAssignmentRole(assignment.roleOnJob),
     notes: assignment.notes || "",
+    noticeAcknowledgedAt: assignment.noticeAcknowledgedAt || "",
+    noticeAcknowledgedBy: assignment.noticeAcknowledgedBy || "",
+    noticeAcknowledgedKey: assignment.noticeAcknowledgedKey || "",
     removedAt: assignment.removedAt || null,
     createdAt: assignment.createdAt || assignment.assignedAt || isoNow(),
     updatedAt: assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
@@ -400,6 +403,9 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
           assignedAt: baseStamp,
           removedAt: null,
           notes: "",
+          noticeAcknowledgedAt: "",
+          noticeAcknowledgedBy: "",
+          noticeAcknowledgedKey: "",
           createdAt: baseStamp,
           updatedAt: baseStamp,
           syntheticFromJobAlias: true,
@@ -427,6 +433,9 @@ function buildDerivedJobAssignments(jobs, jobAssignments = []) {
           assignedAt: baseStamp,
           removedAt: null,
           notes: "",
+          noticeAcknowledgedAt: "",
+          noticeAcknowledgedBy: "",
+          noticeAcknowledgedKey: "",
           createdAt: baseStamp,
           updatedAt: baseStamp,
           syntheticFromJobAlias: true,
@@ -4609,6 +4618,23 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 32,
+      description: "Track field job assignment notice acknowledgments.",
+      up(database) {
+        const columns = [
+          ["notice_acknowledged_at", "TEXT NOT NULL DEFAULT ''"],
+          ["notice_acknowledged_by", "TEXT NOT NULL DEFAULT ''"],
+          ["notice_acknowledged_key", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [columnName, columnType] of columns) {
+          if (!columnExists(database, "job_assignments", columnName)) {
+            database.exec(`ALTER TABLE job_assignments ADD COLUMN ${columnName} ${columnType};`);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4678,8 +4704,8 @@ function writeStateToDb(state) {
   `);
 
   const insertJobAssignment = database.prepare(`
-    INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, notice_acknowledged_at, notice_acknowledged_by, notice_acknowledged_key, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimate = database.prepare(`
@@ -4968,6 +4994,9 @@ function writeStateToDb(state) {
         assignment.assignedAt || assignment.createdAt || isoNow(),
         assignment.removedAt || null,
         assignment.notes || "",
+        assignment.noticeAcknowledgedAt || "",
+        assignment.noticeAcknowledgedBy || "",
+        assignment.noticeAcknowledgedKey || "",
         assignment.createdAt || assignment.assignedAt || isoNow(),
         assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
       );
@@ -5426,7 +5455,9 @@ function readTableState() {
   }));
 
   const rawJobAssignments = database.prepare(`
-      SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes, created_at AS createdAt, updated_at AS updatedAt
+      SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes,
+             notice_acknowledged_at AS noticeAcknowledgedAt, notice_acknowledged_by AS noticeAcknowledgedBy, notice_acknowledged_key AS noticeAcknowledgedKey,
+             created_at AS createdAt, updated_at AS updatedAt
       FROM job_assignments
       ORDER BY sort_index ASC
     `).all();

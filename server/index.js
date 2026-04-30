@@ -21,6 +21,7 @@ import { EmailConfigurationError, EmailDeliveryError, isEstimateEmailConfigured,
 import { buildEstimatePdfAttachment } from "./estimate-pdf.js";
 import { logger, serializeError } from "./logger.js";
 import { buildEstimateAttachmentEmailBody, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
+import { buildJobAssignmentNoticeKey, isJobAssignmentNoticeAcknowledged } from "../shared/job-assignment-notices.js";
 import {
   cleanupExpiredSessions,
   createDefaultPostPourChecklistItems,
@@ -709,6 +710,11 @@ function sanitizeJobAssignments(job, state, user, { includeNotes = false, contex
       assignedAt: assignment.assignedAt,
       createdAt: assignment.createdAt,
       updatedAt: assignment.updatedAt,
+      noticeKey: buildJobAssignmentNoticeKey(job, assignment),
+      noticeAcknowledged: isJobAssignmentNoticeAcknowledged(job, assignment),
+      noticeAcknowledgedAt: assignment.noticeAcknowledgedAt || "",
+      noticeAcknowledgedBy: assignment.noticeAcknowledgedBy || "",
+      noticeAcknowledgedByName: lookupUserById(state, assignment.noticeAcknowledgedBy, context)?.name || "",
       ...(includeNotes ? { notes: assignment.notes || "" } : {}),
     };
   });
@@ -3314,6 +3320,9 @@ function createJobAssignmentRecord(jobId, userId, roleOnJob, actor, notes = "", 
     assignedAt,
     removedAt: null,
     notes: optionalString(notes, ""),
+    noticeAcknowledgedAt: "",
+    noticeAcknowledgedBy: "",
+    noticeAcknowledgedKey: "",
     createdAt: assignedAt,
     updatedAt: assignedAt,
   };
@@ -8334,6 +8343,47 @@ app.delete("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(as
       detail: `${userLabel} was removed from ${title}.`,
       actor: req.auth.user,
       changedFields: assignment.roleOnJob === "foreman" ? ["assignedForemanId"] : ["assignments"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/jobs/:id/assignment-notice/acknowledge", requireAuth, asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const job = findRequiredRecord(draft.jobs, id, "Job");
+    draft.jobAssignments ||= [];
+    reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
+
+    if (!canViewJob(job, req.auth.user)) {
+      throw new ApiError(403, "You can only acknowledge notices for assigned jobs.");
+    }
+
+    const assignment = activeAssignmentForUser(draft, job.id, req.auth.user.id);
+    if (!assignment) {
+      throw new ApiError(403, "You can only acknowledge notices for your own assignment.");
+    }
+
+    materializeAssignmentRecord(assignment, req.auth.user, changedAt);
+    assignment.noticeAcknowledgedAt = changedAt;
+    assignment.noticeAcknowledgedBy = req.auth.user.id;
+    assignment.noticeAcknowledgedKey = buildJobAssignmentNoticeKey(job, assignment);
+    assignment.updatedAt = changedAt;
+
+    const title = normalizeJobRecord(job).title;
+    appendActivity(draft, "Job assignment acknowledged", `${req.auth.user.name} acknowledged ${title}.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: job.id,
+      action: "assignment_notice_acknowledged",
+      summary: "Job assignment notice acknowledged",
+      detail: `${req.auth.user.name} acknowledged the assignment notice for ${title}.`,
+      actor: req.auth.user,
+      changedFields: ["assignmentNotice"],
     });
     return draft;
   });

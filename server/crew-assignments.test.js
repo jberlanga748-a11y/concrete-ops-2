@@ -399,21 +399,50 @@ test("field roles see only crew data appropriate to their assigned work and cann
       email: "crew-view-emp-1@lastyard.test",
       password: "concrete123",
     });
+    const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeJobs = await assertOk(fixture.baseUrl, "/api/jobs", {
-      headers: authHeaders(employeeLogin.token),
+      headers: employeeHeaders,
     });
     assert.deepEqual(employeeJobs.jobs.map((job) => job.id), ["J-2201"]);
     const employeeJob = employeeJobs.jobs[0];
     assert.equal(employeeJob.crewAssignments.length, 1);
     assert.equal(employeeJob.crewAssignments[0].userId, employeeOne.id);
+    assert.equal(employeeJob.crewAssignments[0].noticeAcknowledged, false);
+    assert.ok(employeeJob.crewAssignments[0].noticeKey);
     assert.equal(employeeJob.foremanAssignment?.userId, foremanUser.id);
     assert.equal(employeeJob.crewAssignments.every((assignment) => !("notes" in assignment)), true);
     assert.equal("notes" in employeeJob, false);
     assert.equal("value" in employeeJob, false);
 
+    const acknowledgedState = await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignment-notice/acknowledge", {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+    const acknowledgedEmployeeJob = acknowledgedState.jobs.find((job) => job.id === "J-2201");
+    assert.equal(acknowledgedEmployeeJob.crewAssignments[0].noticeAcknowledged, true);
+    assert.ok(acknowledgedEmployeeJob.crewAssignments[0].noticeAcknowledgedAt);
+
+    const officeAfterAck = await assertOk(fixture.baseUrl, "/api/jobs", {
+      headers: officeHeaders,
+    });
+    const officeAckAssignment = officeAfterAck.jobs.find((job) => job.id === "J-2201").crewAssignments.find((assignment) => assignment.userId === employeeOne.id);
+    assert.equal(officeAckAssignment.noticeAcknowledged, true);
+
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201", {
+      method: "PATCH",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        scheduledStart: "2026-05-04T08:30",
+      }),
+    });
+    const rescheduledEmployeeJobs = await assertOk(fixture.baseUrl, "/api/jobs", {
+      headers: employeeHeaders,
+    });
+    assert.equal(rescheduledEmployeeJobs.jobs[0].crewAssignments[0].noticeAcknowledged, false);
+
     const employeeDeniedAssignment = await requestJson(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
       method: "POST",
-      headers: authHeaders(employeeLogin.token),
+      headers: employeeHeaders,
       body: JSON.stringify({
         userId: employeeTwo.id,
         roleOnJob: "crew",

@@ -178,6 +178,10 @@ export function deleteJobAssignment(token, jobId, assignmentId) {
   return request(`/api/jobs/${jobId}/assignments/${assignmentId}`, { method: "DELETE", token });
 }
 
+export function acknowledgeJobAssignmentNotice(token, jobId) {
+  return request(`/api/jobs/${jobId}/assignment-notice/acknowledge`, { method: "POST", token });
+}
+
 export function getTimeEntries(token) {
   return request("/api/time-entries", { token });
 }

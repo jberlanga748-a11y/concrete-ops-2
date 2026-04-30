@@ -1,3 +1,5 @@
+import { deriveJobAssignmentNotices } from "../shared/job-assignment-notices.js";
+
 function activeAssignments(job) {
   if (Array.isArray(job?.assignments) && job.assignments.length > 0) {
     return job.assignments.filter((assignment) => !assignment.removedAt);
@@ -65,6 +67,7 @@ export function deriveForemanWorkspace(jobs, userId, now = new Date()) {
   return {
     assignedJobs,
     upcomingJobs,
+    assignmentNotices: deriveJobAssignmentNotices(assignedJobs, userId),
     nextAssignedJob: deriveNextAssignedJob(assignedJobs, now),
     primaryJob: assignedJobs[0] || upcomingJobs[0] || null,
   };
@@ -76,6 +79,7 @@ export function deriveEmployeeWorkspace(jobs, userId, now = new Date()) {
 
   return {
     assignedJobs,
+    assignmentNotices: deriveJobAssignmentNotices(assignedJobs, userId),
     nextAssignedJob: deriveNextAssignedJob(assignedJobs, now),
     primaryJob: assignedJobs[0] || null,
   };
