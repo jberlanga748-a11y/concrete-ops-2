@@ -7376,6 +7376,50 @@ function SettingsPage({
   );
 }
 
+function PrePourMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {badge}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+            {isOpen ? "Hide" : "Show"}
+            <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
+          </span>
+        </span>
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-2.5">
+        {children}
+      </div> : null}
+    </div>
+  );
+}
+
+function PrePourMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+      </button>
+      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
+        {children}
+      </div> : null}
+    </div>
+  );
+}
+
 function PrePourPage({
   jobs,
   prePourChecklists,
@@ -7464,6 +7508,12 @@ function PrePourPage({
     && !selectedChecklist.archivedAt
     && ["draft", "reopened"].includes(selectedChecklist.status);
   const noFieldJob = !permissions.prePour.canManageAll && visibleJobs.length === 0;
+  const latestChecklist = filteredRows[0] || null;
+  const createJob = visibleJobs.find((job) => job.id === createDraft.jobId) || null;
+  const checklistListSummary = `${filteredRows.length} checklist${filteredRows.length === 1 ? "" : "s"}${latestChecklist ? ` / Latest ${latestChecklist.job?.title || "pre-pour"}` : ""}`;
+  const createChecklistSummary = createJob ? createJob.title : "Select job";
+  const selectedChecklistSummary = selectedChecklist ? `${selectedChecklist.statusLabel || prePourChecklistStatusLabel(selectedChecklist.status)} / ${checklistSummary.incompleteCount} incomplete` : "Select a checklist";
+  const completionInfoSummary = selectedChecklist ? `${selectedChecklist.completedByName || "Not completed"} / ${selectedChecklist.reviewedByName || "Not reviewed"}` : "Completion info";
 
   if (!permissions.prePour.canView) {
     return (
@@ -7479,9 +7529,58 @@ function PrePourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
-      <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
+      <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
         <div className="min-w-0 space-y-4 lg:self-start">
-          <Card className="p-5">
+          <PrePourMobileAccordionCard title="Checklist list" summary={checklistListSummary} badge={<Badge tone="blue">{filteredRows.length}</Badge>}>
+            <div className="grid gap-2.5">
+              <PrePourMobileFieldGroup title="Filters" summary="Status, job, foreman, date, and archive">
+                <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  {["All", "Draft", "Completed", "Reviewed", "Reopened", "Archived"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                  {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search jobs, notes, or checklist items..." />
+              </PrePourMobileFieldGroup>
+              {filteredRows.length === 0 ? (
+                <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredRows.map((checklist) => (
+                    <button
+                      key={checklist.id}
+                      type="button"
+                      onClick={() => setSelectedChecklistId(checklist.id)}
+                      className={`w-full rounded-2xl border p-3 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-sm" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
+                          <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {checklist.completedByName || checklist.createdByName}</p>
+                        </div>
+                        <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge tone={checklist.incompleteItemCount > 0 ? "amber" : "green"}>{checklist.incompleteItemCount} incomplete</Badge>
+                        {checklist.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </PrePourMobileAccordionCard>
+
+          <Card className="hidden p-5 md:block">
             <SectionHeader title="Filters" description="Focus the checklist list on the jobs and statuses you need right now." />
             <div className="grid gap-3">
               <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -7503,7 +7602,7 @@ function PrePourPage({
             </div>
           </Card>
 
-          <Card className="p-5">
+          <Card className="hidden p-5 md:block">
             <SectionHeader title="Checklist list" description={`${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
               <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
@@ -7536,7 +7635,51 @@ function PrePourPage({
 
         <div className={`min-w-0 space-y-4 lg:self-start ${canCreateChecklist ? "xl:grid xl:auto-rows-min xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:space-y-0" : ""}`}>
           {canCreateChecklist ? (
-            <Card className="p-5 xl:self-start">
+            <>
+            <PrePourMobileAccordionCard title="Create checklist" summary={createChecklistSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
+              <div className="grid gap-2.5">
+                <PrePourMobileFieldGroup title="Job selection" summary={createJob ? jobTitle(createJob) : "Select job"} defaultOpen>
+                  <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                    <option value="">Select a job</option>
+                    {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                  </SelectField>
+                </PrePourMobileFieldGroup>
+                <PrePourMobileFieldGroup title="Site readiness" summary="Included after create">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm font-bold leading-6 text-slate-600">
+                    The checklist will include site readiness items for layout, access, staging, and pre-pour verification.
+                  </div>
+                </PrePourMobileFieldGroup>
+                <PrePourMobileFieldGroup title="Forms / subgrade / base" summary="Included after create">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm font-bold leading-6 text-slate-600">
+                    Forms, subgrade, base, and edge prep checks are added as checklist items once this record is created.
+                  </div>
+                </PrePourMobileFieldGroup>
+                <PrePourMobileFieldGroup title="Rebar / mesh / reinforcement" summary="Included after create">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm font-bold leading-6 text-slate-600">
+                    Reinforcement checks are handled in the checklist item section after creation.
+                  </div>
+                </PrePourMobileFieldGroup>
+                <PrePourMobileFieldGroup title="Access / truck / pump setup" summary="Included after create">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm font-bold leading-6 text-slate-600">
+                    Truck access, pump setup, and placement readiness checks are part of the generated checklist.
+                  </div>
+                </PrePourMobileFieldGroup>
+                <PrePourMobileFieldGroup title="Weather / safety / notes" summary={createDraft.notes ? "Notes added" : "Optional"}>
+                  <TextAreaField label="Checklist notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional prep note for the crew." />
+                </PrePourMobileFieldGroup>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onCreateChecklist(createDraft);
+                    setCreateDraft({ ...INITIAL_PRE_POUR_FORM, jobId: singleJobId });
+                  }}
+                  disabled={busy || !createDraft.jobId}
+                >
+                  Create checklist
+                </Button>
+              </div>
+            </PrePourMobileAccordionCard>
+            <Card className="hidden p-5 md:block xl:self-start">
               <SectionHeader title="Create checklist" description="Start a pre-pour checklist with the default readiness items for a job." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
@@ -7558,10 +7701,61 @@ function PrePourPage({
                 </Button>
               </div>
             </Card>
+            </>
           ) : null}
 
           {selectedChecklist ? (
-            <Card className="min-w-0 p-5 xl:self-start">
+            <>
+            <div className="space-y-3 md:hidden">
+              <Card className="p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-base font-black text-slate-950">{selectedChecklist.job?.title || "Pre-pour checklist"}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{selectedChecklistSummary}</p>
+                  </div>
+                  <StatusBadge status={prePourChecklistStatusLabel(selectedChecklist.status)} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {canEditChecklist ? <Button type="button" size="sm" variant="secondary" onClick={() => onSaveChecklist(selectedChecklist.id, { notes: detailNotes })} disabled={busy}>Save notes</Button> : null}
+                  {canCompleteChecklist ? <Button type="button" size="sm" onClick={() => onCompleteChecklist(selectedChecklist.id)} disabled={busy || checklistSummary.incompleteCount > 0}>Complete</Button> : null}
+                  {permissions.prePour.canReview ? <Button type="button" size="sm" variant="secondary" onClick={() => onReviewChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.status === "reviewed" || selectedChecklist.archivedAt}>Review</Button> : null}
+                  {permissions.prePour.canReview ? <Button type="button" size="sm" variant="secondary" onClick={() => onReopenChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Reopen</Button> : null}
+                  {permissions.prePour.canReview ? <Button type="button" size="sm" variant="danger" onClick={() => onArchiveChecklist(selectedChecklist.id)} disabled={busy || selectedChecklist.archivedAt}>Archive</Button> : null}
+                </div>
+                {canCompleteChecklist && checklistSummary.incompleteCount > 0 ? (
+                  <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                    {checklistSummary.incompleteCount} item{checklistSummary.incompleteCount === 1 ? "" : "s"} still need attention before completion.
+                  </div>
+                ) : null}
+              </Card>
+              <PrePourMobileAccordionCard title="Job / status" summary={selectedChecklist.job?.customer || "Assigned site"} defaultOpen>
+                <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Job:</span> {selectedChecklist.job?.title || "Assigned pre-pour checklist"}</p>
+                  <p><span className="font-black text-slate-950">Customer/site:</span> {selectedChecklist.job?.customer || "Assigned site"}</p>
+                  <p><span className="font-black text-slate-950">Foreman:</span> {selectedChecklist.job?.foremanAssignment?.userName || "Unassigned"}</p>
+                  <p><span className="font-black text-slate-950">Status:</span> {selectedChecklist.statusLabel}</p>
+                  <p><span className="font-black text-slate-950">Incomplete:</span> {checklistSummary.incompleteCount}</p>
+                </div>
+              </PrePourMobileAccordionCard>
+              <PrePourMobileAccordionCard title="Notes" summary={detailNotes ? "Notes added" : "No notes"}>
+                <TextAreaField
+                  label="Checklist notes"
+                  value={detailNotes}
+                  onChange={(event) => setDetailNotes(event.target.value)}
+                  disabled={busy || !canEditChecklist}
+                  placeholder="Add notes for the crew or office."
+                />
+              </PrePourMobileAccordionCard>
+              <PrePourMobileAccordionCard title="Review / completion info" summary={completionInfoSummary}>
+                <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                  <p><span className="font-black text-slate-950">Created:</span> {formatDateTime(selectedChecklist.createdAt)}</p>
+                  <p><span className="font-black text-slate-950">Completed by:</span> {selectedChecklist.completedByName || "Not completed"}</p>
+                  <p><span className="font-black text-slate-950">Reviewed by:</span> {selectedChecklist.reviewedByName || "Not reviewed"}</p>
+                  <p><span className="font-black text-slate-950">Updated:</span> {formatDateTime(selectedChecklist.updatedAt)}</p>
+                </div>
+              </PrePourMobileAccordionCard>
+            </div>
+            <Card className="hidden min-w-0 p-5 md:block xl:self-start">
               <SectionHeader
                 title={selectedChecklist.job?.title || "Pre-pour checklist"}
                 description={`${selectedChecklist.job?.customer || "Assigned site"} · ${selectedChecklist.completedAt ? `Completed ${formatDateTime(selectedChecklist.completedAt)}` : `Updated ${formatDateTime(selectedChecklist.updatedAt)}`}`}
@@ -7609,55 +7803,101 @@ function PrePourPage({
                 </div>
               </div>
             </Card>
+            </>
           ) : (
-            <Card className="min-w-0 p-5 xl:self-start">
-              <SectionHeader title="Checklist details" description="Select a checklist to review site readiness and completion details." />
-              <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
-            </Card>
+            <>
+              <PrePourMobileAccordionCard title="Checklist details" summary="Select a checklist to review details">
+                <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
+              </PrePourMobileAccordionCard>
+              <Card className="hidden min-w-0 p-5 md:block xl:self-start">
+                <SectionHeader title="Checklist details" description="Select a checklist to review site readiness and completion details." />
+                <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the list or create a new one for a visible job." tone="slate" />
+              </Card>
+            </>
           )}
 
           {selectedChecklist ? (
-            <Card className={`p-5 ${canCreateChecklist ? "xl:col-span-2" : ""}`}>
-              <SectionHeader title="Checklist items" description="Work through the default pre-pour checks before the concrete is placed." />
-              <div className="space-y-3">
-                {selectedItems.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="break-words text-sm font-black text-slate-950">{item.label}</p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">{prePourItemStatusLabel(item.status)}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge tone={item.status === "checked" ? "green" : item.status === "not_applicable" ? "slate" : "amber"}>{prePourItemStatusLabel(item.status)}</Badge>
-                        {canEditChecklist ? (
-                          <>
-                            <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
-                            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
-                            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      {canEditChecklist ? (
-                        <TextAreaField
-                          key={`${item.id}-${item.updatedAt}`}
-                          label="Item note"
-                          defaultValue={item.notes || ""}
-                          onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
-                          disabled={busy}
-                          placeholder="Add a note for this readiness item."
-                        />
-                      ) : (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
-                          {item.notes || "No note for this item yet."}
+            <>
+              <PrePourMobileAccordionCard title="Checklist items" summary={`${selectedItems.length} items / ${checklistSummary.incompleteCount} incomplete`} badge={<Badge tone={checklistSummary.incompleteCount > 0 ? "amber" : "green"}>{checklistSummary.incompleteCount} left</Badge>} defaultOpen>
+                <div className="space-y-2.5">
+                  {selectedItems.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-black text-slate-950">{item.label}</p>
+                          <p className="mt-1 text-xs font-bold text-slate-500">{prePourItemStatusLabel(item.status)}</p>
                         </div>
-                      )}
+                        <Badge tone={item.status === "checked" ? "green" : item.status === "not_applicable" ? "slate" : "amber"}>{prePourItemStatusLabel(item.status)}</Badge>
+                      </div>
+                      {canEditChecklist ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+                        </div>
+                      ) : null}
+                      <div className="mt-3">
+                        {canEditChecklist ? (
+                          <TextAreaField
+                            key={`mobile-${item.id}-${item.updatedAt}`}
+                            label="Item note"
+                            defaultValue={item.notes || ""}
+                            onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
+                            disabled={busy}
+                            placeholder="Add a note for this readiness item."
+                          />
+                        ) : (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
+                            {item.notes || "No note for this item yet."}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+                  ))}
+                </div>
+              </PrePourMobileAccordionCard>
+              <Card className={`hidden p-5 md:block ${canCreateChecklist ? "xl:col-span-2" : ""}`}>
+                <SectionHeader title="Checklist items" description="Work through the default pre-pour checks before the concrete is placed." />
+                <div className="space-y-3">
+                  {selectedItems.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-black text-slate-950">{item.label}</p>
+                          <p className="mt-1 text-xs font-bold text-slate-500">{prePourItemStatusLabel(item.status)}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone={item.status === "checked" ? "green" : item.status === "not_applicable" ? "slate" : "amber"}>{prePourItemStatusLabel(item.status)}</Badge>
+                          {canEditChecklist ? (
+                            <>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        {canEditChecklist ? (
+                          <TextAreaField
+                            key={`${item.id}-${item.updatedAt}`}
+                            label="Item note"
+                            defaultValue={item.notes || ""}
+                            onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
+                            disabled={busy}
+                            placeholder="Add a note for this readiness item."
+                          />
+                        ) : (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
+                            {item.notes || "No note for this item yet."}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
           ) : null}
         </div>
       </div>
