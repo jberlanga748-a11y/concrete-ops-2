@@ -8677,6 +8677,50 @@ function ChangeOrdersPage({
   );
 }
 
+function DeliveryTicketMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {badge}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+            {isOpen ? "Hide" : "Show"}
+            <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
+          </span>
+        </span>
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-2.5">
+        {children}
+      </div> : null}
+    </div>
+  );
+}
+
+function DeliveryTicketMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+      </button>
+      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
+        {children}
+      </div> : null}
+    </div>
+  );
+}
+
 function DeliveryTicketsPage({
   user,
   sessionToken,
@@ -8721,6 +8765,10 @@ function DeliveryTicketsPage({
   const canCreate = permissions.deliveryTickets.canCreate || permissions.deliveryTickets.canManageAll;
   const canManageAll = permissions.deliveryTickets.canManageAll;
   const canEditSelected = Boolean(selectedTicket) && (canManageAll || (permissions.deliveryTickets.canEditOwn && selectedTicket.createdBy === user?.id && !selectedTicket.archivedAt));
+  const latestTicket = filteredRows[0] || null;
+  const ticketListSummary = `${filteredRows.length} ticket${filteredRows.length === 1 ? "" : "s"}${latestTicket ? ` / Latest ${latestTicket.supplier || latestTicket.job?.title || "delivery"}` : ""}`;
+  const createTicketSummary = `${createDraft.supplier || "Supplier"} / ${visibleJobs.find((job) => job.id === createJobId)?.title || "select job"}`;
+  const selectedTicketSummary = selectedTicket ? `${selectedTicket.supplier || "Supplier pending"} / ${selectedTicket.job?.title || "Assigned job"}` : "Select a ticket";
   const scopedUploads = (Array.isArray(uploads) ? uploads : []).filter((upload) => !upload.archivedAt);
   const scopedReports = (Array.isArray(dailyReports) ? dailyReports : []).filter((report) => !report.archivedAt);
   const createUploadOptions = scopedUploads.filter((upload) => !createJobId || upload.jobId === createJobId);
@@ -8804,9 +8852,58 @@ function DeliveryTicketsPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
+      <div className="grid min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
-          <Card className="p-4">
+          <DeliveryTicketMobileAccordionCard title="Ticket list" summary={ticketListSummary} badge={<Badge tone="blue">{filteredRows.length}</Badge>}>
+            <div className="grid gap-2.5">
+              <DeliveryTicketMobileFieldGroup title="Filters" summary="Job, supplier, creator, date, and archive">
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Supplier" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)}>
+                  {listState.supplierOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                  {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <InputField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search supplier, ticket, truck, mix notes, or job..." />
+              </DeliveryTicketMobileFieldGroup>
+              {filteredRows.length === 0 ? (
+                <StateCard
+                  title={visibleJobs.length === 0 && !canManageAll ? "No assigned job yet" : "No delivery tickets match these filters"}
+                  description={visibleJobs.length === 0 && !canManageAll ? "Contact office if you should be able to record or view deliveries for this job." : "Clear a filter or create a new ticket for a visible job."}
+                  tone="slate"
+                />
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredRows.map((ticket) => (
+                    <button
+                      key={ticket.id}
+                      type="button"
+                      onClick={() => setSelectedTicketId(ticket.id)}
+                      className={`w-full rounded-2xl border p-3 text-left transition ${selectedTicket?.id === ticket.id ? "border-blue-300 bg-blue-50/80 shadow-sm" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
+                          <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
+                        </div>
+                        {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone="blue">{ticket.yardsDelivered ? `${ticket.yardsDelivered} yd` : "Ticket"}</Badge>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DeliveryTicketMobileAccordionCard>
+
+          <Card className="hidden p-4 md:block">
             <SectionHeader title="Filters" description="Focus on the deliveries that matter right now." />
             <div className="grid gap-3">
               <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
@@ -8828,7 +8925,7 @@ function DeliveryTicketsPage({
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="hidden p-4 md:block">
             <SectionHeader title="Ticket list" description={`${filteredRows.length} visible ticket${filteredRows.length === 1 ? "" : "s"}.`} />
             {filteredRows.length === 0 ? (
               <StateCard
@@ -8861,7 +8958,58 @@ function DeliveryTicketsPage({
 
         <div className="min-w-0 space-y-4">
           {canCreate ? (
-            <Card className="p-4">
+            <>
+            <DeliveryTicketMobileAccordionCard title="New delivery ticket" summary={createTicketSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
+              <div className="grid gap-2.5">
+                <DeliveryTicketMobileFieldGroup title="Job / report" summary={createDraft.jobId ? "Job selected" : "Select job"} defaultOpen>
+                  <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+                    <option value="">Select a job</option>
+                    {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                  </SelectField>
+                  <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
+                    <option value="">No linked report</option>
+                    {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} / ${report.reportDate || "No date"}`}</option>)}
+                  </SelectField>
+                </DeliveryTicketMobileFieldGroup>
+                <DeliveryTicketMobileFieldGroup title="Supplier / ticket info" summary={createDraft.supplier || createDraft.ticketNumber || "Supplier and ticket"}>
+                  <InputField label="Supplier" value={createDraft.supplier} onChange={(event) => setCreateDraft((current) => ({ ...current, supplier: event.target.value }))} placeholder="Knife River, Cadman, etc." />
+                  <InputField label="Ticket number" value={createDraft.ticketNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+                </DeliveryTicketMobileFieldGroup>
+                <DeliveryTicketMobileFieldGroup title="Truck / timing" summary={createDraft.truckNumber || createDraft.arrivalTime || "Truck and times"}>
+                  <InputField label="Truck number" value={createDraft.truckNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+                  <InputField label="Arrival time" type="datetime-local" value={createDraft.arrivalTime} onChange={(event) => setCreateDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+                  <InputField label="Discharge time" type="datetime-local" value={createDraft.dischargeTime} onChange={(event) => setCreateDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+                </DeliveryTicketMobileFieldGroup>
+                <DeliveryTicketMobileFieldGroup title="Concrete details" summary={createDraft.yardsDelivered ? `${createDraft.yardsDelivered} yards` : "Yards, PSI, slump"}>
+                  <InputField label="Yards delivered" type="number" min="0" step="0.1" value={createDraft.yardsDelivered} onChange={(event) => setCreateDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+                  <InputField label="PSI" type="number" min="0" step="1" value={createDraft.psi} onChange={(event) => setCreateDraft((current) => ({ ...current, psi: event.target.value }))} />
+                  <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
+                  <TextAreaField label="Mix notes" value={createDraft.mixNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, mixNotes: event.target.value }))} placeholder="Mix design, pump notes, temperature, additives, or placement details." />
+                </DeliveryTicketMobileFieldGroup>
+                <DeliveryTicketMobileFieldGroup title="Ticket photo / linked upload" summary={createDraft.ticketUploadId ? "Upload linked" : "Optional"}>
+                  <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+                    <option value="">No linked upload</option>
+                    {createUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+                  </SelectField>
+                </DeliveryTicketMobileFieldGroup>
+                <DeliveryTicketMobileFieldGroup title="Notes" summary={createDraft.notes ? "Notes added" : "Optional"}>
+                  <TextAreaField label="Notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Any additional field notes for this delivery ticket." />
+                </DeliveryTicketMobileFieldGroup>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    const saved = await onCreateTicket(createDraft);
+                    if (saved) {
+                      setCreateDraft({ ...INITIAL_DELIVERY_TICKET_FORM, jobId: singleJobId });
+                    }
+                  }}
+                  disabled={busy || !createDraft.jobId}
+                >
+                  Save delivery ticket
+                </Button>
+              </div>
+            </DeliveryTicketMobileAccordionCard>
+            <Card className="hidden p-4 md:block">
               <SectionHeader title="Create ticket" description="Record truck and ticket details from the field without any pricing data." />
               <div className="grid gap-3 md:grid-cols-2">
                 <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
@@ -8908,10 +9056,125 @@ function DeliveryTicketsPage({
                 </Button>
               </div>
             </Card>
+            </>
           ) : null}
 
           {selectedTicket ? (
-            <Card className="p-4">
+            <>
+            <div className="space-y-3 md:hidden">
+              <Card className="p-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(selectedTicket)}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{selectedTicketSummary}</p>
+                  </div>
+                  {selectedTicket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{selectedTicket.yardsDelivered ? `${selectedTicket.yardsDelivered} yd` : "Visible"}</Badge>}
+                </div>
+                {canEditSelected ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateTicket(selectedTicket.id, detailDraft)} disabled={busy}>Save ticket</Button>
+                    {canManageAll ? <Button type="button" size="sm" variant="danger" onClick={() => onArchiveTicket(selectedTicket.id)} disabled={busy || selectedTicket.archivedAt}>Archive</Button> : null}
+                  </div>
+                ) : null}
+              </Card>
+              <DeliveryTicketMobileAccordionCard title="Job / report" summary={selectedTicket.job?.title || "Assigned job"} defaultOpen>
+                {canEditSelected ? (
+                  <>
+                    <SelectField label="Job" value={detailDraft.jobId} onChange={(event) => setDetailDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+                      {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+                    </SelectField>
+                    <SelectField label="Daily report link" value={detailDraft.reportId} onChange={(event) => setDetailDraft((current) => ({ ...current, reportId: event.target.value }))}>
+                      <option value="">No linked report</option>
+                      {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} / ${report.reportDate || "No date"}`}</option>)}
+                    </SelectField>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                    <p><span className="font-black text-slate-950">Job:</span> {selectedTicket.job?.title || "Assigned job"}</p>
+                    <p className="mt-1"><span className="font-black text-slate-950">Daily report:</span> {selectedTicket.report?.reportDate || "Not linked"}</p>
+                  </div>
+                )}
+              </DeliveryTicketMobileAccordionCard>
+              <DeliveryTicketMobileAccordionCard title="Supplier / ticket info" summary={selectedTicket.supplier || selectedTicket.ticketNumber || "Not provided"}>
+                {canEditSelected ? (
+                  <>
+                    <InputField label="Supplier" value={detailDraft.supplier} onChange={(event) => setDetailDraft((current) => ({ ...current, supplier: event.target.value }))} />
+                    <InputField label="Ticket number" value={detailDraft.ticketNumber} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                    <p><span className="font-black text-slate-950">Supplier:</span> {selectedTicket.supplier || "Not provided"}</p>
+                    <p className="mt-1"><span className="font-black text-slate-950">Ticket:</span> {selectedTicket.ticketNumber || "Not provided"}</p>
+                  </div>
+                )}
+              </DeliveryTicketMobileAccordionCard>
+              <DeliveryTicketMobileAccordionCard title="Truck / timing" summary={selectedTicket.truckNumber || selectedTicket.arrivalTime || "Truck and times"}>
+                {canEditSelected ? (
+                  <>
+                    <InputField label="Truck number" value={detailDraft.truckNumber} onChange={(event) => setDetailDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+                    <InputField label="Arrival time" type="datetime-local" value={detailDraft.arrivalTime} onChange={(event) => setDetailDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+                    <InputField label="Discharge time" type="datetime-local" value={detailDraft.dischargeTime} onChange={(event) => setDetailDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                    <p><span className="font-black text-slate-950">Truck:</span> {selectedTicket.truckNumber || "Not provided"}</p>
+                    <p className="mt-1"><span className="font-black text-slate-950">Arrival:</span> {selectedTicket.arrivalTime ? formatDateTime(selectedTicket.arrivalTime) : "Not provided"}</p>
+                    <p className="mt-1"><span className="font-black text-slate-950">Discharge:</span> {selectedTicket.dischargeTime ? formatDateTime(selectedTicket.dischargeTime) : "Not provided"}</p>
+                  </div>
+                )}
+              </DeliveryTicketMobileAccordionCard>
+              <DeliveryTicketMobileAccordionCard title="Concrete details" summary={selectedTicket.yardsDelivered ? `${selectedTicket.yardsDelivered} yards` : "Yards, PSI, slump"}>
+                {canEditSelected ? (
+                  <>
+                    <InputField label="Yards delivered" type="number" min="0" step="0.1" value={detailDraft.yardsDelivered} onChange={(event) => setDetailDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+                    <InputField label="PSI" type="number" min="0" step="1" value={detailDraft.psi} onChange={(event) => setDetailDraft((current) => ({ ...current, psi: event.target.value }))} />
+                    <InputField label="Slump" type="number" min="0" step="0.1" value={detailDraft.slump} onChange={(event) => setDetailDraft((current) => ({ ...current, slump: event.target.value }))} />
+                    <TextAreaField label="Mix notes" value={detailDraft.mixNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, mixNotes: event.target.value }))} />
+                  </>
+                ) : (
+                  <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+                    <p><span className="font-black text-slate-950">Yards delivered:</span> {selectedTicket.yardsDelivered || "0"}</p>
+                    <p><span className="font-black text-slate-950">PSI:</span> {selectedTicket.psi ?? "Not provided"}</p>
+                    <p><span className="font-black text-slate-950">Slump:</span> {selectedTicket.slump ?? "Not provided"}</p>
+                    <p><span className="font-black text-slate-950">Mix notes:</span> {selectedTicket.mixNotes || "No mix notes provided."}</p>
+                  </div>
+                )}
+              </DeliveryTicketMobileAccordionCard>
+              <DeliveryTicketMobileAccordionCard title="Ticket photo / linked upload" summary={selectedTicket.ticketUpload ? "Upload linked" : "Not linked"}>
+                {canEditSelected ? (
+                  <SelectField label="Ticket photo/upload" value={detailDraft.ticketUploadId} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+                    <option value="">No linked upload</option>
+                    {detailUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+                  </SelectField>
+                ) : null}
+                {selectedTicket.ticketUpload ? (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/30 p-3 text-sm text-slate-700">
+                    <p className="font-bold text-slate-900">{selectedTicket.ticketUpload.caption || selectedTicket.ticketUpload.fileName}</p>
+                    <button
+                      type="button"
+                      className="mt-2 inline-flex text-left text-sm font-black text-blue-700 underline-offset-4 hover:underline disabled:text-slate-400"
+                      onClick={() => handleOpenLinkedUpload(selectedTicket.ticketUpload)}
+                      disabled={!selectedTicket.ticketUpload.contentUrl || !sessionToken}
+                    >
+                      Open linked upload
+                    </button>
+                    {linkedUploadError ? <p className="mt-2 text-xs font-bold text-red-600">{linkedUploadError}</p> : null}
+                  </div>
+                ) : canEditSelected ? null : (
+                  <StateCard title="No ticket upload linked" description="A ticket photo can be linked when one is available for this job." tone="slate" />
+                )}
+              </DeliveryTicketMobileAccordionCard>
+              <DeliveryTicketMobileAccordionCard title="Notes" summary={selectedTicket.notes ? "Notes added" : "No notes"}>
+                {canEditSelected ? (
+                  <TextAreaField label="Notes" value={detailDraft.notes} onChange={(event) => setDetailDraft((current) => ({ ...current, notes: event.target.value }))} />
+                ) : (
+                  <div className="rounded-2xl border border-blue-100 bg-white p-3 text-sm text-slate-700">
+                    <p className="whitespace-pre-wrap">{selectedTicket.notes || "No notes provided."}</p>
+                  </div>
+                )}
+              </DeliveryTicketMobileAccordionCard>
+            </div>
+            <Card className="hidden p-4 md:block">
               <SectionHeader
                 title={deliveryTicketTitle(selectedTicket)}
                 description={`${selectedTicket.job?.title || "Assigned job"} · ${selectedTicket.createdByName} · ${formatDateTime(selectedTicket.createdAt)}`}
@@ -9001,11 +9264,17 @@ function DeliveryTicketsPage({
                 </div>
               ) : null}
             </Card>
+            </>
           ) : (
-            <Card className="p-4">
-              <SectionHeader title="Ticket details" description="Select a delivery ticket to review truck, mix, and yardage details." />
-              <StateCard title="No delivery ticket selected" description="Choose a delivery ticket from the list or create one for a visible job." tone="slate" />
-            </Card>
+            <>
+              <DeliveryTicketMobileAccordionCard title="Ticket details" summary="Select a ticket to review details">
+                <StateCard title="No delivery ticket selected" description="Choose a delivery ticket from the list or create one for a visible job." tone="slate" />
+              </DeliveryTicketMobileAccordionCard>
+              <Card className="hidden p-4 md:block">
+                <SectionHeader title="Ticket details" description="Select a delivery ticket to review truck, mix, and yardage details." />
+                <StateCard title="No delivery ticket selected" description="Choose a delivery ticket from the list or create one for a visible job." tone="slate" />
+              </Card>
+            </>
           )}
         </div>
       </div>
