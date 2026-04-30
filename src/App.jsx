@@ -3915,6 +3915,50 @@ function UploadListCard({ upload, selected, onSelect }) {
   );
 }
 
+function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <details className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`} open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {badge}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+            {isOpen ? "Hide" : "Show"}
+            <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
+          </span>
+        </span>
+      </summary>
+      <div className="border-t border-blue-100 p-2.5">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function UploadMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <details className="rounded-2xl border border-blue-100 bg-white" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+      </summary>
+      <div className="grid gap-3 border-t border-blue-100 p-3">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchive, compactMobile = false }) {
   const [draft, setDraft] = useState({ caption: "", notes: "" });
 
@@ -3931,15 +3975,77 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
 
   if (!upload) {
     return (
-      <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
-        <SectionHeader title="Upload details" description="Select an upload to review evidence and metadata." />
-        <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and location metadata." tone="slate" />
-      </Card>
+      <>
+        <UploadMobileAccordionCard title="Selected upload" summary="Choose an upload to review details">
+          <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and location metadata." tone="slate" />
+        </UploadMobileAccordionCard>
+        <Card className="hidden p-5 md:block">
+          <SectionHeader title="Upload details" description="Select an upload to review evidence and metadata." />
+          <StateCard title="No upload selected" description="Choose a photo from the list to review its job link, timestamps, and location metadata." tone="slate" />
+        </Card>
+      </>
     );
   }
 
   return (
-    <Card className={compactMobile ? "p-3.5 md:p-5" : "p-5"}>
+    <>
+      <div className="space-y-3 md:hidden">
+        <Card className="p-3.5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="break-words text-base font-black text-slate-950">{uploadTitle(upload)}</p>
+              <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {formatFileSize(upload.fileSize)}</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+              {upload.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {canManage ? <Button size="sm" onClick={() => onSave(draft)} disabled={disabled}>Save notes</Button> : null}
+            {canManage && !upload.archivedAt ? <Button variant="secondary" size="sm" onClick={() => onArchive(upload.id)} disabled={disabled}>Archive</Button> : null}
+          </div>
+        </Card>
+        <UploadMobileAccordionCard title="Photo preview" summary={upload.fileName || "Open evidence preview"}>
+          <AuthenticatedUploadPreview upload={upload} token={token} className="h-52 w-full max-w-full rounded-2xl object-cover" />
+        </UploadMobileAccordionCard>
+        <UploadMobileAccordionCard title="Job / report link" summary={uploadJobLabel(upload)}>
+          <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Job:</span> {uploadJobLabel(upload)}</p>
+            <p><span className="font-black text-slate-950">Customer:</span> {uploadCustomerLabel(upload)}</p>
+            <p><span className="font-black text-slate-950">Uploader:</span> {uploadUploaderLabel(upload)}</p>
+          </div>
+        </UploadMobileAccordionCard>
+        <UploadMobileAccordionCard title="Caption / notes" summary={[draft.caption, draft.notes].filter(Boolean).length ? "Notes added" : "Add caption or notes"}>
+          <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} disabled={!canManage || disabled} />
+          <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={!canManage || disabled} />
+        </UploadMobileAccordionCard>
+        <UploadMobileAccordionCard title="Timestamp / GPS metadata" summary={gpsStatusLabel(upload)}>
+          <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Taken at:</span> {formatDateTime(upload.takenAt)}</p>
+            <p><span className="font-black text-slate-950">Uploaded at:</span> {formatDateTime(upload.uploadedAt)}</p>
+            <p><span className="font-black text-slate-950">Location status:</span> {gpsStatusLabel(upload)}</p>
+            {upload.hasGps ? (
+              <>
+                <p><span className="font-black text-slate-950">GPS:</span> {upload.latitude?.toFixed?.(5)}, {upload.longitude?.toFixed?.(5)}</p>
+                <p><span className="font-black text-slate-950">Accuracy:</span> {Math.round(upload.locationAccuracy || 0)} m</p>
+                <p><span className="font-black text-slate-950">Location captured at:</span> {formatDateTime(upload.locationCapturedAt)}</p>
+              </>
+            ) : (
+              <p><span className="font-black text-slate-950">Location:</span> {upload.locationUnavailableReason || "Not requested"}</p>
+            )}
+          </div>
+        </UploadMobileAccordionCard>
+        <UploadMobileAccordionCard title="File metadata" summary={formatFileSize(upload.fileSize)}>
+          <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">File name:</span> {upload.fileName || "Unknown"}</p>
+            <p><span className="font-black text-slate-950">File type:</span> {upload.fileType || "Unknown"}</p>
+            <p><span className="font-black text-slate-950">File size:</span> {formatFileSize(upload.fileSize)}</p>
+          </div>
+        </UploadMobileAccordionCard>
+      </div>
+
+      <Card className="hidden p-5 md:block">
       <SectionHeader
         title={uploadTitle(upload)}
         description={`${uploadJobLabel(upload)} · ${formatFileSize(upload.fileSize)}`}
@@ -3981,7 +4087,8 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
           {canManage && !upload.archivedAt ? <Button variant="secondary" onClick={() => onArchive(upload.id)} disabled={disabled}>Archive upload</Button> : null}
         </div>
       </div>
-    </Card>
+      </Card>
+    </>
   );
 }
 
@@ -4025,11 +4132,67 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
     );
   }
 
+  const selectedJob = jobs.find((job) => job.id === draft.jobId);
+  const uploadSummary = draft.fileName
+    ? `${draft.fileName} / ${selectedJob ? jobTitle(selectedJob) : "job pending"}`
+    : `${selectedJob ? jobTitle(selectedJob) : "select job"} and add photo`;
+
   return (
-    <Card className="p-5">
-      <SectionHeader title="Upload photo" description="Capture field documentation with optional location metadata. Upload still works if location is denied." />
+    <>
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
       <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
+
+      <UploadMobileAccordionCard title="Upload photo" summary={uploadSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
+        <form className="grid gap-2.5" onSubmit={onSubmit} noValidate>
+          <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"} defaultOpen>
+            <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+              {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+            </SelectField>
+          </UploadMobileFieldGroup>
+          <UploadMobileFieldGroup title="Photo / file" summary={draft.fileName || "Choose a photo"} defaultOpen>
+            <div className="grid gap-2.5">
+              <Button type="button" className="w-full" onClick={(event) => handleOpenPicker(event, cameraInputRef)} disabled={loading}>
+                <Icon name="upload" />
+                Take Photo
+              </Button>
+              <Button type="button" variant="secondary" className="w-full" onClick={(event) => handleOpenPicker(event, libraryInputRef)} disabled={loading}>
+                <Icon name="document" />
+                Upload Existing Photo
+              </Button>
+            </div>
+            {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-40 w-full rounded-2xl object-cover" /> : null}
+            {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
+          </UploadMobileFieldGroup>
+          <UploadMobileFieldGroup title="Caption / notes" summary={[draft.caption, draft.notes].filter(Boolean).length ? "Notes added" : "Optional"}>
+            <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
+            <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
+          </UploadMobileFieldGroup>
+          <UploadMobileFieldGroup title="Timestamp / GPS" summary={gpsStatusLabel(draft)}>
+            <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+              <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
+              {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
+              {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} / accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
+            </div>
+            <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
+          </UploadMobileFieldGroup>
+          <UploadMobileFieldGroup title="Extra details" summary={draft.fileName ? formatFileSize(draft.fileSize) : "File details pending"}>
+            {draft.fileName ? (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+                <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
+                <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {draft.fileType || "Unknown"}</p>
+                <p className="mt-1"><span className="font-black text-slate-950">File size:</span> {formatFileSize(draft.fileSize)}</p>
+              </div>
+            ) : (
+              <StateCard title="No file selected yet" description="Choose a photo before uploading evidence." tone="slate" />
+            )}
+          </UploadMobileFieldGroup>
+          <Button type="submit" disabled={loading || !draft.jobId || !draft.dataUrl}>Upload evidence</Button>
+        </form>
+      </UploadMobileAccordionCard>
+
+      <Card className="hidden p-5 md:block">
+      <SectionHeader title="Upload photo" description="Capture field documentation with optional location metadata. Upload still works if location is denied." />
       <form className="grid gap-3" onSubmit={onSubmit} noValidate>
         <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
           {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
@@ -4069,7 +4232,8 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           <Button type="submit" disabled={loading || !draft.jobId || !draft.dataUrl}>Upload evidence</Button>
         </div>
       </form>
-    </Card>
+      </Card>
+    </>
   );
 }
 
@@ -4096,6 +4260,8 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
     gps: gpsFilter,
   }), [dateFilter, filter, gpsFilter, jobFilter, safeUploads, search, uploaderFilter]);
   const selectedUpload = useMemo(() => findSelectedUpload(visibleRows, safeUploads, selectedUploadId), [safeUploads, selectedUploadId, visibleRows]);
+  const latestVisibleUpload = visibleRows[0] || null;
+  const uploadListSummary = `${visibleRows.length} uploads${latestVisibleUpload ? ` / Latest ${uploadJobLabel(latestVisibleUpload)}` : ""}`;
 
   useEffect(() => {
     const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
@@ -4246,8 +4412,43 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
   return (
     <div>
       <PageHeader eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"} title="Uploads" description="Job-linked photo evidence with timestamp metadata and optional GPS capture for field documentation." actions={<Badge tone="blue">{visibleRows.length} uploads</Badge>} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
-        <Card className="overflow-hidden">
+      <div className="grid min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+        <div className="min-w-0">
+          <UploadMobileAccordionCard title="Upload list" summary={uploadListSummary} badge={<Badge tone="blue">{visibleRows.length}</Badge>}>
+            <div className="grid gap-2.5">
+              <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search uploads..." />
+              <UploadMobileFieldGroup title="Filters" summary="Job, uploader, date, and GPS">
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  <option>All jobs</option>
+                  {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Uploader" value={uploaderFilter} onChange={(event) => setUploaderFilter(event.target.value)}>
+                  <option>All uploaders</option>
+                  {listState.uploaderOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  <option>All dates</option>
+                  {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </SelectField>
+                <SelectField label="GPS" value={gpsFilter} onChange={(event) => setGpsFilter(event.target.value)}>
+                  <option>All locations</option>
+                  <option>Has GPS</option>
+                  <option>Missing GPS</option>
+                </SelectField>
+              </UploadMobileFieldGroup>
+              {successMessage ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+              {errorMessage && visibleRows.length === 0 ? (
+                <StateCard title="Uploads unavailable" description={errorMessage} tone="red" />
+              ) : visibleRows.length === 0 ? (
+                <StateCard title="No uploads yet" description="Photo evidence will appear here after the first field upload." tone="slate" />
+              ) : (
+                <div className="space-y-2.5">
+                  {visibleRows.map((upload) => <UploadListCard key={upload.id} upload={upload} selected={selectedUpload?.id === upload.id} onSelect={setSelectedUploadId} />)}
+                </div>
+              )}
+            </div>
+          </UploadMobileAccordionCard>
+          <Card className="hidden overflow-hidden md:block">
           <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
           <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-2 xl:grid-cols-4">
             <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
@@ -4278,7 +4479,8 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
               {visibleRows.map((upload) => <UploadListCard key={upload.id} upload={upload} selected={selectedUpload?.id === upload.id} onSelect={setSelectedUploadId} />)}
             </div>
           )}
-        </Card>
+          </Card>
+        </div>
         <div className="min-w-0 space-y-4">
           <UploadCreateCard
             canCreate={permissions.uploads.canCreate}
