@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  acknowledgeJobAssignmentNotice,
   acknowledgeSafety,
   archiveUpload,
   archivePpeItem,
@@ -1946,6 +1947,14 @@ function jobAssignmentRoleLabel(role) {
   return role || "Crew";
 }
 
+function AssignmentNoticeStatus({ assignment }) {
+  if (!assignment) return null;
+  if (assignment.noticeAcknowledged) {
+    return <Badge tone="green">Acknowledged {formatDateTime(assignment.noticeAcknowledgedAt)}</Badge>;
+  }
+  return <Badge tone="amber">Needs acknowledgement</Badge>;
+}
+
 function JobCrewSection({
   job,
   users,
@@ -2026,6 +2035,11 @@ function JobCrewSection({
             <p className="mt-1 text-xs text-slate-500">{foremanAssignment ? `${foremanAssignment.userRole} - ${jobAssignmentRoleLabel(foremanAssignment.roleOnJob)}` : "Scheduling will appear here when a foreman is assigned."}</p>
           </div>
         )}
+        {foremanAssignment ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <AssignmentNoticeStatus assignment={foremanAssignment} />
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-blue-100 bg-white p-3">
@@ -2042,6 +2056,9 @@ function JobCrewSection({
                   <div>
                     <p className="font-black text-slate-950">{assignment.userName}</p>
                     <p className="mt-1 text-xs text-slate-500">{assignment.userRole || "Field user"} - Assigned {formatDateTime(assignment.assignedAt)}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <AssignmentNoticeStatus assignment={assignment} />
+                    </div>
                   </div>
                   {canManageAssignments ? (
                     <div className="flex flex-col gap-2 md:flex-row md:items-end">
@@ -2403,6 +2420,72 @@ function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
   );
 }
 
+function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge, disabled }) {
+  const visibleNotices = Array.isArray(notices) ? notices : [];
+  if (visibleNotices.length === 0) return null;
+
+  return (
+    <Card className="border-amber-100 bg-amber-50/70 p-5">
+      <SectionHeader
+        title={visibleNotices.length === 1 ? "New job assignment" : "New job assignments"}
+        description="Review where to be, when to arrive, and field notes from the office."
+        action={<Badge tone="amber">{visibleNotices.length} notice{visibleNotices.length === 1 ? "" : "s"}</Badge>}
+      />
+      <div className="space-y-3">
+        {visibleNotices.map((notice) => {
+          const job = notice.job;
+          const mapUrl = directionsUrl(job?.address);
+          return (
+            <div key={notice.id} className="rounded-3xl border border-amber-100 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-lg font-black text-slate-950">{jobTitle(job)}</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-600">{job?.customer || "Assigned site"}</p>
+                </div>
+                <Badge tone="amber">Please acknowledge</Badge>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">When</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Where</p>
+                  <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-700">{job?.address || "Address pending"}</p>
+                  {mapUrl ? (
+                    <a className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={mapUrl} target="_blank" rel="noreferrer">
+                      Open directions
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-amber-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{job?.foremanAssignment?.userName || job?.assignedForemanName || "Unassigned"}</p>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-white p-3 lg:col-span-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">{job?.fieldNotes || "No field notes yet."}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => onAcknowledge(job.id)} disabled={disabled}>
+                  <Icon name="check" />
+                  Got it
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => onSelectJob(job.id)}>
+                  View job details
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function FieldNextJobCard({ job, onSelect }) {
   const title = job && isTomorrowSchedule(job) ? "Tomorrow's job" : "Next assigned job";
   const mapUrl = directionsUrl(job?.address);
@@ -2621,7 +2704,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
   );
 }
 
-function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
+function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
@@ -2632,6 +2715,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
       <PageHeader eyebrow="Field Workspace" title="My Crew" description="Assigned jobs, upcoming planning work, and safe crew details without office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
+          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -2675,7 +2759,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
   );
 }
 
-function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, busy }) {
+function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fallbackJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || safeRows[0] || null;
@@ -2686,6 +2770,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       <PageHeader eyebrow="Field Workspace" title="My Job" description="Simple assigned-work view with only the job details and tools needed in the field." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
+          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -5224,6 +5309,7 @@ function JobsPage({
   onAddAssignment,
   onUpdateAssignment,
   onRemoveAssignment,
+  onAcknowledgeAssignmentNotice,
   busy,
   jobSaveState,
   permissions,
@@ -5254,6 +5340,7 @@ function JobsPage({
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}
         onEndBreak={onEndBreak}
+        onAcknowledgeAssignmentNotice={onAcknowledgeAssignmentNotice}
       />
     );
   }
@@ -5273,6 +5360,7 @@ function JobsPage({
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}
         onEndBreak={onEndBreak}
+        onAcknowledgeAssignmentNotice={onAcknowledgeAssignmentNotice}
         busy={busy}
       />
     );
@@ -9543,6 +9631,11 @@ export default function App() {
     runMutation(() => deleteJobAssignment(sessionToken, selectedJob.id, assignmentId));
   }
 
+  function handleAcknowledgeJobAssignmentNotice(jobId) {
+    if (!jobId) return;
+    runMutation(() => acknowledgeJobAssignmentNotice(sessionToken, jobId));
+  }
+
   function handleClockIn(payload) {
     if (!appState.permissions.time.canManageOwn) return;
     runMutation(() => clockIn(sessionToken, payload));
@@ -10915,6 +11008,7 @@ export default function App() {
               onAddAssignment={handleAddJobAssignment}
               onUpdateAssignment={handleUpdateJobAssignmentRole}
               onRemoveAssignment={handleRemoveJobAssignment}
+              onAcknowledgeAssignmentNotice={handleAcknowledgeJobAssignmentNotice}
               jobSaveState={jobSaveState}
               onArchiveJob={handleArchiveJob}
               onRestoreJob={handleRestoreJob}
