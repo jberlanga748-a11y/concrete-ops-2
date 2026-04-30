@@ -2438,36 +2438,43 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
 }
 
 function FieldDetailDisclosure({ title, summary, children, defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   return (
-    <details className="rounded-2xl border border-blue-100 bg-white" open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+    <div className="rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">Open</span>
-      </summary>
-      <div className="border-t border-blue-100 p-4">
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-4">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
   );
 }
 
 function FieldWorkspaceDisclosure({ title, description, badge, children }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <details className="panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-5">
+    <div className="panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
+      <button type="button" className="flex w-full cursor-pointer items-start justify-between gap-3 p-5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-base font-black text-slate-950">{title}</span>
           {description ? <span className="mt-1 block break-words text-sm leading-5 text-slate-500">{description}</span> : null}
         </span>
-        {badge ? <Badge tone="slate">{badge}</Badge> : null}
-      </summary>
-      <div className="border-t border-blue-100 p-5">
+        <span className="flex shrink-0 items-center gap-2">
+          {badge ? <Badge tone="slate">{badge}</Badge> : null}
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        </span>
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-5">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
   );
 }
 
@@ -2899,21 +2906,40 @@ function TimeMobileAccordionCard({ title, summary, badge, defaultOpen = false, c
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details className="panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel md:hidden" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-3.5">
+    <div className="panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel md:hidden">
+      <button type="button" className="flex w-full cursor-pointer items-start justify-between gap-3 p-3.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-base font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge}
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">Open</span>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>{isOpen ? "Hide ^" : "Show v"}</span>
         </span>
-      </summary>
-      <div className="border-t border-blue-100 p-3.5">
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-3.5">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
+  );
+}
+
+function TimeMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+      </button>
+      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
+        {children}
+      </div> : null}
+    </div>
   );
 }
 
@@ -3127,12 +3153,11 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
               <p className="mt-1 text-xs font-bold text-slate-500">{activeEntry.clockInAt ? `Started ${formatDateTime(activeEntry.clockInAt)}` : "Time entry active"}</p>
             </div>
             {activeActions}
-            <details className="mt-3 rounded-2xl border border-blue-100 bg-white">
-              <summary className="cursor-pointer list-none px-3 py-2 text-sm font-black text-slate-950">Show time details</summary>
-              <div className="border-t border-blue-100 p-3">
+            <div className="mt-3">
+              <TimeMobileFieldGroup title="Time details" summary={activeEntry.clockInAt ? `Started ${formatDateTime(activeEntry.clockInAt)}` : "Entry details"}>
                 <TimeEntryCard entry={activeEntry} compact compactMobile />
-              </div>
-            </details>
+              </TimeMobileFieldGroup>
+            </div>
           </TimeMobileAccordionCard>
           <Card className="hidden p-5 md:block">
             <SectionHeader title="Active clock" description="Keep your current time entry accurate before heading back to the job." />
@@ -3175,12 +3200,9 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
                 <Icon name="clock" />
                 Clock in
               </Button>
-              <details className="rounded-2xl border border-blue-100 bg-white">
-                <summary className="cursor-pointer list-none px-3 py-2 text-sm font-black text-slate-950">Change job/category or add note</summary>
-                <div className="grid gap-3 border-t border-blue-100 p-3">
-                  {clockInFields}
-                </div>
-              </details>
+              <TimeMobileFieldGroup title="Change job/category or add note" summary={selectedWorkSummary}>
+                {clockInFields}
+              </TimeMobileFieldGroup>
             </form>
           )}
         </TimeMobileAccordionCard>
@@ -3457,8 +3479,8 @@ function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = f
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`} open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
@@ -3470,11 +3492,11 @@ function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = f
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
         </span>
-      </summary>
-      <div className="border-t border-blue-100 p-2.5">
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-2.5">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
   );
 }
 
@@ -3482,18 +3504,18 @@ function DailyReportMobileFieldGroup({ title, summary, defaultOpen = false, chil
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details className="rounded-2xl border border-blue-100 bg-white" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+    <div className="rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
         <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
-      </summary>
-      <div className="grid gap-3 border-t border-blue-100 p-3">
+      </button>
+      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
   );
 }
 
@@ -3919,8 +3941,8 @@ function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false,
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`} open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
@@ -3932,11 +3954,11 @@ function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false,
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
         </span>
-      </summary>
-      <div className="border-t border-blue-100 p-2.5">
+      </button>
+      {isOpen ? <div className="border-t border-blue-100 p-2.5">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
   );
 }
 
@@ -3944,18 +3966,18 @@ function UploadMobileFieldGroup({ title, summary, defaultOpen = false, children 
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details className="rounded-2xl border border-blue-100 bg-white" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+    <div className="rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
         <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
-      </summary>
-      <div className="grid gap-3 border-t border-blue-100 p-3">
+      </button>
+      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
-      </div>
-    </details>
+      </div> : null}
+    </div>
   );
 }
 
