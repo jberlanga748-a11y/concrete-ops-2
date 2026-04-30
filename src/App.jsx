@@ -1484,7 +1484,7 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, hideMobileModuleSelect = false }) {
   const current = navItems.find((item) => item.id === active);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
@@ -1503,13 +1503,15 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           </Button>
         </div>
         <div className="grid gap-2 md:hidden">
-          <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-full min-w-0 py-2 text-xs font-black text-blue-700">
-            {navItems.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          {hideMobileModuleSelect ? null : (
+            <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-full min-w-0 py-2 text-xs font-black text-blue-700">
+              {navItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 max-w-[58vw] truncate rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
             <Button variant="ghost" size="sm" className="shrink-0" onClick={onLogout}>
@@ -2384,59 +2386,54 @@ function FieldActionGrid({ actions, onOpen }) {
   );
 }
 
-function getFieldWorkspaceActions(permissions) {
-  return permissions.jobs.canManageField
-    ? [
-        { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Open", tone: "amber" },
-        { title: "Delivery Tickets", description: "Record concrete truck and ticket details from the field.", icon: "clipboard", moduleId: "deliveryTickets", badge: "Open", tone: "blue" },
-        { title: "Pre-Pour", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
-        { title: "Post-Pour", description: "Track finish, cleanup, cure, and closeout readiness after placement.", icon: "clipboard", moduleId: "postPour", badge: "Open", tone: "blue" },
-        { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Open", tone: "blue" },
-        { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
-        { title: "Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
-        { title: "Tools", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
-        { title: "Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
-        { title: "Change Order", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
-      ]
-    : [
-        { title: "Clock In", description: "Open assigned-job time controls without payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
-        { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
-        { title: "Tickets", description: "Review assigned-job concrete ticket records when available.", icon: "clipboard", moduleId: permissions.deliveryTickets.canView ? "deliveryTickets" : null, badge: permissions.deliveryTickets.canView ? "Open" : "Off", tone: permissions.deliveryTickets.canView ? "blue" : "slate" },
-        { title: "Pre-Pour", description: "Review assigned-job readiness checklist when available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
-        { title: "Post-Pour", description: "Review assigned-job finish checklist when available.", icon: "clipboard", moduleId: permissions.postPour.canView ? "postPour" : null, badge: permissions.postPour.canView ? "Open" : "Off", tone: permissions.postPour.canView ? "blue" : "slate" },
-        { title: "Upload", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Open", tone: "blue" },
-        { title: "Safety", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
-        { title: "Incident", description: "Raise a field safety concern tied to assigned work.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
-        { title: "Tools", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
-        { title: "Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
-      ];
+const FIELD_MOBILE_NAV_ORDER = [
+  { id: "jobs", label: "Jobs", icon: "briefcase" },
+  { id: "time", label: "Clock", icon: "clock" },
+  { id: "reports", label: "Reports", icon: "document" },
+  { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
+  { id: "postPour", label: "Post-Pour", icon: "clipboard" },
+  { id: "uploads", label: "Uploads", icon: "upload" },
+  { id: "deliveryTickets", label: "Tickets", icon: "clipboard" },
+  { id: "ppe", label: "PPE", icon: "hardhat" },
+  { id: "incidents", label: "Incidents", icon: "alert" },
+  { id: "toolChecklist", label: "Tools", icon: "clipboard" },
+  { id: "calculator", label: "Calc", icon: "calculator" },
+  { id: "changeOrders", label: "Change", icon: "refresh" },
+];
+
+function getFieldMobileNavItems(visibleNavItems) {
+  const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
+  return FIELD_MOBILE_NAV_ORDER
+    .map((item) => {
+      const visible = visibleById.get(item.id);
+      return visible ? { ...visible, label: item.label, icon: item.icon || visible.icon } : null;
+    })
+    .filter(Boolean);
 }
 
-function FieldQuickActionStrip({ actions, onOpen }) {
+function FieldMobileQuickNav({ items, active, onOpen }) {
+  if (!items.length) return null;
+
   return (
-    <Card className="p-4 md:p-5">
-      <SectionHeader title="Quick actions" description="Jump straight to the field tools crews use most." />
+    <nav className="mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Field quick actions">
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {actions.map((action) => {
-          const disabled = !action.moduleId;
+        {items.map((item) => {
+          const isActive = active === item.id;
           return (
             <button
-              key={action.title}
+              key={item.id}
               type="button"
-              disabled={disabled}
-              onClick={() => action.moduleId ? onOpen(action.moduleId) : undefined}
-              className={`flex min-w-[116px] shrink-0 flex-col gap-2 rounded-2xl border p-3 text-left transition ${disabled ? "border-slate-200 bg-slate-50 text-slate-400" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/70"}`}
+              onClick={() => onOpen(item.id)}
+              aria-current={isActive ? "page" : undefined}
+              className={`flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isActive ? "border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <Icon name={action.icon} className="h-4 w-4 text-blue-700" />
-                <Badge tone={action.tone || "slate"}>{action.badge || "Open"}</Badge>
-              </div>
-              <span className="text-sm font-black leading-tight text-slate-950">{action.title}</span>
+              <Icon name={item.icon || "grid"} className="h-4 w-4" />
+              <span className="mt-1 block max-w-[68px] truncate">{item.label}</span>
             </button>
           );
         })}
       </div>
-    </Card>
+    </nav>
   );
 }
 
@@ -2789,7 +2786,6 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, safeRows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, safeRows, timeEntries, user?.id]);
-  const quickActions = getFieldWorkspaceActions(permissions);
 
   return (
     <div>
@@ -2797,7 +2793,6 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
-          <FieldQuickActionStrip actions={quickActions} onOpen={setActive} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -2844,7 +2839,6 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fallbackJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || safeRows[0] || null;
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
-  const quickActions = getFieldWorkspaceActions(permissions);
 
   return (
     <div>
@@ -2852,7 +2846,6 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
-          <FieldQuickActionStrip actions={quickActions} onOpen={setActive} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -10882,6 +10875,8 @@ export default function App() {
 
   const mobileItems = visibleNavItems.slice(0, 5).map((item) => item.id);
   const allItems = visibleNavItems;
+  const isFieldMobileWorkspace = !appState.permissions?.jobs?.canManageAll && !appState.permissions?.leads?.canView;
+  const fieldMobileItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : [];
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
@@ -10890,7 +10885,7 @@ export default function App() {
       <div className="flex min-w-0 max-w-full">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} />
         <div className="mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} companyName={workspaceCompanyName} />
+          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} companyName={workspaceCompanyName} hideMobileModuleSelect={isFieldMobileWorkspace} />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="min-w-0 overflow-x-hidden py-0">
             <MainContent
@@ -11113,20 +11108,24 @@ export default function App() {
           </main>
         </div>
       </div>
-      <nav className="mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
-          {mobileItems.map((id) => {
-            const item = allItems.find((nav) => nav.id === id);
-            const isActive = active === id;
-            return (
-              <button key={id} type="button" onClick={() => setActive(id)} className={`rounded-2xl px-1.5 py-2 text-[11px] font-black ${isActive ? "bg-blue-700 text-white" : "text-slate-500"}`}>
-                <Icon name={item?.icon || "grid"} className="mx-auto h-4 w-4" />
-                <span className="mt-1 block truncate">{item?.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {isFieldMobileWorkspace ? (
+        <FieldMobileQuickNav items={fieldMobileItems} active={active} onOpen={setActive} />
+      ) : (
+        <nav className="mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
+          <div className="grid grid-cols-5 gap-1">
+            {mobileItems.map((id) => {
+              const item = allItems.find((nav) => nav.id === id);
+              const isActive = active === id;
+              return (
+                <button key={id} type="button" onClick={() => setActive(id)} className={`rounded-2xl px-1.5 py-2 text-[11px] font-black ${isActive ? "bg-blue-700 text-white" : "text-slate-500"}`}>
+                  <Icon name={item?.icon || "grid"} className="mx-auto h-4 w-4" />
+                  <span className="mt-1 block truncate">{item?.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
