@@ -2384,6 +2384,96 @@ function FieldActionGrid({ actions, onOpen }) {
   );
 }
 
+function getFieldWorkspaceActions(permissions) {
+  return permissions.jobs.canManageField
+    ? [
+        { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Open", tone: "amber" },
+        { title: "Delivery Tickets", description: "Record concrete truck and ticket details from the field.", icon: "clipboard", moduleId: "deliveryTickets", badge: "Open", tone: "blue" },
+        { title: "Pre-Pour", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
+        { title: "Post-Pour", description: "Track finish, cleanup, cure, and closeout readiness after placement.", icon: "clipboard", moduleId: "postPour", badge: "Open", tone: "blue" },
+        { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Open", tone: "blue" },
+        { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+        { title: "Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
+        { title: "Tools", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
+        { title: "Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
+        { title: "Change Order", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
+      ]
+    : [
+        { title: "Clock In", description: "Open assigned-job time controls without payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
+        { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
+        { title: "Tickets", description: "Review assigned-job concrete ticket records when available.", icon: "clipboard", moduleId: permissions.deliveryTickets.canView ? "deliveryTickets" : null, badge: permissions.deliveryTickets.canView ? "Open" : "Off", tone: permissions.deliveryTickets.canView ? "blue" : "slate" },
+        { title: "Pre-Pour", description: "Review assigned-job readiness checklist when available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
+        { title: "Post-Pour", description: "Review assigned-job finish checklist when available.", icon: "clipboard", moduleId: permissions.postPour.canView ? "postPour" : null, badge: permissions.postPour.canView ? "Open" : "Off", tone: permissions.postPour.canView ? "blue" : "slate" },
+        { title: "Upload", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Open", tone: "blue" },
+        { title: "Safety", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
+        { title: "Incident", description: "Raise a field safety concern tied to assigned work.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
+        { title: "Tools", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
+        { title: "Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
+      ];
+}
+
+function FieldQuickActionStrip({ actions, onOpen }) {
+  return (
+    <Card className="p-4 md:p-5">
+      <SectionHeader title="Quick actions" description="Jump straight to the field tools crews use most." />
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {actions.map((action) => {
+          const disabled = !action.moduleId;
+          return (
+            <button
+              key={action.title}
+              type="button"
+              disabled={disabled}
+              onClick={() => action.moduleId ? onOpen(action.moduleId) : undefined}
+              className={`flex min-w-[116px] shrink-0 flex-col gap-2 rounded-2xl border p-3 text-left transition ${disabled ? "border-slate-200 bg-slate-50 text-slate-400" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/70"}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <Icon name={action.icon} className="h-4 w-4 text-blue-700" />
+                <Badge tone={action.tone || "slate"}>{action.badge || "Open"}</Badge>
+              </div>
+              <span className="text-sm font-black leading-tight text-slate-950">{action.title}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function FieldDetailDisclosure({ title, summary, children, defaultOpen = false }) {
+  return (
+    <details className="rounded-2xl border border-blue-100 bg-white" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">Open</span>
+      </summary>
+      <div className="border-t border-blue-100 p-4">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function FieldWorkspaceDisclosure({ title, description, badge, children }) {
+  return (
+    <details className="panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-5">
+        <span className="min-w-0">
+          <span className="block text-base font-black text-slate-950">{title}</span>
+          {description ? <span className="mt-1 block break-words text-sm leading-5 text-slate-500">{description}</span> : null}
+        </span>
+        {badge ? <Badge tone="slate">{badge}</Badge> : null}
+      </summary>
+      <div className="border-t border-blue-100 p-5">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
   const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
 
@@ -2522,33 +2612,35 @@ function FieldNextJobCard({ job, onSelect }) {
               ) : null}
             </div>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Crew</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{crewCount} crew assigned</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Materials</p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment</p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety</p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
-            </div>
+          <div className="mt-4">
+            <FieldDetailDisclosure title="More job notes" summary={`Foreman, crew, field notes, materials, equipment, and safety`}>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Crew</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{crewCount} crew assigned</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Materials</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-white p-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
+                </div>
+              </div>
+            </FieldDetailDisclosure>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => onSelect(job.id)}>
@@ -2563,7 +2655,7 @@ function FieldNextJobCard({ job, onSelect }) {
   );
 }
 
-function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelectModule }) {
+function FieldJobFocusCard({ job, permissions, onFieldChange, disabled }) {
   if (!job) {
     return (
       <Card className="p-5">
@@ -2575,131 +2667,119 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, onSelect
 
   const canManageField = Boolean(job.canManageField || permissions.jobs.canManageField);
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
-  const quickActions = permissions.jobs.canManageField
-    ? [
-          { title: "Daily Reports", description: "Open the daily report workflow for this crew.", icon: "document", moduleId: "reports", badge: "Placeholder", tone: "amber" },
-          { title: "Delivery Tickets", description: "Record concrete truck and ticket details from the field.", icon: "clipboard", moduleId: "deliveryTickets", badge: "Open", tone: "blue" },
-          { title: "Pre-Pour Checklist", description: "Confirm site readiness before the concrete is placed.", icon: "clipboard", moduleId: "prePour", badge: "Open", tone: "blue" },
-        { title: "Post-Pour Checklist", description: "Track finish, cleanup, cure, and closeout readiness after placement.", icon: "clipboard", moduleId: "postPour", badge: "Open", tone: "blue" },
-        { title: "Upload Photo", description: "Capture progress photos and site documentation.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
-        { title: "Safety & PPE", description: "Review site safety reminders and PPE requirements.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
-        { title: "Report Incident", description: "Submit a field safety concern without exposing office-only data.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
-        { title: "Tool Checklist", description: "Confirm the crew has what they need before the pour.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
-        { title: "Concrete Calculator", description: "Check yardage and waste factors without pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
-        { title: "Change Order Request", description: "Capture field conditions that need office review.", icon: "refresh", moduleId: "changeOrders", badge: "Request", tone: "amber" },
-      ]
-    : [
-          { title: "Clock In / Out", description: "Open your assigned-job time controls without any payroll data.", icon: "clock", moduleId: "time", badge: "Open", tone: "blue" },
-          { title: "My Time", description: "Review your own time entries only.", icon: "clock", moduleId: "time", badge: "Open", tone: "violet" },
-          { title: "Delivery Tickets", description: "Review assigned-job concrete ticket records when available.", icon: "clipboard", moduleId: permissions.deliveryTickets.canView ? "deliveryTickets" : null, badge: permissions.deliveryTickets.canView ? "Open" : "Off", tone: permissions.deliveryTickets.canView ? "blue" : "slate" },
-          { title: "Pre-Pour Checklist", description: "Review the assigned-job readiness checklist when it is available.", icon: "clipboard", moduleId: permissions.prePour.canView ? "prePour" : null, badge: permissions.prePour.canView ? "Open" : "Off", tone: permissions.prePour.canView ? "blue" : "slate" },
-        { title: "Post-Pour Checklist", description: "Review the assigned-job finish checklist when it is available.", icon: "clipboard", moduleId: permissions.postPour.canView ? "postPour" : null, badge: permissions.postPour.canView ? "Open" : "Off", tone: permissions.postPour.canView ? "blue" : "slate" },
-        { title: "Upload Photo", description: "Send jobsite progress photos to the office.", icon: "upload", moduleId: "uploads", badge: "Placeholder", tone: "blue" },
-        { title: "Field Notes", description: "Capture notes from the field without office-only data.", icon: "document", moduleId: null, badge: "Soon", tone: "amber" },
-        { title: "Safety & PPE", description: "Quick access to safety reminders and PPE details.", icon: "hardhat", moduleId: "ppe", badge: "Open", tone: "green" },
-        { title: "Report Incident", description: "Raise a field safety concern tied to your assigned work.", icon: "alert", moduleId: "incidents", badge: "Open", tone: "amber" },
-        { title: "Tool Checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions.toolChecklist.canUse ? "toolChecklist" : null, badge: permissions.toolChecklist.canUse ? "Open" : "Off", tone: permissions.toolChecklist.canUse ? "green" : "slate" },
-        { title: "Concrete Calculator", description: "Use field calculations without money or pricing.", icon: "calculator", moduleId: "calculator", badge: "Open", tone: "violet" },
-      ];
+  const fieldNoteCount = [job.fieldNotes, job.materialNotes, job.equipmentNotes, job.safetyNotes].filter((value) => String(value || "").trim()).length;
+  const checklistSummary = [job.prePourChecklist?.statusLabel || "Pre-pour pending", job.postPourChecklist?.statusLabel || "Post-pour pending"].join(" / ");
 
   return (
     <div className="min-w-0 space-y-4">
       <Card className="p-5">
         <SectionHeader title={jobTitle(job)} description={`${job.id} - ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
-          </div>
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Schedule</p>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
-          </div>
-          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Site contact</p>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.siteContact || "Contact pending"}</p>
-          </div>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour</p>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour</p>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
-            </div>
-          </div>
-        <div className="mt-4 grid gap-3">
-          <div className="rounded-2xl border border-blue-100 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Scope summary</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{job.scopeSummary || "Scope summary pending."}</p>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-3">
-            <div className="rounded-2xl border border-blue-100 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety notes</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment notes</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
-            </div>
-            <div className="rounded-2xl border border-blue-100 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Material notes</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
-            </div>
-          </div>
-        </div>
-        {canManageField ? (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+        <div className="space-y-3">
+          <FieldDetailDisclosure title="Schedule / address / directions" summary={`${formatJobScheduleDetail(job)} - ${job.address || "Address pending"}`} defaultOpen>
             <div className="grid gap-3 md:grid-cols-2">
-              <SelectField label="Field status" value={normalizeJobStatus(job.status || job.stage)} onChange={(event) => onFieldChange("status", event.target.value)} disabled={disabled}>
-                <option value="planned">Planned</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="in_progress">In Progress</option>
-                <option value="field_complete">Field Complete</option>
-                <option value="completed">Completed</option>
-              </SelectField>
-              <InputField label="Next step" value={job.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={disabled} />
-            </div>
-            <label className="field-label">
-              <span>Progress ({job.progress}%)</span>
-              <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} disabled={disabled} />
-            </label>
-            <TextAreaField label="Field notes" value={job.fieldNotes || ""} onChange={(event) => onFieldChange("fieldNotes", event.target.value)} disabled={disabled} />
-          </div>
-        ) : (
-          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
-          </div>
-        )}
-      </Card>
-      <Card className="p-5">
-        <SectionHeader title={permissions.jobs.canManageField ? "Assigned crew" : "Crew on site"} description="Only field-safe crew info appears here." />
-        {crewAssignments.length > 0 ? (
-          <div className="space-y-2">
-            {crewAssignments.map((assignment) => (
-              <div key={assignment.id || `${assignment.userId}-${assignment.roleOnJob}`} className="flex items-center justify-between rounded-2xl border border-blue-100 bg-white p-3">
-                <div>
-                  <p className="text-sm font-black text-slate-950">{assignment.userName || assignment.userId}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{humanizeAssignmentRole(assignment.roleOnJob)}</p>
-                </div>
-                <Badge tone="slate">{assignment.userRole || "Crew"}</Badge>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
+                <p className="mt-2 break-words text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
+                {directionsUrl(job.address) ? (
+                  <a className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={directionsUrl(job.address)} target="_blank" rel="noreferrer">
+                    Open directions
+                  </a>
+                ) : null}
               </div>
-            ))}
-          </div>
-        ) : (
-          <StateCard title="No crew assigned yet" description="Contact office if this crew list looks incomplete." tone="slate" />
-        )}
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Schedule</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Site contact</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.siteContact || "Contact pending"}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.foremanAssignment?.userName || job.assignedForemanName || "Unassigned"}</p>
+              </div>
+            </div>
+          </FieldDetailDisclosure>
+          <FieldDetailDisclosure title="Job details" summary={checklistSummary}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-blue-100 p-4 md:col-span-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Scope summary</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{job.scopeSummary || "Scope summary pending."}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Pre-pour</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.prePourChecklist?.statusLabel || "Not started"}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Post-pour</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{job.postPourChecklist?.statusLabel || "Not started"}</p>
+              </div>
+            </div>
+          </FieldDetailDisclosure>
+          <FieldDetailDisclosure title="Field notes" summary={fieldNoteCount ? `${fieldNoteCount} field note sections ready` : "No field notes yet"}>
+            {canManageField ? (
+              <div className="grid gap-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <SelectField label="Field status" value={normalizeJobStatus(job.status || job.stage)} onChange={(event) => onFieldChange("status", event.target.value)} disabled={disabled}>
+                    <option value="planned">Planned</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="field_complete">Field Complete</option>
+                    <option value="completed">Completed</option>
+                  </SelectField>
+                  <InputField label="Next step" value={job.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={disabled} />
+                </div>
+                <label className="field-label">
+                  <span>Progress ({job.progress}%)</span>
+                  <input className="w-full accent-blue-700" type="range" min="0" max="100" value={job.progress} onChange={(event) => onFieldChange("progress", Number(event.target.value))} disabled={disabled} />
+                </label>
+                <TextAreaField label="Field notes" value={job.fieldNotes || ""} onChange={(event) => onFieldChange("fieldNotes", event.target.value)} disabled={disabled} />
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{job.fieldNotes || "No field notes yet."}</p>
+              </div>
+            )}
+          </FieldDetailDisclosure>
+          <FieldDetailDisclosure title="Materials / Equipment / Safety" summary={`${[job.materialNotes, job.equipmentNotes, job.safetyNotes].filter((value) => String(value || "").trim()).length} notes`}>
+            <div className="grid gap-3 lg:grid-cols-3">
+              <div className="rounded-2xl border border-blue-100 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Materials</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{job.materialNotes || "No material notes yet."}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Equipment</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{job.equipmentNotes || "No equipment notes yet."}</p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Safety</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{job.safetyNotes || "No safety notes yet."}</p>
+              </div>
+            </div>
+          </FieldDetailDisclosure>
+          <FieldDetailDisclosure title={permissions.jobs.canManageField ? "Crew" : "Crew on site"} summary={`${crewAssignments.length} assigned`}>
+            {crewAssignments.length > 0 ? (
+              <div className="space-y-2">
+                {crewAssignments.map((assignment) => (
+                  <div key={assignment.id || `${assignment.userId}-${assignment.roleOnJob}`} className="flex items-center justify-between rounded-2xl border border-blue-100 bg-white p-3">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">{assignment.userName || assignment.userId}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{humanizeAssignmentRole(assignment.roleOnJob)}</p>
+                    </div>
+                    <Badge tone="slate">{assignment.userRole || "Crew"}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <StateCard title="No crew assigned yet" description="Contact office if this crew list looks incomplete." tone="slate" />
+            )}
+          </FieldDetailDisclosure>
+        </div>
       </Card>
-      <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Internal company calculation records for this job only." />
-      <Card className="p-5">
-        <SectionHeader title="Quick actions" description="Big targets for the most common field tasks." />
-        <FieldActionGrid actions={quickActions} onOpen={onSelectModule} />
-      </Card>
+      <FieldWorkspaceDisclosure title="Saved calculations" description="Concrete calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
+        <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Internal company calculation records for this job only." />
+      </FieldWorkspaceDisclosure>
     </div>
   );
 }
@@ -2709,6 +2789,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, safeRows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, safeRows, timeEntries, user?.id]);
+  const quickActions = getFieldWorkspaceActions(permissions);
 
   return (
     <div>
@@ -2716,6 +2797,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
+          <FieldQuickActionStrip actions={quickActions} onOpen={setActive} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -2728,8 +2810,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
             description="Clock your own assigned or field-visible work without exposing payroll or pricing data."
           />
           <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
-          <Card className="p-5">
-            <SectionHeader title="Assigned jobs" description="These are the jobs you are currently responsible for in the field." />
+          <FieldWorkspaceDisclosure title="Assigned jobs" description="Jobs you are currently responsible for in the field." badge={`${workspace.assignedJobs.length} assigned`}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="space-y-3">
                 {workspace.assignedJobs.map((job) => (
@@ -2739,9 +2820,8 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
             ) : (
               <StateCard title="No assigned jobs yet" description="Contact office if this is wrong or if a scheduled job is missing from your workspace." tone="slate" />
             )}
-          </Card>
-          <Card className="p-5">
-            <SectionHeader title="Upcoming planning jobs" description="Future jobs marked field-visible so you can prepare crew, tools, and site approach." />
+          </FieldWorkspaceDisclosure>
+          <FieldWorkspaceDisclosure title="Upcoming planning jobs" description="Future field-visible jobs for crew, tools, and site prep." badge={`${workspace.upcomingJobs.length} upcoming`}>
             {workspace.upcomingJobs.length > 0 ? (
               <div className="space-y-3">
                 {workspace.upcomingJobs.map((job) => (
@@ -2751,9 +2831,9 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
             ) : (
               <StateCard title="No upcoming field-visible jobs" description="Once office planning flags future work for field visibility, it will appear here." tone="slate" />
             )}
-          </Card>
+          </FieldWorkspaceDisclosure>
         </div>
-        <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} onSelectModule={setActive} />
+        <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
       </div>
     </div>
   );
@@ -2764,6 +2844,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fallbackJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || safeRows[0] || null;
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
+  const quickActions = getFieldWorkspaceActions(permissions);
 
   return (
     <div>
@@ -2771,6 +2852,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
+          <FieldQuickActionStrip actions={quickActions} onOpen={setActive} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
             availableJobs={timeWorkspace.availableJobs}
@@ -2781,8 +2863,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
             disabled={busy}
           />
           <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
-          <Card className="p-5">
-            <SectionHeader title="Assigned work" description="Only your assigned jobs appear here. Contact office if something looks wrong." />
+          <FieldWorkspaceDisclosure title="Assigned work" description="Only your assigned jobs appear here. Contact office if something looks wrong." badge={`${workspace.assignedJobs.length} assigned`}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="space-y-3">
                 {workspace.assignedJobs.map((job) => (
@@ -2792,9 +2873,9 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
             ) : (
               <StateCard title="No assigned jobs yet" description="Contact office if you expected a job to be assigned to you today." tone="slate" />
             )}
-          </Card>
+          </FieldWorkspaceDisclosure>
         </div>
-        <FieldJobFocusCard job={fallbackJob} permissions={permissions} onFieldChange={() => {}} disabled onSelectModule={setActive} />
+        <FieldJobFocusCard job={fallbackJob} permissions={permissions} onFieldChange={() => {}} disabled />
       </div>
     </div>
   );
