@@ -3453,6 +3453,65 @@ function DailyReportStatusBadge({ status }) {
   return <Badge tone={tone}>{reportStatusLabel(status)}</Badge>;
 }
 
+function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <details className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`} open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {badge}
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+            {isOpen ? "Hide" : "Show"}
+            <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
+          </span>
+        </span>
+      </summary>
+      <div className="border-t border-blue-100 p-2.5">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function DailyReportMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <details className="rounded-2xl border border-blue-100 bg-white" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
+        </span>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+      </summary>
+      <div className="grid gap-3 border-t border-blue-100 p-3">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function DailyReportMobileCard({ report, selected, onSelect }) {
+  return (
+    <button type="button" onClick={() => onSelect(report.id)} className={`w-full rounded-2xl border p-3 text-left transition ${selected ? "border-blue-300 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-slate-950">{jobTitle(report.job)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{report.reportDate} / {report.createdByName}</p>
+        </div>
+        <DailyReportStatusBadge status={report.status} />
+      </div>
+      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{report.workPerformed || report.crewSummary || report.weather || "No report details yet."}</p>
+    </button>
+  );
+}
+
 function DailyReportsTable({ rows, selectedId, onSelect }) {
   return (
     <div className="table-shell">
@@ -3500,35 +3559,80 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
     );
   }
 
+  const selectedJob = jobs.find((job) => job.id === draft.jobId);
+  const createSummary = selectedJob ? `${jobTitle(selectedJob)} / ${draft.reportDate || "date pending"}` : "select job and report date";
+
   return (
-    <Card className="overflow-hidden">
-      <div className="border-b border-blue-100 bg-white p-4">
-        <SectionHeader title="Start daily report" description="Capture crew, work, weather, and pour details while the day is fresh." />
-      </div>
-      <form className="grid gap-3 p-4" onSubmit={onCreate}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
-            <option value="">Select a job</option>
-            {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
-          </SelectField>
-          <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
+    <>
+      <DailyReportMobileAccordionCard title="Daily Report" summary={createSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
+        <form className="grid gap-2.5" onSubmit={onCreate}>
+          <DailyReportMobileFieldGroup title="Job / date" summary={createSummary} defaultOpen>
+            <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+              <option value="">Select a job</option>
+              {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+            </SelectField>
+            <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
+          </DailyReportMobileFieldGroup>
+          <DailyReportMobileFieldGroup title="Work performed" summary={draft.workPerformed ? "Work notes added" : "Add work completed"}>
+            <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
+          </DailyReportMobileFieldGroup>
+          <DailyReportMobileFieldGroup title="Crew / labor summary" summary={draft.crewSummary ? "Crew summary added" : "Add crew summary"}>
+            <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-16 resize-y" />
+          </DailyReportMobileFieldGroup>
+          <DailyReportMobileFieldGroup title="Concrete / materials" summary={draft.concretePoured ? `${draft.yardsPoured || 0} yards poured` : "No concrete marked yet"}>
+            <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
+            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <span>Concrete poured</span>
+              <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
+            </label>
+            {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
+            <TextAreaField label="Material / concrete notes" value={draft.materialNotes} onChange={(event) => setDraft((current) => ({ ...current, materialNotes: event.target.value }))} />
+          </DailyReportMobileFieldGroup>
+          <DailyReportMobileFieldGroup title="Delays / safety / equipment" summary={[draft.delays, draft.safetyNotes, draft.equipmentUsed].filter(Boolean).length ? "Notes added" : "Optional"}>
+            <TextAreaField label="Delays" value={draft.delays} onChange={(event) => setDraft((current) => ({ ...current, delays: event.target.value }))} />
+            <TextAreaField label="Safety notes" value={draft.safetyNotes} onChange={(event) => setDraft((current) => ({ ...current, safetyNotes: event.target.value }))} />
+            <TextAreaField label="Equipment used" value={draft.equipmentUsed} onChange={(event) => setDraft((current) => ({ ...current, equipmentUsed: event.target.value }))} />
+          </DailyReportMobileFieldGroup>
+          <DailyReportMobileFieldGroup title="Extra notes" summary={[draft.visitorNotes, draft.inspectionNotes, draft.generalNotes].filter(Boolean).length ? "Notes added" : "Optional"}>
+            <TextAreaField label="Visitor notes" value={draft.visitorNotes} onChange={(event) => setDraft((current) => ({ ...current, visitorNotes: event.target.value }))} />
+            <TextAreaField label="Inspection notes" value={draft.inspectionNotes} onChange={(event) => setDraft((current) => ({ ...current, inspectionNotes: event.target.value }))} />
+            <TextAreaField label="General notes" value={draft.generalNotes} onChange={(event) => setDraft((current) => ({ ...current, generalNotes: event.target.value }))} />
+          </DailyReportMobileFieldGroup>
+          <Button type="submit" disabled={disabled}>
+            <Icon name="plus" />
+            Start draft
+          </Button>
+        </form>
+      </DailyReportMobileAccordionCard>
+      <Card className="hidden overflow-hidden md:block">
+        <div className="border-b border-blue-100 bg-white p-4">
+          <SectionHeader title="Start daily report" description="Capture crew, work, weather, and pour details while the day is fresh." />
         </div>
-        <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-16 resize-y" />
-        <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-          <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-          <label className="field-label min-h-[60px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
-            <span>Concrete poured</span>
-            <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
-          </label>
-        </div>
-        {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
-        <Button type="submit" disabled={disabled}>
-          <Icon name="plus" />
-          Start draft
-        </Button>
-      </form>
-    </Card>
+        <form className="grid gap-3 p-4" onSubmit={onCreate}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+              <option value="">Select a job</option>
+              {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+            </SelectField>
+            <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
+          </div>
+          <TextAreaField label="Crew summary" value={draft.crewSummary} onChange={(event) => setDraft((current) => ({ ...current, crewSummary: event.target.value }))} placeholder="Foreman + 3, finisher + laborer..." className="field-input min-h-16 resize-y" />
+          <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
+            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <span>Concrete poured</span>
+              <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
+            </label>
+          </div>
+          {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
+          <Button type="submit" disabled={disabled}>
+            <Icon name="plus" />
+            Start draft
+          </Button>
+        </form>
+      </Card>
+    </>
   );
 }
 
@@ -3590,7 +3694,87 @@ function DailyReportDetailPanel({
 
   return (
     <div className="min-w-0 space-y-4">
-      <Card className="p-5">
+      <div className="space-y-3 md:hidden">
+        <Card className="p-3.5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="break-words text-base font-black text-slate-950">{jobTitle(report.job)}</p>
+              <p className="mt-1 break-words text-xs font-bold text-slate-500">{`${report.reportDate} / ${report.createdByName}`}</p>
+            </div>
+            <DailyReportStatusBadge status={report.status} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {canView ? <Button variant="secondary" size="sm" onClick={onPrintReport} disabled={disabled || typeof onPrintReport !== "function"}>Print</Button> : null}
+            {canEdit && ["draft", "reopened"].includes(report.status) ? <Button size="sm" onClick={onSave} disabled={disabled}>Save</Button> : null}
+            {canEdit && ["draft", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onSubmit} disabled={disabled}>Submit</Button> : null}
+            {canReview && ["submitted", "reopened"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReview} disabled={disabled}>Review</Button> : null}
+            {canReview && ["submitted", "reviewed"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReopen} disabled={disabled}>Reopen</Button> : null}
+            {canArchive && !report.archivedAt ? <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button> : null}
+          </div>
+        </Card>
+        <DailyReportMobileAccordionCard title="Job / date" summary={`${reportDraft.reportDate || report.reportDate} / ${reportDraft.weather || "weather pending"}`} defaultOpen>
+          <TimestampMeta createdAt={report.createdAt} updatedAt={report.updatedAt} />
+          <div className="mt-3 grid gap-3">
+            <InputField label="Report date" type="date" value={reportDraft.reportDate} onChange={(event) => setReportDraft((current) => ({ ...current, reportDate: event.target.value }))} disabled={!canEdit || disabled} />
+            <InputField label="Weather" value={reportDraft.weather} onChange={(event) => setReportDraft((current) => ({ ...current, weather: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+        </DailyReportMobileAccordionCard>
+        <DailyReportMobileAccordionCard title="Work performed" summary={reportDraft.workPerformed ? "Work notes added" : "Add work performed"}>
+          <TextAreaField label="Work performed" value={reportDraft.workPerformed} onChange={(event) => setReportDraft((current) => ({ ...current, workPerformed: event.target.value }))} disabled={!canEdit || disabled} />
+        </DailyReportMobileAccordionCard>
+        <DailyReportMobileAccordionCard title="Crew / labor summary" summary={reportDraft.crewSummary ? "Crew summary added" : "Add crew summary"}>
+          <TextAreaField label="Crew summary" value={reportDraft.crewSummary} onChange={(event) => setReportDraft((current) => ({ ...current, crewSummary: event.target.value }))} disabled={!canEdit || disabled} />
+        </DailyReportMobileAccordionCard>
+        <DailyReportMobileAccordionCard title="Concrete / materials" summary={reportDraft.concretePoured ? `${reportDraft.yardsPoured || 0} yards poured` : "No concrete marked yet"}>
+          <div className="grid gap-3">
+            <label className="field-label">
+              <span>Concrete poured</span>
+              <input type="checkbox" checked={Boolean(reportDraft.concretePoured)} onChange={(event) => setReportDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} disabled={!canEdit || disabled} />
+            </label>
+            <InputField label="Yards poured" type="number" min="0" step="0.1" value={reportDraft.yardsPoured} onChange={(event) => setReportDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} disabled={!canEdit || disabled || !reportDraft.concretePoured} />
+            <TextAreaField label="Material / concrete notes" value={reportDraft.materialNotes} onChange={(event) => setReportDraft((current) => ({ ...current, materialNotes: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+        </DailyReportMobileAccordionCard>
+        <DailyReportMobileAccordionCard title="Delays / safety / equipment" summary={[reportDraft.delays, reportDraft.safetyNotes, reportDraft.equipmentUsed].filter(Boolean).length ? "Notes added" : "Optional"}>
+          <div className="grid gap-3">
+            <TextAreaField label="Delays" value={reportDraft.delays} onChange={(event) => setReportDraft((current) => ({ ...current, delays: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="Safety notes" value={reportDraft.safetyNotes} onChange={(event) => setReportDraft((current) => ({ ...current, safetyNotes: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="Equipment used" value={reportDraft.equipmentUsed} onChange={(event) => setReportDraft((current) => ({ ...current, equipmentUsed: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+        </DailyReportMobileAccordionCard>
+        <DailyReportMobileAccordionCard title="Extra notes" summary={[reportDraft.visitorNotes, reportDraft.inspectionNotes, reportDraft.generalNotes].filter(Boolean).length ? "Notes added" : "Optional"}>
+          <div className="grid gap-3">
+            <TextAreaField label="Visitor notes" value={reportDraft.visitorNotes} onChange={(event) => setReportDraft((current) => ({ ...current, visitorNotes: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="Inspection notes" value={reportDraft.inspectionNotes} onChange={(event) => setReportDraft((current) => ({ ...current, inspectionNotes: event.target.value }))} disabled={!canEdit || disabled} />
+            <TextAreaField label="General notes" value={reportDraft.generalNotes} onChange={(event) => setReportDraft((current) => ({ ...current, generalNotes: event.target.value }))} disabled={!canEdit || disabled} />
+          </div>
+        </DailyReportMobileAccordionCard>
+        <DailyReportMobileAccordionCard title="Crew and time summary" summary={`${report.timeSummary.totalEntries} entries / ${formatMinutes(report.timeSummary.totalMinutes)} worked`}>
+          <div className="grid gap-3">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="slate">{report.timeSummary.totalEntries} time entries</Badge>
+              <Badge tone="slate">{formatMinutes(report.timeSummary.totalMinutes)} worked</Badge>
+              <Badge tone="slate">{formatMinutes(report.timeSummary.breakMinutes)} breaks</Badge>
+            </div>
+            {report.crewAssignments.length === 0 ? (
+              <StateCard title="No crew assigned yet" description="Assigned crew will appear here once scheduling adds them to the job." tone="slate" />
+            ) : (
+              <div className="space-y-2">
+                {report.crewAssignments.map((assignment) => (
+                  <div key={assignment.id || `${assignment.userId}-${assignment.roleOnJob}`} className="rounded-2xl border border-blue-100 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-black text-slate-950">{assignment.userName}</p>
+                      <Badge tone="slate">{assignment.roleOnJob}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DailyReportMobileAccordionCard>
+      </div>
+
+      <Card className="hidden p-5 md:block">
         <div className="mb-3 grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
             <h2 className="break-words text-base font-black text-slate-950">{jobTitle(report.job)}</h2>
@@ -3639,7 +3823,7 @@ function DailyReportDetailPanel({
         </div>
       </Card>
 
-      <Card className="p-5">
+      <Card className="hidden p-5 md:block">
         <SectionHeader title="Crew and time summary" description="Field-safe assignment and hours snapshot for this report date." />
         <div className="grid gap-3">
           <div className="flex flex-wrap gap-2">
@@ -4727,13 +4911,49 @@ function ReportsPage({
   const notFound = Boolean(reportRouteRequested) && !selectedReport;
   const canEdit = Boolean(selectedReport) && ((permissions.reports.canManageAll && !selectedReport.archivedAt) || (user?.role === "Foreman" && ["draft", "reopened"].includes(selectedReport.status)));
   const canReviewActions = permissions.reports.canReview;
+  const latestVisibleReport = visibleRows[0] || null;
+  const reportLogSummary = `${visibleRows.length} reports${latestVisibleReport ? ` / Latest ${reportStatusLabel(latestVisibleReport.status)}` : ""}`;
 
   return (
     <div>
       <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture crew notes, job progress, weather, and pour details in one daily field report." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
       <div className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card className="self-start overflow-hidden">
+          {canView ? (
+            <DailyReportMobileAccordionCard title="Report log" summary={reportLogSummary} badge={<Badge tone="blue">{visibleRows.length}</Badge>}>
+              <div className="grid gap-2.5">
+                <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search reports..." />
+                <DailyReportMobileFieldGroup title="Filters" summary="Job, creator, and date">
+                  <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                    <option>All jobs</option>
+                    {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                    <option>All creators</option>
+                    {listState.creatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                    <option>All dates</option>
+                    {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </SelectField>
+                </DailyReportMobileFieldGroup>
+                {busy && visibleRows.length === 0 ? (
+                  <StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." />
+                ) : visibleRows.length === 0 ? (
+                  <StateCard title="No reports yet" description="Start the first daily report, then this log will show drafts, submitted reports, and reviewed reports." tone="slate" />
+                ) : (
+                  <div className="space-y-2.5">
+                    {visibleRows.map((report) => <DailyReportMobileCard key={report.id} report={report} selected={report.id === selectedReportId} onSelect={onSelectReport} />)}
+                  </div>
+                )}
+              </div>
+            </DailyReportMobileAccordionCard>
+          ) : (
+            <DailyReportMobileAccordionCard title="Report log" summary="Reports unavailable">
+              <StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" />
+            </DailyReportMobileAccordionCard>
+          )}
+          <Card className="hidden self-start overflow-hidden md:block">
             {canView ? (
               <>
                 <div className="border-b border-blue-100 bg-white p-5">
