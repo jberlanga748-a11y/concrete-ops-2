@@ -2899,18 +2899,21 @@ function TimeMobileAccordionCard({ title, summary, badge, defaultOpen = false, c
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details className="panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel md:hidden" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-3.5">
+    <details className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`} open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
         <span className="min-w-0">
-          <span className="block text-base font-black text-slate-950">{title}</span>
-          {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
+          <span className="block truncate text-sm font-black text-slate-950">{title}</span>
+          {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="flex shrink-0 items-center gap-2">
+        <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">Open</span>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+            {isOpen ? "Hide" : "Show"}
+            <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
+          </span>
         </span>
       </summary>
-      <div className="border-t border-blue-100 p-3.5">
+      <div className="border-t border-blue-100 p-2.5">
         {children}
       </div>
     </details>
@@ -2924,7 +2927,7 @@ function WeekSummaryCard({ summary, title = "This Week", description, accent = "
   const sectionCardClassName = compactMobile ? "rounded-2xl border border-blue-100 p-3 md:p-4" : "rounded-2xl border border-blue-100 p-4";
   const outerGridClassName = compactMobile ? "grid gap-2.5 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-3";
   const lowerGridClassName = compactMobile ? "mt-3 grid gap-3 lg:grid-cols-2" : "mt-4 grid gap-4 lg:grid-cols-2";
-  const summaryText = `Worked ${formatMinutes(summary.totalMinutes)} / Breaks ${formatMinutes(summary.breakMinutes)} / ${summary.groupedBreakdown.length} categories`;
+  const summaryText = `${formatMinutes(summary.totalMinutes)} worked / ${formatMinutes(summary.breakMinutes)} breaks / ${summary.groupedBreakdown.length} categories`;
   const content = (
     <>
       <div className={outerGridClassName}>
@@ -3007,7 +3010,7 @@ function RecentTimeEntriesCard({ entries, title = "Recent entries", description,
   if (compactMobile) {
     return (
       <>
-        <TimeMobileAccordionCard title={title} summary={`${safeEntries.length} visible entries`} badge={<Badge tone="slate">{safeEntries.length}</Badge>}>
+        <TimeMobileAccordionCard title={title} summary={`${safeEntries.length} entries`} badge={<Badge tone="slate">{safeEntries.length}</Badge>}>
           {content}
         </TimeMobileAccordionCard>
         <Card className="hidden p-5 md:block">
