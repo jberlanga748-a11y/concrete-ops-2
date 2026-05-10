@@ -110,7 +110,7 @@ import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspa
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
-import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
+import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -6580,7 +6580,65 @@ function DashboardPage({
   );
 }
 
+function leadSourceLabel(source) {
+  return source === "public_request_form" ? "Public request form" : source;
+}
+
+function LeadInboxReviewQueue({ inboxState, onSelectLead }) {
+  const stats = [
+    { label: "New / Needs Review", value: inboxState.stats.newNeedsReview, tone: "blue" },
+    { label: "Follow-Up Due", value: inboxState.stats.followUpDue, tone: "amber" },
+    { label: "Missing Next Step", value: inboxState.stats.missingNextStep, tone: "amber" },
+    { label: "Ready for Estimate", value: inboxState.stats.readyForEstimate, tone: "green" },
+  ];
+  const queueItems = inboxState.items.slice(0, 6);
+
+  return (
+    <Card className="p-4">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <Badge tone="blue">Lead Inbox / Review Queue</Badge>
+          <h3 className="mt-2 text-base font-black text-slate-950">Review these leads first</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            A simple landing zone for newly found, call-in, and follow-up leads before they become estimates.
+          </p>
+        </div>
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-4">
+          {stats.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+              <p className="text-xl font-black text-slate-950">{item.value}</p>
+              <Badge tone={item.value > 0 ? item.tone : "slate"}>{item.label}</Badge>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {queueItems.length > 0 ? queueItems.map((lead) => (
+          <div key={lead.id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-slate-950">{lead.customer || "Unnamed lead"}</p>
+                <p className="mt-1 break-words text-xs font-bold text-slate-500">
+                  {[lead.project, lead.city || lead.state, leadSourceLabel(lead.source || "Call-in")].filter(Boolean).join(" / ")}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {lead.reviewReasons.map((reason) => <Badge key={reason.label} tone={reason.tone}>{reason.label}</Badge>)}
+                </div>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead?.(lead.id)}>Review lead</Button>
+            </div>
+            <p className="mt-3 text-xs font-bold leading-5 text-slate-600">{lead.nextStep || lead.reviewReasons[0]?.helper || "Add a next step before this lead moves forward."}</p>
+          </div>
+        )) : (
+          <StateCard title="Lead inbox is clear" description="New leads, due follow-ups, missing next steps, and estimate-ready leads will appear here." tone="slate" />
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function LeadsPage({
+  leads = [],
   rows,
   filter,
   setFilter,
@@ -6612,9 +6670,14 @@ function LeadsPage({
   busy,
   leadSaveState,
 }) {
+  const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
+
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
+      <div className="px-5 pb-4 sm:px-6 lg:px-8">
+        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} />
+      </div>
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveLeadListState, filterLeads, relatedLeadActivity } from "./lead-utils.js";
+import { deriveLeadInboxState, deriveLeadListState, deriveLeadReviewReasons, filterLeads, relatedLeadActivity } from "./lead-utils.js";
 
 const LEADS = [
   { id: "L-1", customerId: "C-1", customer: "Megan Carter", city: "Albany", project: "Driveway", status: "New", priority: "High", owner: "Jordan Berl", source: "Website", followUpDueAt: "2026-04-25", nextStep: "Call", notes: "Fast lead", archivedAt: null },
@@ -26,6 +26,29 @@ test("derived lead state exposes filtered rows plus owner and source options", (
   assert.deepEqual(derived.filteredLeads.map((lead) => lead.id), ["L-1"]);
   assert.deepEqual(derived.ownerOptions, ["Jordan Berl", "Ray"]);
   assert.deepEqual(derived.sourceOptions, ["Referral", "Repeat Customer", "Website"]);
+});
+
+test("lead review reasons flag inbox, due, missing next step, and ready estimate work", () => {
+  const reasons = deriveLeadReviewReasons(
+    { status: "Site Visit", followUpDueAt: "2026-04-25", nextStep: "", notes: "Prepare estimate after measure." },
+    { today: "2026-04-25" },
+  );
+
+  assert.deepEqual(reasons.map((reason) => reason.label), ["Follow-Up Due", "Missing Next Step", "Ready for Estimate"]);
+});
+
+test("lead inbox state groups current office review work without archived leads", () => {
+  const inbox = deriveLeadInboxState([
+    ...LEADS,
+    { id: "L-4", customer: "Benton County", project: "ADA ramp", status: "New", source: "Partner", followUpDueAt: "2026-04-25", nextStep: "", notes: "", archivedAt: null },
+    { id: "L-5", customer: "Taylor Homes", project: "Patio", status: "Site Visit", source: "Referral", followUpDueAt: "2026-04-29", nextStep: "Build estimate", notes: "", archivedAt: null },
+  ], { today: "2026-04-25" });
+
+  assert.deepEqual(inbox.items.map((lead) => lead.id), ["L-2", "L-1", "L-4", "L-5"]);
+  assert.equal(inbox.stats.newNeedsReview, 2);
+  assert.equal(inbox.stats.followUpDue, 3);
+  assert.equal(inbox.stats.missingNextStep, 1);
+  assert.equal(inbox.stats.readyForEstimate, 2);
 });
 
 test("related lead data returns customer, activity, and status history", () => {
