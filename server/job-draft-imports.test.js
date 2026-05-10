@@ -30,7 +30,7 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Imported job draft test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer() {
+async function startServer(extraEnv = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-job-drafts-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
   const port = createPort();
@@ -43,6 +43,7 @@ async function startServer() {
       PORT: String(port),
       DATA_DIR: tempDataDir,
       LOG_LEVEL: "warn",
+      ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -86,6 +87,13 @@ async function login(baseUrl, credentials) {
 }
 
 function authHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function integrationHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -157,6 +165,140 @@ const validPackage = {
   handoffStatus: "Ready for Ops Review",
   jobDraftSummary: "Concrete Ops Job Draft: Corvallis Entry Ramp",
 };
+
+test("integration job draft import rejects missing and invalid tokens", async () => {
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: "integration-test-token" });
+
+  try {
+    const missingToken = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(validPackage),
+    });
+    assert.equal(missingToken.response.status, 401);
+    assert.match(missingToken.payload.error, /invalid integration token/i);
+
+    const invalidToken = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders("wrong-token"),
+      body: JSON.stringify(validPackage),
+    });
+    assert.equal(invalidToken.response.status, 401);
+    assert.match(invalidToken.payload.error, /invalid integration token/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration job draft import creates a draft only and keeps sensitive fields stripped", async () => {
+  const token = "integration-test-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    const packageWithWarning = {
+      ...validPackage,
+      opsJobDraftId: "ops-draft-integration-1",
+      sourceHandoffId: "handoff-integration-1",
+      jobName: "Rural Shop Slab",
+      jobAddress: "2290 County Shop Road",
+      city: "",
+      state: "",
+      apiKey: "do-not-save",
+      nested: {
+        accessToken: "do-not-save-nested",
+        safeNote: "safe nested value",
+      },
+    };
+
+    const imported = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify(packageWithWarning),
+    });
+
+    assert.equal(imported.response.status, 201);
+    assert.equal(imported.payload.ok, true);
+    assert.equal(imported.payload.duplicate, false);
+    assert.equal(imported.payload.status, "Needs Review");
+    assert.equal(imported.payload.openPath, `/job-draft-imports/${imported.payload.importedDraftId}`);
+    assert.ok(imported.payload.warnings.includes(CITY_STATE_WARNING));
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    const draft = bootstrap.jobDraftImports.find((item) => item.id === imported.payload.importedDraftId);
+
+    assert.equal(draft.importStatus, "Needs Review");
+    assert.ok(draft.importWarnings.includes(CITY_STATE_WARNING));
+    assert.equal(draft.originalPackage.apiKey, undefined);
+    assert.equal(draft.originalPackage.nested.accessToken, undefined);
+    assert.equal(draft.originalPackage.nested.safeNote, "safe nested value");
+    assert.ok(!bootstrap.jobs.some((job) => job.title === "Rural Shop Slab"), "Integration import must not auto-create a real job.");
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration job draft import returns a safe duplicate response without creating a second draft", async () => {
+  const token = "integration-test-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    const firstImport = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify(validPackage),
+    });
+    assert.equal(firstImport.response.status, 201);
+
+    const duplicateImport = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify(validPackage),
+    });
+    assert.equal(duplicateImport.response.status, 200);
+    assert.equal(duplicateImport.payload.ok, true);
+    assert.equal(duplicateImport.payload.duplicate, true);
+    assert.equal(duplicateImport.payload.importedDraftId, firstImport.payload.importedDraftId);
+    assert.equal(duplicateImport.payload.openPath, `/job-draft-imports/${firstImport.payload.importedDraftId}`);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(bootstrap.jobDraftImports.filter((draft) => draft.opsJobDraftId === validPackage.opsJobDraftId).length, 1);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration job draft import rejects invalid packageType", async () => {
+  const token = "integration-test-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    const invalidPackage = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validPackage,
+        packageType: "wrong_package",
+      }),
+    });
+
+    assert.equal(invalidPackage.response.status, 400);
+    assert.match(invalidPackage.payload.error, /unsupported packageType/i);
+  } finally {
+    await fixture.stop();
+  }
+});
 
 test("Imported Job Drafts import, edit, and create jobs without exposing field roles", async () => {
   const fixture = await startServer();

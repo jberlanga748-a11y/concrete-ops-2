@@ -6749,6 +6749,9 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
       />
       <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
         {importMessage ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{importMessage}</div> : null}
+        <div className="rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-600">
+          Direct import endpoint available for proposal app integration.
+        </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard item={{ label: "Imported drafts", value: stats.total, helper: "Review before creating jobs", icon: "database" }} />
           <KpiCard item={{ label: "Needs review", value: stats.needsReview, helper: "Missing info or not ready", icon: "alert" }} />

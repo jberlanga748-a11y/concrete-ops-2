@@ -310,6 +310,45 @@ function publicRequestActor() {
   };
 }
 
+function jobDraftIntegrationActor() {
+  return {
+    id: "",
+    name: "Proposal app integration",
+    role: "Integration",
+  };
+}
+
+function configuredJobDraftImportToken() {
+  return String(process.env.CONCRETE_OPS_IMPORT_TOKEN || "").trim();
+}
+
+function bearerTokenFromRequest(req) {
+  const header = req.headers.authorization || "";
+  if (typeof header !== "string") return "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function tokenMatches(expected, provided) {
+  if (!expected || !provided) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function requireJobDraftIntegrationToken(req) {
+  const expectedToken = configuredJobDraftImportToken();
+  const providedToken = bearerTokenFromRequest(req);
+  if (!tokenMatches(expectedToken, providedToken)) {
+    throw new ApiError(401, "Invalid integration token.");
+  }
+}
+
+function importedDraftOpenPath(id) {
+  return `/job-draft-imports/${encodeURIComponent(id)}`;
+}
+
 function temporaryPassword() {
   return crypto.randomBytes(9).toString("base64url");
 }
@@ -6677,6 +6716,62 @@ app.get("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json({
     jobDraftImports: visibleImportedJobDraftsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
+  requireJobDraftIntegrationToken(req);
+
+  const packageJson = req.body?.package || req.body;
+  const result = createImportedJobDraftFromPackage(packageJson, { id: makeId("IJD"), importedAt: new Date().toISOString() });
+
+  if (!result.ok) {
+    return res.status(400).json({
+      ok: false,
+      error: result.errors.join(" "),
+      warnings: result.warnings,
+      missingFields: result.missingFields,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const currentState = await readDb();
+  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], result.draft);
+  if (duplicateDraft) {
+    return res.json({
+      ok: true,
+      duplicate: true,
+      importedDraftId: duplicateDraft.id,
+      status: duplicateDraft.importStatus,
+      openPath: importedDraftOpenPath(duplicateDraft.id),
+      message: "This job draft package has already been imported.",
+      duplicateReason: getImportDuplicateReason(duplicateDraft, result.draft),
+      requestId: res.locals.requestId,
+    });
+  }
+
+  await updateDb((draft) => {
+    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], result.draft);
+    appendActivity(draft, "Job draft imported by integration", `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`);
+    appendAuditEvent(draft, {
+      entityType: "jobDraftImport",
+      entityId: result.draft.id,
+      action: "integration_imported",
+      summary: "Imported job draft from integration",
+      detail: `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`,
+      actor: jobDraftIntegrationActor(),
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ok: true,
+    importedDraftId: result.draft.id,
+    status: result.draft.importStatus,
+    duplicate: false,
+    openPath: importedDraftOpenPath(result.draft.id),
+    warnings: result.warnings,
     requestId: res.locals.requestId,
   });
 }));
