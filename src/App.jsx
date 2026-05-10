@@ -2965,6 +2965,32 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled }) {
   );
 }
 
+function FieldWalkthroughCard({ role = "employee" }) {
+  const isForeman = role === "foreman";
+  const steps = isForeman
+    ? ["Check new assignment notices", "Clock in and open the next job", "Submit reports, photos, tickets, and checklists"]
+    : ["Check new assignment notices", "Clock in and open your assigned job", "Use safety, photos, and field tools when needed"];
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/80 p-4 shadow-sm">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <Badge tone="blue">Start here</Badge>
+          <p className="mt-2 text-sm font-black text-slate-950">{isForeman ? "Foreman field walkthrough" : "Employee field walkthrough"}</p>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
+            This workspace only shows field-safe job details and tools.
+          </p>
+        </div>
+        <div className="grid min-w-0 gap-2 text-xs font-black text-blue-800 sm:min-w-[360px]">
+          {steps.map((step, index) => (
+            <span key={step} className="rounded-full bg-white px-3 py-1.5 ring-1 ring-blue-100">{index + 1}. {step}</span>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
@@ -2976,6 +3002,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
       <PageHeader eyebrow="Field Workspace" title="My Crew" description="Start with new assignment notices, clock in, then open the next job. This view stays field-safe and hides office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
+          <FieldWalkthroughCard role="foreman" />
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
@@ -3029,6 +3056,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       <PageHeader eyebrow="Field Workspace" title="My Job" description="Start with new assignment notices, clock in, then open your next assigned job. Only field-safe job details and tools are shown here." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
+          <FieldWalkthroughCard role="employee" />
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <ActiveTimeCard
             activeEntry={timeWorkspace.activeEntry}
@@ -5917,9 +5945,9 @@ function CommandCenterItem({ eyebrow, title, description, meta, badges, actions 
 
 function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports }) {
   const steps = [
-    "Confirm imported drafts and customer matches",
-    "Clear startup blockers before field release",
-    "Assign crew, dates, reports, photos, tickets, and time follow-up",
+    "Review drafts and match customers",
+    "Create jobs and finish startup readiness",
+    "Send work to the field, then check reports, photos, tickets, and time",
   ];
 
   return (
@@ -5929,7 +5957,7 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
           <Badge tone="blue">Start here</Badge>
           <h3 className="mt-3 text-lg font-black text-slate-950">Morning office order</h3>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-700">
-            Work top to bottom: imported drafts first, startup readiness second, then field paperwork and crew follow-up.
+            Walk the pilot flow top to bottom: review drafts, match the customer, create the job, finish startup, then send work to the field.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {steps.map((step, index) => (
@@ -6320,6 +6348,42 @@ function CommandCenterPage({
   );
 }
 
+function OfficePilotWalkthroughCard({ onOpenCommandCenter, onOpenDrafts, onOpenJobs }) {
+  const steps = [
+    "Review imported drafts",
+    "Match or create customer",
+    "Create job",
+    "Finish startup checklist",
+    "Assign and send to field",
+  ];
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/80 p-4 shadow-sm">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <Badge tone="blue">Pilot walkthrough</Badge>
+          <h3 className="mt-2 text-base font-black text-slate-950">Run the office flow in order</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-700">
+            For a new contractor walkthrough, start in Command Center and move one job from draft review to field-ready work.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {steps.map((step, index) => (
+              <span key={step} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-blue-800 ring-1 ring-blue-100">
+                {index + 1}. {step}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button type="button" size="sm" onClick={onOpenCommandCenter}>Open Command Center</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onOpenDrafts}>Imported Drafts</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Jobs</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function DashboardPage({
   stats,
   dashboardMetrics,
@@ -6474,6 +6538,13 @@ function DashboardPage({
         tabs={tabs}
       />
       <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
+        {permissions?.jobs?.canManageAll ? (
+          <OfficePilotWalkthroughCard
+            onOpenCommandCenter={() => setActive("commandCenter")}
+            onOpenDrafts={() => setActive("jobDraftImports")}
+            onOpenJobs={() => setActive("jobs")}
+          />
+        ) : null}
         <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
         {permissions?.jobs?.canManageAll ? (
           <div className="grid min-w-0 gap-4 md:grid-cols-3">{startupKpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
