@@ -327,6 +327,7 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
     const importedDraft = importedState.importedDraft;
 
     assert.equal(importedDraft.importStatus, "Ready to Create Job");
+    assert.equal(importedDraft.customerMatchStatus, "New Customer Needed");
     assert.equal(importedDraft.customerName, "Benton Commons");
     assert.ok(!importedState.jobs.some((job) => job.title === "Corvallis Entry Ramp"), "Import must not auto-create a real job.");
 
@@ -360,6 +361,8 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
     assert.equal(createdState.createdJob.safetyNotes, "");
     assert.equal(createdState.importedDraft.createdJobId, createdState.createdJob.id);
     assert.equal(createdState.importedDraft.importStatus, "Job Created");
+    assert.equal(createdState.importedDraft.customerMatchStatus, "Confirmed");
+    assert.equal(createdState.importedDraft.matchedCustomerId, createdState.createdJob.customerId);
     assert.match(createdState.createdJob.notes, /Source Proposal ID: proposal-server-1/);
     assert.match(createdState.createdJob.notes, /Source Handoff ID: handoff-server-1/);
     assert.match(createdState.createdJob.notes, /Operations Notes:\nCoordinate with tenant access/);
@@ -401,6 +404,130 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
       headers: authHeaders(employeeLogin.token),
     });
     assert.equal(employeeImportApi.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("imported draft customer match uses existing customer when creating a job", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const headers = authHeaders(ownerLogin.token);
+
+    const customerState = await assertOk(fixture.baseUrl, "/api/customers", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Benton Commons",
+        company: "Benton Commons LLC",
+        phone: "503-555-0101",
+        email: "casey@example.test",
+        city: "Corvallis",
+        serviceArea: "Corvallis",
+        status: "Active",
+      }),
+    });
+    const customer = customerState.customers.find((item) => item.name === "Benton Commons");
+    assert.ok(customer);
+
+    const importedState = await assertOk(fixture.baseUrl, "/api/job-draft-imports", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ package: validPackage }),
+    });
+    assert.equal(importedState.importedDraft.customerMatchStatus, "Matched");
+    assert.equal(importedState.importedDraft.matchedCustomerId, customer.id);
+
+    const createdState = await assertOk(fixture.baseUrl, `/api/job-draft-imports/${importedState.importedDraft.id}/create-job`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(createdState.createdJob.customerId, customer.id);
+    assert.equal(createdState.createdJob.customer, "Benton Commons");
+    assert.equal(createdState.importedDraft.customerMatchStatus, "Confirmed");
+    assert.equal(createdState.importedDraft.matchedCustomerId, customer.id);
+    assert.equal(createdState.customers.filter((item) => item.name === "Benton Commons").length, 1);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("review-required customer matches block job creation until office confirms", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const headers = authHeaders(ownerLogin.token);
+
+    const firstCustomerState = await assertOk(fixture.baseUrl, "/api/customers", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Benton Commons",
+        phone: "",
+        email: "",
+        city: "Corvallis",
+        status: "Active",
+      }),
+    });
+    const firstCustomer = firstCustomerState.customers.find((item) => item.name === "Benton Commons");
+    await assertOk(fixture.baseUrl, "/api/customers", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Casey PM Holdings",
+        phone: "",
+        email: "casey@example.test",
+        city: "Corvallis",
+        status: "Active",
+      }),
+    });
+
+    const importedState = await assertOk(fixture.baseUrl, "/api/job-draft-imports", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ package: validPackage }),
+    });
+    assert.equal(importedState.importedDraft.customerMatchStatus, "Review Required");
+    assert.ok(importedState.importedDraft.customerMatchCandidates.length >= 2);
+
+    const blockedCreate = await requestJson(fixture.baseUrl, `/api/job-draft-imports/${importedState.importedDraft.id}/create-job`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    assert.equal(blockedCreate.response.status, 409);
+    assert.equal(blockedCreate.payload.needsCustomerMatchReview, true);
+
+    const confirmedState = await assertOk(fixture.baseUrl, `/api/job-draft-imports/${importedState.importedDraft.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        matchedCustomerId: firstCustomer.id,
+        matchedCustomerName: firstCustomer.name,
+        customerMatchStatus: "Confirmed",
+        customerMatchOverrideReason: "Office reviewed possible matches and chose Benton Commons.",
+      }),
+    });
+    assert.equal(confirmedState.importedDraft.customerMatchStatus, "Confirmed");
+
+    const createdState = await assertOk(fixture.baseUrl, `/api/job-draft-imports/${importedState.importedDraft.id}/create-job`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    assert.equal(createdState.createdJob.customerId, firstCustomer.id);
+    assert.equal(createdState.importedDraft.customerMatchOverrideReason, "Office reviewed possible matches and chose Benton Commons.");
   } finally {
     await fixture.stop();
   }

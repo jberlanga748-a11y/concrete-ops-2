@@ -6,6 +6,7 @@ const OPEN_REPORT_STATUSES = new Set(["draft", "reopened"]);
 const REVIEW_REPORT_STATUSES = new Set(["submitted", "pending review", "needs review"]);
 const CLOSED_CHECKLIST_STATUSES = new Set(["archived", "complete", "completed", "done", "reviewed"]);
 const CLOSED_CHANGE_ORDER_STATUSES = new Set(["approved", "rejected", "declined", "cancelled", "canceled", "closed", "completed", "archived"]);
+const CUSTOMER_MATCH_REVIEW_STATUSES = new Set(["not checked", "possible match", "review required", "new customer needed"]);
 
 export function deriveCommandCenterState(source = {}, options = {}) {
   const todayKey = dateKey(options.today || new Date());
@@ -24,6 +25,9 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       ...draft,
       actionPath: draft.id ? `/job-draft-imports/${encodeURIComponent(draft.id)}` : "/job-draft-imports",
     }));
+  const importedDraftsNeedingCustomerMatch = importedDraftsNeedingReview.filter((draft) => (
+    CUSTOMER_MATCH_REVIEW_STATUSES.has(normalizeStatus(draft.customerMatchStatus))
+  ));
 
   const startupJobs = jobs.map((job) => {
     const startup = normalizeJobStartupFields(job);
@@ -77,6 +81,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     generatedForDate: todayKey,
     stats: {
       importedDraftsNeedingReview: importedDraftsNeedingReview.length,
+      importedDraftsNeedingCustomerMatch: importedDraftsNeedingCustomerMatch.length,
       jobsNeedingStartupReview: jobsNeedingStartupReview.length,
       jobsReadyForField: jobsReadyForField.length,
       jobsMissingCrew: jobsMissingCrew.length,
@@ -92,6 +97,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       activeJobs: jobs.length,
     },
     importedDraftsNeedingReview,
+    importedDraftsNeedingCustomerMatch,
     jobsNeedingStartupReview,
     jobsReadyForField,
     jobsMissingCrew,

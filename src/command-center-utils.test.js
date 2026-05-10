@@ -14,7 +14,7 @@ const READY_STARTUP_CHECKLIST = [
 test("command center derives priority stats across existing concrete modules", () => {
   const result = deriveCommandCenterState({
     jobDraftImports: [
-      { id: "IJD-1", importStatus: "Needs Review", customerName: "Cascade Flatwork", jobName: "Shop apron" },
+      { id: "IJD-1", importStatus: "Needs Review", customerMatchStatus: "Review Required", customerName: "Cascade Flatwork", jobName: "Shop apron" },
       { id: "IJD-2", importStatus: "Job Created", createdJobId: "J-2" },
     ],
     jobs: [
@@ -50,6 +50,7 @@ test("command center derives priority stats across existing concrete modules", (
   }, { today: "2026-05-10T18:00:00.000Z" });
 
   assert.equal(result.stats.importedDraftsNeedingReview, 1);
+  assert.equal(result.stats.importedDraftsNeedingCustomerMatch, 1);
   assert.equal(result.stats.jobsNeedingStartupReview, 1);
   assert.equal(result.stats.jobsReadyForField, 1);
   assert.equal(result.stats.jobsMissingCrew, 1);
@@ -67,11 +68,12 @@ test("command center derives priority stats across existing concrete modules", (
 
 test("command center exposes route-safe records for office actions", () => {
   const result = deriveCommandCenterState({
-    jobDraftImports: [{ id: "IJD/42", importStatus: "Imported", customerName: "A", jobName: "B" }],
+    jobDraftImports: [{ id: "IJD/42", importStatus: "Imported", customerMatchStatus: "New Customer Needed", customerName: "A", jobName: "B" }],
     jobs: [{ id: "J/42", title: "Accessible ramp", status: "scheduled", startupStatus: "Needs Review" }],
   });
 
   assert.equal(result.importedDraftsNeedingReview[0].actionPath, "/job-draft-imports/IJD%2F42");
+  assert.equal(result.importedDraftsNeedingCustomerMatch[0].actionPath, "/job-draft-imports/IJD%2F42");
   assert.equal(result.jobsNeedingStartupReview[0].actionPath, "/jobs/J%2F42");
 });
 

@@ -24,8 +24,10 @@ import { buildEstimateAttachmentEmailBody, buildEstimateEmailSubject, estimateCu
 import { buildJobAssignmentNoticeKey, isJobAssignmentNoticeAcknowledged } from "../shared/job-assignment-notices.js";
 import {
   CITY_STATE_WARNING,
+  applyCustomerMatchToImportedDraft,
   createImportedJobDraftFromPackage,
   findDuplicateImportedJobDraft,
+  getCustomerMatchWarnings,
   getImportedDraftWarnings,
   isImportedDraftReadyForJob,
   mapImportedDraftToJobPayload,
@@ -3999,6 +4001,101 @@ function ensureCustomerRecord(state, payload, actor, { fallbackStatus = "Prospec
   return customer;
 }
 
+function createCustomerFromImportedDraft(state, draft, actor, changedAt) {
+  const customer = createCustomerShape({
+    name: draft.customerName,
+    company: draft.customerName,
+    phone: draft.contactPhone,
+    email: draft.contactEmail,
+    city: draft.city,
+    serviceArea: draft.city,
+    status: "Active",
+    notes: [
+      "Created during imported job draft conversion.",
+      draft.id ? `Imported Draft ID: ${draft.id}` : "",
+      draft.sourceProposalId ? `Source Proposal ID: ${draft.sourceProposalId}` : "",
+      draft.sourceHandoffId ? `Source Handoff ID: ${draft.sourceHandoffId}` : "",
+    ].filter(Boolean).join("\n"),
+  }, "Active");
+  customer.createdAt = changedAt;
+  customer.updatedAt = changedAt;
+  state.customers.unshift(customer);
+  appendActivity(state, "Customer created from imported draft", `${customer.name} was added while creating a job from an imported draft.`);
+  appendAuditEvent(state, {
+    entityType: "customer",
+    entityId: customer.id,
+    action: "created_from_imported_draft",
+    summary: "Customer created from imported draft",
+    detail: `${customer.name} was added while converting imported draft ${draft.id}.`,
+    actor,
+  });
+  return customer;
+}
+
+function findCustomerById(state, customerId) {
+  const id = optionalString(customerId, "");
+  if (!id) return null;
+  return (state.customers || []).find((customer) => customer.id === id && !customer.archivedAt) || null;
+}
+
+function resolveImportedDraftCustomerForJob(state, draft, actor, { allowCreateNewCustomer = false, changedAt = new Date().toISOString() } = {}) {
+  const normalizedDraft = normalizeImportedJobDraft(draft);
+  const matchedCustomer = findCustomerById(state, normalizedDraft.matchedCustomerId);
+
+  if (["Matched", "Confirmed"].includes(normalizedDraft.customerMatchStatus) && matchedCustomer) {
+    return {
+      customer: matchedCustomer,
+      draft: normalizeImportedJobDraft({
+        ...normalizedDraft,
+        matchedCustomerId: matchedCustomer.id,
+        matchedCustomerName: matchedCustomer.name,
+        customerMatchStatus: "Confirmed",
+        customerMatchReviewedAt: normalizedDraft.customerMatchReviewedAt || changedAt,
+      }),
+      createdCustomer: false,
+    };
+  }
+
+  const refreshedMatch = applyCustomerMatchToImportedDraft(normalizedDraft, state.customers || []);
+  const refreshedCustomer = findCustomerById(state, refreshedMatch.matchedCustomerId);
+
+  if (["Matched", "Confirmed"].includes(refreshedMatch.customerMatchStatus) && refreshedCustomer) {
+    return {
+      customer: refreshedCustomer,
+      draft: normalizeImportedJobDraft({
+        ...refreshedMatch,
+        customerMatchStatus: "Confirmed",
+        customerMatchReviewedAt: refreshedMatch.customerMatchReviewedAt || changedAt,
+      }),
+      createdCustomer: false,
+    };
+  }
+
+  if (["Review Required", "Possible Match", "Not Checked"].includes(refreshedMatch.customerMatchStatus) && !allowCreateNewCustomer) {
+    throw new ApiError(409, "Review and confirm the customer match before creating this job.");
+  }
+
+  if (refreshedMatch.customerMatchStatus === "New Customer Needed" || allowCreateNewCustomer) {
+    const customer = createCustomerFromImportedDraft(state, refreshedMatch, actor, changedAt);
+    return {
+      customer,
+      draft: normalizeImportedJobDraft({
+        ...refreshedMatch,
+        matchedCustomerId: customer.id,
+        matchedCustomerName: customer.name,
+        customerMatchStatus: "Confirmed",
+        customerMatchReviewedAt: changedAt,
+        customerMatchOverrideReason: allowCreateNewCustomer
+          ? optionalString(refreshedMatch.customerMatchOverrideReason, "Office chose to create a new customer during job creation.")
+          : refreshedMatch.customerMatchOverrideReason,
+      }),
+      createdCustomer: true,
+    };
+  }
+
+  throw new ApiError(409, "Review the imported draft customer before creating this job.");
+}
+
 function markUpdated(record, changedAt = new Date().toISOString()) {
   if (!record.createdAt) {
     record.createdAt = changedAt;
@@ -4269,6 +4366,15 @@ function pickImportedDraftEditableFields(updates = {}) {
     "proposalLinkOrId",
     "handoffStatus",
     "jobDraftSummary",
+    "matchedCustomerId",
+    "matchedCustomerName",
+    "matchedContactId",
+    "customerMatchStatus",
+    "customerMatchConfidence",
+    "customerMatchReason",
+    "customerMatchCandidates",
+    "customerMatchReviewedAt",
+    "customerMatchOverrideReason",
   ];
 
   return Object.fromEntries(allowedFields.filter((field) => Object.hasOwn(updates, field)).map((field) => [field, updates[field]]));
@@ -6737,7 +6843,8 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], result.draft);
+  const matchedDraft = applyCustomerMatchToImportedDraft(result.draft, currentState.customers || []);
+  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], matchedDraft);
   if (duplicateDraft) {
     return res.json({
       ok: true,
@@ -6746,20 +6853,20 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
       status: duplicateDraft.importStatus,
       openPath: importedDraftOpenPath(duplicateDraft.id),
       message: "This job draft package has already been imported.",
-      duplicateReason: getImportDuplicateReason(duplicateDraft, result.draft),
+      duplicateReason: getImportDuplicateReason(duplicateDraft, matchedDraft),
       requestId: res.locals.requestId,
     });
   }
 
   await updateDb((draft) => {
-    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], result.draft);
-    appendActivity(draft, "Job draft imported by integration", `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`);
+    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], matchedDraft);
+    appendActivity(draft, "Job draft imported by integration", `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`);
     appendAuditEvent(draft, {
       entityType: "jobDraftImport",
-      entityId: result.draft.id,
+      entityId: matchedDraft.id,
       action: "integration_imported",
       summary: "Imported job draft from integration",
-      detail: `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`,
+      detail: `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`,
       actor: jobDraftIntegrationActor(),
     });
     return draft;
@@ -6767,10 +6874,10 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
 
   return res.status(201).json({
     ok: true,
-    importedDraftId: result.draft.id,
-    status: result.draft.importStatus,
+    importedDraftId: matchedDraft.id,
+    status: matchedDraft.importStatus,
     duplicate: false,
-    openPath: importedDraftOpenPath(result.draft.id),
+    openPath: importedDraftOpenPath(matchedDraft.id),
     warnings: result.warnings,
     requestId: res.locals.requestId,
   });
@@ -6792,25 +6899,26 @@ app.post("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], result.draft);
+  const matchedDraft = applyCustomerMatchToImportedDraft(result.draft, currentState.customers || []);
+  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], matchedDraft);
   if (duplicateDraft && !allowDuplicate) {
     return res.status(409).json({
       error: "This job draft package looks like it has already been imported.",
       duplicateDraft,
-      duplicateReason: getImportDuplicateReason(duplicateDraft, result.draft),
+      duplicateReason: getImportDuplicateReason(duplicateDraft, matchedDraft),
       requestId: res.locals.requestId,
     });
   }
 
   const nextState = await updateDb((draft) => {
-    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], result.draft);
-    appendActivity(draft, "Job draft imported", `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`);
+    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], matchedDraft);
+    appendActivity(draft, "Job draft imported", `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`);
     appendAuditEvent(draft, {
       entityType: "jobDraftImport",
-      entityId: result.draft.id,
+      entityId: matchedDraft.id,
       action: "imported",
       summary: "Imported job draft",
-      detail: `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`,
+      detail: `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`,
       actor: req.auth.user,
     });
     return draft;
@@ -6818,7 +6926,7 @@ app.post("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
 
   return res.status(201).json({
     ...sanitizeBootstrap(nextState, req.auth.user),
-    importedDraft: visibleImportedJobDraftsForUser(nextState, req.auth.user).find((draft) => draft.id === result.draft.id) || result.draft,
+    importedDraft: visibleImportedJobDraftsForUser(nextState, req.auth.user).find((draft) => draft.id === matchedDraft.id) || matchedDraft,
   });
 }));
 
@@ -6876,6 +6984,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
   const allowNotReady = req.body?.allowNotReady === true;
   const allowMissingCityState = req.body?.allowMissingCityState === true;
   const allowDuplicateJob = req.body?.allowDuplicateJob === true;
+  const allowCreateNewCustomer = req.body?.allowCreateNewCustomer === true;
   const currentState = await readDb();
   const currentDraft = normalizeImportedJobDraft(findRequiredRecord(currentState.jobDraftImports || [], id, "Imported job draft"));
 
@@ -6917,6 +7026,22 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
     });
   }
 
+  const existingMatchedCustomer = findCustomerById(currentState, currentDraft.matchedCustomerId);
+  const currentMatchResolved = ["Matched", "Confirmed"].includes(currentDraft.customerMatchStatus) && existingMatchedCustomer;
+  const customerMatchForCreate = currentMatchResolved
+    ? currentDraft
+    : applyCustomerMatchToImportedDraft(currentDraft, currentState.customers || []);
+  if (["Review Required", "Possible Match", "Not Checked"].includes(customerMatchForCreate.customerMatchStatus) && !allowCreateNewCustomer) {
+    return res.status(409).json({
+      error: "Review and confirm the customer match before creating this job.",
+      needsCustomerMatchReview: true,
+      customerMatchStatus: customerMatchForCreate.customerMatchStatus,
+      customerMatchCandidates: customerMatchForCreate.customerMatchCandidates,
+      customerMatchWarnings: getCustomerMatchWarnings(customerMatchForCreate),
+      requestId: res.locals.requestId,
+    });
+  }
+
   const jobPayload = mapImportedDraftToJobPayload(currentDraft, { allowMissingCityState });
   const createdAt = new Date().toISOString();
   let createdJob = null;
@@ -6928,15 +7053,21 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
       throw new ApiError(409, "A Concrete Ops 2 job has already been created from this imported draft.");
     }
 
-    const startupFields = createStartupChecklistFields(jobPayload, liveDraft, {
+    const resolvedCustomer = resolveImportedDraftCustomerForJob(draft, liveDraft, req.auth.user, {
+      allowCreateNewCustomer,
       changedAt: createdAt,
-      startupStatus: liveDraft.importStatus === "Needs Review" || liveDraft.opsReadinessIssues.length > 0 ? "Needs Review" : "Not Started",
+    });
+    const customerDraft = resolvedCustomer.draft;
+    const startupFields = createStartupChecklistFields(jobPayload, customerDraft, {
+      changedAt: createdAt,
+      startupStatus: customerDraft.importStatus === "Needs Review" || customerDraft.opsReadinessIssues.length > 0 ? "Needs Review" : "Not Started",
     });
     createdJob = normalizeJobRecord({
       id: makeId("J"),
-      customerId: "",
+      customerId: resolvedCustomer.customer.id,
       leadId: "",
       ...jobPayload,
+      customer: resolvedCustomer.customer.name,
       ...startupFields,
       createdAt,
       updatedAt: createdAt,
@@ -6944,19 +7075,10 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
     });
 
     draft.jobAssignments ||= [];
-    const customer = ensureCustomerRecord(draft, {
-      name: createdJob.customer,
-      phone: liveDraft.contactPhone,
-      email: liveDraft.contactEmail,
-      city: liveDraft.city,
-      serviceArea: liveDraft.city,
-      status: "Active",
-    }, req.auth.user, { fallbackStatus: "Active" });
-    createdJob.customerId = customer.id;
     draft.jobs.unshift(createdJob);
     syncJobAssignments(draft, createdJob, createdAt);
     updatedImport = normalizeImportedJobDraft({
-      ...liveDraft,
+      ...customerDraft,
       createdJobId: createdJob.id,
       importStatus: "Job Created",
       updatedAt: createdAt,

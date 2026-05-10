@@ -4730,6 +4730,34 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 35,
+      description: "Add imported job draft customer match fields.",
+      up(database) {
+        const columns = [
+          ["matched_customer_id", "TEXT NOT NULL DEFAULT ''"],
+          ["matched_customer_name", "TEXT NOT NULL DEFAULT ''"],
+          ["matched_contact_id", "TEXT NOT NULL DEFAULT ''"],
+          ["customer_match_status", "TEXT NOT NULL DEFAULT 'Not Checked'"],
+          ["customer_match_confidence", "TEXT NOT NULL DEFAULT ''"],
+          ["customer_match_reason", "TEXT NOT NULL DEFAULT ''"],
+          ["customer_match_candidates", "TEXT NOT NULL DEFAULT '[]'"],
+          ["customer_match_reviewed_at", "TEXT NOT NULL DEFAULT ''"],
+          ["customer_match_override_reason", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [columnName, columnType] of columns) {
+          if (!columnExists(database, "job_draft_imports", columnName)) {
+            database.exec(`ALTER TABLE job_draft_imports ADD COLUMN ${columnName} ${columnType};`);
+          }
+        }
+
+        database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_matched_customer_id ON job_draft_imports(matched_customer_id);
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_customer_match_status ON job_draft_imports(customer_match_status);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4810,9 +4838,11 @@ function writeStateToDb(state) {
       customer_name, contact_name, contact_email, contact_phone, job_name, job_address, city, state, service_type, project_type,
       scope_summary, included_scope, exclusions, assumptions, operations_notes, crew_notes, schedule_notes, start_date_target,
       assigned_crew_placeholder, foreman_placeholder, draft_status, ops_readiness_score, ops_readiness_label, ops_readiness_issues,
-      proposal_amount, proposal_link_or_id, handoff_status, job_draft_summary, created_job_id, created_at, updated_at
+      proposal_amount, proposal_link_or_id, handoff_status, job_draft_summary, matched_customer_id, matched_customer_name,
+      matched_contact_id, customer_match_status, customer_match_confidence, customer_match_reason, customer_match_candidates,
+      customer_match_reviewed_at, customer_match_override_reason, created_job_id, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimate = database.prepare(`
@@ -5163,6 +5193,15 @@ function writeStateToDb(state) {
         draft.proposalLinkOrId || "",
         draft.handoffStatus || "",
         draft.jobDraftSummary || "",
+        draft.matchedCustomerId || "",
+        draft.matchedCustomerName || "",
+        draft.matchedContactId || "",
+        draft.customerMatchStatus || "Not Checked",
+        draft.customerMatchConfidence === "" ? "" : String(draft.customerMatchConfidence),
+        draft.customerMatchReason || "",
+        JSON.stringify(draft.customerMatchCandidates || []),
+        draft.customerMatchReviewedAt || "",
+        draft.customerMatchOverrideReason || "",
         draft.createdJobId || "",
         draft.createdAt || isoNow(),
         draft.updatedAt || draft.createdAt || isoNow(),
@@ -5647,7 +5686,11 @@ function readTableState() {
              foreman_placeholder AS foremanPlaceholder, draft_status AS draftStatus, ops_readiness_score AS opsReadinessScore,
              ops_readiness_label AS opsReadinessLabel, ops_readiness_issues AS opsReadinessIssues,
              proposal_amount AS proposalAmount, proposal_link_or_id AS proposalLinkOrId, handoff_status AS handoffStatus,
-             job_draft_summary AS jobDraftSummary, created_job_id AS createdJobId, created_at AS createdAt, updated_at AS updatedAt
+             job_draft_summary AS jobDraftSummary, matched_customer_id AS matchedCustomerId, matched_customer_name AS matchedCustomerName,
+             matched_contact_id AS matchedContactId, customer_match_status AS customerMatchStatus, customer_match_confidence AS customerMatchConfidence,
+             customer_match_reason AS customerMatchReason, customer_match_candidates AS customerMatchCandidates,
+             customer_match_reviewed_at AS customerMatchReviewedAt, customer_match_override_reason AS customerMatchOverrideReason,
+             created_job_id AS createdJobId, created_at AS createdAt, updated_at AS updatedAt
       FROM job_draft_imports
       ORDER BY sort_index ASC
     `).all().map((draft) => ({
@@ -5658,6 +5701,7 @@ function readTableState() {
       exclusions: JSON.parse(draft.exclusions || "[]"),
       assumptions: JSON.parse(draft.assumptions || "[]"),
       opsReadinessIssues: JSON.parse(draft.opsReadinessIssues || "[]"),
+      customerMatchCandidates: JSON.parse(draft.customerMatchCandidates || "[]"),
     })));
 
   const estimates = database.prepare(`

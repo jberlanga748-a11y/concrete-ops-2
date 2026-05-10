@@ -1,5 +1,15 @@
 export const IMPORTED_JOB_DRAFT_STATUSES = ["Imported", "Needs Review", "Ready to Create Job", "Job Created", "Rejected"];
 
+export const CUSTOMER_MATCH_STATUSES = [
+  "Not Checked",
+  "Matched",
+  "Possible Match",
+  "No Match",
+  "New Customer Needed",
+  "Review Required",
+  "Confirmed",
+];
+
 export const EXPECTED_JOB_DRAFT_PACKAGE_TYPE = "concrete_ops_job_draft";
 
 export const CITY_STATE_WARNING = "City/state missing. Add city and state before creating the job.";
@@ -20,6 +30,7 @@ export const REQUIRED_JOB_DRAFT_PACKAGE_FIELDS = [
 
 const SENSITIVE_KEY_PATTERN = /(api[-_ ]?key|token|secret|password|session|auth|access[-_ ]?token|refresh[-_ ]?token)/i;
 const US_STATE_PATTERN = /^[A-Z]{2}$/;
+const BUSINESS_SUFFIX_PATTERN = /\b(llc|l\.l\.c\.|inc|incorporated|co|company|corp|corporation)\b/gi;
 
 export function validateJobDraftImportPackage(packageJson = {}) {
   const source = isPlainObject(packageJson) ? stripSensitiveFields(packageJson) : {};
@@ -121,10 +132,106 @@ export function normalizeImportedJobDraft(draft = {}) {
     proposalLinkOrId: toSafeText(source.proposalLinkOrId),
     handoffStatus: toSafeText(source.handoffStatus),
     jobDraftSummary: toSafeText(source.jobDraftSummary),
+    matchedCustomerId: toSafeText(source.matchedCustomerId),
+    matchedCustomerName: toSafeText(source.matchedCustomerName),
+    matchedContactId: toSafeText(source.matchedContactId),
+    customerMatchStatus: normalizeCustomerMatchStatus(source.customerMatchStatus),
+    customerMatchConfidence: toNumberOrBlank(source.customerMatchConfidence),
+    customerMatchReason: toSafeText(source.customerMatchReason),
+    customerMatchCandidates: normalizeCustomerMatchCandidates(source.customerMatchCandidates),
+    customerMatchReviewedAt: toIsoDateTime(source.customerMatchReviewedAt) || toSafeText(source.customerMatchReviewedAt),
+    customerMatchOverrideReason: toSafeText(source.customerMatchOverrideReason),
     createdJobId: toSafeText(source.createdJobId),
     createdAt,
     updatedAt: toIsoDateTime(source.updatedAt) || createdAt,
   };
+}
+
+export function applyCustomerMatchToImportedDraft(draft = {}, customers = []) {
+  const normalizedDraft = normalizeImportedJobDraft(draft);
+  const match = deriveImportedDraftCustomerMatch(normalizedDraft, customers);
+  return normalizeImportedJobDraft({
+    ...normalizedDraft,
+    ...match,
+  });
+}
+
+export function deriveImportedDraftCustomerMatch(draft = {}, customers = []) {
+  const normalizedDraft = normalizeImportedJobDraft(draft);
+  const candidates = buildCustomerMatchCandidates(normalizedDraft, customers);
+  const strongCandidates = candidates.filter((candidate) => candidate.isStrong);
+  const exactCandidates = candidates.filter((candidate) => candidate.isExactName);
+
+  if (strongCandidates.length === 1 && !strongCandidates[0].hasConflict) {
+    const candidate = strongCandidates[0];
+    return {
+      matchedCustomerId: candidate.customerId,
+      matchedCustomerName: candidate.name,
+      matchedContactId: "",
+      customerMatchStatus: "Matched",
+      customerMatchConfidence: candidate.confidence,
+      customerMatchReason: candidate.reason,
+      customerMatchCandidates: [stripInternalMatchFields(candidate)],
+    };
+  }
+
+  if (strongCandidates.length > 1 || candidates.length > 1 || (strongCandidates[0]?.hasConflict || exactCandidates[0]?.hasConflict)) {
+    const best = candidates[0] || strongCandidates[0] || exactCandidates[0];
+    return {
+      matchedCustomerId: best?.customerId || "",
+      matchedCustomerName: best?.name || "",
+      matchedContactId: "",
+      customerMatchStatus: "Review Required",
+      customerMatchConfidence: best?.confidence || "",
+      customerMatchReason: best?.hasConflict
+        ? `${best.reason} Review contact differences before creating the job.`
+        : "Multiple possible customer matches found. Choose or confirm the right customer.",
+      customerMatchCandidates: candidates.slice(0, 5).map(stripInternalMatchFields),
+    };
+  }
+
+  if (candidates.length === 1) {
+    const candidate = candidates[0];
+    return {
+      matchedCustomerId: candidate.customerId,
+      matchedCustomerName: candidate.name,
+      matchedContactId: "",
+      customerMatchStatus: "Possible Match",
+      customerMatchConfidence: candidate.confidence,
+      customerMatchReason: candidate.reason,
+      customerMatchCandidates: [stripInternalMatchFields(candidate)],
+    };
+  }
+
+  return {
+    matchedCustomerId: "",
+    matchedCustomerName: "",
+    matchedContactId: "",
+    customerMatchStatus: "New Customer Needed",
+    customerMatchConfidence: "",
+    customerMatchReason: "No existing customer matched this imported customer/contact.",
+    customerMatchCandidates: [],
+  };
+}
+
+export function getCustomerMatchWarnings(draft = {}) {
+  const normalizedDraft = normalizeImportedJobDraft(draft);
+  const warnings = [];
+
+  if (["Review Required", "Possible Match", "Not Checked"].includes(normalizedDraft.customerMatchStatus)) {
+    warnings.push("Customer match needs review before creating the job.");
+  }
+  if (!normalizedDraft.contactEmail) {
+    warnings.push("Imported customer email is missing.");
+  }
+  if (!normalizedDraft.contactPhone) {
+    warnings.push("Imported customer phone is missing.");
+  }
+  if (normalizedDraft.customerMatchStatus === "Review Required" && normalizedDraft.customerMatchReason) {
+    warnings.push(normalizedDraft.customerMatchReason);
+  }
+
+  return uniqueValues(warnings);
 }
 
 export function createImportedJobDraftFromPackage(packageJson = {}, options = {}) {
@@ -363,6 +470,97 @@ function getCompositeDuplicateKey(draft = {}) {
   return parts.every(Boolean) ? parts.join("|") : "";
 }
 
+function buildCustomerMatchCandidates(draft = {}, customers = []) {
+  const draftNameExact = normalizeCustomerNameExact(draft.customerName);
+  const draftNameSuggested = normalizeCustomerNameSuggested(draft.customerName);
+  const draftEmail = normalizeEmail(draft.contactEmail);
+  const draftPhone = normalizePhone(draft.contactPhone);
+  const draftCity = normalizeCustomerNameExact(draft.city);
+  const draftState = normalizeCustomerNameExact(draft.state);
+
+  return (Array.isArray(customers) ? customers : [])
+    .filter(isPlainObject)
+    .filter((customer) => !customer.archivedAt)
+    .map((customer) => {
+      const customerNames = uniqueValues([customer.name, customer.company, customer.customerName].map(toSafeText));
+      const exactName = customerNames.some((name) => draftNameExact && normalizeCustomerNameExact(name) === draftNameExact);
+      const suggestedName = customerNames.some((name) => draftNameSuggested && normalizeCustomerNameSuggested(name) === draftNameSuggested);
+      const email = normalizeEmail(customer.email || customer.contactEmail);
+      const phone = normalizePhone(customer.phone || customer.contactPhone);
+      const city = normalizeCustomerNameExact(customer.city || customer.serviceArea);
+      const state = normalizeCustomerNameExact(customer.state);
+      const emailMatch = Boolean(draftEmail && email && draftEmail === email);
+      const phoneMatch = Boolean(draftPhone && phone && draftPhone === phone);
+      const cityMatch = Boolean(draftCity && city && draftCity === city);
+      const stateMatch = Boolean(draftState && state && draftState === state);
+      const reasons = [];
+      let confidence = 0;
+
+      if (exactName) {
+        confidence = Math.max(confidence, 95);
+        reasons.push("Exact customer name match.");
+      }
+      if (emailMatch) {
+        confidence = Math.max(confidence, exactName || suggestedName ? 94 : 86);
+        reasons.push("Contact email matches.");
+      }
+      if (phoneMatch) {
+        confidence = Math.max(confidence, exactName || suggestedName ? 92 : 84);
+        reasons.push("Contact phone matches.");
+      }
+      if (suggestedName && !exactName) {
+        confidence = Math.max(confidence, 72);
+        reasons.push("Customer name looks similar after ignoring business suffixes.");
+      }
+      if ((exactName || suggestedName || emailMatch || phoneMatch) && cityMatch) {
+        confidence = Math.min(99, confidence + 3);
+        reasons.push("City matches.");
+      }
+      if ((exactName || suggestedName || emailMatch || phoneMatch) && stateMatch) {
+        confidence = Math.min(99, confidence + 1);
+        reasons.push("State matches.");
+      }
+
+      const nameDifferent = draftNameExact && customerNames.length > 0 && !exactName && (emailMatch || phoneMatch);
+      const emailDifferent = exactName && draftEmail && email && draftEmail !== email;
+      const phoneDifferent = exactName && draftPhone && phone && draftPhone !== phone;
+      if (nameDifferent) reasons.push("Same email/phone but different customer name.");
+      if (emailDifferent) reasons.push("Same customer name but different email.");
+      if (phoneDifferent) reasons.push("Same customer name but different phone.");
+
+      return {
+        customerId: toSafeText(customer.id),
+        name: customer.name || customer.company || "Unnamed customer",
+        company: toSafeText(customer.company),
+        email: toSafeText(customer.email),
+        phone: toSafeText(customer.phone),
+        city: toSafeText(customer.city),
+        status: toSafeText(customer.status),
+        confidence,
+        reason: uniqueValues(reasons).join(" "),
+        isExactName: exactName,
+        isStrong: exactName || ((emailMatch || phoneMatch) && (suggestedName || cityMatch)),
+        hasConflict: Boolean(nameDifferent || emailDifferent || phoneDifferent),
+      };
+    })
+    .filter((candidate) => candidate.confidence >= 70)
+    .sort((left, right) => right.confidence - left.confidence || left.name.localeCompare(right.name));
+}
+
+function stripInternalMatchFields(candidate = {}) {
+  return {
+    customerId: toSafeText(candidate.customerId),
+    name: toSafeText(candidate.name),
+    company: toSafeText(candidate.company),
+    email: toSafeText(candidate.email),
+    phone: toSafeText(candidate.phone),
+    city: toSafeText(candidate.city),
+    status: toSafeText(candidate.status),
+    confidence: toNumberOrBlank(candidate.confidence),
+    reason: toSafeText(candidate.reason),
+  };
+}
+
 function deriveCityStateFromAddress(address = "") {
   const parts = toSafeText(address).split(",").map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) {
@@ -398,6 +596,20 @@ function formatContact(draft) {
 function normalizeStatus(value) {
   const status = toSafeText(value);
   return IMPORTED_JOB_DRAFT_STATUSES.includes(status) ? status : "Imported";
+}
+
+function normalizeCustomerMatchStatus(value) {
+  const status = toSafeText(value);
+  return CUSTOMER_MATCH_STATUSES.includes(status) ? status : "Not Checked";
+}
+
+function normalizeCustomerMatchCandidates(value = []) {
+  const source = Array.isArray(value) ? value : [];
+  return source
+    .filter(isPlainObject)
+    .map(stripInternalMatchFields)
+    .filter((candidate) => candidate.customerId || candidate.name)
+    .slice(0, 5);
 }
 
 function normalizeTextList(value = []) {
@@ -447,6 +659,30 @@ function normalizeState(value) {
 
 function uniqueValues(values = []) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function normalizeEmail(value) {
+  return toSafeText(value).toLowerCase();
+}
+
+function normalizePhone(value) {
+  const digits = toSafeText(value).replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+function normalizeCustomerNameExact(value) {
+  return toSafeText(value)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeCustomerNameSuggested(value) {
+  return normalizeCustomerNameExact(value)
+    .replace(BUSINESS_SUFFIX_PATTERN, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getTimeValue(value) {

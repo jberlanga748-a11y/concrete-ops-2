@@ -3,10 +3,13 @@ import test from "node:test";
 
 import {
   CITY_STATE_WARNING,
+  applyCustomerMatchToImportedDraft,
   createImportedJobDraftFromPackage,
+  deriveImportedDraftCustomerMatch,
   filterImportedJobDrafts,
   findDuplicateImportedJobDraft,
   formatImportedDraftJobNotes,
+  getCustomerMatchWarnings,
   getImportedDraftWarnings,
   isImportedDraftReadyForJob,
   mapImportedDraftToJobPayload,
@@ -133,6 +136,61 @@ test("duplicate import detection works by ids and composite customer job city", 
   assert.equal(findDuplicateImportedJobDraft([first], sameOpsId)?.id, "import-1");
   assert.equal(findDuplicateImportedJobDraft([first], sameHandoffId)?.id, "import-1");
   assert.equal(findDuplicateImportedJobDraft([first], sameComposite)?.id, "import-1");
+});
+
+test("customer matching finds exact name, email, and phone matches", () => {
+  const draft = createImportedJobDraftFromPackage(validPackage, { id: "import-1" }).draft;
+  const nameMatch = deriveImportedDraftCustomerMatch(draft, [{ id: "C-1", name: "ABC Apartments", email: "", phone: "", city: "Albany" }]);
+  const emailMatch = deriveImportedDraftCustomerMatch(draft, [{ id: "C-2", name: "ABC Apartments", email: "ALEX@example.com", phone: "", city: "Albany" }]);
+  const phoneMatch = deriveImportedDraftCustomerMatch({ ...draft, contactEmail: "", contactPhone: "503-555-0100" }, [{ id: "C-3", name: "ABC Apartments", phone: "(503) 555-0100", city: "Albany" }]);
+
+  assert.equal(nameMatch.customerMatchStatus, "Matched");
+  assert.equal(nameMatch.matchedCustomerId, "C-1");
+  assert.equal(emailMatch.customerMatchStatus, "Matched");
+  assert.equal(emailMatch.matchedCustomerId, "C-2");
+  assert.equal(phoneMatch.customerMatchStatus, "Matched");
+  assert.equal(phoneMatch.matchedCustomerId, "C-3");
+});
+
+test("customer matching normalizes case, spacing, punctuation, and suggested suffixes", () => {
+  const draft = createImportedJobDraftFromPackage({ ...validPackage, customerName: "  ABC   Apartments, LLC " }, { id: "import-1" }).draft;
+  const exact = deriveImportedDraftCustomerMatch(draft, [{ id: "C-1", name: "abc apartments llc", city: "Albany" }]);
+  const suggested = deriveImportedDraftCustomerMatch(draft, [{ id: "C-2", name: "ABC Apartments", city: "Albany" }]);
+
+  assert.equal(exact.customerMatchStatus, "Matched");
+  assert.equal(exact.matchedCustomerId, "C-1");
+  assert.equal(suggested.customerMatchStatus, "Possible Match");
+  assert.equal(suggested.customerMatchCandidates[0].customerId, "C-2");
+});
+
+test("customer matching flags multiple or conflicting matches for review", () => {
+  const draft = createImportedJobDraftFromPackage(validPackage, { id: "import-1" }).draft;
+  const multiple = deriveImportedDraftCustomerMatch(draft, [
+    { id: "C-1", name: "ABC Apartments", city: "Albany" },
+    { id: "C-2", name: "ABC Apartments", city: "Albany" },
+  ]);
+  const conflict = deriveImportedDraftCustomerMatch(draft, [
+    { id: "C-3", name: "Different Customer", email: "alex@example.com", city: "Albany" },
+  ]);
+
+  assert.equal(multiple.customerMatchStatus, "Review Required");
+  assert.equal(multiple.customerMatchCandidates.length, 2);
+  assert.equal(conflict.customerMatchStatus, "Review Required");
+  assert.match(conflict.customerMatchReason, /different customer name/i);
+  assert.ok(getCustomerMatchWarnings(conflict).some((warning) => /review/i.test(warning)));
+});
+
+test("customer matching marks new customer needed and persists normalized fields", () => {
+  const draft = createImportedJobDraftFromPackage(validPackage, { id: "import-1" }).draft;
+  const matchedDraft = applyCustomerMatchToImportedDraft(draft, []);
+
+  assert.equal(matchedDraft.customerMatchStatus, "New Customer Needed");
+  assert.equal(matchedDraft.matchedCustomerId, "");
+  assert.equal(normalizeImportedJobDraft({
+    ...matchedDraft,
+    customerMatchStatus: "Confirmed",
+    customerMatchCandidates: [{ customerId: "C-1", name: "ABC Apartments", confidence: "99", token: "secret" }],
+  }).customerMatchCandidates[0].customerId, "C-1");
 });
 
 test("imported draft edits normalize, persist, and filter safely", () => {

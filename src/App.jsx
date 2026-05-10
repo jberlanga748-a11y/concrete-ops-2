@@ -108,7 +108,7 @@ import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTicke
 import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
-import { CITY_STATE_WARNING, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
+import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
@@ -5952,6 +5952,7 @@ function CommandCenterPage({
 
   const statCards = [
     { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review before creating jobs", icon: "database" },
+    { key: "importedDraftsNeedingCustomerMatch", label: "Drafts Needing Customer Match", helper: "Confirm customer before job creation", icon: "users" },
     { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Startup checklist still needs attention", icon: "alert" },
     { key: "jobsReadyForField", label: "Jobs Ready for Field", helper: "Ready but still active", icon: "check" },
     { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Crew or foreman not assigned", icon: "users" },
@@ -6007,7 +6008,7 @@ function CommandCenterPage({
                 eyebrow={draft.importStatus || "Imported Draft"}
                 title={draft.jobName || "Untitled imported draft"}
                 description={`${draft.customerName || "Customer pending"} - ${draft.city || draft.jobAddress || "Location needs review"}`}
-                badges={<><StatusBadge status={draft.importStatus || "Imported"} />{draft.opsReadinessLabel ? <Badge tone="amber">{draft.opsReadinessLabel}</Badge> : null}</>}
+                badges={<><StatusBadge status={draft.importStatus || "Imported"} /><Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge>{draft.opsReadinessLabel ? <Badge tone="amber">{draft.opsReadinessLabel}</Badge> : null}</>}
                 actions={
                   <>
                     <Button type="button" size="sm" onClick={() => openImportedDraft(draft.id)}>Open Imported Draft</Button>
@@ -6650,9 +6651,17 @@ function importedDraftStatusTone(status) {
   return "blue";
 }
 
+function customerMatchStatusTone(status) {
+  if (status === "Matched" || status === "Confirmed") return "green";
+  if (status === "Review Required" || status === "Possible Match") return "amber";
+  if (status === "New Customer Needed" || status === "No Match") return "blue";
+  return "slate";
+}
+
 function ImportedJobDraftsPage({
   drafts,
   jobs,
+  customers,
   selectedDraftId,
   onSelectDraft,
   onBackToDrafts,
@@ -6681,6 +6690,7 @@ function ImportedJobDraftsPage({
       <ImportedJobDraftDetailPage
         draft={selectedDraft}
         jobs={jobs}
+        customers={customers}
         onBack={onBackToDrafts}
         onCreateJobFromDraft={onCreateJobFromDraft}
         onOpenCreatedJob={onOpenCreatedJob}
@@ -6792,6 +6802,7 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate font-black text-slate-950">{draft.jobName || "Untitled imported draft"}</p>
                         <Badge tone={importedDraftStatusTone(draft.importStatus)}>{draft.importStatus}</Badge>
+                        <Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge>
                       </div>
                       <p className="mt-1 text-sm font-bold text-slate-600">{draft.customerName || "Customer pending"}</p>
                       <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-400">{[draft.city, draft.state].filter(Boolean).join(", ") || "Location needs review"}</p>
@@ -6819,11 +6830,137 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
   );
 }
 
-function ImportedJobDraftDetailPage({ draft, jobs, onBack, onCreateJobFromDraft, onOpenCreatedJob, onSaveDraft, busy }) {
+function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], onUpdate }) {
+  const activeCustomers = (Array.isArray(customers) ? customers : []).filter((customer) => !customer.archivedAt);
+  const matchedCustomer = activeCustomers.find((customer) => customer.id === draft.matchedCustomerId) || null;
+
+  function setConfirmedCustomer(customerId, reason = "Office confirmed this customer match.") {
+    const customer = activeCustomers.find((item) => item.id === customerId);
+    if (!customer) return;
+    onUpdate({
+      matchedCustomerId: customer.id,
+      matchedCustomerName: customer.name || customer.company || "",
+      customerMatchStatus: "Confirmed",
+      customerMatchConfidence: 100,
+      customerMatchReason: reason,
+    });
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Customer match"
+        description="Confirm whether this imported draft should use an existing customer or create a new customer when the job is created."
+        actions={<Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge>}
+      />
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700">Imported contact</p>
+          <div className="mt-2 space-y-1 text-sm text-slate-700">
+            <p className="font-black text-slate-950">{draft.customerName || "Customer name missing"}</p>
+            <p>{draft.contactName || "Contact name missing"}</p>
+            <p>{draft.contactEmail || "Email missing"}</p>
+            <p>{draft.contactPhone || "Phone missing"}</p>
+            <p>{[draft.city, draft.state].filter(Boolean).join(", ") || "Location needs review"}</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Current match</p>
+          <div className="mt-2 space-y-1 text-sm text-slate-700">
+            <p className="font-black text-slate-950">{matchedCustomer?.name || draft.matchedCustomerName || "No customer selected"}</p>
+            <p>{matchedCustomer?.email || "Email not on matched customer"}</p>
+            <p>{matchedCustomer?.phone || "Phone not on matched customer"}</p>
+            <p>{draft.customerMatchReason || "Review or confirm this match before job creation."}</p>
+          </div>
+        </div>
+      </div>
+      {warnings.length > 0 ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+          {warnings.map((warning) => <p key={warning}>{warning}</p>)}
+        </div>
+      ) : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+        <SelectField
+          label="Choose existing customer"
+          value={draft.matchedCustomerId}
+          onChange={(event) => setConfirmedCustomer(event.target.value, "Office chose this existing customer.")}
+        >
+          <option value="">Choose customer...</option>
+          {activeCustomers.map((customer) => (
+            <option key={customer.id} value={customer.id}>
+              {[customer.name, customer.city].filter(Boolean).join(" - ")}
+            </option>
+          ))}
+        </SelectField>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => setConfirmedCustomer(draft.matchedCustomerId)} disabled={!draft.matchedCustomerId}>Confirm Match</Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onUpdate({
+              matchedCustomerId: "",
+              matchedCustomerName: "",
+              matchedContactId: "",
+              customerMatchStatus: "New Customer Needed",
+              customerMatchConfidence: "",
+              customerMatchReason: "Office chose to create a new customer when creating the job.",
+              customerMatchCandidates: draft.customerMatchCandidates,
+            })}
+          >
+            Create New Customer on Job Creation
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onUpdate({
+              matchedCustomerId: "",
+              matchedCustomerName: "",
+              matchedContactId: "",
+              customerMatchStatus: "Not Checked",
+              customerMatchConfidence: "",
+              customerMatchReason: "",
+              customerMatchCandidates: [],
+              customerMatchOverrideReason: "",
+            })}
+          >
+            Clear Match
+          </Button>
+        </div>
+      </div>
+      {draft.customerMatchCandidates.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Suggested matches</p>
+          {draft.customerMatchCandidates.map((candidate) => (
+            <div key={candidate.customerId || candidate.name} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
+              <div className="min-w-0">
+                <p className="font-black text-slate-950">{candidate.name || "Unnamed customer"} <span className="text-slate-400">({candidate.confidence || "?"}%)</span></p>
+                <p className="text-slate-600">{candidate.reason || "Possible customer match."}</p>
+              </div>
+              {candidate.customerId ? <Button type="button" size="sm" variant="secondary" onClick={() => setConfirmedCustomer(candidate.customerId, `Office confirmed suggested match: ${candidate.reason || candidate.name}.`)}>Use this customer</Button> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <SelectField label="Match status" value={draft.customerMatchStatus} onChange={(event) => onUpdate({ customerMatchStatus: event.target.value })}>
+          {CUSTOMER_MATCH_STATUSES.map((status) => <option key={status}>{status}</option>)}
+        </SelectField>
+        <InputField label="Matched customer name" value={draft.matchedCustomerName} onChange={(event) => onUpdate({ matchedCustomerName: event.target.value })} />
+        <div className="md:col-span-2">
+          <TextAreaField label="Match note / override reason" value={draft.customerMatchOverrideReason} onChange={(event) => onUpdate({ customerMatchOverrideReason: event.target.value })} />
+        </div>
+      </div>
+      <p className="mt-3 text-xs font-bold text-slate-500">Save the imported draft to persist customer match changes.</p>
+    </Card>
+  );
+}
+
+function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJobFromDraft, onOpenCreatedJob, onSaveDraft, busy }) {
   const [draftForm, setDraftForm] = useState(() => normalizeImportedJobDraft(draft));
   const [message, setMessage] = useState("");
   const createdJob = jobs.find((job) => job.id === draftForm.createdJobId);
   const warnings = getImportedDraftWarnings(draftForm);
+  const customerMatchWarnings = getCustomerMatchWarnings(draftForm);
   const readyForJob = isImportedDraftReadyForJob(draftForm, { allowMissingCityState: Boolean(draftForm.city && draftForm.state) });
 
   useEffect(() => {
@@ -6837,6 +6974,14 @@ function ImportedJobDraftDetailPage({ draft, jobs, onBack, onCreateJobFromDraft,
 
   function updateListField(field, value) {
     setDraftForm((current) => normalizeImportedJobDraft({ ...current, [field]: value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }));
+  }
+
+  function updateCustomerMatch(patch) {
+    setDraftForm((current) => normalizeImportedJobDraft({
+      ...current,
+      ...patch,
+      customerMatchReviewedAt: patch.customerMatchStatus ? new Date().toISOString() : current.customerMatchReviewedAt,
+    }));
   }
 
   async function saveDraft(event) {
@@ -6897,6 +7042,12 @@ function ImportedJobDraftDetailPage({ draft, jobs, onBack, onCreateJobFromDraft,
               <InputField label="State" value={draftForm.state} onChange={(event) => updateField("state", event.target.value.toUpperCase().slice(0, 2))} />
             </div>
           </Card>
+          <ImportedDraftCustomerMatchCard
+            draft={draftForm}
+            customers={customers}
+            warnings={customerMatchWarnings}
+            onUpdate={updateCustomerMatch}
+          />
           <Card className="p-5">
             <SectionHeader title="Scope and notes" description="Customer scope becomes job scope. Exclusions, assumptions, operations notes, and readiness items stay in office job notes." />
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -10741,6 +10892,7 @@ function MainContent(props) {
           {...props}
           drafts={props.jobDraftImports}
           jobs={props.jobs}
+          customers={props.customers}
           selectedDraftId={props.selectedImportedDraftId}
           onSelectDraft={props.onSelectImportedDraft}
           onBackToDrafts={props.onBackToImportedDrafts}
@@ -11926,6 +12078,11 @@ export default function App() {
             throw new Error("Job creation canceled to avoid a duplicate job.");
           }
           result = await createJobFromImportedDraft(sessionToken, normalizedDraft.id, { ...options, allowDuplicateJob: true });
+        } else if (error.status === 409 && error.payload?.needsCustomerMatchReview) {
+          if (!window.confirm(`${error.message}\n\nCreate a new customer from the imported draft instead?`)) {
+            throw new Error("Job creation canceled until customer match is reviewed.");
+          }
+          result = await createJobFromImportedDraft(sessionToken, normalizedDraft.id, { ...options, allowCreateNewCustomer: true });
         } else if (error.status === 409 && error.payload?.needsConfirmation) {
           if (!window.confirm(`${error.message}\n\nCreate the job anyway?`)) {
             throw new Error("Job creation canceled for review.");
