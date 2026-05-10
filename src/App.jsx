@@ -2290,6 +2290,7 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
   const checklist = startup.startupChecklist;
   const warnings = getStartupCriticalWarnings(checklist);
   const satisfiedCount = checklist.filter((item) => item.checked || item.tbd).length;
+  const missingRequiredCount = warnings.length;
   const hasPersistedStartup = Boolean(startup.startupLastUpdatedAt || startup.sourceImportedDraftId || checklist.some((item) => item.checked || item.tbd || item.notes));
 
   function saveChecklist(nextChecklist) {
@@ -2327,9 +2328,26 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
     <div className="rounded-3xl border border-blue-100 bg-slate-50/80 p-4">
       <SectionHeader
         title="Job Startup Checklist"
-        description="Review this job before field work begins. Imported draft jobs start here before they are Ready for Field."
+        description="Use this office review before the crew treats the job as ready for field work."
         action={<StartupStatusBadge status={startup.startupStatus} />}
       />
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-blue-100 bg-white p-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Checklist progress</p>
+          <p className="mt-2 text-lg font-black text-slate-950">{satisfiedCount} / {checklist.length}</p>
+          <p className="text-xs font-bold text-slate-500">done or marked TBD</p>
+        </div>
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Missing before ready</p>
+          <p className="mt-2 text-lg font-black text-amber-900">{missingRequiredCount}</p>
+          <p className="text-xs font-bold text-amber-800">critical item{missingRequiredCount === 1 ? "" : "s"}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field release</p>
+          <p className="mt-2 text-sm font-black text-slate-950">{canMarkStartupReady(checklist) ? "Ready can be marked" : "Not ready yet"}</p>
+          <p className="text-xs font-bold text-slate-500">customer, address, scope, crew, start date</p>
+        </div>
+      </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_0.85fr]">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -2339,6 +2357,7 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
           </div>
           {warnings.length > 0 ? (
             <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">
+              <p className="mb-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Fix or mark TBD before Ready for Field</p>
               {warnings.map((warning) => <p key={warning}>{warning}</p>)}
             </div>
           ) : (
@@ -2388,6 +2407,7 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
           />
           <div className="rounded-2xl border border-blue-100 bg-white p-3">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Startup actions</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">Mark Ready for Field only after the office has confirmed the critical startup items.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {!hasPersistedStartup ? <Button type="button" variant="secondary" size="sm" onClick={initializeChecklist} disabled={disabled}>Initialize checklist</Button> : null}
               <Button type="button" size="sm" onClick={markReady} disabled={disabled || !canMarkStartupReady(checklist)}>Mark Ready for Field</Button>
@@ -5994,10 +6014,29 @@ function CommandCenterPage({
           ))}
         </div>
 
+        <CommandCenterSection
+          title="Drafts Needing Customer Match"
+          description="Direct-send drafts that may create a duplicate customer unless the office confirms the match first."
+          count={commandCenter.importedDraftsNeedingCustomerMatch.length}
+          emptyTitle="No customer matches waiting"
+          emptyDescription="Imported drafts with customer match questions will appear here before job creation."
+        >
+          {limited(commandCenter.importedDraftsNeedingCustomerMatch).map((draft) => (
+            <CommandCenterItem
+              key={draft.id}
+              eyebrow={draft.customerMatchStatus || "Customer match"}
+              title={draft.customerName || draft.jobName || "Imported draft"}
+              description={draft.customerMatchReason || "Open the imported draft to confirm the customer or choose create-new."}
+              badges={<><Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge><StatusBadge status={draft.importStatus || "Imported"} /></>}
+              actions={<Button type="button" size="sm" onClick={() => openImportedDraft(draft.id)}>Review Customer Match</Button>}
+            />
+          ))}
+        </CommandCenterSection>
+
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <CommandCenterSection
             title="Imported Drafts Needing Review"
-            description="Draft packages that still need office review before a real job is created."
+            description="Draft packages that still need office review, missing details, or customer confirmation before a real job is created."
             count={commandCenter.importedDraftsNeedingReview.length}
             emptyTitle="No imported drafts waiting"
             emptyDescription="Imported job draft packages that need review will appear here."
@@ -6833,6 +6872,15 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
 function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], onUpdate }) {
   const activeCustomers = (Array.isArray(customers) ? customers : []).filter((customer) => !customer.archivedAt);
   const matchedCustomer = activeCustomers.find((customer) => customer.id === draft.matchedCustomerId) || null;
+  const statusHelp = {
+    Matched: "Concrete Ops found one safe existing customer match. Confirm it if it looks right.",
+    Confirmed: "The office confirmed this draft should use the selected existing customer.",
+    "Review Required": "Possible duplicate or conflicting customer info. Choose or confirm a customer before creating the job.",
+    "Possible Match": "Concrete Ops found a possible match, but the office should confirm it first.",
+    "New Customer Needed": "No existing customer matched. A new customer will be created only when the job is created.",
+    "Not Checked": "Customer matching has not been reviewed yet.",
+    "No Match": "No matching customer was found.",
+  };
 
   function setConfirmedCustomer(customerId, reason = "Office confirmed this customer match.") {
     const customer = activeCustomers.find((item) => item.id === customerId);
@@ -6849,13 +6897,19 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
   return (
     <Card className="p-5">
       <SectionHeader
-        title="Customer match"
-        description="Confirm whether this imported draft should use an existing customer or create a new customer when the job is created."
-        actions={<Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge>}
+        title="Customer match review"
+        description="Prevent duplicate customer records before this draft becomes a real job."
+        action={<Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge>}
       />
+      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold leading-6 text-blue-900">
+        <p>{statusHelp[draft.customerMatchStatus] || "Review the imported customer before creating the job."}</p>
+        {["Review Required", "Possible Match", "Not Checked"].includes(draft.customerMatchStatus) ? (
+          <p className="mt-1 text-amber-800">Create Job is blocked until the office confirms a match or chooses to create a new customer.</p>
+        ) : null}
+      </div>
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700">Imported contact</p>
+          <p className="text-xs font-black uppercase tracking-widest text-blue-700">Imported customer/contact</p>
           <div className="mt-2 space-y-1 text-sm text-slate-700">
             <p className="font-black text-slate-950">{draft.customerName || "Customer name missing"}</p>
             <p>{draft.contactName || "Contact name missing"}</p>
@@ -6865,7 +6919,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
           </div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Current match</p>
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Selected Concrete Ops customer</p>
           <div className="mt-2 space-y-1 text-sm text-slate-700">
             <p className="font-black text-slate-950">{matchedCustomer?.name || draft.matchedCustomerName || "No customer selected"}</p>
             <p>{matchedCustomer?.email || "Email not on matched customer"}</p>
@@ -6881,7 +6935,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
       ) : null}
       <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
         <SelectField
-          label="Choose existing customer"
+          label="Choose different customer"
           value={draft.matchedCustomerId}
           onChange={(event) => setConfirmedCustomer(event.target.value, "Office chose this existing customer.")}
         >
@@ -6907,7 +6961,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
               customerMatchCandidates: draft.customerMatchCandidates,
             })}
           >
-            Create New Customer on Job Creation
+            Create New Customer When Job Is Created
           </Button>
           <Button
             type="button"
@@ -6947,7 +7001,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
         </SelectField>
         <InputField label="Matched customer name" value={draft.matchedCustomerName} onChange={(event) => onUpdate({ matchedCustomerName: event.target.value })} />
         <div className="md:col-span-2">
-          <TextAreaField label="Match note / override reason" value={draft.customerMatchOverrideReason} onChange={(event) => onUpdate({ customerMatchOverrideReason: event.target.value })} />
+          <TextAreaField label="Match note / override reason" value={draft.customerMatchOverrideReason} onChange={(event) => onUpdate({ customerMatchOverrideReason: event.target.value })} placeholder="Example: Confirmed with office, same customer under alternate company name." />
         </div>
       </div>
       <p className="mt-3 text-xs font-bold text-slate-500">Save the imported draft to persist customer match changes.</p>
@@ -6962,6 +7016,30 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
   const warnings = getImportedDraftWarnings(draftForm);
   const customerMatchWarnings = getCustomerMatchWarnings(draftForm);
   const readyForJob = isImportedDraftReadyForJob(draftForm, { allowMissingCityState: Boolean(draftForm.city && draftForm.state) });
+  const customerMatchNeedsReview = ["Review Required", "Possible Match", "Not Checked"].includes(draftForm.customerMatchStatus);
+  const workflowState = draftForm.createdJobId
+    ? {
+        label: "Job already created",
+        tone: "green",
+        nextStep: "Open the created job and finish scheduling, crew assignment, and startup checklist review.",
+      }
+    : customerMatchNeedsReview
+      ? {
+          label: "Customer match needed",
+          tone: "amber",
+          nextStep: "Confirm the existing customer or choose to create a new customer before creating the job.",
+        }
+      : readyForJob
+        ? {
+            label: "Ready to create job",
+            tone: "green",
+            nextStep: "Create the Concrete Ops job, then schedule it and assign foreman/crew.",
+          }
+        : {
+            label: "Needs review",
+            tone: "amber",
+            nextStep: "Resolve the warnings below before creating the job, or confirm the override when prompted.",
+          };
 
   useEffect(() => {
     setDraftForm(normalizeImportedJobDraft(draft));
@@ -7005,7 +7083,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
       <PageHeader
         eyebrow="Imported Job Draft"
         title={draftForm.jobName || "Untitled imported draft"}
-        description="Review the imported package, fill missing city/state or other field details, then create the real job when ready."
+        description="Review the direct-send draft, confirm the customer match, then create the real Concrete Ops job when the office is ready."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={onBack}>Back to drafts</Button>
@@ -7021,6 +7099,38 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:items-start lg:px-8">
         <div className="min-w-0 space-y-4">
           {message ? <div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-bold text-green-800">{message}</div> : null}
+          <Card className="p-5">
+            <SectionHeader
+              title="Draft status and next step"
+              description="Use this checkpoint to decide whether the draft is ready to become a real job."
+              action={<Badge tone={workflowState.tone}>{workflowState.label}</Badge>}
+            />
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Import status</p>
+                <div className="mt-2"><Badge tone={importedDraftStatusTone(draftForm.importStatus)}>{draftForm.importStatus}</Badge></div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Customer match</p>
+                <div className="mt-2"><Badge tone={customerMatchStatusTone(draftForm.customerMatchStatus)}>{draftForm.customerMatchStatus}</Badge></div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Readiness</p>
+                <p className="mt-2 text-sm font-black text-slate-800">{draftForm.opsReadinessLabel || "Needs review"}{draftForm.opsReadinessScore !== "" ? ` (${draftForm.opsReadinessScore})` : ""}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Created job</p>
+                <p className="mt-2 text-sm font-black text-slate-800">{draftForm.createdJobId ? "Created" : "Not created yet"}</p>
+              </div>
+            </div>
+            <p className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold leading-6 text-blue-900">{workflowState.nextStep}</p>
+          </Card>
+          <ImportedDraftCustomerMatchCard
+            draft={draftForm}
+            customers={customers}
+            warnings={customerMatchWarnings}
+            onUpdate={updateCustomerMatch}
+          />
           {warnings.length > 0 ? (
             <Card className="border-amber-200 bg-amber-50 p-5">
               <SectionHeader title="Needs review before field work" description="Imported packages can be saved even when some details need office review." />
@@ -7030,7 +7140,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
             </Card>
           ) : null}
           <Card className="p-5">
-            <SectionHeader title="Customer and location" description="City/state can be added after import, but must be confirmed or explicitly overridden before creating the job." />
+            <SectionHeader title="Imported customer and job location" description="Clean up customer, contact, address, city, and state before creating the real job." />
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <InputField label="Customer name" value={draftForm.customerName} onChange={(event) => updateField("customerName", event.target.value)} />
               <InputField label="Job name" value={draftForm.jobName} onChange={(event) => updateField("jobName", event.target.value)} />
@@ -7042,12 +7152,6 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
               <InputField label="State" value={draftForm.state} onChange={(event) => updateField("state", event.target.value.toUpperCase().slice(0, 2))} />
             </div>
           </Card>
-          <ImportedDraftCustomerMatchCard
-            draft={draftForm}
-            customers={customers}
-            warnings={customerMatchWarnings}
-            onUpdate={updateCustomerMatch}
-          />
           <Card className="p-5">
             <SectionHeader title="Scope and notes" description="Customer scope becomes job scope. Exclusions, assumptions, operations notes, and readiness items stay in office job notes." />
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -7088,10 +7192,16 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
         </div>
         <div className="min-w-0 space-y-4 lg:sticky lg:top-20">
           <Card className="p-5">
-            <SectionHeader title="Create job readiness" description={readyForJob ? "This draft has the required fields for job creation." : "Review warnings before creating the job."} />
+            <SectionHeader title="Create job readiness" description={workflowState.nextStep} />
             <div className="mt-4 space-y-3">
-              <Badge tone={importedDraftStatusTone(draftForm.importStatus)}>{draftForm.importStatus}</Badge>
-              <p className="text-sm leading-6 text-slate-600">Imported drafts are review records until you click Create Concrete Ops 2 Job.</p>
+              <div className="flex flex-wrap gap-2">
+                <Badge tone={workflowState.tone}>{workflowState.label}</Badge>
+                <Badge tone={customerMatchStatusTone(draftForm.customerMatchStatus)}>{draftForm.customerMatchStatus}</Badge>
+              </div>
+              <p className="text-sm leading-6 text-slate-600">Imported drafts stay as review records until the office creates the Concrete Ops job.</p>
+              {customerMatchNeedsReview ? (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">Customer match must be confirmed or set to create a new customer before job creation can continue.</p>
+              ) : null}
               {createdJob ? <p className="rounded-2xl bg-green-50 p-3 text-sm font-bold text-green-800">Created job: {jobTitle(createdJob)}</p> : null}
               <div className="grid gap-2">
                 {draftForm.createdJobId ? (
