@@ -213,6 +213,11 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
     assert.equal(createdState.importedDraft.createdJobId, createdState.createdJob.id);
     assert.equal(createdState.importedDraft.importStatus, "Job Created");
     assert.match(createdState.createdJob.notes, /Source Proposal ID: proposal-server-1/);
+    assert.equal(createdState.createdJob.sourceImportedDraftId, importedDraft.id);
+    assert.equal(createdState.createdJob.startupStatus, "Not Started");
+    assert.match(createdState.createdJob.startupNotes, /Source proposal: proposal-server-1/);
+    assert.match(createdState.createdJob.startupNotes, /Operations notes: Coordinate with tenant access/);
+    assert.equal(createdState.createdJob.startupChecklist.length, 18);
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "job-draft-employee@lastyard.test",
@@ -277,6 +282,7 @@ test("missing city/state with address imports as Needs Review and requires confi
     });
     assert.equal(createdState.createdJob.title, "Rural Shop Slab");
     assert.equal(createdState.importedDraft.createdJobId, createdState.createdJob.id);
+    assert.equal(createdState.createdJob.startupStatus, "Needs Review");
   } finally {
     await fixture.stop();
   }

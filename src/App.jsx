@@ -108,6 +108,7 @@ import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateL
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
+import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
@@ -492,6 +493,9 @@ function deriveDashboardMetrics(leads = [], jobs = [], queueItems = []) {
       pipelineValue: liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0),
       activeJobs: liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length,
       scheduledJobs: liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "scheduled").length,
+      startupReviewJobs: liveJobs.filter((job) => ["Not Started", "In Progress", "Needs Review"].includes(job.startupStatus || "Not Started")).length,
+      startupReadyJobs: liveJobs.filter((job) => ["Ready for Field", "Completed"].includes(job.startupStatus || "")).length,
+      startupMissingCrewStart: liveJobs.filter((job) => !(job.assignedForemanId || job.assignedUserId) || !job.scheduledStart).length,
       reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
       queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
     },
@@ -988,6 +992,15 @@ function StatusBadge({ status }) {
   if (["due today", "site visit", "waiting", "planned", "field complete", "field_complete"].includes(normalized)) tone = "amber";
   if (["scheduled", "ready to bill", "billing_ready"].includes(normalized)) tone = "violet";
   return <Badge tone={tone}>{status}</Badge>;
+}
+
+function StartupStatusBadge({ status }) {
+  const normalizedStatus = JOB_STARTUP_STATUSES.includes(status) ? status : "Not Started";
+  let tone = "slate";
+  if (["Ready for Field", "Completed"].includes(normalizedStatus)) tone = "green";
+  if (normalizedStatus === "In Progress") tone = "blue";
+  if (normalizedStatus === "Needs Review") tone = "amber";
+  return <Badge tone={tone}>{normalizedStatus}</Badge>;
 }
 
 function Card({ children, className = "", ...props }) {
@@ -1662,8 +1675,9 @@ function JobsTable({ rows, selectedId, onSelect }) {
                   <p className="break-words text-lg font-black text-slate-950">{jobTitle(row)}</p>
                   <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {jobNextStep(row)}</p>
                 </div>
-                <div className="shrink-0">
+                <div className="flex shrink-0 flex-col items-end gap-1">
                   <StatusBadge status={jobStatusLabel(row.status || row.stage)} />
+                  <StartupStatusBadge status={row.startupStatus || "Not Started"} />
                 </div>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1683,6 +1697,10 @@ function JobsTable({ rows, selectedId, onSelect }) {
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Crew</p>
                   <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.crew}</p>
                 </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Startup</p>
+                  <div className="mt-1"><StartupStatusBadge status={row.startupStatus || "Not Started"} /></div>
+                </div>
               </div>
               <div className="mt-4 flex min-w-0 items-center gap-3">
                 <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-blue-50">
@@ -1697,13 +1715,14 @@ function JobsTable({ rows, selectedId, onSelect }) {
       </div>
       <div className="hidden md:block">
         <div className="table-shell">
-          <table className="w-full min-w-[980px] text-left">
+          <table className="w-full min-w-[1100px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
             <th className="px-4 py-3">Job</th>
             <th className="px-4 py-3">Customer</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Scheduled</th>
+            <th className="px-4 py-3">Startup</th>
             <th className="px-4 py-3">Foreman</th>
             <th className="px-4 py-3">Crew</th>
             <th className="px-4 py-3">Progress</th>
@@ -1721,6 +1740,7 @@ function JobsTable({ rows, selectedId, onSelect }) {
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.customer}</td>
                 <td className="px-4 py-3"><StatusBadge status={jobStatusLabel(row.status || row.stage)} /></td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{jobScheduleLabel(row)}</td>
+                <td className="px-4 py-3"><StartupStatusBadge status={row.startupStatus || "Not Started"} /></td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.assignedForemanName || row.assignedForemanId || "Unassigned"}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.crew}</td>
                 <td className="px-4 py-3">
@@ -2180,6 +2200,9 @@ function JobDetailPanel({
             Job created from an approved estimate. Next step: set scheduled start/end, confirm the address, and assign foreman/crew.
           </div>
         ) : null}
+        {canManageAll ? (
+          <JobStartupChecklistCard job={job} onFieldChange={onFieldChange} disabled={disabled} />
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
           <InputField label="Job name" value={jobTitle(job)} onChange={(event) => onFieldChange("title", event.target.value)} disabled={!canManageAll || disabled} />
           <InputField label="Customer" value={job.customer} onChange={(event) => onFieldChange("customer", event.target.value)} disabled={!canManageAll || disabled} />
@@ -2256,6 +2279,124 @@ function JobDetailPanel({
         <JobCalculationsCard calculations={job.calculatorResults} />
       </div>
     </Card>
+  );
+}
+
+function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
+  const [copyMessage, setCopyMessage] = useState("");
+  const startup = normalizeJobStartupFields(job);
+  const checklist = startup.startupChecklist;
+  const warnings = getStartupCriticalWarnings(checklist);
+  const satisfiedCount = checklist.filter((item) => item.checked || item.tbd).length;
+  const hasPersistedStartup = Boolean(startup.startupLastUpdatedAt || startup.sourceImportedDraftId || checklist.some((item) => item.checked || item.tbd || item.notes));
+
+  function saveChecklist(nextChecklist) {
+    const nextStatus = calculateStartupStatus(nextChecklist);
+    onFieldChange("startupChecklist", nextChecklist);
+    onFieldChange("startupStatus", nextStatus);
+  }
+
+  function updateItem(key, patch) {
+    const nextChecklist = markStartupItem(checklist, key, patch);
+    saveChecklist(nextChecklist);
+  }
+
+  function initializeChecklist() {
+    onFieldChange("startupChecklist", checklist);
+    onFieldChange("startupStatus", startup.startupStatus || "Not Started");
+    onFieldChange("startupLastUpdatedAt", new Date().toISOString());
+  }
+
+  function markReady() {
+    if (!canMarkStartupReady(checklist)) {
+      window.alert("Complete customer/contact, address, scope, crew/TBD, and start date/TBD before marking Ready for Field.");
+      return;
+    }
+    onFieldChange("startupStatus", "Ready for Field");
+  }
+
+  async function copySummary() {
+    await navigator.clipboard.writeText(buildStartupSummary({ ...job, ...startup }));
+    setCopyMessage("Startup summary copied.");
+    window.setTimeout(() => setCopyMessage(""), 2500);
+  }
+
+  return (
+    <div className="rounded-3xl border border-blue-100 bg-slate-50/80 p-4">
+      <SectionHeader
+        title="Job Startup Checklist"
+        description="Review this job before field work begins. Imported draft jobs start here before they are Ready for Field."
+        action={<StartupStatusBadge status={startup.startupStatus} />}
+      />
+      <div className="grid gap-3 lg:grid-cols-[1fr_0.85fr]">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="blue">{satisfiedCount} / {checklist.length} done or TBD</Badge>
+            {startup.sourceImportedDraftId ? <Badge tone="violet">Imported draft {startup.sourceImportedDraftId}</Badge> : null}
+            {startup.startupLastUpdatedAt ? <Badge tone="slate">Updated {formatDateTime(startup.startupLastUpdatedAt)}</Badge> : null}
+          </div>
+          {warnings.length > 0 ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">
+              {warnings.map((warning) => <p key={warning}>{warning}</p>)}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-bold leading-6 text-emerald-800">
+              Critical startup items are complete or marked TBD.
+            </div>
+          )}
+          <div className="grid gap-2 md:grid-cols-2">
+            {checklist.map((item) => (
+              <div key={item.key} className="rounded-2xl border border-blue-100 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <label className="flex min-w-0 items-start gap-2 text-sm font-bold leading-5 text-slate-700">
+                    <input
+                      className="mt-1 accent-blue-700"
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={(event) => updateItem(item.key, { checked: event.target.checked, tbd: event.target.checked ? false : item.tbd })}
+                      disabled={disabled}
+                    />
+                    <span className="break-words">{item.label}</span>
+                  </label>
+                  {item.critical ? <Badge tone="amber">Critical</Badge> : null}
+                </div>
+                {item.tbdAllowed ? (
+                  <label className="mt-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                    <input
+                      className="accent-blue-700"
+                      type="checkbox"
+                      checked={item.tbd}
+                      onChange={(event) => updateItem(item.key, { tbd: event.target.checked, checked: event.target.checked ? false : item.checked })}
+                      disabled={disabled}
+                    />
+                    Mark TBD
+                  </label>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          <TextAreaField
+            label="Startup notes"
+            value={startup.startupNotes || ""}
+            onChange={(event) => onFieldChange("startupNotes", event.target.value)}
+            disabled={disabled}
+            placeholder="Key imported draft context, readiness notes, or office review notes."
+          />
+          <div className="rounded-2xl border border-blue-100 bg-white p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Startup actions</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!hasPersistedStartup ? <Button type="button" variant="secondary" size="sm" onClick={initializeChecklist} disabled={disabled}>Initialize checklist</Button> : null}
+              <Button type="button" size="sm" onClick={markReady} disabled={disabled || !canMarkStartupReady(checklist)}>Mark Ready for Field</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={copySummary} disabled={disabled}>Copy Startup Summary</Button>
+            </div>
+            {copyMessage ? <p className="mt-2 text-xs font-bold text-emerald-700">{copyMessage}</p> : null}
+            {startup.startupCompletedAt ? <p className="mt-2 text-xs font-bold text-slate-500">Completed {formatDateTime(startup.startupCompletedAt)}</p> : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -5821,6 +5962,11 @@ function DashboardPage({
     { label: "Jobs active today", value: `${stats.activeJobs}`, helper: `${stats.scheduledJobs} scheduled next`, icon: "briefcase" },
     { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
   ]), [liveLeadCount, stats.activeJobs, stats.highPriorityLeads, stats.pipelineValue, stats.queueBlocked, stats.reportsDue, stats.scheduledJobs]);
+  const startupKpis = useMemo(() => ([
+    { label: "Jobs needing startup review", value: `${stats.startupReviewJobs || 0}`, helper: "Not started, in progress, or needs review", icon: "clipboard" },
+    { label: "Jobs ready for field", value: `${stats.startupReadyJobs || 0}`, helper: "Startup checklist ready or completed", icon: "check" },
+    { label: "Missing crew / start date", value: `${stats.startupMissingCrewStart || 0}`, helper: "Assign crew and schedule before field work", icon: "alert" },
+  ]), [stats.startupMissingCrewStart, stats.startupReadyJobs, stats.startupReviewJobs]);
 
   if (!canViewLeads) {
     return (
@@ -5869,6 +6015,9 @@ function DashboardPage({
       />
       <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
+        {permissions?.jobs?.canManageAll ? (
+          <div className="grid min-w-0 gap-4 md:grid-cols-3">{startupKpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
+        ) : null}
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
           <div ref={leadPipelineRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <Card className="overflow-hidden">
@@ -5979,6 +6128,8 @@ function JobsPage({
   setForemanFilter,
   dateFilter,
   setDateFilter,
+  startupFilter,
+  setStartupFilter,
   users,
   selectedJobId,
   onSelectJob,
@@ -6061,7 +6212,7 @@ function JobsPage({
     foremanId: foremanFilter,
     date: dateFilter,
   }, users), [customerFilter, dateFilter, filter, foremanFilter, rows, search, users]);
-  const visibleRows = jobListState.filteredJobs;
+  const visibleRows = jobListState.filteredJobs.filter((job) => startupFilter === "All startup" || (job.startupStatus || "Not Started") === startupFilter);
 
   return (
     <div>
@@ -6069,7 +6220,7 @@ function JobsPage({
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
         <Card className="self-start overflow-hidden">
           <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
-          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
+          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-4">
             <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
               <option>All customers</option>
               {jobListState.customerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -6085,6 +6236,10 @@ function JobsPage({
               <option>Upcoming</option>
               <option>Overdue</option>
               <option>Unscheduled</option>
+            </SelectField>
+            <SelectField label="Startup" value={startupFilter} onChange={(event) => setStartupFilter(event.target.value)}>
+              <option>All startup</option>
+              {JOB_STARTUP_STATUSES.map((status) => <option key={status}>{status}</option>)}
             </SelectField>
           </div>
           <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
@@ -10232,6 +10387,8 @@ function MainContent(props) {
         setForemanFilter={props.setJobForemanFilter}
         dateFilter={props.jobDateFilter}
         setDateFilter={props.setJobDateFilter}
+        startupFilter={props.jobStartupFilter}
+        setStartupFilter={props.setJobStartupFilter}
       />
     );
   }
@@ -10370,6 +10527,7 @@ export default function App() {
   const [jobCustomerFilter, setJobCustomerFilter] = useState("All customers");
   const [jobForemanFilter, setJobForemanFilter] = useState("All foremen");
   const [jobDateFilter, setJobDateFilter] = useState("All dates");
+  const [jobStartupFilter, setJobStartupFilter] = useState("All startup");
   const [dashboardFocusTarget, setDashboardFocusTarget] = useState("");
   const [reportFilter, setReportFilter] = useState("All");
   const [reportSearch, setReportSearch] = useState("");
@@ -12590,6 +12748,8 @@ export default function App() {
               setJobForemanFilter={setJobForemanFilter}
               jobDateFilter={jobDateFilter}
               setJobDateFilter={setJobDateFilter}
+              jobStartupFilter={jobStartupFilter}
+              setJobStartupFilter={setJobStartupFilter}
               reportFilter={reportFilter}
               setReportFilter={setReportFilter}
               reportSearch={reportSearch}

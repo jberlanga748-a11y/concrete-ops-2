@@ -7,6 +7,7 @@ import { DEMO_COMPANY_NAME, DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INIT
 import { serverConfig } from "./config.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
+import { normalizeJobStartupFields } from "../shared/jobStartup.js";
 
 const SCHEMA_VERSION_KEY = "schema_version";
 export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
@@ -479,9 +480,11 @@ function normalizeStoredJob(job) {
   const scheduledStart = job.scheduledStart || "";
   const scheduledEnd = job.scheduledEnd || "";
   const nextStep = job.nextStep || job.next || "";
+  const startupFields = normalizeJobStartupFields(job);
 
   return {
     ...job,
+    ...startupFields,
     leadId: job.leadId || "",
     title,
     job: title,
@@ -4701,6 +4704,32 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 34,
+      description: "Add job startup checklist fields.",
+      up(database) {
+        const columns = [
+          ["startup_checklist", "TEXT NOT NULL DEFAULT '[]'"],
+          ["startup_status", "TEXT NOT NULL DEFAULT 'Not Started'"],
+          ["startup_completed_at", "TEXT NOT NULL DEFAULT ''"],
+          ["startup_completed_by", "TEXT NOT NULL DEFAULT ''"],
+          ["startup_notes", "TEXT NOT NULL DEFAULT ''"],
+          ["source_imported_draft_id", "TEXT NOT NULL DEFAULT ''"],
+          ["startup_last_updated_at", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [columnName, columnType] of columns) {
+          if (!columnExists(database, "jobs", columnName)) {
+            database.exec(`ALTER TABLE jobs ADD COLUMN ${columnName} ${columnType};`);
+          }
+        }
+
+        database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_jobs_startup_status ON jobs(startup_status);
+          CREATE INDEX IF NOT EXISTS idx_jobs_source_imported_draft_id ON jobs(source_imported_draft_id);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4765,8 +4794,8 @@ function writeStateToDb(state) {
   `);
 
   const insertJob = database.prepare(`
-    INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, startup_checklist, startup_status, startup_completed_at, startup_completed_by, startup_notes, source_imported_draft_id, startup_last_updated_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJobAssignment = database.prepare(`
@@ -5056,6 +5085,13 @@ function writeStateToDb(state) {
         normalizedJob.due || normalizedJob.scheduledStart || "",
         Number(normalizedJob.progress || 0),
         normalizedJob.notes || "",
+        JSON.stringify(normalizedJob.startupChecklist || []),
+        normalizedJob.startupStatus || "Not Started",
+        normalizedJob.startupCompletedAt || "",
+        normalizedJob.startupCompletedBy || "",
+        normalizedJob.startupNotes || "",
+        normalizedJob.sourceImportedDraftId || "",
+        normalizedJob.startupLastUpdatedAt || "",
         normalizedJob.createdAt || isoNow(),
         normalizedJob.updatedAt || normalizedJob.createdAt || isoNow(),
         normalizedJob.archivedAt || null,
@@ -5576,11 +5612,14 @@ function readTableState() {
   `).all();
 
   const jobs = database.prepare(`
-    SELECT id, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, startup_checklist AS startupChecklist, startup_status AS startupStatus, startup_completed_at AS startupCompletedAt, startup_completed_by AS startupCompletedBy, startup_notes AS startupNotes, source_imported_draft_id AS sourceImportedDraftId, startup_last_updated_at AS startupLastUpdatedAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
     ORDER BY sort_index ASC
   `).all().map((job) => ({
-    ...normalizeStoredJob(job),
+    ...normalizeStoredJob({
+      ...job,
+      startupChecklist: parseJsonValue(job.startupChecklist, []),
+    }),
     fieldPlanningVisible: Boolean(job.fieldPlanningVisible),
     visibleToForeman: Boolean(job.visibleToForeman),
   }));
@@ -5918,6 +5957,14 @@ function mapSessionRecord(row) {
     lastSeenAt: row.lastSeenAt,
     expiresAt: row.expiresAt || "",
   };
+}
+
+function parseJsonValue(raw, fallback) {
+  try {
+    return JSON.parse(raw || "");
+  } catch {
+    return fallback;
+  }
 }
 
 async function loadInitialState() {

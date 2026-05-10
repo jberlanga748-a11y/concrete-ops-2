@@ -34,6 +34,13 @@ import {
   upsertImportedJobDraft,
 } from "../shared/jobDraftImports.js";
 import {
+  calculateStartupStatus,
+  canMarkStartupReady,
+  createStartupChecklistFields,
+  normalizeJobStartupFields,
+  normalizeStartupChecklist,
+} from "../shared/jobStartup.js";
+import {
   cleanupExpiredSessions,
   createDefaultPostPourChecklistItems,
   createDefaultPrePourChecklistItems,
@@ -494,8 +501,10 @@ function normalizeJobRecord(job) {
   const status = normalizeJobStatusValue(job.status || job.stage, "scheduled");
   const title = optionalString(job.title || job.job, "Untitled job");
   const nextStep = optionalString(job.nextStep || job.next, "");
+  const startupFields = normalizeJobStartupFields(job);
   return {
     ...job,
+    ...startupFields,
     leadId: optionalString(job.leadId, ""),
     title,
     job: title,
@@ -6824,11 +6833,16 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
       throw new ApiError(409, "A Concrete Ops 2 job has already been created from this imported draft.");
     }
 
+    const startupFields = createStartupChecklistFields(jobPayload, liveDraft, {
+      changedAt: createdAt,
+      startupStatus: liveDraft.importStatus === "Needs Review" || liveDraft.opsReadinessIssues.length > 0 ? "Needs Review" : "Not Started",
+    });
     createdJob = normalizeJobRecord({
       id: makeId("J"),
       customerId: "",
       leadId: "",
       ...jobPayload,
+      ...startupFields,
       createdAt,
       updatedAt: createdAt,
       archivedAt: null,
@@ -8416,6 +8430,26 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 
       const nextAssignedForemanId = updates.assignedForemanId == null ? job.assignedForemanId || "" : resolveOptionalUserId(draft, updates.assignedForemanId, "Assigned foreman");
       const nextAssignedUserId = updates.assignedUserId == null ? job.assignedUserId || "" : resolveOptionalUserId(draft, updates.assignedUserId, "Assigned user");
+      const startupBefore = normalizeJobStartupFields(job);
+      const startupTouched = ["startupChecklist", "startupStatus", "startupNotes", "startupCompletedAt", "startupCompletedBy", "sourceImportedDraftId"].some((field) => updates[field] != null);
+      const nextStartupChecklist = updates.startupChecklist == null
+        ? startupBefore.startupChecklist
+        : normalizeStartupChecklist(updates.startupChecklist);
+      const requestedStartupStatus = updates.startupStatus == null
+        ? ""
+        : optionalString(updates.startupStatus, "");
+      const nextCalculatedStartupStatus = startupTouched
+        ? requestedStartupStatus || calculateStartupStatus(nextStartupChecklist)
+        : startupBefore.startupStatus;
+      if (requestedStartupStatus === "Ready for Field" && !canMarkStartupReady(nextStartupChecklist)) {
+        throw new ApiError(400, "Complete customer/contact, address, scope, crew/TBD, and start date/TBD before marking Ready for Field.");
+      }
+      const completedAt = nextCalculatedStartupStatus === "Completed"
+        ? startupBefore.startupCompletedAt || changedAt
+        : (updates.startupCompletedAt == null ? (startupTouched ? "" : startupBefore.startupCompletedAt) : optionalString(updates.startupCompletedAt, ""));
+      const completedBy = nextCalculatedStartupStatus === "Completed"
+        ? startupBefore.startupCompletedBy || req.auth.user.id
+        : (updates.startupCompletedBy == null ? (startupTouched ? "" : startupBefore.startupCompletedBy) : optionalString(updates.startupCompletedBy, ""));
 
       Object.assign(job, {
         leadId: updates.leadId == null ? job.leadId || "" : optionalString(updates.leadId, ""),
@@ -8442,6 +8476,13 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
         progress: updates.progress == null ? job.progress : optionalProgressNumber(updates.progress, job.progress),
         nextStep: updates.nextStep == null && updates.next == null ? normalizedBefore.nextStep : requiredString(updates.nextStep ?? updates.next, "Next step"),
         notes: updates.notes == null ? job.notes : requiredString(updates.notes, "Notes"),
+        startupChecklist: nextStartupChecklist,
+        startupStatus: nextCalculatedStartupStatus,
+        startupCompletedAt: completedAt,
+        startupCompletedBy: completedBy,
+        startupNotes: updates.startupNotes == null ? startupBefore.startupNotes : optionalString(updates.startupNotes, ""),
+        sourceImportedDraftId: updates.sourceImportedDraftId == null ? startupBefore.sourceImportedDraftId : optionalString(updates.sourceImportedDraftId, ""),
+        startupLastUpdatedAt: startupTouched ? changedAt : startupBefore.startupLastUpdatedAt,
       });
       if (updates.assignedForemanId != null || updates.assignedUserId != null) {
         draft.jobAssignments ||= [];

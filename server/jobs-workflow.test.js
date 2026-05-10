@@ -8,6 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
+import { markStartupItem, normalizeStartupChecklist } from "../shared/jobStartup.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -357,6 +358,72 @@ test("employees only see assigned jobs and cannot create, edit, or archive jobs"
       headers,
     });
     assert.equal(archiveDenied.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("manual jobs can initialize and persist startup checklist readiness", async () => {
+  const fixture = await startServer();
+
+  try {
+    const opsLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const headers = authHeaders(opsLogin.token);
+
+    const createState = await assertOk(fixture.baseUrl, "/api/jobs", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title: "Startup Review Slab",
+        customer: "North Valley Shop",
+        address: "22 Shop Rd, Albany, OR",
+        scopeSummary: "Prepare and pour shop slab.",
+        status: "planned",
+      }),
+    });
+    const createdJob = createState.jobs.find((job) => job.title === "Startup Review Slab");
+    assert.equal(createdJob.startupStatus, "Not Started");
+    assert.equal(createdJob.startupChecklist.length, 18);
+
+    const partialChecklist = markStartupItem(normalizeStartupChecklist(createdJob.startupChecklist), "customerContactConfirmed", { checked: true }, { changedAt: "2026-05-10T10:00:00.000Z" });
+    const blockedReady = await requestJson(fixture.baseUrl, `/api/jobs/${createdJob.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        startupChecklist: partialChecklist,
+        startupStatus: "Ready for Field",
+      }),
+    });
+    assert.equal(blockedReady.response.status, 400);
+
+    let readyChecklist = partialChecklist;
+    for (const key of ["jobAddressConfirmed", "scopeReviewed"]) {
+      readyChecklist = markStartupItem(readyChecklist, key, { checked: true }, { changedAt: "2026-05-10T10:05:00.000Z" });
+    }
+    readyChecklist = markStartupItem(readyChecklist, "crewAssigned", { tbd: true }, { changedAt: "2026-05-10T10:05:00.000Z" });
+    readyChecklist = markStartupItem(readyChecklist, "startDateSet", { tbd: true }, { changedAt: "2026-05-10T10:05:00.000Z" });
+
+    const readyState = await assertOk(fixture.baseUrl, `/api/jobs/${createdJob.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        startupChecklist: readyChecklist,
+        startupStatus: "Ready for Field",
+        startupNotes: "Crew and start date are TBD until the setup call.",
+      }),
+    });
+    const readyJob = readyState.jobs.find((job) => job.id === createdJob.id);
+    assert.equal(readyJob.startupStatus, "Ready for Field");
+    assert.match(readyJob.startupNotes, /setup call/);
+    assert.ok(readyJob.startupLastUpdatedAt);
+
+    const refreshedState = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const persistedJob = refreshedState.jobs.find((job) => job.id === createdJob.id);
+    assert.equal(persistedJob.startupStatus, "Ready for Field");
+    assert.equal(persistedJob.startupChecklist.find((item) => item.key === "crewAssigned").tbd, true);
   } finally {
     await fixture.stop();
   }
