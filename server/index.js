@@ -36,6 +36,11 @@ import {
   upsertImportedJobDraft,
 } from "../shared/jobDraftImports.js";
 import {
+  applyLeadImportDuplicateReview,
+  createLeadImportFromPackage,
+  findLeadImportDuplicate,
+} from "../shared/leadImports.js";
+import {
   calculateStartupStatus,
   canMarkStartupReady,
   createStartupChecklistFields,
@@ -144,7 +149,7 @@ const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent"
 const JOB_STATUSES = new Set(["draft", "planned", "scheduled", "in_progress", "field_complete", "completed", "billing_ready", "closed"]);
 const JOB_ASSIGNMENT_ROLES = new Set(["foreman", "crew", "operator", "finisher", "laborer", "driver", "other"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
-const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "public_request_form"]);
+const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "public_request_form"]);
 const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
@@ -320,6 +325,14 @@ function jobDraftIntegrationActor() {
   };
 }
 
+function leadFinderIntegrationActor() {
+  return {
+    id: "",
+    name: "Lead Finder integration",
+    role: "Integration",
+  };
+}
+
 function configuredJobDraftImportToken() {
   return String(process.env.CONCRETE_OPS_IMPORT_TOKEN || "").trim();
 }
@@ -349,6 +362,10 @@ function requireJobDraftIntegrationToken(req) {
 
 function importedDraftOpenPath(id) {
   return `/job-draft-imports/${encodeURIComponent(id)}`;
+}
+
+function leadOpenPath(id) {
+  return `/leads/${encodeURIComponent(id)}`;
 }
 
 function temporaryPassword() {
@@ -6879,6 +6896,95 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
     duplicate: false,
     openPath: importedDraftOpenPath(matchedDraft.id),
     warnings: result.warnings,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
+  requireJobDraftIntegrationToken(req);
+
+  const packageJson = req.body?.package || req.body;
+  const result = createLeadImportFromPackage(packageJson, { id: makeId("L"), importedAt: new Date().toISOString() });
+
+  if (!result.ok) {
+    return res.status(400).json({
+      ok: false,
+      error: result.errors.join(" "),
+      warnings: result.warnings,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const currentState = await readDb();
+  const duplicateResult = findLeadImportDuplicate(currentState.leads || [], result.context);
+
+  if (duplicateResult.type === "exact" && duplicateResult.lead) {
+    return res.json({
+      ok: true,
+      leadId: duplicateResult.lead.id,
+      duplicate: true,
+      possibleDuplicate: false,
+      reviewRequired: false,
+      openPath: leadOpenPath(duplicateResult.lead.id),
+      message: "This Lead Finder lead already exists in Concrete Ops.",
+      duplicateReason: duplicateResult.reason,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const importedLead = applyLeadImportDuplicateReview(result.lead, duplicateResult);
+  let savedLead = importedLead;
+
+  await updateDb((draft) => {
+    const owner = resolvePublicRequestOwner(draft);
+    savedLead = {
+      ...importedLead,
+      owner: owner?.name || "",
+      ownerId: owner?.id || "",
+    };
+    draft.leads.unshift(savedLead);
+    appendLeadStatusHistory(draft, {
+      leadId: savedLead.id,
+      fromStatus: null,
+      toStatus: savedLead.status,
+      actor: leadFinderIntegrationActor(),
+      note: duplicateResult.type === "possible"
+        ? "Lead imported from Lead Finder with possible duplicate warning."
+        : "Lead imported from Lead Finder.",
+      createdAt: savedLead.createdAt,
+    });
+    appendActivity(draft, "Lead imported from Lead Finder", `${savedLead.customer} imported for office review.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: savedLead.id,
+      action: "integration_imported",
+      summary: "Lead imported from Lead Finder",
+      detail: `${savedLead.customer} imported for office review. No customer, job, or estimate was created.`,
+      actor: leadFinderIntegrationActor(),
+      changedFields: ["status", "source", "followUpDueAt"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ok: true,
+    leadId: savedLead.id,
+    duplicate: false,
+    possibleDuplicate: duplicateResult.type === "possible",
+    reviewRequired: true,
+    openPath: leadOpenPath(savedLead.id),
+    message: duplicateResult.type === "possible"
+      ? "Lead imported for review with a possible duplicate warning."
+      : "Lead imported for review.",
+    warnings: result.warnings,
+    duplicateCandidates: duplicateResult.type === "possible"
+      ? duplicateResult.candidates.slice(0, 3).map((candidate) => ({
+          leadId: candidate.lead.id,
+          customer: candidate.lead.customer,
+          project: candidate.lead.project,
+          reason: candidate.reason,
+        }))
+      : [],
     requestId: res.locals.requestId,
   });
 }));
