@@ -199,9 +199,9 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
     const editedState = await assertOk(fixture.baseUrl, `/api/job-draft-imports/${importedDraft.id}`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({ city: "Albany", importStatus: "Ready to Create Job" }),
+      body: JSON.stringify({ crewNotes: "Updated crew notes for startup.", importStatus: "Ready to Create Job" }),
     });
-    assert.equal(editedState.importedDraft.city, "Albany");
+    assert.equal(editedState.importedDraft.crewNotes, "Updated crew notes for startup.");
 
     const createdState = await assertOk(fixture.baseUrl, `/api/job-draft-imports/${importedDraft.id}/create-job`, {
       method: "POST",
@@ -210,14 +210,40 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
     });
     assert.equal(createdState.createdJob.title, "Corvallis Entry Ramp");
     assert.equal(createdState.createdJob.customer, "Benton Commons");
+    assert.equal(createdState.createdJob.address, "88 Main St, Corvallis, OR 97330");
+    assert.equal(createdState.createdJob.scopeSummary, "Form and pour ADA entry ramp.");
+    assert.equal(createdState.createdJob.fieldNotes, "Updated crew notes for startup.");
+    assert.equal(createdState.createdJob.estimatedDuration, "Target early week.");
+    assert.equal(createdState.createdJob.materialNotes, "ADA ramp / Commercial entry");
+    assert.equal(createdState.createdJob.safetyNotes, "");
     assert.equal(createdState.importedDraft.createdJobId, createdState.createdJob.id);
     assert.equal(createdState.importedDraft.importStatus, "Job Created");
     assert.match(createdState.createdJob.notes, /Source Proposal ID: proposal-server-1/);
+    assert.match(createdState.createdJob.notes, /Source Handoff ID: handoff-server-1/);
+    assert.match(createdState.createdJob.notes, /Operations Notes:\nCoordinate with tenant access/);
+    assert.match(createdState.createdJob.notes, /Crew Notes:\nUpdated crew notes for startup/);
+    assert.match(createdState.createdJob.notes, /Schedule Notes:\nTarget early week/);
     assert.equal(createdState.createdJob.sourceImportedDraftId, importedDraft.id);
     assert.equal(createdState.createdJob.startupStatus, "Not Started");
     assert.match(createdState.createdJob.startupNotes, /Source proposal: proposal-server-1/);
     assert.match(createdState.createdJob.startupNotes, /Operations notes: Coordinate with tenant access/);
     assert.equal(createdState.createdJob.startupChecklist.length, 18);
+
+    const refreshedState = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const persistedDraft = refreshedState.jobDraftImports.find((draft) => draft.id === importedDraft.id);
+    const persistedJob = refreshedState.jobs.find((job) => job.id === createdState.createdJob.id);
+    assert.equal(persistedDraft.createdJobId, createdState.createdJob.id);
+    assert.equal(persistedDraft.importStatus, "Job Created");
+    assert.equal(persistedJob.sourceImportedDraftId, importedDraft.id);
+    assert.equal(persistedJob.startupChecklist.length, 18);
+
+    const duplicateCreate = await requestJson(fixture.baseUrl, `/api/job-draft-imports/${importedDraft.id}/create-job`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    assert.equal(duplicateCreate.response.status, 409);
+    assert.equal(duplicateCreate.payload.createdJobId, createdState.createdJob.id);
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "job-draft-employee@lastyard.test",
@@ -233,6 +259,54 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
       headers: authHeaders(employeeLogin.token),
     });
     assert.equal(employeeImportApi.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("imported draft job creation blocks similar existing jobs unless confirmed", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+    const headers = authHeaders(ownerLogin.token);
+
+    const firstImport = await assertOk(fixture.baseUrl, "/api/job-draft-imports", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ package: validPackage }),
+    });
+    await assertOk(fixture.baseUrl, `/api/job-draft-imports/${firstImport.importedDraft.id}/create-job`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+
+    const duplicateImport = await assertOk(fixture.baseUrl, "/api/job-draft-imports", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        allowDuplicate: true,
+        package: {
+          ...validPackage,
+          opsJobDraftId: "ops-draft-server-duplicate-job",
+          sourceHandoffId: "handoff-server-duplicate-job",
+        },
+      }),
+    });
+
+    const blockedDuplicateJob = await requestJson(fixture.baseUrl, `/api/job-draft-imports/${duplicateImport.importedDraft.id}/create-job`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    assert.equal(blockedDuplicateJob.response.status, 409);
+    assert.equal(blockedDuplicateJob.payload.needsConfirmation, true);
+    assert.match(blockedDuplicateJob.payload.error, /similar job already exists/i);
+    assert.equal(blockedDuplicateJob.payload.duplicateJob.title, "Corvallis Entry Ramp");
   } finally {
     await fixture.stop();
   }

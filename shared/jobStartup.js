@@ -72,11 +72,11 @@ export function calculateStartupStatus(checklist = []) {
   }
 
   const criticalWarnings = getStartupCriticalWarnings(normalizedChecklist);
-  if (criticalWarnings.length > 0) {
-    return "Needs Review";
+  if (criticalWarnings.length === 0) {
+    return "Ready for Field";
   }
 
-  return "Ready for Field";
+  return "In Progress";
 }
 
 export function canMarkStartupReady(checklist = []) {
@@ -120,11 +120,13 @@ export function normalizeJobStartupFields(job = {}) {
   const calculatedStatus = calculateStartupStatus(checklist);
   const storedStatus = normalizeStartupStatus(job.startupStatus);
   const touchedItems = checklist.filter((item) => item.checked || item.tbd || item.notes);
-  const startupStatus = storedStatus === "Ready for Field" && canMarkStartupReady(checklist)
-    ? "Ready for Field"
-    : storedStatus === "Needs Review" && touchedItems.length === 0
-      ? "Needs Review"
-    : calculatedStatus;
+  const criticalWarnings = getStartupCriticalWarnings(checklist);
+  let startupStatus = calculatedStatus;
+  if (storedStatus === "Ready for Field") {
+    startupStatus = canMarkStartupReady(checklist) ? "Ready for Field" : "Needs Review";
+  } else if (storedStatus === "Needs Review" && (touchedItems.length === 0 || criticalWarnings.length > 0)) {
+    startupStatus = "Needs Review";
+  }
 
   return {
     startupChecklist: checklist,

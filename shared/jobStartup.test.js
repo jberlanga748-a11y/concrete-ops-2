@@ -21,10 +21,11 @@ test("startup checklist normalizes default items and critical warnings", () => {
   assert.ok(getStartupCriticalWarnings(checklist).some((warning) => warning.includes("Customer/contact confirmed")));
 });
 
-test("startup status moves through needs review, ready, and completed", () => {
+test("startup status moves through in progress, ready, and completed", () => {
   let checklist = normalizeStartupChecklist();
   checklist = markStartupItem(checklist, "customerContactConfirmed", { checked: true }, { changedAt: "2026-05-10T10:00:00.000Z" });
-  assert.equal(calculateStartupStatus(checklist), "Needs Review");
+  assert.equal(calculateStartupStatus(checklist), "In Progress");
+  assert.ok(getStartupCriticalWarnings(checklist).length > 0);
 
   for (const key of ["jobAddressConfirmed", "scopeReviewed", "crewAssigned", "startDateSet"]) {
     checklist = markStartupItem(checklist, key, { checked: true }, { changedAt: "2026-05-10T10:05:00.000Z" });
@@ -102,5 +103,15 @@ test("stored ready status is downgraded if critical items are incomplete", () =>
     startupChecklist: markStartupItem(normalizeStartupChecklist(), "customerContactConfirmed", { checked: true }),
   });
 
+  assert.equal(startup.startupStatus, "Needs Review");
+});
+
+test("stored needs review status is preserved until critical items are satisfied", () => {
+  const startup = normalizeJobStartupFields({
+    startupStatus: "Needs Review",
+    startupChecklist: markStartupItem(normalizeStartupChecklist(), "customerContactConfirmed", { checked: true }),
+  });
+
+  assert.equal(calculateStartupStatus(startup.startupChecklist), "In Progress");
   assert.equal(startup.startupStatus, "Needs Review");
 });
