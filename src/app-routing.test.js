@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCustomerPath, buildJobPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
+import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing.js";
 
 test("customer routes build and parse durable detail paths", () => {
   assert.equal(buildCustomerPath("C-1001"), "/customers/C-1001");
@@ -11,6 +11,7 @@ test("customer routes build and parse durable detail paths", () => {
     jobId: "",
     customerId: "C-1001",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -22,6 +23,7 @@ test("customer routes decode encoded ids and normalize trailing slashes", () => 
     jobId: "",
     customerId: "C/42",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -33,6 +35,7 @@ test("job routes build and parse durable detail paths", () => {
     jobId: "J-2201",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -44,6 +47,20 @@ test("report routes build and parse durable detail paths", () => {
     jobId: "",
     customerId: "",
     reportId: "R-1001",
+    importedDraftId: "",
+  });
+});
+
+test("imported job draft routes build and parse durable detail paths", () => {
+  assert.equal(getModulePath("jobDraftImports"), "/job-draft-imports");
+  assert.equal(buildImportedJobDraftPath("IJD-1001"), "/job-draft-imports/IJD-1001");
+  assert.deepEqual(parseAppPath("/job-draft-imports/IJD-1001"), {
+    active: "jobDraftImports",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "IJD-1001",
   });
 });
 
@@ -55,6 +72,7 @@ test("employees module route resolves directly instead of falling back to dashbo
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -66,6 +84,7 @@ test("calculator module route resolves directly", () => {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -77,6 +96,7 @@ test("pre-pour module route resolves directly", () => {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -88,6 +108,7 @@ test("post-pour module route resolves directly", () => {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -99,6 +120,7 @@ test("change-orders module route resolves directly", () => {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -110,6 +132,7 @@ test("delivery-tickets module route resolves directly", () => {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });
 
@@ -121,5 +144,6 @@ test("estimates module route resolves directly", () => {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   });
 });

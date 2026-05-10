@@ -29,7 +29,9 @@ import {
   createDailyReport,
   createDeliveryTicket,
   createJobAssignment,
+  createJobFromImportedDraft,
   createJob,
+  importJobDraftPackage,
   createLead,
   createPostPourChecklist,
   createPrePourChecklist,
@@ -75,6 +77,7 @@ import {
   updateDeliveryTicket,
   updateEstimate,
   updateJobAssignment,
+  updateJobDraftImport,
   updateJob,
   updateLead,
   updatePpeItem,
@@ -95,7 +98,7 @@ import {
   sendEstimate,
   submitToolChecklist,
 } from "./api";
-import { buildCustomerPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
+import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
@@ -104,6 +107,7 @@ import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTicke
 import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
+import { CITY_STATE_WARNING, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
@@ -172,6 +176,7 @@ const NAV_GROUPS = [
       { id: "leads", label: "Leads", icon: "inbox" },
       { id: "customers", label: "Customers", icon: "users" },
       { id: "estimates", label: "Estimates", icon: "quote" },
+      { id: "jobDraftImports", label: "Imported Drafts", icon: "database" },
       { id: "changeOrders", label: "Change Orders", icon: "refresh" },
       { id: "employees", label: "Employees", icon: "users" },
     ],
@@ -217,6 +222,7 @@ const EMPTY_APP_STATE = {
   leads: [],
   leadStatusHistory: [],
   estimates: [],
+  jobDraftImports: [],
   jobs: [],
   safetyPolicies: [],
   ppeItems: [],
@@ -253,6 +259,11 @@ const EMPTY_APP_STATE = {
     estimates: {
       canView: false,
       canManage: false,
+    },
+    jobDraftImports: {
+      canView: false,
+      canManage: false,
+      canCreateJob: false,
     },
     jobs: {
       canView: false,
@@ -487,12 +498,13 @@ function deriveDashboardMetrics(leads = [], jobs = [], queueItems = []) {
   };
 }
 
-function deriveWorkspaceCounts({ permissions, users, customers, leads, jobs, dailyReports }) {
+function deriveWorkspaceCounts({ permissions, users, customers, leads, jobs, jobDraftImports, dailyReports }) {
   const safePermissions = permissions || EMPTY_APP_STATE.permissions;
   return {
     employees: safePermissions.users?.canView ? normalizeObjectArray(users).filter((user) => user.status === "active").length : null,
     customers: safePermissions.customers?.canView ? normalizeObjectArray(customers).filter((customer) => !customer.archivedAt).length : null,
     leads: safePermissions.leads?.canView ? normalizeObjectArray(leads).filter((lead) => !lead.archivedAt).length : null,
+    jobDraftImports: safePermissions.jobDraftImports?.canView ? normalizeObjectArray(jobDraftImports).length : null,
     jobs: normalizeObjectArray(jobs).filter((job) => !job.archivedAt).length,
     reports: safePermissions.reports?.canView ? normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt).length : null,
     copilot: 1,
@@ -514,6 +526,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: normalizeObjectArray(source.leads, fallback.leads),
     leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
     estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
+    jobDraftImports: normalizeObjectArray(source.jobDraftImports, fallback.jobDraftImports),
     jobs: normalizeObjectArray(source.jobs, fallback.jobs),
     safetyPolicies: normalizeObjectArray(source.safetyPolicies, fallback.safetyPolicies),
     ppeItems: normalizeObjectArray(source.ppeItems, fallback.ppeItems),
@@ -541,6 +554,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
       leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
+      jobDraftImports: mergePermissionScope(EMPTY_APP_STATE.permissions.jobDraftImports, source.permissions?.jobDraftImports || fallback.permissions?.jobDraftImports),
         jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
         reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
         prePour: mergePermissionScope(EMPTY_APP_STATE.permissions.prePour, source.permissions?.prePour || fallback.permissions?.prePour),
@@ -6099,6 +6113,329 @@ function JobsPage({
   );
 }
 
+function importedDraftStatusTone(status) {
+  if (status === "Job Created" || status === "Ready to Create Job") return "green";
+  if (status === "Needs Review") return "amber";
+  if (status === "Rejected") return "red";
+  return "blue";
+}
+
+function ImportedJobDraftsPage({
+  drafts,
+  jobs,
+  selectedDraftId,
+  onSelectDraft,
+  onBackToDrafts,
+  onImportPackage,
+  onSaveDraft,
+  onCreateJobFromDraft,
+  onOpenCreatedJob,
+  busy,
+  permissions,
+}) {
+  if (!permissions.jobDraftImports?.canView) {
+    return (
+      <div>
+        <PageHeader eyebrow="Office" title="Imported Job Drafts" description="Imported draft packages are only available to office roles that can create jobs." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Imported drafts unavailable" description="This role cannot import or create jobs from external draft packages." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) || null;
+
+  if (selectedDraft) {
+    return (
+      <ImportedJobDraftDetailPage
+        draft={selectedDraft}
+        jobs={jobs}
+        onBack={onBackToDrafts}
+        onCreateJobFromDraft={onCreateJobFromDraft}
+        onOpenCreatedJob={onOpenCreatedJob}
+        onSaveDraft={onSaveDraft}
+        busy={busy}
+      />
+    );
+  }
+
+  return (
+    <ImportedJobDraftListPage
+      drafts={drafts}
+      onImportPackage={onImportPackage}
+      onOpenCreatedJob={onOpenCreatedJob}
+      onSelectDraft={onSelectDraft}
+      busy={busy}
+    />
+  );
+}
+
+function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, onSelectDraft, busy }) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [readinessFilter, setReadinessFilter] = useState("All");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("All");
+  const [createdFilter, setCreatedFilter] = useState("All");
+  const [cityFilter, setCityFilter] = useState("");
+  const [importMessage, setImportMessage] = useState("");
+  const stats = getImportedJobDraftStats(drafts);
+  const readinessLabels = useMemo(() => Array.from(new Set(drafts.map((draft) => draft.opsReadinessLabel).filter(Boolean))).sort(), [drafts]);
+  const serviceTypes = useMemo(() => Array.from(new Set(drafts.map((draft) => draft.serviceType).filter(Boolean))).sort(), [drafts]);
+  const filteredDrafts = filterImportedJobDrafts(drafts, { cityFilter, createdFilter, readinessFilter, serviceTypeFilter, statusFilter });
+
+  async function handleImportFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImportMessage("");
+
+    try {
+      const parsed = JSON.parse(await file.text());
+      const validation = validateJobDraftImportPackage(parsed);
+      if (!validation.ok) {
+        throw new Error(validation.errors.join(" "));
+      }
+      const result = await onImportPackage(parsed);
+      setImportMessage(result?.message || "Imported Job Draft Package.");
+    } catch (error) {
+      setImportMessage(error.message || "Could not import this JSON package.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Office"
+        title="Imported Job Drafts"
+        description="Import job draft packages, review missing details, and create a real Concrete Ops 2 job only when the office is ready."
+        actions={
+          <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white shadow-sm shadow-blue-700/20 transition hover:bg-blue-800 ${busy ? "opacity-70" : ""}`}>
+            <Icon name="upload" />
+            Import Job Draft Package
+            <input className="hidden" type="file" accept="application/json,.json" onChange={handleImportFile} disabled={busy} />
+          </label>
+        }
+      />
+      <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
+        {importMessage ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{importMessage}</div> : null}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <KpiCard item={{ label: "Imported drafts", value: stats.total, helper: "Review before creating jobs", icon: "database" }} />
+          <KpiCard item={{ label: "Needs review", value: stats.needsReview, helper: "Missing info or not ready", icon: "alert" }} />
+          <KpiCard item={{ label: "Ready to create", value: stats.readyToCreate, helper: "Ready for job creation", icon: "check" }} />
+          <KpiCard item={{ label: "Jobs created", value: stats.jobCreated, helper: "Converted into jobs", icon: "briefcase" }} />
+        </div>
+        <Card className="overflow-hidden">
+          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/50 p-4 md:grid-cols-5">
+            <SelectField label="Import status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option>All</option>
+              {IMPORTED_JOB_DRAFT_STATUSES.map((status) => <option key={status}>{status}</option>)}
+            </SelectField>
+            <SelectField label="Readiness" value={readinessFilter} onChange={(event) => setReadinessFilter(event.target.value)}>
+              <option>All</option>
+              {readinessLabels.map((label) => <option key={label}>{label}</option>)}
+            </SelectField>
+            <SelectField label="Service type" value={serviceTypeFilter} onChange={(event) => setServiceTypeFilter(event.target.value)}>
+              <option>All</option>
+              {serviceTypes.map((type) => <option key={type}>{type}</option>)}
+            </SelectField>
+            <SelectField label="Created job" value={createdFilter} onChange={(event) => setCreatedFilter(event.target.value)}>
+              <option>All</option>
+              <option>Created</option>
+              <option>Not Created</option>
+            </SelectField>
+            <InputField label="City" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} placeholder="Filter city..." />
+          </div>
+          {filteredDrafts.length === 0 ? (
+            <div className="p-5">
+              <StateCard title="No imported drafts yet" description="Import a Concrete Ops Job Draft Package JSON file to review it before creating a real job." />
+            </div>
+          ) : (
+            <div className="divide-y divide-blue-100">
+              {filteredDrafts.map((draft) => (
+                <div key={draft.id} className="block w-full text-left transition hover:bg-blue-50/60">
+                  <div className="grid gap-3 p-4 lg:grid-cols-[1.2fr_0.8fr_0.7fr_auto] lg:items-center">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate font-black text-slate-950">{draft.jobName || "Untitled imported draft"}</p>
+                        <Badge tone={importedDraftStatusTone(draft.importStatus)}>{draft.importStatus}</Badge>
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-slate-600">{draft.customerName || "Customer pending"}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-400">{[draft.city, draft.state].filter(Boolean).join(", ") || "Location needs review"}</p>
+                    </div>
+                    <div className="min-w-0 text-sm text-slate-600">
+                      <p className="font-black text-slate-700">{draft.serviceType || draft.projectType || "Service type pending"}</p>
+                      <p className="mt-1 line-clamp-2">{draft.scopeSummary || "Scope summary pending."}</p>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      <p className="font-black text-slate-700">Readiness</p>
+                      <p>{draft.opsReadinessLabel || "Needs review"}{draft.opsReadinessScore !== "" ? ` (${draft.opsReadinessScore})` : ""}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      {draft.createdJobId ? <Button type="button" size="sm" onClick={() => onOpenCreatedJob(draft.createdJobId)}>Open job</Button> : null}
+                      <Button type="button" size="sm" variant={draft.createdJobId ? "secondary" : "primary"} onClick={() => onSelectDraft(draft.id)}>Review</Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ImportedJobDraftDetailPage({ draft, jobs, onBack, onCreateJobFromDraft, onOpenCreatedJob, onSaveDraft, busy }) {
+  const [draftForm, setDraftForm] = useState(() => normalizeImportedJobDraft(draft));
+  const [message, setMessage] = useState("");
+  const createdJob = jobs.find((job) => job.id === draftForm.createdJobId);
+  const warnings = getImportedDraftWarnings(draftForm);
+  const readyForJob = isImportedDraftReadyForJob(draftForm, { allowMissingCityState: Boolean(draftForm.city && draftForm.state) });
+
+  useEffect(() => {
+    setDraftForm(normalizeImportedJobDraft(draft));
+    setMessage("");
+  }, [draft]);
+
+  function updateField(field, value) {
+    setDraftForm((current) => normalizeImportedJobDraft({ ...current, [field]: value }));
+  }
+
+  function updateListField(field, value) {
+    setDraftForm((current) => normalizeImportedJobDraft({ ...current, [field]: value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }));
+  }
+
+  async function saveDraft(event) {
+    event.preventDefault();
+    const result = await onSaveDraft(draftForm);
+    setMessage(result?.message || "Imported draft saved.");
+  }
+
+  async function createJob() {
+    const result = await onCreateJobFromDraft(draftForm);
+    if (result?.message) setMessage(result.message);
+  }
+
+  async function copySummary() {
+    await navigator.clipboard.writeText(formatImportedDraftSummary(draftForm));
+    setMessage("Startup summary copied.");
+  }
+
+  return (
+    <form onSubmit={saveDraft}>
+      <PageHeader
+        eyebrow="Imported Job Draft"
+        title={draftForm.jobName || "Untitled imported draft"}
+        description="Review the imported package, fill missing city/state or other field details, then create the real job when ready."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={onBack}>Back to drafts</Button>
+            {draftForm.createdJobId ? (
+              <Button type="button" onClick={() => onOpenCreatedJob(draftForm.createdJobId)}>Open Created Job</Button>
+            ) : (
+              <Button type="button" onClick={createJob} disabled={busy}>Create Concrete Ops 2 Job</Button>
+            )}
+            <Button type="submit" disabled={busy}>Save Imported Draft</Button>
+          </div>
+        }
+      />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:items-start lg:px-8">
+        <div className="min-w-0 space-y-4">
+          {message ? <div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-bold text-green-800">{message}</div> : null}
+          {warnings.length > 0 ? (
+            <Card className="border-amber-200 bg-amber-50 p-5">
+              <SectionHeader title="Needs review before field work" description="Imported packages can be saved even when some details need office review." />
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-bold text-amber-800">
+                {warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            </Card>
+          ) : null}
+          <Card className="p-5">
+            <SectionHeader title="Customer and location" description="City/state can be added after import, but must be confirmed or explicitly overridden before creating the job." />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <InputField label="Customer name" value={draftForm.customerName} onChange={(event) => updateField("customerName", event.target.value)} />
+              <InputField label="Job name" value={draftForm.jobName} onChange={(event) => updateField("jobName", event.target.value)} />
+              <InputField label="Contact name" value={draftForm.contactName} onChange={(event) => updateField("contactName", event.target.value)} />
+              <InputField label="Contact email" type="email" value={draftForm.contactEmail} onChange={(event) => updateField("contactEmail", event.target.value)} />
+              <InputField label="Contact phone" value={draftForm.contactPhone} onChange={(event) => updateField("contactPhone", event.target.value)} />
+              <InputField label="Job address" value={draftForm.jobAddress} onChange={(event) => updateField("jobAddress", event.target.value)} />
+              <InputField label="City" value={draftForm.city} onChange={(event) => updateField("city", event.target.value)} />
+              <InputField label="State" value={draftForm.state} onChange={(event) => updateField("state", event.target.value.toUpperCase().slice(0, 2))} />
+            </div>
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Scope and notes" description="Customer scope becomes job scope. Exclusions, assumptions, operations notes, and readiness items stay in office job notes." />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <InputField label="Service type" value={draftForm.serviceType} onChange={(event) => updateField("serviceType", event.target.value)} />
+              <InputField label="Project type" value={draftForm.projectType} onChange={(event) => updateField("projectType", event.target.value)} />
+              <div className="md:col-span-2">
+                <TextAreaField label="Scope summary" value={draftForm.scopeSummary} onChange={(event) => updateField("scopeSummary", event.target.value)} />
+              </div>
+              <TextAreaField label="Included scope (one per line)" value={draftForm.includedScope.join("\n")} onChange={(event) => updateListField("includedScope", event.target.value)} />
+              <TextAreaField label="Exclusions (one per line)" value={draftForm.exclusions.join("\n")} onChange={(event) => updateListField("exclusions", event.target.value)} />
+              <TextAreaField label="Assumptions (one per line)" value={draftForm.assumptions.join("\n")} onChange={(event) => updateListField("assumptions", event.target.value)} />
+              <TextAreaField label="Operations notes" value={draftForm.operationsNotes} onChange={(event) => updateField("operationsNotes", event.target.value)} />
+              <TextAreaField label="Crew / field notes" value={draftForm.crewNotes} onChange={(event) => updateField("crewNotes", event.target.value)} />
+              <TextAreaField label="Schedule notes" value={draftForm.scheduleNotes} onChange={(event) => updateField("scheduleNotes", event.target.value)} />
+            </div>
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Readiness and references" description="These notes help the office decide whether the imported draft is safe to create as a real job." />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <SelectField label="Import status" value={draftForm.importStatus} onChange={(event) => updateField("importStatus", event.target.value)}>
+                {IMPORTED_JOB_DRAFT_STATUSES.map((status) => <option key={status}>{status}</option>)}
+              </SelectField>
+              <InputField label="Start date target" type="date" value={draftForm.startDateTarget} onChange={(event) => updateField("startDateTarget", event.target.value)} />
+              <InputField label="Assigned crew placeholder" value={draftForm.assignedCrewPlaceholder} onChange={(event) => updateField("assignedCrewPlaceholder", event.target.value)} />
+              <InputField label="Foreman placeholder" value={draftForm.foremanPlaceholder} onChange={(event) => updateField("foremanPlaceholder", event.target.value)} />
+              <InputField label="Readiness label" value={draftForm.opsReadinessLabel} onChange={(event) => updateField("opsReadinessLabel", event.target.value)} />
+              <InputField label="Readiness score" value={draftForm.opsReadinessScore} onChange={(event) => updateField("opsReadinessScore", event.target.value)} />
+              <InputField label="Proposal amount" value={draftForm.proposalAmount} onChange={(event) => updateField("proposalAmount", event.target.value)} />
+              <InputField label="Proposal link / ID" value={draftForm.proposalLinkOrId} onChange={(event) => updateField("proposalLinkOrId", event.target.value)} />
+              <div className="md:col-span-2">
+                <TextAreaField label="Readiness issues (one per line)" value={draftForm.opsReadinessIssues.join("\n")} onChange={(event) => updateListField("opsReadinessIssues", event.target.value)} />
+              </div>
+              <div className="md:col-span-2">
+                <TextAreaField label="Job draft summary" value={draftForm.jobDraftSummary} onChange={(event) => updateField("jobDraftSummary", event.target.value)} />
+              </div>
+            </div>
+          </Card>
+        </div>
+        <div className="min-w-0 space-y-4 lg:sticky lg:top-20">
+          <Card className="p-5">
+            <SectionHeader title="Create job readiness" description={readyForJob ? "This draft has the required fields for job creation." : "Review warnings before creating the job."} />
+            <div className="mt-4 space-y-3">
+              <Badge tone={importedDraftStatusTone(draftForm.importStatus)}>{draftForm.importStatus}</Badge>
+              <p className="text-sm leading-6 text-slate-600">Imported drafts are review records until you click Create Concrete Ops 2 Job.</p>
+              {createdJob ? <p className="rounded-2xl bg-green-50 p-3 text-sm font-bold text-green-800">Created job: {jobTitle(createdJob)}</p> : null}
+              <div className="grid gap-2">
+                {draftForm.createdJobId ? (
+                  <Button className="w-full" type="button" onClick={() => onOpenCreatedJob(draftForm.createdJobId)}>Open Created Job</Button>
+                ) : (
+                  <Button className="w-full" type="button" onClick={createJob} disabled={busy}>Create Concrete Ops 2 Job</Button>
+                )}
+                <Button className="w-full" type="submit" variant="secondary" disabled={busy}>Save Imported Draft</Button>
+                <Button className="w-full" type="button" variant="ghost" onClick={copySummary}>Copy Startup Summary</Button>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <SectionHeader title="Source references" />
+            <div className="mt-3 space-y-2 text-sm text-slate-600">
+              <p><span className="font-black text-slate-800">Draft ID:</span> {draftForm.opsJobDraftId || "Not provided"}</p>
+              <p><span className="font-black text-slate-800">Handoff ID:</span> {draftForm.sourceHandoffId || "Not provided"}</p>
+              <p><span className="font-black text-slate-800">Proposal ID:</span> {draftForm.sourceProposalId || draftForm.proposalLinkOrId || "Not provided"}</p>
+              <p><span className="font-black text-slate-800">Estimate ID:</span> {draftForm.sourceEstimateId || "Not provided"}</p>
+              <p><span className="font-black text-slate-800">Packet ID:</span> {draftForm.sourcePacketId || "Not provided"}</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </form>
+  );
+}
+
 function CustomersPage({
   customers,
   filter,
@@ -9864,6 +10201,22 @@ function MainContent(props) {
         />
       );
     }
+    if (active === "jobDraftImports") {
+      return (
+        <ImportedJobDraftsPage
+          {...props}
+          drafts={props.jobDraftImports}
+          jobs={props.jobs}
+          selectedDraftId={props.selectedImportedDraftId}
+          onSelectDraft={props.onSelectImportedDraft}
+          onBackToDrafts={props.onBackToImportedDrafts}
+          onImportPackage={props.onImportJobDraftPackage}
+          onSaveDraft={props.onSaveImportedJobDraft}
+          onCreateJobFromDraft={props.onCreateJobFromImportedDraft}
+          onOpenCreatedJob={props.onOpenCreatedJob}
+        />
+      );
+    }
     if (active === "jobs") {
       return (
         <JobsPage
@@ -10028,6 +10381,7 @@ export default function App() {
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
   const [selectedReportId, setSelectedReportId] = useState("");
+  const [selectedImportedDraftId, setSelectedImportedDraftId] = useState("");
   const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
@@ -10060,6 +10414,7 @@ export default function App() {
   const selectedLead = appState.leads.find((lead) => lead.id === selectedLeadId) || null;
   const selectedJob = appState.jobs.find((job) => job.id === selectedJobId) || null;
   const selectedReport = appState.dailyReports.find((report) => report.id === selectedReportId) || null;
+  const selectedImportedDraft = appState.jobDraftImports.find((draft) => draft.id === selectedImportedDraftId) || null;
   const selectedTimeEntry = appState.timeEntries.find((entry) => entry.id === selectedTimeEntryId) || null;
 
   useEffect(() => {
@@ -10135,6 +10490,11 @@ export default function App() {
     navigateTo(buildReportPath(id));
   }
 
+  function navigateToImportedDraft(id) {
+    setSelectedImportedDraftId(id);
+    navigateTo(buildImportedJobDraftPath(id));
+  }
+
   function applyBootstrap(nextState) {
     setAppState(normalizeAppState(nextState));
   }
@@ -10188,6 +10548,7 @@ export default function App() {
         permissions: normalizedNextState.permissions,
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
+        jobDraftImports: normalizedNextState.jobDraftImports,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
         calculatorResults: normalizedNextState.calculatorResults,
         uploads: normalizedNextState.uploads,
@@ -10238,6 +10599,7 @@ export default function App() {
     setSelectedLeadId("");
     setSelectedJobId("");
     setSelectedReportId("");
+    setSelectedImportedDraftId("");
     setSelectedTimeEntryId("");
   }
 
@@ -10505,6 +10867,32 @@ export default function App() {
   }, [appState.dailyReports, authStatus, routeState.reportId, selectedReportId]);
 
   useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    if (!appState.permissions.jobDraftImports?.canView) {
+      if (selectedImportedDraftId) setSelectedImportedDraftId("");
+      return;
+    }
+
+    const fallbackDraftId = appState.jobDraftImports[0]?.id || "";
+
+    if (routeState.importedDraftId) {
+      if (!appState.jobDraftImports.some((draft) => draft.id === routeState.importedDraftId)) {
+        setSelectedImportedDraftId(fallbackDraftId);
+        navigateTo(getModulePath("jobDraftImports"), { replace: true });
+        return;
+      }
+
+      if (selectedImportedDraftId !== routeState.importedDraftId) {
+        setSelectedImportedDraftId(routeState.importedDraftId);
+      }
+      return;
+    }
+
+    if (active !== "jobDraftImports") return;
+    if (selectedImportedDraftId && !appState.jobDraftImports.some((draft) => draft.id === selectedImportedDraftId)) setSelectedImportedDraftId(fallbackDraftId);
+  }, [active, appState.jobDraftImports, appState.permissions.jobDraftImports?.canView, authStatus, routeState.importedDraftId, selectedImportedDraftId]);
+
+  useEffect(() => {
     const fallbackUserId = appState.permissions.users.canView ? appState.users[0]?.id || "" : "";
     if (!selectedUserId || !appState.users.some((user) => user.id === selectedUserId)) {
       setSelectedUserId(fallbackUserId);
@@ -10574,8 +10962,9 @@ export default function App() {
     customers: appState.customers,
     leads: appState.leads,
     jobs: appState.jobs,
+    jobDraftImports: appState.jobDraftImports,
     dailyReports: appState.dailyReports,
-  }), [appState.customers, appState.dailyReports, appState.jobs, appState.leads, appState.permissions, appState.users]);
+  }), [appState.customers, appState.dailyReports, appState.jobDraftImports, appState.jobs, appState.leads, appState.permissions, appState.users]);
   const dashboardShortcuts = useMemo(() => getDashboardShortcuts(appState.user, appState.companySettings), [appState.companySettings, appState.user]);
 
   async function runMutation(task) {
@@ -10908,6 +11297,122 @@ export default function App() {
       setJobDraft(INITIAL_JOB_FORM);
       return nextState;
     });
+  }
+
+  async function handleImportJobDraftPackage(packageJson) {
+    if (!sessionToken || !appState.permissions.jobDraftImports?.canManage) return null;
+    const clientValidation = createImportedJobDraftFromPackage(packageJson);
+    if (!clientValidation.ok) {
+      throw new Error(clientValidation.errors.join(" "));
+    }
+
+    setBusy(true);
+    try {
+      const result = await importJobDraftPackage(sessionToken, packageJson);
+      applyBootstrap(result);
+      const importedDraft = result.importedDraft || clientValidation.draft;
+      if (importedDraft?.id) {
+        navigateToImportedDraft(importedDraft.id);
+      }
+      setErrorMessage("");
+      return {
+        importedDraft,
+        message: importedDraft?.importWarnings?.length
+          ? `Imported ${importedDraft.jobName || "Job Draft Package"} as Needs Review.`
+          : `Imported ${importedDraft?.jobName || "Job Draft Package"}.`,
+      };
+    } catch (error) {
+      if (error.status === 409 && error.payload?.duplicateDraft) {
+        const duplicate = error.payload.duplicateDraft;
+        if (window.confirm("This job draft package looks like it has already been imported. Open the existing imported draft instead?")) {
+          navigateToImportedDraft(duplicate.id);
+          setErrorMessage("");
+          return { importedDraft: duplicate, message: "Opened existing imported draft." };
+        }
+        throw new Error("Import canceled to avoid creating a duplicate imported draft.");
+      }
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveImportedJobDraft(draft) {
+    if (!sessionToken || !appState.permissions.jobDraftImports?.canManage) return null;
+    const normalizedDraft = normalizeImportedJobDraft(draft);
+    setBusy(true);
+    try {
+      const result = await updateJobDraftImport(sessionToken, normalizedDraft.id, normalizedDraft);
+      applyBootstrap(result);
+      const importedDraft = result.importedDraft || normalizedDraft;
+      navigateToImportedDraft(importedDraft.id);
+      setErrorMessage("");
+      return { importedDraft, message: `Saved ${importedDraft.jobName || "imported draft"}.` };
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateJobFromImportedDraft(draft) {
+    if (!sessionToken || !appState.permissions.jobDraftImports?.canCreateJob) return null;
+    const normalizedDraft = normalizeImportedJobDraft(draft);
+
+    if (normalizedDraft.createdJobId) {
+      navigateToJob(normalizedDraft.createdJobId);
+      return null;
+    }
+
+    const warnings = getImportedDraftWarnings(normalizedDraft);
+    const options = {};
+    if (warnings.includes(CITY_STATE_WARNING)) {
+      if (!window.confirm(`${CITY_STATE_WARNING}\n\nCreate the job anyway and fill city/state later?`)) return null;
+      options.allowMissingCityState = true;
+    }
+    if (!isImportedDraftReadyForJob(normalizedDraft, options)) {
+      if (!window.confirm("This imported draft is not marked Ready to Create Job. Create a job anyway?")) return null;
+      options.allowNotReady = true;
+    }
+
+    setBusy(true);
+    try {
+      let result;
+      try {
+        result = await createJobFromImportedDraft(sessionToken, normalizedDraft.id, options);
+      } catch (error) {
+        if (error.status === 409 && error.payload?.duplicateJob) {
+          const title = error.payload.duplicateJob.title || error.payload.duplicateJob.job || "existing job";
+          if (!window.confirm(`A similar job already exists (${title}). Create another job from this imported draft anyway?`)) {
+            throw new Error("Job creation canceled to avoid a duplicate job.");
+          }
+          result = await createJobFromImportedDraft(sessionToken, normalizedDraft.id, { ...options, allowDuplicateJob: true });
+        } else if (error.status === 409 && error.payload?.needsConfirmation) {
+          if (!window.confirm(`${error.message}\n\nCreate the job anyway?`)) {
+            throw new Error("Job creation canceled for review.");
+          }
+          result = await createJobFromImportedDraft(sessionToken, normalizedDraft.id, { ...options, allowNotReady: true, allowMissingCityState: true });
+        } else {
+          throw error;
+        }
+      }
+
+      applyBootstrap(result);
+      const createdJob = result.createdJob || result.jobs?.find((job) => job.id === result.importedDraft?.createdJobId);
+      if (createdJob?.id) {
+        navigateToJob(createdJob.id);
+      }
+      setErrorMessage("");
+      return { createdJob, message: "Job created. Next step: schedule the job and assign foreman/crew." };
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleCreateJobFromLead() {
@@ -12008,6 +12513,7 @@ export default function App() {
               customers={appState.customers}
               leads={appState.leads}
               estimates={appState.estimates}
+              jobDraftImports={appState.jobDraftImports}
               jobs={appState.jobs}
               safetyPolicies={appState.safetyPolicies}
                 ppeItems={appState.ppeItems}
@@ -12114,6 +12620,17 @@ export default function App() {
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}
               selectedJob={selectedJob}
+              selectedImportedDraftId={selectedImportedDraftId}
+              selectedImportedDraft={selectedImportedDraft}
+              onSelectImportedDraft={navigateToImportedDraft}
+              onBackToImportedDrafts={() => {
+                setSelectedImportedDraftId("");
+                setActive("jobDraftImports");
+              }}
+              onImportJobDraftPackage={handleImportJobDraftPackage}
+              onSaveImportedJobDraft={handleSaveImportedJobDraft}
+              onCreateJobFromImportedDraft={handleCreateJobFromImportedDraft}
+              onOpenCreatedJob={navigateToJob}
               uploads={appState.uploads}
               calculatorResults={appState.calculatorResults}
               onCreateUpload={handleCreateUpload}

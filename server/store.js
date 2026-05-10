@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { DEMO_COMPANY_NAME, DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
+import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 
 const SCHEMA_VERSION_KEY = "schema_version";
 export const SESSION_TTL_MS = serverConfig.sessionTtlMs;
@@ -601,6 +602,7 @@ export function createEmptyState() {
     leadStatusHistory: [],
     jobs: [],
     jobAssignments: [],
+    jobDraftImports: [],
     estimates: [],
     estimateItems: [],
     safetyPolicies: [],
@@ -1763,6 +1765,7 @@ export function createSeedState() {
     leadStatusHistory,
     jobs,
     jobAssignments: includeDemoRecords ? jobAssignments : [],
+    jobDraftImports: [],
     estimates: includeDemoRecords ? estimates : [],
     estimateItems: includeDemoRecords ? estimateItems : [],
     safetyPolicies,
@@ -4635,6 +4638,69 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 33,
+      description: "Add imported job draft review workflow.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS job_draft_imports (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            imported_at TEXT NOT NULL,
+            import_status TEXT NOT NULL,
+            import_warnings TEXT NOT NULL,
+            original_package TEXT NOT NULL,
+            package_version TEXT NOT NULL,
+            exported_at TEXT NOT NULL,
+            source_app TEXT NOT NULL,
+            package_type TEXT NOT NULL,
+            ops_job_draft_id TEXT NOT NULL,
+            source_handoff_id TEXT NOT NULL,
+            source_lead_id TEXT NOT NULL,
+            source_proposal_id TEXT NOT NULL,
+            source_estimate_id TEXT NOT NULL,
+            source_packet_id TEXT NOT NULL,
+            customer_name TEXT NOT NULL,
+            contact_name TEXT NOT NULL,
+            contact_email TEXT NOT NULL,
+            contact_phone TEXT NOT NULL,
+            job_name TEXT NOT NULL,
+            job_address TEXT NOT NULL,
+            city TEXT NOT NULL,
+            state TEXT NOT NULL,
+            service_type TEXT NOT NULL,
+            project_type TEXT NOT NULL,
+            scope_summary TEXT NOT NULL,
+            included_scope TEXT NOT NULL,
+            exclusions TEXT NOT NULL,
+            assumptions TEXT NOT NULL,
+            operations_notes TEXT NOT NULL,
+            crew_notes TEXT NOT NULL,
+            schedule_notes TEXT NOT NULL,
+            start_date_target TEXT NOT NULL,
+            assigned_crew_placeholder TEXT NOT NULL,
+            foreman_placeholder TEXT NOT NULL,
+            draft_status TEXT NOT NULL,
+            ops_readiness_score TEXT NOT NULL,
+            ops_readiness_label TEXT NOT NULL,
+            ops_readiness_issues TEXT NOT NULL,
+            proposal_amount TEXT NOT NULL,
+            proposal_link_or_id TEXT NOT NULL,
+            handoff_status TEXT NOT NULL,
+            job_draft_summary TEXT NOT NULL,
+            created_job_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_sort_index ON job_draft_imports(sort_index);
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_status ON job_draft_imports(import_status);
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_ops_id ON job_draft_imports(ops_job_draft_id);
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_handoff_id ON job_draft_imports(source_handoff_id);
+          CREATE INDEX IF NOT EXISTS idx_job_draft_imports_created_job_id ON job_draft_imports(created_job_id);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4706,6 +4772,18 @@ function writeStateToDb(state) {
   const insertJobAssignment = database.prepare(`
     INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, notice_acknowledged_at, notice_acknowledged_by, notice_acknowledged_key, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertJobDraftImport = database.prepare(`
+    INSERT INTO job_draft_imports (
+      id, sort_index, imported_at, import_status, import_warnings, original_package, package_version, exported_at, source_app, package_type,
+      ops_job_draft_id, source_handoff_id, source_lead_id, source_proposal_id, source_estimate_id, source_packet_id,
+      customer_name, contact_name, contact_email, contact_phone, job_name, job_address, city, state, service_type, project_type,
+      scope_summary, included_scope, exclusions, assumptions, operations_notes, crew_notes, schedule_notes, start_date_target,
+      assigned_crew_placeholder, foreman_placeholder, draft_status, ops_readiness_score, ops_readiness_label, ops_readiness_issues,
+      proposal_amount, proposal_link_or_id, handoff_status, job_draft_summary, created_job_id, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimate = database.prepare(`
@@ -4828,6 +4906,7 @@ function writeStateToDb(state) {
       DELETE FROM leads;
       DELETE FROM job_assignments;
       DELETE FROM jobs;
+      DELETE FROM job_draft_imports;
         DELETE FROM safety_acknowledgments;
         DELETE FROM safety_incidents;
         DELETE FROM change_order_requests;
@@ -4999,6 +5078,58 @@ function writeStateToDb(state) {
         assignment.noticeAcknowledgedKey || "",
         assignment.createdAt || assignment.assignedAt || isoNow(),
         assignment.updatedAt || assignment.createdAt || assignment.assignedAt || isoNow(),
+      );
+    });
+
+    normalizeImportedJobDrafts(state.jobDraftImports || []).forEach((draft, index) => {
+      insertJobDraftImport.run(
+        draft.id,
+        index,
+        draft.importedAt || isoNow(),
+        draft.importStatus || "Imported",
+        JSON.stringify(draft.importWarnings || []),
+        JSON.stringify(draft.originalPackage || {}),
+        draft.packageVersion || "",
+        draft.exportedAt || "",
+        draft.sourceApp || "",
+        draft.packageType || "",
+        draft.opsJobDraftId || "",
+        draft.sourceHandoffId || "",
+        draft.sourceLeadId || "",
+        draft.sourceProposalId || "",
+        draft.sourceEstimateId || "",
+        draft.sourcePacketId || "",
+        draft.customerName || "",
+        draft.contactName || "",
+        draft.contactEmail || "",
+        draft.contactPhone || "",
+        draft.jobName || "",
+        draft.jobAddress || "",
+        draft.city || "",
+        draft.state || "",
+        draft.serviceType || "",
+        draft.projectType || "",
+        draft.scopeSummary || "",
+        JSON.stringify(draft.includedScope || []),
+        JSON.stringify(draft.exclusions || []),
+        JSON.stringify(draft.assumptions || []),
+        draft.operationsNotes || "",
+        draft.crewNotes || "",
+        draft.scheduleNotes || "",
+        draft.startDateTarget || "",
+        draft.assignedCrewPlaceholder || "",
+        draft.foremanPlaceholder || "",
+        draft.draftStatus || "",
+        draft.opsReadinessScore === "" ? "" : String(draft.opsReadinessScore),
+        draft.opsReadinessLabel || "",
+        JSON.stringify(draft.opsReadinessIssues || []),
+        draft.proposalAmount === "" ? "" : String(draft.proposalAmount),
+        draft.proposalLinkOrId || "",
+        draft.handoffStatus || "",
+        draft.jobDraftSummary || "",
+        draft.createdJobId || "",
+        draft.createdAt || isoNow(),
+        draft.updatedAt || draft.createdAt || isoNow(),
       );
     });
 
@@ -5463,6 +5594,33 @@ function readTableState() {
     `).all();
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
+  const jobDraftImports = normalizeImportedJobDrafts(database.prepare(`
+      SELECT id, imported_at AS importedAt, import_status AS importStatus, import_warnings AS importWarnings,
+             original_package AS originalPackage, package_version AS packageVersion, exported_at AS exportedAt,
+             source_app AS sourceApp, package_type AS packageType, ops_job_draft_id AS opsJobDraftId,
+             source_handoff_id AS sourceHandoffId, source_lead_id AS sourceLeadId, source_proposal_id AS sourceProposalId,
+             source_estimate_id AS sourceEstimateId, source_packet_id AS sourcePacketId, customer_name AS customerName,
+             contact_name AS contactName, contact_email AS contactEmail, contact_phone AS contactPhone, job_name AS jobName,
+             job_address AS jobAddress, city, state, service_type AS serviceType, project_type AS projectType,
+             scope_summary AS scopeSummary, included_scope AS includedScope, exclusions, assumptions,
+             operations_notes AS operationsNotes, crew_notes AS crewNotes, schedule_notes AS scheduleNotes,
+             start_date_target AS startDateTarget, assigned_crew_placeholder AS assignedCrewPlaceholder,
+             foreman_placeholder AS foremanPlaceholder, draft_status AS draftStatus, ops_readiness_score AS opsReadinessScore,
+             ops_readiness_label AS opsReadinessLabel, ops_readiness_issues AS opsReadinessIssues,
+             proposal_amount AS proposalAmount, proposal_link_or_id AS proposalLinkOrId, handoff_status AS handoffStatus,
+             job_draft_summary AS jobDraftSummary, created_job_id AS createdJobId, created_at AS createdAt, updated_at AS updatedAt
+      FROM job_draft_imports
+      ORDER BY sort_index ASC
+    `).all().map((draft) => ({
+      ...draft,
+      importWarnings: JSON.parse(draft.importWarnings || "[]"),
+      originalPackage: JSON.parse(draft.originalPackage || "{}"),
+      includedScope: JSON.parse(draft.includedScope || "[]"),
+      exclusions: JSON.parse(draft.exclusions || "[]"),
+      assumptions: JSON.parse(draft.assumptions || "[]"),
+      opsReadinessIssues: JSON.parse(draft.opsReadinessIssues || "[]"),
+    })));
+
   const estimates = database.prepare(`
       SELECT id, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, customer_email AS customerEmail, title, status, scope_summary AS scopeSummary,
              internal_notes AS internalNotes, customer_notes AS customerNotes, subtotal, tax_rate AS taxRate,
@@ -5644,6 +5802,7 @@ function readTableState() {
     leadStatusHistory,
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
+    jobDraftImports,
     estimates,
     estimateItems,
     safetyPolicies,

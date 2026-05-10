@@ -9,6 +9,7 @@ export const MODULE_PATHS = {
   customers: "/customers",
   employees: "/employees",
   estimates: "/estimates",
+  jobDraftImports: "/job-draft-imports",
   changeOrders: "/changeOrders",
   incidents: "/incidents",
   toolbox: "/toolbox",
@@ -47,24 +48,32 @@ export function buildReportPath(id) {
   return `/reports/${encodeURIComponent(id)}`;
 }
 
+export function buildImportedJobDraftPath(id) {
+  return `/job-draft-imports/${encodeURIComponent(id)}`;
+}
+
 export function parseAppPath(pathname) {
   const normalized = normalizePathname(pathname);
   const segments = normalized.split("/").filter(Boolean);
 
   if (segments[0] === "leads" && segments[1]) {
-    return { active: "leads", leadId: decodeURIComponent(segments[1]), jobId: "", customerId: "", reportId: "" };
+    return { active: "leads", leadId: decodeURIComponent(segments[1]), jobId: "", customerId: "", reportId: "", importedDraftId: "" };
   }
 
   if (segments[0] === "jobs" && segments[1]) {
-    return { active: "jobs", leadId: "", jobId: decodeURIComponent(segments[1]), customerId: "", reportId: "" };
+    return { active: "jobs", leadId: "", jobId: decodeURIComponent(segments[1]), customerId: "", reportId: "", importedDraftId: "" };
   }
 
   if (segments[0] === "customers" && segments[1]) {
-    return { active: "customers", leadId: "", jobId: "", customerId: decodeURIComponent(segments[1]), reportId: "" };
+    return { active: "customers", leadId: "", jobId: "", customerId: decodeURIComponent(segments[1]), reportId: "", importedDraftId: "" };
   }
 
   if (segments[0] === "reports" && segments[1]) {
-    return { active: "reports", leadId: "", jobId: "", customerId: "", reportId: decodeURIComponent(segments[1]) };
+    return { active: "reports", leadId: "", jobId: "", customerId: "", reportId: decodeURIComponent(segments[1]), importedDraftId: "" };
+  }
+
+  if (segments[0] === "job-draft-imports" && segments[1]) {
+    return { active: "jobDraftImports", leadId: "", jobId: "", customerId: "", reportId: "", importedDraftId: decodeURIComponent(segments[1]) };
   }
 
   const exactMatch = Object.entries(MODULE_PATHS).find(([, path]) => path === normalized);
@@ -74,5 +83,6 @@ export function parseAppPath(pathname) {
     jobId: "",
     customerId: "",
     reportId: "",
+    importedDraftId: "",
   };
 }

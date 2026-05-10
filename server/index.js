@@ -23,6 +23,17 @@ import { logger, serializeError } from "./logger.js";
 import { buildEstimateAttachmentEmailBody, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
 import { buildJobAssignmentNoticeKey, isJobAssignmentNoticeAcknowledged } from "../shared/job-assignment-notices.js";
 import {
+  CITY_STATE_WARNING,
+  createImportedJobDraftFromPackage,
+  findDuplicateImportedJobDraft,
+  getImportedDraftWarnings,
+  isImportedDraftReadyForJob,
+  mapImportedDraftToJobPayload,
+  normalizeImportedJobDraft,
+  normalizeImportedJobDrafts,
+  upsertImportedJobDraft,
+} from "../shared/jobDraftImports.js";
+import {
   cleanupExpiredSessions,
   createDefaultPostPourChecklistItems,
   createDefaultPrePourChecklistItems,
@@ -1948,6 +1959,11 @@ function visibleEstimatesForUser(state, user) {
       if (archivedCompare !== 0) return archivedCompare;
       return new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime();
     }), "estimates");
+}
+
+function visibleImportedJobDraftsForUser(state, user) {
+  if (!user || !canCreateJobs(user)) return [];
+  return normalizeImportedJobDrafts(state.jobDraftImports || []);
 }
 
 function normalizeEstimateItemsPayload(items, changedAt, estimateId = "") {
@@ -3959,6 +3975,7 @@ function statsFromState(state) {
   const liveLeads = state.leads.filter((lead) => !lead.archivedAt);
   const liveJobs = state.jobs.filter((job) => !job.archivedAt);
   const liveQueueItems = state.queueItems.filter((item) => !item.archivedAt);
+  const jobDraftImports = normalizeImportedJobDrafts(state.jobDraftImports || []);
   const newLeads = liveLeads.filter((lead) => lead.status === "New").length;
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High").length;
   const pipelineValue = liveLeads.reduce((sum, lead) => sum + Number(lead.value || 0), 0);
@@ -3973,6 +3990,10 @@ function statsFromState(state) {
     pipelineValue,
     activeJobs,
     scheduledJobs,
+    importedJobDrafts: jobDraftImports.length,
+    importedDraftsNeedingReview: jobDraftImports.filter((draft) => draft.importStatus === "Needs Review").length,
+    importedDraftsReady: jobDraftImports.filter((draft) => draft.importStatus === "Ready to Create Job").length,
+    importedDraftsJobCreated: jobDraftImports.filter((draft) => draft.importStatus === "Job Created" || draft.createdJobId).length,
     reportsDue,
     queueBlocked,
   };
@@ -3981,6 +4002,20 @@ function statsFromState(state) {
 function statsForUser(state, user, { jobs = null, leads = null, queueItems = null } = {}) {
   const liveJobs = (Array.isArray(jobs) ? jobs : visibleJobsForUser(state, user)).filter((job) => !job.archivedAt);
   const liveQueueItems = (Array.isArray(queueItems) ? queueItems : visibleQueueItemsForUser(state, user)).filter((item) => !item.archivedAt);
+  const importedDrafts = canCreateJobs(user) ? normalizeImportedJobDrafts(state.jobDraftImports || []) : [];
+  const importedDraftStats = canCreateJobs(user)
+    ? {
+        importedJobDrafts: importedDrafts.length,
+        importedDraftsNeedingReview: importedDrafts.filter((draft) => draft.importStatus === "Needs Review").length,
+        importedDraftsReady: importedDrafts.filter((draft) => draft.importStatus === "Ready to Create Job").length,
+        importedDraftsJobCreated: importedDrafts.filter((draft) => draft.importStatus === "Job Created" || draft.createdJobId).length,
+      }
+    : {
+        importedJobDrafts: 0,
+        importedDraftsNeedingReview: 0,
+        importedDraftsReady: 0,
+        importedDraftsJobCreated: 0,
+      };
 
   if (canViewLeads(user)) {
     const liveLeads = (Array.isArray(leads) ? leads : visibleLeadsForUser(state, user)).filter((lead) => !lead.archivedAt);
@@ -3992,6 +4027,7 @@ function statsForUser(state, user, { jobs = null, leads = null, queueItems = nul
       scheduledJobs: liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "scheduled").length,
       reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
       queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
+      ...importedDraftStats,
     };
   }
 
@@ -4003,6 +4039,7 @@ function statsForUser(state, user, { jobs = null, leads = null, queueItems = nul
     scheduledJobs: liveJobs.filter((job) => normalizeJobStatusValue(job.status || job.stage, "scheduled") === "scheduled").length,
     reportsDue: liveQueueItems.filter((item) => !item.done && item.status === "Due today").length,
     queueBlocked: liveQueueItems.filter((item) => !item.done && item.status === "Blocked").length,
+    ...importedDraftStats,
   };
 }
 
@@ -4017,6 +4054,7 @@ function sanitizeBootstrap(state, user) {
   const leads = visibleLeadsForUser(state, user);
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
+  const jobDraftImports = visibleImportedJobDraftsForUser(state, user);
   const jobs = visibleJobsForUser(state, user, hydrationContext);
   const safetyPolicies = visibleSafetyPoliciesForUser(state, user);
   const ppeItems = visiblePpeItemsForUser(state, user);
@@ -4042,6 +4080,7 @@ function sanitizeBootstrap(state, user) {
     leads,
     leadStatusHistory,
     estimates,
+    jobDraftImports,
     jobs,
     safetyPolicies,
     ppeItems,
@@ -4070,6 +4109,11 @@ function sanitizeBootstrap(state, user) {
       estimates: {
         canView: canViewEstimates(user),
         canManage: canManageEstimates(user),
+      },
+      jobDraftImports: {
+        canView: canCreateJobs(user),
+        canManage: canCreateJobs(user),
+        canCreateJob: canCreateJobs(user),
       },
       jobs: {
         canView: Boolean(user),
@@ -4144,6 +4188,69 @@ function appendAuditEvent(state, { entityType, entityId, action, summary, detail
     changedFields,
     createdAt: new Date().toISOString(),
   });
+}
+
+function pickImportedDraftEditableFields(updates = {}) {
+  const allowedFields = [
+    "importStatus",
+    "customerName",
+    "contactName",
+    "contactEmail",
+    "contactPhone",
+    "jobName",
+    "jobAddress",
+    "city",
+    "state",
+    "serviceType",
+    "projectType",
+    "scopeSummary",
+    "includedScope",
+    "exclusions",
+    "assumptions",
+    "operationsNotes",
+    "crewNotes",
+    "scheduleNotes",
+    "startDateTarget",
+    "assignedCrewPlaceholder",
+    "foremanPlaceholder",
+    "draftStatus",
+    "opsReadinessScore",
+    "opsReadinessLabel",
+    "opsReadinessIssues",
+    "proposalAmount",
+    "proposalLinkOrId",
+    "handoffStatus",
+    "jobDraftSummary",
+  ];
+
+  return Object.fromEntries(allowedFields.filter((field) => Object.hasOwn(updates, field)).map((field) => [field, updates[field]]));
+}
+
+function getImportDuplicateReason(existingDraft, candidateDraft) {
+  if (existingDraft.opsJobDraftId && existingDraft.opsJobDraftId === candidateDraft.opsJobDraftId) {
+    return "opsJobDraftId";
+  }
+  if (existingDraft.sourceHandoffId && existingDraft.sourceHandoffId === candidateDraft.sourceHandoffId) {
+    return "sourceHandoffId";
+  }
+  return "customerName + jobName + city";
+}
+
+function findPotentialImportedDraftJobDuplicate(jobs = [], draft = {}) {
+  const normalizedDraft = normalizeImportedJobDraft(draft);
+  const candidateCustomer = normalizeLookup(normalizedDraft.customerName);
+  const candidateTitle = normalizeLookup(normalizedDraft.jobName);
+  const candidateAddress = normalizeLookup(normalizedDraft.jobAddress);
+
+  if (!candidateCustomer || !candidateTitle) return null;
+
+  return (jobs || []).find((job) => {
+    const normalizedJob = normalizeJobRecord(job);
+    const sameCustomer = normalizeLookup(normalizedJob.customer) === candidateCustomer;
+    const sameTitle = normalizeLookup(normalizedJob.title) === candidateTitle;
+    const sameAddress = candidateAddress && normalizeLookup(normalizedJob.address) === candidateAddress;
+    return !normalizedJob.archivedAt && sameCustomer && sameTitle && (!candidateAddress || sameAddress);
+  }) || null;
 }
 
 app.use((req, res, next) => {
@@ -6553,6 +6660,225 @@ app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {
   res.json({
     customers: visibleCustomersForUser(state, req.auth.user),
     requestId: res.locals.requestId,
+  });
+}));
+
+app.get("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateJobs(req.auth.user);
+  const state = await readDb();
+  res.json({
+    jobDraftImports: visibleImportedJobDraftsForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateJobs(req.auth.user);
+  const packageJson = req.body?.package || req.body;
+  const allowDuplicate = req.body?.allowDuplicate === true;
+  const result = createImportedJobDraftFromPackage(packageJson, { id: makeId("IJD"), importedAt: new Date().toISOString() });
+
+  if (!result.ok) {
+    return res.status(400).json({
+      error: result.errors.join(" "),
+      warnings: result.warnings,
+      missingFields: result.missingFields,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const currentState = await readDb();
+  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], result.draft);
+  if (duplicateDraft && !allowDuplicate) {
+    return res.status(409).json({
+      error: "This job draft package looks like it has already been imported.",
+      duplicateDraft,
+      duplicateReason: getImportDuplicateReason(duplicateDraft, result.draft),
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const nextState = await updateDb((draft) => {
+    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], result.draft);
+    appendActivity(draft, "Job draft imported", `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`);
+    appendAuditEvent(draft, {
+      entityType: "jobDraftImport",
+      entityId: result.draft.id,
+      action: "imported",
+      summary: "Imported job draft",
+      detail: `${result.draft.jobName || "Imported draft"} imported for ${result.draft.customerName || "review"}.`,
+      actor: req.auth.user,
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    importedDraft: visibleImportedJobDraftsForUser(nextState, req.auth.user).find((draft) => draft.id === result.draft.id) || result.draft,
+  });
+}));
+
+app.patch("/api/job-draft-imports/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateJobs(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+  let updatedDraft = null;
+
+  const nextState = await updateDb((draft) => {
+    const currentDraft = findRequiredRecord(draft.jobDraftImports || [], id, "Imported job draft");
+    updatedDraft = normalizeImportedJobDraft({
+      ...currentDraft,
+      ...pickImportedDraftEditableFields(req.body || {}),
+      id: currentDraft.id,
+      importedAt: currentDraft.importedAt,
+      originalPackage: currentDraft.originalPackage,
+      packageVersion: currentDraft.packageVersion,
+      exportedAt: currentDraft.exportedAt,
+      sourceApp: currentDraft.sourceApp,
+      packageType: currentDraft.packageType,
+      opsJobDraftId: currentDraft.opsJobDraftId,
+      sourceHandoffId: currentDraft.sourceHandoffId,
+      sourceLeadId: currentDraft.sourceLeadId,
+      sourceProposalId: currentDraft.sourceProposalId,
+      sourceEstimateId: currentDraft.sourceEstimateId,
+      sourcePacketId: currentDraft.sourcePacketId,
+      createdJobId: currentDraft.createdJobId,
+      createdAt: currentDraft.createdAt,
+      updatedAt: changedAt,
+    });
+    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], updatedDraft);
+    appendActivity(draft, "Imported job draft updated", `${updatedDraft.jobName || "Imported draft"} details were updated.`);
+    appendAuditEvent(draft, {
+      entityType: "jobDraftImport",
+      entityId: updatedDraft.id,
+      action: "updated",
+      summary: "Imported job draft updated",
+      detail: `${updatedDraft.jobName || "Imported draft"} details were updated.`,
+      actor: req.auth.user,
+      changedFields: Object.keys(pickImportedDraftEditableFields(req.body || {})),
+    });
+    return draft;
+  });
+
+  return res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    importedDraft: visibleImportedJobDraftsForUser(nextState, req.auth.user).find((draft) => draft.id === id) || updatedDraft,
+  });
+}));
+
+app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async (req, res) => {
+  assertCanCreateJobs(req.auth.user);
+  const { id } = req.params;
+  const allowNotReady = req.body?.allowNotReady === true;
+  const allowMissingCityState = req.body?.allowMissingCityState === true;
+  const allowDuplicateJob = req.body?.allowDuplicateJob === true;
+  const currentState = await readDb();
+  const currentDraft = normalizeImportedJobDraft(findRequiredRecord(currentState.jobDraftImports || [], id, "Imported job draft"));
+
+  if (currentDraft.createdJobId) {
+    return res.status(409).json({
+      error: "A Concrete Ops 2 job has already been created from this imported draft.",
+      createdJobId: currentDraft.createdJobId,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const warnings = getImportedDraftWarnings(currentDraft);
+  const missingCityState = warnings.includes(CITY_STATE_WARNING);
+  if (missingCityState && !allowMissingCityState) {
+    return res.status(409).json({
+      error: CITY_STATE_WARNING,
+      needsConfirmation: true,
+      warning: CITY_STATE_WARNING,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  if (!isImportedDraftReadyForJob(currentDraft, { allowMissingCityState }) && !allowNotReady) {
+    return res.status(409).json({
+      error: "This imported draft is not marked ready. Review missing readiness items before creating the job.",
+      needsConfirmation: true,
+      warnings,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const duplicateJob = findPotentialImportedDraftJobDuplicate(currentState.jobs || [], currentDraft);
+  if (duplicateJob && !allowDuplicateJob) {
+    return res.status(409).json({
+      error: "A similar job already exists. Confirm before creating another job from this imported draft.",
+      needsConfirmation: true,
+      duplicateJob: normalizeJobRecord(duplicateJob),
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const jobPayload = mapImportedDraftToJobPayload(currentDraft, { allowMissingCityState });
+  const createdAt = new Date().toISOString();
+  let createdJob = null;
+  let updatedImport = null;
+
+  const nextState = await updateDb((draft) => {
+    const liveDraft = normalizeImportedJobDraft(findRequiredRecord(draft.jobDraftImports || [], id, "Imported job draft"));
+    if (liveDraft.createdJobId) {
+      throw new ApiError(409, "A Concrete Ops 2 job has already been created from this imported draft.");
+    }
+
+    createdJob = normalizeJobRecord({
+      id: makeId("J"),
+      customerId: "",
+      leadId: "",
+      ...jobPayload,
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+    });
+
+    draft.jobAssignments ||= [];
+    const customer = ensureCustomerRecord(draft, {
+      name: createdJob.customer,
+      phone: liveDraft.contactPhone,
+      email: liveDraft.contactEmail,
+      city: liveDraft.city,
+      serviceArea: liveDraft.city,
+      status: "Active",
+    }, req.auth.user, { fallbackStatus: "Active" });
+    createdJob.customerId = customer.id;
+    draft.jobs.unshift(createdJob);
+    syncJobAssignments(draft, createdJob, createdAt);
+    updatedImport = normalizeImportedJobDraft({
+      ...liveDraft,
+      createdJobId: createdJob.id,
+      importStatus: "Job Created",
+      updatedAt: createdAt,
+    });
+    draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], updatedImport);
+    appendActivity(draft, "Imported job draft converted", `${createdJob.title} created from imported draft ${updatedImport.id}.`);
+    appendAuditEvent(draft, {
+      entityType: "job",
+      entityId: createdJob.id,
+      action: "created_from_imported_draft",
+      summary: "Job created from imported draft",
+      detail: `${createdJob.title} created from imported draft ${updatedImport.id}.`,
+      actor: req.auth.user,
+      changedFields: ["createdJobId", "importStatus"],
+    });
+    appendAuditEvent(draft, {
+      entityType: "jobDraftImport",
+      entityId: updatedImport.id,
+      action: "converted",
+      summary: "Imported draft converted to job",
+      detail: `${updatedImport.jobName} created job ${createdJob.id}.`,
+      actor: req.auth.user,
+      changedFields: ["createdJobId", "importStatus"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    importedDraft: visibleImportedJobDraftsForUser(nextState, req.auth.user).find((draft) => draft.id === id) || updatedImport,
+    createdJob,
   });
 }));
 

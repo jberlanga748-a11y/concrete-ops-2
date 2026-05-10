@@ -5,6 +5,7 @@ import {
   canAcknowledgeSafety,
   canCreateDailyReports,
   canCreateDeliveryTickets,
+  canCreateJobs,
   canCreateUploads,
   canManageCustomers,
   canManageDeliveryTickets,
@@ -52,6 +53,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canViewDeliveryTickets(owner), true);
   assert.equal(canCreateDeliveryTickets(owner), true);
   assert.equal(canManageDeliveryTickets(owner), true);
+  assert.equal(canCreateJobs(owner), true);
   assert.equal(canManageUsers(owner), true);
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
@@ -79,6 +81,7 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canToggleToolChecklist(operations), true);
   assert.equal(canViewAllToolChecklists(operations), true);
   assert.equal(modules.has("employees"), true);
+  assert.equal(modules.has("jobDraftImports"), true);
 });
 
 test("estimator gets sales access without settings access", () => {
@@ -98,6 +101,7 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageDeliveryTickets(estimator), false);
   assert.equal(canManageOwnTime(estimator), true);
   assert.equal(modules.has("time"), true);
+  assert.equal(modules.has("jobDraftImports"), false);
   assert.equal(canViewSafety(estimator), false);
   assert.equal(canViewPrePour(estimator), false);
   assert.equal(canViewPostPour(estimator), false);
@@ -108,6 +112,7 @@ test("foreman stays field-only with calculator and safety access", () => {
   const foreman = { role: "Foreman" };
 
   assert.equal(canViewLeads(foreman), false);
+  assert.equal(canCreateJobs(foreman), false);
   assert.equal(canViewCustomers(foreman), false);
   assert.equal(canViewEstimates(foreman), false);
   assert.equal(canViewReports(foreman), true);
@@ -162,6 +167,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canSubmitSafetyIncidents(employee), true);
   assert.equal(canReviewSafetyIncidents(employee), false);
   assert.equal(modules.has("leads"), false);
+  assert.equal(modules.has("jobDraftImports"), false);
   assert.equal(modules.has("customers"), false);
   assert.equal(modules.has("settings"), false);
   assert.equal(modules.has("jobs"), true);

@@ -33,6 +33,7 @@ async function request(path, { method = "GET", token, body } = {}) {
     const missingBackendResponse = isApiPath && (!contentType.includes("application/json") || response.status >= 500);
     const error = new Error(payload.error || (missingBackendResponse ? backendUnavailableMessage() : "Request failed."));
     error.status = response.status;
+    error.payload = payload;
     if (missingBackendResponse) {
       error.code = "BACKEND_UNAVAILABLE";
     }
@@ -148,6 +149,18 @@ export function convertLeadToCustomer(token, id) {
 
 export function createJob(token, job) {
   return request("/api/jobs", { method: "POST", token, body: job });
+}
+
+export function importJobDraftPackage(token, packageJson, options = {}) {
+  return request("/api/job-draft-imports", { method: "POST", token, body: { package: packageJson, ...options } });
+}
+
+export function updateJobDraftImport(token, id, draft) {
+  return request(`/api/job-draft-imports/${id}`, { method: "PATCH", token, body: draft });
+}
+
+export function createJobFromImportedDraft(token, id, options = {}) {
+  return request(`/api/job-draft-imports/${id}/create-job`, { method: "POST", token, body: options });
 }
 
 export function updateJob(token, id, job) {
