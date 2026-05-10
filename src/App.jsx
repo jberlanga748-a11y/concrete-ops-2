@@ -2973,7 +2973,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
 
   return (
     <div>
-      <PageHeader eyebrow="Field Workspace" title="My Crew" description="Assigned jobs, upcoming planning work, and safe crew details without office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
+      <PageHeader eyebrow="Field Workspace" title="My Crew" description="Start with new assignment notices, clock in, then open the next job. This view stays field-safe and hides office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
@@ -3026,7 +3026,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
 
   return (
     <div>
-      <PageHeader eyebrow="Field Workspace" title="My Job" description="Simple assigned-work view with only the job details and tools needed in the field." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
+      <PageHeader eyebrow="Field Workspace" title="My Job" description="Start with new assignment notices, clock in, then open your next assigned job. Only field-safe job details and tools are shown here." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
         <div className="min-w-0 space-y-4">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
@@ -5883,13 +5883,13 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
   );
 }
 
-function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, children }) {
+function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, badgeTone = "blue", children }) {
   return (
     <Card className="p-5">
       <SectionHeader
         title={title}
         description={description}
-        action={<Badge tone={count > 0 ? "blue" : "slate"}>{count} item{count === 1 ? "" : "s"}</Badge>}
+        action={<Badge tone={count > 0 ? badgeTone : "slate"}>{count} item{count === 1 ? "" : "s"}</Badge>}
       />
       <div className="space-y-3">
         {count > 0 ? children : <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />}
@@ -5909,9 +5909,43 @@ function CommandCenterItem({ eyebrow, title, description, meta, badges, actions 
           {meta ? <p className="mt-2 break-words text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{meta}</p> : null}
           {badges ? <div className="mt-3 flex flex-wrap gap-2">{badges}</div> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap gap-2 xl:justify-end">{actions}</div> : null}
+        {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 xl:w-auto xl:justify-end">{actions}</div> : null}
       </div>
     </div>
+  );
+}
+
+function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports }) {
+  const steps = [
+    "Confirm imported drafts and customer matches",
+    "Clear startup blockers before field release",
+    "Assign crew, dates, reports, photos, tickets, and time follow-up",
+  ];
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/80 p-5 shadow-sm">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <Badge tone="blue">Start here</Badge>
+          <h3 className="mt-3 text-lg font-black text-slate-950">Morning office order</h3>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-700">
+            Work top to bottom: imported drafts first, startup readiness second, then field paperwork and crew follow-up.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {steps.map((step, index) => (
+              <span key={step} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-blue-800 ring-1 ring-blue-100">
+                {index + 1}. {step}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={onOpenDrafts}>Review Drafts</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Open Jobs</Button>
+          <Button type="button" size="sm" onClick={onOpenReports}>Reports / Photos</Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -5971,12 +6005,12 @@ function CommandCenterPage({
   }
 
   const statCards = [
-    { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review before creating jobs", icon: "database" },
-    { key: "importedDraftsNeedingCustomerMatch", label: "Drafts Needing Customer Match", helper: "Confirm customer before job creation", icon: "users" },
-    { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Startup checklist still needs attention", icon: "alert" },
+    { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review missing details before job creation", icon: "database" },
+    { key: "importedDraftsNeedingCustomerMatch", label: "Drafts Needing Customer Match", helper: "Confirm match or choose create-new", icon: "users" },
+    { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Clear critical startup items", icon: "alert" },
     { key: "jobsReadyForField", label: "Jobs Ready for Field", helper: "Ready but still active", icon: "check" },
-    { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Crew or foreman not assigned", icon: "users" },
-    { key: "jobsMissingStartDate", label: "Jobs Missing Start Date", helper: "Needs a scheduled date", icon: "clock" },
+    { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Assign crew or mark TBD in startup", icon: "users" },
+    { key: "jobsMissingStartDate", label: "Jobs Missing Start Date", helper: "Schedule work or mark TBD in startup", icon: "clock" },
     { key: "openDailyReports", label: "Open Daily Reports", helper: "Draft or reopened reports", icon: "document" },
     { key: "dailyReportsNeedingReview", label: "Reports Needing Review", helper: "Submitted for office review", icon: "clipboard" },
     { key: "jobsMissingPhotos", label: "Jobs Missing Photos", helper: "No upload evidence yet", icon: "upload" },
@@ -6008,6 +6042,11 @@ function CommandCenterPage({
       />
       <div className="grid gap-5 px-5 pb-10 sm:px-6 lg:px-8">
         {copyMessage ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{copyMessage}</div> : null}
+        <CommandCenterMorningFlowCard
+          onOpenDrafts={() => openModule("jobDraftImports")}
+          onOpenJobs={() => openModule("jobs")}
+          onOpenReports={() => openModule("reports")}
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
           {statCards.map((card) => (
             <KpiCard key={card.key} item={{ ...card, value: commandCenter.stats[card.key] }} />
@@ -6020,6 +6059,7 @@ function CommandCenterPage({
           count={commandCenter.importedDraftsNeedingCustomerMatch.length}
           emptyTitle="No customer matches waiting"
           emptyDescription="Imported drafts with customer match questions will appear here before job creation."
+          badgeTone="amber"
         >
           {limited(commandCenter.importedDraftsNeedingCustomerMatch).map((draft) => (
             <CommandCenterItem
@@ -6040,6 +6080,7 @@ function CommandCenterPage({
             count={commandCenter.importedDraftsNeedingReview.length}
             emptyTitle="No imported drafts waiting"
             emptyDescription="Imported job draft packages that need review will appear here."
+            badgeTone="amber"
           >
             {limited(commandCenter.importedDraftsNeedingReview).map((draft) => (
               <CommandCenterItem
@@ -6065,6 +6106,7 @@ function CommandCenterPage({
             count={commandCenter.jobsNeedingStartupReview.length}
             emptyTitle="No startup review backlog"
             emptyDescription="Jobs with missing startup checklist items will appear here."
+            badgeTone="amber"
           >
             {limited(commandCenter.jobsNeedingStartupReview).map((job) => (
               <CommandCenterItem
@@ -6090,6 +6132,7 @@ function CommandCenterPage({
             count={commandCenter.jobsReadyForField.length}
             emptyTitle="No jobs marked ready"
             emptyDescription="Jobs marked Ready for Field from the startup checklist will appear here."
+            badgeTone="green"
           >
             {limited(commandCenter.jobsReadyForField).map((job) => (
               <CommandCenterItem
@@ -6117,6 +6160,7 @@ function CommandCenterPage({
             count={commandCenter.jobsMissingCrewOrStartDate.length}
             emptyTitle="Crew and dates look set"
             emptyDescription="Active jobs missing crew or schedule information will appear here."
+            badgeTone="amber"
           >
             {limited(commandCenter.jobsMissingCrewOrStartDate).map((job) => (
               <CommandCenterItem
@@ -6419,9 +6463,10 @@ function DashboardPage({
       <PageHeader
         eyebrow="Operations Command"
         title="Daily workspace"
-        description="Review leads, jobs, queue actions, and team activity from one office workspace."
+        description="Start in Command Center for the morning checklist, then work leads, jobs, queue actions, and team activity."
         actions={
           <>
+            {permissions?.jobs?.canManageAll ? <Button variant="secondary" onClick={() => setActive("commandCenter")}>Command Center</Button> : null}
             <Button variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
             <Button onClick={() => setActive("jobs")}>Open jobs</Button>
           </>
