@@ -1,5 +1,6 @@
 export const MODULE_PATHS = {
   dashboard: "/",
+  commandCenter: "/command-center",
   leads: "/leads",
   jobs: "/jobs",
   time: "/time",

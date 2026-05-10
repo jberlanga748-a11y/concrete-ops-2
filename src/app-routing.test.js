@@ -39,6 +39,18 @@ test("job routes build and parse durable detail paths", () => {
   });
 });
 
+test("command center module route resolves directly", () => {
+  assert.equal(getModulePath("commandCenter"), "/command-center");
+  assert.deepEqual(parseAppPath("/command-center"), {
+    active: "commandCenter",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("report routes build and parse durable detail paths", () => {
   assert.equal(buildReportPath("R-1001"), "/reports/R-1001");
   assert.deepEqual(parseAppPath("/reports/R-1001"), {

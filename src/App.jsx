@@ -101,6 +101,7 @@ import {
 import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
+import { deriveCommandCenterState } from "./command-center-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
@@ -174,6 +175,7 @@ const NAV_GROUPS = [
   {
     label: "Office",
     items: [
+      { id: "commandCenter", label: "Command Center", icon: "grid" },
       { id: "leads", label: "Leads", icon: "inbox" },
       { id: "customers", label: "Customers", icon: "users" },
       { id: "estimates", label: "Estimates", icon: "quote" },
@@ -5861,6 +5863,379 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
   );
 }
 
+function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, children }) {
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title={title}
+        description={description}
+        action={<Badge tone={count > 0 ? "blue" : "slate"}>{count} item{count === 1 ? "" : "s"}</Badge>}
+      />
+      <div className="space-y-3">
+        {count > 0 ? children : <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />}
+      </div>
+    </Card>
+  );
+}
+
+function CommandCenterItem({ eyebrow, title, description, meta, badges, actions }) {
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">{eyebrow}</p> : null}
+          <p className="mt-1 break-words text-base font-black text-slate-950">{title}</p>
+          {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-600">{description}</p> : null}
+          {meta ? <p className="mt-2 break-words text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{meta}</p> : null}
+          {badges ? <div className="mt-3 flex flex-wrap gap-2">{badges}</div> : null}
+        </div>
+        {actions ? <div className="flex shrink-0 flex-wrap gap-2 xl:justify-end">{actions}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function CommandCenterPage({
+  jobs,
+  jobDraftImports,
+  dailyReports,
+  uploads,
+  prePourChecklists,
+  postPourChecklists,
+  deliveryTickets,
+  timeEntries,
+  changeOrderRequests,
+  setActive,
+  onSelectJob,
+  onSelectImportedDraft,
+  onSelectReport,
+  onPrintDailyReport,
+}) {
+  const [copyMessage, setCopyMessage] = useState("");
+  const commandCenter = useMemo(() => deriveCommandCenterState({
+    jobs,
+    jobDraftImports,
+    dailyReports,
+    uploads,
+    prePourChecklists,
+    postPourChecklists,
+    deliveryTickets,
+    timeEntries,
+    changeOrderRequests,
+  }), [changeOrderRequests, dailyReports, deliveryTickets, jobDraftImports, jobs, postPourChecklists, prePourChecklists, timeEntries, uploads]);
+
+  function openModule(moduleId) {
+    setActive?.(moduleId);
+  }
+
+  function openJob(jobId) {
+    if (jobId) onSelectJob?.(jobId);
+  }
+
+  function openImportedDraft(draftId) {
+    if (draftId) onSelectImportedDraft?.(draftId);
+  }
+
+  function openReport(reportId) {
+    if (reportId) onSelectReport?.(reportId);
+  }
+
+  async function copyStartupSummary(job) {
+    try {
+      await navigator.clipboard.writeText(buildStartupSummary(job));
+      setCopyMessage("Startup summary copied.");
+      window.setTimeout(() => setCopyMessage(""), 2500);
+    } catch {
+      setCopyMessage("Clipboard unavailable on this browser.");
+    }
+  }
+
+  const statCards = [
+    { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review before creating jobs", icon: "database" },
+    { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Startup checklist still needs attention", icon: "alert" },
+    { key: "jobsReadyForField", label: "Jobs Ready for Field", helper: "Ready but still active", icon: "check" },
+    { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Crew or foreman not assigned", icon: "users" },
+    { key: "jobsMissingStartDate", label: "Jobs Missing Start Date", helper: "Needs a scheduled date", icon: "clock" },
+    { key: "openDailyReports", label: "Open Daily Reports", helper: "Draft or reopened reports", icon: "document" },
+    { key: "dailyReportsNeedingReview", label: "Reports Needing Review", helper: "Submitted for office review", icon: "clipboard" },
+    { key: "jobsMissingPhotos", label: "Jobs Missing Photos", helper: "No upload evidence yet", icon: "upload" },
+    { key: "pendingPrePourChecklists", label: "Pending Pre-Pour", helper: "Checklist not completed/reviewed", icon: "clipboard" },
+    { key: "pendingPostPourChecklists", label: "Pending Post-Pour", helper: "Checklist not completed/reviewed", icon: "clipboard" },
+    { key: "pendingDeliveryTickets", label: "Pending Delivery Tickets", helper: "Open delivery ticket records", icon: "clipboard" },
+    { key: "openChangeOrders", label: "Open Change Orders", helper: "Requests still moving", icon: "refresh" },
+    { key: "timeIssues", label: "Time Issues", helper: "Active entries or missing job", icon: "clock" },
+    { key: "activeJobs", label: "Active Jobs", helper: "Non-closed job count", icon: "briefcase" },
+  ];
+
+  const limited = (rows) => (Array.isArray(rows) ? rows.slice(0, 6) : []);
+  const missingReportCount = commandCenter.dailyReports.activeJobsMissingTodayReport.length;
+  const recentUploadCount = commandCenter.uploads.recentUploads.length;
+  const timeIssueCount = commandCenter.stats.timeIssues;
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Office"
+        title="Daily Command Center"
+        description="A morning dashboard for imported drafts, startup readiness, field records, photos, reports, tickets, time, and active job attention."
+        actions={
+          <>
+            <Button type="button" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Open Jobs</Button>
+            <Button type="button" variant="secondary" onClick={() => openModule("jobDraftImports")}><Icon name="database" />Imported Drafts</Button>
+          </>
+        }
+      />
+      <div className="grid gap-5 px-5 pb-10 sm:px-6 lg:px-8">
+        {copyMessage ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{copyMessage}</div> : null}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+          {statCards.map((card) => (
+            <KpiCard key={card.key} item={{ ...card, value: commandCenter.stats[card.key] }} />
+          ))}
+        </div>
+
+        <div className="grid items-start gap-5 xl:grid-cols-2">
+          <CommandCenterSection
+            title="Imported Drafts Needing Review"
+            description="Draft packages that still need office review before a real job is created."
+            count={commandCenter.importedDraftsNeedingReview.length}
+            emptyTitle="No imported drafts waiting"
+            emptyDescription="Imported job draft packages that need review will appear here."
+          >
+            {limited(commandCenter.importedDraftsNeedingReview).map((draft) => (
+              <CommandCenterItem
+                key={draft.id}
+                eyebrow={draft.importStatus || "Imported Draft"}
+                title={draft.jobName || "Untitled imported draft"}
+                description={`${draft.customerName || "Customer pending"} - ${draft.city || draft.jobAddress || "Location needs review"}`}
+                badges={<><StatusBadge status={draft.importStatus || "Imported"} />{draft.opsReadinessLabel ? <Badge tone="amber">{draft.opsReadinessLabel}</Badge> : null}</>}
+                actions={
+                  <>
+                    <Button type="button" size="sm" onClick={() => openImportedDraft(draft.id)}>Open Imported Draft</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openImportedDraft(draft.id)}>{draft.importStatus === "Ready to Create Job" ? "Create job flow" : "Review details"}</Button>
+                    {draft.createdJobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(draft.createdJobId)}>Open Created Job</Button> : null}
+                  </>
+                }
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Jobs Needing Startup Review"
+            description="Jobs with startup checklist work left before the field crew should run them."
+            count={commandCenter.jobsNeedingStartupReview.length}
+            emptyTitle="No startup review backlog"
+            emptyDescription="Jobs with missing startup checklist items will appear here."
+          >
+            {limited(commandCenter.jobsNeedingStartupReview).map((job) => (
+              <CommandCenterItem
+                key={job.id}
+                eyebrow={job.customer || "Customer pending"}
+                title={jobTitle(job)}
+                description={job.address || "Address pending"}
+                meta={`${job.startupWarnings.length} critical warning${job.startupWarnings.length === 1 ? "" : "s"}`}
+                badges={<><StartupStatusBadge status={job.startupStatus} />{job.startupWarnings.length > 0 ? <Badge tone="amber">Critical items missing</Badge> : null}</>}
+                actions={
+                  <>
+                    <Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => copyStartupSummary(job)}>Copy Startup Summary</Button>
+                  </>
+                }
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Jobs Ready for Field"
+            description="Ready-for-field jobs that can move into crew assignment, reports, photos, and checklist work."
+            count={commandCenter.jobsReadyForField.length}
+            emptyTitle="No jobs marked ready"
+            emptyDescription="Jobs marked Ready for Field from the startup checklist will appear here."
+          >
+            {limited(commandCenter.jobsReadyForField).map((job) => (
+              <CommandCenterItem
+                key={job.id}
+                eyebrow={job.customer || "Customer pending"}
+                title={jobTitle(job)}
+                description={jobScheduleLabel(job)}
+                badges={<><StartupStatusBadge status={job.startupStatus} /><StatusBadge status={jobStatusLabel(job.status)} /></>}
+                actions={
+                  <>
+                    <Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openJob(job.id)}>Assign Crew</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openModule("reports")}>Daily Report</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openModule("prePour")}>Pre-Pour</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => openModule("uploads")}>Uploads</Button>
+                  </>
+                }
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Jobs Missing Crew / Start Date"
+            description="Active jobs that need a crew assignment, foreman, or scheduled start before the field can trust the plan."
+            count={commandCenter.jobsMissingCrewOrStartDate.length}
+            emptyTitle="Crew and dates look set"
+            emptyDescription="Active jobs missing crew or schedule information will appear here."
+          >
+            {limited(commandCenter.jobsMissingCrewOrStartDate).map((job) => (
+              <CommandCenterItem
+                key={job.id}
+                eyebrow={job.customer || "Customer pending"}
+                title={jobTitle(job)}
+                description={job.address || "Address pending"}
+                badges={<>{job.missingCrew ? <Badge tone="amber">Missing crew</Badge> : null}{job.missingStartDate ? <Badge tone="amber">Missing start date</Badge> : null}</>}
+                actions={<Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button>}
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Daily Reports"
+            description="Drafts, submitted reports, and active jobs without a report today."
+            count={commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + missingReportCount}
+            emptyTitle="Daily reports are caught up"
+            emptyDescription="Open reports, review-ready reports, and missing daily reports will appear here."
+          >
+            {limited([...commandCenter.dailyReports.openDailyReports, ...commandCenter.dailyReports.dailyReportsNeedingReview]).map((report) => (
+              <CommandCenterItem
+                key={report.id}
+                eyebrow={reportStatusLabel(report.status)}
+                title={report.job?.title || report.jobTitle || report.jobName || report.id}
+                description={report.reportDate || report.createdAt || "Date pending"}
+                badges={<StatusBadge status={reportStatusLabel(report.status)} />}
+                actions={
+                  <>
+                    <Button type="button" size="sm" onClick={() => openReport(report.id)}>Open Report</Button>
+                    {report.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(report.jobId)}>Open Job</Button> : null}
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onPrintDailyReport?.(report)}>Print Report</Button>
+                  </>
+                }
+              />
+            ))}
+            {limited(commandCenter.dailyReports.activeJobsMissingTodayReport).map((job) => (
+              <CommandCenterItem
+                key={`missing-report-${job.id}`}
+                eyebrow="No report today"
+                title={jobTitle(job)}
+                description={job.customer || "Customer pending"}
+                badges={<Badge tone="amber">Missing today's report</Badge>}
+                actions={<><Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button><Button type="button" size="sm" variant="secondary" onClick={() => openModule("reports")}>Open Reports</Button></>}
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Uploads / Photo Evidence"
+            description="Active jobs missing photos plus the latest field evidence coming in."
+            count={commandCenter.stats.jobsMissingPhotos + recentUploadCount}
+            emptyTitle="Photo evidence looks healthy"
+            emptyDescription="Jobs missing uploads or recent upload evidence will appear here."
+          >
+            {limited(commandCenter.uploads.jobsMissingPhotos).map((job) => (
+              <CommandCenterItem
+                key={`missing-upload-${job.id}`}
+                eyebrow="No uploads yet"
+                title={jobTitle(job)}
+                description={job.customer || job.address || "Job needs photo evidence"}
+                badges={<Badge tone="amber">Missing photos</Badge>}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("uploads")}>Open Uploads</Button><Button type="button" size="sm" variant="secondary" onClick={() => openJob(job.id)}>Open Job</Button></>}
+              />
+            ))}
+            {limited(commandCenter.uploads.recentUploads).map((upload) => (
+              <CommandCenterItem
+                key={`recent-upload-${upload.id}`}
+                eyebrow="Recent upload"
+                title={uploadTitle(upload)}
+                description={upload.caption || upload.notes || "Photo evidence captured"}
+                meta={formatDateTime(upload.uploadedAt || upload.createdAt)}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("uploads")}>Open Uploads</Button>{upload.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(upload.jobId)}>Open Job</Button> : null}</>}
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Pre-Pour / Post-Pour / Delivery Tickets"
+            description="Pending concrete checklist and ticket records that should be reviewed before closeout."
+            count={commandCenter.stats.pendingPrePourChecklists + commandCenter.stats.pendingPostPourChecklists + commandCenter.stats.pendingDeliveryTickets}
+            emptyTitle="Checklist and ticket queues are clear"
+            emptyDescription="Pending pre-pour, post-pour, or delivery ticket records will appear here."
+          >
+            {limited(commandCenter.fieldRecords.pendingPrePour).map((checklist) => (
+              <CommandCenterItem
+                key={`pre-${checklist.id}`}
+                eyebrow="Pre-Pour"
+                title={checklist.job?.title || checklist.jobTitle || checklist.id}
+                description={checklist.notes || "Pre-pour checklist pending"}
+                badges={<StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("prePour")}>Open Pre-Pour</Button>{checklist.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(checklist.jobId)}>Open Job</Button> : null}</>}
+              />
+            ))}
+            {limited(commandCenter.fieldRecords.pendingPostPour).map((checklist) => (
+              <CommandCenterItem
+                key={`post-${checklist.id}`}
+                eyebrow="Post-Pour"
+                title={checklist.job?.title || checklist.jobTitle || checklist.id}
+                description={checklist.notes || "Post-pour checklist pending"}
+                badges={<StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("postPour")}>Open Post-Pour</Button>{checklist.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(checklist.jobId)}>Open Job</Button> : null}</>}
+              />
+            ))}
+            {limited(commandCenter.fieldRecords.pendingDeliveryTickets).map((ticket) => (
+              <CommandCenterItem
+                key={`ticket-${ticket.id}`}
+                eyebrow="Delivery Ticket"
+                title={deliveryTicketTitle(ticket)}
+                description={ticket.supplier || ticket.mixNotes || "Delivery ticket pending"}
+                badges={<Badge tone="blue">{ticket.status || "Open"}</Badge>}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("deliveryTickets")}>Open Tickets</Button>{ticket.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(ticket.jobId)}>Open Job</Button> : null}</>}
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Time / Crew Issues"
+            description="Active time entries, missing clock-outs, and entries that need a job assignment."
+            count={timeIssueCount}
+            emptyTitle="No time issues showing"
+            emptyDescription="Active time entries and unassigned time will appear here."
+          >
+            {limited(commandCenter.timeIssues.allTimeIssues).map((entry) => (
+              <CommandCenterItem
+                key={entry.id}
+                eyebrow={entry.clockOutAt ? "Missing job" : "Active time"}
+                title={entry.userName || entry.employeeName || entry.userId || "Crew member"}
+                description={entry.jobTitle || entry.category || "Time entry needs review"}
+                meta={entry.clockInAt ? `Clocked in ${formatDateTime(entry.clockInAt)}` : ""}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("time")}>Open Time</Button>{entry.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(entry.jobId)}>Open Job</Button> : null}</>}
+              />
+            ))}
+          </CommandCenterSection>
+
+          <CommandCenterSection
+            title="Change Orders"
+            description="Open change order requests that still need office attention."
+            count={commandCenter.changeOrders.openChangeOrders.length}
+            emptyTitle="No open change orders"
+            emptyDescription="Pending change order requests will appear here."
+          >
+            {limited(commandCenter.changeOrders.openChangeOrders).map((request) => (
+              <CommandCenterItem
+                key={request.id}
+                eyebrow={changeOrderStatusLabel(request.status)}
+                title={request.title || request.summary || request.id}
+                description={request.jobTitle || request.description || "Change order request needs review"}
+                badges={<StatusBadge status={changeOrderStatusLabel(request.status)} />}
+                actions={<><Button type="button" size="sm" onClick={() => openModule("changeOrders")}>Open Change Orders</Button>{request.jobId ? <Button type="button" size="sm" variant="secondary" onClick={() => openJob(request.jobId)}>Open Job</Button> : null}</>}
+              />
+            ))}
+          </CommandCenterSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardPage({
   stats,
   dashboardMetrics,
@@ -10307,6 +10682,7 @@ function MainContent(props) {
   const { active } = props;
   if (!canAccessModule(active, props.user, props.companySettings)) return null;
   if (active === "dashboard") return <DashboardPage {...props} />;
+  if (active === "commandCenter") return <CommandCenterPage {...props} />;
   if (active === "leads") {
     return (
       <LeadsPage
