@@ -210,7 +210,7 @@ textarea {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)),
       var(--color-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 18px 45px -34px rgba(15, 23, 42, 0.38);
   }
 
   .co-command-card::before {
@@ -219,9 +219,9 @@ textarea {
     left: 0;
     top: 1rem;
     bottom: 1rem;
-    width: 3px;
+    width: 2px;
     border-radius: 999px;
-    background: var(--color-brand-orange);
+    background: rgba(249, 115, 22, 0.52);
   }
 
   .co-command-kpi {
@@ -244,9 +244,9 @@ textarea {
   .co-command-priority-row {
     border-color: rgba(226, 232, 240, 0.92);
     background:
-      linear-gradient(90deg, rgba(255, 247, 237, 0.62), rgba(255, 255, 255, 0.96) 42%),
+      linear-gradient(90deg, rgba(255, 247, 237, 0.42), rgba(255, 255, 255, 0.98) 34%),
       var(--color-card);
-    box-shadow: 0 14px 34px -32px rgba(15, 23, 42, 0.38);
+    box-shadow: 0 10px 26px -28px rgba(15, 23, 42, 0.32);
   }
 
   .co-command-action-row {

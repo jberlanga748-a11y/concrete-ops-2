@@ -7044,14 +7044,16 @@ function CommandCenterSection({ title, description, count, emptyTitle, emptyDesc
 
 function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, compact = false }) {
   return (
-    <div className={`co-command-priority-row rounded-2xl border ${compact ? "p-3" : "p-4"}`}>
-      <div className={`flex min-w-0 flex-col xl:flex-row xl:items-start xl:justify-between ${compact ? "gap-2" : "gap-3"}`}>
+    <div className={`co-command-priority-row rounded-2xl border ${compact ? "px-3 py-2.5" : "p-4"}`}>
+      <div className={`grid min-w-0 gap-2 ${compact ? "xl:grid-cols-[minmax(0,1fr)_auto]" : "xl:grid-cols-[minmax(0,1fr)_auto]"} xl:items-center xl:justify-between`}>
         <div className="min-w-0">
-          {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-700">{eyebrow}</p> : null}
-          <p className={`${compact ? "mt-0.5 text-sm" : "mt-1 text-base"} break-words font-black text-slate-950`}>{title}</p>
-          {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-600">{description}</p> : null}
-          {meta ? <p className={`${compact ? "mt-1" : "mt-2"} break-words text-xs font-bold uppercase tracking-[0.12em] text-slate-400`}>{meta}</p> : null}
-          {badges ? <div className={`${compact ? "mt-2" : "mt-3"} flex flex-wrap gap-2`}>{badges}</div> : null}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-700">{eyebrow}</p> : null}
+            {badges ? <div className="flex shrink-0 flex-wrap gap-1.5">{badges}</div> : null}
+          </div>
+          <p className={`${compact ? "mt-1 text-sm" : "mt-1 text-base"} break-words font-black text-slate-950`}>{title}</p>
+          {description ? <p className="mt-0.5 break-words text-sm leading-5 text-slate-600">{description}</p> : null}
+          {meta ? <p className={`${compact ? "mt-0.5" : "mt-2"} break-words text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400`}>{meta}</p> : null}
         </div>
         {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 xl:w-auto xl:justify-end">{actions}</div> : null}
       </div>
@@ -7140,25 +7142,27 @@ function CommandCenterKpiCard({ item }) {
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
 
   return (
-    <div className="co-command-kpi rounded-3xl border p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+    <div className="co-command-kpi rounded-3xl border p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-          <p className={`mt-3 break-words text-3xl font-black tracking-tight ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
-          <p className="mt-1 break-words text-sm font-bold leading-5 text-slate-500">{item.helper}</p>
+          <div className="mt-2 flex min-w-0 items-end gap-3">
+            <p className={`break-words text-3xl font-black leading-none tracking-tight ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
+            <p className="min-w-0 break-words pb-0.5 text-sm font-bold leading-5 text-slate-500">{item.helper}</p>
+          </div>
           {item.actionLabel ? (
             <button
               type="button"
               onClick={item.onAction}
-              className="co-focus-ring mt-4 inline-flex items-center gap-1 rounded-full text-sm font-black text-orange-700 hover:text-orange-800"
+              className="co-focus-ring mt-2 inline-flex items-center gap-1 rounded-full text-xs font-black uppercase tracking-[0.12em] text-orange-700 hover:text-orange-800"
             >
               {item.actionLabel}
               <span aria-hidden="true">-&gt;</span>
             </button>
           ) : null}
         </div>
-        <div className={`shrink-0 rounded-2xl p-3 ring-1 ${toneClass}`}>
-          <Icon name={item.icon} className="h-5 w-5" />
+        <div className={`shrink-0 rounded-2xl p-2.5 ring-1 ${toneClass}`}>
+          <Icon name={item.icon} className="h-4 w-4" />
         </div>
       </div>
     </div>
@@ -7170,10 +7174,10 @@ function CommandCenterQuickAction({ icon, label, helper, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="co-command-action-row co-focus-ring flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition hover:border-orange-200 hover:bg-orange-50"
+      className="co-command-action-row co-focus-ring flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition hover:border-orange-200 hover:bg-orange-50"
     >
       <span className="flex min-w-0 items-center gap-3">
-        <span className="shrink-0 rounded-2xl bg-orange-50 p-2 text-orange-700">
+        <span className="shrink-0 rounded-2xl bg-orange-50 p-1.5 text-orange-700">
           <Icon name={icon} className="h-4 w-4" />
         </span>
         <span className="min-w-0">
@@ -7208,7 +7212,6 @@ function CommandCenterPage({
   onSelectReport,
   onPrintDailyReport,
 }) {
-  const [copyMessage, setCopyMessage] = useState("");
   const commandCenter = useMemo(() => deriveCommandCenterState({
     leads,
     customers,
@@ -7238,22 +7241,7 @@ function CommandCenterPage({
     if (draftId) onSelectImportedDraft?.(draftId);
   }
 
-  function openReport(reportId) {
-    if (reportId) onSelectReport?.(reportId);
-  }
-
-  async function copyStartupSummary(job) {
-    try {
-      await navigator.clipboard.writeText(buildStartupSummary(job));
-      setCopyMessage("Startup summary copied.");
-      window.setTimeout(() => setCopyMessage(""), 2500);
-    } catch {
-      setCopyMessage("Clipboard unavailable on this browser.");
-    }
-  }
-
   const limited = (rows) => (Array.isArray(rows) ? rows.slice(0, 6) : []);
-  const missingReportCount = commandCenter.dailyReports.activeJobsMissingTodayReport.length;
   const recentUploadCount = commandCenter.uploads.recentUploads.length;
   const timeIssueCount = commandCenter.stats.timeIssues;
   const reportsUploadsDue = commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + commandCenter.stats.jobsMissingPhotos;
@@ -7307,35 +7295,58 @@ function CommandCenterPage({
     { key: "timeIssues", label: "Time issues", helper: "Active or unassigned", icon: "clock" },
     { key: "activeJobs", label: "Active jobs", helper: "Non-closed jobs", icon: "briefcase" },
   ];
+  function renderPriorityAction(label, onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="co-focus-ring inline-flex items-center justify-center rounded-full bg-orange-600 px-3 py-1.5 text-xs font-black text-white shadow-sm shadow-orange-600/20 transition hover:bg-orange-700"
+      >
+        {label}
+        <span aria-hidden="true" className="ml-1">-&gt;</span>
+      </button>
+    );
+  }
+
+  const followUpPriority = (bucket) => ({
+    overdue: 10,
+    dueToday: 20,
+    waiting: 50,
+    followUpNeeded: 50,
+    notContacted: 55,
+  }[bucket] || 60);
   const priorityRows = [
     ...commandCenter.followUpQueue.items.map((item) => ({
       id: `followup-${item.id}`,
+      priority: followUpPriority(item.bucket),
       eyebrow: FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up",
       title: item.title,
       description: item.subtitle || item.reason,
       meta: `Last: ${item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "not contacted"} / Next: ${item.nextFollowUpDate || "not scheduled"}`,
-      badges: <><Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge><Badge tone="slate">{item.type === "leadSource" ? "Lead Source" : item.type}</Badge></>,
-      actions: <Button type="button" size="sm" onClick={() => openModule("leads")}>Open Follow-Up Queue</Button>,
+      badges: <Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge>,
+      actions: renderPriorityAction(item.type === "leadSource" ? "Open Source Check" : "Open Follow-Up", () => openModule("leads")),
     })),
     ...commandCenter.importedDraftsNeedingCustomerMatch.map((draft) => ({
       id: `match-${draft.id}`,
+      priority: 30,
       eyebrow: draft.customerMatchStatus || "Customer match",
       title: draft.customerName || draft.jobName || "Imported draft",
       description: draft.customerMatchReason || "Open the imported draft to confirm the customer or choose create-new.",
-      badges: <><Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge><StatusBadge status={draft.importStatus || "Imported"} /></>,
-      actions: <Button type="button" size="sm" onClick={() => openImportedDraft(draft.id)}>Review Customer Match</Button>,
+      badges: <Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Needs Review"}</Badge>,
+      actions: renderPriorityAction("Review Match", () => openImportedDraft(draft.id)),
     })),
     ...commandCenter.jobsNeedingStartupReview.map((job) => ({
       id: `startup-${job.id}`,
+      priority: job.startupWarnings.length > 0 ? 40 : 45,
       eyebrow: job.customer || "Startup blocker",
       title: jobTitle(job),
       description: job.address || "Address pending",
       meta: `${job.startupWarnings.length} critical warning${job.startupWarnings.length === 1 ? "" : "s"}`,
-      badges: <><StartupStatusBadge status={job.startupStatus} />{job.startupWarnings.length > 0 ? <Badge tone="amber">Critical items missing</Badge> : null}</>,
-      actions: <Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button>,
+      badges: <Badge tone={job.startupWarnings.length > 0 ? "amber" : "slate"}>{job.startupWarnings.length > 0 ? "Critical items missing" : job.startupStatus}</Badge>,
+      actions: renderPriorityAction("Open Job", () => openJob(job.id)),
     })),
-  ];
-  const visiblePriorityRows = priorityRows.slice(0, 8);
+  ].sort((left, right) => left.priority - right.priority || String(left.title).localeCompare(String(right.title)));
+  const visiblePriorityRows = priorityRows.slice(0, 6);
   const topAlerts = [
     commandCenter.stats.overdueFollowUps > 0 ? { id: "overdue-followups", title: "Overdue follow-ups", description: `${commandCenter.stats.overdueFollowUps} manual outreach item${commandCenter.stats.overdueFollowUps === 1 ? "" : "s"} past due`, tone: "red", action: () => openModule("leads") } : null,
     commandCenter.stats.sourceChecksNeeded > 0 ? { id: "source-checks", title: "Lead source checks", description: `${commandCenter.stats.sourceChecksNeeded} source check${commandCenter.stats.sourceChecksNeeded === 1 ? "" : "s"} due or overdue`, tone: "amber", action: () => openModule("leads") } : null,
@@ -7464,20 +7475,21 @@ function CommandCenterPage({
 
   return (
     <div className="co-command-page">
-      <PageHeader
-        eyebrow={companyName || "Office"}
-        title="Command Center"
-        description="Today's priority view for leads, follow-ups, jobs, reports, and owner actions."
-        actions={
-          <>
-            <Button type="button" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
-            <Button type="button" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Open Jobs</Button>
-            <Button type="button" variant="secondary" onClick={() => openModule("jobDraftImports")}><Icon name="database" />Imported Drafts</Button>
-          </>
-        }
-      />
-      <div className="grid gap-5 px-5 pb-10 sm:px-6 lg:px-8">
-        {copyMessage ? <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-800">{copyMessage}</div> : null}
+      <div className="px-5 pb-3 pt-5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
+            <h1 className="mt-1 break-words text-3xl font-black tracking-tight text-slate-950">Command Center</h1>
+            <p className="mt-1 max-w-3xl text-sm font-bold leading-6 text-slate-500">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Open Jobs</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobDraftImports")}><Icon name="database" />Imported Drafts</Button>
+          </div>
+        </div>
+      </div>
+      <div className="mx-auto grid w-full max-w-[1520px] gap-4 px-5 pb-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />
@@ -7492,6 +7504,7 @@ function CommandCenterPage({
               emptyTitle="No priority office actions waiting"
               emptyDescription="Follow-ups, customer matches, and startup blockers will appear here when they need action."
               badgeTone="amber"
+              compact
               footer={
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm font-bold text-slate-500">
