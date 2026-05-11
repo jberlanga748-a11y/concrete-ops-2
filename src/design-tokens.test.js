@@ -35,6 +35,8 @@ test("design tokens expose the Concrete Ops visual foundation", () => {
   assert.ok(DESIGN_COMPONENTS.button.primary.includes("orange"));
   assert.equal(DESIGN_COMPONENTS.shell.sidebar, "co-sidebar-shell");
   assert.equal(DESIGN_COMPONENTS.shell.topbar, "co-topbar");
+  assert.equal(DESIGN_COMPONENTS.commandCenter.page, "co-command-page");
+  assert.equal(DESIGN_COMPONENTS.commandCenter.priorityRow, "co-command-priority-row");
 });
 
 test("design token helpers return safe class strings with fallbacks", () => {
@@ -56,10 +58,16 @@ test("main css defines reusable design variables and foundation classes", () => 
   assert.match(css, /--color-card:\s*#FFFFFF/);
   assert.match(css, /--shadow-card:/);
   assert.match(css, /--shadow-topbar:/);
+  assert.match(css, /--layout-topbar-height:/);
   assert.match(css, /--radius-card:/);
   assert.match(css, /\.co-app-shell/);
   assert.match(css, /\.co-workspace-shell/);
   assert.match(css, /\.co-topbar/);
+  assert.match(css, /\.co-command-page/);
+  assert.match(css, /\.co-command-card/);
+  assert.match(css, /\.co-command-kpi/);
+  assert.match(css, /\.co-command-priority-row/);
+  assert.match(css, /\.co-command-right-rail/);
   assert.match(css, /\.co-card/);
   assert.match(css, /\.co-sidebar-shell/);
   assert.match(css, /\.co-sidebar-nav-active/);

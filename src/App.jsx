@@ -7028,7 +7028,7 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
 
 function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, badgeTone = "blue", children }) {
   return (
-    <Card className="p-5">
+    <Card className="co-command-card p-5">
       <SectionHeader
         title={title}
         description={description}
@@ -7043,10 +7043,10 @@ function CommandCenterSection({ title, description, count, emptyTitle, emptyDesc
 
 function CommandCenterItem({ eyebrow, title, description, meta, badges, actions }) {
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+    <div className="co-command-priority-row rounded-2xl border p-4">
       <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">{eyebrow}</p> : null}
+          {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-700">{eyebrow}</p> : null}
           <p className="mt-1 break-words text-base font-black text-slate-950">{title}</p>
           {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-600">{description}</p> : null}
           {meta ? <p className="mt-2 break-words text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{meta}</p> : null}
@@ -7066,17 +7066,17 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
   ];
 
   return (
-    <Card className="border-blue-200 bg-blue-50/80 p-5 shadow-sm">
+    <Card className="overflow-hidden border-orange-200 bg-gradient-to-br from-white via-orange-50/70 to-slate-50 p-5 shadow-panel">
       <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
-          <Badge tone="blue">Start here</Badge>
-          <h3 className="mt-3 text-lg font-black text-slate-950">Morning office order</h3>
+          <Badge tone="orange">Start here</Badge>
+          <h3 className="mt-3 text-lg font-black text-slate-950">Today&apos;s office command flow</h3>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-700">
             Walk the pilot flow top to bottom: review drafts, match the customer, create the job, finish startup, then send work to the field.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {steps.map((step, index) => (
-              <span key={step} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-blue-800 ring-1 ring-blue-100">
+              <span key={step} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-slate-800 ring-1 ring-orange-100">
                 {index + 1}. {step}
               </span>
             ))}
@@ -7092,7 +7092,66 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
   );
 }
 
+function CommandCenterKpiCard({ item }) {
+  const toneClass = {
+    red: "bg-red-50 text-red-700 ring-red-100",
+    amber: "bg-amber-50 text-amber-700 ring-amber-100",
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    blue: "bg-blue-50 text-blue-700 ring-blue-100",
+    orange: "bg-orange-50 text-orange-700 ring-orange-100",
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+  }[item.tone || "orange"] || "bg-orange-50 text-orange-700 ring-orange-100";
+  const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
+
+  return (
+    <div className="co-command-kpi rounded-3xl border p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+          <p className={`mt-3 break-words text-3xl font-black tracking-tight ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
+          <p className="mt-1 break-words text-sm font-bold leading-5 text-slate-500">{item.helper}</p>
+          {item.actionLabel ? (
+            <button
+              type="button"
+              onClick={item.onAction}
+              className="co-focus-ring mt-4 inline-flex items-center gap-1 rounded-full text-sm font-black text-orange-700 hover:text-orange-800"
+            >
+              {item.actionLabel}
+              <span aria-hidden="true">-&gt;</span>
+            </button>
+          ) : null}
+        </div>
+        <div className={`shrink-0 rounded-2xl p-3 ring-1 ${toneClass}`}>
+          <Icon name={item.icon} className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommandCenterQuickAction({ icon, label, helper, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="co-command-action-row co-focus-ring flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition hover:border-orange-200 hover:bg-orange-50"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="shrink-0 rounded-2xl bg-orange-50 p-2 text-orange-700">
+          <Icon name={icon} className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-slate-950">{label}</span>
+          {helper ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{helper}</span> : null}
+        </span>
+      </span>
+      <span className="text-lg font-black text-slate-400" aria-hidden="true">&rsaquo;</span>
+    </button>
+  );
+}
+
 function CommandCenterPage({
+  companyName,
   leads,
   customers,
   estimates,
@@ -7157,122 +7216,132 @@ function CommandCenterPage({
     }
   }
 
-  const statCards = [
-    { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review missing details before job creation", icon: "database" },
-    { key: "importedDraftsNeedingCustomerMatch", label: "Drafts Needing Customer Match", helper: "Confirm match or choose create-new", icon: "users" },
-    { key: "sourceChecksNeeded", label: "Source Checks Needed", helper: "Manual Lead Sources due or overdue", icon: "inbox" },
-    { key: "followUpsDueToday", label: "Follow-Ups Due Today", helper: "Manual outreach due today", icon: "clock" },
-    { key: "overdueFollowUps", label: "Overdue Follow-Ups", helper: "Manual outreach past due", icon: "alert" },
-    { key: "leadsNotContacted", label: "Leads Not Contacted", helper: "New leads without contact history", icon: "quote" },
-    { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Clear critical startup items", icon: "alert" },
-    { key: "jobsReadyForField", label: "Jobs Ready for Field", helper: "Ready but still active", icon: "check" },
-    { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Assign crew or mark TBD in startup", icon: "users" },
-    { key: "jobsMissingStartDate", label: "Jobs Missing Start Date", helper: "Schedule work or mark TBD in startup", icon: "clock" },
-    { key: "openDailyReports", label: "Open Daily Reports", helper: "Draft or reopened reports", icon: "document" },
-    { key: "dailyReportsNeedingReview", label: "Reports Needing Review", helper: "Submitted for office review", icon: "clipboard" },
-    { key: "jobsMissingPhotos", label: "Jobs Missing Photos", helper: "No upload evidence yet", icon: "upload" },
-    { key: "pendingPrePourChecklists", label: "Pending Pre-Pour", helper: "Checklist not completed/reviewed", icon: "clipboard" },
-    { key: "pendingPostPourChecklists", label: "Pending Post-Pour", helper: "Checklist not completed/reviewed", icon: "clipboard" },
-    { key: "pendingDeliveryTickets", label: "Pending Delivery Tickets", helper: "Open delivery ticket records", icon: "clipboard" },
-    { key: "openChangeOrders", label: "Open Change Orders", helper: "Requests still moving", icon: "refresh" },
-    { key: "timeIssues", label: "Time Issues", helper: "Active entries or missing job", icon: "clock" },
-    { key: "activeJobs", label: "Active Jobs", helper: "Non-closed job count", icon: "briefcase" },
-  ];
-
   const limited = (rows) => (Array.isArray(rows) ? rows.slice(0, 6) : []);
   const missingReportCount = commandCenter.dailyReports.activeJobsMissingTodayReport.length;
   const recentUploadCount = commandCenter.uploads.recentUploads.length;
   const timeIssueCount = commandCenter.stats.timeIssues;
+  const reportsUploadsDue = commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + commandCenter.stats.jobsMissingPhotos;
+  const priorityStatCards = [
+    {
+      label: "Follow-Ups Due",
+      value: commandCenter.stats.followUpsDueToday + commandCenter.stats.overdueFollowUps,
+      helper: `${commandCenter.stats.overdueFollowUps} overdue / ${commandCenter.stats.followUpsDueToday} due today`,
+      icon: "clock",
+      tone: commandCenter.stats.overdueFollowUps > 0 ? "red" : "orange",
+      actionLabel: "Open follow-up queue",
+      onAction: () => openModule("leads"),
+    },
+    {
+      label: "New Leads",
+      value: commandCenter.stats.leadsNotContacted,
+      helper: "Need initial contact or review",
+      icon: "users",
+      tone: "blue",
+      actionLabel: "Open leads",
+      onAction: () => openModule("leads"),
+    },
+    {
+      label: "Jobs Needing Review",
+      value: commandCenter.stats.jobsNeedingStartupReview + commandCenter.stats.jobsMissingCrew + commandCenter.stats.jobsMissingStartDate,
+      helper: "Startup, crew, or schedule blockers",
+      icon: "briefcase",
+      tone: "amber",
+      actionLabel: "Open jobs",
+      onAction: () => openModule("jobs"),
+    },
+    {
+      label: "Reports / Uploads Due",
+      value: reportsUploadsDue,
+      helper: "Reports needing review or photo evidence",
+      icon: "upload",
+      tone: "green",
+      actionLabel: "Open reports",
+      onAction: () => openModule("reports"),
+    },
+  ];
+  const operationsPulseCards = [
+    { key: "importedDraftsNeedingReview", label: "Imported drafts", helper: "Need review", icon: "database" },
+    { key: "importedDraftsNeedingCustomerMatch", label: "Customer match", helper: "Confirm draft customer", icon: "users" },
+    { key: "sourceChecksNeeded", label: "Source checks", helper: "Due or overdue", icon: "inbox" },
+    { key: "jobsReadyForField", label: "Ready for field", helper: "Startup complete", icon: "check" },
+    { key: "pendingPrePourChecklists", label: "Pre-pour", helper: "Pending checklists", icon: "clipboard" },
+    { key: "pendingPostPourChecklists", label: "Post-pour", helper: "Pending checklists", icon: "clipboard" },
+    { key: "pendingDeliveryTickets", label: "Delivery tickets", helper: "Open records", icon: "clipboard" },
+    { key: "openChangeOrders", label: "Change orders", helper: "Open requests", icon: "refresh" },
+    { key: "timeIssues", label: "Time issues", helper: "Active or unassigned", icon: "clock" },
+    { key: "activeJobs", label: "Active jobs", helper: "Non-closed jobs", icon: "briefcase" },
+  ];
 
   return (
-    <div>
+    <div className="co-command-page">
       <PageHeader
-        eyebrow="Office"
-        title="Daily Command Center"
-        description="A morning dashboard for imported drafts, startup readiness, field records, photos, reports, tickets, time, and active job attention."
+        eyebrow={companyName || "Office"}
+        title="Command Center"
+        description="Today's priority view for leads, follow-ups, jobs, reports, and owner actions."
         actions={
           <>
+            <Button type="button" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
             <Button type="button" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Open Jobs</Button>
             <Button type="button" variant="secondary" onClick={() => openModule("jobDraftImports")}><Icon name="database" />Imported Drafts</Button>
           </>
         }
       />
       <div className="grid gap-5 px-5 pb-10 sm:px-6 lg:px-8">
-        {copyMessage ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{copyMessage}</div> : null}
+        {copyMessage ? <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-800">{copyMessage}</div> : null}
         <CommandCenterMorningFlowCard
           onOpenDrafts={() => openModule("jobDraftImports")}
           onOpenJobs={() => openModule("jobs")}
           onOpenReports={() => openModule("reports")}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-          {statCards.map((card) => (
-            <KpiCard key={card.key} item={{ ...card, value: commandCenter.stats[card.key] }} />
+        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+          {priorityStatCards.map((card) => (
+            <CommandCenterKpiCard key={card.label} item={card} />
           ))}
         </div>
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.38fr)]">
+          <div className="grid min-w-0 gap-5">
+            <CommandCenterSection
+              title="Today's Priority Queue"
+              description="Highest-value office work from follow-ups, customer matching, imported drafts, and job startup readiness."
+              count={commandCenter.followUpQueue.items.length + commandCenter.importedDraftsNeedingCustomerMatch.length + commandCenter.jobsNeedingStartupReview.length}
+              emptyTitle="No priority office actions waiting"
+              emptyDescription="Follow-ups, customer matches, and startup blockers will appear here when they need action."
+              badgeTone="amber"
+            >
+              {limited(commandCenter.followUpQueue.items).map((item) => (
+                <CommandCenterItem
+                  key={item.id}
+                  eyebrow={FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}
+                  title={item.title}
+                  description={item.subtitle || item.reason}
+                  meta={`Last: ${item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "not contacted"} / Next: ${item.nextFollowUpDate || "not scheduled"}`}
+                  badges={<><Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge><Badge tone="slate">{item.type === "leadSource" ? "Lead Source" : item.type}</Badge></>}
+                  actions={<Button type="button" size="sm" onClick={() => openModule("leads")}>Open Follow-Up Queue</Button>}
+                />
+              ))}
+              {limited(commandCenter.importedDraftsNeedingCustomerMatch).map((draft) => (
+                <CommandCenterItem
+                  key={`priority-match-${draft.id}`}
+                  eyebrow={draft.customerMatchStatus || "Customer match"}
+                  title={draft.customerName || draft.jobName || "Imported draft"}
+                  description={draft.customerMatchReason || "Open the imported draft to confirm the customer or choose create-new."}
+                  badges={<><Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge><StatusBadge status={draft.importStatus || "Imported"} /></>}
+                  actions={<Button type="button" size="sm" onClick={() => openImportedDraft(draft.id)}>Review Customer Match</Button>}
+                />
+              ))}
+              {limited(commandCenter.jobsNeedingStartupReview).map((job) => (
+                <CommandCenterItem
+                  key={`priority-startup-${job.id}`}
+                  eyebrow={job.customer || "Startup blocker"}
+                  title={jobTitle(job)}
+                  description={job.address || "Address pending"}
+                  meta={`${job.startupWarnings.length} critical warning${job.startupWarnings.length === 1 ? "" : "s"}`}
+                  badges={<><StartupStatusBadge status={job.startupStatus} />{job.startupWarnings.length > 0 ? <Badge tone="amber">Critical items missing</Badge> : null}</>}
+                  actions={<Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button>}
+                />
+              ))}
+            </CommandCenterSection>
 
-        <CommandCenterSection
-          title="Manual Follow-Up Queue"
-          description="Office outreach due today, overdue, waiting, or not contacted. No email or SMS is sent from Concrete Ops."
-          count={commandCenter.followUpQueue.items.length}
-          emptyTitle="No manual follow-ups waiting"
-          emptyDescription="Follow-up dates and contact-history outcomes will appear here when the office has outreach to do."
-          badgeTone="amber"
-        >
-          {limited(commandCenter.followUpQueue.items).map((item) => (
-            <CommandCenterItem
-              key={item.id}
-              eyebrow={FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}
-              title={item.title}
-              description={item.subtitle || item.reason}
-              meta={`Last: ${item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "not contacted"} / Next: ${item.nextFollowUpDate || "not scheduled"}`}
-              badges={<><Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge><Badge tone="slate">{item.type === "leadSource" ? "Lead Source" : item.type}</Badge></>}
-              actions={<Button type="button" size="sm" onClick={() => openModule("leads")}>Open Follow-Up Queue</Button>}
-            />
-          ))}
-        </CommandCenterSection>
-
-        <CommandCenterSection
-          title="Lead Source Checks Needed"
-          description="Manual Lead Source checks due today or overdue. No source is scraped or checked automatically."
-          count={commandCenter.leadSourceChecks.checksNeeded.length}
-          emptyTitle="No lead source checks due"
-          emptyDescription="Sources with due or overdue next-check dates will appear here."
-          badgeTone="amber"
-        >
-          {limited(commandCenter.leadSourceChecks.checksNeeded).map((source) => (
-            <CommandCenterItem
-              key={source.id}
-              eyebrow={source.checkBucket === "overdue" ? "Overdue source check" : "Due today"}
-              title={source.name || "Unnamed source"}
-              description={[source.type, leadSourceLocation(source), source.tradeFocus].filter(Boolean).join(" / ")}
-              meta={`Last checked: ${source.lastCheckedAt || "not set"} / Next check: ${source.nextCheckAt || "not scheduled"}`}
-              badges={<><Badge tone={source.checkBucket === "overdue" ? "red" : "amber"}>{source.checkBucket === "overdue" ? "Overdue" : "Due today"}</Badge><Badge tone="slate">{source.checkCadence || "Manual"}</Badge></>}
-              actions={<Button type="button" size="sm" onClick={() => openModule("leads")}>Open Daily Source Check</Button>}
-            />
-          ))}
-        </CommandCenterSection>
-
-        <CommandCenterSection
-          title="Drafts Needing Customer Match"
-          description="Direct-send drafts that may create a duplicate customer unless the office confirms the match first."
-          count={commandCenter.importedDraftsNeedingCustomerMatch.length}
-          emptyTitle="No customer matches waiting"
-          emptyDescription="Imported drafts with customer match questions will appear here before job creation."
-          badgeTone="amber"
-        >
-          {limited(commandCenter.importedDraftsNeedingCustomerMatch).map((draft) => (
-            <CommandCenterItem
-              key={draft.id}
-              eyebrow={draft.customerMatchStatus || "Customer match"}
-              title={draft.customerName || draft.jobName || "Imported draft"}
-              description={draft.customerMatchReason || "Open the imported draft to confirm the customer or choose create-new."}
-              badges={<><Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge><StatusBadge status={draft.importStatus || "Imported"} /></>}
-              actions={<Button type="button" size="sm" onClick={() => openImportedDraft(draft.id)}>Review Customer Match</Button>}
-            />
-          ))}
-        </CommandCenterSection>
-
-        <div className="grid items-start gap-5 xl:grid-cols-2">
           <CommandCenterSection
             title="Imported Drafts Needing Review"
             description="Draft packages that still need office review, missing details, or customer confirmation before a real job is created."
@@ -7369,6 +7438,60 @@ function CommandCenterPage({
                 description={job.address || "Address pending"}
                 badges={<>{job.missingCrew ? <Badge tone="amber">Missing crew</Badge> : null}{job.missingStartDate ? <Badge tone="amber">Missing start date</Badge> : null}</>}
                 actions={<Button type="button" size="sm" onClick={() => openJob(job.id)}>Open Job</Button>}
+              />
+            ))}
+          </CommandCenterSection>
+          </div>
+
+          <div className="co-command-right-rail grid min-w-0 gap-5">
+          <Card className="co-command-card p-5">
+            <SectionHeader title="Quick Actions" description="Fast office jumps into the existing workflow." />
+            <div className="grid gap-2">
+              <CommandCenterQuickAction icon="users" label="Open Follow-Up Queue" helper="Manual outreach work" onClick={() => openModule("leads")} />
+              <CommandCenterQuickAction icon="database" label="Review Imported Drafts" helper="Drafts and customer match" onClick={() => openModule("jobDraftImports")} />
+              <CommandCenterQuickAction icon="briefcase" label="Open Jobs" helper="Startup, crews, and schedules" onClick={() => openModule("jobs")} />
+              <CommandCenterQuickAction icon="document" label="Open Reports" helper="Daily report review" onClick={() => openModule("reports")} />
+              <CommandCenterQuickAction icon="upload" label="Open Uploads" helper="Photo evidence and files" onClick={() => openModule("uploads")} />
+            </div>
+          </Card>
+
+          <Card className="co-command-card p-5">
+            <SectionHeader title="Operations Pulse" description="Live counts from the existing command center data." />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              {operationsPulseCards.map((card) => (
+                <div key={card.key} className="rounded-2xl border border-slate-200 bg-white/90 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-slate-950">{card.label}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{card.helper}</p>
+                    </div>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-700">
+                      <Icon name={card.icon} className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-slate-950">{commandCenter.stats[card.key] || 0}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <CommandCenterSection
+            title="Lead Source Checks Needed"
+            description="Manual Lead Source checks due today or overdue. No source is scraped or checked automatically."
+            count={commandCenter.leadSourceChecks.checksNeeded.length}
+            emptyTitle="No lead source checks due"
+            emptyDescription="Sources with due or overdue next-check dates will appear here."
+            badgeTone="amber"
+          >
+            {limited(commandCenter.leadSourceChecks.checksNeeded).map((source) => (
+              <CommandCenterItem
+                key={source.id}
+                eyebrow={source.checkBucket === "overdue" ? "Overdue source check" : "Due today"}
+                title={source.name || "Unnamed source"}
+                description={[source.type, leadSourceLocation(source), source.tradeFocus].filter(Boolean).join(" / ")}
+                meta={`Last checked: ${source.lastCheckedAt || "not set"} / Next check: ${source.nextCheckAt || "not scheduled"}`}
+                badges={<><Badge tone={source.checkBucket === "overdue" ? "red" : "amber"}>{source.checkBucket === "overdue" ? "Overdue" : "Due today"}</Badge><Badge tone="slate">{source.checkCadence || "Manual"}</Badge></>}
+                actions={<Button type="button" size="sm" onClick={() => openModule("leads")}>Open Daily Source Check</Button>}
               />
             ))}
           </CommandCenterSection>
@@ -7515,6 +7638,7 @@ function CommandCenterPage({
           </CommandCenterSection>
         </div>
       </div>
+    </div>
     </div>
   );
 }

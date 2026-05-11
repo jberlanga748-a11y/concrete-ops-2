@@ -132,6 +132,14 @@ export const DESIGN_COMPONENTS = {
     sidebarNavActive: "co-sidebar-nav-active",
     sidebarNavInactive: "co-sidebar-nav-inactive",
   },
+  commandCenter: {
+    page: "co-command-page",
+    card: "co-command-card",
+    kpi: "co-command-kpi",
+    priorityRow: "co-command-priority-row",
+    rightRail: "co-command-right-rail",
+    actionRow: "co-command-action-row",
+  },
   focusVisible: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
 };
 
