@@ -105,7 +105,7 @@ import { deriveCommandCenterState } from "./command-center-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
@@ -1055,6 +1055,75 @@ function ProposalTotalCard({ value, detail }) {
       <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Proposal total</p>
       <p className="mt-2 break-words text-3xl font-black tracking-tight sm:text-4xl">{value}</p>
       {detail ? <p className="mt-2 break-words text-sm font-bold leading-6 text-blue-100">{detail}</p> : null}
+    </div>
+  );
+}
+
+function EstimateProposalSectionsEditor({ draft, setDraft, disabled = false }) {
+  const sections = deriveEstimateProposalSections(draft);
+  const updateSection = (field, value) => {
+    setDraft((current) => mergeEstimateProposalSections(current, { [field]: value }));
+  };
+
+  return (
+    <div className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/40">
+      <SectionHeader
+        title="Proposal sections"
+        description="Use these sections to build a cleaner customer-facing estimate. Review pricing and scope before sending."
+        action={<Badge tone="blue">Customer proposal</Badge>}
+      />
+      <div className="grid gap-3">
+        <TextAreaField
+          label="Scope of Work"
+          value={sections.scopeOfWork}
+          onChange={(event) => updateSection("scopeOfWork", event.target.value)}
+          placeholder="Describe the work being proposed in plain customer-facing language."
+          disabled={disabled}
+        />
+        <div className="grid gap-3 lg:grid-cols-3">
+          <TextAreaField
+            label="Inclusions"
+            value={sections.inclusions}
+            onChange={(event) => updateSection("inclusions", event.target.value)}
+            placeholder="Included prep, placement, finish, cleanup, or coordination."
+            className="field-input min-h-24 resize-y"
+            disabled={disabled}
+          />
+          <TextAreaField
+            label="Exclusions"
+            value={sections.exclusions}
+            onChange={(event) => updateSection("exclusions", event.target.value)}
+            placeholder="Items not included unless added later."
+            className="field-input min-h-24 resize-y"
+            disabled={disabled}
+          />
+          <TextAreaField
+            label="Assumptions / Clarifications"
+            value={sections.assumptions}
+            onChange={(event) => updateSection("assumptions", event.target.value)}
+            placeholder="Access, weather, base conditions, schedule, or other assumptions."
+            className="field-input min-h-24 resize-y"
+            disabled={disabled}
+          />
+        </div>
+        <TextAreaField
+          label="Customer Notes / Terms"
+          value={sections.customerNotes}
+          onChange={(event) => updateSection("customerNotes", event.target.value)}
+          placeholder="Customer-facing terms, proposal validity, payment terms, or scheduling notes."
+          disabled={disabled}
+        />
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
+          <TextAreaField
+            label="Internal Notes (office only)"
+            value={sections.internalNotes}
+            onChange={(event) => updateSection("internalNotes", event.target.value)}
+            placeholder="Office-only sales notes. Not included in customer copy, email, or print output."
+            disabled={disabled}
+          />
+          <p className="mt-2 text-xs font-bold leading-5 text-amber-700">Internal notes are for office use only and should not print for the customer.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -9840,9 +9909,7 @@ function EstimatesPage({
                 <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
               </div>
               <div className="mt-3 grid gap-3">
-                <TextAreaField label="Scope summary" value={createDraft.scopeSummary} onChange={(event) => setCreateDraft((current) => ({ ...current, scopeSummary: event.target.value }))} placeholder="Summarize the proposed work." />
-                <TextAreaField label="Customer notes / terms" value={createDraft.customerNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, customerNotes: event.target.value }))} placeholder="Shown in customer copy, email, and print output." />
-                <TextAreaField label="Internal notes (office only)" value={createDraft.internalNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, internalNotes: event.target.value }))} placeholder="Office-only sales notes. Not included in customer copy, email, or print output." />
+                <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
               </div>
               <div className="mt-4 space-y-3">
                 <SectionHeader title="Line items" description="Line totals update automatically from quantity and unit price." />
@@ -9928,9 +9995,7 @@ function EstimatesPage({
                   <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" />
                 </div>
                 <div className="grid gap-3">
-                  <TextAreaField label="Scope summary" value={detailDraft.scopeSummary} onChange={(event) => setDetailDraft((current) => ({ ...current, scopeSummary: event.target.value }))} placeholder="Summarize the proposed work." />
-                  <TextAreaField label="Customer notes / terms" value={detailDraft.customerNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, customerNotes: event.target.value }))} placeholder="Shown in customer copy, email, and print output." />
-                  <TextAreaField label="Internal notes (office only)" value={detailDraft.internalNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, internalNotes: event.target.value }))} placeholder="Office-only sales notes. Not included in customer copy, email, or print output." />
+                  <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                 </div>
                 <div className="space-y-3">
                   <SectionHeader title="Line items" description="Office pricing lives here and is never shipped to field roles." />

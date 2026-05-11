@@ -61,6 +61,115 @@ function firstText(...values) {
   return values.map(textValue).find(Boolean) || "";
 }
 
+const ESTIMATE_PROPOSAL_SCOPE_SECTIONS = [
+  ["scopeOfWork", "Scope of Work"],
+  ["inclusions", "Inclusions"],
+  ["exclusions", "Exclusions"],
+  ["assumptions", "Assumptions / Clarifications"],
+];
+
+const ESTIMATE_PROPOSAL_SECTION_LOOKUP = new Map(
+  ESTIMATE_PROPOSAL_SCOPE_SECTIONS.flatMap(([key, label]) => {
+    const normalizedLabel = label.toLowerCase();
+    return [
+      [normalizedLabel, key],
+      [normalizedLabel.replace(/\s*\/\s*/g, " / "), key],
+      [normalizedLabel.replace(/\s*\/\s*/g, "/"), key],
+    ];
+  }),
+);
+
+function textBlock(value) {
+  return String(value ?? "").replace(/\r\n/g, "\n").trim();
+}
+
+function proposalHeadingKey(line = "") {
+  const normalized = String(line || "").trim().replace(/:$/, "").replace(/\s+/g, " ").toLowerCase();
+  return ESTIMATE_PROPOSAL_SECTION_LOOKUP.get(normalized) || "";
+}
+
+function parseScopeSummarySections(scopeSummary = "") {
+  const sections = {
+    scopeOfWork: "",
+    inclusions: "",
+    exclusions: "",
+    assumptions: "",
+  };
+  const text = textBlock(scopeSummary);
+  if (!text) return sections;
+
+  let activeKey = "scopeOfWork";
+  let foundHeading = false;
+  const buckets = {
+    scopeOfWork: [],
+    inclusions: [],
+    exclusions: [],
+    assumptions: [],
+  };
+
+  text.split("\n").forEach((line) => {
+    const key = proposalHeadingKey(line);
+    if (key) {
+      activeKey = key;
+      foundHeading = true;
+      return;
+    }
+    buckets[activeKey].push(line);
+  });
+
+  if (!foundHeading) {
+    sections.scopeOfWork = text;
+    return sections;
+  }
+
+  Object.keys(sections).forEach((key) => {
+    sections[key] = textBlock(buckets[key].join("\n"));
+  });
+  return sections;
+}
+
+export function buildScopeSummaryFromProposalSections(sections = {}) {
+  const normalized = {
+    scopeOfWork: textBlock(sections.scopeOfWork),
+    inclusions: textBlock(sections.inclusions),
+    exclusions: textBlock(sections.exclusions),
+    assumptions: textBlock(sections.assumptions),
+  };
+  const hasStructuredSections = Boolean(normalized.inclusions || normalized.exclusions || normalized.assumptions);
+
+  if (!hasStructuredSections) {
+    return normalized.scopeOfWork;
+  }
+
+  return ESTIMATE_PROPOSAL_SCOPE_SECTIONS
+    .map(([key, label]) => normalized[key] ? `${label}:\n${normalized[key]}` : "")
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function deriveEstimateProposalSections(estimate = {}) {
+  const scopeSections = parseScopeSummarySections(estimate?.scopeSummary);
+  return {
+    ...scopeSections,
+    customerNotes: String(estimate?.customerNotes || ""),
+    internalNotes: String(estimate?.internalNotes || ""),
+  };
+}
+
+export function mergeEstimateProposalSections(estimate = {}, updates = {}) {
+  const nextSections = {
+    ...deriveEstimateProposalSections(estimate),
+    ...updates,
+  };
+
+  return {
+    ...estimate,
+    scopeSummary: buildScopeSummaryFromProposalSections(nextSections),
+    customerNotes: String(nextSections.customerNotes || ""),
+    internalNotes: String(nextSections.internalNotes || ""),
+  };
+}
+
 function findLinkedLeadCustomer(lead = {}, customers = []) {
   const leadCustomerId = textValue(lead.customerId);
   if (!leadCustomerId || !Array.isArray(customers)) return null;

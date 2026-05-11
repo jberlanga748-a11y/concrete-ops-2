@@ -6,14 +6,17 @@ import {
   buildEstimateCustomerMessage,
   buildEstimateEmailSubject,
   buildEstimateDraftFromLead,
+  buildScopeSummaryFromProposalSections,
   calculateEstimateLineTotal,
   calculateEstimateTotals,
   deriveEstimateListState,
+  deriveEstimateProposalSections,
   estimateCustomerEmail,
   estimateStatusLabel,
   filterEstimates,
   formatEstimateCurrency,
   getEstimateFromLeadReadiness,
+  mergeEstimateProposalSections,
 } from "./estimate-utils.js";
 
 test("line item totals and estimate totals calculate correctly", () => {
@@ -162,6 +165,51 @@ test("estimate draft from lead requires an existing linked customer before creat
   assert.equal(draft.customerId, "");
   assert.equal(draft.leadId, "L-101");
   assert.equal(draft.items.length, 0);
+});
+
+test("proposal section helpers keep old estimates safe", () => {
+  const oldEstimate = {
+    scopeSummary: "Remove existing driveway and pour 4-inch broom-finish concrete.",
+    customerNotes: "Estimate valid for 30 days.",
+    internalNotes: "Check pricing before sending.",
+  };
+
+  const sections = deriveEstimateProposalSections(oldEstimate);
+
+  assert.deepEqual(sections, {
+    scopeOfWork: "Remove existing driveway and pour 4-inch broom-finish concrete.",
+    inclusions: "",
+    exclusions: "",
+    assumptions: "",
+    customerNotes: "Estimate valid for 30 days.",
+    internalNotes: "Check pricing before sending.",
+  });
+  assert.equal(buildScopeSummaryFromProposalSections(sections), oldEstimate.scopeSummary);
+});
+
+test("proposal section helpers store customer-facing sections in scope summary only", () => {
+  const draft = mergeEstimateProposalSections({}, {
+    scopeOfWork: "Sawcut, remove, form, pour, and broom finish driveway panels.",
+    inclusions: "Concrete, formwork, standard cleanup.",
+    exclusions: "Permit fees and utility relocation.",
+    assumptions: "Existing base is suitable after removals.",
+    customerNotes: "Two-day scheduling window after approval.",
+    internalNotes: "Office-only margin note.",
+  });
+
+  assert.equal(draft.scopeSummary, [
+    "Scope of Work:\nSawcut, remove, form, pour, and broom finish driveway panels.",
+    "Inclusions:\nConcrete, formwork, standard cleanup.",
+    "Exclusions:\nPermit fees and utility relocation.",
+    "Assumptions / Clarifications:\nExisting base is suitable after removals.",
+  ].join("\n\n"));
+  assert.equal(draft.customerNotes, "Two-day scheduling window after approval.");
+  assert.equal(draft.internalNotes, "Office-only margin note.");
+
+  const parsed = deriveEstimateProposalSections(draft);
+  assert.equal(parsed.inclusions, "Concrete, formwork, standard cleanup.");
+  assert.equal(parsed.exclusions, "Permit fees and utility relocation.");
+  assert.equal(parsed.assumptions, "Existing base is suitable after removals.");
 });
 
 test("estimate copy helpers include customer-facing pricing content without internal notes", () => {
