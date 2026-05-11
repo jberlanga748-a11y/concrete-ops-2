@@ -17,6 +17,15 @@ const NOTE_SECTION_DEFS = [
   ["addOns", "Optional Add-ons"],
 ];
 
+const GC_PACKET_LITE_SECTION_DEFS = [
+  ["proposalCoverNote", "Proposal Cover Note"],
+  ["proposalSummary", "Proposal Summary"],
+  ["qualifications", "Qualifications"],
+  ["scheduleNotes", "Schedule Notes"],
+  ["addendaRfiReferences", "Addenda / RFI References"],
+];
+
+const GC_PACKET_LITE_BLOCK_PATTERN = /\n?\[Concrete Ops GC Packet Lite\]\n([\s\S]*?)\n\[\/Concrete Ops GC Packet Lite\]\n?/g;
 const OPTION_STATUSES = new Set(["optional", "included", "excluded", "accepted", "selected"]);
 const SELECTED_OPTION_STATUSES = new Set(["included", "accepted", "selected"]);
 
@@ -34,6 +43,10 @@ function textValue(value) {
 
 function safeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function normalizeHeading(value = "") {
@@ -187,6 +200,29 @@ function deriveCustomerSections(customerNotes = "") {
   };
 }
 
+function parseGcPacketLiteBlock(internalNotes = "") {
+  const text = textBlock(internalNotes);
+  if (!text) return {};
+
+  const matches = [...text.matchAll(GC_PACKET_LITE_BLOCK_PATTERN)];
+  const latestMatch = matches.at(-1);
+  if (!latestMatch?.[1]) return {};
+
+  try {
+    const parsed = JSON.parse(latestMatch[1]);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function deriveGcPacketLiteSections(internalNotes = "") {
+  const parsed = parseGcPacketLiteBlock(internalNotes);
+  return GC_PACKET_LITE_SECTION_DEFS
+    .map(([key, title]) => ({ key, title, text: textBlock(parsed[key]) }))
+    .filter((section) => section.text);
+}
+
 function normalizeLineItems(items = []) {
   return safeArray(items).map((item, index) => ({
     description: textValue(item?.description || `Line item ${index + 1}`),
@@ -230,6 +266,7 @@ export function deriveEstimatePrintModel(estimate = {}) {
 
   return {
     proposalSections,
+    gcPacketLiteSections: deriveGcPacketLiteSections(estimate?.internalNotes),
     customerNotes: customerSections.customerNotes,
     lineItems: normalizeLineItems(estimate?.items),
     totals: {
@@ -242,4 +279,3 @@ export function deriveEstimatePrintModel(estimate = {}) {
     options,
   };
 }
-

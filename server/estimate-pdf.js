@@ -417,6 +417,7 @@ export async function buildEstimatePdfBuffer({
   drawHeader(doc, { companyName, companyProfile });
   drawProposalIntro(doc, { estimate, customerName, projectName });
   printModel.proposalSections.forEach((section) => drawTextSection(doc, section.title, section.text));
+  printModel.gcPacketLiteSections.forEach((section) => drawTextSection(doc, section.title, section.text));
   drawLineItemsTable(doc, printModel.lineItems);
   drawOptionsSection(doc, "Alternates", printModel.options.alternates);
   drawOptionsSection(doc, "Optional Add-ons", printModel.options.addOns);

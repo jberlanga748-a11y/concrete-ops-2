@@ -115,17 +115,29 @@ test("GC Lite merge preserves SOV backup and sent snapshot history", () => {
   assert.equal(deriveEstimateGcPacketLite(withGcLite).gcReviewNotes, "Office-only GC note");
 });
 
-test("GC Lite content does not print customer-facing in Phase 6D-1", () => {
+test("GC Lite customer-facing content prints while office-only packet notes stay hidden", () => {
   const estimate = mergeEstimateGcPacketLite(baseEstimate, {
-    proposalCoverNote: "Do not print in this phase",
+    proposalCoverNote: "Customer-facing cover note",
     proposalSummary: "Future GC packet summary",
+    qualifications: "Bid is based on Addendum 01.",
+    scheduleNotes: "Schedule will be coordinated with the GC.",
+    addendaRfiReferences: "RFI 03 reviewed.",
     gcReviewNotes: "Office strategy note",
     internalPacketNotes: "Missing internal packet item",
   });
-  const printedText = JSON.stringify(deriveEstimatePrintModel(estimate));
+  const model = deriveEstimatePrintModel(estimate);
+  const printedText = JSON.stringify(model);
 
-  assert.equal(printedText.includes("Do not print in this phase"), false);
-  assert.equal(printedText.includes("Future GC packet summary"), false);
+  assert.deepEqual(model.gcPacketLiteSections.map((section) => section.title), [
+    "Proposal Cover Note",
+    "Proposal Summary",
+    "Qualifications",
+    "Schedule Notes",
+    "Addenda / RFI References",
+  ]);
+  assert.equal(printedText.includes("Customer-facing cover note"), true);
+  assert.equal(printedText.includes("Future GC packet summary"), true);
+  assert.equal(printedText.includes("Bid is based on Addendum 01."), true);
   assert.equal(printedText.includes("Office strategy note"), false);
   assert.equal(printedText.includes("Missing internal packet item"), false);
   assert.equal(printedText.includes("Proposal valid for 30 days"), true);

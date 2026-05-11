@@ -232,6 +232,11 @@ export function deriveEstimatePrintPacket({
         type: "text",
         text: section.text,
       })),
+      ...printModel.gcPacketLiteSections.map((section) => ({
+        title: section.title,
+        type: "text",
+        text: section.text,
+      })),
       {
         title: "Estimate Line Items",
         type: "records",
