@@ -53,6 +53,83 @@ function normalizeSearch(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function textValue(value) {
+  return String(value || "").trim();
+}
+
+function firstText(...values) {
+  return values.map(textValue).find(Boolean) || "";
+}
+
+function findLinkedLeadCustomer(lead = {}, customers = []) {
+  const leadCustomerId = textValue(lead.customerId);
+  if (!leadCustomerId || !Array.isArray(customers)) return null;
+  return customers.find((customer) => customer?.id === leadCustomerId) || null;
+}
+
+export function getEstimateFromLeadReadiness(lead = {}, { customers = [] } = {}) {
+  const leadId = textValue(lead?.id);
+  const linkedCustomer = findLinkedLeadCustomer(lead, customers);
+  const customerId = textValue(linkedCustomer?.id);
+
+  if (!leadId) {
+    return {
+      canCreate: false,
+      reason: "missing_lead",
+      message: "Select a lead before creating an estimate.",
+    };
+  }
+
+  if (!customerId) {
+    return {
+      canCreate: false,
+      reason: "missing_customer",
+      message: "Link or convert this lead to a customer before creating an estimate.",
+    };
+  }
+
+  return {
+    canCreate: true,
+    reason: "",
+    message: "Start a draft estimate from this lead. Review pricing and scope before sending.",
+  };
+}
+
+export function buildEstimateDraftFromLead(lead = {}, { customers = [] } = {}) {
+  const linkedCustomer = findLinkedLeadCustomer(lead, customers);
+  const leadId = textValue(lead?.id);
+  const customerId = textValue(linkedCustomer?.id || lead?.customerId);
+  const customerName = firstText(linkedCustomer?.name, lead?.customer);
+  const title = firstText(lead?.project, lead?.title, customerName ? `${customerName} estimate` : "Lead estimate");
+  const scopeSummary = firstText(
+    lead?.scopeSummary,
+    lead?.description,
+    lead?.notes,
+    lead?.project ? `Estimate for ${lead.project}.` : "",
+  );
+  const internalNotes = nonEmptyLines([
+    leadId ? `Created from lead ${leadId}.` : "Created from lead.",
+    lead?.source ? `Lead source: ${lead.source}.` : "",
+    lead?.nextStep ? `Lead next step: ${lead.nextStep}.` : "",
+    lead?.followUpDueAt ? `Lead follow-up due: ${lead.followUpDueAt}.` : "",
+    customerName ? `Lead customer: ${customerName}.` : "",
+  ]).join("\n");
+
+  return {
+    customerId,
+    leadId,
+    customerEmail: firstText(linkedCustomer?.email, lead?.customerEmail, lead?.email, lead?.contactEmail),
+    title,
+    status: "draft",
+    scopeSummary,
+    internalNotes,
+    customerNotes: "",
+    taxRate: "",
+    feesTotal: "",
+    items: [],
+  };
+}
+
 export function filterEstimates(rows = [], filters = {}) {
   const source = Array.isArray(rows) ? rows.filter(isRecord) : [];
   const {

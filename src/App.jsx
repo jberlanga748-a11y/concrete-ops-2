@@ -105,7 +105,7 @@ import { deriveCommandCenterState } from "./command-center-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
@@ -1836,6 +1836,7 @@ function LeadDetailPanel({
   lead,
   onFieldChange,
   onCreateJob,
+  onCreateEstimateFromLead = () => {},
   onConvertToCustomer = () => {},
   onArchive,
   onRestore,
@@ -1847,6 +1848,7 @@ function LeadDetailPanel({
   disabled,
   saveState,
   canManage = true,
+  canCreateEstimate = false,
 }) {
   if (!lead) {
     return (
@@ -1888,6 +1890,20 @@ function LeadDetailPanel({
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
+        {canCreateEstimate ? (
+          <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-4">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-slate-950">Estimate draft</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Start a draft estimate from this lead. Review pricing and scope before sending.</p>
+                {!lead.customerId ? <p className="mt-2 text-xs font-bold text-amber-700">Link or convert this lead to a customer before creating the estimate.</p> : null}
+              </div>
+              <Button type="button" className="w-full sm:w-auto" onClick={() => onCreateEstimateFromLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>
+                Create Estimate
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <InputField label="Project" value={lead.project} onChange={(event) => onFieldChange("project", event.target.value)} disabled={!canManage || disabled} />
         <div className="grid gap-3 md:grid-cols-3">
           <SelectField label="Status" value={lead.status} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
@@ -6402,6 +6418,7 @@ function DashboardPage({
   selectedLead,
   onLeadFieldChange,
   onCreateJobFromLead,
+  onCreateEstimateFromLead,
   onConvertLeadToCustomer,
   onArchiveLead,
   onRestoreLead,
@@ -6563,7 +6580,7 @@ function DashboardPage({
             <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
               <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
             </div>
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
           </div>
         </div>
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
@@ -6584,7 +6601,7 @@ function leadSourceLabel(source) {
   return source === "public_request_form" ? "Public request form" : source;
 }
 
-function LeadInboxReviewQueue({ inboxState, onSelectLead }) {
+function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLead = () => {}, canCreateEstimate = false }) {
   const stats = [
     { label: "New / Needs Review", value: inboxState.stats.newNeedsReview, tone: "blue" },
     { label: "Follow-Up Due", value: inboxState.stats.followUpDue, tone: "amber" },
@@ -6625,7 +6642,12 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead }) {
                   {lead.reviewReasons.map((reason) => <Badge key={reason.label} tone={reason.tone}>{reason.label}</Badge>)}
                 </div>
               </div>
-              <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead?.(lead.id)}>Review lead</Button>
+              <div className="flex w-full flex-col gap-2 sm:w-auto">
+                <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead?.(lead.id)}>Review lead</Button>
+                {canCreateEstimate && lead.reviewReasons.some((reason) => reason.label === "Ready for Estimate") ? (
+                  <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)}>Create Estimate</Button>
+                ) : null}
+              </div>
             </div>
             <p className="mt-3 text-xs font-bold leading-5 text-slate-600">{lead.nextStep || lead.reviewReasons[0]?.helper || "Add a next step before this lead moves forward."}</p>
           </div>
@@ -6662,6 +6684,7 @@ function LeadsPage({
   setLeadDraft,
   onCreateLead,
   onCreateJobFromLead,
+  onCreateEstimateFromLead,
   onConvertLeadToCustomer,
   onArchiveLead,
   onRestoreLead,
@@ -6676,7 +6699,7 @@ function LeadsPage({
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} />
+        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onCreateEstimateFromLead={onCreateEstimateFromLead} canCreateEstimate={permissions?.estimates?.canManage} />
       </div>
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
@@ -6702,7 +6725,7 @@ function LeadsPage({
         </Card>
         <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
         </div>
       </div>
     </div>
@@ -9516,6 +9539,7 @@ function EstimatesPage({
   onConvertEstimate,
   onPrintEstimate,
   onSendEstimate,
+  initialSelectedEstimateId = "",
   emailSendingConfigured = false,
   companyName = DEFAULT_COMPANY_NAME,
   companyProfile = {},
@@ -9592,6 +9616,12 @@ function EstimatesPage({
       customerEmail: shouldPrefill && nextLinkedEmail ? nextLinkedEmail : current.customerEmail,
     };
   }
+
+  useEffect(() => {
+    if (initialSelectedEstimateId && rows.some((estimate) => estimate?.id === initialSelectedEstimateId)) {
+      setSelectedEstimateId(initialSelectedEstimateId);
+    }
+  }, [initialSelectedEstimateId, rows]);
 
   useEffect(() => {
     if (!selectedEstimateId && filteredRows[0]?.id) {
@@ -11172,6 +11202,7 @@ function MainContent(props) {
           onConvertEstimate={props.onConvertEstimate}
           onPrintEstimate={props.onPrintEstimate}
           onSendEstimate={props.onSendEstimate}
+          initialSelectedEstimateId={props.estimateFocusId}
         />
       );
     }
@@ -11361,6 +11392,7 @@ export default function App() {
   const [selectedReportId, setSelectedReportId] = useState("");
   const [selectedImportedDraftId, setSelectedImportedDraftId] = useState("");
   const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
+  const [estimateFocusId, setEstimateFocusId] = useState("");
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -11579,6 +11611,7 @@ export default function App() {
     setSelectedReportId("");
     setSelectedImportedDraftId("");
     setSelectedTimeEntryId("");
+    setEstimateFocusId("");
   }
 
   useEffect(() => () => {
@@ -13049,6 +13082,52 @@ export default function App() {
     }
   }
 
+  async function handleCreateEstimateFromLead(lead) {
+    if (!sessionToken || !appState.permissions.estimates.canManage || !appState.permissions.leads.canManage) return false;
+    const sourceLead = typeof lead === "string"
+      ? appState.leads.find((entry) => entry.id === lead)
+      : (lead || selectedLead);
+    const readiness = getEstimateFromLeadReadiness(sourceLead, { customers: appState.customers });
+
+    if (!readiness.canCreate) {
+      setErrorMessage(readiness.message);
+      return false;
+    }
+
+    const existingDraft = appState.estimates.find((estimate) => (
+      estimate.leadId === sourceLead.id
+      && estimate.status === "draft"
+      && !estimate.jobId
+      && !estimate.archivedAt
+    ));
+
+    if (existingDraft) {
+      setEstimateFocusId(existingDraft.id);
+      setErrorMessage("");
+      setActive("estimates");
+      return true;
+    }
+
+    const existingEstimateIds = new Set(appState.estimates.map((estimate) => estimate.id));
+    const payload = buildEstimateDraftFromLead(sourceLead, { customers: appState.customers });
+    setBusy(true);
+    try {
+      const nextState = await createEstimate(sessionToken, payload);
+      const createdEstimate = (nextState.estimates || []).find((estimate) => !existingEstimateIds.has(estimate.id));
+      applyBootstrap(nextState);
+      setEstimateFocusId(createdEstimate?.id || "");
+      setErrorMessage("");
+      setActive("estimates");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSaveEstimate(estimateId, payload) {
     if (!sessionToken || !appState.permissions.estimates.canManage) return false;
     setBusy(true);
@@ -13551,6 +13630,8 @@ export default function App() {
                 onConvertEstimate={handleConvertEstimate}
                 onPrintEstimate={handlePrintEstimate}
                 onSendEstimate={handleSendEstimate}
+                onCreateEstimateFromLead={handleCreateEstimateFromLead}
+                estimateFocusId={estimateFocusId}
                 relatedRecords={customerRelated}
               customerRouteRequested={Boolean(routeState.customerId)}
               leadFilter={leadFilter}

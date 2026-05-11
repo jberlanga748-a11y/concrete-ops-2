@@ -5,6 +5,7 @@ import {
   buildEstimateCopyText,
   buildEstimateCustomerMessage,
   buildEstimateEmailSubject,
+  buildEstimateDraftFromLead,
   calculateEstimateLineTotal,
   calculateEstimateTotals,
   deriveEstimateListState,
@@ -12,6 +13,7 @@ import {
   estimateStatusLabel,
   filterEstimates,
   formatEstimateCurrency,
+  getEstimateFromLeadReadiness,
 } from "./estimate-utils.js";
 
 test("line item totals and estimate totals calculate correctly", () => {
@@ -110,6 +112,56 @@ test("estimate helpers tolerate sparse estimate rows and missing item arrays", (
 test("status labels and currency formatting stay human friendly", () => {
   assert.equal(estimateStatusLabel("approved"), "Approved");
   assert.equal(formatEstimateCurrency(2386.1), "$2,386.10");
+});
+
+test("estimate draft prefill from lead uses existing linked customer without line items", () => {
+  const lead = {
+    id: "L-100",
+    customerId: "C-100",
+    customer: "Megan Carter",
+    project: "Driveway replacement",
+    source: "Lead Finder",
+    followUpDueAt: "2026-05-12",
+    nextStep: "Build proposal",
+    notes: "Replace cracked driveway and apron.",
+  };
+  const customers = [{ id: "C-100", name: "Megan Carter", email: "megan@example.test" }];
+
+  const draft = buildEstimateDraftFromLead(lead, { customers });
+
+  assert.deepEqual(draft, {
+    customerId: "C-100",
+    leadId: "L-100",
+    customerEmail: "megan@example.test",
+    title: "Driveway replacement",
+    status: "draft",
+    scopeSummary: "Replace cracked driveway and apron.",
+    internalNotes: [
+      "Created from lead L-100.",
+      "Lead source: Lead Finder.",
+      "Lead next step: Build proposal.",
+      "Lead follow-up due: 2026-05-12.",
+      "Lead customer: Megan Carter.",
+    ].join("\n"),
+    customerNotes: "",
+    taxRate: "",
+    feesTotal: "",
+    items: [],
+  });
+});
+
+test("estimate draft from lead requires an existing linked customer before create", () => {
+  const lead = { id: "L-101", customer: "Unlinked Lead", project: "Patio", notes: "Needs review." };
+
+  const readiness = getEstimateFromLeadReadiness(lead, { customers: [] });
+  const draft = buildEstimateDraftFromLead(lead, { customers: [] });
+
+  assert.equal(readiness.canCreate, false);
+  assert.equal(readiness.reason, "missing_customer");
+  assert.match(readiness.message, /Link or convert this lead to a customer/);
+  assert.equal(draft.customerId, "");
+  assert.equal(draft.leadId, "L-101");
+  assert.equal(draft.items.length, 0);
 });
 
 test("estimate copy helpers include customer-facing pricing content without internal notes", () => {
