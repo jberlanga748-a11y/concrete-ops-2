@@ -131,6 +131,7 @@ import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSE
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
+import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -1006,6 +1007,7 @@ function Icon({ name, className = "h-4 w-4" }) {
     arrowUpRight: [<path key="1" d="M7 17 17 7" />, <path key="2" d="M9 7h8v8" />],
     database: [<ellipse key="1" cx="12" cy="5" rx="7" ry="3" />, <path key="2" d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5" />, <path key="3" d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />],
     lock: [<rect key="1" x="4" y="11" width="16" height="10" rx="2" />, <path key="2" d="M8 11V7a4 4 0 1 1 8 0v4" />],
+    bell: [<path key="1" d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />, <path key="2" d="M10 21a2 2 0 0 0 4 0" />],
   };
 
   return <svg {...common}>{paths[name] || paths.grid}</svg>;
@@ -2170,7 +2172,7 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, hideMobileModuleSelect = false }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, hideMobileModuleSelect = false, notificationSource = {}, onOpenPath }) {
   const current = navItems.find((item) => item.id === active);
   const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
   return (
@@ -2181,6 +2183,14 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
+          <NotificationCenterButton
+            source={notificationSource}
+            permissions={permissions}
+            user={user}
+            companyId={currentCompanyId}
+            onOpenModule={setActive}
+            onOpenPath={onOpenPath}
+          />
           {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
           {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
@@ -2231,6 +2241,14 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
             </select>
           ) : null}
           <div className="flex items-center justify-between gap-2">
+            <NotificationCenterButton
+              source={notificationSource}
+              permissions={permissions}
+              user={user}
+              companyId={currentCompanyId}
+              onOpenModule={setActive}
+              onOpenPath={onOpenPath}
+            />
             <div className="min-w-0 max-w-[58vw] truncate rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
             <Button variant="ghost" size="sm" className="shrink-0" onClick={onLogout}>
               Log out
@@ -2241,6 +2259,195 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
       {syncing ? <div className="h-1 bg-gradient-to-r from-blue-200 via-blue-600 to-blue-200" /> : null}
     </div>
   );
+}
+
+function NotificationCenterButton({ source = {}, permissions = {}, user = null, companyId = "", onOpenModule = () => {}, onOpenPath = null }) {
+  const canView = canViewNotificationCenter(permissions);
+  const storageKey = buildNotificationStateStorageKey({ companyId, userId: user?.id });
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("unread");
+  const [localState, setLocalState] = useState(() => loadNotificationState(storageKey));
+  const notificationState = useMemo(() => deriveNotificationCenterState(source, {
+    today: todayDateInputValue(),
+    companyId,
+    permissions,
+    state: localState,
+  }), [companyId, localState, permissions, source]);
+  const visibleItems = useMemo(() => filterNotificationItems(notificationState.items, { filter }), [filter, notificationState.items]);
+
+  useEffect(() => {
+    setLocalState(loadNotificationState(storageKey));
+    setFilter("unread");
+    setOpen(false);
+  }, [storageKey]);
+
+  if (!canView) return null;
+
+  function persistNotificationState(updater) {
+    setLocalState((current) => {
+      const draft = typeof updater === "function" ? updater(normalizeNotificationState(current)) : updater;
+      const next = normalizeNotificationState({
+        ...draft,
+        updatedAt: new Date().toISOString(),
+      });
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        // Local notification read/archive state is nice-to-have only.
+      }
+      return next;
+    });
+  }
+
+  function markRead(id) {
+    persistNotificationState((current) => ({
+      ...current,
+      readIds: Array.from(new Set([...current.readIds, id])),
+    }));
+  }
+
+  function markUnread(id) {
+    persistNotificationState((current) => ({
+      ...current,
+      readIds: current.readIds.filter((entry) => entry !== id),
+    }));
+  }
+
+  function archiveNotification(id) {
+    persistNotificationState((current) => ({
+      ...current,
+      readIds: Array.from(new Set([...current.readIds, id])),
+      archivedIds: Array.from(new Set([...current.archivedIds, id])),
+    }));
+  }
+
+  function unarchiveNotification(id) {
+    persistNotificationState((current) => ({
+      ...current,
+      archivedIds: current.archivedIds.filter((entry) => entry !== id),
+    }));
+  }
+
+  function markAllRead() {
+    const activeIds = notificationState.items.filter((item) => !item.archived).map((item) => item.id);
+    persistNotificationState((current) => ({
+      ...current,
+      readIds: Array.from(new Set([...current.readIds, ...activeIds])),
+    }));
+  }
+
+  function clearRead() {
+    const readActiveIds = notificationState.items.filter((item) => item.read && !item.archived).map((item) => item.id);
+    persistNotificationState((current) => ({
+      ...current,
+      archivedIds: Array.from(new Set([...current.archivedIds, ...readActiveIds])),
+    }));
+  }
+
+  function openNotification(item) {
+    markRead(item.id);
+    if (item.openPath && onOpenPath) {
+      onOpenPath(item.openPath);
+    } else if (item.moduleId) {
+      onOpenModule(item.moduleId);
+    }
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm font-black transition ${notificationState.stats.unread > 0 ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" : "border-blue-100 bg-white text-slate-600 hover:bg-blue-50 hover:text-blue-700"}`}
+        onClick={() => setOpen((current) => !current)}
+        aria-label={`Open notifications${notificationState.stats.unread > 0 ? `, ${notificationState.stats.unread} unread` : ""}`}
+        aria-expanded={open}
+      >
+        <Icon name="bell" className="h-4 w-4" />
+        {notificationState.stats.unread > 0 ? (
+          <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] leading-none text-white">
+            {notificationState.stats.unread > 99 ? "99+" : notificationState.stats.unread}
+          </span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full z-50 mt-3 w-[min(92vw,440px)] overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-panel">
+          <div className="border-b border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-base font-black text-slate-950">Notifications</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                  In-app work alerts only. Nothing is pushed, emailed, texted, or automated.
+                </p>
+              </div>
+              <Badge tone={notificationState.stats.unread > 0 ? "amber" : "slate"}>{notificationState.stats.unread} unread</Badge>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {NOTIFICATION_CENTER_FILTERS.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setFilter(entry.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-black transition ${filter === entry.id ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={markAllRead} disabled={notificationState.stats.unread === 0}>Mark all read</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={clearRead} disabled={!notificationState.items.some((item) => item.read && !item.archived)}>Clear read</Button>
+            </div>
+          </div>
+
+          <div className="max-h-[70vh] overflow-y-auto p-3">
+            {visibleItems.length > 0 ? visibleItems.slice(0, 12).map((item) => (
+              <div key={item.id} className={`mb-3 rounded-2xl border p-3 last:mb-0 ${item.read ? "border-blue-100 bg-white" : "border-amber-100 bg-amber-50/50"}`}>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={notificationSeverityTone(item.severity)}>{item.severity}</Badge>
+                      <Badge tone="slate">{item.dueLabel || "Needs review"}</Badge>
+                    </div>
+                    <p className="mt-2 break-words text-sm font-black text-slate-950">{item.title}</p>
+                    <p className="mt-1 break-words text-xs font-bold leading-5 text-slate-600">{item.description}</p>
+                  </div>
+                  {item.read ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-slate-300" /> : <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" />}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={() => openNotification(item)}>{notificationActionLabel(item)}</Button>
+                  {item.read ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => markUnread(item.id)}>Mark unread</Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => markRead(item.id)}>Mark read</Button>
+                  )}
+                  {item.archived ? (
+                    <Button type="button" size="sm" variant="secondary" onClick={() => unarchiveNotification(item.id)}>Unarchive</Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="secondary" onClick={() => archiveNotification(item.id)}>Archive</Button>
+                  )}
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-blue-100 bg-slate-50 p-4 text-center">
+                <p className="text-sm font-black text-slate-950">{filter === "archived" ? "No archived notifications" : filter === "all" ? "No active notifications" : "No unread notifications"}</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Follow-ups, source checks, missing lead info, imported drafts, and startup blockers will appear here when they need office attention.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function loadNotificationState(storageKey) {
+  try {
+    return normalizeNotificationState(window.localStorage.getItem(storageKey));
+  } catch {
+    return normalizeNotificationState();
+  }
 }
 
 function KpiCard({ item }) {
@@ -14171,6 +14378,16 @@ export default function App() {
     dailyReports: appState.dailyReports,
   }), [appState.customers, appState.dailyReports, appState.jobDraftImports, appState.jobs, appState.leads, appState.permissions, appState.users]);
   const dashboardShortcuts = useMemo(() => getDashboardShortcuts(appState.user, appState.companySettings), [appState.companySettings, appState.user]);
+  const notificationCenterSource = useMemo(() => ({
+    currentCompanyId: appState.currentCompanyId,
+    leads: appState.leads,
+    customers: appState.customers,
+    estimates: appState.estimates,
+    leadSources: appState.leadSources,
+    contactHistory: appState.contactHistory,
+    jobDraftImports: appState.jobDraftImports,
+    jobs: appState.jobs,
+  }), [appState.contactHistory, appState.currentCompanyId, appState.customers, appState.estimates, appState.jobDraftImports, appState.jobs, appState.leadSources, appState.leads]);
 
   async function runMutation(task) {
     if (!sessionToken) return;
@@ -16010,6 +16227,8 @@ export default function App() {
             companies={appState.companies}
             currentCompanyId={appState.currentCompanyId}
             onSelectCompany={handleSelectCompany}
+            notificationSource={notificationCenterSource}
+            onOpenPath={navigateTo}
             hideMobileModuleSelect={isFieldMobileWorkspace}
           />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
