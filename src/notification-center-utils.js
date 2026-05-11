@@ -16,12 +16,56 @@ const DEFAULT_NOTIFICATION_STATE = {
 const REVIEW_DRAFT_STATUSES = new Set(["imported", "needs review", "ready to create job"]);
 const CUSTOMER_MATCH_REVIEW_STATUSES = new Set(["not checked", "possible match", "review required", "new customer needed"]);
 const CLOSED_JOB_STATUSES = new Set(["archived", "cancelled", "canceled", "complete", "completed", "closed"]);
+const CLOSED_LEAD_STATUSES = new Set(["approved", "converted", "won", "lost", "no thanks", "not interested", "closed", "archived"]);
+const CLOSED_ESTIMATE_STATUSES = new Set(["approved", "accepted", "converted", "won", "lost", "declined", "rejected", "closed", "archived"]);
+const NEW_LEAD_STATUSES = new Set(["new", "needs review", "inbox", "imported"]);
+const OPEN_SENT_ESTIMATE_STATUSES = new Set(["sent", "estimate sent", "open", "pending"]);
 
 const SEVERITY_RANK = {
   critical: 0,
   warning: 1,
   info: 2,
 };
+
+const SPECIFICITY_RANK = {
+  follow_up_overdue: 100,
+  estimate_follow_up_overdue: 100,
+  lead_source_overdue: 95,
+  follow_up_due_today: 90,
+  estimate_follow_up_due_today: 90,
+  lead_source_dueToday: 85,
+  lead_missing_info: 75,
+  job_startup_blocker: 70,
+  job_draft_customer_match: 65,
+  website_lead: 60,
+  new_lead: 45,
+  estimate_no_follow_up_scheduled: 40,
+  waiting_on_response: 35,
+  follow_up_needed: 35,
+  not_contacted: 30,
+  job_draft_needs_review: 25,
+};
+
+export const NOTIFICATION_TRIGGER_DEFINITIONS = [
+  { type: "follow_up_overdue", label: "Follow-Up", title: "Follow-up overdue", defaultSeverity: "critical", moduleId: "leads", officeOnly: true, description: "A lead, customer, or estimate follow-up date is overdue." },
+  { type: "follow_up_due_today", label: "Follow-Up", title: "Follow-up due today", defaultSeverity: "warning", moduleId: "leads", officeOnly: true, description: "A lead, customer, or estimate follow-up date is due today." },
+  { type: "estimate_follow_up_overdue", label: "Estimate", title: "Estimate follow-up overdue", defaultSeverity: "critical", moduleId: "estimates", officeOnly: true, description: "An open estimate follow-up date is overdue." },
+  { type: "estimate_follow_up_due_today", label: "Estimate", title: "Estimate follow-up due today", defaultSeverity: "warning", moduleId: "estimates", officeOnly: true, description: "An open estimate follow-up date is due today." },
+  { type: "estimate_no_follow_up_scheduled", label: "Estimate", title: "Sent estimate needs follow-up", defaultSeverity: "info", moduleId: "estimates", officeOnly: true, description: "A sent or open estimate does not have a follow-up date recorded." },
+  { type: "waiting_on_response", label: "Follow-Up", title: "Waiting on response", defaultSeverity: "info", moduleId: "leads", officeOnly: true, description: "The latest contact history outcome is waiting on a customer response." },
+  { type: "follow_up_needed", label: "Follow-Up", title: "Follow-up needed", defaultSeverity: "warning", moduleId: "leads", officeOnly: true, description: "A contact note or next step indicates manual follow-up is needed." },
+  { type: "not_contacted", label: "Lead", title: "Lead not contacted", defaultSeverity: "info", moduleId: "leads", officeOnly: true, description: "A lead has no recorded contact history yet." },
+  { type: "lead_source_overdue", label: "Lead Source", title: "Lead source check overdue", defaultSeverity: "critical", moduleId: "leads", officeOnly: true, description: "A manual lead source check date is overdue." },
+  { type: "lead_source_dueToday", label: "Lead Source", title: "Lead source check due today", defaultSeverity: "warning", moduleId: "leads", officeOnly: true, description: "A manual lead source is due to be checked today." },
+  { type: "lead_missing_info", label: "Missing Info", title: "Lead missing info", defaultSeverity: "warning", moduleId: "leads", officeOnly: true, description: "A lead is missing required or recommended details before estimating or follow-up." },
+  { type: "new_lead", label: "New Lead", title: "New lead needs review", defaultSeverity: "info", moduleId: "leads", officeOnly: true, description: "A new or imported lead needs office review." },
+  { type: "website_lead", label: "Website Lead", title: "Website lead received", defaultSeverity: "warning", moduleId: "leads", officeOnly: true, description: "A lead appears to have arrived from website intake or a public request form." },
+  { type: "job_draft_customer_match", label: "Imported Draft", title: "Imported draft needs customer match", defaultSeverity: "warning", moduleId: "jobDraftImports", officeOnly: true, description: "An imported job draft needs customer matching before job creation." },
+  { type: "job_draft_needs_review", label: "Imported Draft", title: "Imported draft needs review", defaultSeverity: "info", moduleId: "jobDraftImports", officeOnly: true, description: "An imported job draft needs office review before moving forward." },
+  { type: "job_startup_blocker", label: "Job Startup", title: "Job startup blocker", defaultSeverity: "warning", moduleId: "jobs", officeOnly: true, description: "A job has startup checklist blockers or needs office readiness review." },
+];
+
+const TRIGGER_DEFINITIONS_BY_TYPE = new Map(NOTIFICATION_TRIGGER_DEFINITIONS.map((definition) => [definition.type, definition]));
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -64,8 +108,55 @@ function isLiveJob(job = {}) {
   return !CLOSED_JOB_STATUSES.has(normalizeStatus(job.status || job.stage));
 }
 
+function isClosedLead(lead = {}) {
+  return isArchived(lead) || CLOSED_LEAD_STATUSES.has(normalizeStatus(lead.status));
+}
+
+function isClosedEstimate(estimate = {}) {
+  return isArchived(estimate) || CLOSED_ESTIMATE_STATUSES.has(normalizeStatus(estimate.status));
+}
+
+function isNewLead(lead = {}) {
+  return NEW_LEAD_STATUSES.has(normalizeStatus(lead.status || "New"));
+}
+
+function isWebsiteLead(lead = {}) {
+  const haystack = [
+    lead.source,
+    lead.sourceApp,
+    lead.sourceType,
+    lead.notes,
+    lead.nextStep,
+  ].map(text).join("\n").toLowerCase();
+  return /\bwebsite\b/.test(haystack)
+    || /\bpublic_request_form\b/.test(haystack)
+    || /\bsource submission id:\b/.test(haystack)
+    || /\bpage url:\b/.test(haystack);
+}
+
+function estimateFollowUpDate(estimate = {}) {
+  return dateKey(estimate.followUpDueAt || estimate.nextFollowUpDate || estimate.followUpDate || estimate.dueDate);
+}
+
+function estimateWasSent(estimate = {}) {
+  const status = normalizeStatus(estimate.status);
+  return OPEN_SENT_ESTIMATE_STATUSES.has(status) || Boolean(estimate.sentAt || estimate.sentDate || estimate.sentTo);
+}
+
 function permissionFlag(permissions = {}, path = "") {
   return path.split(".").reduce((value, key) => value?.[key], permissions) === true;
+}
+
+export function getNotificationTriggerDefinition(type) {
+  return TRIGGER_DEFINITIONS_BY_TYPE.get(text(type)) || null;
+}
+
+export function notificationTriggerLabel(type) {
+  return getNotificationTriggerDefinition(type)?.label || "Notification";
+}
+
+export function notificationTriggerDescription(type) {
+  return getNotificationTriggerDefinition(type)?.description || "";
 }
 
 function canViewFollowUpItem(item = {}, permissions = {}) {
@@ -132,7 +223,12 @@ function followUpSeverity(bucket) {
   return "info";
 }
 
-function followUpType(bucket) {
+function followUpType(item = {}) {
+  const bucket = item.bucket;
+  if (item.type === "estimate" && bucket === "overdue") return "estimate_follow_up_overdue";
+  if (item.type === "estimate" && bucket === "dueToday") return "estimate_follow_up_due_today";
+  if (item.type === "leadSource" && bucket === "overdue") return "lead_source_overdue";
+  if (item.type === "leadSource" && bucket === "dueToday") return "lead_source_dueToday";
   if (bucket === "overdue") return "follow_up_overdue";
   if (bucket === "dueToday") return "follow_up_due_today";
   if (bucket === "waiting") return "waiting_on_response";
@@ -145,6 +241,8 @@ function followUpTitle(item = {}) {
   if (item.type === "leadSource") {
     return item.bucket === "overdue" ? "Lead source check overdue" : "Lead source check due today";
   }
+  if (item.type === "estimate" && item.bucket === "overdue") return "Estimate follow-up overdue";
+  if (item.type === "estimate" && item.bucket === "dueToday") return "Estimate follow-up due today";
   if (item.bucket === "overdue") return "Follow-up overdue";
   if (item.bucket === "dueToday") return "Follow-up due today";
   if (item.bucket === "waiting") return "Waiting on response";
@@ -160,6 +258,8 @@ function followUpModuleId(item = {}) {
 }
 
 function followUpNotificationId(item = {}) {
+  if (item.type === "estimate" && item.bucket === "overdue") return `estimate:${item.recordId}:followUpOverdue`;
+  if (item.type === "estimate" && item.bucket === "dueToday") return `estimate:${item.recordId}:followUpDueToday`;
   if (item.type === "leadSource") return `leadSource:${item.recordId}:${item.bucket}`;
   return `followup:${item.type}:${item.recordId}:${item.bucket}`;
 }
@@ -187,7 +287,7 @@ function buildFollowUpNotifications(source = {}, options = {}) {
     .map((item) => ({
       id: followUpNotificationId(item),
       sourceKey: followUpSourceKey(item),
-      type: item.type === "leadSource" ? `lead_source_${item.bucket}` : followUpType(item.bucket),
+      type: followUpType(item),
       severity: followUpSeverity(item.bucket),
       title: followUpTitle(item),
       description: [item.title, item.reason].filter(Boolean).join(" - "),
@@ -236,6 +336,110 @@ function buildMissingInfoNotifications(source = {}, options = {}) {
         },
       };
     });
+}
+
+function buildNewLeadNotifications(source = {}, options = {}) {
+  if (!permissionFlag(options.permissions, "leads.canView")) return [];
+
+  return asArray(source.leads)
+    .filter((lead) => sameCompany(lead, options.companyId) && !isClosedLead(lead) && isNewLead(lead))
+    .map((lead) => {
+      const websiteLead = isWebsiteLead(lead);
+      const type = websiteLead ? "website_lead" : "new_lead";
+      const definition = getNotificationTriggerDefinition(type);
+      const customerLabel = lead.customer || lead.company || lead.contactName || "Unnamed lead";
+      const projectLabel = lead.project || lead.description || lead.source || "Review the lead details.";
+      return {
+        id: websiteLead ? `websiteLead:lead:${lead.id}` : `newLead:lead:${lead.id}`,
+        sourceKey: `lead:${lead.id}`,
+        type,
+        severity: definition?.defaultSeverity || (websiteLead ? "warning" : "info"),
+        title: definition?.title || (websiteLead ? "Website lead received" : "New lead needs review"),
+        description: [customerLabel, projectLabel].filter(Boolean).join(" - "),
+        dueAt: lead.followUpDueAt || "",
+        createdAt: lead.createdAt || lead.updatedAt || "",
+        dueLabel: websiteLead ? "Website intake" : "Needs review",
+        recordType: "lead",
+        recordId: lead.id,
+        moduleId: "leads",
+        openPath: lead.id ? `/leads/${encodeURIComponent(lead.id)}` : "/leads",
+        actionLabel: "Open Lead",
+        meta: {
+          source: lead.source || "",
+          status: lead.status || "",
+        },
+      };
+    });
+}
+
+function buildEstimateNotifications(source = {}, options = {}) {
+  if (!permissionFlag(options.permissions, "estimates.canView")) return [];
+  const today = dateKey(options.today || new Date());
+
+  return asArray(source.estimates)
+    .filter((estimate) => sameCompany(estimate, options.companyId) && !isClosedEstimate(estimate))
+    .map((estimate) => {
+      const followUpDate = estimateFollowUpDate(estimate);
+      if (followUpDate && followUpDate < today) {
+        return {
+          id: `estimate:${estimate.id}:followUpOverdue`,
+          sourceKey: `estimate:${estimate.id}`,
+          type: "estimate_follow_up_overdue",
+          severity: "critical",
+          title: "Estimate follow-up overdue",
+          description: [estimate.title || estimate.project || "Estimate", `Follow-up was due ${followUpDate}.`].filter(Boolean).join(" - "),
+          dueAt: followUpDate,
+          createdAt: estimate.sentAt || estimate.updatedAt || estimate.createdAt || "",
+          dueLabel: `Due ${followUpDate}`,
+          recordType: "estimate",
+          recordId: estimate.id,
+          moduleId: "estimates",
+          openPath: "/estimates",
+          actionLabel: "Open Estimate",
+        };
+      }
+
+      if (followUpDate && followUpDate === today) {
+        return {
+          id: `estimate:${estimate.id}:followUpDueToday`,
+          sourceKey: `estimate:${estimate.id}`,
+          type: "estimate_follow_up_due_today",
+          severity: "warning",
+          title: "Estimate follow-up due today",
+          description: [estimate.title || estimate.project || "Estimate", "Follow-up is due today."].filter(Boolean).join(" - "),
+          dueAt: followUpDate,
+          createdAt: estimate.sentAt || estimate.updatedAt || estimate.createdAt || "",
+          dueLabel: `Due ${followUpDate}`,
+          recordType: "estimate",
+          recordId: estimate.id,
+          moduleId: "estimates",
+          openPath: "/estimates",
+          actionLabel: "Open Estimate",
+        };
+      }
+
+      if (!followUpDate && estimateWasSent(estimate)) {
+        return {
+          id: `estimate:${estimate.id}:noFollowUpScheduled`,
+          sourceKey: `estimate:${estimate.id}`,
+          type: "estimate_no_follow_up_scheduled",
+          severity: "info",
+          title: "Sent estimate needs follow-up date",
+          description: [estimate.title || estimate.project || "Estimate", "No follow-up date is scheduled."].filter(Boolean).join(" - "),
+          dueAt: "",
+          createdAt: estimate.sentAt || estimate.updatedAt || estimate.createdAt || "",
+          dueLabel: "No follow-up scheduled",
+          recordType: "estimate",
+          recordId: estimate.id,
+          moduleId: "estimates",
+          openPath: "/estimates",
+          actionLabel: "Open Estimate",
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean);
 }
 
 function buildJobDraftNotifications(source = {}, options = {}) {
@@ -305,8 +509,8 @@ function buildStartupNotifications(source = {}, options = {}) {
         sourceKey: `job:${job.id}`,
         type: "job_startup_blocker",
         severity: warnings.length > 0 || startup.startupStatus === "Needs Review" ? "warning" : "info",
-        title: "Job startup needs office review",
-        description: [job.title || job.name || job.customer || "Job", warnings.length > 0 ? `${warnings.length} startup blocker${warnings.length === 1 ? "" : "s"}` : `Startup status: ${startup.startupStatus}`].filter(Boolean).join(" - "),
+        title: "Job startup blocker",
+        description: [job.title || job.name || job.customer || "Job", warnings.length > 0 ? `${warnings.length} startup blocker${warnings.length === 1 ? "" : "s"} need review.` : `Startup status: ${startup.startupStatus}`].filter(Boolean).join(" - "),
         dueAt: job.scheduledStart || job.scheduledDate || "",
         createdAt: startup.startupLastUpdatedAt || job.updatedAt || job.createdAt || "",
         dueLabel: job.scheduledStart || job.scheduledDate ? `Scheduled ${dateKey(job.scheduledStart || job.scheduledDate)}` : startup.startupStatus,
@@ -337,9 +541,12 @@ function dedupeNotifications(items = []) {
 
     const existingRank = SEVERITY_RANK[existing.severity] ?? 99;
     const itemRank = SEVERITY_RANK[item.severity] ?? 99;
+    const existingSpecificity = SPECIFICITY_RANK[existing.type] ?? 0;
+    const itemSpecificity = SPECIFICITY_RANK[item.type] ?? 0;
     if (
       itemRank < existingRank
-      || (itemRank === existingRank && timeValue(item.dueAt || item.createdAt) < timeValue(existing.dueAt || existing.createdAt))
+      || (itemRank === existingRank && itemSpecificity > existingSpecificity)
+      || (itemRank === existingRank && itemSpecificity === existingSpecificity && timeValue(item.dueAt || item.createdAt) < timeValue(existing.dueAt || existing.createdAt))
     ) {
       bySource.set(sourceKey, item);
     }
@@ -361,7 +568,9 @@ export function buildNotificationItems(source = {}, options = {}) {
 
   return sortNotificationItems(dedupeNotifications([
     ...buildFollowUpNotifications(source, nextOptions),
+    ...buildNewLeadNotifications(source, nextOptions),
     ...buildMissingInfoNotifications(source, nextOptions),
+    ...buildEstimateNotifications(source, nextOptions),
     ...buildJobDraftNotifications(source, nextOptions),
     ...buildStartupNotifications(source, nextOptions),
   ]));
@@ -415,5 +624,6 @@ function sortNotificationItems(items = []) {
     || (dateKey(left.dueAt) || "9999-99-99").localeCompare(dateKey(right.dueAt) || "9999-99-99")
     || timeValue(right.createdAt) - timeValue(left.createdAt)
     || text(left.title).localeCompare(text(right.title))
+    || text(left.id).localeCompare(text(right.id))
   ));
 }

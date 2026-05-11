@@ -8,9 +8,13 @@ import {
   canViewNotificationCenter,
   deriveNotificationCenterState,
   filterNotificationItems,
+  getNotificationTriggerDefinition,
   normalizeNotificationState,
   notificationActionLabel,
   notificationSeverityTone,
+  notificationTriggerDescription,
+  notificationTriggerLabel,
+  NOTIFICATION_TRIGGER_DEFINITIONS,
 } from "./notification-center-utils.js";
 
 const TODAY = "2026-05-11";
@@ -53,6 +57,65 @@ test("notification center derives follow-up notifications with stable ids and se
   assert.equal(items[2].severity, "info");
 });
 
+test("trigger definitions expose labels, default severity, module targets, and explanations", () => {
+  const websiteDefinition = getNotificationTriggerDefinition("website_lead");
+
+  assert.ok(NOTIFICATION_TRIGGER_DEFINITIONS.length >= 10);
+  assert.equal(websiteDefinition.label, "Website Lead");
+  assert.equal(websiteDefinition.defaultSeverity, "warning");
+  assert.equal(websiteDefinition.moduleId, "leads");
+  assert.equal(websiteDefinition.officeOnly, true);
+  assert.equal(notificationTriggerLabel("job_startup_blocker"), "Job Startup");
+  assert.match(notificationTriggerDescription("estimate_no_follow_up_scheduled"), /does not have a follow-up date/i);
+});
+
+test("new lead and website lead triggers use deterministic ids and prefer website-specific alerts", () => {
+  const items = buildNotificationItems({
+    leads: [
+      { id: "L-1", companyId: "COMPANY-A", customer: "New Lead", project: "Deck", status: "New", source: "Referral", createdAt: "2026-05-11T08:00:00.000Z" },
+      { id: "L-2", companyId: "COMPANY-A", customer: "Website Lead", project: "Fence", status: "New", source: "Website", notes: "Website lead.\nSource submission ID: web-1", createdAt: "2026-05-11T09:00:00.000Z" },
+    ],
+  }, { today: TODAY, companyId: "COMPANY-A", permissions: OFFICE_PERMISSIONS });
+
+  assert.equal(items.some((item) => item.id === "newLead:lead:L-1" && item.type === "new_lead"), true);
+  assert.equal(items.some((item) => item.id === "websiteLead:lead:L-2" && item.type === "website_lead"), true);
+  assert.equal(items.some((item) => item.id === "newLead:lead:L-2"), false);
+});
+
+test("missing info and overdue follow-up suppress lower-priority generic new lead alerts", () => {
+  const items = buildNotificationItems({
+    leads: [
+      { id: "L-1", companyId: "COMPANY-A", customer: "Missing New", status: "New", missingInfoStatus: "Needs Info", missingInfoCount: 2 },
+      { id: "L-2", companyId: "COMPANY-A", customer: "Overdue New", status: "New", followUpDueAt: "2026-05-09" },
+    ],
+  }, { today: TODAY, companyId: "COMPANY-A", permissions: OFFICE_PERMISSIONS });
+
+  assert.equal(items.some((item) => item.id === "newLead:lead:L-1"), false);
+  assert.equal(items.some((item) => item.id === "missingInfo:lead:L-1"), true);
+  assert.equal(items.some((item) => item.id === "newLead:lead:L-2"), false);
+  assert.equal(items.some((item) => item.id === "followup:lead:L-2:overdue"), true);
+});
+
+test("estimate follow-up triggers cover due today, overdue, and sent with no follow-up scheduled", () => {
+  const items = buildNotificationItems({
+    estimates: [
+      { id: "E-1", companyId: "COMPANY-A", title: "Overdue estimate", status: "sent", followUpDueAt: "2026-05-09", sentAt: "2026-05-01T10:00:00.000Z" },
+      { id: "E-2", companyId: "COMPANY-A", title: "Today estimate", status: "sent", nextFollowUpDate: TODAY, sentAt: "2026-05-10T10:00:00.000Z" },
+      { id: "E-3", companyId: "COMPANY-A", title: "Sent estimate", status: "Estimate Sent", sentAt: "2026-05-10T10:00:00.000Z" },
+      { id: "E-4", companyId: "COMPANY-A", title: "Approved estimate", status: "approved", sentAt: "2026-05-10T10:00:00.000Z" },
+    ],
+  }, { today: TODAY, companyId: "COMPANY-A", permissions: OFFICE_PERMISSIONS });
+
+  assert.deepEqual(items.map((item) => item.id), [
+    "estimate:E-1:followUpOverdue",
+    "estimate:E-2:followUpDueToday",
+    "estimate:E-3:noFollowUpScheduled",
+  ]);
+  assert.equal(items[0].type, "estimate_follow_up_overdue");
+  assert.equal(items[1].type, "estimate_follow_up_due_today");
+  assert.equal(items[2].type, "estimate_no_follow_up_scheduled");
+});
+
 test("notification center derives lead source due and overdue notifications", () => {
   const items = buildNotificationItems({
     leadSources: [
@@ -64,6 +127,8 @@ test("notification center derives lead source due and overdue notifications", ()
 
   assert.deepEqual(items.map((item) => item.id), ["leadSource:LS-1:overdue", "leadSource:LS-2:dueToday"]);
   assert.equal(items[0].moduleId, "leads");
+  assert.equal(items[0].type, "lead_source_overdue");
+  assert.equal(items[1].type, "lead_source_dueToday");
   assert.equal(items[0].actionLabel, "Open Daily Source Check");
 });
 
@@ -111,7 +176,38 @@ test("job draft and startup notifications use existing office work records", () 
   assert.equal(items.some((item) => item.id === "jobDraft:IJD-1:customerMatch"), true);
   assert.equal(items.some((item) => item.id === "jobDraft:IJD-2:needsReview"), true);
   assert.equal(items.some((item) => item.id === "job:J-1:startupBlocker"), true);
+  assert.equal(items.find((item) => item.id === "job:J-1:startupBlocker").title, "Job startup blocker");
   assert.equal(items.some((item) => item.id === "job:J-2:startupBlocker"), false);
+});
+
+test("dedupe keeps the highest-priority and most-specific notification for the same source record", () => {
+  const items = buildNotificationItems({
+    leads: [
+      { id: "L-1", companyId: "COMPANY-A", customer: "Website Missing", status: "New", source: "Website", notes: "Website lead.", missingInfoStatus: "Needs Info", missingInfoCount: 1 },
+    ],
+    estimates: [
+      { id: "E-1", companyId: "COMPANY-A", title: "Estimate duplicate", status: "sent", followUpDueAt: TODAY, sentAt: "2026-05-10T10:00:00.000Z" },
+    ],
+    contactHistory: [
+      { id: "CH-1", companyId: "COMPANY-A", entityType: "estimate", entityId: "E-1", outcome: "Follow-Up Needed", method: "Email", contactedAt: "2026-05-10T12:00:00.000Z", nextFollowUpDate: TODAY },
+    ],
+  }, { today: TODAY, companyId: "COMPANY-A", permissions: OFFICE_PERMISSIONS });
+
+  assert.deepEqual(items.filter((item) => item.sourceKey === "lead:L-1").map((item) => item.id), ["missingInfo:lead:L-1"]);
+  assert.deepEqual(items.filter((item) => item.sourceKey === "estimate:E-1").map((item) => item.id), ["estimate:E-1:followUpDueToday"]);
+});
+
+test("sorting keeps critical before warning before info with deterministic fallback", () => {
+  const items = buildNotificationItems({
+    leads: [
+      { id: "L-INFO", companyId: "COMPANY-A", customer: "Info Lead", status: "New", createdAt: "2026-05-11T08:00:00.000Z" },
+      { id: "L-WARN", companyId: "COMPANY-A", customer: "Warn Lead", status: "New", missingInfoStatus: "Needs Info", missingInfoCount: 1, createdAt: "2026-05-11T09:00:00.000Z" },
+      { id: "L-CRIT", companyId: "COMPANY-A", customer: "Critical Lead", status: "Contacted", followUpDueAt: "2026-05-09", createdAt: "2026-05-11T10:00:00.000Z" },
+    ],
+  }, { today: TODAY, companyId: "COMPANY-A", permissions: OFFICE_PERMISSIONS });
+
+  assert.deepEqual(items.map((item) => item.severity), ["critical", "warning", "info"]);
+  assert.deepEqual(items.map((item) => item.id), ["followup:lead:L-CRIT:overdue", "missingInfo:lead:L-WARN", "newLead:lead:L-INFO"]);
 });
 
 test("read and archive state filters notifications without storing record data", () => {

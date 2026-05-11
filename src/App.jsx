@@ -131,7 +131,7 @@ import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSE
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
-import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
+import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -2408,6 +2408,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
                       <Badge tone={notificationSeverityTone(item.severity)}>{item.severity}</Badge>
+                      <Badge tone="blue">Triggered by: {notificationTriggerLabel(item.type)}</Badge>
                       <Badge tone="slate">{item.dueLabel || "Needs review"}</Badge>
                     </div>
                     <p className="mt-2 break-words text-sm font-black text-slate-950">{item.title}</p>
