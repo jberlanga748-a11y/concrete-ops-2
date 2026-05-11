@@ -7037,7 +7037,7 @@ function CommandCenterSection({ title, description, count, emptyTitle, emptyDesc
       <div className={compact ? "space-y-1.5" : "space-y-2.5"}>
         {count > 0 ? children : <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />}
       </div>
-      {footer ? <div className="mt-2.5 border-t border-slate-100 pt-2.5">{footer}</div> : null}
+      {footer ? <div className="mt-2.5 border-t border-slate-200 pt-2.5">{footer}</div> : null}
     </Card>
   );
 }
@@ -7051,12 +7051,12 @@ function CommandCenterItem({ eyebrow, title, description, meta, badges, actions,
           <div className="min-w-0">
             {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
             <p className={`${compact ? "mt-0.5 text-sm" : "mt-1 text-base"} break-words font-black leading-5 text-slate-950`}>{title}</p>
-            {description ? <p className="mt-0.5 break-words text-[13px] font-bold leading-5 text-slate-600">{description}</p> : null}
+            {description ? <p className="mt-0.5 break-words text-[13px] font-bold leading-5 text-slate-700">{description}</p> : null}
           </div>
         </div>
         <div className="grid min-w-0 gap-1.5 lg:justify-items-start">
           {badges ? <div className="flex min-w-0 flex-wrap gap-1.5">{badges}</div> : null}
-          {meta ? <p className="break-words text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{meta}</p> : null}
+          {meta ? <p className="break-words text-[11px] font-black uppercase tracking-[0.09em] text-slate-600">{meta}</p> : null}
         </div>
         {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 lg:w-auto lg:justify-end">{actions}</div> : null}
       </div>
