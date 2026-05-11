@@ -1,4 +1,5 @@
 import { deriveEstimateBackup, getEstimateInternalNotesWithoutBackup, serializeEstimateBackup } from "./estimate-backup-utils.js";
+import { deriveEstimateGcPacketLite, getEstimateInternalNotesWithoutGcPacketLite, serializeEstimateGcPacketLite } from "./estimate-gc-packet-utils.js";
 import { calculateEstimateOptionTotals, calculateEstimateTotals, estimateCustomerEmail } from "./estimate-utils.js";
 
 const SENT_SNAPSHOT_BLOCK_START = "[Concrete Ops Sent Proposal History]";
@@ -76,7 +77,7 @@ export function getEstimateVisibleInternalNotes(estimateOrNotes = {}) {
   const internalNotes = typeof estimateOrNotes === "string"
     ? estimateOrNotes
     : estimateOrNotes?.internalNotes;
-  return getEstimateInternalNotesWithoutBackup(getEstimateInternalNotesWithoutSentSnapshots(internalNotes));
+  return getEstimateInternalNotesWithoutBackup(getEstimateInternalNotesWithoutSentSnapshots(getEstimateInternalNotesWithoutGcPacketLite(internalNotes)));
 }
 
 export function normalizeEstimateSentSnapshot(snapshot = {}) {
@@ -161,19 +162,32 @@ export function createEstimateSentSnapshot(estimate = {}, options = {}) {
 export function mergeEstimateSentSnapshots(estimate = {}, snapshots = []) {
   const visibleInternalNotes = getEstimateVisibleInternalNotes(estimate);
   const backupBlock = serializeEstimateBackup(deriveEstimateBackup(estimate));
+  const gcPacketLiteBlock = serializeEstimateGcPacketLite(deriveEstimateGcPacketLite(estimate));
   const snapshotBlock = serializeEstimateSentSnapshots(snapshots);
   return {
     ...estimate,
-    internalNotes: [visibleInternalNotes, backupBlock, snapshotBlock].filter(Boolean).join("\n\n"),
+    internalNotes: [visibleInternalNotes, backupBlock, gcPacketLiteBlock, snapshotBlock].filter(Boolean).join("\n\n"),
   };
 }
 
 export function mergeEstimateOfficeInternalNotes(estimate = {}, internalNotes = "") {
   const backupBlock = serializeEstimateBackup(deriveEstimateBackup(estimate));
+  const gcPacketLiteBlock = serializeEstimateGcPacketLite(deriveEstimateGcPacketLite(estimate));
   const snapshotBlock = serializeEstimateSentSnapshots(deriveEstimateSentSnapshots(estimate));
   return {
     ...estimate,
-    internalNotes: [textValue(internalNotes), backupBlock, snapshotBlock].filter(Boolean).join("\n\n"),
+    internalNotes: [textValue(internalNotes), backupBlock, gcPacketLiteBlock, snapshotBlock].filter(Boolean).join("\n\n"),
+  };
+}
+
+export function mergeEstimateGcPacketLite(estimate = {}, gcPacketLite = {}) {
+  const visibleInternalNotes = getEstimateVisibleInternalNotes(estimate);
+  const backupBlock = serializeEstimateBackup(deriveEstimateBackup(estimate));
+  const gcPacketLiteBlock = serializeEstimateGcPacketLite(gcPacketLite);
+  const snapshotBlock = serializeEstimateSentSnapshots(deriveEstimateSentSnapshots(estimate));
+  return {
+    ...estimate,
+    internalNotes: [visibleInternalNotes, backupBlock, gcPacketLiteBlock, snapshotBlock].filter(Boolean).join("\n\n"),
   };
 }
 
