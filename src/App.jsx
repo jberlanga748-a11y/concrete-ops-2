@@ -105,7 +105,8 @@ import { deriveCommandCenterState } from "./command-center-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, getEstimateInternalNotesWithoutBackup, mergeEstimateBackup, mergeEstimateInternalNotes } from "./estimate-backup-utils";
+import { createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
+import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
@@ -1294,9 +1295,9 @@ function EstimateProposalSectionsEditor({ draft, setDraft, disabled = false }) {
     setDraft((current) => mergeEstimateProposalSections(current, { [field]: value }));
   };
   const updateInternalNotes = (value) => {
-    setDraft((current) => mergeEstimateInternalNotes(current, value));
+    setDraft((current) => mergeEstimateOfficeInternalNotes(current, value));
   };
-  const visibleInternalNotes = getEstimateInternalNotesWithoutBackup(sections.internalNotes);
+  const visibleInternalNotes = getEstimateVisibleInternalNotes(sections.internalNotes);
 
   return (
     <div className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/40">
@@ -1380,6 +1381,91 @@ function EstimateProposalSectionsEditor({ draft, setDraft, disabled = false }) {
           <p className="mt-2 text-xs font-bold leading-5 text-amber-700">Internal notes are for office use only and should not print for the customer.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function sentSnapshotStatusLabel(status = "sent") {
+  const labels = {
+    sent: "Sent",
+    printed: "Printed",
+    failed: "Failed",
+    draft: "Draft",
+  };
+  return labels[String(status || "sent").trim().toLowerCase()] || "Sent";
+}
+
+function sentSnapshotMethodLabel(method = "manual") {
+  const labels = {
+    email: "Email",
+    print: "Print",
+    manual: "Manual",
+  };
+  return labels[String(method || "manual").trim().toLowerCase()] || "Manual";
+}
+
+function EstimateSentHistoryCard({ estimate, disabled = false, onRecordSnapshot }) {
+  const snapshots = deriveEstimateSentSnapshots(estimate);
+  const latestSnapshot = snapshots[0] || null;
+  const latestSentAt = latestSnapshot?.sentAt || latestSnapshot?.createdAt || estimate?.sentAt || "";
+  const latestRecipient = latestSnapshot?.customerEmail || estimate?.sentTo || estimateCustomerEmail(estimate) || "Recipient not recorded";
+  const latestMethod = latestSnapshot?.method || (estimate?.sentAt ? "email" : "manual");
+  const latestStatus = latestSnapshot?.status || (estimate?.sentAt ? "sent" : "draft");
+  const latestBaseTotal = latestSnapshot ? latestSnapshot.baseTotal : calculateEstimateTotals(estimate?.items, {
+    taxRate: estimate?.taxRate,
+    feesTotal: estimate?.feesTotal,
+  }).grandTotal;
+  const latestSelectedOptionsTotal = latestSnapshot ? latestSnapshot.selectedOptionsTotal : calculateEstimateOptionTotals(estimate).selectedOptionsTotal;
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100/70">
+      <SectionHeader
+        title="Sent Proposal History"
+        description="Office-only sent records show what was shared, when, and to whom."
+        action={<Badge tone="slate">Office only</Badge>}
+      />
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+        Sent records are office-only and do not replace the customer-facing PDF archive.
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-4">
+        <StatCard title="Last sent / recorded" value={latestSentAt ? formatDateTime(latestSentAt) : "Not recorded"} />
+        <StatCard title="Recipient" value={latestRecipient} />
+        <StatCard title="Method / status" value={`${sentSnapshotStatusLabel(latestStatus)} via ${sentSnapshotMethodLabel(latestMethod)}`} />
+        <StatCard title="Base total at send" value={formatEstimateCurrency(latestBaseTotal || 0)} detail={latestSelectedOptionsTotal > 0 ? `Selected options: ${formatEstimateCurrency(latestSelectedOptionsTotal)}` : "No selected options recorded."} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs font-bold leading-5 text-slate-500">
+          Use a manual snapshot when an estimate was shared outside the email button, such as printed, forwarded, or reviewed by phone.
+        </p>
+        <Button type="button" variant="secondary" onClick={onRecordSnapshot} disabled={disabled || typeof onRecordSnapshot !== "function"}>
+          Record Sent Snapshot
+        </Button>
+      </div>
+      {snapshots.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {snapshots.slice(0, 5).map((snapshot) => (
+            <div key={snapshot.snapshotId || `${snapshot.createdAt}-${snapshot.customerEmail}`} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-600">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-black text-slate-950">{snapshot.estimateTitle || estimate?.title || "Estimate snapshot"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">
+                    {snapshot.customerEmail || "Recipient not recorded"} - {snapshot.sentAt || snapshot.createdAt ? formatDateTime(snapshot.sentAt || snapshot.createdAt) : "Date not recorded"}
+                  </p>
+                </div>
+                <Badge tone={snapshot.status === "failed" ? "red" : "green"}>{sentSnapshotStatusLabel(snapshot.status)} / {sentSnapshotMethodLabel(snapshot.method)}</Badge>
+              </div>
+              <div className="mt-2 grid gap-2 text-xs font-bold text-slate-500 md:grid-cols-3">
+                <span>Base: {formatEstimateCurrency(snapshot.baseTotal || 0)}</span>
+                <span>Selected options: {formatEstimateCurrency(snapshot.selectedOptionsTotal || 0)}</span>
+                <span>Status then: {estimateStatusLabel(snapshot.estimateStatusAtSend || "draft")}</span>
+              </div>
+              {snapshot.notes ? <p className="mt-2 text-xs font-bold text-slate-500">{snapshot.notes}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <StateCard title="No sent snapshots recorded yet" description="The latest send status is still tracked on the estimate. Use Record Sent Snapshot when office wants a simple history entry." tone="slate" />
+      )}
     </div>
   );
 }
@@ -10060,6 +10146,25 @@ function EstimatesPage({
     return true;
   }
 
+  async function handleRecordSentSnapshot() {
+    if (!selectedEstimate?.id || !detailEstimatePreview || typeof onSaveEstimate !== "function") return false;
+    const withSnapshot = addEstimateSentSnapshot(detailEstimatePreview, {
+      method: "manual",
+      status: "sent",
+      notes: "Manual office snapshot recorded. No email was sent by this action.",
+    });
+    const nextDraft = createEstimateDraft({
+      ...detailDraft,
+      internalNotes: withSnapshot.internalNotes,
+    });
+    const saved = await onSaveEstimate(selectedEstimate.id, nextDraft);
+    if (saved) {
+      setDetailDraft(nextDraft);
+      showCopyFeedback("Sent snapshot recorded for office history.");
+    }
+    return saved;
+  }
+
   async function handleConvertApprovedEstimate() {
     if (!selectedEstimate?.id || typeof onConvertEstimate !== "function") return false;
     const converted = await onConvertEstimate(selectedEstimate.id);
@@ -10287,6 +10392,7 @@ function EstimatesPage({
                   <StatCard title="Selected options" value={formatEstimateCurrency(detailOptionTotals.selectedOptionsTotal)} detail="Included, accepted, or selected alternates/add-ons only." />
                   <StatCard title="Total with selected options" value={formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions)} detail="Review total only; base estimate total remains separate." />
                 </div>
+                <EstimateSentHistoryCard estimate={detailEstimatePreview} disabled={detailSaveDisabled || !canManage} onRecordSnapshot={handleRecordSentSnapshot} />
                 {copyFeedback ? (
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
                     {copyFeedback}
