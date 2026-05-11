@@ -5,6 +5,13 @@ import { DatabaseSync } from "node:sqlite";
 
 import { DEMO_COMPANY_NAME, DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
+import {
+  DEFAULT_COMPANY_ID,
+  buildDefaultCompany,
+  normalizeCompanies,
+  normalizeCompanyId,
+  withDefaultCompanyId,
+} from "../shared/companyScope.js";
 import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
@@ -67,6 +74,7 @@ export function createUserRecord({
   role,
   phone = "",
   status = "active",
+  companyId = DEFAULT_COMPANY_ID,
   createdAt = isoNow(),
   updatedAt = createdAt,
   lastLoginAt = null,
@@ -79,6 +87,7 @@ export function createUserRecord({
     phone: String(phone ?? "").trim(),
     role: String(role).trim(),
     status: String(status || "active").trim().toLowerCase(),
+    companyId: normalizeCompanyId(companyId),
     createdAt,
     updatedAt,
     lastLoginAt,
@@ -598,6 +607,8 @@ function createSeedLeadStatusHistory(user, leads) {
 
 export function createEmptyState() {
   return {
+    companies: [buildDefaultCompany(DEFAULT_COMPANY_SETTINGS)],
+    currentCompanyId: DEFAULT_COMPANY_ID,
     companySettings: { ...DEFAULT_COMPANY_SETTINGS },
     users: [],
     sessions: [],
@@ -1762,6 +1773,8 @@ export function createSeedState() {
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
   return {
+    companies: [buildDefaultCompany(includeDemoRecords ? demoCompanySettings : DEFAULT_COMPANY_SETTINGS, seededAt.toISOString())],
+    currentCompanyId: DEFAULT_COMPANY_ID,
     companySettings: includeDemoRecords ? demoCompanySettings : { ...DEFAULT_COMPANY_SETTINGS },
     users,
     sessions: [],
@@ -3215,6 +3228,7 @@ export function publicUser(user) {
     phone: user.phone || "",
     role: user.role,
     status: user.status || "active",
+    companyId: normalizeCompanyId(user.companyId),
     createdAt: user.createdAt || "",
     updatedAt: user.updatedAt || "",
     lastLoginAt: user.lastLoginAt || null,
@@ -4847,6 +4861,54 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 39,
+      description: "Add company workspace ownership foundation.",
+      up(database) {
+        const defaultCompanyId = sqliteStringLiteral(DEFAULT_COMPANY_ID);
+        const changedAt = isoNow();
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS companies (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+
+          INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+          VALUES ('${defaultCompanyId}', '${defaultCompanyId}', 'Concrete Ops Workspace', 'active', '${sqliteStringLiteral(changedAt)}', '${sqliteStringLiteral(changedAt)}');
+        `);
+
+        const tables = [
+          "users",
+          "customers",
+          "leads",
+          "lead_sources",
+          "lead_status_history",
+          "jobs",
+          "job_assignments",
+          "job_draft_imports",
+          "estimates",
+          "daily_reports",
+          "uploads",
+          "delivery_tickets",
+          "change_order_requests",
+          "time_entries",
+          "queue_items",
+          "activity",
+          "audit_events",
+        ];
+
+        for (const tableName of tables) {
+          if (!columnExists(database, tableName, "company_id")) {
+            database.exec(`ALTER TABLE ${tableName} ADD COLUMN company_id TEXT NOT NULL DEFAULT '${defaultCompanyId}';`);
+          }
+          database.exec(`CREATE INDEX IF NOT EXISTS idx_${tableName}_company_id ON ${tableName}(company_id);`);
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4880,9 +4942,14 @@ function writeStateToDb(state) {
   const database = createDatabaseConnection();
   runMigrations(database);
 
+  const insertCompany = database.prepare(`
+    INSERT INTO companies (id, workspace_id, name, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, company_id, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCompanySetting = database.prepare(`
@@ -4896,38 +4963,38 @@ function writeStateToDb(state) {
   `);
 
   const insertCustomer = database.prepare(`
-    INSERT INTO customers (id, sort_index, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO customers (id, sort_index, company_id, name, company, phone, email, city, service_area, status, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, missing_info_status, missing_info_count, missing_info_items, missing_info_next_step, missing_info_checked_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, company_id, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, missing_info_status, missing_info_count, missing_info_items, missing_info_next_step, missing_info_checked_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadSource = database.prepare(`
-    INSERT INTO lead_sources (id, sort_index, name, type, url, city, state, service_area, trade_focus, notes, status, check_cadence, last_checked_at, next_check_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO lead_sources (id, sort_index, company_id, name, type, url, city, state, service_area, trade_focus, notes, status, check_cadence, last_checked_at, next_check_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadStatusHistory = database.prepare(`
-    INSERT INTO lead_status_history (id, sort_index, lead_id, from_status, to_status, note, actor_user_id, actor_name, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO lead_status_history (id, sort_index, company_id, lead_id, from_status, to_status, note, actor_user_id, actor_name, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJob = database.prepare(`
-    INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, startup_checklist, startup_status, startup_completed_at, startup_completed_by, startup_notes, source_imported_draft_id, startup_last_updated_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO jobs (id, sort_index, company_id, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, startup_checklist, startup_status, startup_completed_at, startup_completed_by, startup_notes, source_imported_draft_id, startup_last_updated_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJobAssignment = database.prepare(`
-    INSERT INTO job_assignments (id, sort_index, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, notice_acknowledged_at, notice_acknowledged_by, notice_acknowledged_key, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO job_assignments (id, sort_index, company_id, job_id, user_id, role_on_job, assigned_by, assigned_at, removed_at, notes, notice_acknowledged_at, notice_acknowledged_by, notice_acknowledged_key, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJobDraftImport = database.prepare(`
     INSERT INTO job_draft_imports (
-      id, sort_index, imported_at, import_status, import_warnings, original_package, package_version, exported_at, source_app, package_type,
+      id, sort_index, company_id, imported_at, import_status, import_warnings, original_package, package_version, exported_at, source_app, package_type,
       ops_job_draft_id, source_handoff_id, source_lead_id, source_proposal_id, source_estimate_id, source_packet_id,
       customer_name, contact_name, contact_email, contact_phone, job_name, job_address, city, state, service_type, project_type,
       scope_summary, included_scope, exclusions, assumptions, operations_notes, crew_notes, schedule_notes, start_date_target,
@@ -4936,12 +5003,12 @@ function writeStateToDb(state) {
       matched_contact_id, customer_match_status, customer_match_confidence, customer_match_reason, customer_match_candidates,
       customer_match_reviewed_at, customer_match_override_reason, created_job_id, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimate = database.prepare(`
-    INSERT INTO estimates (id, sort_index, customer_id, lead_id, job_id, customer_email, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO estimates (id, sort_index, company_id, customer_id, lead_id, job_id, customer_email, title, status, scope_summary, internal_notes, customer_notes, subtotal, tax_rate, tax_total, fees_total, grand_total, created_by, sent_at, sent_by, sent_to, email_subject, provider_message_id, approved_at, rejected_at, archived_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertEstimateItem = database.prepare(`
@@ -4970,13 +5037,13 @@ function writeStateToDb(state) {
   `);
 
   const insertChangeOrderRequest = database.prepare(`
-    INSERT INTO change_order_requests (id, sort_index, job_id, customer_id, requested_by, reason, scope_description, field_notes, status, office_notes, reviewed_by, reviewed_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO change_order_requests (id, sort_index, company_id, job_id, customer_id, requested_by, reason, scope_description, field_notes, status, office_notes, reviewed_by, reviewed_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertDeliveryTicket = database.prepare(`
-    INSERT INTO delivery_tickets (id, sort_index, job_id, report_id, created_by, supplier, truck_number, ticket_number, yards_delivered, arrival_time, discharge_time, mix_notes, psi, slump, ticket_upload_id, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO delivery_tickets (id, sort_index, company_id, job_id, report_id, created_by, supplier, truck_number, ticket_number, yards_delivered, arrival_time, discharge_time, mix_notes, psi, slump, ticket_upload_id, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
     const insertPrePourChecklist = database.prepare(`
@@ -5015,33 +5082,33 @@ function writeStateToDb(state) {
   `);
 
   const insertTimeEntry = database.prepare(`
-    INSERT INTO time_entries (id, sort_index, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO time_entries (id, sort_index, company_id, user_id, job_id, work_category, clock_in_at, clock_out_at, break_start_at, break_end_at, total_minutes, break_minutes, status, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertDailyReport = database.prepare(`
-    INSERT INTO daily_reports (id, sort_index, job_id, report_date, status, created_by, submitted_by, reviewed_by, crew_summary, work_performed, delays, safety_notes, equipment_used, material_notes, concrete_poured, yards_poured, weather, visitor_notes, inspection_notes, general_notes, created_at, updated_at, submitted_at, reviewed_at, reopened_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO daily_reports (id, sort_index, company_id, job_id, report_date, status, created_by, submitted_by, reviewed_by, crew_summary, work_performed, delays, safety_notes, equipment_used, material_notes, concrete_poured, yards_poured, weather, visitor_notes, inspection_notes, general_notes, created_at, updated_at, submitted_at, reviewed_at, reopened_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertUpload = database.prepare(`
-    INSERT INTO uploads (id, sort_index, job_id, customer_id, report_id, incident_id, change_order_id, tool_checklist_item_id, uploaded_by, file_name, file_type, file_size, storage_path, caption, notes, taken_at, uploaded_at, latitude, longitude, location_accuracy, location_captured_at, location_unavailable_reason, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO uploads (id, sort_index, company_id, job_id, customer_id, report_id, incident_id, change_order_id, tool_checklist_item_id, uploaded_by, file_name, file_type, file_size, storage_path, caption, notes, taken_at, uploaded_at, latitude, longitude, location_accuracy, location_captured_at, location_unavailable_reason, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertQueueItem = database.prepare(`
-    INSERT INTO queue_items (id, sort_index, title, meta, status, done, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO queue_items (id, sort_index, company_id, title, meta, status, done, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertActivity = database.prepare(`
-    INSERT INTO activity (id, sort_index, time, title, detail, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO activity (id, sort_index, company_id, time, title, detail, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertAuditEvent = database.prepare(`
-    INSERT INTO audit_events (id, sort_index, entity_type, entity_id, action, summary, detail, actor_user_id, actor_name, changed_fields, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO audit_events (id, sort_index, company_id, entity_type, entity_id, action, summary, detail, actor_user_id, actor_name, changed_fields, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
     runInTransaction(database, () => {
@@ -5050,7 +5117,9 @@ function writeStateToDb(state) {
         (derivedAssignmentState.jobAssignments || []).filter((assignment) => !assignment.syntheticFromJobAlias),
       );
       const normalizedCompanySettings = normalizeCompanySettings(state.companySettings);
+      const companies = normalizeCompanies(state.companies, normalizedCompanySettings);
       database.exec(`
+      DELETE FROM companies;
       DELETE FROM company_settings;
       DELETE FROM sessions;
       DELETE FROM users;
@@ -5099,6 +5168,17 @@ function writeStateToDb(state) {
     insertCompanySetting.run("managedSetupNotes", normalizedCompanySettings.managedSetupNotes || "", isoNow());
     insertCompanySetting.run("managedSetupUpdatedAt", normalizedCompanySettings.managedSetupUpdatedAt || "", isoNow());
 
+    companies.forEach((company) => {
+      insertCompany.run(
+        company.id,
+        company.workspaceId || company.id,
+        company.name,
+        company.status || "active",
+        company.createdAt || isoNow(),
+        company.updatedAt || company.createdAt || isoNow(),
+      );
+    });
+
     state.users.forEach((user) => {
       insertUser.run(
         user.id,
@@ -5107,6 +5187,7 @@ function writeStateToDb(state) {
         user.role,
         user.phone || "",
         user.status || "active",
+        normalizeCompanyId(user.companyId),
         user.createdAt || isoNow(),
         user.updatedAt || user.createdAt || isoNow(),
         user.lastLoginAt || null,
@@ -5129,6 +5210,7 @@ function writeStateToDb(state) {
       insertCustomer.run(
         customer.id,
         index,
+        normalizeCompanyId(customer.companyId),
         customer.name,
         customer.company || "",
         customer.phone || "",
@@ -5147,6 +5229,7 @@ function writeStateToDb(state) {
       insertLead.run(
         lead.id,
         index,
+        normalizeCompanyId(lead.companyId),
         lead.customerId || null,
         lead.customer,
         lead.city,
@@ -5183,6 +5266,7 @@ function writeStateToDb(state) {
       insertLeadSource.run(
         source.id,
         index,
+        normalizeCompanyId(source.companyId),
         source.name || "",
         source.type || "Manual source",
         source.url || "",
@@ -5205,6 +5289,7 @@ function writeStateToDb(state) {
       insertLeadStatusHistory.run(
         event.id,
         index,
+        normalizeCompanyId(event.companyId),
         event.leadId,
         event.fromStatus || null,
         event.toStatus,
@@ -5220,6 +5305,7 @@ function writeStateToDb(state) {
       insertJob.run(
         normalizedJob.id,
         index,
+        normalizeCompanyId(normalizedJob.companyId),
         normalizedJob.customerId || null,
         normalizedJob.leadId || null,
         normalizedJob.title,
@@ -5265,6 +5351,7 @@ function writeStateToDb(state) {
       insertJobAssignment.run(
         assignment.id,
         index,
+        normalizeCompanyId(assignment.companyId),
         assignment.jobId,
         assignment.userId,
         normalizeAssignmentRole(assignment.roleOnJob),
@@ -5284,6 +5371,7 @@ function writeStateToDb(state) {
       insertJobDraftImport.run(
         draft.id,
         index,
+        normalizeCompanyId(draft.companyId),
         draft.importedAt || isoNow(),
         draft.importStatus || "Imported",
         JSON.stringify(draft.importWarnings || []),
@@ -5345,6 +5433,7 @@ function writeStateToDb(state) {
       insertEstimate.run(
         estimate.id,
         estimate.sortIndex ?? index,
+        normalizeCompanyId(estimate.companyId),
         estimate.customerId,
         estimate.leadId || null,
         estimate.jobId || null,
@@ -5457,6 +5546,7 @@ function writeStateToDb(state) {
         insertChangeOrderRequest.run(
           request.id,
           request.sortIndex ?? index,
+          normalizeCompanyId(request.companyId),
           request.jobId,
           request.customerId || null,
           request.requestedBy,
@@ -5611,6 +5701,7 @@ function writeStateToDb(state) {
       insertTimeEntry.run(
         entry.id,
         index,
+        normalizeCompanyId(entry.companyId),
         entry.userId,
         entry.jobId || null,
         entry.workCategory || "job",
@@ -5631,6 +5722,7 @@ function writeStateToDb(state) {
       insertDailyReport.run(
         report.id,
         index,
+        normalizeCompanyId(report.companyId),
         report.jobId,
         report.reportDate,
         report.status || "draft",
@@ -5662,6 +5754,7 @@ function writeStateToDb(state) {
         insertUpload.run(
         upload.id,
         index,
+        normalizeCompanyId(upload.companyId),
         upload.jobId,
         upload.customerId || null,
         upload.reportId || null,
@@ -5692,6 +5785,7 @@ function writeStateToDb(state) {
         insertDeliveryTicket.run(
           ticket.id,
           ticket.sortIndex ?? index,
+          normalizeCompanyId(ticket.companyId),
           ticket.jobId,
           ticket.reportId || null,
           ticket.createdBy,
@@ -5713,17 +5807,18 @@ function writeStateToDb(state) {
       });
 
       state.queueItems.forEach((item, index) => {
-      insertQueueItem.run(item.id, index, item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
+      insertQueueItem.run(item.id, index, normalizeCompanyId(item.companyId), item.title, item.meta, item.status, item.done ? 1 : 0, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow(), item.archivedAt || null);
     });
 
     state.activity.forEach((item, index) => {
-      insertActivity.run(item.id, index, item.time, item.title, item.detail, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow());
+      insertActivity.run(item.id, index, normalizeCompanyId(item.companyId), item.time, item.title, item.detail, item.createdAt || isoNow(), item.updatedAt || item.createdAt || isoNow());
     });
 
     (state.auditEvents || []).forEach((event, index) => {
       insertAuditEvent.run(
         event.id,
         index,
+        normalizeCompanyId(event.companyId),
         event.entityType,
         event.entityId || null,
         event.action,
@@ -5752,12 +5847,17 @@ function readTableState() {
       row.key === "toolChecklistEnabled" ? row.value === "true" : row.value,
     ])),
   );
+  const companies = normalizeCompanies(database.prepare(`
+    SELECT id, workspace_id AS workspaceId, name, status, created_at AS createdAt, updated_at AS updatedAt
+    FROM companies
+    ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, name
+  `).all(DEFAULT_COMPANY_ID), companySettings);
 
   const users = database.prepare(`
-    SELECT id, email, name, phone, role, status, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
+    SELECT id, email, name, phone, role, status, company_id AS companyId, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
     ORDER BY email
-  `).all();
+  `).all().map((user) => withDefaultCompanyId(user));
 
   const sessions = database.prepare(`
     SELECT id, user_id AS userId, token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt
@@ -5766,13 +5866,13 @@ function readTableState() {
   `).all();
 
   const customers = database.prepare(`
-    SELECT id, name, company, phone, email, city, service_area AS serviceArea, status, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, company_id AS companyId, name, company, phone, email, city, service_area AS serviceArea, status, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM customers
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((customer) => withDefaultCompanyId(customer));
 
   const leads = database.prepare(`
-    SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes,
+    SELECT id, company_id AS companyId, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes,
            fit_score AS fitScore, fit_label AS fitLabel, fit_reason AS fitReason, fit_risks AS fitRisks, fit_next_step AS fitNextStep, score_source AS scoreSource, scored_at AS scoredAt,
            missing_info_status AS missingInfoStatus, missing_info_count AS missingInfoCount, missing_info_items AS missingInfoItems, missing_info_next_step AS missingInfoNextStep, missing_info_checked_at AS missingInfoCheckedAt,
            created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
@@ -5780,6 +5880,7 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all().map((lead) => ({
     ...lead,
+    ...withDefaultCompanyId(lead),
     fitScore: Number(lead.fitScore || 0),
     fitRisks: parseJsonValue(lead.fitRisks, []),
     missingInfoCount: Number(lead.missingInfoCount || 0),
@@ -5787,42 +5888,42 @@ function readTableState() {
   }));
 
   const leadSources = database.prepare(`
-    SELECT id, name, type, url, city, state, service_area AS serviceArea, trade_focus AS tradeFocus, notes, status, check_cadence AS checkCadence,
+    SELECT id, company_id AS companyId, name, type, url, city, state, service_area AS serviceArea, trade_focus AS tradeFocus, notes, status, check_cadence AS checkCadence,
            last_checked_at AS lastCheckedAt, next_check_at AS nextCheckAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM lead_sources
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((source) => withDefaultCompanyId(source));
 
   const leadStatusHistory = database.prepare(`
-    SELECT id, lead_id AS leadId, from_status AS fromStatus, to_status AS toStatus, note, actor_user_id AS actorUserId, actor_name AS actorName, created_at AS createdAt
+    SELECT id, company_id AS companyId, lead_id AS leadId, from_status AS fromStatus, to_status AS toStatus, note, actor_user_id AS actorUserId, actor_name AS actorName, created_at AS createdAt
     FROM lead_status_history
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((entry) => withDefaultCompanyId(entry));
 
   const jobs = database.prepare(`
-    SELECT id, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, startup_checklist AS startupChecklist, startup_status AS startupStatus, startup_completed_at AS startupCompletedAt, startup_completed_by AS startupCompletedBy, startup_notes AS startupNotes, source_imported_draft_id AS sourceImportedDraftId, startup_last_updated_at AS startupLastUpdatedAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, company_id AS companyId, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, startup_checklist AS startupChecklist, startup_status AS startupStatus, startup_completed_at AS startupCompletedAt, startup_completed_by AS startupCompletedBy, startup_notes AS startupNotes, source_imported_draft_id AS sourceImportedDraftId, startup_last_updated_at AS startupLastUpdatedAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
     ORDER BY sort_index ASC
   `).all().map((job) => ({
-    ...normalizeStoredJob({
+    ...withDefaultCompanyId(normalizeStoredJob({
       ...job,
       startupChecklist: parseJsonValue(job.startupChecklist, []),
-    }),
+    })),
     fieldPlanningVisible: Boolean(job.fieldPlanningVisible),
     visibleToForeman: Boolean(job.visibleToForeman),
   }));
 
   const rawJobAssignments = database.prepare(`
-      SELECT id, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes,
+      SELECT id, company_id AS companyId, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob, assigned_by AS assignedBy, assigned_at AS assignedAt, removed_at AS removedAt, notes,
              notice_acknowledged_at AS noticeAcknowledgedAt, notice_acknowledged_by AS noticeAcknowledgedBy, notice_acknowledged_key AS noticeAcknowledgedKey,
              created_at AS createdAt, updated_at AS updatedAt
       FROM job_assignments
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((assignment) => withDefaultCompanyId(assignment));
   const derivedAssignmentState = buildDerivedJobAssignments(jobs, rawJobAssignments);
 
   const jobDraftImports = normalizeImportedJobDrafts(database.prepare(`
-      SELECT id, imported_at AS importedAt, import_status AS importStatus, import_warnings AS importWarnings,
+      SELECT id, company_id AS companyId, imported_at AS importedAt, import_status AS importStatus, import_warnings AS importWarnings,
              original_package AS originalPackage, package_version AS packageVersion, exported_at AS exportedAt,
              source_app AS sourceApp, package_type AS packageType, ops_job_draft_id AS opsJobDraftId,
              source_handoff_id AS sourceHandoffId, source_lead_id AS sourceLeadId, source_proposal_id AS sourceProposalId,
@@ -5843,7 +5944,7 @@ function readTableState() {
       FROM job_draft_imports
       ORDER BY sort_index ASC
     `).all().map((draft) => ({
-      ...draft,
+      ...withDefaultCompanyId(draft),
       importWarnings: JSON.parse(draft.importWarnings || "[]"),
       originalPackage: JSON.parse(draft.originalPackage || "{}"),
       includedScope: JSON.parse(draft.includedScope || "[]"),
@@ -5854,7 +5955,7 @@ function readTableState() {
     })));
 
   const estimates = database.prepare(`
-      SELECT id, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, customer_email AS customerEmail, title, status, scope_summary AS scopeSummary,
+      SELECT id, company_id AS companyId, customer_id AS customerId, lead_id AS leadId, job_id AS jobId, customer_email AS customerEmail, title, status, scope_summary AS scopeSummary,
              internal_notes AS internalNotes, customer_notes AS customerNotes, subtotal, tax_rate AS taxRate,
              tax_total AS taxTotal, fees_total AS feesTotal, grand_total AS grandTotal, created_by AS createdBy,
              sent_at AS sentAt, sent_by AS sentBy, sent_to AS sentTo, email_subject AS emailSubject,
@@ -5862,7 +5963,7 @@ function readTableState() {
              created_at AS createdAt, updated_at AS updatedAt
       FROM estimates
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((estimate) => withDefaultCompanyId(estimate));
 
   const estimateItems = database.prepare(`
       SELECT id, estimate_id AS estimateId, description, quantity, unit, unit_price AS unitPrice,
@@ -5900,21 +6001,21 @@ function readTableState() {
     `).all();
 
     const changeOrderRequests = database.prepare(`
-      SELECT id, job_id AS jobId, customer_id AS customerId, requested_by AS requestedBy, reason, scope_description AS scopeDescription,
+      SELECT id, company_id AS companyId, job_id AS jobId, customer_id AS customerId, requested_by AS requestedBy, reason, scope_description AS scopeDescription,
              field_notes AS fieldNotes, status, office_notes AS officeNotes, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt,
              created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM change_order_requests
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((request) => withDefaultCompanyId(request));
 
     const deliveryTickets = database.prepare(`
-      SELECT id, job_id AS jobId, report_id AS reportId, created_by AS createdBy, supplier, truck_number AS truckNumber,
+      SELECT id, company_id AS companyId, job_id AS jobId, report_id AS reportId, created_by AS createdBy, supplier, truck_number AS truckNumber,
              ticket_number AS ticketNumber, yards_delivered AS yardsDelivered, arrival_time AS arrivalTime,
              discharge_time AS dischargeTime, mix_notes AS mixNotes, psi, slump, ticket_upload_id AS ticketUploadId,
              notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM delivery_tickets
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((ticket) => withDefaultCompanyId(ticket));
 
     const prePourChecklists = database.prepare(`
       SELECT id, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
@@ -5974,15 +6075,15 @@ function readTableState() {
   }));
 
   const timeEntries = database.prepare(`
-    SELECT id, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
+    SELECT id, company_id AS companyId, user_id AS userId, job_id AS jobId, work_category AS workCategory, clock_in_at AS clockInAt, clock_out_at AS clockOutAt,
            break_start_at AS breakStartAt, break_end_at AS breakEndAt, total_minutes AS totalMinutes,
            break_minutes AS breakMinutes, status, notes, created_at AS createdAt, updated_at AS updatedAt
     FROM time_entries
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((entry) => withDefaultCompanyId(entry));
 
   const dailyReports = database.prepare(`
-    SELECT id, job_id AS jobId, report_date AS reportDate, status, created_by AS createdBy, submitted_by AS submittedBy, reviewed_by AS reviewedBy,
+    SELECT id, company_id AS companyId, job_id AS jobId, report_date AS reportDate, status, created_by AS createdBy, submitted_by AS submittedBy, reviewed_by AS reviewedBy,
            crew_summary AS crewSummary, work_performed AS workPerformed, delays, safety_notes AS safetyNotes, equipment_used AS equipmentUsed,
            material_notes AS materialNotes, concrete_poured AS concretePoured, yards_poured AS yardsPoured, weather, visitor_notes AS visitorNotes,
            inspection_notes AS inspectionNotes, general_notes AS generalNotes, created_at AS createdAt, updated_at AS updatedAt, submitted_at AS submittedAt,
@@ -5990,42 +6091,44 @@ function readTableState() {
     FROM daily_reports
     ORDER BY sort_index ASC
   `).all().map((report) => ({
-    ...report,
+    ...withDefaultCompanyId(report),
     concretePoured: Boolean(report.concretePoured),
   }));
 
   const uploads = database.prepare(`
-    SELECT id, job_id AS jobId, customer_id AS customerId, report_id AS reportId, incident_id AS incidentId, change_order_id AS changeOrderId,
+    SELECT id, company_id AS companyId, job_id AS jobId, customer_id AS customerId, report_id AS reportId, incident_id AS incidentId, change_order_id AS changeOrderId,
            tool_checklist_item_id AS toolChecklistItemId, uploaded_by AS uploadedBy, file_name AS fileName, file_type AS fileType, file_size AS fileSize,
            storage_path AS storagePath, caption, notes, taken_at AS takenAt, uploaded_at AS uploadedAt, latitude, longitude,
            location_accuracy AS locationAccuracy, location_captured_at AS locationCapturedAt, location_unavailable_reason AS locationUnavailableReason,
            created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM uploads
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((upload) => withDefaultCompanyId(upload));
 
   const queueItems = database.prepare(`
-    SELECT id, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, company_id AS companyId, title, meta, status, done, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM queue_items
     ORDER BY sort_index ASC
-  `).all().map((item) => ({ ...item, done: Boolean(item.done) }));
+  `).all().map((item) => ({ ...withDefaultCompanyId(item), done: Boolean(item.done) }));
 
   const activity = database.prepare(`
-    SELECT id, time, title, detail, created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, company_id AS companyId, time, title, detail, created_at AS createdAt, updated_at AS updatedAt
     FROM activity
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((item) => withDefaultCompanyId(item));
 
   const auditEvents = database.prepare(`
-    SELECT id, entity_type AS entityType, entity_id AS entityId, action, summary, detail, actor_user_id AS actorUserId, actor_name AS actorName, changed_fields AS changedFields, created_at AS createdAt
+    SELECT id, company_id AS companyId, entity_type AS entityType, entity_id AS entityId, action, summary, detail, actor_user_id AS actorUserId, actor_name AS actorName, changed_fields AS changedFields, created_at AS createdAt
     FROM audit_events
     ORDER BY sort_index ASC
   `).all().map((event) => ({
-    ...event,
+    ...withDefaultCompanyId(event),
     changedFields: JSON.parse(event.changedFields || "[]"),
   }));
 
   return {
+    companies,
+    currentCompanyId: companies[0]?.id || DEFAULT_COMPANY_ID,
     companySettings,
     users,
     sessions,

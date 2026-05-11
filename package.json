@@ -19,7 +19,7 @@
     "verify:leads": "node --test --test-concurrency=1 server/lead-workflow.test.js server/lead-imports.test.js server/ai-lead-assistant.test.js shared/leadImports.test.js shared/leadSources.test.js shared/leadScoring.test.js shared/leadMissingInfo.test.js shared/leadAiAssistant.test.js src/lead-utils.test.js src/navigation-utils.test.js",
     "verify:roles": "node --test --test-concurrency=1 server/role-permissions.test.js shared/permissions.test.js",
     "verify:crew": "node --test --test-concurrency=1 server/crew-assignments.test.js",
-    "verify:users": "node --test --test-concurrency=1 server/users-management.test.js server/company-setup.test.js shared/managedCompanySetup.test.js src/user-utils.test.js",
+    "verify:users": "node --test --test-concurrency=1 server/users-management.test.js server/company-setup.test.js server/company-scope.test.js shared/companyScope.test.js shared/managedCompanySetup.test.js src/user-utils.test.js",
     "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js",
     "verify:time": "node --test --test-concurrency=1 server/time-tracking.test.js src/time-utils.test.js",
     "verify:daily-reports": "node --test --test-concurrency=1 server/daily-reports.test.js src/report-utils.test.js src/app-routing.test.js",

@@ -51,6 +51,18 @@ async function run() {
       throw new Error("Expected JSON export to include lead source records.");
     }
 
+    if (!Array.isArray(exportPayload.state?.companies) || !exportPayload.state.companies.some((company) => company.id === "COMPANY-DEFAULT")) {
+      throw new Error("Expected JSON export to include the default company workspace.");
+    }
+
+    if (exportPayload.state?.currentCompanyId !== "COMPANY-DEFAULT") {
+      throw new Error("Expected JSON export to include the current default company workspace id.");
+    }
+
+    if (!exportPayload.state.leads.every((lead) => lead.companyId === "COMPANY-DEFAULT")) {
+      throw new Error("Expected exported lead rows to include a default company id.");
+    }
+
     if (!Array.isArray(exportPayload.state?.companySettings?.managedSetupChecklist)) {
       throw new Error("Expected JSON export to include managed setup company settings.");
     }
@@ -70,6 +82,16 @@ async function run() {
       const leadSourceCount = database.prepare("SELECT COUNT(*) AS count FROM lead_sources").get().count;
       if (leadSourceCount !== exportPayload.state.leadSources.length) {
         throw new Error("Expected SQLite backup and JSON export to contain the same lead source count.");
+      }
+
+      const companyCount = database.prepare("SELECT COUNT(*) AS count FROM companies").get().count;
+      if (companyCount !== exportPayload.state.companies.length) {
+        throw new Error("Expected SQLite backup and JSON export to contain the same company count.");
+      }
+
+      const leadCompany = database.prepare("SELECT company_id AS companyId FROM leads LIMIT 1").get();
+      if (leadCompany?.companyId !== "COMPANY-DEFAULT") {
+        throw new Error("Expected SQLite backup to include default lead company ownership.");
       }
 
       const startupColumn = database.prepare("SELECT startup_status AS startupStatus FROM jobs LIMIT 1").get();

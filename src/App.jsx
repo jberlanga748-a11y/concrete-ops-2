@@ -223,6 +223,10 @@ const NAV_GROUPS = [
 
 const EMPTY_APP_STATE = {
   user: null,
+  companies: [],
+  currentCompany: null,
+  currentCompanyId: "",
+  currentWorkspaceId: "",
   companySettings: {
     companyName: "",
     logoInitials: "",
@@ -544,6 +548,10 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
   const fallback = fallbackState || EMPTY_APP_STATE;
   return {
     user: source.user || null,
+    companies: normalizeObjectArray(source.companies, fallback.companies),
+    currentCompany: source.currentCompany || fallback.currentCompany || null,
+    currentCompanyId: source.currentCompanyId || fallback.currentCompanyId || "",
+    currentWorkspaceId: source.currentWorkspaceId || fallback.currentWorkspaceId || source.currentCompanyId || "",
     companySettings: {
       ...EMPTY_APP_STATE.companySettings,
       ...(fallback.companySettings || {}),

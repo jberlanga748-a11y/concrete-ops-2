@@ -58,6 +58,11 @@ import {
   buildLeadAssistantContext,
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
+import {
+  currentCompanyIdForUser,
+  normalizeCompanies,
+  visibleRecordsForCompany,
+} from "../shared/companyScope.js";
 import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
 import {
   calculateStartupStatus,
@@ -898,6 +903,35 @@ function companySettingsForState(state = null) {
   };
 }
 
+function companiesForState(state = null) {
+  return normalizeCompanies(state?.companies || [], companySettingsForState(state));
+}
+
+function currentCompanyIdForRequestUser(state, user) {
+  return currentCompanyIdForUser(user, {
+    ...(state || {}),
+    companies: companiesForState(state),
+    companySettings: companySettingsForState(state),
+  });
+}
+
+function companyScopedRecordsForUser(state, user, records) {
+  return visibleRecordsForCompany(records || [], user, {
+    ...(state || {}),
+    companies: companiesForState(state),
+    companySettings: companySettingsForState(state),
+  });
+}
+
+function filterVisibleRecordsForUser(state, user, records, entityType) {
+  return filterDemoRecordsForUser(
+    state,
+    user,
+    companyScopedRecordsForUser(state, user, records),
+    entityType,
+  );
+}
+
 const DEMO_USER_ID_SET = new Set(DEMO_USERS.map((user) => user.id));
 const DEMO_USER_NAME_SET = new Set(DEMO_USERS.map((user) => user.name));
 const DEMO_CUSTOMER_NAME_SET = new Set(INITIAL_CUSTOMERS.map((customer) => customer.name));
@@ -1225,7 +1259,7 @@ function filterDemoRecordsForUser(state, user, records, entityType) {
 function visibleUsers(state, user) {
   if (!user) return [];
   if (isOfficeManager(user) || isEstimator(user)) {
-    return filterDemoRecordsForUser(state, user, state.users.map((entry) => publicUser(entry)), "users");
+    return filterVisibleRecordsForUser(state, user, state.users, "users").map((entry) => publicUser(entry));
   }
 
   return [publicUser(user)];
@@ -1351,7 +1385,9 @@ function visibleJobsForUser(state, user, context = null) {
   return filterDemoRecordsForUser(
     state,
     user,
-    state.jobs.filter((job) => canViewJob(job, user)).map((job) => sanitizeJobForUser(job, user, state, hydrationContext)),
+    companyScopedRecordsForUser(state, user, state.jobs)
+      .filter((job) => canViewJob(job, user))
+      .map((job) => sanitizeJobForUser(job, user, state, hydrationContext)),
     "jobs",
   );
 }
@@ -2040,7 +2076,7 @@ function sanitizeEstimateForUser(estimate, state, user) {
 
 function visibleEstimatesForUser(state, user) {
   if (!user || !canViewEstimates(user)) return [];
-  return filterDemoRecordsForUser(state, user, (state.estimates || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.estimates || [])
     .map((estimate) => sanitizeEstimateForUser(estimate, state, user))
     .filter(Boolean)
     .sort((left, right) => {
@@ -2052,7 +2088,7 @@ function visibleEstimatesForUser(state, user) {
 
 function visibleImportedJobDraftsForUser(state, user) {
   if (!user || !canCreateJobs(user)) return [];
-  return normalizeImportedJobDrafts(state.jobDraftImports || []);
+  return companyScopedRecordsForUser(state, user, normalizeImportedJobDrafts(state.jobDraftImports || []));
 }
 
 function normalizeEstimateItemsPayload(items, changedAt, estimateId = "") {
@@ -2213,7 +2249,7 @@ function sanitizeChangeOrderRequestForUser(request, state, user) {
 
 function visibleChangeOrderRequestsForUser(state, user) {
   if (!user || !canViewChangeOrders(user)) return [];
-  return filterDemoRecordsForUser(state, user, (state.changeOrderRequests || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.changeOrderRequests || [])
     .map((request) => sanitizeChangeOrderRequestForUser(request, state, user))
     .filter(Boolean)
     .sort((left, right) => {
@@ -2291,7 +2327,7 @@ function sanitizeDeliveryTicketForUser(ticket, state, user) {
 
 function visibleDeliveryTicketsForUser(state, user) {
   if (!user || !canViewDeliveryTickets(user)) return [];
-  return filterDemoRecordsForUser(state, user, (state.deliveryTickets || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.deliveryTickets || [])
     .map((ticket) => sanitizeDeliveryTicketForUser(ticket, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime()), "deliveryTickets");
@@ -2392,7 +2428,7 @@ function sanitizeDailyReportForUser(report, state, user) {
 function visibleDailyReportsForUser(state, user) {
   if (!user || !canViewReports(user)) return [];
 
-  return filterDemoRecordsForUser(state, user, (state.dailyReports || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.dailyReports || [])
     .map((report) => sanitizeDailyReportForUser(report, state, user))
     .filter(Boolean)
     .sort((left, right) => {
@@ -2498,7 +2534,7 @@ function createDemoUploadPlaceholder(upload) {
 
 function visibleUploadsForUser(state, user) {
   if (!user || !canViewUploads(user)) return [];
-  return filterDemoRecordsForUser(state, user, (state.uploads || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.uploads || [])
     .map((upload) => sanitizeUploadForUser(upload, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.uploadedAt || right.createdAt || 0).getTime() - new Date(left.uploadedAt || left.createdAt || 0).getTime()), "uploads");
@@ -2507,7 +2543,7 @@ function visibleUploadsForUser(state, user) {
 function visibleQueueItemsForUser(state, user) {
   if (!user) return [];
   if (isOfficeManager(user)) {
-    return filterDemoRecordsForUser(state, user, state.queueItems, "queueItems");
+    return filterVisibleRecordsForUser(state, user, state.queueItems, "queueItems");
   }
   return [];
 }
@@ -2515,7 +2551,7 @@ function visibleQueueItemsForUser(state, user) {
 function visibleActivityForUser(state, user) {
   if (!user) return [];
   if (canViewAudit(user)) {
-    return filterDemoRecordsForUser(state, user, state.activity, "activity");
+    return filterVisibleRecordsForUser(state, user, state.activity, "activity");
   }
   return [];
 }
@@ -3037,16 +3073,16 @@ function visibleTimeEntriesForUser(state, user) {
 
   let entries = [];
   if (canViewAllTime(user)) {
-    entries = state.timeEntries || [];
+    entries = companyScopedRecordsForUser(state, user, state.timeEntries || []);
   } else if (canViewCrewTime(user)) {
-    entries = (state.timeEntries || []).filter((entry) => {
+    entries = companyScopedRecordsForUser(state, user, state.timeEntries || []).filter((entry) => {
       if (entry.userId === user.id) return true;
       if (!entry.jobId) return false;
       const job = state.jobs.find((item) => item.id === entry.jobId);
       return job && canViewJob(job, user);
     });
   } else if (canManageOwnTime(user)) {
-    entries = (state.timeEntries || []).filter((entry) => entry.userId === user.id);
+    entries = companyScopedRecordsForUser(state, user, state.timeEntries || []).filter((entry) => entry.userId === user.id);
   }
 
   return filterDemoRecordsForUser(state, user, [...entries]
@@ -3057,24 +3093,24 @@ function visibleTimeEntriesForUser(state, user) {
 function visibleAuditEventsForUser(state, user) {
   if (!user) return [];
   if (canViewAudit(user)) {
-    return filterDemoRecordsForUser(state, user, state.auditEvents, "auditEvents");
+    return filterVisibleRecordsForUser(state, user, state.auditEvents, "auditEvents");
   }
   return [];
 }
 
 function visibleLeadsForUser(state, user) {
   if (!canViewLeads(user)) return [];
-  return filterDemoRecordsForUser(state, user, state.leads, "leads");
+  return filterVisibleRecordsForUser(state, user, state.leads, "leads");
 }
 
 function visibleLeadSourcesForUser(state, user) {
   if (!canViewLeads(user)) return [];
-  return filterDemoRecordsForUser(state, user, state.leadSources || [], "leadSources");
+  return filterVisibleRecordsForUser(state, user, state.leadSources || [], "leadSources");
 }
 
 function visibleLeadStatusHistoryForUser(state, user) {
   if (!canViewLeads(user)) return [];
-  return filterDemoRecordsForUser(state, user, state.leadStatusHistory, "leadStatusHistory");
+  return filterVisibleRecordsForUser(state, user, state.leadStatusHistory, "leadStatusHistory");
 }
 
 function customerPermissionsForUser(state, user) {
@@ -3092,7 +3128,7 @@ function customerPermissionsForUser(state, user) {
 function visibleCustomersForUser(state, user) {
   if (!user) return [];
   if (canViewCustomers(user)) {
-    return filterDemoRecordsForUser(state, user, state.customers, "customers");
+    return filterVisibleRecordsForUser(state, user, state.customers, "customers");
   }
 
   return [];
@@ -4270,6 +4306,9 @@ function sanitizeBootstrap(state, user) {
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
   const settings = companySettingsForState(state);
+  const companies = companiesForState(state);
+  const currentCompanyId = currentCompanyIdForRequestUser(state, user);
+  const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
   const hydrationContext = getHydrationContext(state, user);
   const users = visibleUsers(state, user);
   const customers = visibleCustomersForUser(state, user);
@@ -4296,7 +4335,14 @@ function sanitizeBootstrap(state, user) {
   const activity = visibleActivityForUser(state, user);
   const auditEvents = visibleAuditEventsForUser(state, user);
   return {
-    user: publicUser(user),
+    user: publicUser({
+      ...user,
+      companyId: currentCompanyId,
+    }),
+    companies: currentCompany ? [currentCompany] : [],
+    currentCompany,
+    currentCompanyId,
+    currentWorkspaceId: currentCompany?.workspaceId || currentCompanyId,
     companySettings: settings,
     users,
     customers,
