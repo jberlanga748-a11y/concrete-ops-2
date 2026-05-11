@@ -353,6 +353,94 @@ textarea {
     background: rgba(255, 255, 255, 0.86);
   }
 
+  .co-command-table-shell {
+    border: 1px solid rgba(226, 232, 240, 0.94);
+    border-radius: 1rem;
+    background:
+      linear-gradient(180deg, rgba(248, 250, 252, 0.88), rgba(255, 255, 255, 0.98)),
+      var(--color-card);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 14px 34px -34px rgba(15, 23, 42, 0.38);
+  }
+
+  .co-command-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .co-command-table thead {
+    background:
+      linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.82));
+  }
+
+  .co-command-table th {
+    border-bottom: 1px solid rgba(203, 213, 225, 0.78);
+    color: #475569;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.13em;
+    line-height: 1.15;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .co-command-table td {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.74);
+    background: rgba(255, 255, 255, 0.72);
+    vertical-align: middle;
+    transition:
+      background 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .co-command-table-row:hover td {
+    border-bottom-color: rgba(251, 146, 60, 0.2);
+    background: rgba(255, 247, 237, 0.5);
+    box-shadow: inset 0 1px 0 rgba(251, 146, 60, 0.08);
+  }
+
+  .co-command-table-row:last-child td {
+    border-bottom: 0;
+  }
+
+  .co-command-table-row td:first-child {
+    border-left: 3px solid transparent;
+  }
+
+  .co-command-table-row:hover td:first-child {
+    border-left-color: rgba(249, 115, 22, 0.62);
+  }
+
+  .co-command-table-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 0.38rem 0.72rem;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 10px 22px -20px rgba(15, 23, 42, 0.36);
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      color 150ms ease,
+      transform 150ms ease;
+  }
+
+  .co-command-table-action:hover {
+    border-color: rgba(249, 115, 22, 0.42);
+    color: var(--color-brand-orange-dark);
+    box-shadow: 0 16px 30px -24px rgba(194, 65, 12, 0.48);
+    transform: translateY(-1px);
+  }
+
   .co-command-right-rail {
     position: sticky;
     top: calc(var(--layout-topbar-height, 4.5rem) + 1rem);

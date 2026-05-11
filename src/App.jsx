@@ -7104,7 +7104,7 @@ function CommandCenterTableCard({ title, description, action, children, emptyTex
     <Card className="co-command-card p-4">
       <SectionHeader title={title} description={description} action={action} />
       {children ? (
-        <div className="table-shell rounded-2xl border border-slate-100 bg-white/90">
+        <div className="table-shell co-command-table-shell">
           {children}
         </div>
       ) : (
@@ -7520,8 +7520,8 @@ function CommandCenterPage({
               emptyText="No follow-up command rows waiting."
             >
               {leadCommandRows.length ? (
-                <table className="w-full min-w-[760px] text-left">
-                  <thead className="bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                <table className="co-command-table w-full min-w-[760px] text-left">
+                  <thead>
                     <tr>
                       <th className="px-3 py-2">Lead / Company</th>
                       <th className="px-3 py-2">Source</th>
@@ -7531,9 +7531,9 @@ function CommandCenterPage({
                       <th className="px-3 py-2 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {leadCommandRows.map((row) => (
-                      <tr key={row.id} className="align-middle transition hover:bg-orange-50/35">
+                      <tr key={row.id} className="co-command-table-row align-middle">
                         <td className="px-3 py-2.5">
                           <p className="max-w-[16rem] truncate text-sm font-black text-slate-950">{row.title}</p>
                           <p className="mt-0.5 max-w-[16rem] truncate text-xs font-bold text-slate-500">{row.subtitle}</p>
@@ -7548,7 +7548,7 @@ function CommandCenterPage({
                           <button
                             type="button"
                             onClick={() => openModule(row.moduleId)}
-                            className="co-focus-ring inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-black text-slate-700 transition hover:border-orange-200 hover:text-orange-700"
+                            className="co-command-table-action co-focus-ring"
                           >
                             {row.actionLabel}
                           </button>
@@ -7567,8 +7567,8 @@ function CommandCenterPage({
               emptyText="Job operations look quiet."
             >
               {jobSnapshotRows.length ? (
-                <table className="w-full min-w-[820px] text-left">
-                  <thead className="bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                <table className="co-command-table w-full min-w-[820px] text-left">
+                  <thead>
                     <tr>
                       <th className="px-3 py-2">Job</th>
                       <th className="px-3 py-2">Phase / Status</th>
@@ -7579,9 +7579,9 @@ function CommandCenterPage({
                       <th className="px-3 py-2">Next Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {jobSnapshotRows.map((row) => (
-                      <tr key={row.id} className="align-middle transition hover:bg-orange-50/35">
+                      <tr key={row.id} className="co-command-table-row align-middle">
                         <td className="px-3 py-2.5">
                           <button type="button" onClick={() => openJob(row.id)} className="co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black text-slate-950 hover:text-orange-700">
                             {row.title}
