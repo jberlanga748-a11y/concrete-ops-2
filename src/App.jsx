@@ -7196,19 +7196,19 @@ function CommandCenterKpiCard({ item }) {
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
 
   return (
-    <div className="co-command-kpi rounded-3xl border p-4 sm:p-5" data-tone={tone}>
-      <div className="flex h-full min-h-[8.25rem] flex-col justify-between gap-4">
-        <div className="flex items-start justify-between gap-4">
+    <div className="co-command-kpi rounded-3xl border p-5 sm:p-6" data-tone={tone}>
+      <div className="flex h-full min-h-[9rem] flex-col justify-between gap-5">
+        <div className="flex items-start justify-between gap-5">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">{item.label}</p>
-            <p className="mt-2 min-w-0 break-words text-sm font-bold leading-5 text-slate-500">{item.helper}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-600">{item.label}</p>
+            <p className="mt-2.5 min-w-0 break-words text-sm font-bold leading-5 text-slate-600">{item.helper}</p>
           </div>
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-4 ring-white/90 ${toneClass}`}>
-            <Icon name={item.icon} className="h-5 w-5" />
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-4 ring-white/90 ${toneClass}`}>
+            <Icon name={item.icon} className="h-[1.375rem] w-[1.375rem]" />
           </div>
         </div>
-        <div className="flex min-w-0 items-end justify-between gap-3">
-          <p className={`break-words text-4xl font-black leading-none tracking-[-0.045em] ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
+        <div className="flex min-w-0 items-end justify-between gap-4">
+          <p className={`break-words text-[2.65rem] font-black leading-none tracking-[-0.05em] ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
           {item.actionLabel ? (
             <button
               type="button"
