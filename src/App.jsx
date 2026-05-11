@@ -7028,35 +7028,35 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
 
 function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, badgeTone = "blue", children, className = "", compact = false, footer = null }) {
   return (
-    <Card className={`co-command-card ${compact ? "p-4" : "p-5"} ${className}`}>
+    <Card className={`co-command-card ${compact ? "p-3.5" : "p-4"} ${className}`}>
       <SectionHeader
         title={title}
         description={description}
         action={<Badge tone={count > 0 ? badgeTone : "slate"}>{count} item{count === 1 ? "" : "s"}</Badge>}
       />
-      <div className={compact ? "space-y-2" : "space-y-3"}>
+      <div className={compact ? "space-y-1.5" : "space-y-2.5"}>
         {count > 0 ? children : <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />}
       </div>
-      {footer ? <div className="mt-3 border-t border-slate-100 pt-3">{footer}</div> : null}
+      {footer ? <div className="mt-2.5 border-t border-slate-100 pt-2.5">{footer}</div> : null}
     </Card>
   );
 }
 
 function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, tone = "orange", compact = false }) {
   return (
-    <div className={`co-command-priority-row rounded-2xl border ${compact ? "p-3" : "p-4"}`} data-tone={tone}>
-      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(10rem,0.9fr)_auto] lg:items-center">
-        <div className="flex min-w-0 gap-3">
+    <div className={`co-command-priority-row rounded-2xl border ${compact ? "p-2.5" : "p-3.5"}`} data-tone={tone}>
+      <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1.65fr)_minmax(10rem,0.9fr)_auto] lg:items-center">
+        <div className="flex min-w-0 gap-2.5">
           <span className="co-command-priority-dot mt-1.5 shrink-0" aria-hidden="true" />
           <div className="min-w-0">
-            {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-700">{eyebrow}</p> : null}
+            {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
             <p className={`${compact ? "mt-0.5 text-sm" : "mt-1 text-base"} break-words font-black leading-5 text-slate-950`}>{title}</p>
-            {description ? <p className="mt-1 break-words text-sm font-semibold leading-5 text-slate-600">{description}</p> : null}
+            {description ? <p className="mt-0.5 break-words text-[13px] font-bold leading-5 text-slate-600">{description}</p> : null}
           </div>
         </div>
         <div className="grid min-w-0 gap-1.5 lg:justify-items-start">
           {badges ? <div className="flex min-w-0 flex-wrap gap-1.5">{badges}</div> : null}
-          {meta ? <p className="break-words text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{meta}</p> : null}
+          {meta ? <p className="break-words text-[11px] font-black uppercase tracking-[0.1em] text-slate-500">{meta}</p> : null}
         </div>
         {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 lg:w-auto lg:justify-end">{actions}</div> : null}
       </div>
@@ -7101,7 +7101,7 @@ function CommandCenterSummaryCard({ title, description, count, tone = "orange", 
 
 function CommandCenterTableCard({ title, description, action, children, emptyText }) {
   return (
-    <Card className="co-command-card p-4">
+    <Card className="co-command-card p-3.5">
       <SectionHeader title={title} description={description} action={action} />
       {children ? (
         <div className="table-shell co-command-table-shell">
@@ -7469,12 +7469,12 @@ function CommandCenterPage({
 
   return (
     <div className="co-command-page">
-      <div className="px-5 pb-3 pt-5 sm:px-6 lg:px-8">
+      <div className="px-5 pb-2 pt-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
             <h1 className="mt-1 break-words text-3xl font-black tracking-tight text-slate-950">Command Center</h1>
-            <p className="mt-1 max-w-3xl text-sm font-bold leading-6 text-slate-500">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
+            <p className="mt-1 max-w-3xl text-sm font-bold leading-6 text-slate-600">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
@@ -7483,14 +7483,14 @@ function CommandCenterPage({
           </div>
         </div>
       </div>
-      <div className="mx-auto grid w-full max-w-[1520px] gap-4 px-5 pb-10 sm:px-6 lg:px-8">
+      <div className="mx-auto grid w-full max-w-[1520px] gap-3.5 px-5 pb-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />
           ))}
         </div>
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.38fr)]">
-          <div className="grid min-w-0 gap-5">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.38fr)]">
+          <div className="grid min-w-0 gap-4">
             <CommandCenterSection
               title="Today's Priority Queue"
               description="The highest-priority office work, capped so the owner view stays scannable."
@@ -7501,7 +7501,7 @@ function CommandCenterPage({
               compact
               footer={
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm font-bold text-slate-500">
+                  <p className="text-sm font-bold text-slate-600">
                     Showing {visiblePriorityRows.length} of {priorityRows.length} priority item{priorityRows.length === 1 ? "" : "s"}.
                   </p>
                   <Button type="button" size="sm" variant="ghost" onClick={() => openModule("leads")}>View all priority items</Button>
