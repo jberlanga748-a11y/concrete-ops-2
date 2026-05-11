@@ -81,7 +81,7 @@ export const DESIGN_TYPOGRAPHY = {
 };
 
 export const DESIGN_LAYOUT = {
-  sidebarWidth: "16rem",
+  sidebarWidth: "17rem",
   contentMaxWidth: "1520px",
   rightRailWidth: "22rem",
   topbarHeight: "4.5rem",
@@ -123,6 +123,15 @@ export const DESIGN_COMPONENTS = {
   button: BUTTON_TONE_CLASSES,
   badge: STATUS_TONE_CLASSES,
   card: CARD_VARIANT_CLASSES,
+  shell: {
+    app: "co-app-shell",
+    workspace: "co-workspace-shell",
+    sidebar: "co-sidebar-shell",
+    topbar: "co-topbar",
+    sidebarNavItem: "co-sidebar-nav-item",
+    sidebarNavActive: "co-sidebar-nav-active",
+    sidebarNavInactive: "co-sidebar-nav-inactive",
+  },
   focusVisible: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
 };
 

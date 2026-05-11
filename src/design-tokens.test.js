@@ -33,6 +33,8 @@ test("design tokens expose the Concrete Ops visual foundation", () => {
   assert.ok(DESIGN_TYPOGRAPHY.fontFamily.includes("IBM Plex Sans"));
   assert.ok(DESIGN_LAYOUT.sidebarWidth);
   assert.ok(DESIGN_COMPONENTS.button.primary.includes("orange"));
+  assert.equal(DESIGN_COMPONENTS.shell.sidebar, "co-sidebar-shell");
+  assert.equal(DESIGN_COMPONENTS.shell.topbar, "co-topbar");
 });
 
 test("design token helpers return safe class strings with fallbacks", () => {
@@ -50,11 +52,17 @@ test("main css defines reusable design variables and foundation classes", () => 
   assert.match(css, /--color-brand-orange:\s*#F97316/);
   assert.match(css, /--color-shell-dark:\s*#07111F/);
   assert.match(css, /--color-workspace:\s*#F8FAFC/);
+  assert.match(css, /--color-topbar:/);
   assert.match(css, /--color-card:\s*#FFFFFF/);
   assert.match(css, /--shadow-card:/);
+  assert.match(css, /--shadow-topbar:/);
   assert.match(css, /--radius-card:/);
+  assert.match(css, /\.co-app-shell/);
+  assert.match(css, /\.co-workspace-shell/);
+  assert.match(css, /\.co-topbar/);
   assert.match(css, /\.co-card/);
   assert.match(css, /\.co-sidebar-shell/);
+  assert.match(css, /\.co-sidebar-nav-active/);
   assert.match(css, /\.co-table-row/);
 });
 

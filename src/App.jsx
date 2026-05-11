@@ -2114,22 +2114,22 @@ function PublicEstimateRequestPage({
 
 function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   return (
-    <aside className="hidden h-screen w-72 shrink-0 border-r border-blue-100 bg-white/90 backdrop-blur lg:sticky lg:top-0 lg:block">
-      <div className="border-b border-blue-100 p-4">
+    <aside className="co-sidebar-shell hidden h-screen shrink-0 overflow-hidden border-r text-white lg:sticky lg:top-0 lg:block">
+      <div className="border-b border-white/10 px-4 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-700 text-sm font-black text-white">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
+          <div className="co-brand-mark flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black text-slate-950">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
           <div>
-            <p className="text-sm font-black leading-none text-slate-950">{APP_NAME}</p>
+            <p className="text-sm font-black leading-none text-white">{APP_NAME}</p>
             <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
           </div>
         </div>
       </div>
-      <div className="flex h-[calc(100vh-76px)] flex-col justify-between overflow-y-auto p-3">
+      <div className="co-sidebar-scroll flex h-[calc(100vh-86px)] flex-col justify-between overflow-y-auto p-3">
         <div>
           {navGroups.map((group) => (
-            <div key={group.label} className="mb-4">
-              <p className="mb-1 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.label}</p>
-              <div className="space-y-1">
+            <div key={group.label} className="mb-5">
+              <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{group.label}</p>
+              <div className="space-y-1.5">
                 {group.items.map((item) => {
                   const isActive = active === item.id;
                   return (
@@ -2137,14 +2137,15 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
                       key={item.id}
                       type="button"
                       onClick={() => setActive(item.id)}
-                      className={`flex w-full items-center justify-between gap-2.5 rounded-2xl px-3 py-2.5 text-left text-sm font-bold transition ${isActive ? "bg-blue-700 text-white" : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"}`}
+                      className={`co-sidebar-nav-item flex w-full items-center justify-between gap-2.5 rounded-2xl px-3 py-2.5 text-left text-sm font-bold transition ${isActive ? "co-sidebar-nav-active pl-4" : "co-sidebar-nav-inactive"}`}
+                      aria-current={isActive ? "page" : undefined}
                     >
                       <span className="flex min-w-0 items-center gap-2.5">
                         <Icon name={item.icon} className="h-4 w-4" />
                         <span className="truncate">{item.label}</span>
                       </span>
                       {counts[item.id] ? (
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isActive ? "bg-white/20 text-white" : "bg-blue-50 text-blue-700"}`}>{counts[item.id]}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isActive ? "bg-white/20 text-white" : "co-sidebar-count"}`}>{counts[item.id]}</span>
                       ) : null}
                     </button>
                   );
@@ -2153,9 +2154,9 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
             </div>
           ))}
         </div>
-        <Card className="p-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Live workspace</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Office and field tools stay synced. Job, crew, report, upload, and safety records stay organized.</p>
+        <Card variant="shell" className="p-4">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Live workspace</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">Office and field tools stay synced. Job, crew, report, upload, and safety records stay organized.</p>
         </Card>
       </div>
     </aside>
@@ -2166,11 +2167,11 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
   const current = navItems.find((item) => item.id === active);
   const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
   return (
-    <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
-      <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
+    <div className="co-topbar sticky top-0 z-30">
+      <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-[4.5rem] lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{companyName || APP_NAME}</p>
-          <p className="truncate text-sm font-black text-slate-950">{current?.label || "Dashboard"}</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-700">{companyName || APP_NAME}</p>
+          <p className="truncate text-base font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
           <NotificationCenterButton
@@ -2185,7 +2186,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
           {canSwitchCompanies ? (
-            <label className="flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-blue-700">
+            <label className="co-topbar-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-orange-700">
               Company
               <select
                 value={currentCompanyId}
@@ -2201,14 +2202,14 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               </select>
             </label>
           ) : null}
-          <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
+          <div className="co-topbar-pill rounded-full px-3 py-2 text-xs font-black text-slate-700">{user?.name || "User"}</div>
           <Button variant="ghost" size="sm" onClick={onLogout}>
             Log out
           </Button>
         </div>
         <div className="grid gap-2 md:hidden">
           {hideMobileModuleSelect ? null : (
-            <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-full min-w-0 py-2 text-xs font-black text-blue-700">
+            <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-full min-w-0 py-2 text-xs font-black text-orange-700">
               {navItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
@@ -2221,7 +2222,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               value={currentCompanyId}
               onChange={(event) => onSelectCompany?.(event.target.value)}
               disabled={syncing}
-              className="field-input w-full min-w-0 py-2 text-xs font-black text-blue-700"
+              className="field-input w-full min-w-0 py-2 text-xs font-black text-orange-700"
             >
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
@@ -2239,14 +2240,14 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               onOpenModule={setActive}
               onOpenPath={onOpenPath}
             />
-            <div className="min-w-0 max-w-[58vw] truncate rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
+            <div className="co-topbar-pill min-w-0 max-w-[58vw] truncate rounded-full px-3 py-2 text-xs font-black text-slate-700">{user?.name || "User"}</div>
             <Button variant="ghost" size="sm" className="shrink-0" onClick={onLogout}>
               Log out
             </Button>
           </div>
         </div>
       </div>
-      {syncing ? <div className="h-1 bg-gradient-to-r from-blue-200 via-blue-600 to-blue-200" /> : null}
+      {syncing ? <div className="h-1 bg-gradient-to-r from-orange-200 via-orange-600 to-slate-200" /> : null}
     </div>
   );
 }
@@ -16609,10 +16610,10 @@ export default function App() {
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-transparent text-slate-950">
+    <div className="co-app-shell min-h-screen overflow-x-hidden text-slate-950">
       <div className="flex min-w-0 max-w-full">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} />
-        <div className="mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
+        <div className="co-workspace-shell mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
           <TopBar
             active={active}
             setActive={setActive}
