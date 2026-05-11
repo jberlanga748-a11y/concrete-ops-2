@@ -147,6 +147,10 @@ export function updateLead(token, id, lead) {
   return request(`/api/leads/${id}`, { method: "PATCH", token, body: lead });
 }
 
+export function scoreLead(token, id) {
+  return request(`/api/leads/${id}/score`, { method: "POST", token });
+}
+
 export function archiveLead(token, id) {
   return request(`/api/leads/${id}/archive`, { method: "POST", token });
 }

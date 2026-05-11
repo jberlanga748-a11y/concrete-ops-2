@@ -4,9 +4,9 @@ import test from "node:test";
 import { deriveLeadInboxState, deriveLeadListState, deriveLeadReviewReasons, filterLeads, relatedLeadActivity } from "./lead-utils.js";
 
 const LEADS = [
-  { id: "L-1", customerId: "C-1", customer: "Megan Carter", city: "Albany", project: "Driveway", status: "New", priority: "High", owner: "Jordan Berl", source: "Website", followUpDueAt: "2026-04-25", nextStep: "Call", notes: "Fast lead", archivedAt: null },
-  { id: "L-2", customerId: "C-2", customer: "Alicia Nguyen", city: "Corvallis", project: "Walkway", status: "Site Visit", priority: "Normal", owner: "Ray", source: "Referral", followUpDueAt: "2026-04-23", nextStep: "Measure", notes: "Needs estimate", archivedAt: null },
-  { id: "L-3", customerId: "C-3", customer: "Harris Auto", city: "Lebanon", project: "Shop slab", status: "Approved", priority: "High", owner: "Jordan Berl", source: "Repeat Customer", followUpDueAt: "", nextStep: "Convert", notes: "Commercial", archivedAt: "2026-04-24T12:00:00.000Z" },
+  { id: "L-1", customerId: "C-1", customer: "Megan Carter", city: "Albany", project: "Driveway", status: "New", priority: "High", owner: "Jordan Berl", source: "Website", followUpDueAt: "2026-04-25", nextStep: "Call", notes: "Fast lead", fitScore: 92, fitLabel: "Strong Fit", archivedAt: null },
+  { id: "L-2", customerId: "C-2", customer: "Alicia Nguyen", city: "Corvallis", project: "Walkway", status: "Site Visit", priority: "Normal", owner: "Ray", source: "Referral", followUpDueAt: "2026-04-23", nextStep: "Measure", notes: "Needs estimate", fitScore: 64, fitLabel: "Review Needed", archivedAt: null },
+  { id: "L-3", customerId: "C-3", customer: "Harris Auto", city: "Lebanon", project: "Shop slab", status: "Approved", priority: "High", owner: "Jordan Berl", source: "Repeat Customer", followUpDueAt: "", nextStep: "Convert", notes: "Commercial", fitScore: 80, fitLabel: "Good Fit", archivedAt: "2026-04-24T12:00:00.000Z" },
 ];
 
 test("lead filtering supports status, owner, source, due bucket, archive state, and search", () => {
@@ -16,8 +16,13 @@ test("lead filtering supports status, owner, source, due bucket, archive state, 
   assert.deepEqual(filterLeads(LEADS, { due: "Due today", today: "2026-04-25" }).map((lead) => lead.id), ["L-1"]);
   assert.deepEqual(filterLeads(LEADS, { due: "Overdue", today: "2026-04-25" }).map((lead) => lead.id), ["L-2"]);
   assert.deepEqual(filterLeads(LEADS, { due: "No due date", today: "2026-04-25" }).map((lead) => lead.id), []);
+  assert.deepEqual(filterLeads(LEADS, { scoreLabel: "Strong Fit" }).map((lead) => lead.id), ["L-1"]);
   assert.deepEqual(filterLeads(LEADS, { status: "Archived", query: "harris" }).map((lead) => lead.id), ["L-3"]);
   assert.deepEqual(filterLeads(LEADS, { status: "Site Visit", owner: "Ray", query: "estimate", today: "2026-04-25" }).map((lead) => lead.id), ["L-2"]);
+});
+
+test("lead filtering can sort by highest saved score", () => {
+  assert.deepEqual(filterLeads(LEADS, { scoreSort: "High score first", status: "All" }).map((lead) => lead.id), ["L-1", "L-2"]);
 });
 
 test("derived lead state exposes filtered rows plus owner and source options", () => {

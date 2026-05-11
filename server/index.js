@@ -47,6 +47,10 @@ import {
   validateLeadSourcePayload,
 } from "../shared/leadSources.js";
 import {
+  leadScoreResultToFields,
+  scoreLeadRuleBased,
+} from "../shared/leadScoring.js";
+import {
   calculateStartupStatus,
   canMarkStartupReady,
   createStartupChecklistFields,
@@ -8478,6 +8482,13 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
     age: "Just now",
     nextStep: optionalString(payload.nextStep, "Initial call"),
     notes: optionalString(payload.notes, "No notes yet."),
+    fitScore: 0,
+    fitLabel: "",
+    fitReason: "",
+    fitRisks: [],
+    fitNextStep: "",
+    scoreSource: "",
+    scoredAt: "",
     createdAt,
     updatedAt: createdAt,
   };
@@ -8660,6 +8671,37 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
       detail: `${lead.customer} details were updated.`,
       actor: req.auth.user,
       changedFields,
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/leads/:id/score", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const scoreFields = leadScoreResultToFields(scoreLeadRuleBased(lead, {
+      leadSources: draft.leadSources || [],
+      now: changedAt,
+    }));
+
+    Object.assign(lead, scoreFields);
+    markUpdated(lead, changedAt);
+
+    appendActivity(draft, "Lead scored", `${lead.customer} scored ${lead.fitScore} (${lead.fitLabel}).`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "scored",
+      summary: "Lead scored",
+      detail: `${lead.customer} scored ${lead.fitScore} (${lead.fitLabel}) with local rules.`,
+      actor: req.auth.user,
+      changedFields: ["fitScore", "fitLabel", "fitReason", "fitRisks", "fitNextStep", "scoreSource", "scoredAt"],
     });
     return draft;
   });

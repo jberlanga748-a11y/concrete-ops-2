@@ -70,6 +70,7 @@ import {
   restoreLead,
   restoreLeadSource,
   restoreQueueItem,
+  scoreLead as scoreLeadRequest,
   submitDailyReport,
   submitPublicEstimateRequest,
   startBreak,
@@ -120,6 +121,7 @@ import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobT
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
+import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
@@ -2231,6 +2233,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               </div>
               <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
                 <Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge>
+                <LeadScoreBadge lead={row} />
                 {selected ? <Badge tone="blue">Selected</Badge> : null}
               </div>
             </button>
@@ -2239,12 +2242,13 @@ function LeadsTable({ rows, selectedId, onSelect }) {
       </div>
       <div className="hidden md:block">
         <div className="table-shell">
-          <table className="w-full min-w-[860px] text-left">
+          <table className="w-full min-w-[980px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
             <th className="px-4 py-3">Lead</th>
             <th className="px-4 py-3">Project</th>
             <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Fit score</th>
             <th className="px-4 py-3">Priority</th>
             <th className="px-4 py-3">Value</th>
             <th className="px-4 py-3">Owner</th>
@@ -2262,6 +2266,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project}</td>
                 <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
+                <td className="px-4 py-3"><LeadScoreBadge lead={row} /></td>
                 <td className="px-4 py-3"><Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge></td>
                 <td className="px-4 py-3 text-sm font-black text-slate-950">{currency(row.value)}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.owner}</td>
@@ -2455,6 +2460,7 @@ function LeadDetailPanel({
   onFieldChange,
   onCreateJob,
   onCreateEstimateFromLead = () => {},
+  onScoreLead = () => {},
   onConvertToCustomer = () => {},
   onArchive,
   onRestore,
@@ -2508,6 +2514,7 @@ function LeadDetailPanel({
       <SaveStateText saveState={saveState} />
       <div className="grid gap-3">
         <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
+        <LeadScoreCard lead={lead} canManage={canManage} disabled={disabled} onScoreLead={onScoreLead} />
         {canCreateEstimate ? (
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-4">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -7059,6 +7066,7 @@ function DashboardPage({
   onSelectJob,
   selectedLead,
   onLeadFieldChange,
+  onScoreLead,
   onCreateJobFromLead,
   onCreateEstimateFromLead,
   onConvertLeadToCustomer,
@@ -7222,7 +7230,7 @@ function DashboardPage({
             <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
               <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
             </div>
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
           </div>
         </div>
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
@@ -7243,7 +7251,61 @@ function leadSourceLabel(source) {
   return source === "public_request_form" ? "Public request form" : source;
 }
 
-function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLead = () => {}, canCreateEstimate = false }) {
+function leadHasScore(lead = {}) {
+  return Boolean(lead.scoredAt || lead.scoreSource || lead.fitLabel);
+}
+
+function LeadScoreBadge({ lead }) {
+  if (!leadHasScore(lead)) return <Badge tone="slate">Not scored</Badge>;
+  return <Badge tone={leadScoreTone(lead.fitLabel || lead.fitScore)}>{Number(lead.fitScore || 0)} / {lead.fitLabel || "Scored"}</Badge>;
+}
+
+function LeadScoreCard({ lead, canManage = false, disabled = false, onScoreLead = () => {} }) {
+  const hasScore = leadHasScore(lead);
+  const risks = Array.isArray(lead?.fitRisks) ? lead.fitRisks : [];
+  return (
+    <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">Rule-based lead score</p>
+            <LeadScoreBadge lead={lead} />
+            {hasScore ? <Badge tone="slate">Rule-Based</Badge> : null}
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {hasScore ? lead.fitReason || "Local rules scored this lead." : "Score this lead with local business rules. No AI, scraping, or external calls are used."}
+          </p>
+        </div>
+        {canManage ? (
+          <Button type="button" className="w-full sm:w-auto" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt)}>
+            {hasScore ? "Re-score Lead" : "Score Lead"}
+          </Button>
+        ) : null}
+      </div>
+      {hasScore ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-blue-100 bg-white p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Recommended next step</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{lead.fitNextStep || "Review and choose the next office step."}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-white p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Risks / missing info</p>
+            {risks.length > 0 ? (
+              <ul className="mt-1 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                {risks.slice(0, 4).map((risk) => <li key={risk}>- {risk}</li>)}
+              </ul>
+            ) : (
+              <p className="mt-1 text-sm font-bold text-emerald-700">No major rule-based risks found.</p>
+            )}
+          </div>
+          <p className="text-xs font-bold text-slate-500 md:col-span-2">Scored {formatDateTime(lead.scoredAt)}. Scores are office-only and based on saved lead/source fields.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLead = () => {}, onScoreLead = () => {}, canManage = false, canCreateEstimate = false, disabled = false }) {
   const stats = [
     { label: "New / Needs Review", value: inboxState.stats.newNeedsReview, tone: "blue" },
     { label: "Follow-Up Due", value: inboxState.stats.followUpDue, tone: "amber" },
@@ -7282,10 +7344,12 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {lead.reviewReasons.map((reason) => <Badge key={reason.label} tone={reason.tone}>{reason.label}</Badge>)}
+                  <LeadScoreBadge lead={lead} />
                 </div>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto">
                 <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead?.(lead.id)}>Review lead</Button>
+                {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt)}>{leadHasScore(lead) ? "Re-score" : "Score"}</Button> : null}
                 {canCreateEstimate && lead.reviewReasons.some((reason) => reason.label === "Ready for Estimate") ? (
                   <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)}>Create Estimate</Button>
                 ) : null}
@@ -7671,6 +7735,10 @@ function LeadsPage({
   setSourceFilter,
   dueFilter,
   setDueFilter,
+  scoreFilter,
+  setScoreFilter,
+  scoreSort,
+  setScoreSort,
   users,
   customers,
   permissions,
@@ -7679,6 +7747,7 @@ function LeadsPage({
   onSelectCustomer,
   selectedLead,
   onLeadFieldChange,
+  onScoreLead,
   leadDraft,
   setLeadDraft,
   onCreateLead,
@@ -7726,7 +7795,7 @@ function LeadsPage({
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onCreateEstimateFromLead={onCreateEstimateFromLead} canCreateEstimate={permissions?.estimates?.canManage} />
+        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
       </div>
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <DailySourceCheckPanel
@@ -7751,7 +7820,7 @@ function LeadsPage({
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
-          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
+          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-5">
             <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option>All owners</option>
               {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
@@ -7767,12 +7836,20 @@ function LeadsPage({
               <option>Due soon</option>
               <option>No due date</option>
             </SelectField>
+            <SelectField label="Fit score" value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)}>
+              <option>All scores</option>
+              {LEAD_SCORE_LABELS.map((label) => <option key={label}>{label}</option>)}
+            </SelectField>
+            <SelectField label="Sort" value={scoreSort} onChange={(event) => setScoreSort(event.target.value)}>
+              <option>Default order</option>
+              <option>High score first</option>
+            </SelectField>
           </div>
           <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
         </Card>
         <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
         </div>
       </div>
     </div>
@@ -12262,6 +12339,10 @@ function MainContent(props) {
         setSourceFilter={props.setLeadSourceFilter}
         dueFilter={props.leadDueFilter}
         setDueFilter={props.setLeadDueFilter}
+        scoreFilter={props.leadScoreFilter}
+        setScoreFilter={props.setLeadScoreFilter}
+        scoreSort={props.leadScoreSort}
+        setScoreSort={props.setLeadScoreSort}
       />
     );
   }
@@ -12464,6 +12545,8 @@ export default function App() {
   const [leadOwnerFilter, setLeadOwnerFilter] = useState("All owners");
   const [leadSourceFilter, setLeadSourceFilter] = useState("All sources");
   const [leadDueFilter, setLeadDueFilter] = useState("All due dates");
+  const [leadScoreFilter, setLeadScoreFilter] = useState("All scores");
+  const [leadScoreSort, setLeadScoreSort] = useState("Default order");
   const [jobFilter, setJobFilter] = useState("All");
   const [jobSearch, setJobSearch] = useState("");
   const [jobCustomerFilter, setJobCustomerFilter] = useState("All customers");
@@ -13024,7 +13107,9 @@ export default function App() {
     owner: leadOwnerFilter,
     source: leadSourceFilter,
     due: leadDueFilter,
-  }), [appState.leads, leadDueFilter, leadFilter, leadOwnerFilter, leadSearch, leadSourceFilter]);
+    scoreLabel: leadScoreFilter,
+    scoreSort: leadScoreSort,
+  }), [appState.leads, leadDueFilter, leadFilter, leadOwnerFilter, leadScoreFilter, leadScoreSort, leadSearch, leadSourceFilter]);
   const visibleLeads = leadListState.filteredLeads;
 
   const userNamesById = useMemo(
@@ -13425,6 +13510,23 @@ export default function App() {
     setBusy(true);
     try {
       const nextState = await markLeadSourceChecked(sessionToken, sourceId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleScoreLead(lead = selectedLead) {
+    if (!sessionToken || !lead?.id || !appState.permissions.leads.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await scoreLeadRequest(sessionToken, lead.id);
       applyBootstrap(nextState);
       setErrorMessage("");
       return true;
@@ -14826,6 +14928,10 @@ export default function App() {
               setLeadSourceFilter={setLeadSourceFilter}
               leadDueFilter={leadDueFilter}
               setLeadDueFilter={setLeadDueFilter}
+              leadScoreFilter={leadScoreFilter}
+              setLeadScoreFilter={setLeadScoreFilter}
+              leadScoreSort={leadScoreSort}
+              setLeadScoreSort={setLeadScoreSort}
               jobFilter={jobFilter}
               setJobFilter={setJobFilter}
               jobSearch={jobSearch}
@@ -14855,6 +14961,7 @@ export default function App() {
               onSelectLead={navigateToLead}
               selectedLead={selectedLead}
               onLeadFieldChange={handleLeadFieldChange}
+              onScoreLead={handleScoreLead}
               leadSaveState={leadSaveState}
               onArchiveLead={handleArchiveLead}
               onRestoreLead={handleRestoreLead}

@@ -237,6 +237,8 @@ test("lead workflow supports assignment, status history, customer linking, archi
     assert.equal(createdLead.source, "Website");
     assert.equal(createdLead.followUpDueAt, "2026-05-02");
     assert.ok(createdLead.customerId, "Expected lead creation to link a customer record.");
+    assert.equal(createdLead.fitScore, 0);
+    assert.equal(createdLead.fitLabel, "");
 
     const createdCustomer = createState.customers.find((customer) => customer.id === createdLead.customerId);
     assert.ok(createdCustomer, "Expected lead creation to return the linked customer.");
@@ -249,6 +251,20 @@ test("lead workflow supports assignment, status history, customer linking, archi
 
     const queueItem = createState.queueItems.find((item) => item.title === "Follow up Taylor Mason");
     assert.ok(queueItem, "Expected lead creation to enqueue a follow-up item.");
+
+    const scoredState = await assertOk(fixture.baseUrl, `/api/leads/${createdLead.id}/score`, {
+      method: "POST",
+      headers,
+    });
+    const scoredLead = scoredState.leads.find((lead) => lead.id === createdLead.id);
+    assert.ok(scoredLead.fitScore > 0, "Expected lead scoring to save a numeric fit score.");
+    assert.ok(["Strong Fit", "Good Fit", "Review Needed", "Poor Fit"].includes(scoredLead.fitLabel));
+    assert.equal(scoredLead.scoreSource, "rule_based");
+    assert.ok(scoredLead.scoredAt, "Expected lead scoring to stamp scoredAt.");
+    assert.ok(Array.isArray(scoredLead.fitRisks), "Expected fitRisks to return as an array.");
+    assert.match(scoredLead.fitNextStep, /follow-up|estimate|Qualify|Fill missing/i);
+    assert.ok(scoredState.auditEvents.some((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "scored"));
+    assert.ok(scoredState.activity.some((event) => event.title === "Lead scored"));
 
     const updateState = await assertOk(fixture.baseUrl, `/api/leads/${createdLead.id}`, {
       method: "PATCH",
@@ -482,6 +498,12 @@ test("lead permissions keep office access while hiding lead data from employees 
       }),
     });
     assert.equal(sourceCheckDenied.response.status, 403);
+
+    const scoreDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}/score`, {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+    assert.equal(scoreDenied.response.status, 403);
 
     const patchDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}`, {
       method: "PATCH",

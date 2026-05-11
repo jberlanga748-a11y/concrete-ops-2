@@ -1,3 +1,5 @@
+import { leadScoreLabelForScore } from "../shared/leadScoring.js";
+
 function normalizeDateOnly(value) {
   return String(value || "").trim();
 }
@@ -38,6 +40,10 @@ function followUpDateValue(lead = {}) {
 function hasEstimateIntent(lead = {}) {
   const haystack = [lead.status, lead.nextStep, lead.notes, lead.project].map(toText).join(" ").toLowerCase();
   return /\b(estimate|proposal|quote|bid)\b/.test(haystack);
+}
+
+function leadScoreLabel(lead = {}) {
+  return toText(lead.fitLabel) || (lead.scoredAt || lead.scoreSource ? leadScoreLabelForScore(lead.fitScore) : "");
 }
 
 export function deriveLeadReviewReasons(lead = {}, { today = new Date().toISOString().slice(0, 10) } = {}) {
@@ -105,16 +111,19 @@ export function filterLeads(
     owner = "All owners",
     source = "All sources",
     due = "All due dates",
+    scoreLabel = "All scores",
+    scoreSort = "Default order",
     today = new Date().toISOString().slice(0, 10),
   } = {},
 ) {
   const normalizedQuery = String(query).trim().toLowerCase();
 
-  return leads.filter((lead) => {
+  const filtered = leads.filter((lead) => {
     const matchesArchive = status === "Archived" ? Boolean(lead.archivedAt) : !lead.archivedAt;
     const matchesStatus = status === "All" || status === "Archived" ? true : lead.status === status;
     const matchesOwner = owner === "All owners" ? true : lead.owner === owner;
     const matchesSource = source === "All sources" ? true : (lead.source || "Call-in") === source;
+    const matchesScore = scoreLabel === "All scores" ? true : leadScoreLabel(lead) === scoreLabel;
     const bucket = dueDateBucket(lead.followUpDueAt, today);
     const matchesDue = due === "All due dates"
       ? true
@@ -133,12 +142,26 @@ export function filterLeads(
       lead.city,
       lead.owner,
       lead.source,
+      lead.fitLabel,
+      lead.fitReason,
       lead.nextStep,
       lead.notes,
     ].some((value) => containsQuery(value, normalizedQuery));
 
-    return matchesArchive && matchesStatus && matchesOwner && matchesSource && matchesDue && matchesQuery;
+    return matchesArchive && matchesStatus && matchesOwner && matchesSource && matchesScore && matchesDue && matchesQuery;
   });
+
+  if (scoreSort === "High score first") {
+    return filtered
+      .map((lead, index) => ({ lead, index }))
+      .sort((left, right) => (
+        Number(right.lead.fitScore || -1) - Number(left.lead.fitScore || -1)
+        || left.index - right.index
+      ))
+      .map((entry) => entry.lead);
+  }
+
+  return filtered;
 }
 
 export function deriveLeadListState(leads, filters = {}) {

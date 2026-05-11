@@ -4791,6 +4791,32 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 37,
+      description: "Add rule-based lead scoring fields.",
+      up(database) {
+        const columns = [
+          ["fit_score", "INTEGER NOT NULL DEFAULT 0"],
+          ["fit_label", "TEXT NOT NULL DEFAULT ''"],
+          ["fit_reason", "TEXT NOT NULL DEFAULT ''"],
+          ["fit_risks", "TEXT NOT NULL DEFAULT '[]'"],
+          ["fit_next_step", "TEXT NOT NULL DEFAULT ''"],
+          ["score_source", "TEXT NOT NULL DEFAULT ''"],
+          ["scored_at", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [columnName, columnType] of columns) {
+          if (!columnExists(database, "leads", columnName)) {
+            database.exec(`ALTER TABLE leads ADD COLUMN ${columnName} ${columnType};`);
+          }
+        }
+
+        database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_leads_fit_label ON leads(fit_label);
+          CREATE INDEX IF NOT EXISTS idx_leads_fit_score ON leads(fit_score);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4845,8 +4871,8 @@ function writeStateToDb(state) {
   `);
 
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadSource = database.prepare(`
@@ -5101,6 +5127,13 @@ function writeStateToDb(state) {
         lead.followUpDueAt || null,
         lead.nextStep,
         lead.notes,
+        Number(lead.fitScore || 0),
+        lead.fitLabel || "",
+        lead.fitReason || "",
+        JSON.stringify(Array.isArray(lead.fitRisks) ? lead.fitRisks : []),
+        lead.fitNextStep || "",
+        lead.scoreSource || "",
+        lead.scoredAt || "",
         lead.createdAt || isoNow(),
         lead.updatedAt || lead.createdAt || isoNow(),
         lead.archivedAt || null,
@@ -5700,10 +5733,16 @@ function readTableState() {
   `).all();
 
   const leads = database.prepare(`
-    SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes,
+           fit_score AS fitScore, fit_label AS fitLabel, fit_reason AS fitReason, fit_risks AS fitRisks, fit_next_step AS fitNextStep, score_source AS scoreSource, scored_at AS scoredAt,
+           created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM leads
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((lead) => ({
+    ...lead,
+    fitScore: Number(lead.fitScore || 0),
+    fitRisks: parseJsonValue(lead.fitRisks, []),
+  }));
 
   const leadSources = database.prepare(`
     SELECT id, name, type, url, city, state, service_area AS serviceArea, trade_focus AS tradeFocus, notes, status, check_cadence AS checkCadence,
