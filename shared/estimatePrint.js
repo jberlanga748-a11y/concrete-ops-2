@@ -3,6 +3,7 @@ import {
   calculateEstimateTotals,
   formatEstimateCurrency,
 } from "./estimate-email.js";
+import { resolveEstimatePacketSettings } from "./estimatePacketPresets.js";
 
 const SCOPE_SECTION_DEFS = [
   ["scopeOfWork", "Scope of Work"],
@@ -26,6 +27,8 @@ const GC_PACKET_LITE_SECTION_DEFS = [
 ];
 
 const GC_PACKET_LITE_BLOCK_PATTERN = /\n?\[Concrete Ops GC Packet Lite\]\n([\s\S]*?)\n\[\/Concrete Ops GC Packet Lite\]\n?/g;
+const ESTIMATE_BACKUP_BLOCK_PATTERN = /\n?\[Concrete Ops Estimate Backup\]\n([\s\S]*?)\n\[\/Concrete Ops Estimate Backup\]\n?/g;
+const SENT_SNAPSHOT_BLOCK_PATTERN = /\n?\[Concrete Ops Sent Proposal History\]\n([\s\S]*?)\n\[\/Concrete Ops Sent Proposal History\]\n?/g;
 const OPTION_STATUSES = new Set(["optional", "included", "excluded", "accepted", "selected"]);
 const SELECTED_OPTION_STATUSES = new Set(["included", "accepted", "selected"]);
 
@@ -216,11 +219,98 @@ function parseGcPacketLiteBlock(internalNotes = "") {
   }
 }
 
+function parseEstimateBackupBlock(internalNotes = "") {
+  const text = textBlock(internalNotes);
+  if (!text) return {};
+
+  const matches = [...text.matchAll(ESTIMATE_BACKUP_BLOCK_PATTERN)];
+  const latestMatch = matches.at(-1);
+  if (!latestMatch?.[1]) return {};
+
+  try {
+    const parsed = JSON.parse(latestMatch[1]);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function rowHasContent(row = {}) {
+  return Object.values(row).some((value) => textBlock(value));
+}
+
+function normalizeBackupRows(rows = [], rowMapper) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter(rowHasContent)
+    .map((row) => rowMapper(row));
+}
+
+function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
+  const backup = parseEstimateBackupBlock(internalNotes);
+  const sections = [];
+
+  if (includes.sovBackup) {
+    const sovRows = normalizeBackupRows(backup?.sovRows, (row = {}) => ({
+      title: textValue(row?.section || row?.item || "SOV row"),
+      meta: [
+        [row?.quantity, row?.unit].map((value) => textValue(value)).filter(Boolean).join(" "),
+        row?.amount ? `Amount ${textValue(row.amount)}` : "",
+      ].filter(Boolean),
+      body: [textBlock(row?.description), textBlock(row?.notes)].filter(Boolean),
+    }));
+    if (sovRows.length > 0) {
+      sections.push({ key: "sovBackup", title: "Schedule of Values Backup", type: "records", records: sovRows });
+    }
+  }
+
+  if (includes.takeoffBackup) {
+    const takeoffRows = normalizeBackupRows(backup?.takeoffRows, (row = {}) => ({
+      title: textValue(row?.item || "Takeoff row"),
+      meta: [
+        [row?.quantity, row?.unit].map((value) => textValue(value)).filter(Boolean).join(" "),
+        row?.source ? `Source ${textValue(row.source)}` : "",
+      ].filter(Boolean),
+      body: [textBlock(row?.estimatorNote || row?.notes)].filter(Boolean),
+    }));
+    if (takeoffRows.length > 0) {
+      sections.push({ key: "takeoffBackup", title: "Takeoff Backup", type: "records", records: takeoffRows });
+    }
+  }
+
+  return sections;
+}
+
 function deriveGcPacketLiteSections(internalNotes = "") {
   const parsed = parseGcPacketLiteBlock(internalNotes);
   return GC_PACKET_LITE_SECTION_DEFS
     .map(([key, title]) => ({ key, title, text: textBlock(parsed[key]) }))
     .filter((section) => section.text);
+}
+
+function deriveInternalReviewSections(internalNotes = "", includes = {}) {
+  if (!includes.internalReviewNotes) return [];
+
+  const gcPacketLite = parseGcPacketLiteBlock(internalNotes);
+  const backup = parseEstimateBackupBlock(internalNotes);
+  const visibleInternalNotes = textBlock(
+    String(internalNotes ?? "")
+      .replace(GC_PACKET_LITE_BLOCK_PATTERN, "\n")
+      .replace(ESTIMATE_BACKUP_BLOCK_PATTERN, "\n")
+      .replace(SENT_SNAPSHOT_BLOCK_PATTERN, "\n"),
+  );
+  const blocks = [
+    visibleInternalNotes ? `Internal notes\n${visibleInternalNotes}` : "",
+    textBlock(backup?.notes) ? `Backup notes\n${textBlock(backup.notes)}` : "",
+    textBlock(gcPacketLite?.gcReviewNotes) ? `GC review notes\n${textBlock(gcPacketLite.gcReviewNotes)}` : "",
+    textBlock(gcPacketLite?.internalPacketNotes) ? `Internal packet notes\n${textBlock(gcPacketLite.internalPacketNotes)}` : "",
+  ].filter(Boolean);
+
+  return blocks.length > 0 ? [{
+    key: "internalReviewNotes",
+    title: "Internal Review Notes",
+    type: "text",
+    text: blocks.join("\n\n"),
+  }] : [];
 }
 
 function normalizeLineItems(items = []) {
@@ -251,23 +341,32 @@ function deriveOptionsSummary(alternates = [], addOns = [], baseGrandTotal = 0) 
   };
 }
 
-export function deriveEstimatePrintModel(estimate = {}) {
+export function deriveEstimatePrintModel(estimate = {}, packetSettings = {}) {
+  const resolvedPacketSettings = resolveEstimatePacketSettings(packetSettings);
+  const includes = resolvedPacketSettings.includes;
   const totals = calculateEstimateTotals(estimate?.items, {
     taxRate: estimate?.taxRate,
     feesTotal: estimate?.feesTotal,
   });
-  const proposalSections = deriveProposalSections(estimate?.scopeSummary);
+  const proposalSections = deriveProposalSections(estimate?.scopeSummary)
+    .filter((section) => includes[section.key]);
   const customerSections = deriveCustomerSections(estimate?.customerNotes);
-  const options = deriveOptionsSummary(
-    customerSections.alternates,
-    customerSections.addOns,
-    totals.grandTotal,
-  );
+  const options = includes.alternatesAddOns
+    ? deriveOptionsSummary(customerSections.alternates, customerSections.addOns, totals.grandTotal)
+    : deriveOptionsSummary([], [], totals.grandTotal);
+  const internalSections = resolvedPacketSettings.allowInternalSections
+    ? [
+      ...deriveEstimateBackupSections(estimate?.internalNotes, includes),
+      ...deriveInternalReviewSections(estimate?.internalNotes, includes),
+    ]
+    : [];
 
   return {
+    packetSettings: resolvedPacketSettings,
     proposalSections,
-    gcPacketLiteSections: deriveGcPacketLiteSections(estimate?.internalNotes),
-    customerNotes: customerSections.customerNotes,
+    gcPacketLiteSections: deriveGcPacketLiteSections(estimate?.internalNotes)
+      .filter((section) => includes[section.key]),
+    customerNotes: includes.customerNotesTerms ? customerSections.customerNotes : "",
     lineItems: normalizeLineItems(estimate?.items),
     totals: {
       ...totals,
@@ -277,5 +376,6 @@ export function deriveEstimatePrintModel(estimate = {}) {
       grandTotalLabel: formatEstimateCurrency(totals.grandTotal),
     },
     options,
+    internalSections,
   };
 }

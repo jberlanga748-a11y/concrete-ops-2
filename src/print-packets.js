@@ -160,6 +160,7 @@ export function deriveEstimatePrintPacket({
   printPacketFooter = "",
   printPacketDisclaimer = "",
   estimate,
+  packetSettings = {},
 } = {}) {
   if (!estimate) {
     return buildPacket({
@@ -176,7 +177,8 @@ export function deriveEstimatePrintPacket({
     });
   }
 
-  const printModel = deriveEstimatePrintModel(estimate);
+  const printModel = deriveEstimatePrintModel(estimate, packetSettings);
+  const printIncludes = printModel.packetSettings.includes;
   const customerName = estimateCustomerName(estimate);
   const projectName = estimateProjectName(estimate);
   const optionSections = [
@@ -218,14 +220,14 @@ export function deriveEstimatePrintPacket({
     disclaimerNote: printPacketDisclaimer,
     title: "Estimate",
     subtitle: estimate.title || projectName || "Customer Estimate",
-    packetMode: "customer",
-    metadataRows: [
+    packetMode: printModel.packetSettings.allowInternalSections ? "internal" : "customer",
+    metadataRows: printIncludes.projectInfo ? [
       { label: "Estimate", value: estimate.title || "Estimate" },
       { label: "Customer", value: customerName || "Customer pending" },
       { label: "Project", value: projectName || "Project pending" },
       { label: "Status", value: estimateStatusLabel(estimate.status) },
       { label: "Created", value: estimate.createdAt ? formatDateTime(estimate.createdAt) : "" },
-    ],
+    ] : [],
     sections: [
       ...printModel.proposalSections.map((section) => ({
         title: section.title,
@@ -237,7 +239,7 @@ export function deriveEstimatePrintPacket({
         type: "text",
         text: section.text,
       })),
-      {
+      ...(printIncludes.estimateSummary ? [{
         title: "Estimate Line Items",
         type: "records",
         records: printModel.lineItems.map((item) => ({
@@ -249,21 +251,27 @@ export function deriveEstimatePrintPacket({
           ].filter(Boolean),
           body: [`Line total: ${item.lineTotalLabel}`],
         })),
-      },
+      }] : []),
       ...optionSections,
-      {
+      ...(printIncludes.estimateSummary ? [{
         title: "Base Estimate Total",
         type: "kv",
         description: printModel.options.hasSelectedOptionsTotal
           ? "Base total is line items plus tax and fees. Selected options are shown separately for review."
           : "Base total is line items plus tax and fees.",
         rows: totalRows,
-      },
+      }] : []),
       ...(printModel.customerNotes ? [{
         title: "Customer Notes / Terms",
         type: "text",
         text: printModel.customerNotes,
       }] : []),
+      ...printModel.internalSections.map((section) => ({
+        title: section.title,
+        type: section.type,
+        text: section.text,
+        records: section.records,
+      })),
     ],
   });
 }

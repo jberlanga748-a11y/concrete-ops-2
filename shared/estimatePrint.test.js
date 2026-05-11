@@ -83,6 +83,74 @@ test("estimate print model includes safe GC Lite sections and excludes office-on
   assert.doesNotMatch(printedText, /Concrete Ops GC Packet Lite/);
 });
 
+test("estimate print presets can hide GC Lite sections without changing totals", () => {
+  const model = deriveEstimatePrintModel({
+    items: [{ description: "Base slab", quantity: 1, unit: "LS", unitPrice: 10000 }],
+    scopeSummary: "Scope of Work:\nPlace concrete slab.",
+    internalNotes: gcPacketLiteBlock({
+      proposalCoverNote: "GC cover note.",
+      proposalSummary: "GC proposal summary.",
+      qualifications: "Qualification note.",
+      scheduleNotes: "Schedule note.",
+      addendaRfiReferences: "Addendum 01.",
+    }),
+  }, {
+    presetId: "basicEstimate",
+  });
+
+  assert.equal(model.packetSettings.presetId, "basicEstimate");
+  assert.equal(model.gcPacketLiteSections.length, 0);
+  assert.equal(model.totals.grandTotal, 10000);
+  assert.deepEqual(model.proposalSections.map((section) => section.title), ["Scope of Work"]);
+});
+
+test("internal review packet can include SOV, takeoff, and internal notes only when explicitly allowed", () => {
+  const internalNotes = [
+    "Visible office note.",
+    gcPacketLiteBlock({
+      proposalSummary: "Customer-safe GC summary.",
+      gcReviewNotes: "Office-only GC review note.",
+      internalPacketNotes: "Internal packet assembly note.",
+    }),
+    "[Concrete Ops Estimate Backup]",
+    JSON.stringify({
+      sovRows: [{ section: "Mobilization", description: "Mobilize crew", quantity: "1", unit: "LS", amount: "$1,000", notes: "Office SOV note" }],
+      takeoffRows: [{ item: "4 inch sidewalk", quantity: "500", unit: "SF", source: "A1.1", estimatorNote: "Field verify." }],
+      notes: "Backup quantity note.",
+    }),
+    "[/Concrete Ops Estimate Backup]",
+    "[Concrete Ops Sent Proposal History]",
+    JSON.stringify([{ snapshotId: "snap-private", notes: "Private sent history" }]),
+    "[/Concrete Ops Sent Proposal History]",
+  ].join("\n");
+
+  const customerFacing = deriveEstimatePrintModel({ internalNotes }, {
+    presetId: "internalReviewPacket",
+    allowInternalSections: false,
+  });
+  assert.equal(customerFacing.internalSections.length, 0);
+  assert.equal(JSON.stringify(customerFacing).includes("Office-only GC review note"), false);
+
+  const internal = deriveEstimatePrintModel({ internalNotes }, {
+    presetId: "internalReviewPacket",
+    allowInternalSections: true,
+  });
+  const printedText = JSON.stringify(internal);
+
+  assert.equal(internal.packetSettings.allowInternalSections, true);
+  assert.equal(internal.internalSections.some((section) => section.key === "sovBackup"), true);
+  assert.equal(internal.internalSections.some((section) => section.key === "takeoffBackup"), true);
+  assert.equal(internal.internalSections.some((section) => section.key === "internalReviewNotes"), true);
+  assert.match(printedText, /Mobilization/);
+  assert.match(printedText, /4 inch sidewalk/);
+  assert.match(printedText, /Visible office note/);
+  assert.match(printedText, /Office-only GC review note/);
+  assert.match(printedText, /Internal packet assembly note/);
+  assert.match(printedText, /Backup quantity note/);
+  assert.doesNotMatch(printedText, /Private sent history/);
+  assert.doesNotMatch(printedText, /Concrete Ops Sent Proposal History/);
+});
+
 test("estimate print model parses alternates and add-ons with conservative selected totals", () => {
   const model = deriveEstimatePrintModel({
     items: [{ description: "Base slab", quantity: 1, unit: "LS", unitPrice: 10000 }],

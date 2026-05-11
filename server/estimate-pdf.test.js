@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildEstimatePdfAttachment, buildEstimatePdfFilename } from "./estimate-pdf.js";
+import { buildEstimatePdfAttachment, buildEstimatePdfBuffer, buildEstimatePdfFilename } from "./estimate-pdf.js";
 
 const estimate = {
   title: "Martinez Driveway Proposal",
@@ -163,4 +163,62 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.doesNotMatch(decodedText, /Private SOV backup/);
   assert.doesNotMatch(decodedText, /Private sent history/);
   assert.doesNotMatch(decodedText, /Concrete Ops GC Packet Lite/);
+});
+
+test("estimate PDF packet settings hide GC Lite sections for basic estimate preset", async () => {
+  const buffer = await buildEstimatePdfBuffer({
+    estimate,
+    packetSettings: {
+      presetId: "basicEstimate",
+    },
+  });
+  const decodedText = extractPdfText(buffer);
+
+  assert.match(decodedText, /SCOPE OF WORK/);
+  assert.match(decodedText, /ALTERNATES/);
+  assert.doesNotMatch(decodedText, /PROPOSAL COVER NOTE/);
+  assert.doesNotMatch(decodedText, /GC-facing proposal summary/);
+  assert.doesNotMatch(decodedText, /Office-only GC strategy/);
+});
+
+test("estimate PDF internal review packet can include office-only backup when explicitly allowed", async () => {
+  const buffer = await buildEstimatePdfBuffer({
+    estimate: {
+      title: "Internal Review Estimate",
+      scopeSummary: "Scope of Work:\nPlace site concrete.",
+      internalNotes: [
+        "Visible office note.",
+        "[Concrete Ops GC Packet Lite]",
+        JSON.stringify({
+          proposalSummary: "GC proposal summary.",
+          gcReviewNotes: "Office-only GC note.",
+          internalPacketNotes: "Internal packet note.",
+        }),
+        "[/Concrete Ops GC Packet Lite]",
+        "[Concrete Ops Estimate Backup]",
+        JSON.stringify({
+          sovRows: [{ section: "Mobilization", description: "Mobilize crew", quantity: "1", unit: "LS", amount: "$1,000" }],
+          takeoffRows: [{ item: "Sidewalk", quantity: "500", unit: "SF", source: "A1.1", estimatorNote: "Field verify." }],
+          notes: "Backup note.",
+        }),
+        "[/Concrete Ops Estimate Backup]",
+      ].join("\n"),
+      items: [],
+    },
+    packetSettings: {
+      presetId: "internalReviewPacket",
+      allowInternalSections: true,
+    },
+  });
+  const decodedText = extractPdfText(buffer);
+
+  assert.match(decodedText, /SCHEDULE OF VALUES BACKUP/);
+  assert.match(decodedText, /Mobilization/);
+  assert.match(decodedText, /TAKEOFF BACKUP/);
+  assert.match(decodedText, /Sidewalk/);
+  assert.match(decodedText, /INTERNAL REVIEW NOTES/);
+  assert.match(decodedText, /Visible office note/);
+  assert.match(decodedText, /Office-only GC note/);
+  assert.match(decodedText, /Internal packet note/);
+  assert.match(decodedText, /Backup note/);
 });

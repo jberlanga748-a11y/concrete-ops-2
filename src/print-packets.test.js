@@ -275,6 +275,109 @@ test("estimate print packet keeps old plain estimates readable", () => {
   assert.doesNotMatch(html, /Total with selected options/);
 });
 
+test("estimate print packet presets control included customer-facing sections", () => {
+  const estimate = {
+    id: "EST-PRESET",
+    title: "Commercial Proposal",
+    scopeSummary: [
+      "Scope of Work:",
+      "Place site concrete.",
+      "",
+      "Inclusions:",
+      "Forms and finish.",
+      "",
+      "Exclusions:",
+      "Permits.",
+      "",
+      "Assumptions / Clarifications:",
+      "Clear access.",
+    ].join("\n"),
+    internalNotes: [
+      "[Concrete Ops GC Packet Lite]",
+      JSON.stringify({
+        proposalCoverNote: "GC cover note.",
+        proposalSummary: "GC proposal summary.",
+        qualifications: "Qualification note.",
+        scheduleNotes: "Schedule note.",
+        addendaRfiReferences: "Addendum 01.",
+        gcReviewNotes: "Office-only GC note.",
+      }),
+      "[/Concrete Ops GC Packet Lite]",
+    ].join("\n"),
+    customerNotes: [
+      "Customer Notes / Terms:",
+      "Valid for 30 days.",
+      "",
+      "Alternates:",
+      "- [accepted] Thicker edge | Amount: $500.00",
+    ].join("\n"),
+    items: [{ description: "Concrete placement", quantity: 1, unit: "LS", unitPrice: 10000 }],
+  };
+
+  const basicHtml = buildPrintDocumentHtml(deriveEstimatePrintPacket({
+    estimate,
+    packetSettings: { presetId: "basicEstimate" },
+  }));
+  assert.match(basicHtml, /Scope of Work/);
+  assert.match(basicHtml, /Alternates/);
+  assert.doesNotMatch(basicHtml, /GC cover note/);
+  assert.doesNotMatch(basicHtml, /Qualification note/);
+  assert.doesNotMatch(basicHtml, /Office-only GC note/);
+
+  const gcPacketHtml = buildPrintDocumentHtml(deriveEstimatePrintPacket({
+    estimate,
+    packetSettings: { presetId: "gcBidPacket" },
+  }));
+  assert.match(gcPacketHtml, /Proposal Cover Note/);
+  assert.match(gcPacketHtml, /GC cover note/);
+  assert.match(gcPacketHtml, /Addenda \/ RFI References/);
+  assert.match(gcPacketHtml, /Addendum 01\./);
+  assert.doesNotMatch(gcPacketHtml, /Office-only GC note/);
+});
+
+test("internal review estimate packet can include office-only backup sections when allowed", () => {
+  const packet = deriveEstimatePrintPacket({
+    estimate: {
+      title: "Internal Review Estimate",
+      scopeSummary: "Scope of Work:\nPlace concrete.",
+      internalNotes: [
+        "Visible office note.",
+        "[Concrete Ops GC Packet Lite]",
+        JSON.stringify({
+          proposalSummary: "GC proposal summary.",
+          gcReviewNotes: "Office-only GC note.",
+          internalPacketNotes: "Internal packet note.",
+        }),
+        "[/Concrete Ops GC Packet Lite]",
+        "[Concrete Ops Estimate Backup]",
+        JSON.stringify({
+          sovRows: [{ section: "Mobilization", description: "Mobilize crew", quantity: "1", unit: "LS", amount: "$1,000" }],
+          takeoffRows: [{ item: "Sidewalk", quantity: "500", unit: "SF", source: "A1.1", estimatorNote: "Field verify." }],
+          notes: "Backup note.",
+        }),
+        "[/Concrete Ops Estimate Backup]",
+      ].join("\n"),
+      items: [],
+    },
+    packetSettings: {
+      presetId: "internalReviewPacket",
+      allowInternalSections: true,
+    },
+  });
+  const html = buildPrintDocumentHtml(packet);
+
+  assert.equal(packet.packetMode, "internal");
+  assert.match(html, /Schedule of Values Backup/);
+  assert.match(html, /Mobilization/);
+  assert.match(html, /Takeoff Backup/);
+  assert.match(html, /Sidewalk/);
+  assert.match(html, /Internal Review Notes/);
+  assert.match(html, /Visible office note/);
+  assert.match(html, /Office-only GC note/);
+  assert.match(html, /Internal packet note/);
+  assert.match(html, /Backup note/);
+});
+
 test("print packet helpers tolerate missing linked arrays and render clean empty states", () => {
   const reportPacket = deriveDailyReportPrintPacket({ companyName: "Concrete Ops Demo", report: null });
   const jobPacket = deriveJobPrintPacket({ companyName: "Concrete Ops Demo", job: { id: "J-1", title: "Empty Job", status: "draft" } });

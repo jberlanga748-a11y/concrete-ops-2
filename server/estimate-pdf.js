@@ -306,6 +306,47 @@ function drawOptionsSection(doc, title, options = []) {
   doc.moveDown(0.4);
 }
 
+function drawRecordSection(doc, title, records = []) {
+  if (!Array.isArray(records) || records.length === 0) return;
+  ensureSpace(doc, 68);
+  addSectionTitle(doc, title);
+
+  records.forEach((record, index) => {
+    const titleText = cleanText(record?.title, "Record");
+    const meta = Array.isArray(record?.meta) ? record.meta.map((value) => cleanText(value)).filter(Boolean).join("  |  ") : "";
+    const body = Array.isArray(record?.body)
+      ? record.body.map((value) => cleanMultilineText(value)).filter(Boolean).join("\n")
+      : cleanMultilineText(record?.body);
+    const titleHeight = doc.heightOfString(titleText, { width: CONTENT_WIDTH - 24 });
+    const bodyHeight = body ? doc.heightOfString(body, { width: CONTENT_WIDTH - 24, lineGap: 2 }) : 0;
+    const rowHeight = Math.max(44, titleHeight + bodyHeight + (meta ? 38 : 26));
+
+    ensureSpace(doc, rowHeight + 4);
+    const y = doc.y;
+    doc.roundedRect(PAGE_MARGIN, y, CONTENT_WIDTH, rowHeight, 10)
+      .fill(index % 2 === 0 ? COLORS.white : COLORS.slateSoft)
+      .strokeColor(COLORS.border)
+      .lineWidth(0.6)
+      .stroke();
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(COLORS.slateDark).text(titleText, PAGE_MARGIN + 12, y + 10, {
+      width: CONTENT_WIDTH - 24,
+    });
+    if (meta) {
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.blue).text(meta, PAGE_MARGIN + 12, doc.y + 3, {
+        width: CONTENT_WIDTH - 24,
+      });
+    }
+    if (body) {
+      doc.font("Helvetica").fontSize(8.8).fillColor(COLORS.slate).text(body, PAGE_MARGIN + 12, doc.y + 5, {
+        width: CONTENT_WIDTH - 24,
+        lineGap: 2,
+      });
+    }
+    doc.y = y + rowHeight + 7;
+  });
+  doc.moveDown(0.4);
+}
+
 function drawTotals(doc, totals, options = {}) {
   ensureSpace(doc, options.hasSelectedOptionsTotal ? 170 : 126);
   addSectionTitle(doc, "Base Estimate Total");
@@ -398,6 +439,7 @@ export async function buildEstimatePdfBuffer({
   printPacketFooter = "",
   printPacketDisclaimer = "",
   estimate = {},
+  packetSettings = {},
 } = {}) {
   const doc = new PDFDocument({
     size: "LETTER",
@@ -412,17 +454,31 @@ export async function buildEstimatePdfBuffer({
   });
   const customerName = estimateCustomerName(estimate) || "Customer pending";
   const projectName = estimateProjectName(estimate) || "Project pending";
-  const printModel = deriveEstimatePrintModel(estimate);
+  const printModel = deriveEstimatePrintModel(estimate, packetSettings);
+  const printIncludes = printModel.packetSettings.includes;
 
   drawHeader(doc, { companyName, companyProfile });
-  drawProposalIntro(doc, { estimate, customerName, projectName });
+  if (printIncludes.projectInfo) {
+    drawProposalIntro(doc, { estimate, customerName, projectName });
+  }
   printModel.proposalSections.forEach((section) => drawTextSection(doc, section.title, section.text));
   printModel.gcPacketLiteSections.forEach((section) => drawTextSection(doc, section.title, section.text));
-  drawLineItemsTable(doc, printModel.lineItems);
+  if (printIncludes.estimateSummary) {
+    drawLineItemsTable(doc, printModel.lineItems);
+  }
   drawOptionsSection(doc, "Alternates", printModel.options.alternates);
   drawOptionsSection(doc, "Optional Add-ons", printModel.options.addOns);
-  drawTotals(doc, printModel.totals, printModel.options);
+  if (printIncludes.estimateSummary) {
+    drawTotals(doc, printModel.totals, printModel.options);
+  }
   drawTextSection(doc, "Customer Notes / Terms", printModel.customerNotes);
+  printModel.internalSections.forEach((section) => {
+    if (section.type === "records") {
+      drawRecordSection(doc, section.title, section.records);
+    } else {
+      drawTextSection(doc, section.title, section.text);
+    }
+  });
   drawAcceptanceBlock(doc);
 
   const pageRange = doc.bufferedPageRange();

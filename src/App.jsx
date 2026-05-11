@@ -125,6 +125,7 @@ import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatus
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
+import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 
 const APP_NAME = "Concrete Ops";
 const DEFAULT_COMPANY_NAME = "Concrete Ops Workspace";
@@ -1554,6 +1555,110 @@ function EstimateSentHistoryCard({ estimate, disabled = false, onRecordSnapshot 
       ) : (
         <StateCard title="No sent snapshots recorded yet" description="The latest send status is still tracked on the estimate. Use Record Sent Snapshot when office wants a simple history entry." tone="slate" />
       )}
+    </div>
+  );
+}
+
+function EstimatePacketSettingsPanel({
+  presetId,
+  sectionIds,
+  setPresetId,
+  setSectionIds,
+  canIncludeInternalSections = false,
+}) {
+  const resolvedSettings = resolveEstimatePacketSettings({
+    presetId,
+    sectionIds,
+    allowInternalSections: canIncludeInternalSections,
+  });
+  const selectedPreset = getEstimatePacketPreset(resolvedSettings.presetId);
+  const customerSectionDefs = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => !section.internalOnly);
+  const internalSectionDefs = ESTIMATE_PACKET_SECTION_DEFS.filter((section) => section.internalOnly);
+  const showInternalSections = canIncludeInternalSections && resolvedSettings.presetId === INTERNAL_REVIEW_PACKET_PRESET_ID;
+
+  function applyPreset(nextPresetId) {
+    const nextPreset = getEstimatePacketPreset(nextPresetId);
+    setPresetId(nextPreset.id);
+    setSectionIds(nextPreset.sectionIds);
+  }
+
+  function toggleSection(sectionId) {
+    setSectionIds((current) => {
+      const currentIds = new Set(Array.isArray(current) ? current : []);
+      if (currentIds.has(sectionId)) {
+        currentIds.delete(sectionId);
+      } else {
+        currentIds.add(sectionId);
+      }
+      return Array.from(currentIds);
+    });
+  }
+
+  return (
+    <div className="rounded-3xl border border-indigo-100 bg-indigo-50/50 p-4 shadow-sm shadow-indigo-100/50">
+      <SectionHeader
+        title="Packet Preset"
+        description="Choose a simple packet preset, then toggle which existing estimate and GC Lite sections appear in the printed packet."
+        action={<Badge tone={showInternalSections ? "amber" : "violet"}>{showInternalSections ? "Office only" : "Customer facing"}</Badge>}
+      />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+        <div className="rounded-2xl border border-indigo-100 bg-white/85 p-3">
+          <SelectField label="Packet preset" value={resolvedSettings.presetId} onChange={(event) => applyPreset(event.target.value)}>
+            {ESTIMATE_PACKET_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+          </SelectField>
+          <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedPreset.description}</p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-indigo-700">
+            This phase keeps packet settings as print-screen state only. It does not change the estimate record.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-white/85 p-3">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Included sections</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {customerSectionDefs.map((section) => (
+              <label key={section.id} className="flex min-w-0 items-start gap-2 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3 text-sm font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-indigo-200 text-indigo-700"
+                  checked={resolvedSettings.sectionIds.includes(section.id)}
+                  onChange={() => toggleSection(section.id)}
+                />
+                <span className="min-w-0">
+                  <span className="block text-slate-950">{section.label}</span>
+                  <span className="mt-1 block text-xs leading-4 text-slate-500">{section.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {showInternalSections ? (
+            <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Office-only sections</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {internalSectionDefs.map((section) => (
+                  <label key={section.id} className="flex min-w-0 items-start gap-2 rounded-2xl border border-amber-100 bg-white/80 p-3 text-sm font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-amber-200 text-amber-700"
+                      checked={resolvedSettings.sectionIds.includes(section.id)}
+                      onChange={() => toggleSection(section.id)}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-slate-950">{section.label}</span>
+                      <span className="mt-1 block text-xs leading-4 text-slate-500">{section.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-xs font-bold leading-5 text-amber-700">
+                Internal Review Packet is office-only. Field roles still cannot access estimates, pricing, packet settings, or internal notes.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold leading-5 text-indigo-700">
+              Customer-facing presets automatically exclude SOV backup, takeoff backup, internal notes, and sent snapshot history.
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -10053,6 +10158,8 @@ function EstimatesPage({
   const [createDraft, setCreateDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [detailDraft, setDetailDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [packetPresetId, setPacketPresetId] = useState(DEFAULT_ESTIMATE_PACKET_PRESET_ID);
+  const [packetSectionIds, setPacketSectionIds] = useState(() => getEstimatePacketPreset(DEFAULT_ESTIMATE_PACKET_PRESET_ID).sectionIds);
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
 
@@ -10100,6 +10207,11 @@ function EstimatesPage({
   const detailEstimateCustomerEmail = useMemo(() => estimateCustomerEmail(detailEstimatePreview), [detailEstimatePreview]);
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
+  const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
+    presetId: packetPresetId,
+    sectionIds: packetSectionIds,
+    allowInternalSections: canManage,
+  }), [canManage, packetPresetId, packetSectionIds]);
 
   function linkedEstimateCustomerEmail(draft = {}) {
     const customer = visibleCustomers.find((entry) => entry.id === draft.customerId) || null;
@@ -10491,6 +10603,15 @@ function EstimatesPage({
                 <div className="grid gap-3 rounded-3xl border border-blue-100 bg-blue-50/60 p-3 md:grid-cols-2">
                   <div className="min-w-0">
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Share proposal</p>
+                    <div className="mt-3">
+                      <EstimatePacketSettingsPanel
+                        presetId={packetPresetId}
+                        sectionIds={packetSectionIds}
+                        setPresetId={setPacketPresetId}
+                        setSectionIds={setPacketSectionIds}
+                        canIncludeInternalSections={canManage}
+                      />
+                    </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         type="button"
@@ -10522,7 +10643,7 @@ function EstimatesPage({
                       >
                         Copy customer message
                       </Button>
-                      <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview)} disabled={!detailEstimatePreview}>
+                      <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)} disabled={!detailEstimatePreview}>
                         Print proposal
                       </Button>
                       <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>
@@ -13304,7 +13425,7 @@ export default function App() {
     return opened;
   }
 
-  function handlePrintEstimate(estimate) {
+  function handlePrintEstimate(estimate, packetSettings = {}) {
     if (!estimate || !appState.permissions?.estimates?.canView) return false;
     const packet = deriveEstimatePrintPacket({
       companyName: workspaceCompanyName,
@@ -13312,6 +13433,10 @@ export default function App() {
       printPacketFooter: workspacePrintPacketFooter,
       printPacketDisclaimer: workspacePrintPacketDisclaimer,
       estimate,
+      packetSettings: {
+        ...packetSettings,
+        allowInternalSections: Boolean(appState.permissions?.estimates?.canManage && packetSettings?.allowInternalSections),
+      },
     });
     const opened = openPrintDocument(packet);
     if (!opened) {
