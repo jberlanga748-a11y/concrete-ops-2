@@ -75,6 +75,7 @@ export function createUserRecord({
   phone = "",
   status = "active",
   companyId = DEFAULT_COMPANY_ID,
+  operatorAccess = false,
   createdAt = isoNow(),
   updatedAt = createdAt,
   lastLoginAt = null,
@@ -88,6 +89,7 @@ export function createUserRecord({
     role: String(role).trim(),
     status: String(status || "active").trim().toLowerCase(),
     companyId: normalizeCompanyId(companyId),
+    operatorAccess: Boolean(operatorAccess),
     createdAt,
     updatedAt,
     lastLoginAt,
@@ -3229,6 +3231,7 @@ export function publicUser(user) {
     role: user.role,
     status: user.status || "active",
     companyId: normalizeCompanyId(user.companyId),
+    operatorAccess: user.operatorAccess === true,
     createdAt: user.createdAt || "",
     updatedAt: user.updatedAt || "",
     lastLoginAt: user.lastLoginAt || null,
@@ -4909,6 +4912,32 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 40,
+      description: "Add operator company selection foundation.",
+      up(database) {
+        const defaultCompanyId = sqliteStringLiteral(DEFAULT_COMPANY_ID);
+        if (!columnExists(database, "users", "operator_access")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN operator_access INTEGER NOT NULL DEFAULT 0;
+          `);
+        }
+
+        if (!columnExists(database, "sessions", "current_company_id")) {
+          database.exec(`
+            ALTER TABLE sessions
+            ADD COLUMN current_company_id TEXT NOT NULL DEFAULT '${defaultCompanyId}';
+          `);
+        }
+
+        database.exec(`
+          UPDATE sessions
+          SET current_company_id = COALESCE(NULLIF(current_company_id, ''), '${defaultCompanyId}');
+          CREATE INDEX IF NOT EXISTS idx_sessions_current_company_id ON sessions(current_company_id);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4948,8 +4977,8 @@ function writeStateToDb(state) {
   `);
 
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, phone, status, company_id, created_at, updated_at, last_login_at, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCompanySetting = database.prepare(`
@@ -4958,8 +4987,8 @@ function writeStateToDb(state) {
   `);
 
   const insertSession = database.prepare(`
-    INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, user_id, token_hash, current_company_id, created_at, last_seen_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCustomer = database.prepare(`
@@ -5188,6 +5217,7 @@ function writeStateToDb(state) {
         user.phone || "",
         user.status || "active",
         normalizeCompanyId(user.companyId),
+        user.operatorAccess === true ? 1 : 0,
         user.createdAt || isoNow(),
         user.updatedAt || user.createdAt || isoNow(),
         user.lastLoginAt || null,
@@ -5200,6 +5230,7 @@ function writeStateToDb(state) {
         session.id,
         session.userId,
         session.tokenHash,
+        normalizeCompanyId(session.currentCompanyId),
         session.createdAt,
         session.lastSeenAt,
         session.expiresAt || nextSessionExpiry(),
@@ -5854,13 +5885,16 @@ function readTableState() {
   `).all(DEFAULT_COMPANY_ID), companySettings);
 
   const users = database.prepare(`
-    SELECT id, email, name, phone, role, status, company_id AS companyId, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
+    SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
     ORDER BY email
-  `).all().map((user) => withDefaultCompanyId(user));
+  `).all().map((user) => ({
+    ...withDefaultCompanyId(user),
+    operatorAccess: Boolean(user.operatorAccess),
+  }));
 
   const sessions = database.prepare(`
-    SELECT id, user_id AS userId, token_hash AS tokenHash, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt
+    SELECT id, user_id AS userId, token_hash AS tokenHash, current_company_id AS currentCompanyId, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt
     FROM sessions
     ORDER BY created_at DESC
   `).all();
@@ -6237,6 +6271,8 @@ function mapUserRecord(row) {
     phone: row.phone || "",
     role: row.role,
     status: row.status || "active",
+    companyId: normalizeCompanyId(row.companyId),
+    operatorAccess: Boolean(row.operatorAccess),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     lastLoginAt: row.lastLoginAt || null,
@@ -6250,6 +6286,7 @@ function mapSessionRecord(row) {
     id: row.id,
     userId: row.userId,
     tokenHash: row.tokenHash,
+    currentCompanyId: normalizeCompanyId(row.currentCompanyId),
     createdAt: row.createdAt,
     lastSeenAt: row.lastSeenAt,
     expiresAt: row.expiresAt || "",
@@ -6455,7 +6492,7 @@ export async function findUserAuthRecordByEmail(email) {
   return withSqliteRetry(async () => {
     const database = createDatabaseConnection();
     const row = database.prepare(`
-      SELECT id, email, name, phone, role, status, created_at AS createdAt, updated_at AS updatedAt,
+      SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, created_at AS createdAt, updated_at AS updatedAt,
              last_login_at AS lastLoginAt, password_hash AS passwordHash
       FROM users
       WHERE email = ?
@@ -6474,6 +6511,7 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
         s.id AS sessionId,
         s.user_id AS sessionUserId,
         s.token_hash AS sessionTokenHash,
+        s.current_company_id AS sessionCurrentCompanyId,
         s.created_at AS sessionCreatedAt,
         s.last_seen_at AS sessionLastSeenAt,
         s.expires_at AS sessionExpiresAt,
@@ -6483,6 +6521,8 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
         u.phone,
         u.role,
         u.status,
+        u.company_id AS companyId,
+        u.operator_access AS operatorAccess,
         u.created_at AS createdAt,
         u.updated_at AS updatedAt,
         u.last_login_at AS lastLoginAt,
@@ -6500,16 +6540,20 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
         id: row.sessionId,
         userId: row.sessionUserId,
         tokenHash: row.sessionTokenHash,
+        currentCompanyId: row.sessionCurrentCompanyId,
         createdAt: row.sessionCreatedAt,
         lastSeenAt: row.sessionLastSeenAt,
         expiresAt: row.sessionExpiresAt,
       }),
-      user: mapUserRecord(row),
+      user: {
+        ...mapUserRecord(row),
+        currentCompanyId: normalizeCompanyId(row.sessionCurrentCompanyId),
+      },
     };
   });
 }
 
-export async function replaceSessionForUser(userId, { tokenHash, createdAt, lastSeenAt = createdAt, expiresAt, sessionId = makeId("S") } = {}) {
+export async function replaceSessionForUser(userId, { tokenHash, currentCompanyId = DEFAULT_COMPANY_ID, createdAt, lastSeenAt = createdAt, expiresAt, sessionId = makeId("S") } = {}) {
   await ensureDb();
   return queueWrite(async () => {
     const database = createDatabaseConnection();
@@ -6519,9 +6563,9 @@ export async function replaceSessionForUser(userId, { tokenHash, createdAt, last
         WHERE user_id = ?
       `).run(userId);
       database.prepare(`
-        INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen_at, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(sessionId, userId, tokenHash, createdAt, lastSeenAt, expiresAt || nextSessionExpiry());
+        INSERT INTO sessions (id, user_id, token_hash, current_company_id, created_at, last_seen_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(sessionId, userId, tokenHash, normalizeCompanyId(currentCompanyId), createdAt, lastSeenAt, expiresAt || nextSessionExpiry());
       database.prepare(`
         UPDATE users
         SET last_login_at = ?, updated_at = ?
@@ -6533,10 +6577,24 @@ export async function replaceSessionForUser(userId, { tokenHash, createdAt, last
       id: sessionId,
       userId,
       tokenHash,
+      currentCompanyId: normalizeCompanyId(currentCompanyId),
       createdAt,
       lastSeenAt,
       expiresAt: expiresAt || nextSessionExpiry(),
     };
+  });
+}
+
+export async function updateSessionCurrentCompanyByTokenHash(tokenHash, currentCompanyId, { lastSeenAt = isoNow(), expiresAt = nextSessionExpiry() } = {}) {
+  await ensureDb();
+  return queueWrite(async () => {
+    const database = createDatabaseConnection();
+    const result = database.prepare(`
+      UPDATE sessions
+      SET current_company_id = ?, last_seen_at = ?, expires_at = ?
+      WHERE token_hash = ?
+    `).run(normalizeCompanyId(currentCompanyId), lastSeenAt, expiresAt, tokenHash);
+    return Number(result.changes || 0) > 0;
   });
 }
 

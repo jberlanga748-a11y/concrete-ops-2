@@ -57,6 +57,10 @@ export function canManageUsers(user) {
   return isOfficeManager(user);
 }
 
+export function canManageCompanies(user) {
+  return user?.operatorAccess === true && isOfficeManager(user);
+}
+
 export function canViewLeads(user) {
   return isOfficeManager(user) || isEstimator(user);
 }

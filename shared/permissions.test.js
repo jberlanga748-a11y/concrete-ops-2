@@ -13,6 +13,7 @@ import {
   canManageLeads,
   canManageOwnTime,
   canManageChangeOrders,
+  canManageCompanies,
   canManagePrePour,
   canManagePostPour,
   canManageReports,
@@ -46,6 +47,7 @@ import {
 test("owner has full office access and export rights", () => {
   const owner = { role: "Owner" };
 
+  assert.equal(canManageCompanies(owner), false);
   assert.equal(canManageLeads(owner), true);
   assert.equal(canManageCustomers(owner), true);
   assert.equal(canManageEstimates(owner), true);
@@ -59,6 +61,15 @@ test("owner has full office access and export rights", () => {
   assert.equal(canExportData(owner), true);
   assert.equal(getAllowedModuleIds(owner).has("commandCenter"), true);
   assert.equal(canManageOwnTime(owner), false);
+});
+
+test("company switching requires explicit operator access plus an office role", () => {
+  assert.equal(canManageCompanies({ role: "Owner", operatorAccess: true }), true);
+  assert.equal(canManageCompanies({ role: "Administrator", operatorAccess: true }), true);
+  assert.equal(canManageCompanies({ role: "Operations Manager", operatorAccess: true }), true);
+  assert.equal(canManageCompanies({ role: "Owner", operatorAccess: false }), false);
+  assert.equal(canManageCompanies({ role: "Foreman", operatorAccess: true }), false);
+  assert.equal(canManageCompanies({ role: "Employee", operatorAccess: true }), false);
 });
 
 test("operations manager can manage users and see employees module", () => {

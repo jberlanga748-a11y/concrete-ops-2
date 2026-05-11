@@ -59,6 +59,7 @@ import {
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
 import {
+  companiesForUser,
   currentCompanyIdForUser,
   normalizeCompanies,
   normalizeCompanyId,
@@ -96,6 +97,7 @@ import {
   nextSessionExpiry,
   timestamp,
   touchSessionByTokenHash,
+  updateSessionCurrentCompanyByTokenHash,
   updateDb,
   verifyPassword,
 } from "./store.js";
@@ -111,6 +113,7 @@ import {
   canCreateDeliveryTickets,
   canExportData,
   canManageChangeOrders,
+  canManageCompanies,
   canManageCustomers,
   canManageDeliveryTickets,
   canManageEstimates,
@@ -907,6 +910,14 @@ function companySettingsForState(state = null) {
 
 function companiesForState(state = null) {
   return normalizeCompanies(state?.companies || [], companySettingsForState(state));
+}
+
+function accessibleCompaniesForUser(state, user) {
+  return companiesForUser(user, {
+    ...(state || {}),
+    companies: companiesForState(state),
+    companySettings: companySettingsForState(state),
+  });
 }
 
 function currentCompanyIdForRequestUser(state, user) {
@@ -3211,6 +3222,12 @@ function assertCanManageLeads(user) {
   }
 }
 
+function assertCanManageCompanies(user) {
+  if (!canManageCompanies(user)) {
+    throw new ApiError(403, "You do not have permission to switch companies.");
+  }
+}
+
 function assertCanViewLeads(user) {
   if (!canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to view leads.");
@@ -4357,6 +4374,7 @@ function sanitizeBootstrap(state, user) {
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
+  const accessibleCompanies = accessibleCompaniesForUser(state, user);
   const hydrationContext = getHydrationContext(state, user);
   const users = visibleUsers(state, user);
   const customers = visibleCustomersForUser(state, user);
@@ -4387,7 +4405,7 @@ function sanitizeBootstrap(state, user) {
       ...user,
       companyId: currentCompanyId,
     }),
-    companies: currentCompany ? [currentCompany] : [],
+    companies: accessibleCompanies,
     currentCompany,
     currentCompanyId,
     currentWorkspaceId: currentCompany?.workspaceId || currentCompanyId,
@@ -4457,6 +4475,10 @@ function sanitizeBootstrap(state, user) {
         canView: canViewSettings(user),
         canManageUsers: canManageUsers(user),
         canExport: canExportData(user),
+      },
+      companies: {
+        canSwitch: canManageCompanies(user),
+        canViewAll: canManageCompanies(user),
       },
       changeOrders: changeOrderPermissionsForUser(user),
       deliveryTickets: deliveryTicketPermissionsForUser(user),
@@ -4644,6 +4666,7 @@ async function requireAuth(req, res, next) {
   req.auth = {
     token,
     tokenHash,
+    session,
     user,
   };
 
@@ -4918,6 +4941,7 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
       id: makeId("S"),
       userId: createdUser.id,
       tokenHash,
+      currentCompanyId: createdUser.companyId,
       createdAt,
       lastSeenAt: createdAt,
       expiresAt: nextSessionExpiry(),
@@ -4967,6 +4991,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
 
   await replaceSessionForUser(user.id, {
     tokenHash,
+    currentCompanyId: user.companyId,
     createdAt: loginAt,
     lastSeenAt: loginAt,
     expiresAt: nextSessionExpiry(),
@@ -5012,6 +5037,30 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
     postPourCount: Array.isArray(payload.postPourChecklists) ? payload.postPourChecklists.length : 0,
   });
   res.json(payload);
+}));
+
+app.post("/api/companies/select", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageCompanies(req.auth.user);
+  const state = await readDb();
+  const requestedCompanyId = normalizeCompanyId(requiredString(req.body?.companyId, "Company"));
+  const accessibleCompanies = accessibleCompaniesForUser(state, req.auth.user);
+  const selectedCompany = accessibleCompanies.find((company) => company.id === requestedCompanyId);
+
+  if (!selectedCompany) {
+    throw new ApiError(404, "Company not found.");
+  }
+
+  await updateSessionCurrentCompanyByTokenHash(req.auth.tokenHash, selectedCompany.id, {
+    lastSeenAt: new Date().toISOString(),
+    expiresAt: nextSessionExpiry(),
+  });
+
+  const selectedUser = {
+    ...req.auth.user,
+    currentCompanyId: selectedCompany.id,
+  };
+
+  res.json(sanitizeBootstrap(state, selectedUser));
 }));
 
 app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
@@ -9770,6 +9819,7 @@ app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
         id: makeId("S"),
         userId: req.auth.user.id,
         tokenHash: req.auth.tokenHash,
+        currentCompanyId: req.auth.user.companyId,
         createdAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
         expiresAt: nextSessionExpiry(),

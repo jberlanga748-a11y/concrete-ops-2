@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   DEFAULT_COMPANY_ID,
   buildDefaultCompany,
+  companiesForUser,
   currentCompanyIdForUser,
+  hasOperatorCompanyAccess,
   normalizeCompanies,
   recordBelongsToCompany,
   visibleRecordsForCompany,
@@ -57,4 +59,45 @@ test("visibleRecordsForCompany hides future other-company records", () => {
 
 test("currentCompanyIdForUser falls back safely when a user has no company id", () => {
   assert.equal(currentCompanyIdForUser({}, { companySettings: { companyName: "Concrete Ops" } }), DEFAULT_COMPANY_ID);
+});
+
+test("operator company access is explicit and can select an accessible company", () => {
+  const state = {
+    companies: [
+      { id: DEFAULT_COMPANY_ID, name: "Last Yard Concrete" },
+      { id: "COMPANY-LYF", name: "Live Your Future Construction" },
+    ],
+    companySettings: { companyName: "Last Yard Concrete" },
+  };
+  const operator = {
+    id: "U-1",
+    role: "Operations Manager",
+    companyId: DEFAULT_COMPANY_ID,
+    currentCompanyId: "COMPANY-LYF",
+    operatorAccess: true,
+  };
+
+  assert.equal(hasOperatorCompanyAccess(operator), true);
+  assert.equal(currentCompanyIdForUser(operator, state), "COMPANY-LYF");
+  assert.deepEqual(companiesForUser(operator, state).map((company) => company.id), [DEFAULT_COMPANY_ID, "COMPANY-LYF"]);
+});
+
+test("non-operator users cannot select or see other companies", () => {
+  const state = {
+    companies: [
+      { id: DEFAULT_COMPANY_ID, name: "Last Yard Concrete" },
+      { id: "COMPANY-LYF", name: "Live Your Future Construction" },
+    ],
+    companySettings: { companyName: "Last Yard Concrete" },
+  };
+  const user = {
+    id: "U-1",
+    companyId: DEFAULT_COMPANY_ID,
+    currentCompanyId: "COMPANY-LYF",
+    operatorAccess: false,
+  };
+
+  assert.equal(hasOperatorCompanyAccess(user), false);
+  assert.equal(currentCompanyIdForUser(user, state), DEFAULT_COMPANY_ID);
+  assert.deepEqual(companiesForUser(user, state).map((company) => company.id), [DEFAULT_COMPANY_ID]);
 });

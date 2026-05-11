@@ -8,6 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { createUserRecord } from "./store.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -200,6 +201,44 @@ function insertOtherCompanyLeadData(sqliteFile) {
   }
 }
 
+function enableOperatorAccess(sqliteFile, email = "ops@lastyard.test") {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE users
+      SET operator_access = 1
+      WHERE email = ?
+    `).run(email);
+  } finally {
+    database.close();
+  }
+}
+
+function insertUserRecord(sqliteFile, user) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+      user.phone || "",
+      user.status || "active",
+      user.companyId || DEFAULT_COMPANY_ID,
+      user.operatorAccess ? 1 : 0,
+      user.createdAt || new Date().toISOString(),
+      user.updatedAt || user.createdAt || new Date().toISOString(),
+      user.lastLoginAt || null,
+      user.passwordHash,
+    );
+  } finally {
+    database.close();
+  }
+}
+
 function ensureOtherCompany(database) {
   const now = new Date().toISOString();
   database.prepare(`
@@ -289,6 +328,92 @@ test("bootstrap scopes existing users to the default company and hides future ot
     assert.equal(scoped.leadSources.some((source) => source.id === "LS-LYF-001"), false);
     assert.ok(scoped.leads.every((lead) => lead.companyId === DEFAULT_COMPANY_ID));
     assert.ok(scoped.leadSources.every((source) => source.companyId === DEFAULT_COMPANY_ID));
+
+    await assertStatus(fixture.baseUrl, "/api/companies/select", ownerLogin.token, 403, {
+      body: { companyId: "COMPANY-LYF" },
+    });
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("operator user can switch companies without leaking selected company access to normal users", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    enableOperatorAccess(fixture.sqliteFile);
+
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "ops@lastyard.test",
+      password: "concrete123",
+    });
+
+    const operatorBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(operatorBootstrap.permissions.companies.canSwitch, true);
+    assert.equal(operatorBootstrap.companies.some((company) => company.id === "COMPANY-LYF"), true);
+    assert.equal(operatorBootstrap.leads.some((lead) => lead.id === "L-LYF-001"), false);
+
+    const switched = await postJson(fixture.baseUrl, "/api/companies/select", operatorLogin.token, {
+      companyId: "COMPANY-LYF",
+    });
+    assert.equal(switched.currentCompanyId, "COMPANY-LYF");
+    assert.equal(switched.currentWorkspaceId, "COMPANY-LYF");
+    assert.equal(switched.currentCompany.name, "Live Your Future Construction");
+    assert.equal(switched.companies.some((company) => company.id === DEFAULT_COMPANY_ID), true);
+    assert.equal(switched.leads.some((lead) => lead.id === "L-LYF-001"), true);
+    assert.ok(switched.leads.every((lead) => lead.companyId === "COMPANY-LYF"));
+
+    const createdLeadPayload = await postJson(fixture.baseUrl, "/api/leads", operatorLogin.token, {
+      customer: "Operator LYF Lead",
+      city: "Portland",
+      project: "Selected workspace lead",
+      source: "Call-in",
+      owner: "LYF Office",
+      ownerId: "",
+    });
+    const createdLead = findByName(createdLeadPayload.leads, "Operator LYF Lead", "Lead");
+    assert.equal(companyIdForRecord(fixture.sqliteFile, "leads", createdLead.id), "COMPANY-LYF");
+
+    const invalidSwitch = await assertStatus(fixture.baseUrl, "/api/companies/select", operatorLogin.token, 404, {
+      body: { companyId: "COMPANY-MISSING" },
+    });
+    assert.match(invalidSwitch.error, /not found/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("field roles cannot switch companies even if the flag is present", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    insertUserRecord(fixture.sqliteFile, createUserRecord({
+      id: "U-FIELD-OPERATOR-FLAG",
+      email: "field-operator-flag@lastyard.test",
+      password: "concrete123",
+      name: "Flagged Foreman",
+      role: "Foreman",
+      operatorAccess: true,
+    }));
+
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: "field-operator-flag@lastyard.test",
+      password: "concrete123",
+    });
+
+    const foremanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(foremanLogin.token),
+    });
+    assert.equal(foremanBootstrap.permissions.companies.canSwitch, false);
+    assert.equal(foremanBootstrap.companies.length, 1);
+
+    await assertStatus(fixture.baseUrl, "/api/companies/select", foremanLogin.token, 403, {
+      body: { companyId: "COMPANY-LYF" },
+    });
   } finally {
     await fixture.stop();
   }

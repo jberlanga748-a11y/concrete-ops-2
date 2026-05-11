@@ -73,6 +73,7 @@ import {
   restoreLeadSource,
   restoreQueueItem,
   scoreLead as scoreLeadRequest,
+  selectCompany,
   submitDailyReport,
   submitPublicEstimateRequest,
   startBreak,
@@ -359,6 +360,10 @@ const EMPTY_APP_STATE = {
       canManageUsers: false,
       canExport: false,
     },
+    companies: {
+      canSwitch: false,
+      canViewAll: false,
+    },
     changeOrders: {
       canView: false,
       canManage: false,
@@ -450,8 +455,8 @@ async function fetchAuthenticatedUploadPreviewUrl(upload, token) {
   return previewUrl;
 }
 
-function resolveWorkspaceCompanyName({ companySettings, user, demoMode } = {}) {
-  const explicitCompanyName = [companySettings?.companyName, user?.companyName]
+function resolveWorkspaceCompanyName({ currentCompany, companySettings, user, demoMode } = {}) {
+  const explicitCompanyName = [currentCompany?.name, companySettings?.companyName, user?.companyName]
     .find((value) => typeof value === "string" && value.trim());
 
   if (explicitCompanyName) return explicitCompanyName.trim();
@@ -602,6 +607,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
         calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
       toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
+      companies: mergePermissionScope(EMPTY_APP_STATE.permissions.companies, source.permissions?.companies || fallback.permissions?.companies),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
       deliveryTickets: mergePermissionScope(EMPTY_APP_STATE.permissions.deliveryTickets, source.permissions?.deliveryTickets || fallback.permissions?.deliveryTickets),
       audit: mergePermissionScope(EMPTY_APP_STATE.permissions.audit, source.permissions?.audit || fallback.permissions?.audit),
@@ -2149,8 +2155,9 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, hideMobileModuleSelect = false }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, hideMobileModuleSelect = false }) {
   const current = navItems.find((item) => item.id === active);
+  const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
   return (
     <div className="sticky top-0 z-30 border-b border-blue-100 bg-white/90 backdrop-blur">
       <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
@@ -2162,6 +2169,23 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           {saveSummary ? <Badge tone={saveSummary.tone}>{saveSummary.label}</Badge> : null}
           {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
+          {canSwitchCompanies ? (
+            <label className="flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-blue-700">
+              Company
+              <select
+                value={currentCompanyId}
+                onChange={(event) => onSelectCompany?.(event.target.value)}
+                disabled={syncing}
+                className="max-w-[220px] bg-transparent text-xs font-black normal-case tracking-normal text-slate-950 outline-none"
+              >
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <div className="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
           <Button variant="ghost" size="sm" onClick={onLogout}>
             Log out
@@ -2177,6 +2201,20 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               ))}
             </select>
           )}
+          {canSwitchCompanies ? (
+            <select
+              value={currentCompanyId}
+              onChange={(event) => onSelectCompany?.(event.target.value)}
+              disabled={syncing}
+              className="field-input w-full min-w-0 py-2 text-xs font-black text-blue-700"
+            >
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 max-w-[58vw] truncate rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-700">{user?.name || "User"}</div>
             <Button variant="ghost" size="sm" className="shrink-0" onClick={onLogout}>
@@ -13277,11 +13315,12 @@ export default function App() {
 
   const workspaceCompanyName = useMemo(
     () => resolveWorkspaceCompanyName({
+      currentCompany: appState.currentCompany,
       companySettings: appState.companySettings,
       user: appState.user,
       demoMode: setupStatus.demoMode,
     }),
-    [appState.companySettings, appState.user, setupStatus.demoMode],
+    [appState.companySettings, appState.currentCompany, appState.user, setupStatus.demoMode],
   );
   const workspaceLogoInitials = useMemo(
     () => resolveWorkspaceLogoInitials({
@@ -13678,6 +13717,37 @@ export default function App() {
       }
     }
     clearSession();
+  }
+
+  async function handleSelectCompany(companyId) {
+    if (!sessionToken || !appState.permissions?.companies?.canSwitch) return;
+    if (!companyId || companyId === appState.currentCompanyId) return;
+
+    setBusy(true);
+    try {
+      resetAutosaveState();
+      const nextState = await selectCompany(sessionToken, companyId);
+      applyBootstrap(nextState);
+      setSelectedCustomerId("");
+      setSelectedLeadId("");
+      setSelectedJobId("");
+      setSelectedReportId("");
+      setSelectedImportedDraftId("");
+      setSelectedTimeEntryId("");
+      setEstimateFocusId("");
+      setLeadDraft(INITIAL_LEAD_FORM);
+      setLeadAssistantState({ leadId: "", loading: false, result: null, error: "" });
+      navigateTo(getModulePath(active), { replace: true });
+      setErrorMessage("");
+    } catch (error) {
+      if (error.status === 401) {
+        clearSession();
+      } else {
+        setErrorMessage(error.message || "Could not switch company.");
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   function scheduleRecordSave(kind, recordId, patch) {
@@ -15301,7 +15371,22 @@ export default function App() {
       <div className="flex min-w-0 max-w-full">
         <Sidebar active={active} setActive={setActive} counts={counts} navGroups={visibleNavGroups} logoInitials={workspaceLogoInitials} />
         <div className="mobile-content-safe min-w-0 flex-1 overflow-x-hidden lg:pb-0">
-          <TopBar active={active} setActive={setActive} stats={stats} user={appState.user} onLogout={handleLogout} syncing={busy || saveSummary?.label === "Saving changes"} saveSummary={saveSummary} navItems={visibleNavItems} permissions={appState.permissions} companyName={workspaceCompanyName} hideMobileModuleSelect={isFieldMobileWorkspace} />
+          <TopBar
+            active={active}
+            setActive={setActive}
+            stats={stats}
+            user={appState.user}
+            onLogout={handleLogout}
+            syncing={busy || saveSummary?.label === "Saving changes"}
+            saveSummary={saveSummary}
+            navItems={visibleNavItems}
+            permissions={appState.permissions}
+            companyName={workspaceCompanyName}
+            companies={appState.companies}
+            currentCompanyId={appState.currentCompanyId}
+            onSelectCompany={handleSelectCompany}
+            hideMobileModuleSelect={isFieldMobileWorkspace}
+          />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="min-w-0 overflow-x-hidden py-0">
             <MainContent

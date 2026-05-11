@@ -67,6 +67,10 @@ export function getBootstrap(token) {
   return request("/api/bootstrap", { token });
 }
 
+export function selectCompany(token, companyId) {
+  return request("/api/companies/select", { method: "POST", token, body: { companyId } });
+}
+
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
 }

@@ -66,11 +66,43 @@ export function withDefaultCompanyId(record = {}, defaultCompanyId = DEFAULT_COM
   };
 }
 
+function normalizedRole(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+export function hasOperatorCompanyAccess(user = {}) {
+  return user?.operatorAccess === true
+    && ["owner", "administrator", "operations manager"].includes(normalizedRole(user?.role));
+}
+
 export function currentCompanyIdForUser(user = {}, state = {}) {
   const companies = normalizeCompanies(state.companies, state.companySettings);
   const fallbackCompanyId = companies[0]?.id || DEFAULT_COMPANY_ID;
   const userCompanyId = normalizeCompanyId(user?.companyId, fallbackCompanyId);
-  return companies.some((company) => company.id === userCompanyId) ? userCompanyId : fallbackCompanyId;
+  const companyIds = new Set(companies.map((company) => company.id));
+
+  if (hasOperatorCompanyAccess(user)) {
+    const selectedCompanyId = normalizeCompanyId(user?.currentCompanyId || user?.selectedCompanyId, userCompanyId);
+    if (companyIds.has(selectedCompanyId)) {
+      return selectedCompanyId;
+    }
+  }
+
+  return companyIds.has(userCompanyId) ? userCompanyId : fallbackCompanyId;
+}
+
+export function companiesForUser(user = {}, state = {}) {
+  const companies = normalizeCompanies(state.companies, state.companySettings);
+
+  if (hasOperatorCompanyAccess(user)) {
+    return companies;
+  }
+
+  const companyId = currentCompanyIdForUser(user, {
+    ...state,
+    companies,
+  });
+  return companies.filter((company) => company.id === companyId);
 }
 
 export function recordBelongsToCompany(record = {}, companyId = DEFAULT_COMPANY_ID) {
