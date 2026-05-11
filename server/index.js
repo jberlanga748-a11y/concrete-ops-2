@@ -51,6 +51,10 @@ import {
   scoreLeadRuleBased,
 } from "../shared/leadScoring.js";
 import {
+  checkLeadMissingInfo,
+  missingInfoResultToFields,
+} from "../shared/leadMissingInfo.js";
+import {
   calculateStartupStatus,
   canMarkStartupReady,
   createStartupChecklistFields,
@@ -8489,6 +8493,11 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
     fitNextStep: "",
     scoreSource: "",
     scoredAt: "",
+    missingInfoStatus: "",
+    missingInfoCount: 0,
+    missingInfoItems: [],
+    missingInfoNextStep: "",
+    missingInfoCheckedAt: "",
     createdAt,
     updatedAt: createdAt,
   };
@@ -8702,6 +8711,37 @@ app.post("/api/leads/:id/score", requireAuth, asyncRoute(async (req, res) => {
       detail: `${lead.customer} scored ${lead.fitScore} (${lead.fitLabel}) with local rules.`,
       actor: req.auth.user,
       changedFields: ["fitScore", "fitLabel", "fitReason", "fitRisks", "fitNextStep", "scoreSource", "scoredAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/leads/:id/check-missing-info", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const missingInfoFields = missingInfoResultToFields(checkLeadMissingInfo(lead, {
+      leadSources: draft.leadSources || [],
+      now: changedAt,
+    }));
+
+    Object.assign(lead, missingInfoFields);
+    markUpdated(lead, changedAt);
+
+    appendActivity(draft, "Lead missing info checked", `${lead.customer} ${lead.missingInfoStatus === "Complete" ? "has core info complete" : `needs ${lead.missingInfoCount} info item${lead.missingInfoCount === 1 ? "" : "s"}`}.`);
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: lead.id,
+      action: "missing_info_checked",
+      summary: "Lead missing info checked",
+      detail: `${lead.customer} missing info status: ${lead.missingInfoStatus}.`,
+      actor: req.auth.user,
+      changedFields: ["missingInfoStatus", "missingInfoCount", "missingInfoItems", "missingInfoNextStep", "missingInfoCheckedAt"],
     });
     return draft;
   });

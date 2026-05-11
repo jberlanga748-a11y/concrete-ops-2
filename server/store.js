@@ -4817,6 +4817,29 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 38,
+      description: "Add lead missing info checker fields.",
+      up(database) {
+        const columns = [
+          ["missing_info_status", "TEXT NOT NULL DEFAULT ''"],
+          ["missing_info_count", "INTEGER NOT NULL DEFAULT 0"],
+          ["missing_info_items", "TEXT NOT NULL DEFAULT '[]'"],
+          ["missing_info_next_step", "TEXT NOT NULL DEFAULT ''"],
+          ["missing_info_checked_at", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [columnName, columnType] of columns) {
+          if (!columnExists(database, "leads", columnName)) {
+            database.exec(`ALTER TABLE leads ADD COLUMN ${columnName} ${columnType};`);
+          }
+        }
+
+        database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_leads_missing_info_status ON leads(missing_info_status);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4871,8 +4894,8 @@ function writeStateToDb(state) {
   `);
 
   const insertLead = database.prepare(`
-    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, fit_score, fit_label, fit_reason, fit_risks, fit_next_step, score_source, scored_at, missing_info_status, missing_info_count, missing_info_items, missing_info_next_step, missing_info_checked_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadSource = database.prepare(`
@@ -5134,6 +5157,11 @@ function writeStateToDb(state) {
         lead.fitNextStep || "",
         lead.scoreSource || "",
         lead.scoredAt || "",
+        lead.missingInfoStatus || "",
+        Number(lead.missingInfoCount || 0),
+        JSON.stringify(Array.isArray(lead.missingInfoItems) ? lead.missingInfoItems : []),
+        lead.missingInfoNextStep || "",
+        lead.missingInfoCheckedAt || "",
         lead.createdAt || isoNow(),
         lead.updatedAt || lead.createdAt || isoNow(),
         lead.archivedAt || null,
@@ -5735,6 +5763,7 @@ function readTableState() {
   const leads = database.prepare(`
     SELECT id, customer_id AS customerId, customer, city, project, status, priority, value, owner, owner_id AS ownerId, age, source, follow_up_due_at AS followUpDueAt, next_step AS nextStep, notes,
            fit_score AS fitScore, fit_label AS fitLabel, fit_reason AS fitReason, fit_risks AS fitRisks, fit_next_step AS fitNextStep, score_source AS scoreSource, scored_at AS scoredAt,
+           missing_info_status AS missingInfoStatus, missing_info_count AS missingInfoCount, missing_info_items AS missingInfoItems, missing_info_next_step AS missingInfoNextStep, missing_info_checked_at AS missingInfoCheckedAt,
            created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM leads
     ORDER BY sort_index ASC
@@ -5742,6 +5771,8 @@ function readTableState() {
     ...lead,
     fitScore: Number(lead.fitScore || 0),
     fitRisks: parseJsonValue(lead.fitRisks, []),
+    missingInfoCount: Number(lead.missingInfoCount || 0),
+    missingInfoItems: parseJsonValue(lead.missingInfoItems, []),
   }));
 
   const leadSources = database.prepare(`

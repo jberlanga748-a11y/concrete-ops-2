@@ -239,6 +239,9 @@ test("lead workflow supports assignment, status history, customer linking, archi
     assert.ok(createdLead.customerId, "Expected lead creation to link a customer record.");
     assert.equal(createdLead.fitScore, 0);
     assert.equal(createdLead.fitLabel, "");
+    assert.equal(createdLead.missingInfoStatus, "");
+    assert.equal(createdLead.missingInfoCount, 0);
+    assert.deepEqual(createdLead.missingInfoItems, []);
 
     const createdCustomer = createState.customers.find((customer) => customer.id === createdLead.customerId);
     assert.ok(createdCustomer, "Expected lead creation to return the linked customer.");
@@ -265,6 +268,20 @@ test("lead workflow supports assignment, status history, customer linking, archi
     assert.match(scoredLead.fitNextStep, /follow-up|estimate|Qualify|Fill missing/i);
     assert.ok(scoredState.auditEvents.some((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "scored"));
     assert.ok(scoredState.activity.some((event) => event.title === "Lead scored"));
+
+    const missingInfoState = await assertOk(fixture.baseUrl, `/api/leads/${createdLead.id}/check-missing-info`, {
+      method: "POST",
+      headers,
+    });
+    const missingInfoLead = missingInfoState.leads.find((lead) => lead.id === createdLead.id);
+    assert.equal(missingInfoLead.missingInfoStatus, "Needs Info");
+    assert.ok(missingInfoLead.missingInfoCount > 0, "Expected missing info check to save a missing item count.");
+    assert.ok(Array.isArray(missingInfoLead.missingInfoItems), "Expected missing info items to return as an array.");
+    assert.ok(missingInfoLead.missingInfoItems.some((item) => item.key === "contact_path" && item.severity === "required"));
+    assert.match(missingInfoLead.missingInfoNextStep, /Phone or email/i);
+    assert.ok(missingInfoLead.missingInfoCheckedAt, "Expected missing info check to stamp checkedAt.");
+    assert.ok(missingInfoState.auditEvents.some((event) => event.entityType === "lead" && event.entityId === createdLead.id && event.action === "missing_info_checked"));
+    assert.ok(missingInfoState.activity.some((event) => event.title === "Lead missing info checked"));
 
     const updateState = await assertOk(fixture.baseUrl, `/api/leads/${createdLead.id}`, {
       method: "PATCH",
@@ -504,6 +521,12 @@ test("lead permissions keep office access while hiding lead data from employees 
       headers: employeeHeaders,
     });
     assert.equal(scoreDenied.response.status, 403);
+
+    const missingInfoDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}/check-missing-info`, {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+    assert.equal(missingInfoDenied.response.status, 403);
 
     const patchDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}`, {
       method: "PATCH",

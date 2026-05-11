@@ -151,6 +151,10 @@ export function scoreLead(token, id) {
   return request(`/api/leads/${id}/score`, { method: "POST", token });
 }
 
+export function checkLeadMissingInfo(token, id) {
+  return request(`/api/leads/${id}/check-missing-info`, { method: "POST", token });
+}
+
 export function archiveLead(token, id) {
   return request(`/api/leads/${id}/archive`, { method: "POST", token });
 }

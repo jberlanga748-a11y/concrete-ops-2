@@ -41,6 +41,7 @@ import {
   createCalculatorResult,
   createUpload,
   createUser,
+  checkLeadMissingInfo as checkLeadMissingInfoRequest,
   clockIn,
   clockOut,
   correctTimeEntry,
@@ -122,6 +123,7 @@ import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSE
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
+import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
@@ -2234,6 +2236,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
                 <Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge>
                 <LeadScoreBadge lead={row} />
+                <LeadMissingInfoBadge lead={row} />
                 {selected ? <Badge tone="blue">Selected</Badge> : null}
               </div>
             </button>
@@ -2242,13 +2245,14 @@ function LeadsTable({ rows, selectedId, onSelect }) {
       </div>
       <div className="hidden md:block">
         <div className="table-shell">
-          <table className="w-full min-w-[980px] text-left">
+          <table className="w-full min-w-[1080px] text-left">
         <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
             <th className="px-4 py-3">Lead</th>
             <th className="px-4 py-3">Project</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Fit score</th>
+            <th className="px-4 py-3">Missing info</th>
             <th className="px-4 py-3">Priority</th>
             <th className="px-4 py-3">Value</th>
             <th className="px-4 py-3">Owner</th>
@@ -2267,6 +2271,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
                 <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project}</td>
                 <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
                 <td className="px-4 py-3"><LeadScoreBadge lead={row} /></td>
+                <td className="px-4 py-3"><LeadMissingInfoBadge lead={row} /></td>
                 <td className="px-4 py-3"><Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge></td>
                 <td className="px-4 py-3 text-sm font-black text-slate-950">{currency(row.value)}</td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.owner}</td>
@@ -2461,6 +2466,7 @@ function LeadDetailPanel({
   onCreateJob,
   onCreateEstimateFromLead = () => {},
   onScoreLead = () => {},
+  onCheckMissingInfo = () => {},
   onConvertToCustomer = () => {},
   onArchive,
   onRestore,
@@ -2515,6 +2521,7 @@ function LeadDetailPanel({
       <div className="grid gap-3">
         <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
         <LeadScoreCard lead={lead} canManage={canManage} disabled={disabled} onScoreLead={onScoreLead} />
+        <LeadMissingInfoCard lead={lead} canManage={canManage} disabled={disabled} onCheckMissingInfo={onCheckMissingInfo} />
         {canCreateEstimate ? (
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-4">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -7067,6 +7074,7 @@ function DashboardPage({
   selectedLead,
   onLeadFieldChange,
   onScoreLead,
+  onCheckMissingInfo,
   onCreateJobFromLead,
   onCreateEstimateFromLead,
   onConvertLeadToCustomer,
@@ -7230,7 +7238,7 @@ function DashboardPage({
             <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
               <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
             </div>
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
           </div>
         </div>
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
@@ -7255,9 +7263,20 @@ function leadHasScore(lead = {}) {
   return Boolean(lead.scoredAt || lead.scoreSource || lead.fitLabel);
 }
 
+function leadHasMissingInfoCheck(lead = {}) {
+  return Boolean(lead.missingInfoCheckedAt || lead.missingInfoStatus);
+}
+
 function LeadScoreBadge({ lead }) {
   if (!leadHasScore(lead)) return <Badge tone="slate">Not scored</Badge>;
   return <Badge tone={leadScoreTone(lead.fitLabel || lead.fitScore)}>{Number(lead.fitScore || 0)} / {lead.fitLabel || "Scored"}</Badge>;
+}
+
+function LeadMissingInfoBadge({ lead }) {
+  if (!leadHasMissingInfoCheck(lead)) return <Badge tone="slate">Info not checked</Badge>;
+  const count = Number(lead.missingInfoCount || 0);
+  const label = lead.missingInfoStatus === "Complete" ? "Info complete" : `Needs ${count} item${count === 1 ? "" : "s"}`;
+  return <Badge tone={missingInfoTone(lead.missingInfoStatus || count)}>{label}</Badge>;
 }
 
 function LeadScoreCard({ lead, canManage = false, disabled = false, onScoreLead = () => {} }) {
@@ -7305,7 +7324,73 @@ function LeadScoreCard({ lead, canManage = false, disabled = false, onScoreLead 
   );
 }
 
-function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLead = () => {}, onScoreLead = () => {}, canManage = false, canCreateEstimate = false, disabled = false }) {
+function LeadMissingInfoCard({ lead, canManage = false, disabled = false, onCheckMissingInfo = () => {} }) {
+  const hasCheck = leadHasMissingInfoCheck(lead);
+  const items = Array.isArray(lead?.missingInfoItems) ? lead.missingInfoItems : [];
+  const required = items.filter((item) => item.severity === "required");
+  const recommended = items.filter((item) => item.severity === "recommended");
+  const optional = items.filter((item) => item.severity === "optional");
+
+  function MissingGroup({ title, rows, tone }) {
+    if (rows.length === 0) return null;
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</p>
+          <Badge tone={tone}>{rows.length}</Badge>
+        </div>
+        <div className="space-y-2">
+          {rows.slice(0, 5).map((item) => (
+            <div key={item.key} className="rounded-2xl border border-blue-50 bg-blue-50/50 p-3">
+              <p className="text-sm font-black text-slate-950">{item.label}</p>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{item.reason}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-amber-100 bg-amber-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">Missing Info Checker</p>
+            <LeadMissingInfoBadge lead={lead} />
+            <Badge tone="slate">Rule-Based</Badge>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {hasCheck ? lead.missingInfoNextStep || "Review missing lead details before estimating." : "Check required and recommended lead details before spending time estimating or following up."}
+          </p>
+        </div>
+        {canManage ? (
+          <Button type="button" className="w-full sm:w-auto" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt)}>
+            {hasCheck ? "Re-check Missing Info" : "Check Missing Info"}
+          </Button>
+        ) : null}
+      </div>
+      {hasCheck ? (
+        <div className="mt-3 space-y-3">
+          {lead.missingInfoStatus === "Needs Info" ? (
+            <p className="rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm font-black text-amber-800">Fill missing info before estimating.</p>
+          ) : (
+            <p className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-black text-emerald-800">Core lead info is complete enough for office follow-up or estimating.</p>
+          )}
+          <div className="grid gap-3 lg:grid-cols-3">
+            <MissingGroup title="Required" rows={required} tone="red" />
+            <MissingGroup title="Recommended" rows={recommended} tone="amber" />
+            <MissingGroup title="Optional" rows={optional} tone="slate" />
+          </div>
+          {items.length === 0 ? <p className="text-sm font-bold text-emerald-700">No missing items found.</p> : null}
+          <p className="text-xs font-bold text-slate-500">Checked {formatDateTime(lead.missingInfoCheckedAt)}. Missing info checks are office-only and use saved lead/source fields.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLead = () => {}, onScoreLead = () => {}, onCheckMissingInfo = () => {}, canManage = false, canCreateEstimate = false, disabled = false }) {
   const stats = [
     { label: "New / Needs Review", value: inboxState.stats.newNeedsReview, tone: "blue" },
     { label: "Follow-Up Due", value: inboxState.stats.followUpDue, tone: "amber" },
@@ -7345,10 +7430,12 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
                 <div className="mt-3 flex flex-wrap gap-2">
                   {lead.reviewReasons.map((reason) => <Badge key={reason.label} tone={reason.tone}>{reason.label}</Badge>)}
                   <LeadScoreBadge lead={lead} />
+                  <LeadMissingInfoBadge lead={lead} />
                 </div>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto">
                 <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead?.(lead.id)}>Review lead</Button>
+                {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt)}>{leadHasMissingInfoCheck(lead) ? "Re-check info" : "Check info"}</Button> : null}
                 {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt)}>{leadHasScore(lead) ? "Re-score" : "Score"}</Button> : null}
                 {canCreateEstimate && lead.reviewReasons.some((reason) => reason.label === "Ready for Estimate") ? (
                   <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)}>Create Estimate</Button>
@@ -7748,6 +7835,7 @@ function LeadsPage({
   selectedLead,
   onLeadFieldChange,
   onScoreLead,
+  onCheckMissingInfo,
   leadDraft,
   setLeadDraft,
   onCreateLead,
@@ -7795,7 +7883,7 @@ function LeadsPage({
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
+        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
       </div>
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <DailySourceCheckPanel
@@ -7849,7 +7937,7 @@ function LeadsPage({
         </Card>
         <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
         </div>
       </div>
     </div>
@@ -13539,6 +13627,23 @@ export default function App() {
     }
   }
 
+  async function handleCheckLeadMissingInfo(lead = selectedLead) {
+    if (!sessionToken || !lead?.id || !appState.permissions.leads.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await checkLeadMissingInfoRequest(sessionToken, lead.id);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleCreateCustomer(event) {
     event.preventDefault();
     const existingCustomerIds = new Set(appState.customers.map((customer) => customer.id));
@@ -14962,6 +15067,7 @@ export default function App() {
               selectedLead={selectedLead}
               onLeadFieldChange={handleLeadFieldChange}
               onScoreLead={handleScoreLead}
+              onCheckMissingInfo={handleCheckLeadMissingInfo}
               leadSaveState={leadSaveState}
               onArchiveLead={handleArchiveLead}
               onRestoreLead={handleRestoreLead}
