@@ -125,11 +125,12 @@ import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibl
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
-import { buildManualFollowUpContactPayload, deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
+import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
+import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -7861,6 +7862,98 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
   );
 }
 
+function ManualOutreachDraftPanel({
+  item,
+  companyName,
+  user,
+  disabled = false,
+  onClose = () => {},
+  onAction = async () => false,
+}) {
+  const drafts = useMemo(() => buildManualOutreachDrafts(item || {}, {
+    companyName,
+    senderName: user?.name || companyName,
+  }), [companyName, item, user?.name]);
+  const [copyMessage, setCopyMessage] = useState("");
+
+  if (!item || item.type === "leadSource") return null;
+
+  async function copyText(label, value) {
+    if (!value) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopyMessage(`${label} copied.`);
+    } catch {
+      setCopyMessage("Could not copy automatically. Select the text below and copy manually.");
+    }
+  }
+
+  function DraftBlock({ title, value, copyLabel, rows = 5 }) {
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-black text-slate-950">{title}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">Manual copy only — no message is sent from Concrete Ops.</p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={() => copyText(copyLabel, value)} disabled={disabled || !value}>Copy</Button>
+        </div>
+        <textarea
+          className="field-input mt-3 min-h-[120px] whitespace-pre-wrap font-mono text-xs leading-5"
+          readOnly
+          rows={rows}
+          value={value || ""}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-3xl border border-amber-100 bg-amber-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <Badge tone="amber">Draft / Copy</Badge>
+          <h4 className="mt-2 text-base font-black text-slate-950">{item.title}</h4>
+          <p className="mt-1 text-sm leading-6 text-slate-700">Manual copy only — Concrete Ops does not send email, SMS, or calls from this panel.</p>
+        </div>
+        <Button type="button" size="sm" variant="ghost" onClick={onClose}>Close Drafts</Button>
+      </div>
+
+      {copyMessage ? <p className="mt-3 rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        <DraftBlock title="Email subject" value={drafts.emailSubject} copyLabel="Email subject" rows={2} />
+        <DraftBlock title="Email body" value={drafts.emailBody} copyLabel="Email body" />
+        <DraftBlock title="SMS/text body" value={drafts.smsBody} copyLabel="SMS draft" rows={4} />
+        <DraftBlock title="Call script" value={drafts.callScript} copyLabel="Call script" />
+        <DraftBlock title="Voicemail script" value={drafts.voicemailScript} copyLabel="Voicemail script" rows={4} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={() => onAction(item, "mark-email-sent", drafts)} disabled={disabled}>Mark Email Manually Sent</Button>
+        <Button type="button" size="sm" onClick={() => onAction(item, "mark-text-sent", drafts)} disabled={disabled}>Mark Text Manually Sent</Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => onAction(item, "log-call", drafts)} disabled={disabled}>Log Call Attempt</Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => onAction(item, "mark-waiting", drafts)} disabled={disabled}>Mark Waiting on Response</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onAction(item, "follow-up-tomorrow", drafts)} disabled={disabled}>Follow-Up Tomorrow</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onAction(item, "follow-up-two-days", drafts)} disabled={disabled}>Follow-Up in 2 Days</Button>
+      </div>
+    </div>
+  );
+}
+
 function FollowUpQueuePanel({
   leads = [],
   customers = [],
@@ -7868,6 +7961,8 @@ function FollowUpQueuePanel({
   leadSources = [],
   contactHistory = [],
   permissions,
+  companyName,
+  user,
   disabled = false,
   onOpenLead = () => {},
   onOpenCustomer = () => {},
@@ -7881,6 +7976,7 @@ function FollowUpQueuePanel({
   const [typeFilter, setTypeFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [draftItemId, setDraftItemId] = useState("");
   const today = todayDateInputValue();
   const queueState = useMemo(() => deriveFollowUpQueueState({
     leads,
@@ -7894,6 +7990,7 @@ function FollowUpQueuePanel({
     type: typeFilter,
     query,
   }), [groupFilter, query, queueState.items, typeFilter]);
+  const draftItem = useMemo(() => queueState.items.find((item) => item.id === draftItemId) || null, [draftItemId, queueState.items]);
 
   if (!canView) return null;
 
@@ -7904,7 +8001,7 @@ function FollowUpQueuePanel({
     else onOpenLeads();
   }
 
-  async function runQueueAction(item, action) {
+  async function runQueueAction(item, action, drafts = null) {
     if (!canManage || disabled) return;
     if (item.type === "leadSource") {
       onOpenLeads();
@@ -7912,19 +8009,27 @@ function FollowUpQueuePanel({
       return;
     }
 
-    const payload = buildManualFollowUpContactPayload(item, action, { today });
+    const normalizedAction = action === "log-email" ? "mark-email-sent" : action === "log-text" ? "mark-text-sent" : action === "waiting" ? "mark-waiting" : action;
+    const payload = buildManualOutreachContactPayload(item, normalizedAction, {
+      today,
+      drafts,
+      companyName,
+      senderName: user?.name || companyName,
+    });
     if (!payload) return;
     const didSave = await onCreateContactHistory(payload);
     if (didSave) {
-      const label = action === "follow-up-tomorrow"
+      const label = normalizedAction === "follow-up-tomorrow"
         ? "Follow-up moved to tomorrow."
-        : action === "follow-up-two-days"
+        : normalizedAction === "follow-up-two-days"
           ? "Follow-up moved out two days."
-          : action === "waiting"
+          : normalizedAction === "mark-waiting"
             ? "Marked waiting on response."
-            : action === "no-follow-up"
-              ? "No follow-up note logged."
-              : "Manual outreach logged.";
+            : normalizedAction === "mark-email-sent"
+              ? "Manual email draft logged as sent outside Concrete Ops."
+              : normalizedAction === "mark-text-sent"
+                ? "Manual text draft logged as sent outside Concrete Ops."
+                : "Manual outreach logged.";
       setMessage(`${label} No email or text was sent.`);
     }
   }
@@ -7957,6 +8062,14 @@ function FollowUpQueuePanel({
           </div>
         </div>
         {message ? <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{message}</p> : null}
+        <ManualOutreachDraftPanel
+          item={draftItem}
+          companyName={companyName}
+          user={user}
+          disabled={disabled}
+          onClose={() => setDraftItemId("")}
+          onAction={runQueueAction}
+        />
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
           <input
             className="field-input"
@@ -7997,6 +8110,7 @@ function FollowUpQueuePanel({
                 <Button type="button" size="sm" variant="secondary" onClick={() => openItem(item)}>{item.actionLabel}</Button>
                 {canManage && item.type !== "leadSource" ? (
                   <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                    <Button type="button" size="sm" onClick={() => setDraftItemId(item.id)} disabled={disabled}>Draft / Copy</Button>
                     <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "log-call")} disabled={disabled}>Log Manual Call</Button>
                     <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "log-email")} disabled={disabled}>Log Manual Email</Button>
                     <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "log-text")} disabled={disabled}>Log Manual Text</Button>
@@ -8373,6 +8487,8 @@ function LeadSourcesPanel({
 }
 
 function LeadsPage({
+  user,
+  companyName,
   leads = [],
   leadSources = [],
   contactHistory = [],
@@ -8467,6 +8583,8 @@ function LeadsPage({
           leadSources={leadSources}
           contactHistory={contactHistory}
           permissions={permissions}
+          companyName={companyName}
+          user={user}
           disabled={busy}
           onOpenLead={onSelectLead}
           onOpenCustomer={onSelectCustomer}
