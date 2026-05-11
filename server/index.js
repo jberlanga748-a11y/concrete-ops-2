@@ -41,6 +41,10 @@ import {
   findLeadImportDuplicate,
 } from "../shared/leadImports.js";
 import {
+  normalizeLeadSourcePayload,
+  validateLeadSourcePayload,
+} from "../shared/leadSources.js";
+import {
   calculateStartupStatus,
   canMarkStartupReady,
   createStartupChecklistFields,
@@ -1126,6 +1130,7 @@ function buildDemoScope(state) {
     userIds,
     customerIds,
     leadIds,
+    leadSourceIds: new Set(),
     leadStatusHistoryIds,
     jobIds,
     estimateIds,
@@ -1161,6 +1166,8 @@ function filterDemoRecordsForUser(state, user, records, entityType) {
       return entries.filter((entry) => scope.customerIds.has(String(entry?.id || "")));
     case "leads":
       return entries.filter((entry) => scope.leadIds.has(String(entry?.id || "")));
+    case "leadSources":
+      return entries.filter((entry) => scope.leadSourceIds.has(String(entry?.id || "")));
     case "leadStatusHistory":
       return entries.filter((entry) => scope.leadStatusHistoryIds.has(String(entry?.id || "")));
     case "jobs":
@@ -3045,6 +3052,11 @@ function visibleLeadsForUser(state, user) {
   return filterDemoRecordsForUser(state, user, state.leads, "leads");
 }
 
+function visibleLeadSourcesForUser(state, user) {
+  if (!canViewLeads(user)) return [];
+  return filterDemoRecordsForUser(state, user, state.leadSources || [], "leadSources");
+}
+
 function visibleLeadStatusHistoryForUser(state, user) {
   if (!canViewLeads(user)) return [];
   return filterDemoRecordsForUser(state, user, state.leadStatusHistory, "leadStatusHistory");
@@ -3097,12 +3109,14 @@ function assertCanViewCustomers(user) {
 
 function leadPermissionsForUser(user) {
   if (!user) {
-    return { canView: false, canManage: false };
+    return { canView: false, canManage: false, canViewSources: false, canManageSources: false };
   }
 
   return {
     canView: canViewLeads(user),
     canManage: canManageLeads(user),
+    canViewSources: canViewLeads(user),
+    canManageSources: canManageLeads(user),
   };
 }
 
@@ -3116,6 +3130,18 @@ function assertCanViewLeads(user) {
   if (!canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to view leads.");
   }
+}
+
+function normalizeLeadSourceForWrite(payload, { existing = null, changedAt = new Date().toISOString(), id = "" } = {}) {
+  const errors = validateLeadSourcePayload(payload, { existing });
+  if (errors.length > 0) {
+    throw new ApiError(400, errors[0]);
+  }
+
+  return normalizeLeadSourcePayload(payload, {
+    existing: existing || { id },
+    now: changedAt,
+  });
 }
 
 function assertCanCreateJobs(user) {
@@ -4214,6 +4240,7 @@ function sanitizeBootstrap(state, user) {
   const users = visibleUsers(state, user);
   const customers = visibleCustomersForUser(state, user);
   const leads = visibleLeadsForUser(state, user);
+  const leadSources = visibleLeadSourcesForUser(state, user);
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
   const jobDraftImports = visibleImportedJobDraftsForUser(state, user);
@@ -4240,6 +4267,7 @@ function sanitizeBootstrap(state, user) {
     users,
     customers,
     leads,
+    leadSources,
     leadStatusHistory,
     estimates,
     jobDraftImports,
@@ -6820,9 +6848,151 @@ app.get("/api/leads", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
   res.json({
     leads: visibleLeadsForUser(state, req.auth.user),
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
     leadStatusHistory: visibleLeadStatusHistoryForUser(state, req.auth.user),
     requestId: res.locals.requestId,
   });
+}));
+
+app.get("/api/lead-sources", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewLeads(req.auth.user);
+  const state = await readDb();
+  res.json({
+    leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/lead-sources", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.leadSources ||= [];
+    const leadSource = normalizeLeadSourceForWrite(req.body || {}, {
+      id: makeId("LS"),
+      changedAt,
+    });
+    draft.leadSources.unshift(leadSource);
+    appendActivity(draft, "Lead source added", `${req.auth.user.name} added ${leadSource.name}.`);
+    appendAuditEvent(draft, {
+      entityType: "leadSource",
+      entityId: leadSource.id,
+      action: "created",
+      summary: "Lead source added",
+      detail: leadSource.name,
+      actor: req.auth.user,
+      changedFields: ["name", "type", "status", "checkCadence"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/lead-sources/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.leadSources ||= [];
+    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    const previous = { ...leadSource };
+    const normalized = normalizeLeadSourceForWrite(req.body || {}, {
+      existing: leadSource,
+      changedAt,
+    });
+    const changedFields = [
+      "name",
+      "type",
+      "url",
+      "city",
+      "state",
+      "serviceArea",
+      "tradeFocus",
+      "notes",
+      "status",
+      "checkCadence",
+      "lastCheckedAt",
+      "nextCheckAt",
+    ].filter((field) => (previous[field] || "") !== (normalized[field] || ""));
+
+    Object.assign(leadSource, normalized, {
+      id: leadSource.id,
+      createdAt: leadSource.createdAt || normalized.createdAt,
+      archivedAt: normalized.status === "Inactive" ? (leadSource.archivedAt || null) : null,
+      updatedAt: changedAt,
+    });
+
+    appendActivity(draft, "Lead source updated", `${req.auth.user.name} updated ${leadSource.name}.`);
+    appendAuditEvent(draft, {
+      entityType: "leadSource",
+      entityId: leadSource.id,
+      action: "updated",
+      summary: "Lead source updated",
+      detail: leadSource.name,
+      actor: req.auth.user,
+      changedFields: changedFields.length > 0 ? changedFields : ["updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/lead-sources/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.leadSources ||= [];
+    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    leadSource.status = "Inactive";
+    leadSource.archivedAt = changedAt;
+    markUpdated(leadSource, changedAt);
+    appendActivity(draft, "Lead source deactivated", `${leadSource.name} was marked inactive.`);
+    appendAuditEvent(draft, {
+      entityType: "leadSource",
+      entityId: leadSource.id,
+      action: "deactivated",
+      summary: "Lead source deactivated",
+      detail: leadSource.name,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/lead-sources/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.leadSources ||= [];
+    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    leadSource.status = "Active";
+    leadSource.archivedAt = null;
+    markUpdated(leadSource, changedAt);
+    appendActivity(draft, "Lead source reactivated", `${leadSource.name} was marked active.`);
+    appendAuditEvent(draft, {
+      entityType: "leadSource",
+      entityId: leadSource.id,
+      action: "reactivated",
+      summary: "Lead source reactivated",
+      detail: leadSource.name,
+      actor: req.auth.user,
+      changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
 }));
 
 app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {

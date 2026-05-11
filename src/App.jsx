@@ -18,6 +18,7 @@ import {
   createToolChecklist,
   archiveJob,
   archiveLead,
+  archiveLeadSource,
   archiveQueueItem,
   bootstrapAdminAccount,
   convertEstimateToJob,
@@ -33,6 +34,7 @@ import {
   createJob,
   importJobDraftPackage,
   createLead,
+  createLeadSource,
   createPostPourChecklist,
   createPrePourChecklist,
   createQueueItem,
@@ -65,6 +67,7 @@ import {
   restoreCustomer,
   restoreJob,
   restoreLead,
+  restoreLeadSource,
   restoreQueueItem,
   submitDailyReport,
   submitPublicEstimateRequest,
@@ -80,6 +83,7 @@ import {
   updateJobDraftImport,
   updateJob,
   updateLead,
+  updateLeadSource,
   updatePpeItem,
   updatePostPourChecklist,
   updatePostPourChecklistItem,
@@ -115,6 +119,7 @@ import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobT
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
+import { createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -228,6 +233,7 @@ const EMPTY_APP_STATE = {
   users: [],
   customers: [],
   leads: [],
+  leadSources: [],
   leadStatusHistory: [],
   estimates: [],
   jobDraftImports: [],
@@ -535,6 +541,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     users: normalizeObjectArray(source.users, fallback.users),
     customers: normalizeObjectArray(source.customers, fallback.customers),
     leads: normalizeObjectArray(source.leads, fallback.leads),
+    leadSources: normalizeObjectArray(source.leadSources, fallback.leadSources),
     leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
     estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
     jobDraftImports: normalizeObjectArray(source.jobDraftImports, fallback.jobDraftImports),
@@ -603,6 +610,8 @@ const INITIAL_LEAD_FORM = {
   nextStep: "",
   notes: "",
 };
+
+const INITIAL_LEAD_SOURCE_FORM = createLeadSourceDraft();
 
 const INITIAL_JOB_FORM = {
   customerId: "",
@@ -7263,8 +7272,196 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
   );
 }
 
+function LeadSourcesPanel({
+  sources = [],
+  canManage = false,
+  onCreateSource = async () => false,
+  onUpdateSource = async () => false,
+  onArchiveSource = async () => false,
+  onRestoreSource = async () => false,
+  disabled = false,
+}) {
+  const [draft, setDraft] = useState(INITIAL_LEAD_SOURCE_FORM);
+  const [editingId, setEditingId] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const [query, setQuery] = useState("");
+  const [formError, setFormError] = useState("");
+  const sourceState = useMemo(() => deriveLeadSourceListState(sources, { includeInactive: showInactive, query }), [query, showInactive, sources]);
+  const activeEditingSource = editingId ? sources.find((source) => source.id === editingId) : null;
+
+  function resetDraft() {
+    setDraft(INITIAL_LEAD_SOURCE_FORM);
+    setEditingId("");
+    setFormError("");
+  }
+
+  function setDraftField(field, value) {
+    setDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function editSource(source) {
+    setEditingId(source.id);
+    setDraft(createLeadSourceDraft(source));
+    setFormError("");
+  }
+
+  function applyStarter(starterId) {
+    if (!starterId) return;
+    setDraft(createLeadSourceDraftFromStarter(starterId));
+    setEditingId("");
+    setFormError("");
+  }
+
+  async function submitSource(event) {
+    event.preventDefault();
+    if (!canManage) return;
+    const errors = validateLeadSourcePayload(draft, { existing: activeEditingSource });
+    if (errors.length > 0) {
+      setFormError(errors[0]);
+      return;
+    }
+
+    const didSave = editingId
+      ? await onUpdateSource(editingId, draft)
+      : await onCreateSource(draft);
+
+    if (didSave) {
+      resetDraft();
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-blue-100 bg-blue-50/60 p-4">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <Badge tone="green">Lead Sources</Badge>
+            <h3 className="mt-2 text-base font-black text-slate-950">Sources to check manually</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Track bid pages, plan rooms, referral lists, and relationship sources. This is source management only; no scraping, AI, or automatic checks run here.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-3 xl:min-w-[420px]">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-lg font-black text-slate-950">{sourceState.stats.active}</p>
+              <Badge tone="green">Active</Badge>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-lg font-black text-slate-950">{sourceState.stats.inactive}</p>
+              <Badge tone="slate">Inactive</Badge>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-lg font-black text-slate-950">{sourceState.stats.dueForCheck}</p>
+              <Badge tone={sourceState.stats.dueForCheck > 0 ? "amber" : "slate"}>Due</Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <div className="min-w-0 space-y-3">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              className="field-input sm:max-w-md"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search sources, cities, notes..."
+            />
+            <label className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+              <input type="checkbox" checked={showInactive} onChange={(event) => setShowInactive(event.target.checked)} />
+              Show inactive
+            </label>
+          </div>
+
+          {sourceState.sources.length > 0 ? (
+            <div className="space-y-3">
+              {sourceState.sources.map((source) => (
+                <div key={source.id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                  <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="break-words text-sm font-black text-slate-950">{source.name || "Unnamed source"}</p>
+                        <Badge tone={source.status === "Active" ? "green" : "slate"}>{source.status || "Active"}</Badge>
+                      </div>
+                      <p className="mt-1 break-words text-xs font-bold text-slate-500">
+                        {[source.type, leadSourceLocation(source), source.tradeFocus].filter(Boolean).join(" / ")}
+                      </p>
+                      <p className="mt-2 break-words text-sm leading-6 text-slate-600">{source.notes || "No notes yet."}</p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                        <span>Cadence: {source.checkCadence || "Manual"}</span>
+                        <span>Last: {source.lastCheckedAt || "Not set"}</span>
+                        <span>Next: {source.nextCheckAt || "Not set"}</span>
+                      </div>
+                    </div>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto">
+                      {source.url ? (
+                        <a className="inline-flex min-w-0 max-w-full items-center justify-center rounded-2xl border border-blue-100 bg-white px-3 py-2 text-center text-xs font-black leading-tight text-slate-700 transition hover:bg-blue-50" href={source.url} target="_blank" rel="noreferrer">Open source URL</a>
+                      ) : null}
+                      {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => editSource(source)} disabled={disabled}>Edit</Button> : null}
+                      {canManage && source.status === "Active" ? (
+                        <Button type="button" size="sm" variant="ghost" onClick={() => onArchiveSource(source.id)} disabled={disabled}>Deactivate</Button>
+                      ) : null}
+                      {canManage && source.status !== "Active" ? (
+                        <Button type="button" size="sm" variant="ghost" onClick={() => onRestoreSource(source.id)} disabled={disabled}>Reactivate</Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <StateCard title="No lead sources yet" description="Add bid pages, plan rooms, referral lists, or other manual sources for the office to review." tone="slate" />
+          )}
+        </div>
+
+        <form onSubmit={submitSource} className="min-w-0 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+          <SectionHeader
+            title={editingId ? "Edit lead source" : "Add lead source"}
+            description="Name is required. URL is optional because relationship sources may not have one."
+          />
+          <div className="mt-4 space-y-3">
+            <SelectField label="Starter template" value="" onChange={(event) => applyStarter(event.target.value)} disabled={!canManage || disabled}>
+              <option value="">Choose starter...</option>
+              {LEAD_SOURCE_STARTERS.map((starter) => <option key={starter.id} value={starter.id}>{starter.label}</option>)}
+            </SelectField>
+            <InputField label="Source name" value={draft.name} onChange={(event) => setDraftField("name", event.target.value)} disabled={!canManage || disabled} required />
+            <SelectField label="Type/category" value={draft.type} onChange={(event) => setDraftField("type", event.target.value)} disabled={!canManage || disabled}>
+              {LEAD_SOURCE_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+            </SelectField>
+            <InputField label="URL / website / portal link" value={draft.url} onChange={(event) => setDraftField("url", event.target.value)} disabled={!canManage || disabled} placeholder="https://example.com/bids" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InputField label="City" value={draft.city} onChange={(event) => setDraftField("city", event.target.value)} disabled={!canManage || disabled} />
+              <InputField label="State" value={draft.state} onChange={(event) => setDraftField("state", event.target.value)} disabled={!canManage || disabled} />
+            </div>
+            <InputField label="Service area" value={draft.serviceArea} onChange={(event) => setDraftField("serviceArea", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Trade / industry focus" value={draft.tradeFocus} onChange={(event) => setDraftField("tradeFocus", event.target.value)} disabled={!canManage || disabled} />
+            <SelectField label="Check cadence" value={draft.checkCadence} onChange={(event) => setDraftField("checkCadence", event.target.value)} disabled={!canManage || disabled}>
+              {LEAD_SOURCE_CADENCE_OPTIONS.map((cadence) => <option key={cadence} value={cadence}>{cadence}</option>)}
+            </SelectField>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InputField label="Last checked" type="date" value={draft.lastCheckedAt} onChange={(event) => setDraftField("lastCheckedAt", event.target.value)} disabled={!canManage || disabled} />
+              <InputField label="Next check" type="date" value={draft.nextCheckAt} onChange={(event) => setDraftField("nextCheckAt", event.target.value)} disabled={!canManage || disabled} />
+            </div>
+            <SelectField label="Status" value={draft.status} onChange={(event) => setDraftField("status", event.target.value)} disabled={!canManage || disabled}>
+              <option>Active</option>
+              <option>Inactive</option>
+            </SelectField>
+            <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraftField("notes", event.target.value)} disabled={!canManage || disabled} placeholder="Do not store passwords, API keys, or private credentials here." />
+            {formError ? <p className="rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{formError}</p> : null}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" disabled={!canManage || disabled}>{editingId ? "Save Source" : "Add Source"}</Button>
+              {editingId ? <Button type="button" variant="secondary" onClick={resetDraft} disabled={disabled}>Cancel</Button> : null}
+            </div>
+          </div>
+        </form>
+      </div>
+    </Card>
+  );
+}
+
 function LeadsPage({
   leads = [],
+  leadSources = [],
   rows,
   filter,
   setFilter,
@@ -7293,6 +7490,10 @@ function LeadsPage({
   onArchiveLead,
   onRestoreLead,
   onDeleteLead,
+  onCreateLeadSource,
+  onUpdateLeadSource,
+  onArchiveLeadSource,
+  onRestoreLeadSource,
   relatedLeadRecords,
   busy,
   leadSaveState,
@@ -7304,6 +7505,17 @@ function LeadsPage({
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onCreateEstimateFromLead={onCreateEstimateFromLead} canCreateEstimate={permissions?.estimates?.canManage} />
+      </div>
+      <div className="px-5 pb-4 sm:px-6 lg:px-8">
+        <LeadSourcesPanel
+          sources={leadSources}
+          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
+          onCreateSource={onCreateLeadSource}
+          onUpdateSource={onUpdateLeadSource}
+          onArchiveSource={onArchiveLeadSource}
+          onRestoreSource={onRestoreLeadSource}
+          disabled={busy}
+        />
       </div>
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
@@ -12205,6 +12417,7 @@ export default function App() {
         auditEvents: normalizedNextState.auditEvents,
         permissions: normalizedNextState.permissions,
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
+        leadSources: normalizedNextState.leadSources,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
         jobDraftImports: normalizedNextState.jobDraftImports,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
@@ -12906,6 +13119,74 @@ export default function App() {
       });
       return nextState;
     });
+  }
+
+  async function handleCreateLeadSource(payload) {
+    if (!sessionToken || !(appState.permissions.leads.canManageSources ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await createLeadSource(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateLeadSource(sourceId, payload) {
+    if (!sessionToken || !(appState.permissions.leads.canManageSources ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateLeadSource(sessionToken, sourceId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveLeadSource(sourceId) {
+    if (!sessionToken || !(appState.permissions.leads.canManageSources ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveLeadSource(sessionToken, sourceId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestoreLeadSource(sourceId) {
+    if (!sessionToken || !(appState.permissions.leads.canManageSources ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await restoreLeadSource(sessionToken, sourceId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleCreateCustomer(event) {
@@ -14226,6 +14507,7 @@ export default function App() {
               dashboardMetrics={dashboardMetrics}
               customers={appState.customers}
               leads={appState.leads}
+              leadSources={appState.leadSources}
               estimates={appState.estimates}
               jobDraftImports={appState.jobDraftImports}
               jobs={appState.jobs}
@@ -14334,6 +14616,10 @@ export default function App() {
               leadDraft={leadDraft}
               setLeadDraft={setLeadDraft}
               onCreateLead={handleCreateLead}
+              onCreateLeadSource={handleCreateLeadSource}
+              onUpdateLeadSource={handleUpdateLeadSource}
+              onArchiveLeadSource={handleArchiveLeadSource}
+              onRestoreLeadSource={handleRestoreLeadSource}
               onCreateJobFromLead={handleCreateJobFromLead}
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}

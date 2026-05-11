@@ -103,6 +103,22 @@ export function createLead(token, lead) {
   return request("/api/leads", { method: "POST", token, body: lead });
 }
 
+export function createLeadSource(token, source) {
+  return request("/api/lead-sources", { method: "POST", token, body: source });
+}
+
+export function updateLeadSource(token, id, source) {
+  return request(`/api/lead-sources/${id}`, { method: "PATCH", token, body: source });
+}
+
+export function archiveLeadSource(token, id) {
+  return request(`/api/lead-sources/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreLeadSource(token, id) {
+  return request(`/api/lead-sources/${id}/restore`, { method: "POST", token });
+}
+
 export function getEstimates(token) {
   return request("/api/estimates", { token });
 }

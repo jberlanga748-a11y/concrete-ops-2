@@ -47,6 +47,10 @@ async function run() {
       throw new Error("Expected JSON export to contain the seeded lead rows.");
     }
 
+    if (!Array.isArray(exportPayload.state?.leadSources)) {
+      throw new Error("Expected JSON export to include lead source records.");
+    }
+
     const exportedJob = exportPayload.state.jobs?.[0];
     if (!exportedJob || !Array.isArray(exportedJob.startupChecklist) || !exportedJob.startupStatus) {
       throw new Error("Expected JSON export to include job startup checklist fields.");
@@ -57,6 +61,11 @@ async function run() {
       const leadCount = database.prepare("SELECT COUNT(*) AS count FROM leads").get().count;
       if (leadCount !== exportPayload.state.leads.length) {
         throw new Error("Expected SQLite backup and JSON export to contain the same lead count.");
+      }
+
+      const leadSourceCount = database.prepare("SELECT COUNT(*) AS count FROM lead_sources").get().count;
+      if (leadSourceCount !== exportPayload.state.leadSources.length) {
+        throw new Error("Expected SQLite backup and JSON export to contain the same lead source count.");
       }
 
       const startupColumn = database.prepare("SELECT startup_status AS startupStatus FROM jobs LIMIT 1").get();

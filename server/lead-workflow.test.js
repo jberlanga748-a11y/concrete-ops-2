@@ -129,9 +129,74 @@ test("lead workflow supports assignment, status history, customer linking, archi
 
     assert.equal(before.permissions.leads.canView, true);
     assert.equal(before.permissions.leads.canManage, true);
+    assert.equal(before.permissions.leads.canViewSources, true);
+    assert.equal(before.permissions.leads.canManageSources, true);
+    assert.ok(Array.isArray(before.leadSources), "Expected lead sources to be present in bootstrap state.");
 
     const existingCustomer = before.customers.find((customer) => !customer.archivedAt);
     assert.ok(existingCustomer, "Expected seeded customers to be available.");
+
+    const sourceState = await assertOk(fixture.baseUrl, "/api/lead-sources", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Albany bid page",
+        type: "City/county/school bid page",
+        url: "albany.example.com/bids",
+        city: "Albany",
+        state: "or",
+        serviceArea: "Albany and Linn County",
+        tradeFocus: "Sidewalks and ADA ramps",
+        notes: "Manual source only. No passwords stored.",
+        checkCadence: "Weekly",
+        nextCheckAt: "2026-05-12",
+      }),
+    });
+    const createdSource = sourceState.leadSources.find((source) => source.name === "Albany bid page");
+    assert.ok(createdSource, "Expected created lead source to be returned.");
+    assert.equal(createdSource.url, "https://albany.example.com/bids");
+    assert.equal(createdSource.state, "OR");
+    assert.equal(createdSource.status, "Active");
+    assert.ok(sourceState.auditEvents.some((event) => event.entityType === "leadSource" && event.entityId === createdSource.id && event.action === "created"));
+
+    const updatedSourceState = await assertOk(fixture.baseUrl, `/api/lead-sources/${createdSource.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        checkCadence: "Monthly",
+        lastCheckedAt: "2026-05-11",
+        notes: "Checked manually by office.",
+      }),
+    });
+    const updatedSource = updatedSourceState.leadSources.find((source) => source.id === createdSource.id);
+    assert.equal(updatedSource.checkCadence, "Monthly");
+    assert.equal(updatedSource.lastCheckedAt, "2026-05-11");
+
+    const inactiveSourceState = await assertOk(fixture.baseUrl, `/api/lead-sources/${createdSource.id}/archive`, {
+      method: "POST",
+      headers,
+    });
+    const inactiveSource = inactiveSourceState.leadSources.find((source) => source.id === createdSource.id);
+    assert.equal(inactiveSource.status, "Inactive");
+    assert.ok(inactiveSource.archivedAt, "Expected deactivation to stamp archivedAt.");
+
+    const restoredSourceState = await assertOk(fixture.baseUrl, `/api/lead-sources/${createdSource.id}/restore`, {
+      method: "POST",
+      headers,
+    });
+    const restoredSource = restoredSourceState.leadSources.find((source) => source.id === createdSource.id);
+    assert.equal(restoredSource.status, "Active");
+    assert.equal(restoredSource.archivedAt, null);
+
+    const invalidSource = await requestJson(fixture.baseUrl, "/api/lead-sources", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "",
+      }),
+    });
+    assert.equal(invalidSource.response.status, 400);
+    assert.match(invalidSource.payload.error, /source name/i);
 
     const createState = await assertOk(fixture.baseUrl, "/api/leads", {
       method: "POST",
@@ -309,6 +374,17 @@ test("lead permissions keep office access while hiding lead data from employees 
     const opsLead = opsCreate.leads.find((lead) => lead.customer === "Managed by Ops");
     assert.ok(opsLead, "Expected operations manager to create a lead.");
 
+    const opsSourceState = await assertOk(fixture.baseUrl, "/api/lead-sources", {
+      method: "POST",
+      headers: opsHeaders,
+      body: JSON.stringify({
+        name: "Ops-only bid source",
+        type: "Manual source",
+      }),
+    });
+    const opsSource = opsSourceState.leadSources.find((source) => source.name === "Ops-only bid source");
+    assert.ok(opsSource, "Expected operations manager to create a lead source.");
+
     const estimatorLogin = await login(fixture.baseUrl, {
       email: "estimator@lastyard.test",
       password: "concrete123",
@@ -319,6 +395,7 @@ test("lead permissions keep office access while hiding lead data from employees 
     assert.equal(estimatorBootstrap.permissions.leads.canManage, true);
     const estimatorLeads = await assertOk(fixture.baseUrl, "/api/leads", { headers: estimatorHeaders });
     assert.ok(Array.isArray(estimatorLeads.leads));
+    assert.ok(Array.isArray(estimatorLeads.leadSources));
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee@lastyard.test",
@@ -328,7 +405,10 @@ test("lead permissions keep office access while hiding lead data from employees 
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: employeeHeaders });
     assert.equal(employeeBootstrap.permissions.leads.canView, false);
     assert.equal(employeeBootstrap.permissions.leads.canManage, false);
+    assert.equal(employeeBootstrap.permissions.leads.canViewSources, false);
+    assert.equal(employeeBootstrap.permissions.leads.canManageSources, false);
     assert.equal(employeeBootstrap.leads.length, 0);
+    assert.equal(employeeBootstrap.leadSources.length, 0);
     assert.equal(employeeBootstrap.leadStatusHistory.length, 0);
     assert.equal(employeeBootstrap.customers.length, 0);
     assert.equal(employeeBootstrap.stats.newLeads, 0);
@@ -350,6 +430,35 @@ test("lead permissions keep office access while hiding lead data from employees 
       headers: employeeHeaders,
     });
     assert.equal(listDenied.response.status, 403);
+
+    const sourceListDenied = await requestJson(fixture.baseUrl, "/api/lead-sources", {
+      headers: employeeHeaders,
+    });
+    assert.equal(sourceListDenied.response.status, 403);
+
+    const sourceCreateDenied = await requestJson(fixture.baseUrl, "/api/lead-sources", {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        name: "Blocked field source",
+      }),
+    });
+    assert.equal(sourceCreateDenied.response.status, 403);
+
+    const sourcePatchDenied = await requestJson(fixture.baseUrl, `/api/lead-sources/${opsSource.id}`, {
+      method: "PATCH",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        notes: "Should not be allowed.",
+      }),
+    });
+    assert.equal(sourcePatchDenied.response.status, 403);
+
+    const sourceArchiveDenied = await requestJson(fixture.baseUrl, `/api/lead-sources/${opsSource.id}/archive`, {
+      method: "POST",
+      headers: employeeHeaders,
+    });
+    assert.equal(sourceArchiveDenied.response.status, 403);
 
     const patchDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}`, {
       method: "PATCH",
@@ -389,6 +498,7 @@ test("lead permissions keep office access while hiding lead data from employees 
     assert.equal(foremanBootstrap.permissions.leads.canManage, false);
     assert.equal(foremanBootstrap.permissions.customers.canView, false);
     assert.equal(foremanBootstrap.leads.length, 0);
+    assert.equal(foremanBootstrap.leadSources.length, 0);
     assert.equal(foremanBootstrap.customers.length, 0);
     assert.equal(foremanBootstrap.stats.newLeads, 0);
     assert.equal(foremanBootstrap.stats.pipelineValue, 0);

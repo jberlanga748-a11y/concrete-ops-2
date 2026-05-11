@@ -602,6 +602,7 @@ export function createEmptyState() {
     sessions: [],
     customers: [],
     leads: [],
+    leadSources: [],
     leadStatusHistory: [],
     jobs: [],
     jobAssignments: [],
@@ -1765,6 +1766,7 @@ export function createSeedState() {
     sessions: [],
     customers,
     leads,
+    leadSources: [],
     leadStatusHistory,
     jobs,
     jobAssignments: includeDemoRecords ? jobAssignments : [],
@@ -4758,6 +4760,37 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 36,
+      description: "Add lead source management table.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS lead_sources (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            url TEXT NOT NULL,
+            city TEXT NOT NULL,
+            state TEXT NOT NULL,
+            service_area TEXT NOT NULL,
+            trade_focus TEXT NOT NULL,
+            notes TEXT NOT NULL,
+            status TEXT NOT NULL,
+            check_cadence TEXT NOT NULL,
+            last_checked_at TEXT NOT NULL,
+            next_check_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_lead_sources_sort_index ON lead_sources(sort_index);
+          CREATE INDEX IF NOT EXISTS idx_lead_sources_status ON lead_sources(status);
+          CREATE INDEX IF NOT EXISTS idx_lead_sources_type ON lead_sources(type);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -4814,6 +4847,11 @@ function writeStateToDb(state) {
   const insertLead = database.prepare(`
     INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertLeadSource = database.prepare(`
+    INSERT INTO lead_sources (id, sort_index, name, type, url, city, state, service_area, trade_focus, notes, status, check_cadence, last_checked_at, next_check_at, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadStatusHistory = database.prepare(`
@@ -4962,6 +5000,7 @@ function writeStateToDb(state) {
       DELETE FROM users;
       DELETE FROM customers;
       DELETE FROM lead_status_history;
+      DELETE FROM lead_sources;
       DELETE FROM leads;
       DELETE FROM job_assignments;
       DELETE FROM jobs;
@@ -5065,6 +5104,28 @@ function writeStateToDb(state) {
         lead.createdAt || isoNow(),
         lead.updatedAt || lead.createdAt || isoNow(),
         lead.archivedAt || null,
+      );
+    });
+
+    (state.leadSources || []).forEach((source, index) => {
+      insertLeadSource.run(
+        source.id,
+        index,
+        source.name || "",
+        source.type || "Manual source",
+        source.url || "",
+        source.city || "",
+        source.state || "",
+        source.serviceArea || "",
+        source.tradeFocus || "",
+        source.notes || "",
+        source.status || (source.archivedAt ? "Inactive" : "Active"),
+        source.checkCadence || "Manual",
+        source.lastCheckedAt || "",
+        source.nextCheckAt || "",
+        source.createdAt || isoNow(),
+        source.updatedAt || source.createdAt || isoNow(),
+        source.archivedAt || null,
       );
     });
 
@@ -5644,6 +5705,13 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all();
 
+  const leadSources = database.prepare(`
+    SELECT id, name, type, url, city, state, service_area AS serviceArea, trade_focus AS tradeFocus, notes, status, check_cadence AS checkCadence,
+           last_checked_at AS lastCheckedAt, next_check_at AS nextCheckAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM lead_sources
+    ORDER BY sort_index ASC
+  `).all();
+
   const leadStatusHistory = database.prepare(`
     SELECT id, lead_id AS leadId, from_status AS fromStatus, to_status AS toStatus, note, actor_user_id AS actorUserId, actor_name AS actorName, created_at AS createdAt
     FROM lead_status_history
@@ -5882,6 +5950,7 @@ function readTableState() {
     sessions,
     customers,
     leads,
+    leadSources,
     leadStatusHistory,
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
