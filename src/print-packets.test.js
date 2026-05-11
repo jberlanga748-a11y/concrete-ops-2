@@ -148,9 +148,32 @@ test("estimate print packet includes customer-facing estimate details without in
       title: "Martinez Driveway Proposal",
       status: "sent",
       createdAt: "2026-04-26T16:30:00Z",
-      scopeSummary: "Replace cracked driveway panels and pour a broom-finish apron.",
+      scopeSummary: [
+        "Scope of Work:",
+        "Replace cracked driveway panels and pour a broom-finish apron.",
+        "",
+        "Inclusions:",
+        "Demo, haul-off, forming, placement, and broom finish.",
+        "",
+        "Exclusions:",
+        "Permit fees and utility relocation.",
+        "",
+        "Assumptions / Clarifications:",
+        "Customer will provide clear access before the pour.",
+      ].join("\n"),
       internalNotes: "Office-only follow-up note.",
-      customerNotes: "Estimate is valid for 30 days.",
+      customerNotes: [
+        "Customer Notes / Terms:",
+        "Estimate is valid for 30 days.",
+        "",
+        "Alternates:",
+        "- [optional] Stamped border | Amount: $1,250.00 | Description: Add stamped border.",
+        "- [accepted] Thicker driveway edge | Amount: $900.00",
+        "- [excluded] Extra sawcutting | Amount: $300.00",
+        "",
+        "Optional Add-ons:",
+        "- [selected] Sealer | Amount: $450.00",
+      ].join("\n"),
       customer: { name: "Martinez Residence" },
       lead: { customer: "Martinez Residence", project: "Driveway replacement estimate" },
       items: [
@@ -165,8 +188,22 @@ test("estimate print packet includes customer-facing estimate details without in
   const html = buildPrintDocumentHtml(packet);
   assert.match(html, /Martinez Driveway Proposal/);
   assert.match(html, /Driveway replacement estimate/);
+  assert.match(html, /Scope of Work/);
+  assert.match(html, /Inclusions/);
+  assert.match(html, /Exclusions/);
+  assert.match(html, /Assumptions \/ Clarifications/);
+  assert.match(html, /Demo, haul-off, forming, placement, and broom finish\./);
+  assert.match(html, /Permit fees and utility relocation\./);
   assert.match(html, /Demo and haul off/);
-  assert.match(html, /Grand total/);
+  assert.match(html, /Base Estimate Total/);
+  assert.match(html, /Base estimate total/);
+  assert.match(html, /Alternates/);
+  assert.match(html, /Stamped border/);
+  assert.match(html, /Thicker driveway edge/);
+  assert.match(html, /Optional Add-ons/);
+  assert.match(html, /Sealer/);
+  assert.match(html, /Selected options total/);
+  assert.match(html, /Total with selected options/);
   assert.match(html, /Estimate is valid for 30 days\./);
   assert.match(html, /COD/);
   assert.match(html, /\(503\) 555-0100/);
@@ -179,8 +216,29 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /Internal job documentation\. Review all details before sharing outside the company\./);
   assert.doesNotMatch(html, /Office-only follow-up note\./);
   assert.match(html, /@page \{ margin: 0\.5in; \}/);
+  assert.match(html, /white-space: pre-line/);
   assert.match(html, /page-break-inside: avoid/);
   assert.match(html, /page-break-after: avoid/);
+});
+
+test("estimate print packet keeps old plain estimates readable", () => {
+  const packet = deriveEstimatePrintPacket({
+    estimate: {
+      id: "EST-LEGACY",
+      title: "Plain Estimate",
+      scopeSummary: "Plain one-paragraph scope.",
+      customerNotes: "Plain customer terms.",
+      items: [],
+    },
+  });
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.match(html, /Scope of Work/);
+  assert.match(html, /Plain one-paragraph scope\./);
+  assert.match(html, /Customer Notes \/ Terms/);
+  assert.match(html, /Plain customer terms\./);
+  assert.doesNotMatch(html, /Alternates/);
+  assert.doesNotMatch(html, /Total with selected options/);
 });
 
 test("print packet helpers tolerate missing linked arrays and render clean empty states", () => {

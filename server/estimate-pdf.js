@@ -1,12 +1,10 @@
 import PDFDocument from "pdfkit";
 
 import {
-  calculateEstimateLineTotal,
-  calculateEstimateTotals,
   estimateCustomerName,
   estimateProjectName,
-  formatEstimateCurrency,
 } from "../shared/estimate-email.js";
+import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
 
 const COLORS = {
   navy: "#0f2a44",
@@ -35,6 +33,16 @@ function cleanText(value, fallback = "") {
     .replace(/\r?\n/g, " ")
     .replace(/[^\x09\x20-\x7E]/g, "")
     .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanMultilineText(value, fallback = "") {
+  return String(value ?? fallback)
+    .replace(/\r\n/g, "\n")
+    .replace(/[^\x09\x0A\x20-\x7E]/g, "")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .join("\n")
     .trim();
 }
 
@@ -88,7 +96,7 @@ function drawWrappedText(doc, text, options = {}) {
     .font(options.font || "Helvetica")
     .fontSize(options.size || 10)
     .fillColor(options.color || COLORS.slateDark)
-    .text(cleanText(text, options.fallback || ""), options.x || PAGE_MARGIN, options.y ?? doc.y, {
+    .text(cleanMultilineText(text, options.fallback || ""), options.x || PAGE_MARGIN, options.y ?? doc.y, {
       width: options.width || CONTENT_WIDTH,
       lineGap: options.lineGap ?? 3,
     });
@@ -186,13 +194,21 @@ function drawProposalIntro(doc, { estimate, customerName, projectName }) {
   doc.y = top + 106;
 }
 
-function drawLineItemsTable(doc, estimate) {
+function drawTextSection(doc, title, text) {
+  if (!cleanMultilineText(text)) return;
+  ensureSpace(doc, 64);
+  addSectionTitle(doc, title);
+  drawWrappedText(doc, text, { lineGap: 4 });
+  doc.moveDown(1.1);
+}
+
+function drawLineItemsTable(doc, lineItems = []) {
   addSectionTitle(doc, "Line Items");
   const startX = PAGE_MARGIN;
   const headerHeight = 24;
   const rowPadding = 8;
   const rowTextTop = 8;
-  const items = Array.isArray(estimate.items) ? estimate.items : [];
+  const items = Array.isArray(lineItems) ? lineItems : [];
 
   function drawHeaderRow() {
     const y = doc.y;
@@ -242,25 +258,65 @@ function drawLineItemsTable(doc, estimate) {
     x += TABLE_COLUMNS.quantity;
     doc.text(cleanText(item?.unit), x, y + rowTextTop, { width: TABLE_COLUMNS.unit, align: "center" });
     x += TABLE_COLUMNS.unit;
-    doc.text(formatEstimateCurrency(item?.unitPrice || 0), x, y + rowTextTop, { width: TABLE_COLUMNS.unitPrice, align: "right" });
+    doc.text(item?.unitPriceLabel || "$0.00", x, y + rowTextTop, { width: TABLE_COLUMNS.unitPrice, align: "right" });
     x += TABLE_COLUMNS.unitPrice;
-    doc.font("Helvetica-Bold").text(formatEstimateCurrency(calculateEstimateLineTotal(item)), x, y + rowTextTop, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
+    doc.font("Helvetica-Bold").text(item?.lineTotalLabel || "$0.00", x, y + rowTextTop, { width: TABLE_COLUMNS.lineTotal - rowPadding, align: "right" });
     doc.y = y + rowHeight;
   });
 
   doc.moveDown(0.8);
 }
 
-function drawTotals(doc, totals) {
-  ensureSpace(doc, 112);
+function drawOptionsSection(doc, title, options = []) {
+  if (!Array.isArray(options) || options.length === 0) return;
+  ensureSpace(doc, 68);
+  addSectionTitle(doc, title);
+
+  options.forEach((option, index) => {
+    const titleText = cleanText(option.title, "Untitled option");
+    const meta = [option.statusLabel, option.amountLabel].filter(Boolean).join("  |  ");
+    const body = [option.description, option.notes].map((value) => cleanMultilineText(value)).filter(Boolean).join("\n");
+    const titleHeight = doc.heightOfString(titleText, { width: CONTENT_WIDTH - 24 });
+    const bodyHeight = body ? doc.heightOfString(body, { width: CONTENT_WIDTH - 24, lineGap: 2 }) : 0;
+    const rowHeight = Math.max(46, titleHeight + bodyHeight + 30);
+
+    ensureSpace(doc, rowHeight + 4);
+    const y = doc.y;
+    doc.roundedRect(PAGE_MARGIN, y, CONTENT_WIDTH, rowHeight, 10)
+      .fill(index % 2 === 0 ? COLORS.white : COLORS.slateSoft)
+      .strokeColor(COLORS.border)
+      .lineWidth(0.6)
+      .stroke();
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(COLORS.slateDark).text(titleText, PAGE_MARGIN + 12, y + 10, {
+      width: CONTENT_WIDTH - 24,
+    });
+    if (meta) {
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.blue).text(meta, PAGE_MARGIN + 12, doc.y + 3, {
+        width: CONTENT_WIDTH - 24,
+      });
+    }
+    if (body) {
+      doc.font("Helvetica").fontSize(8.8).fillColor(COLORS.slate).text(body, PAGE_MARGIN + 12, doc.y + 5, {
+        width: CONTENT_WIDTH - 24,
+        lineGap: 2,
+      });
+    }
+    doc.y = y + rowHeight + 7;
+  });
+  doc.moveDown(0.4);
+}
+
+function drawTotals(doc, totals, options = {}) {
+  ensureSpace(doc, options.hasSelectedOptionsTotal ? 170 : 126);
+  addSectionTitle(doc, "Base Estimate Total");
   const boxWidth = 260;
   const x = PAGE_MARGIN + CONTENT_WIDTH - boxWidth;
   const y = doc.y;
 
   const rows = [
-    ["Subtotal", formatEstimateCurrency(totals.subtotal)],
-    ...(totals.taxRate != null ? [[`Tax (${totals.taxRate}%)`, formatEstimateCurrency(totals.taxTotal || 0)]] : []),
-    ...(totals.feesTotal != null ? [["Fees", formatEstimateCurrency(totals.feesTotal || 0)]] : []),
+    ["Subtotal", totals.subtotalLabel],
+    ...(totals.taxRate != null ? [[`Tax (${totals.taxRate}%)`, totals.taxTotalLabel]] : []),
+    ...(totals.feesTotal != null ? [["Fees", totals.feesTotalLabel]] : []),
   ];
 
   rows.forEach(([label, value], index) => {
@@ -279,14 +335,37 @@ function drawTotals(doc, totals) {
     .font("Helvetica-Bold")
     .fontSize(10)
     .fillColor(COLORS.blueSoft)
-    .text("GRAND TOTAL", x + 14, totalY + 12, { width: 110 });
+    .text("BASE ESTIMATE TOTAL", x + 14, totalY + 12, { width: 118 });
   doc
     .font("Helvetica-Bold")
     .fontSize(16)
     .fillColor(COLORS.white)
-    .text(formatEstimateCurrency(totals.grandTotal), x + 126, totalY + 10, { width: 120, align: "right" });
+    .text(totals.grandTotalLabel, x + 126, totalY + 10, { width: 120, align: "right" });
 
-  doc.y = totalY + 52;
+  let nextY = totalY + 52;
+  if (options.hasSelectedOptionsTotal) {
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(COLORS.slateDark)
+      .text("Selected options total", x + 12, nextY + 5, { width: 118 });
+    doc.text(options.selectedOptionsTotalLabel, x + 126, nextY + 5, { width: 120, align: "right" });
+    nextY += 27;
+    doc.roundedRect(x, nextY, boxWidth, 34, 9).fill(COLORS.blue);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9.5)
+      .fillColor(COLORS.blueSoft)
+      .text("TOTAL WITH SELECTED OPTIONS", x + 14, nextY + 11, { width: 140 });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(14)
+      .fillColor(COLORS.white)
+      .text(options.totalWithSelectedOptionsLabel, x + 154, nextY + 9, { width: 92, align: "right" });
+    nextY += 46;
+  }
+
+  doc.y = nextY;
 }
 
 function drawAcceptanceBlock(doc) {
@@ -333,22 +412,16 @@ export async function buildEstimatePdfBuffer({
   });
   const customerName = estimateCustomerName(estimate) || "Customer pending";
   const projectName = estimateProjectName(estimate) || "Project pending";
-  const totals = calculateEstimateTotals(estimate.items, {
-    taxRate: estimate.taxRate,
-    feesTotal: estimate.feesTotal,
-  });
+  const printModel = deriveEstimatePrintModel(estimate);
 
   drawHeader(doc, { companyName, companyProfile });
   drawProposalIntro(doc, { estimate, customerName, projectName });
-  addSectionTitle(doc, "Scope Summary");
-  drawWrappedText(doc, estimate.scopeSummary || "No scope summary recorded.", { lineGap: 4 });
-  doc.moveDown(1.1);
-  drawLineItemsTable(doc, estimate);
-  drawTotals(doc, totals);
-  ensureSpace(doc, 72);
-  addSectionTitle(doc, "Customer Notes / Terms");
-  drawWrappedText(doc, estimate.customerNotes || "No customer notes recorded.", { lineGap: 4 });
-  doc.moveDown(1.3);
+  printModel.proposalSections.forEach((section) => drawTextSection(doc, section.title, section.text));
+  drawLineItemsTable(doc, printModel.lineItems);
+  drawOptionsSection(doc, "Alternates", printModel.options.alternates);
+  drawOptionsSection(doc, "Optional Add-ons", printModel.options.addOns);
+  drawTotals(doc, printModel.totals, printModel.options);
+  drawTextSection(doc, "Customer Notes / Terms", printModel.customerNotes);
   drawAcceptanceBlock(doc);
 
   const pageRange = doc.bufferedPageRange();

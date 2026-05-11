@@ -379,7 +379,7 @@ test("configured estimate email sends before marking estimate sent", async () =>
     assert.match(decodedText, /Martinez Residence/);
     assert.match(decodedText, /Driveway replacement estimate/);
     assert.match(decodedText, /Concrete placement/);
-    assert.match(decodedText, /GRAND TOTAL/);
+    assert.match(decodedText, /BASE ESTIMATE TOTAL/);
     assert.match(decodedText, /\$2,837\.50/);
     assert.match(decodedText, /Two-day window once approved\./);
     assert.doesNotMatch(decodedText, /Office-only pricing assumptions/);

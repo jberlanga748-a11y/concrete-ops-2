@@ -1,13 +1,14 @@
 import { calculatorTypeLabel, formatCubicYards } from "./calculator-utils.js";
 import { changeOrderStatusLabel } from "./change-order-utils.js";
 import { deliveryTicketTitle } from "./delivery-ticket-utils.js";
-import { calculateEstimateLineTotal, calculateEstimateTotals, estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils.js";
+import { estimateStatusLabel } from "./estimate-utils.js";
 import { jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils.js";
 import { postPourChecklistStatusLabel, postPourItemStatusLabel } from "./post-pour-utils.js";
 import { prePourChecklistStatusLabel, prePourItemStatusLabel } from "./pre-pour-utils.js";
 import { reportStatusLabel } from "./report-utils.js";
 import { toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils.js";
 import { gpsStatusLabel, uploadTitle } from "./upload-utils.js";
+import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
 
 function safeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
@@ -66,7 +67,7 @@ function renderKeyValueGrid(rows = []) {
 
 function renderTextBlock(text) {
   const value = String(text || "").trim();
-  return value ? `<p class="text-block">${escapeHtml(value)}</p>` : '<p class="empty-state">Nothing recorded.</p>';
+  return value ? `<div class="text-block">${escapeHtml(value)}</div>` : '<p class="empty-state">Nothing recorded.</p>';
 }
 
 function renderBulletList(items = []) {
@@ -175,12 +176,39 @@ export function deriveEstimatePrintPacket({
     });
   }
 
-  const totals = calculateEstimateTotals(estimate.items, {
-    taxRate: estimate.taxRate,
-    feesTotal: estimate.feesTotal,
-  });
+  const printModel = deriveEstimatePrintModel(estimate);
   const customerName = estimateCustomerName(estimate);
   const projectName = estimateProjectName(estimate);
+  const optionSections = [
+    printModel.options.alternates.length > 0 ? {
+      title: "Alternates",
+      type: "records",
+      records: printModel.options.alternates.map((option) => ({
+        title: option.title,
+        meta: [option.statusLabel, option.amountLabel].filter(Boolean),
+        body: [option.description, option.notes].filter(Boolean),
+      })),
+    } : null,
+    printModel.options.addOns.length > 0 ? {
+      title: "Optional Add-ons",
+      type: "records",
+      records: printModel.options.addOns.map((option) => ({
+        title: option.title,
+        meta: [option.statusLabel, option.amountLabel].filter(Boolean),
+        body: [option.description, option.notes].filter(Boolean),
+      })),
+    } : null,
+  ].filter(Boolean);
+  const totalRows = [
+    { label: "Subtotal", value: printModel.totals.subtotalLabel },
+    { label: printModel.totals.taxRate != null ? `Tax (${printModel.totals.taxRate}%)` : "Tax", value: printModel.totals.taxRate != null ? printModel.totals.taxTotalLabel : "" },
+    { label: "Fees", value: printModel.totals.feesTotal != null ? printModel.totals.feesTotalLabel : "" },
+    { label: "Base estimate total", value: printModel.totals.grandTotalLabel },
+    ...(printModel.options.hasSelectedOptionsTotal ? [
+      { label: "Selected options total", value: printModel.options.selectedOptionsTotalLabel },
+      { label: "Total with selected options", value: printModel.options.totalWithSelectedOptionsLabel },
+    ] : []),
+  ];
 
   return buildPacket({
     companyName,
@@ -199,39 +227,38 @@ export function deriveEstimatePrintPacket({
       { label: "Created", value: estimate.createdAt ? formatDateTime(estimate.createdAt) : "" },
     ],
     sections: [
-      {
-        title: "Scope Summary",
+      ...printModel.proposalSections.map((section) => ({
+        title: section.title,
         type: "text",
-        text: estimate.scopeSummary || "No scope summary recorded.",
-      },
+        text: section.text,
+      })),
       {
         title: "Estimate Line Items",
         type: "records",
-        records: safeArray(estimate.items).map((item, index) => ({
-          title: item?.description || `Line item ${index + 1}`,
+        records: printModel.lineItems.map((item) => ({
+          title: item.description,
           meta: [
-            item?.quantity != null && item?.quantity !== "" ? `Qty ${item.quantity}` : "",
-            item?.unit || "",
-            `Unit price ${formatEstimateCurrency(item?.unitPrice || 0)}`,
+            item.quantity !== "" ? `Qty ${item.quantity}` : "",
+            item.unit,
+            `Unit price ${item.unitPriceLabel}`,
           ].filter(Boolean),
-          body: [`Line total: ${formatEstimateCurrency(calculateEstimateLineTotal(item))}`],
+          body: [`Line total: ${item.lineTotalLabel}`],
         })),
       },
+      ...optionSections,
       {
-        title: "Estimate Totals",
+        title: "Base Estimate Total",
         type: "kv",
-        rows: [
-          { label: "Subtotal", value: formatEstimateCurrency(totals.subtotal) },
-          { label: totals.taxRate != null ? `Tax (${totals.taxRate}%)` : "Tax", value: totals.taxRate != null ? formatEstimateCurrency(totals.taxTotal || 0) : "" },
-          { label: "Fees", value: totals.feesTotal != null ? formatEstimateCurrency(totals.feesTotal || 0) : "" },
-          { label: "Grand total", value: formatEstimateCurrency(totals.grandTotal) },
-        ],
+        description: printModel.options.hasSelectedOptionsTotal
+          ? "Base total is line items plus tax and fees. Selected options are shown separately for review."
+          : "Base total is line items plus tax and fees.",
+        rows: totalRows,
       },
-      {
+      ...(printModel.customerNotes ? [{
         title: "Customer Notes / Terms",
         type: "text",
-        text: estimate.customerNotes || "No customer notes recorded.",
-      },
+        text: printModel.customerNotes,
+      }] : []),
     ],
   });
 }
@@ -687,6 +714,9 @@ export function buildPrintDocumentHtml(packetInput) {
         margin: 6px 0 0;
         font-size: 14px;
         color: #334155;
+      }
+      .text-block {
+        white-space: pre-line;
       }
       .record-stack {
         display: grid;

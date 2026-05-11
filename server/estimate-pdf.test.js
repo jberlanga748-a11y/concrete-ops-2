@@ -5,9 +5,32 @@ import { buildEstimatePdfAttachment, buildEstimatePdfFilename } from "./estimate
 
 const estimate = {
   title: "Martinez Driveway Proposal",
-  scopeSummary: "Replace cracked driveway panels and restore broom-finish apron.",
+  scopeSummary: [
+    "Scope of Work:",
+    "Replace cracked driveway panels and restore broom-finish apron.",
+    "",
+    "Inclusions:",
+    "Demo, haul-off, forming, placement, and broom finish.",
+    "",
+    "Exclusions:",
+    "Permit fees and utility relocation.",
+    "",
+    "Assumptions / Clarifications:",
+    "Customer will provide clear access before the pour.",
+  ].join("\n"),
   internalNotes: "Office-only pricing assumptions stay inside estimates.",
-  customerNotes: "Two-day window once approved.",
+  customerNotes: [
+    "Customer Notes / Terms:",
+    "Two-day window once approved.",
+    "",
+    "Alternates:",
+    "- [optional] Stamped border | Amount: $1,250.00 | Description: Add stamped border.",
+    "- [accepted] Thicker driveway edge | Amount: $900.00",
+    "",
+    "Optional Add-ons:",
+    "- [selected] Sealer | Amount: $450.00",
+    "- [excluded] Extra sawcutting | Amount: $300.00",
+  ].join("\n"),
   customer: { name: "Martinez Residence" },
   lead: { customer: "Martinez Residence", project: "Driveway replacement estimate" },
   items: [
@@ -68,10 +91,15 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.match(decodedText, /Martinez Driveway Proposal/);
   assert.match(decodedText, /Martinez Residence/);
   assert.match(decodedText, /Driveway replacement estimate/);
-  assert.match(decodedText, /GRAND TOTAL/);
+  assert.match(decodedText, /BASE ESTIMATE TOTAL/);
   assert.match(decodedText, /\$2,837\.50/);
-  assert.match(decodedText, /SCOPE SUMMARY/);
+  assert.match(decodedText, /SCOPE OF WORK/);
   assert.match(decodedText, /Replace cracked driveway panels/);
+  assert.match(decodedText, /INCLUSIONS/);
+  assert.match(decodedText, /Demo, haul-off, forming, placement, and broom finish\./);
+  assert.match(decodedText, /EXCLUSIONS/);
+  assert.match(decodedText, /Permit fees and utility relocation\./);
+  assert.match(decodedText, /ASSUMPTIONS \/ CLARIFICATIONS/);
   assert.match(decodedText, /Description/);
   assert.match(decodedText, /Qty/);
   assert.match(decodedText, /Unit Price/);
@@ -85,6 +113,14 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.match(decodedText, /\$212\.50/);
   assert.match(decodedText, /Fees/);
   assert.match(decodedText, /\$125\.00/);
+  assert.match(decodedText, /ALTERNATES/);
+  assert.match(decodedText, /Stamped border/);
+  assert.match(decodedText, /Thicker driveway edge/);
+  assert.match(decodedText, /OPTIONAL ADD-ONS/);
+  assert.match(decodedText, /Sealer/);
+  assert.match(decodedText, /Selected options total/);
+  assert.match(decodedText, /TOTAL WITH SELECTED OPTIONS/);
+  assert.match(decodedText, /\$4,187\.50/);
   assert.match(decodedText, /CUSTOMER NOTES \/ TERMS/);
   assert.match(decodedText, /Two-day window once approved\./);
   assert.match(decodedText, /ACCEPTANCE/);
