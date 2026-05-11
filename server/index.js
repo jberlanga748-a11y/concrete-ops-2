@@ -41,6 +41,12 @@ import {
   findLeadImportDuplicate,
 } from "../shared/leadImports.js";
 import {
+  applyWebsiteLeadDuplicateReview,
+  createWebsiteLeadFromPackage,
+  findMatchingWebsiteLeadSource,
+  findWebsiteLeadDuplicate,
+} from "../shared/websiteLeadIntake.js";
+import {
   buildLeadSourceCheckedPatch,
   normalizeLeadSourceDate,
   normalizeLeadSourcePayload,
@@ -359,6 +365,15 @@ function leadFinderIntegrationActor() {
     id: "",
     name: "Lead Finder integration",
     role: "Integration",
+  };
+}
+
+function websiteLeadIntakeActor(companyId = "") {
+  return {
+    id: "",
+    name: "Website lead intake",
+    role: "Integration",
+    companyId: normalizeCompanyId(companyId),
   };
 }
 
@@ -3313,6 +3328,15 @@ function resolvePublicRequestOwner(state) {
   return state.users.find((user) => canManageLeads(user) && optionalUserStatus(user.status, "active") === "active") || null;
 }
 
+function resolveIntegrationLeadOwnerForCompany(state, companyId) {
+  const normalizedCompanyId = normalizeCompanyId(companyId);
+  return state.users.find((user) => (
+    canManageLeads(user)
+      && optionalUserStatus(user.status, "active") === "active"
+      && normalizeCompanyId(user.companyId) === normalizedCompanyId
+  )) || null;
+}
+
 function buildPublicRequestLeadNotes({
   projectAddress,
   projectType,
@@ -4281,10 +4305,11 @@ function markUpdated(record, changedAt = new Date().toISOString()) {
   record.updatedAt = changedAt;
 }
 
-function appendActivity(state, title, detail) {
+function appendActivity(state, title, detail, options = {}) {
   const createdAt = new Date().toISOString();
   state.activity.unshift({
     id: makeActivityId(),
+    ...(options.companyId ? { companyId: normalizeCompanyId(options.companyId) } : {}),
     time: timestamp(),
     title,
     detail,
@@ -7436,6 +7461,128 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
     message: duplicateResult.type === "possible"
       ? "Lead imported for review with a possible duplicate warning."
       : "Lead imported for review.",
+    warnings: result.warnings,
+    duplicateCandidates: duplicateResult.type === "possible"
+      ? duplicateResult.candidates.slice(0, 3).map((candidate) => ({
+          leadId: candidate.lead.id,
+          customer: candidate.lead.customer,
+          project: candidate.lead.project,
+          reason: candidate.reason,
+        }))
+      : [],
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/integrations/website-leads", asyncRoute(async (req, res) => {
+  requireJobDraftIntegrationToken(req);
+
+  const packageJson = req.body?.package || req.body;
+  const result = createWebsiteLeadFromPackage(packageJson, { id: makeId("L"), importedAt: new Date().toISOString() });
+
+  if (result.ignored) {
+    return res.json({
+      ok: true,
+      ignored: true,
+      message: "Website lead submission ignored.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  if (!result.ok) {
+    return res.status(400).json({
+      ok: false,
+      error: result.errors.join(" "),
+      warnings: result.warnings,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const currentState = await readDb();
+  const targetCompanyId = normalizeCompanyId(result.context.targetCompanyId, "");
+  const targetCompany = companiesForState(currentState).find((company) => normalizeCompanyId(company.id) === targetCompanyId);
+
+  if (!targetCompany) {
+    return res.status(404).json({
+      ok: false,
+      error: "Target company not found.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const integrationActor = websiteLeadIntakeActor(targetCompany.id);
+  const scopedLeads = companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []);
+  const duplicateResult = findWebsiteLeadDuplicate(scopedLeads, result.context);
+
+  if (duplicateResult.type === "exact" && duplicateResult.lead) {
+    return res.json({
+      ok: true,
+      leadId: duplicateResult.lead.id,
+      duplicate: true,
+      possibleDuplicate: false,
+      reviewRequired: false,
+      openPath: leadOpenPath(duplicateResult.lead.id),
+      message: "This website lead already exists in Concrete Ops.",
+      duplicateReason: duplicateResult.reason,
+      requestId: res.locals.requestId,
+    });
+  }
+
+  const scopedLeadSources = companyScopedRecordsForUser(currentState, integrationActor, currentState.leadSources || []);
+  const matchingLeadSource = findMatchingWebsiteLeadSource(scopedLeadSources, result.context);
+  const sourceMatchNote = matchingLeadSource
+    ? `Lead source record: ${matchingLeadSource.name}${matchingLeadSource.type ? ` (${matchingLeadSource.type})` : ""}`
+    : "";
+  const importedLead = {
+    ...applyWebsiteLeadDuplicateReview(result.lead, duplicateResult),
+    companyId: targetCompany.id,
+  };
+  if (sourceMatchNote) {
+    importedLead.notes = [importedLead.notes, sourceMatchNote].filter(Boolean).join("\n");
+  }
+  let savedLead = importedLead;
+
+  await updateDb((draft) => {
+    const owner = resolveIntegrationLeadOwnerForCompany(draft, targetCompany.id);
+    savedLead = {
+      ...importedLead,
+      owner: owner?.name || "",
+      ownerId: owner?.id || "",
+    };
+    draft.leads.unshift(savedLead);
+    appendLeadStatusHistory(draft, {
+      leadId: savedLead.id,
+      fromStatus: null,
+      toStatus: savedLead.status,
+      actor: integrationActor,
+      note: duplicateResult.type === "possible"
+        ? "Website lead imported with possible duplicate warning."
+        : "Website lead imported.",
+      createdAt: savedLead.createdAt,
+    });
+    appendActivity(draft, "Website lead imported", `${savedLead.customer} imported for office review.`, { companyId: targetCompany.id });
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: savedLead.id,
+      action: "website_lead_imported",
+      summary: "Website lead imported",
+      detail: `${savedLead.customer} imported into ${targetCompany.name}. No customer, job, estimate, or user was created.`,
+      actor: integrationActor,
+      changedFields: ["companyId", "status", "source", "followUpDueAt"],
+    });
+    return draft;
+  });
+
+  return res.status(201).json({
+    ok: true,
+    leadId: savedLead.id,
+    duplicate: false,
+    possibleDuplicate: duplicateResult.type === "possible",
+    reviewRequired: true,
+    openPath: leadOpenPath(savedLead.id),
+    message: duplicateResult.type === "possible"
+      ? "Website lead imported for review with a possible duplicate warning."
+      : "Website lead imported for review.",
     warnings: result.warnings,
     duplicateCandidates: duplicateResult.type === "possible"
       ? duplicateResult.candidates.slice(0, 3).map((candidate) => ({
