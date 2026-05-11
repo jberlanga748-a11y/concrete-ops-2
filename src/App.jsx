@@ -1061,7 +1061,7 @@ function Card({ children, className = "", variant = "default", ...props }) {
 
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
   return (
-    <div className="mb-4 border-b border-slate-200/90 bg-white/95 px-5 py-4 shadow-[0_18px_48px_-44px_rgba(7,17,31,0.62)] backdrop-blur sm:px-6">
+    <div className="co-page-header mb-4 border-b border-slate-200/90 bg-white/95 px-5 py-4 shadow-[0_18px_48px_-44px_rgba(7,17,31,0.62)] backdrop-blur sm:px-6">
       <div className="mx-auto w-full max-w-[1520px]">
         <div className="flex min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -2163,13 +2163,41 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, hideMobileModuleSelect = false, notificationSource = {}, onOpenPath }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, hideMobileModuleSelect = false, notificationSource = {}, onOpenPath, logoInitials = DEFAULT_LOGO_INITIALS }) {
   const current = navItems.find((item) => item.id === active);
   const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
+  const userInitials = sanitizeLogoInitials((user?.name || "User").split(/\s+/).map((part) => part[0] || "").join("")) || "U";
   return (
     <div className="co-topbar sticky top-0 z-30">
       <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-[4.5rem] lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
-        <div className="min-w-0">
+        <div className="co-mobile-appbar md:hidden">
+          <div className="co-mobile-brand-lockup min-w-0">
+            <div className="co-mobile-brand-mark">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
+            <div className="min-w-0">
+              <p className="co-mobile-brand-title">Concrete Ops <span>2</span></p>
+              <p className="co-mobile-brand-subtitle">Team workspace</p>
+            </div>
+          </div>
+          <div className="co-mobile-user-cluster">
+            <NotificationCenterButton
+              source={notificationSource}
+              permissions={permissions}
+              user={user}
+              companyId={currentCompanyId}
+              onOpenModule={setActive}
+              onOpenPath={onOpenPath}
+            />
+            <button type="button" className="co-mobile-user-button" onClick={onLogout} aria-label="Log out">
+              <span className="co-mobile-user-avatar">{userInitials}</span>
+              <span className="co-mobile-user-copy">
+                <span>{user?.name || "User"}</span>
+                <span>{user?.role || "Team"}</span>
+              </span>
+              <span className="co-mobile-user-chevron" aria-hidden="true">v</span>
+            </button>
+          </div>
+        </div>
+        <div className="hidden min-w-0 md:block">
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-700">{companyName || APP_NAME}</p>
           <p className="truncate text-base font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
@@ -2207,9 +2235,9 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
             Log out
           </Button>
         </div>
-        <div className="grid gap-2 md:hidden">
+        <div className="co-mobile-select-tray grid gap-2 md:hidden">
           {hideMobileModuleSelect ? null : (
-            <select value={active} onChange={(event) => setActive(event.target.value)} className="field-input w-full min-w-0 py-2 text-xs font-black text-orange-700">
+            <select value={active} onChange={(event) => setActive(event.target.value)} className="co-mobile-select field-input w-full min-w-0 py-2 text-xs font-black text-orange-700">
               {navItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
@@ -2222,7 +2250,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               value={currentCompanyId}
               onChange={(event) => onSelectCompany?.(event.target.value)}
               disabled={syncing}
-              className="field-input w-full min-w-0 py-2 text-xs font-black text-orange-700"
+              className="co-mobile-select field-input w-full min-w-0 py-2 text-xs font-black text-orange-700"
             >
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
@@ -2231,20 +2259,6 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               ))}
             </select>
           ) : null}
-          <div className="flex items-center justify-between gap-2">
-            <NotificationCenterButton
-              source={notificationSource}
-              permissions={permissions}
-              user={user}
-              companyId={currentCompanyId}
-              onOpenModule={setActive}
-              onOpenPath={onOpenPath}
-            />
-            <div className="co-topbar-pill min-w-0 max-w-[58vw] truncate rounded-full px-3 py-2 text-xs font-black text-slate-700">{user?.name || "User"}</div>
-            <Button variant="ghost" size="sm" className="shrink-0" onClick={onLogout}>
-              Log out
-            </Button>
-          </div>
         </div>
       </div>
       {syncing ? <div className="h-1 bg-gradient-to-r from-orange-200 via-orange-600 to-slate-200" /> : null}
@@ -2363,8 +2377,8 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-50 mt-3 w-[min(92vw,440px)] overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-panel">
-          <div className="border-b border-blue-100 bg-blue-50/70 p-4">
+        <div className="co-mobile-popover absolute right-0 top-full z-50 mt-3 w-[min(92vw,440px)] overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-panel">
+          <div className="co-mobile-popover-header border-b border-blue-100 bg-blue-50/70 p-4">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-base font-black text-slate-950">Notifications</p>
@@ -2380,7 +2394,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
                   key={entry.id}
                   type="button"
                   onClick={() => setFilter(entry.id)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-black transition ${filter === entry.id ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+                  className={`co-mobile-filter-pill rounded-full px-3 py-1.5 text-xs font-black transition ${filter === entry.id ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
                 >
                   {entry.label}
                 </button>
@@ -2394,7 +2408,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
 
           <div className="max-h-[70vh] overflow-y-auto p-3">
             {visibleItems.length > 0 ? visibleItems.slice(0, 12).map((item) => (
-              <div key={item.id} className={`mb-3 rounded-2xl border p-3 last:mb-0 ${item.read ? "border-blue-100 bg-white" : "border-amber-100 bg-amber-50/50"}`}>
+              <div key={item.id} className={`co-mobile-record-card mb-3 rounded-2xl border p-3 last:mb-0 ${item.read ? "border-blue-100 bg-white" : "border-amber-100 bg-amber-50/50"}`}>
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
@@ -2422,7 +2436,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
                 </div>
               </div>
             )) : (
-              <div className="rounded-2xl border border-blue-100 bg-slate-50 p-4 text-center">
+              <div className="co-mobile-empty rounded-2xl border border-blue-100 bg-slate-50 p-4 text-center">
                 <p className="text-sm font-black text-slate-950">{filter === "archived" ? "No archived notifications" : filter === "all" ? "No active notifications" : "No unread notifications"}</p>
                 <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Follow-ups, source checks, missing lead info, imported drafts, and startup blockers will appear here when they need office attention.</p>
               </div>
@@ -2470,7 +2484,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               key={row.id}
               type="button"
               onClick={() => onSelect(row.id)}
-              className={`w-full rounded-[28px] border p-4 text-left transition ${selected ? "border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+              className={`co-mobile-record-card w-full rounded-[28px] border p-4 text-left transition ${selected ? "is-selected border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -2564,7 +2578,7 @@ function JobsTable({ rows, selectedId, onSelect }) {
               key={row.id}
               type="button"
               onClick={() => onSelect(row.id)}
-              className={`w-full rounded-[28px] border p-4 text-left transition ${selected ? "border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+              className={`co-mobile-record-card w-full rounded-[28px] border p-4 text-left transition ${selected ? "is-selected border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -3689,7 +3703,7 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
   if (!items.length) return null;
 
   return (
-    <nav className="mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Field quick actions">
+    <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Field quick actions">
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {items.map((item) => {
           const isActive = active === item.id;
@@ -3699,7 +3713,7 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
               type="button"
               onClick={() => onOpen(item.id)}
               aria-current={isActive ? "page" : undefined}
-              className={`flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isActive ? "border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
+              className={`co-mobile-bottom-nav-button flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isActive ? "is-active border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
             >
               <Icon name={item.icon || "grid"} className="h-4 w-4" />
               <span className="mt-1 block max-w-[68px] truncate">{item.label}</span>
@@ -3715,13 +3729,13 @@ function FieldDetailDisclosure({ title, summary, children, defaultOpen = false }
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
       {isOpen ? <div className="border-t border-blue-100 p-4">
         {children}
@@ -3734,7 +3748,7 @@ function FieldWorkspaceDisclosure({ title, description, badge, children }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
+    <div className="co-mobile-accordion panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
       <button type="button" className="flex w-full cursor-pointer items-start justify-between gap-3 p-5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-base font-black text-slate-950">{title}</span>
@@ -3742,7 +3756,7 @@ function FieldWorkspaceDisclosure({ title, description, badge, children }) {
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge ? <Badge tone="slate">{badge}</Badge> : null}
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+          <span className="co-mobile-toggle-pill rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
         </span>
       </button>
       {isOpen ? <div className="border-t border-blue-100 p-5">
@@ -3759,7 +3773,7 @@ function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
     <button
       type="button"
       onClick={() => onSelect(job.id)}
-      className={`w-full rounded-3xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+      className={`co-mobile-record-card w-full rounded-3xl border p-4 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -4208,7 +4222,7 @@ function TimeMobileAccordionCard({ title, summary, badge, defaultOpen = false, c
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel md:hidden">
+    <div className="co-mobile-accordion panel-sheen rounded-3xl border border-blue-100 bg-white/95 shadow-panel md:hidden">
       <button type="button" className="flex w-full cursor-pointer items-start justify-between gap-3 p-3.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-base font-black text-slate-950">{title}</span>
@@ -4216,7 +4230,7 @@ function TimeMobileAccordionCard({ title, summary, badge, defaultOpen = false, c
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge}
-          <span className={`rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>{isOpen ? "Hide ^" : "Show v"}</span>
+          <span className={`co-mobile-toggle-pill rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>{isOpen ? "Hide ^" : "Show v"}</span>
         </span>
       </button>
       {isOpen ? <div className="border-t border-blue-100 p-3.5">
@@ -4230,13 +4244,13 @@ function TimeMobileFieldGroup({ title, summary, defaultOpen = false, children })
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
       {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
@@ -4356,7 +4370,7 @@ function RecentTimeEntriesCard({ entries, title = "Recent entries", description,
 
 function TimeEntryCard({ entry, showUser = false, compact = false, compactMobile = false }) {
   return (
-    <div className={compactMobile ? "rounded-2xl border border-blue-100 bg-white p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-white p-4"}>
+    <div className={compactMobile ? "co-mobile-record-card rounded-2xl border border-blue-100 bg-white p-3 md:p-4" : "rounded-2xl border border-blue-100 bg-white p-4"}>
       <div className={compactMobile ? "flex flex-wrap items-start justify-between gap-2.5" : "flex flex-wrap items-start justify-between gap-3"}>
         <div className="min-w-0">
           <p className={compactMobile ? "break-words text-[13px] font-black text-slate-950 md:text-sm" : "break-words text-sm font-black text-slate-950"}>{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
@@ -4781,7 +4795,7 @@ function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = f
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
@@ -4789,7 +4803,7 @@ function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = f
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
             {isOpen ? "Hide" : "Show"}
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
@@ -4806,13 +4820,13 @@ function DailyReportMobileFieldGroup({ title, summary, defaultOpen = false, chil
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
       {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
@@ -4823,7 +4837,7 @@ function DailyReportMobileFieldGroup({ title, summary, defaultOpen = false, chil
 
 function DailyReportMobileCard({ report, selected, onSelect }) {
   return (
-    <button type="button" onClick={() => onSelect(report.id)} className={`w-full rounded-2xl border p-3 text-left transition ${selected ? "border-blue-300 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+    <button type="button" onClick={() => onSelect(report.id)} className={`co-mobile-record-card w-full rounded-2xl border p-3 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words text-sm font-black text-slate-950">{jobTitle(report.job)}</p>
@@ -5019,7 +5033,7 @@ function DailyReportDetailPanel({
   return (
     <div className="min-w-0 space-y-4">
       <div className="space-y-3 md:hidden">
-        <Card className="p-3.5">
+        <Card className="co-mobile-detail-card p-3.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="break-words text-base font-black text-slate-950">{jobTitle(report.job)}</p>
@@ -5221,7 +5235,7 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
 
 function UploadListCard({ upload, selected, onSelect }) {
   return (
-    <button type="button" onClick={() => onSelect(upload.id)} className={`w-full min-w-0 max-w-full rounded-2xl border p-4 text-left transition ${selected ? "border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+    <button type="button" onClick={() => onSelect(upload.id)} className={`co-mobile-record-card w-full min-w-0 max-w-full rounded-2xl border p-4 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
@@ -5243,7 +5257,7 @@ function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false,
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
@@ -5251,7 +5265,7 @@ function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false,
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
             {isOpen ? "Hide" : "Show"}
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
@@ -5268,13 +5282,13 @@ function UploadMobileFieldGroup({ title, summary, defaultOpen = false, children 
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
       {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
@@ -5314,7 +5328,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
   return (
     <>
       <div className="space-y-3 md:hidden">
-        <Card className="p-3.5">
+        <Card className="co-mobile-detail-card p-3.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="break-words text-base font-black text-slate-950">{uploadTitle(upload)}</p>
@@ -7056,7 +7070,7 @@ function CommandCenterItem({ eyebrow, title, description, meta, badges, actions,
           <Icon name={icon} className="co-command-priority-icon h-[1.05rem] w-[1.05rem]" />
         </span>
         <div className="min-w-0">
-          {eyebrow ? <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
+          {eyebrow ? <p className="co-command-priority-eyebrow text-[9px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
           <p className={`${compact ? "text-[13px]" : "text-base"} break-words font-black leading-[1.08] text-slate-950`}>{title}</p>
           {description ? <p className="mt-0.5 break-words text-[12px] font-bold leading-[1.22] text-slate-700">{description}</p> : null}
         </div>
@@ -7064,7 +7078,7 @@ function CommandCenterItem({ eyebrow, title, description, meta, badges, actions,
         <div className="co-command-priority-meta col-start-2 min-w-0 lg:col-start-auto">
           {metaParts.length ? metaParts.map((part) => <span key={part}>{part}</span>) : meta ? <span>{meta}</span> : null}
         </div>
-        {actions ? <div className="col-start-2 flex w-full shrink-0 flex-wrap gap-1.5 sm:w-auto sm:justify-start lg:col-start-auto lg:justify-end">{actions}</div> : null}
+        {actions ? <div className="co-command-priority-actions col-start-2 flex w-full shrink-0 flex-wrap gap-1.5 sm:w-auto sm:justify-start lg:col-start-auto lg:justify-end">{actions}</div> : null}
       </div>
     </div>
   );
@@ -7105,9 +7119,9 @@ function CommandCenterSummaryCard({ title, description, count, tone = "orange", 
   );
 }
 
-function CommandCenterTableCard({ title, description, action, children, emptyText }) {
+function CommandCenterTableCard({ title, description, action, children, emptyText, className = "" }) {
   return (
-    <Card className="co-command-card co-command-table-card p-2.5">
+    <Card className={`co-command-card co-command-table-card p-2.5 ${className}`}>
       <SectionHeader title={title} description={description} action={action} />
       {children ? (
         <div className="table-shell co-command-table-shell">
@@ -7467,7 +7481,7 @@ function CommandCenterPage({
         <div className="flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
-            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center <span className="align-middle text-2xl font-black text-slate-950" aria-hidden="true">☆</span></h1>
+            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center <span className="align-middle text-2xl font-black text-slate-950" aria-hidden="true">&#9734;</span></h1>
             <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -7478,7 +7492,7 @@ function CommandCenterPage({
         </div>
       </div>
       <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
-        <div className="grid gap-2.5 md:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />
           ))}
@@ -7512,6 +7526,7 @@ function CommandCenterPage({
               description="The top manual outreach work from leads, customers, and estimates."
               action={<Button type="button" size="sm" variant="ghost" onClick={() => openModule("leads")}>Open Follow-Up Queue</Button>}
               emptyText="No follow-up command rows waiting."
+              className="co-command-leads-card"
             >
               {leadCommandRows.length ? (
                 <table className="co-command-table w-full min-w-[760px] text-left">
@@ -7559,6 +7574,7 @@ function CommandCenterPage({
               description="Startup blockers, report gaps, missing photos, and next job actions."
               action={<Button type="button" size="sm" variant="ghost" onClick={() => openModule("jobs")}>View all jobs</Button>}
               emptyText="Job operations look quiet."
+              className="co-command-jobs-card"
             >
               {jobSnapshotRows.length ? (
                 <table className="co-command-table w-full min-w-[820px] text-left">
@@ -11576,7 +11592,7 @@ function PrePourMobileAccordionCard({ title, summary, badge, defaultOpen = false
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
@@ -11584,7 +11600,7 @@ function PrePourMobileAccordionCard({ title, summary, badge, defaultOpen = false
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
             {isOpen ? "Hide" : "Show"}
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
@@ -11601,13 +11617,13 @@ function PrePourMobileFieldGroup({ title, summary, defaultOpen = false, children
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
       {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
@@ -11756,7 +11772,7 @@ function PrePourPage({
                       key={checklist.id}
                       type="button"
                       onClick={() => setSelectedChecklistId(checklist.id)}
-                      className={`w-full rounded-2xl border p-3 text-left transition ${selectedChecklist?.id === checklist.id ? "border-blue-300 bg-blue-50/80 shadow-sm" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                      className={`co-mobile-record-card w-full rounded-2xl border p-3 text-left transition ${selectedChecklist?.id === checklist.id ? "is-selected border-blue-300 bg-blue-50/80 shadow-sm" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -11903,7 +11919,7 @@ function PrePourPage({
           {selectedChecklist ? (
             <>
             <div className="space-y-3 md:hidden">
-              <Card className="p-3.5">
+              <Card className="co-mobile-detail-card p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words text-base font-black text-slate-950">{selectedChecklist.job?.title || "Pre-pour checklist"}</p>
@@ -13168,7 +13184,7 @@ function DeliveryTicketMobileAccordionCard({ title, summary, badge, defaultOpen 
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "border-blue-200" : "border-blue-100"}`}>
+    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
@@ -13176,7 +13192,7 @@ function DeliveryTicketMobileAccordionCard({ title, summary, badge, defaultOpen 
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
             {isOpen ? "Hide" : "Show"}
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
@@ -13193,13 +13209,13 @@ function DeliveryTicketMobileFieldGroup({ title, summary, defaultOpen = false, c
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
       {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
         {children}
@@ -13374,7 +13390,7 @@ function DeliveryTicketsPage({
                       key={ticket.id}
                       type="button"
                       onClick={() => setSelectedTicketId(ticket.id)}
-                      className={`w-full rounded-2xl border p-3 text-left transition ${selectedTicket?.id === ticket.id ? "border-blue-300 bg-blue-50/80 shadow-sm" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                      className={`co-mobile-record-card w-full rounded-2xl border p-3 text-left transition ${selectedTicket?.id === ticket.id ? "is-selected border-blue-300 bg-blue-50/80 shadow-sm" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -13549,7 +13565,7 @@ function DeliveryTicketsPage({
           {selectedTicket ? (
             <>
             <div className="space-y-3 md:hidden">
-              <Card className="p-3.5">
+              <Card className="co-mobile-detail-card p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(selectedTicket)}</p>
@@ -16753,6 +16769,7 @@ export default function App() {
             notificationSource={notificationCenterSource}
             onOpenPath={navigateTo}
             hideMobileModuleSelect={isFieldMobileWorkspace}
+            logoInitials={workspaceLogoInitials}
           />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="min-w-0 overflow-x-hidden py-0">
@@ -17015,13 +17032,13 @@ export default function App() {
       {isFieldMobileWorkspace ? (
         <FieldMobileQuickNav items={fieldMobileItems} active={active} onOpen={setActive} />
       ) : (
-        <nav className="mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
+        <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
           <div className="grid grid-cols-5 gap-1">
             {mobileItems.map((id) => {
               const item = allItems.find((nav) => nav.id === id);
               const isActive = active === id;
               return (
-                <button key={id} type="button" onClick={() => setActive(id)} className={`rounded-2xl px-1.5 py-2 text-[11px] font-black ${isActive ? "bg-blue-700 text-white" : "text-slate-500"}`}>
+                <button key={id} type="button" onClick={() => setActive(id)} className={`co-mobile-bottom-nav-button rounded-2xl px-1.5 py-2 text-[11px] font-black ${isActive ? "is-active bg-blue-700 text-white" : "text-slate-500"}`}>
                   <Icon name={item?.icon || "grid"} className="mx-auto h-4 w-4" />
                   <span className="mt-1 block truncate">{item?.label}</span>
                 </button>
