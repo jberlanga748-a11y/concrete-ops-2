@@ -1,3 +1,5 @@
+import { normalizeCompanyId } from "./companyScope.js";
+
 export const IMPORTED_JOB_DRAFT_STATUSES = ["Imported", "Needs Review", "Ready to Create Job", "Job Created", "Rejected"];
 
 export const CUSTOMER_MATCH_STATUSES = [
@@ -90,6 +92,7 @@ export function normalizeImportedJobDraft(draft = {}) {
 
   return {
     id: toSafeText(source.id),
+    companyId: normalizeCompanyId(source.companyId),
     importedAt,
     importStatus: normalizeStatus(source.importStatus),
     importWarnings: nextWarnings,

@@ -61,6 +61,8 @@ import {
 import {
   currentCompanyIdForUser,
   normalizeCompanies,
+  normalizeCompanyId,
+  recordBelongsToCompany,
   visibleRecordsForCompany,
 } from "../shared/companyScope.js";
 import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
@@ -930,6 +932,35 @@ function filterVisibleRecordsForUser(state, user, records, entityType) {
     companyScopedRecordsForUser(state, user, records),
     entityType,
   );
+}
+
+function assignCompanyIdForCreate(record, user, state) {
+  if (!record) return record;
+  record.companyId = currentCompanyIdForRequestUser(state, user);
+  return record;
+}
+
+function assertRecordBelongsToUserCompany(record, user, state, resourceName = "Record") {
+  if (!recordBelongsToCompany(record, currentCompanyIdForRequestUser(state, user))) {
+    throw new ApiError(404, `${resourceName} not found.`);
+  }
+  return record;
+}
+
+function findCompanyScopedRecord(records, id, user, state, resourceName) {
+  return assertRecordBelongsToUserCompany(
+    findRequiredRecord(records || [], id, resourceName),
+    user,
+    state,
+    resourceName,
+  );
+}
+
+function assertSameCompanyRecords(primary, related, resourceName = "Linked record") {
+  if (!primary || !related) return;
+  if (normalizeCompanyId(primary.companyId) !== normalizeCompanyId(related.companyId)) {
+    throw new ApiError(404, `${resourceName} not found.`);
+  }
 }
 
 const DEMO_USER_ID_SET = new Set(DEMO_USERS.map((user) => user.id));
@@ -2135,11 +2166,11 @@ function calculateEstimateTotals(items, { taxRate, feesTotal }) {
 function resolveEstimateLinks(state, payload, actor) {
   const leadId = optionalString(payload.leadId, "");
   const customerId = optionalString(payload.customerId, "");
-  const lead = leadId ? findRequiredRecord(state.leads || [], leadId, "Lead") : null;
-  let customer = customerId ? findRequiredRecord(state.customers || [], customerId, "Customer") : null;
+  const lead = leadId ? findCompanyScopedRecord(state.leads || [], leadId, actor, state, "Lead") : null;
+  let customer = customerId ? findCompanyScopedRecord(state.customers || [], customerId, actor, state, "Customer") : null;
 
   if (!customer && lead?.customerId) {
-    customer = findRequiredRecord(state.customers || [], lead.customerId, "Customer");
+    customer = findCompanyScopedRecord(state.customers || [], lead.customerId, actor, state, "Customer");
   }
 
   if (!customer && lead) {
@@ -2161,6 +2192,7 @@ function resolveEstimateLinks(state, payload, actor) {
       throw new ApiError(400, "Lead does not belong to the selected customer.");
     }
   }
+  if (lead) assertSameCompanyRecords(customer, lead, "Lead");
 
   return { customer, lead };
 }
@@ -2205,8 +2237,9 @@ function applyEstimateStatusTimestamps(estimate, status, changedAt) {
   if (status !== "archived" && estimate.archivedAt) estimate.archivedAt = null;
 }
 
-function findEstimate(state, estimateId) {
-  return findRequiredRecord(state.estimates || [], estimateId, "Estimate");
+function findEstimate(state, estimateId, user = null) {
+  const estimate = findRequiredRecord(state.estimates || [], estimateId, "Estimate");
+  return user ? assertRecordBelongsToUserCompany(estimate, user, state, "Estimate") : estimate;
 }
 
 function canViewChangeOrderRequestRecord(user, request, job) {
@@ -3031,8 +3064,9 @@ function activeTimeEntryForUser(state, userId) {
   return (state.timeEntries || []).find((entry) => entry.userId === userId && deriveTimeEntryStatus(entry) !== "completed") || null;
 }
 
-function findRequiredTimeEntry(state, entryId) {
-  return findRequiredRecord(state.timeEntries || [], entryId, "Time entry");
+function findRequiredTimeEntry(state, entryId, user = null) {
+  const entry = findRequiredRecord(state.timeEntries || [], entryId, "Time entry");
+  return user ? assertRecordBelongsToUserCompany(entry, user, state, "Time entry") : entry;
 }
 
 function sanitizeTimeEntry(entry, state, user) {
@@ -3248,11 +3282,14 @@ function customerLookupKey(name, city = "") {
   return `${normalizeLookup(name)}::${normalizeLookup(city)}`;
 }
 
-function findMatchingCustomer(state, { name, city = "" }) {
+function findMatchingCustomer(state, { name, city = "", companyId = "" }) {
+  const scopedCustomers = companyId
+    ? (state.customers || []).filter((customer) => normalizeCompanyId(customer.companyId) === normalizeCompanyId(companyId))
+    : (state.customers || []);
   const exactKey = customerLookupKey(name, city);
-  const exact = state.customers.find((customer) => customerLookupKey(customer.name, customer.city) === exactKey);
+  const exact = scopedCustomers.find((customer) => customerLookupKey(customer.name, customer.city) === exactKey);
   if (exact) return exact;
-  return state.customers.find((customer) => normalizeLookup(customer.name) === normalizeLookup(name));
+  return scopedCustomers.find((customer) => normalizeLookup(customer.name) === normalizeLookup(name));
 }
 
 function resolvePublicRequestOwner(state) {
@@ -3492,6 +3529,7 @@ function syncJobAssignmentAliases(state, job) {
 function createJobAssignmentRecord(jobId, userId, roleOnJob, actor, notes = "", assignedAt = new Date().toISOString()) {
   return {
     id: makeId("JA"),
+    companyId: normalizeCompanyId(actor?.companyId),
     jobId,
     userId,
     roleOnJob: normalizeAssignmentRoleValue(roleOnJob),
@@ -3615,8 +3653,9 @@ function activeAssignmentForUser(state, jobId, userId) {
   return null;
 }
 
-function findDailyReport(state, reportId) {
-  return findRequiredRecord(state.dailyReports || [], reportId, "Daily report");
+function findDailyReport(state, reportId, user = null) {
+  const report = findRequiredRecord(state.dailyReports || [], reportId, "Daily report");
+  return user ? assertRecordBelongsToUserCompany(report, user, state, "Daily report") : report;
 }
 
 function canCreateDailyReportForJob(user, job) {
@@ -3797,8 +3836,9 @@ function createPostPourChecklistShape(payload, user, changedAt) {
   };
 }
 
-function findChangeOrderRequest(state, requestId) {
-  return findRequiredRecord(state.changeOrderRequests || [], requestId, "Change order request");
+function findChangeOrderRequest(state, requestId, user = null) {
+  const request = findRequiredRecord(state.changeOrderRequests || [], requestId, "Change order request");
+  return user ? assertRecordBelongsToUserCompany(request, user, state, "Change order request") : request;
 }
 
 function canCreateChangeOrderRequestForJob(user, job) {
@@ -3831,8 +3871,9 @@ function createChangeOrderRequestShape(payload, user, changedAt, job) {
   };
 }
 
-function findDeliveryTicket(state, ticketId) {
-  return findRequiredRecord(state.deliveryTickets || [], ticketId, "Delivery ticket");
+function findDeliveryTicket(state, ticketId, user = null) {
+  const ticket = findRequiredRecord(state.deliveryTickets || [], ticketId, "Delivery ticket");
+  return user ? assertRecordBelongsToUserCompany(ticket, user, state, "Delivery ticket") : ticket;
 }
 
 function createDeliveryTicketShape(payload, user, changedAt, job) {
@@ -3960,6 +4001,7 @@ function resolveLeadOwner(state, payload, fallbackUser) {
     if (!ownerUser) {
       throw new ApiError(404, "Lead owner not found.");
     }
+    assertRecordBelongsToUserCompany(ownerUser, fallbackUser, state, "Lead owner");
     return {
       ownerId: ownerUser.id,
       owner: ownerUser.name,
@@ -3975,6 +4017,7 @@ function resolveLeadOwner(state, payload, fallbackUser) {
 function appendLeadStatusHistory(state, { leadId, fromStatus, toStatus, actor, note = "", createdAt = new Date().toISOString() }) {
   state.leadStatusHistory.unshift({
     id: makeAuditId(),
+    companyId: currentCompanyIdForRequestUser(state, actor),
     leadId,
     fromStatus: fromStatus || null,
     toStatus,
@@ -3991,7 +4034,7 @@ function relateLeadToCustomer(state, lead, actor, payload = {}) {
     .find((value) => CUSTOMER_STATUSES.has(value));
 
   if (payload.customerId != null && payload.customerId !== "") {
-    const customer = findRequiredRecord(state.customers, payload.customerId, "Customer");
+    const customer = findCompanyScopedRecord(state.customers, payload.customerId, actor, state, "Customer");
     if (customer.archivedAt) {
       customer.archivedAt = null;
       markUpdated(customer);
@@ -4042,7 +4085,8 @@ function ensureCustomerRecord(state, payload, actor, { fallbackStatus = "Prospec
   const name = requiredString(payload.name, "Customer name");
   const city = optionalString(payload.city, "");
   const serviceArea = optionalString(payload.serviceArea, city);
-  const matchingCustomer = findMatchingCustomer(state, { name, city });
+  const companyId = currentCompanyIdForRequestUser(state, actor);
+  const matchingCustomer = findMatchingCustomer(state, { name, city, companyId });
 
   if (matchingCustomer) {
     const changedFields = [];
@@ -4101,6 +4145,7 @@ function ensureCustomerRecord(state, payload, actor, { fallbackStatus = "Prospec
     serviceArea,
     status: payload.status || fallbackStatus,
   }, fallbackStatus);
+  assignCompanyIdForCreate(customer, actor, state);
   state.customers.unshift(customer);
   appendActivity(state, "Customer created", `${customer.name} was added to the customer workspace.`);
   appendAuditEvent(state, {
@@ -4130,6 +4175,7 @@ function createCustomerFromImportedDraft(state, draft, actor, changedAt) {
       draft.sourceHandoffId ? `Source Handoff ID: ${draft.sourceHandoffId}` : "",
     ].filter(Boolean).join("\n"),
   }, "Active");
+  assignCompanyIdForCreate(customer, actor, state);
   customer.createdAt = changedAt;
   customer.updatedAt = changedAt;
   state.customers.unshift(customer);
@@ -4145,15 +4191,16 @@ function createCustomerFromImportedDraft(state, draft, actor, changedAt) {
   return customer;
 }
 
-function findCustomerById(state, customerId) {
+function findCustomerById(state, customerId, user = null) {
   const id = optionalString(customerId, "");
   if (!id) return null;
-  return (state.customers || []).find((customer) => customer.id === id && !customer.archivedAt) || null;
+  const customer = (state.customers || []).find((item) => item.id === id && !item.archivedAt) || null;
+  return customer && user ? assertRecordBelongsToUserCompany(customer, user, state, "Customer") : customer;
 }
 
 function resolveImportedDraftCustomerForJob(state, draft, actor, { allowCreateNewCustomer = false, changedAt = new Date().toISOString() } = {}) {
   const normalizedDraft = normalizeImportedJobDraft(draft);
-  const matchedCustomer = findCustomerById(state, normalizedDraft.matchedCustomerId);
+  const matchedCustomer = findCustomerById(state, normalizedDraft.matchedCustomerId, actor);
 
   if (["Matched", "Confirmed"].includes(normalizedDraft.customerMatchStatus) && matchedCustomer) {
     return {
@@ -4169,8 +4216,9 @@ function resolveImportedDraftCustomerForJob(state, draft, actor, { allowCreateNe
     };
   }
 
-  const refreshedMatch = applyCustomerMatchToImportedDraft(normalizedDraft, state.customers || []);
-  const refreshedCustomer = findCustomerById(state, refreshedMatch.matchedCustomerId);
+  const scopedCustomers = companyScopedRecordsForUser(state, actor, state.customers || []);
+  const refreshedMatch = applyCustomerMatchToImportedDraft(normalizedDraft, scopedCustomers);
+  const refreshedCustomer = findCustomerById(state, refreshedMatch.matchedCustomerId, actor);
 
   if (["Matched", "Confirmed"].includes(refreshedMatch.customerMatchStatus) && refreshedCustomer) {
     return {
@@ -4260,7 +4308,7 @@ function statsFromState(state) {
 function statsForUser(state, user, { jobs = null, leads = null, queueItems = null } = {}) {
   const liveJobs = (Array.isArray(jobs) ? jobs : visibleJobsForUser(state, user)).filter((job) => !job.archivedAt);
   const liveQueueItems = (Array.isArray(queueItems) ? queueItems : visibleQueueItemsForUser(state, user)).filter((item) => !item.archivedAt);
-  const importedDrafts = canCreateJobs(user) ? normalizeImportedJobDrafts(state.jobDraftImports || []) : [];
+  const importedDrafts = canCreateJobs(user) ? visibleImportedJobDraftsForUser(state, user) : [];
   const importedDraftStats = canCreateJobs(user)
     ? {
         importedJobDrafts: importedDrafts.length,
@@ -4448,6 +4496,7 @@ function ensureOwnerProtection(state, targetUser, nextRole, nextStatus) {
 function appendAuditEvent(state, { entityType, entityId, action, summary, detail, actor, changedFields = [] }) {
   state.auditEvents.unshift({
     id: makeAuditId(),
+    companyId: currentCompanyIdForRequestUser(state, actor),
     entityType,
     entityId: entityId || "",
     action,
@@ -5196,6 +5245,9 @@ app.post("/api/estimates", requireAuth, asyncRoute(async (req, res) => {
     draft.estimateItems ||= [];
     const { customer, lead } = resolveEstimateLinks(draft, payload, req.auth.user);
     const estimate = createEstimateShape(payload, req.auth.user, changedAt, customer, lead, { subtotal: 0, taxRate: null, taxTotal: null, feesTotal: null, grandTotal: 0 });
+    assignCompanyIdForCreate(estimate, req.auth.user, draft);
+    assertSameCompanyRecords(estimate, customer, "Customer");
+    if (lead) assertSameCompanyRecords(estimate, lead, "Lead");
     const items = normalizeEstimateItemsPayload(Array.isArray(payload.items) ? payload.items : [], changedAt, estimate.id);
     const totals = calculateEstimateTotals(items, {
       taxRate: payload.taxRate,
@@ -5235,11 +5287,13 @@ app.patch("/api/estimates/:id", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.estimates ||= [];
     draft.estimateItems ||= [];
-    const estimate = findEstimate(draft, req.params.id);
+    const estimate = findEstimate(draft, req.params.id, req.auth.user);
     const { customer, lead } = resolveEstimateLinks(draft, {
       customerId: payload.customerId == null ? estimate.customerId : payload.customerId,
       leadId: payload.leadId == null ? estimate.leadId : payload.leadId,
     }, req.auth.user);
+    assertSameCompanyRecords(estimate, customer, "Customer");
+    if (lead) assertSameCompanyRecords(estimate, lead, "Lead");
     const previousStatus = estimate.status;
     const nextItems = payload.items == null
       ? estimateItemsForEstimate(draft, estimate.id).map((item) => ({ ...item }))
@@ -5319,7 +5373,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
   }
 
   const state = await readDb();
-  const estimateRecord = findEstimate(state, req.params.id);
+  const estimateRecord = findEstimate(state, req.params.id, req.auth.user);
   const estimate = sanitizeEstimateForUser(estimateRecord, state, req.auth.user);
   const sentTo = estimateCustomerEmail(estimate);
   if (!sentTo) {
@@ -5359,7 +5413,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
 
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
-    const estimateToUpdate = findEstimate(draft, req.params.id);
+    const estimateToUpdate = findEstimate(draft, req.params.id, req.auth.user);
     estimateToUpdate.status = "sent";
     estimateToUpdate.sentAt = changedAt;
     estimateToUpdate.sentBy = req.auth.user.id;
@@ -5397,17 +5451,20 @@ app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const estimate = findEstimate(draft, req.params.id);
+    const estimate = findEstimate(draft, req.params.id, req.auth.user);
     if (optionalEstimateStatus(estimate.status, "draft") !== "approved") {
       throw new ApiError(409, "Only approved estimates can be converted into jobs.");
     }
 
-    const customer = findRequiredRecord(draft.customers || [], estimate.customerId, "Customer");
-    const linkedLead = estimate.leadId ? draft.leads.find((entry) => entry.id === estimate.leadId) || null : null;
+    const customer = findCompanyScopedRecord(draft.customers || [], estimate.customerId, req.auth.user, draft, "Customer");
+    const linkedLead = estimate.leadId ? findCompanyScopedRecord(draft.leads || [], estimate.leadId, req.auth.user, draft, "Lead") : null;
+    assertSameCompanyRecords(estimate, customer, "Customer");
+    if (linkedLead) assertSameCompanyRecords(estimate, linkedLead, "Lead");
     let job = null;
 
     if (payload.jobId) {
-      job = findRequiredRecord(draft.jobs || [], requiredString(payload.jobId, "Job"), "Job");
+      job = findCompanyScopedRecord(draft.jobs || [], requiredString(payload.jobId, "Job"), req.auth.user, draft, "Job");
+      assertSameCompanyRecords(estimate, job, "Job");
       estimate.jobId = job.id;
       markUpdated(estimate, changedAt);
       appendAuditEvent(draft, {
@@ -5435,6 +5492,7 @@ app.post("/api/estimates/:id/convert-to-job", requireAuth, asyncRoute(async (req
 
     job = normalizeJobRecord({
       id: makeId("J"),
+      companyId: estimate.companyId,
       customerId: customer.id,
       leadId: estimate.leadId || "",
       title: estimate.title,
@@ -5508,11 +5566,12 @@ app.post("/api/change-order-requests", requireAuth, asyncRoute(async (req, res) 
 
   const nextState = await updateDb((draft) => {
     draft.changeOrderRequests ||= [];
-    const job = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+    const job = findCompanyScopedRecord(draft.jobs, requiredString(payload.jobId, "Job"), req.auth.user, draft, "Job");
     if (!canCreateChangeOrderRequestForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to create a change order request for that job.");
     }
     const newRequest = createChangeOrderRequestShape(payload, req.auth.user, changedAt, job);
+    newRequest.companyId = job.companyId;
     draft.changeOrderRequests.unshift(newRequest);
     appendActivity(draft, "Change order request created", `${req.auth.user.name} requested a change order for ${normalizeJobRecord(job).title}.`);
     appendAuditEvent(draft, {
@@ -5538,8 +5597,8 @@ app.patch("/api/change-order-requests/:id", requireAuth, asyncRoute(async (req, 
 
   const nextState = await updateDb((draft) => {
     draft.changeOrderRequests ||= [];
-    const request = findChangeOrderRequest(draft, id);
-    const job = findRequiredRecord(draft.jobs, request.jobId, "Job");
+    const request = findChangeOrderRequest(draft, id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, request.jobId, req.auth.user, draft, "Job");
     if (!canViewChangeOrderRequestRecord(req.auth.user, request, job)) {
       throw new ApiError(403, "You do not have permission to access this change order request.");
     }
@@ -5585,8 +5644,8 @@ app.post("/api/change-order-requests/:id/archive", requireAuth, asyncRoute(async
 
   const nextState = await updateDb((draft) => {
     draft.changeOrderRequests ||= [];
-    const request = findChangeOrderRequest(draft, id);
-    const job = findRequiredRecord(draft.jobs, request.jobId, "Job");
+    const request = findChangeOrderRequest(draft, id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, request.jobId, req.auth.user, draft, "Job");
     request.status = "archived";
     request.archivedAt = changedAt;
     request.reviewedBy = req.auth.user.id;
@@ -5639,7 +5698,7 @@ app.post("/api/pre-pour-checklists", requireAuth, asyncRoute(async (req, res) =>
   const nextState = await updateDb((draft) => {
     draft.prePourChecklists ||= [];
     draft.prePourChecklistItems ||= [];
-    const job = findRequiredRecord(draft.jobs, newChecklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, newChecklist.jobId, req.auth.user, draft, "Job");
     if (!canCreatePrePourChecklistForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to create a pre-pour checklist for that job.");
     }
@@ -5673,7 +5732,7 @@ app.patch("/api/pre-pour-checklists/:id", requireAuth, asyncRoute(async (req, re
   const nextState = await updateDb((draft) => {
     draft.prePourChecklists ||= [];
     const checklist = findPrePourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canEditPrePourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to edit this pre-pour checklist.");
     }
@@ -5705,7 +5764,7 @@ app.patch("/api/pre-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute(
 
   const nextState = await updateDb((draft) => {
     const checklist = findPrePourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canViewPrePourChecklistDetails(req.auth.user, checklist, job)) {
       throw new ApiError(403, "You do not have permission to access this pre-pour checklist.");
     }
@@ -5758,7 +5817,7 @@ app.post("/api/pre-pour-checklists/:id/complete", requireAuth, asyncRoute(async 
 
   const nextState = await updateDb((draft) => {
     const checklist = findPrePourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canCompletePrePourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to complete this pre-pour checklist.");
     }
@@ -5793,7 +5852,7 @@ app.post("/api/pre-pour-checklists/:id/review", requireAuth, asyncRoute(async (r
 
   const nextState = await updateDb((draft) => {
     const checklist = findPrePourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reviewed";
     checklist.reviewedBy = req.auth.user.id;
     checklist.reviewedAt = changedAt;
@@ -5821,7 +5880,7 @@ app.post("/api/pre-pour-checklists/:id/reopen", requireAuth, asyncRoute(async (r
 
   const nextState = await updateDb((draft) => {
     const checklist = findPrePourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reopened";
     checklist.reopenedBy = req.auth.user.id;
     checklist.reopenedAt = changedAt;
@@ -5849,7 +5908,7 @@ app.post("/api/pre-pour-checklists/:id/archive", requireAuth, asyncRoute(async (
 
   const nextState = await updateDb((draft) => {
     const checklist = findPrePourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "archived";
     checklist.archivedAt = changedAt;
     markUpdated(checklist, changedAt);
@@ -5900,7 +5959,7 @@ app.post("/api/post-pour-checklists", requireAuth, asyncRoute(async (req, res) =
   const nextState = await updateDb((draft) => {
     draft.postPourChecklists ||= [];
     draft.postPourChecklistItems ||= [];
-    const job = findRequiredRecord(draft.jobs, newChecklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, newChecklist.jobId, req.auth.user, draft, "Job");
     if (!canCreatePostPourChecklistForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to create a post-pour checklist for that job.");
     }
@@ -5934,7 +5993,7 @@ app.patch("/api/post-pour-checklists/:id", requireAuth, asyncRoute(async (req, r
   const nextState = await updateDb((draft) => {
     draft.postPourChecklists ||= [];
     const checklist = findPostPourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canEditPostPourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to edit this post-pour checklist.");
     }
@@ -5966,7 +6025,7 @@ app.patch("/api/post-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute
 
   const nextState = await updateDb((draft) => {
     const checklist = findPostPourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canViewPostPourChecklistDetails(req.auth.user, checklist, job)) {
       throw new ApiError(403, "You do not have permission to access this post-pour checklist.");
     }
@@ -6019,7 +6078,7 @@ app.post("/api/post-pour-checklists/:id/complete", requireAuth, asyncRoute(async
 
   const nextState = await updateDb((draft) => {
     const checklist = findPostPourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canCompletePostPourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to complete this post-pour checklist.");
     }
@@ -6054,7 +6113,7 @@ app.post("/api/post-pour-checklists/:id/review", requireAuth, asyncRoute(async (
 
   const nextState = await updateDb((draft) => {
     const checklist = findPostPourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reviewed";
     checklist.reviewedBy = req.auth.user.id;
     checklist.reviewedAt = changedAt;
@@ -6082,7 +6141,7 @@ app.post("/api/post-pour-checklists/:id/reopen", requireAuth, asyncRoute(async (
 
   const nextState = await updateDb((draft) => {
     const checklist = findPostPourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reopened";
     checklist.reopenedBy = req.auth.user.id;
     checklist.reopenedAt = changedAt;
@@ -6110,7 +6169,7 @@ app.post("/api/post-pour-checklists/:id/archive", requireAuth, asyncRoute(async 
 
   const nextState = await updateDb((draft) => {
     const checklist = findPostPourChecklist(draft, id);
-    const job = findRequiredRecord(draft.jobs, checklist.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "archived";
     checklist.archivedAt = changedAt;
     markUpdated(checklist, changedAt);
@@ -6146,12 +6205,13 @@ app.post("/api/delivery-tickets", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     draft.deliveryTickets ||= [];
-    const job = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+    const job = findCompanyScopedRecord(draft.jobs, requiredString(payload.jobId, "Job"), req.auth.user, draft, "Job");
     if (!canCreateDeliveryTicketForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to create a delivery ticket for that job.");
     }
 
     const ticket = createDeliveryTicketShape(payload, req.auth.user, changedAt, job);
+    ticket.companyId = job.companyId;
     if (payload.yardsDelivered != null && payload.yardsDelivered !== "" && ticket.yardsDelivered <= 0) {
       throw new ApiError(400, "Yards delivered must be greater than zero when provided.");
     }
@@ -6159,13 +6219,13 @@ app.post("/api/delivery-tickets", requireAuth, asyncRoute(async (req, res) => {
       throw new ApiError(400, "Add at least one delivery ticket detail before saving.");
     }
     if (ticket.reportId) {
-      const report = findRequiredRecord(draft.dailyReports || [], ticket.reportId, "Daily report");
+      const report = findDailyReport(draft, ticket.reportId, req.auth.user);
       if (report.jobId !== job.id) {
         throw new ApiError(400, "Selected daily report must belong to the same job.");
       }
     }
     if (ticket.ticketUploadId) {
-      const upload = findRequiredRecord(draft.uploads || [], ticket.ticketUploadId, "Upload");
+      const upload = findCompanyScopedRecord(draft.uploads || [], ticket.ticketUploadId, req.auth.user, draft, "Upload");
       if (upload.jobId !== job.id) {
         throw new ApiError(400, "Selected ticket upload must belong to the same job.");
       }
@@ -6197,23 +6257,24 @@ app.patch("/api/delivery-tickets/:id", requireAuth, asyncRoute(async (req, res) 
 
   const nextState = await updateDb((draft) => {
     draft.deliveryTickets ||= [];
-    const ticket = findDeliveryTicket(draft, req.params.id);
-    const job = findRequiredRecord(draft.jobs, ticket.jobId, "Job");
+    const ticket = findDeliveryTicket(draft, req.params.id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, ticket.jobId, req.auth.user, draft, "Job");
     if (!canEditDeliveryTicketRecord(req.auth.user, ticket, job)) {
       throw new ApiError(403, "You do not have permission to edit that delivery ticket.");
     }
 
     if ("jobId" in payload) {
-      const nextJob = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+      const nextJob = findCompanyScopedRecord(draft.jobs, requiredString(payload.jobId, "Job"), req.auth.user, draft, "Job");
       if (!canCreateDeliveryTicketForJob(req.auth.user, nextJob)) {
         throw new ApiError(403, "You do not have permission to move this delivery ticket to that job.");
       }
       ticket.jobId = nextJob.id;
+      ticket.companyId = nextJob.companyId;
     }
     if ("reportId" in payload) {
       ticket.reportId = optionalString(payload.reportId, "");
       if (ticket.reportId) {
-        const report = findRequiredRecord(draft.dailyReports || [], ticket.reportId, "Daily report");
+        const report = findDailyReport(draft, ticket.reportId, req.auth.user);
         if (report.jobId !== ticket.jobId) {
           throw new ApiError(400, "Selected daily report must belong to the same job.");
         }
@@ -6222,7 +6283,7 @@ app.patch("/api/delivery-tickets/:id", requireAuth, asyncRoute(async (req, res) 
     if ("ticketUploadId" in payload) {
       ticket.ticketUploadId = optionalString(payload.ticketUploadId, "");
       if (ticket.ticketUploadId) {
-        const upload = findRequiredRecord(draft.uploads || [], ticket.ticketUploadId, "Upload");
+        const upload = findCompanyScopedRecord(draft.uploads || [], ticket.ticketUploadId, req.auth.user, draft, "Upload");
         if (upload.jobId !== ticket.jobId) {
           throw new ApiError(400, "Selected ticket upload must belong to the same job.");
         }
@@ -6269,7 +6330,7 @@ app.post("/api/delivery-tickets/:id/archive", requireAuth, asyncRoute(async (req
 
   const nextState = await updateDb((draft) => {
     draft.deliveryTickets ||= [];
-    const ticket = findDeliveryTicket(draft, req.params.id);
+    const ticket = findDeliveryTicket(draft, req.params.id, req.auth.user);
     if (ticket.archivedAt) return;
     ticket.archivedAt = changedAt;
     markUpdated(ticket, changedAt);
@@ -6313,7 +6374,7 @@ app.post("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
     draft.toolChecklists ||= [];
     draft.toolChecklistItems ||= [];
     const checklist = createToolChecklistShape(payload, req.auth.user, changedAt);
-    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job) {
       throw new ApiError(400, "A job is required for a tool checklist.");
     }
@@ -6350,7 +6411,7 @@ app.patch("/api/tool-checklists/:id", requireAuth, asyncRoute(async (req, res) =
     draft.companySettings = companySettingsForState(draft);
     draft.toolChecklists ||= [];
     const checklist = findToolChecklist(draft, req.params.id);
-    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (canViewAllToolChecklists(req.auth.user)) {
       // full access
     } else {
@@ -6410,7 +6471,7 @@ app.post("/api/tool-checklists/:id/items", requireAuth, asyncRoute(async (req, r
     draft.toolChecklists ||= [];
     draft.toolChecklistItems ||= [];
     const checklist = findToolChecklist(draft, req.params.id);
-    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job || !canViewJob(job, req.auth.user)) {
       throw new ApiError(403, "You do not have permission to add items to that checklist.");
     }
@@ -6448,7 +6509,7 @@ app.patch("/api/tool-checklists/:id/items/:itemId", requireAuth, asyncRoute(asyn
     draft.toolChecklists ||= [];
     draft.toolChecklistItems ||= [];
     const checklist = findToolChecklist(draft, req.params.id);
-    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job || !canViewJob(job, req.auth.user)) {
       throw new ApiError(403, "You do not have permission to update that checklist item.");
     }
@@ -6541,7 +6602,7 @@ app.post("/api/tool-checklists/:id/submit", requireAuth, asyncRoute(async (req, 
     draft.companySettings = companySettingsForState(draft);
     draft.toolChecklists ||= [];
     const checklist = findToolChecklist(draft, req.params.id);
-    const job = checklist.jobId ? findRequiredRecord(draft.jobs, checklist.jobId, "Job") : null;
+    const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job || !canViewJob(job, req.auth.user)) {
       throw new ApiError(403, "You do not have permission to submit that checklist.");
     }
@@ -6575,6 +6636,9 @@ app.post("/api/tool-checklists/:id/review", requireAuth, asyncRoute(async (req, 
   const nextState = await updateDb((draft) => {
     draft.toolChecklists ||= [];
     const checklist = findToolChecklist(draft, req.params.id);
+    if (checklist.jobId) {
+      findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
+    }
     checklist.status = "reviewed";
     checklist.reviewedBy = req.auth.user.id;
     checklist.reviewedAt = changedAt;
@@ -6607,6 +6671,9 @@ app.post("/api/tool-checklists/:id/archive", requireAuth, asyncRoute(async (req,
   const nextState = await updateDb((draft) => {
     draft.toolChecklists ||= [];
     const checklist = findToolChecklist(draft, req.params.id);
+    if (checklist.jobId) {
+      findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
+    }
     checklist.status = "archived";
     checklist.archivedAt = changedAt;
     checklist.updatedAt = changedAt;
@@ -6834,7 +6901,7 @@ app.post("/api/safety/acknowledgments", requireAuth, asyncRoute(async (req, res)
     const acknowledgment = createSafetyAcknowledgmentShape(payload, req.auth.user, changedAt);
     let job = null;
     if (acknowledgment.jobId) {
-      job = findRequiredRecord(draft.jobs, acknowledgment.jobId, "Job");
+      job = findCompanyScopedRecord(draft.jobs, acknowledgment.jobId, req.auth.user, draft, "Job");
       if (!canLinkSafetyRecordToJob(req.auth.user, job)) {
         throw new ApiError(403, "You do not have permission to acknowledge safety for that job.");
       }
@@ -6871,7 +6938,7 @@ app.post("/api/safety/incidents", requireAuth, asyncRoute(async (req, res) => {
     draft.safetyIncidents ||= [];
     const incident = createSafetyIncidentShape(payload, req.auth.user, changedAt);
     if (incident.jobId) {
-      const job = findRequiredRecord(draft.jobs, incident.jobId, "Job");
+      const job = findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
       if (!canLinkSafetyRecordToJob(req.auth.user, job)) {
         throw new ApiError(403, "You do not have permission to submit an incident for that job.");
       }
@@ -6898,6 +6965,9 @@ app.post("/api/safety/incidents/:id/review", requireAuth, asyncRoute(async (req,
   const nextState = await updateDb((draft) => {
     draft.safetyIncidents ||= [];
     const incident = findSafetyIncident(draft, req.params.id);
+    if (incident.jobId) {
+      findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
+    }
     incident.status = "reviewed";
     incident.reviewedBy = req.auth.user.id;
     incident.reviewedAt = changedAt;
@@ -6924,6 +6994,9 @@ app.post("/api/safety/incidents/:id/resolve", requireAuth, asyncRoute(async (req
   const nextState = await updateDb((draft) => {
     draft.safetyIncidents ||= [];
     const incident = findSafetyIncident(draft, req.params.id);
+    if (incident.jobId) {
+      findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
+    }
     incident.status = "resolved";
     incident.reviewedBy = req.auth.user.id;
     incident.reviewedAt ||= changedAt;
@@ -6951,6 +7024,9 @@ app.post("/api/safety/incidents/:id/archive", requireAuth, asyncRoute(async (req
   const nextState = await updateDb((draft) => {
     draft.safetyIncidents ||= [];
     const incident = findSafetyIncident(draft, req.params.id);
+    if (incident.jobId) {
+      findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
+    }
     incident.status = "archived";
     incident.archivedAt = changedAt;
     incident.updatedAt = changedAt;
@@ -7000,6 +7076,7 @@ app.post("/api/lead-sources", requireAuth, asyncRoute(async (req, res) => {
       id: makeId("LS"),
       changedAt,
     });
+    assignCompanyIdForCreate(leadSource, req.auth.user, draft);
     draft.leadSources.unshift(leadSource);
     appendActivity(draft, "Lead source added", `${req.auth.user.name} added ${leadSource.name}.`);
     appendAuditEvent(draft, {
@@ -7024,7 +7101,7 @@ app.patch("/api/lead-sources/:id", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     draft.leadSources ||= [];
-    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    const leadSource = findCompanyScopedRecord(draft.leadSources, id, req.auth.user, draft, "Lead source");
     const previous = { ...leadSource };
     const normalized = normalizeLeadSourceForWrite(req.body || {}, {
       existing: leadSource,
@@ -7075,7 +7152,7 @@ app.post("/api/lead-sources/:id/archive", requireAuth, asyncRoute(async (req, re
 
   const nextState = await updateDb((draft) => {
     draft.leadSources ||= [];
-    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    const leadSource = findCompanyScopedRecord(draft.leadSources, id, req.auth.user, draft, "Lead source");
     leadSource.status = "Inactive";
     leadSource.archivedAt = changedAt;
     markUpdated(leadSource, changedAt);
@@ -7102,7 +7179,7 @@ app.post("/api/lead-sources/:id/restore", requireAuth, asyncRoute(async (req, re
 
   const nextState = await updateDb((draft) => {
     draft.leadSources ||= [];
-    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    const leadSource = findCompanyScopedRecord(draft.leadSources, id, req.auth.user, draft, "Lead source");
     leadSource.status = "Active";
     leadSource.archivedAt = null;
     markUpdated(leadSource, changedAt);
@@ -7129,7 +7206,7 @@ app.post("/api/lead-sources/:id/check", requireAuth, asyncRoute(async (req, res)
 
   const nextState = await updateDb((draft) => {
     draft.leadSources ||= [];
-    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    const leadSource = findCompanyScopedRecord(draft.leadSources, id, req.auth.user, draft, "Lead source");
     const checkPatch = normalizeLeadSourceCheckPayload(req.body || {}, leadSource, changedAt);
 
     Object.assign(leadSource, checkPatch, {
@@ -7187,8 +7264,14 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const matchedDraft = applyCustomerMatchToImportedDraft(result.draft, currentState.customers || []);
-  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], matchedDraft);
+  const matchedDraft = applyCustomerMatchToImportedDraft(
+    assignCompanyIdForCreate(result.draft, jobDraftIntegrationActor(), currentState),
+    companyScopedRecordsForUser(currentState, jobDraftIntegrationActor(), currentState.customers || []),
+  );
+  const duplicateDraft = findDuplicateImportedJobDraft(
+    companyScopedRecordsForUser(currentState, jobDraftIntegrationActor(), currentState.jobDraftImports || []),
+    matchedDraft,
+  );
   if (duplicateDraft) {
     return res.json({
       ok: true,
@@ -7243,7 +7326,8 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const duplicateResult = findLeadImportDuplicate(currentState.leads || [], result.context);
+  const integrationActor = leadFinderIntegrationActor();
+  const duplicateResult = findLeadImportDuplicate(companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []), result.context);
 
   if (duplicateResult.type === "exact" && duplicateResult.lead) {
     return res.json({
@@ -7259,7 +7343,7 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
     });
   }
 
-  const importedLead = applyLeadImportDuplicateReview(result.lead, duplicateResult);
+  const importedLead = assignCompanyIdForCreate(applyLeadImportDuplicateReview(result.lead, duplicateResult), integrationActor, currentState);
   let savedLead = importedLead;
 
   await updateDb((draft) => {
@@ -7332,8 +7416,14 @@ app.post("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const matchedDraft = applyCustomerMatchToImportedDraft(result.draft, currentState.customers || []);
-  const duplicateDraft = findDuplicateImportedJobDraft(currentState.jobDraftImports || [], matchedDraft);
+  const matchedDraft = applyCustomerMatchToImportedDraft(
+    assignCompanyIdForCreate(result.draft, req.auth.user, currentState),
+    companyScopedRecordsForUser(currentState, req.auth.user, currentState.customers || []),
+  );
+  const duplicateDraft = findDuplicateImportedJobDraft(
+    companyScopedRecordsForUser(currentState, req.auth.user, currentState.jobDraftImports || []),
+    matchedDraft,
+  );
   if (duplicateDraft && !allowDuplicate) {
     return res.status(409).json({
       error: "This job draft package looks like it has already been imported.",
@@ -7370,7 +7460,7 @@ app.patch("/api/job-draft-imports/:id", requireAuth, asyncRoute(async (req, res)
   let updatedDraft = null;
 
   const nextState = await updateDb((draft) => {
-    const currentDraft = findRequiredRecord(draft.jobDraftImports || [], id, "Imported job draft");
+    const currentDraft = findCompanyScopedRecord(draft.jobDraftImports || [], id, req.auth.user, draft, "Imported job draft");
     updatedDraft = normalizeImportedJobDraft({
       ...currentDraft,
       ...pickImportedDraftEditableFields(req.body || {}),
@@ -7419,7 +7509,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
   const allowDuplicateJob = req.body?.allowDuplicateJob === true;
   const allowCreateNewCustomer = req.body?.allowCreateNewCustomer === true;
   const currentState = await readDb();
-  const currentDraft = normalizeImportedJobDraft(findRequiredRecord(currentState.jobDraftImports || [], id, "Imported job draft"));
+  const currentDraft = normalizeImportedJobDraft(findCompanyScopedRecord(currentState.jobDraftImports || [], id, req.auth.user, currentState, "Imported job draft"));
 
   if (currentDraft.createdJobId) {
     return res.status(409).json({
@@ -7449,7 +7539,10 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
     });
   }
 
-  const duplicateJob = findPotentialImportedDraftJobDuplicate(currentState.jobs || [], currentDraft);
+  const duplicateJob = findPotentialImportedDraftJobDuplicate(
+    companyScopedRecordsForUser(currentState, req.auth.user, currentState.jobs || []),
+    currentDraft,
+  );
   if (duplicateJob && !allowDuplicateJob) {
     return res.status(409).json({
       error: "A similar job already exists. Confirm before creating another job from this imported draft.",
@@ -7459,11 +7552,11 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
     });
   }
 
-  const existingMatchedCustomer = findCustomerById(currentState, currentDraft.matchedCustomerId);
+  const existingMatchedCustomer = findCustomerById(currentState, currentDraft.matchedCustomerId, req.auth.user);
   const currentMatchResolved = ["Matched", "Confirmed"].includes(currentDraft.customerMatchStatus) && existingMatchedCustomer;
   const customerMatchForCreate = currentMatchResolved
     ? currentDraft
-    : applyCustomerMatchToImportedDraft(currentDraft, currentState.customers || []);
+    : applyCustomerMatchToImportedDraft(currentDraft, companyScopedRecordsForUser(currentState, req.auth.user, currentState.customers || []));
   if (["Review Required", "Possible Match", "Not Checked"].includes(customerMatchForCreate.customerMatchStatus) && !allowCreateNewCustomer) {
     return res.status(409).json({
       error: "Review and confirm the customer match before creating this job.",
@@ -7481,7 +7574,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
   let updatedImport = null;
 
   const nextState = await updateDb((draft) => {
-    const liveDraft = normalizeImportedJobDraft(findRequiredRecord(draft.jobDraftImports || [], id, "Imported job draft"));
+    const liveDraft = normalizeImportedJobDraft(findCompanyScopedRecord(draft.jobDraftImports || [], id, req.auth.user, draft, "Imported job draft"));
     if (liveDraft.createdJobId) {
       throw new ApiError(409, "A Concrete Ops 2 job has already been created from this imported draft.");
     }
@@ -7497,6 +7590,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
     });
     createdJob = normalizeJobRecord({
       id: makeId("J"),
+      companyId: liveDraft.companyId,
       customerId: resolvedCustomer.customer.id,
       leadId: "",
       ...jobPayload,
@@ -7565,7 +7659,7 @@ app.get("/api/uploads", requireAuth, asyncRoute(async (req, res) => {
 
 app.get("/api/uploads/:id/content", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const upload = findRequiredRecord(state.uploads || [], req.params.id, "Upload");
+  const upload = findCompanyScopedRecord(state.uploads || [], req.params.id, req.auth.user, state, "Upload");
   const sanitizedUpload = sanitizeUploadForUser(upload, state, req.auth.user);
   if (!sanitizedUpload) {
     throw new ApiError(403, "You do not have permission to view that upload.");
@@ -7619,14 +7713,14 @@ app.post("/api/uploads", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb(async (draft) => {
     draft.uploads ||= [];
-    const job = findRequiredRecord(draft.jobs, jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, jobId, req.auth.user, draft, "Job");
     if (!canCreateUploadForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to upload to that job.");
     }
 
     let report = null;
     if (reportId) {
-      report = findRequiredRecord(draft.dailyReports || [], reportId, "Daily report");
+      report = findDailyReport(draft, reportId, req.auth.user);
       if (report.jobId !== job.id) {
         throw new ApiError(400, "Daily report must belong to the selected job.");
       }
@@ -7645,6 +7739,7 @@ app.post("/api/uploads", requireAuth, asyncRoute(async (req, res) => {
 
     draft.uploads.unshift({
       id: uploadId,
+      companyId: job.companyId,
       jobId: job.id,
       customerId: job.customerId || "",
       reportId,
@@ -7691,12 +7786,13 @@ app.patch("/api/uploads/:id", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const upload = findRequiredRecord(draft.uploads || [], req.params.id, "Upload");
+    const upload = findCompanyScopedRecord(draft.uploads || [], req.params.id, req.auth.user, draft, "Upload");
     const changedFields = [];
 
     if (payload.jobId != null && payload.jobId !== upload.jobId) {
-      const nextJob = findRequiredRecord(draft.jobs, requiredString(payload.jobId, "Job"), "Job");
+      const nextJob = findCompanyScopedRecord(draft.jobs, requiredString(payload.jobId, "Job"), req.auth.user, draft, "Job");
       upload.jobId = nextJob.id;
+      upload.companyId = nextJob.companyId;
       upload.customerId = nextJob.customerId || "";
       if (upload.reportId) {
         upload.reportId = "";
@@ -7708,7 +7804,7 @@ app.patch("/api/uploads/:id", requireAuth, asyncRoute(async (req, res) => {
     if (payload.reportId != null) {
       const nextReportId = optionalString(payload.reportId, "");
       if (nextReportId) {
-        const nextReport = findRequiredRecord(draft.dailyReports || [], nextReportId, "Daily report");
+        const nextReport = findDailyReport(draft, nextReportId, req.auth.user);
         if (nextReport.jobId !== upload.jobId) {
           throw new ApiError(400, "Daily report must belong to the selected job.");
         }
@@ -7756,7 +7852,7 @@ app.post("/api/uploads/:id/archive", requireAuth, asyncRoute(async (req, res) =>
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const upload = findRequiredRecord(draft.uploads || [], req.params.id, "Upload");
+    const upload = findCompanyScopedRecord(draft.uploads || [], req.params.id, req.auth.user, draft, "Upload");
     upload.archivedAt = changedAt;
     markUpdated(upload, changedAt);
     appendAuditEvent(draft, {
@@ -7804,13 +7900,14 @@ app.post("/api/calculator-results", requireAuth, asyncRoute(async (req, res) => 
 
   const nextState = await updateDb((draft) => {
     draft.calculatorResults ||= [];
-    const job = findRequiredRecord(draft.jobs, jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, jobId, req.auth.user, draft, "Job");
     if (!canSaveCalculatorResultForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to save calculations for that job.");
     }
 
     const calculatorResult = {
       id: makeId("CALC"),
+      companyId: job.companyId,
       jobId: job.id,
       createdBy: req.auth.user.id,
       calculatorType,
@@ -7853,11 +7950,12 @@ app.post("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.dailyReports ||= [];
     const report = createDailyReportShape(payload, req.auth.user, changedAt);
-    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, report.jobId, req.auth.user, draft, "Job");
 
     if (!canCreateDailyReportForJob(req.auth.user, job)) {
       throw new ApiError(403, "You do not have permission to create a daily report for that job.");
     }
+    report.companyId = job.companyId;
 
     draft.dailyReports.unshift(report);
     appendActivity(draft, "Daily report created", `${req.auth.user.name} created a draft report for ${normalizeJobRecord(job).title}.`);
@@ -7882,15 +7980,15 @@ app.patch("/api/daily-reports/:id", requireAuth, asyncRoute(async (req, res) => 
 
   const nextState = await updateDb((draft) => {
     draft.dailyReports ||= [];
-    const report = findDailyReport(draft, req.params.id);
-    const currentJob = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const report = findDailyReport(draft, req.params.id, req.auth.user);
+    const currentJob = findCompanyScopedRecord(draft.jobs, report.jobId, req.auth.user, draft, "Job");
 
     if (!canEditDailyReport(req.auth.user, currentJob, report)) {
       throw new ApiError(403, "You do not have permission to edit this daily report.");
     }
 
     const nextJobId = payload.jobId == null ? report.jobId : requiredString(payload.jobId, "Job");
-    const nextJob = findRequiredRecord(draft.jobs, nextJobId, "Job");
+    const nextJob = findCompanyScopedRecord(draft.jobs, nextJobId, req.auth.user, draft, "Job");
     if (!canCreateDailyReportForJob(req.auth.user, nextJob)) {
       throw new ApiError(403, "You do not have permission to move this daily report to that job.");
     }
@@ -7898,6 +7996,7 @@ app.patch("/api/daily-reports/:id", requireAuth, asyncRoute(async (req, res) => 
     const changedFields = [];
     const fieldMap = {
       jobId: nextJobId,
+      companyId: nextJob.companyId,
       reportDate: payload.reportDate == null ? report.reportDate : optionalDateString(requiredString(payload.reportDate, "Report date"), "Report date"),
       crewSummary: payload.crewSummary == null ? report.crewSummary || "" : optionalString(payload.crewSummary, ""),
       workPerformed: payload.workPerformed == null ? report.workPerformed || "" : optionalString(payload.workPerformed, ""),
@@ -7946,8 +8045,8 @@ app.post("/api/daily-reports/:id/submit", requireAuth, asyncRoute(async (req, re
 
   const nextState = await updateDb((draft) => {
     draft.dailyReports ||= [];
-    const report = findDailyReport(draft, req.params.id);
-    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const report = findDailyReport(draft, req.params.id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, report.jobId, req.auth.user, draft, "Job");
 
     if (!canSubmitDailyReport(req.auth.user, job, report)) {
       throw new ApiError(403, "You do not have permission to submit this daily report.");
@@ -7984,8 +8083,8 @@ app.post("/api/daily-reports/:id/review", requireAuth, asyncRoute(async (req, re
 
   const nextState = await updateDb((draft) => {
     draft.dailyReports ||= [];
-    const report = findDailyReport(draft, req.params.id);
-    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const report = findDailyReport(draft, req.params.id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, report.jobId, req.auth.user, draft, "Job");
     const currentStatus = optionalDailyReportStatus(report.status, "draft");
     if (!["submitted", "reopened"].includes(currentStatus)) {
       throw new ApiError(409, "Only submitted or reopened reports can be reviewed.");
@@ -8017,8 +8116,8 @@ app.post("/api/daily-reports/:id/reopen", requireAuth, asyncRoute(async (req, re
 
   const nextState = await updateDb((draft) => {
     draft.dailyReports ||= [];
-    const report = findDailyReport(draft, req.params.id);
-    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const report = findDailyReport(draft, req.params.id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, report.jobId, req.auth.user, draft, "Job");
     const currentStatus = optionalDailyReportStatus(report.status, "draft");
     if (!["submitted", "reviewed"].includes(currentStatus)) {
       throw new ApiError(409, "Only submitted or reviewed reports can be reopened.");
@@ -8049,8 +8148,8 @@ app.post("/api/daily-reports/:id/archive", requireAuth, asyncRoute(async (req, r
 
   const nextState = await updateDb((draft) => {
     draft.dailyReports ||= [];
-    const report = findDailyReport(draft, req.params.id);
-    const job = findRequiredRecord(draft.jobs, report.jobId, "Job");
+    const report = findDailyReport(draft, req.params.id, req.auth.user);
+    const job = findCompanyScopedRecord(draft.jobs, report.jobId, req.auth.user, draft, "Job");
     if (report.archivedAt) {
       throw new ApiError(409, "Daily report is already archived.");
     }
@@ -8097,11 +8196,12 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
 
     const workCategory = optionalWorkCategory(payload.workCategory, "job");
     const jobId = workCategory === "job" ? requiredString(payload.jobId, "Job") : optionalString(payload.jobId, "");
-    const job = jobId ? findRequiredRecord(draft.jobs, jobId, "Job") : null;
+    const job = jobId ? findCompanyScopedRecord(draft.jobs, jobId, req.auth.user, draft, "Job") : null;
     assertTimeEntryCategoryPayload(req.auth.user, workCategory, job);
 
     const entry = applyTimeEntryTotals({
       id: makeId("T"),
+      companyId: job?.companyId || currentCompanyIdForRequestUser(draft, req.auth.user),
       userId: req.auth.user.id,
       jobId: job?.id || "",
       workCategory,
@@ -8141,7 +8241,7 @@ app.post("/api/time-entries/:id/break-start", requireAuth, asyncRoute(async (req
 
   const nextState = await updateDb((draft) => {
     draft.timeEntries ||= [];
-    const entry = findRequiredTimeEntry(draft, id);
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
     if (entry.userId !== req.auth.user.id) {
       throw new ApiError(403, "You can only manage your own active time.");
     }
@@ -8181,7 +8281,7 @@ app.post("/api/time-entries/:id/break-end", requireAuth, asyncRoute(async (req, 
 
   const nextState = await updateDb((draft) => {
     draft.timeEntries ||= [];
-    const entry = findRequiredTimeEntry(draft, id);
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
     if (entry.userId !== req.auth.user.id) {
       throw new ApiError(403, "You can only manage your own active time.");
     }
@@ -8216,7 +8316,7 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
 
   const nextState = await updateDb((draft) => {
     draft.timeEntries ||= [];
-    const entry = findRequiredTimeEntry(draft, id);
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
     if (entry.userId !== req.auth.user.id) {
       throw new ApiError(403, "You can only manage your own active time.");
     }
@@ -8257,7 +8357,7 @@ app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     draft.timeEntries ||= [];
-    const entry = findRequiredTimeEntry(draft, id);
+    const entry = findRequiredTimeEntry(draft, id, req.auth.user);
     const changedFields = [];
     const nextClockInAt = payload.clockInAt == null ? entry.clockInAt : optionalDateTimeString(payload.clockInAt, "Clock-in time", entry.clockInAt);
     const nextClockOutAt = payload.clockOutAt == null ? entry.clockOutAt || "" : optionalDateTimeString(payload.clockOutAt, "Clock-out time", "");
@@ -8266,7 +8366,7 @@ app.patch("/api/time-entries/:id", requireAuth, asyncRoute(async (req, res) => {
     const nextNotes = payload.notes == null ? entry.notes || "" : optionalString(payload.notes, "");
     const nextWorkCategory = payload.workCategory == null ? entry.workCategory || "job" : optionalWorkCategory(payload.workCategory, entry.workCategory || "job");
     const nextJobId = payload.jobId == null ? entry.jobId || "" : optionalString(payload.jobId, "");
-    const nextJob = nextJobId ? findRequiredRecord(draft.jobs, nextJobId, "Job") : null;
+    const nextJob = nextJobId ? findCompanyScopedRecord(draft.jobs, nextJobId, req.auth.user, draft, "Job") : null;
 
     if (entry.clockInAt !== nextClockInAt) changedFields.push("clockInAt");
     if ((entry.clockOutAt || "") !== nextClockOutAt) changedFields.push("clockOutAt");
@@ -8341,6 +8441,7 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
       throw new ApiError(409, "A user with that email already exists.");
     }
 
+    assignCompanyIdForCreate(userRecord, req.auth.user, draft);
     draft.users.push(userRecord);
     appendActivity(draft, "User created", `${userRecord.name} was added as ${userRecord.role}.`);
     appendAuditEvent(draft, {
@@ -8372,7 +8473,7 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const targetUser = findRequiredRecord(draft.users, id, "User");
+    const targetUser = findCompanyScopedRecord(draft.users, id, req.auth.user, draft, "User");
     const nextName = payload.name == null ? targetUser.name : requiredString(payload.name, "Name");
     const nextEmail = payload.email == null ? targetUser.email : requiredString(payload.email, "Email").toLowerCase();
     const nextPhone = payload.phone == null ? targetUser.phone || "" : optionalString(payload.phone, "");
@@ -8441,7 +8542,11 @@ app.post("/api/customers", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageCustomers(req.auth.user);
   const payload = req.body || {};
   const nextState = await updateDb((draft) => {
-    if (findMatchingCustomer(draft, { name: payload.name, city: payload.city })) {
+    if (findMatchingCustomer(draft, {
+      name: payload.name,
+      city: payload.city,
+      companyId: currentCompanyIdForRequestUser(draft, req.auth.user),
+    })) {
       throw new ApiError(409, "A customer with that name already exists.");
     }
 
@@ -8460,7 +8565,7 @@ app.patch("/api/customers/:id", requireAuth, asyncRoute(async (req, res) => {
   const changedFields = [];
 
   const nextState = await updateDb((draft) => {
-    const customer = findRequiredRecord(draft.customers, id, "Customer");
+    const customer = findCompanyScopedRecord(draft.customers, id, req.auth.user, draft, "Customer");
     const nextName = payload.name == null ? customer.name : requiredString(payload.name, "Customer name");
     const nextCompany = payload.company == null ? customer.company : optionalString(payload.company, "");
     const nextPhone = payload.phone == null ? customer.phone : optionalString(payload.phone, "");
@@ -8470,7 +8575,8 @@ app.patch("/api/customers/:id", requireAuth, asyncRoute(async (req, res) => {
     const nextStatus = payload.status == null ? customer.status : optionalEnum(payload.status, CUSTOMER_STATUSES, "Customer status", customer.status);
     const nextNotes = payload.notes == null ? customer.notes : optionalString(payload.notes, "");
 
-    const conflict = draft.customers.find((entry) => entry.id !== id && customerLookupKey(entry.name, entry.city) === customerLookupKey(nextName, nextCity));
+    const conflict = companyScopedRecordsForUser(draft, req.auth.user, draft.customers)
+      .find((entry) => entry.id !== id && customerLookupKey(entry.name, entry.city) === customerLookupKey(nextName, nextCity));
     if (conflict) {
       throw new ApiError(409, "A customer with that name already exists.");
     }
@@ -8519,7 +8625,7 @@ app.post("/api/customers/:id/archive", requireAuth, asyncRoute(async (req, res) 
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const customer = findRequiredRecord(draft.customers, id, "Customer");
+    const customer = findCompanyScopedRecord(draft.customers, id, req.auth.user, draft, "Customer");
     customer.archivedAt = changedAt;
     markUpdated(customer, changedAt);
     appendActivity(draft, "Customer archived", `${customer.name} was archived.`);
@@ -8544,7 +8650,7 @@ app.post("/api/customers/:id/restore", requireAuth, asyncRoute(async (req, res) 
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const customer = findRequiredRecord(draft.customers, id, "Customer");
+    const customer = findCompanyScopedRecord(draft.customers, id, req.auth.user, draft, "Customer");
     customer.archivedAt = null;
     markUpdated(customer, changedAt);
     appendActivity(draft, "Customer restored", `${customer.name} was restored.`);
@@ -8602,6 +8708,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     const ownerInfo = resolveLeadOwner(draft, payload, req.auth.user);
+    assignCompanyIdForCreate(newLead, req.auth.user, draft);
     Object.assign(newLead, ownerInfo);
     relateLeadToCustomer(draft, newLead, req.auth.user, payload);
     draft.leads.unshift(newLead);
@@ -8613,7 +8720,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
       note: "Lead created.",
       createdAt,
     });
-    draft.queueItems.unshift({
+    draft.queueItems.unshift(assignCompanyIdForCreate({
       id: makeId("Q"),
       title: `Follow up ${newLead.customer}`,
       meta: `${newLead.project} - ${newLead.followUpDueAt || newLead.city}`,
@@ -8621,7 +8728,7 @@ app.post("/api/leads", requireAuth, asyncRoute(async (req, res) => {
       done: false,
       createdAt,
       updatedAt: createdAt,
-    });
+    }, req.auth.user, draft));
     appendActivity(draft, "Lead created", `${newLead.customer} entered for ${newLead.project}.`);
     appendAuditEvent(draft, {
       entityType: "lead",
@@ -8644,7 +8751,7 @@ app.post("/api/leads/:id/archive", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     lead.archivedAt = changedAt;
     markUpdated(lead, changedAt);
     appendActivity(draft, "Lead archived", `${lead.customer} was archived.`);
@@ -8669,7 +8776,7 @@ app.post("/api/leads/:id/restore", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     lead.archivedAt = null;
     markUpdated(lead, changedAt);
     appendActivity(draft, "Lead restored", `${lead.customer} was restored.`);
@@ -8695,7 +8802,7 @@ app.patch("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     const changedFields = [];
     const previousStatus = lead.status;
     const nextProject = updates.project == null ? lead.project : requiredString(updates.project, "Project");
@@ -8791,7 +8898,7 @@ app.post("/api/leads/:id/score", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     const scoreFields = leadScoreResultToFields(scoreLeadRuleBased(lead, {
       leadSources: draft.leadSources || [],
       now: changedAt,
@@ -8822,7 +8929,7 @@ app.post("/api/leads/:id/check-missing-info", requireAuth, asyncRoute(async (req
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     const missingInfoFields = missingInfoResultToFields(checkLeadMissingInfo(lead, {
       leadSources: draft.leadSources || [],
       now: changedAt,
@@ -8850,12 +8957,12 @@ app.post("/api/leads/:id/check-missing-info", requireAuth, asyncRoute(async (req
 app.post("/api/ai/leads/:id/assist", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
   const state = await readDb();
-  const lead = findRequiredRecord(state.leads, req.params.id, "Lead");
+  const lead = findCompanyScopedRecord(state.leads, req.params.id, req.auth.user, state, "Lead");
 
   const result = await generateLeadAssistantDrafts({
     context: buildLeadAssistantContext({
       lead,
-      leadSources: state.leadSources || [],
+      leadSources: visibleLeadSourcesForUser(state, req.auth.user),
       companySettings: companySettingsForState(state),
     }),
     apiKey: process.env.OPENAI_API_KEY,
@@ -8869,7 +8976,7 @@ app.delete("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     assertArchived(lead, "Lead");
     draft.leads = draft.leads.filter((entry) => entry.id !== id);
     draft.leadStatusHistory = draft.leadStatusHistory.filter((event) => event.leadId !== id);
@@ -8894,7 +9001,7 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     const previousStatus = lead.status;
     const customer = ensureCustomerRecord(draft, {
       name: lead.customer,
@@ -8905,6 +9012,7 @@ app.post("/api/leads/:id/convert", requireAuth, asyncRoute(async (req, res) => {
 
     const newJob = normalizeJobRecord({
       id: makeId("J"),
+      companyId: lead.companyId,
       customerId: customer.id,
       leadId: lead.id,
       title: leadProjectName(lead),
@@ -8977,7 +9085,7 @@ app.post("/api/leads/:id/convert-to-customer", requireAuth, asyncRoute(async (re
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const lead = findRequiredRecord(draft.leads, id, "Lead");
+    const lead = findCompanyScopedRecord(draft.leads, id, req.auth.user, draft, "Lead");
     const previousStatus = lead.status;
     const customer = relateLeadToCustomer(draft, lead, req.auth.user, {
       customerId: lead.customerId,
@@ -9020,6 +9128,7 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
   const createdAt = new Date().toISOString();
   const newJob = normalizeJobRecord({
     id: makeId("J"),
+    companyId: currentCompanyIdForRequestUser({ companySettings: {} }, req.auth.user),
     customerId: "",
     leadId: optionalString(payload.leadId, ""),
     title: requiredString(payload.title ?? payload.job, "Job name"),
@@ -9051,8 +9160,18 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
 
   const nextState = await updateDb((draft) => {
     draft.jobAssignments ||= [];
+    assignCompanyIdForCreate(newJob, req.auth.user, draft);
+    if (newJob.leadId) {
+      findCompanyScopedRecord(draft.leads || [], newJob.leadId, req.auth.user, draft, "Lead");
+    }
     newJob.assignedForemanId = resolveOptionalUserId(draft, payload.assignedForemanId, "Assigned foreman");
     newJob.assignedUserId = resolveOptionalUserId(draft, payload.assignedUserId, "Assigned user");
+    if (newJob.assignedForemanId) {
+      assertRecordBelongsToUserCompany(findUserById(draft, newJob.assignedForemanId), req.auth.user, draft, "Assigned foreman");
+    }
+    if (newJob.assignedUserId) {
+      assertRecordBelongsToUserCompany(findUserById(draft, newJob.assignedUserId), req.auth.user, draft, "Assigned user");
+    }
     const customer = ensureCustomerRecord(draft, {
       name: newJob.customer,
       city: optionalString(payload.city, ""),
@@ -9100,7 +9219,7 @@ app.post("/api/jobs/:id/archive", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     const { title } = normalizeJobRecord(job);
     job.archivedAt = changedAt;
     markUpdated(job, changedAt);
@@ -9126,7 +9245,7 @@ app.post("/api/jobs/:id/restore", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     const { title } = normalizeJobRecord(job);
     job.archivedAt = null;
     markUpdated(job, changedAt);
@@ -9152,7 +9271,7 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     const normalizedBefore = normalizeJobRecord(job);
     const changedFields = [];
     const isFullManager = canViewAllJobs(req.auth.user);
@@ -9171,6 +9290,18 @@ app.patch("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
 
       const nextAssignedForemanId = updates.assignedForemanId == null ? job.assignedForemanId || "" : resolveOptionalUserId(draft, updates.assignedForemanId, "Assigned foreman");
       const nextAssignedUserId = updates.assignedUserId == null ? job.assignedUserId || "" : resolveOptionalUserId(draft, updates.assignedUserId, "Assigned user");
+      if (nextAssignedForemanId) {
+        assertRecordBelongsToUserCompany(findUserById(draft, nextAssignedForemanId), req.auth.user, draft, "Assigned foreman");
+      }
+      if (nextAssignedUserId) {
+        assertRecordBelongsToUserCompany(findUserById(draft, nextAssignedUserId), req.auth.user, draft, "Assigned user");
+      }
+      if (updates.leadId != null && optionalString(updates.leadId, "")) {
+        findCompanyScopedRecord(draft.leads || [], optionalString(updates.leadId, ""), req.auth.user, draft, "Lead");
+      }
+      if (updates.sourceImportedDraftId != null && optionalString(updates.sourceImportedDraftId, "")) {
+        findCompanyScopedRecord(draft.jobDraftImports || [], optionalString(updates.sourceImportedDraftId, ""), req.auth.user, draft, "Imported job draft");
+      }
       const startupBefore = normalizeJobStartupFields(job);
       const startupTouched = ["startupChecklist", "startupStatus", "startupNotes", "startupCompletedAt", "startupCompletedBy", "sourceImportedDraftId"].some((field) => updates[field] != null);
       const nextStartupChecklist = updates.startupChecklist == null
@@ -9300,7 +9431,7 @@ app.delete("/api/jobs/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     const { title } = normalizeJobRecord(job);
     assertArchived(job, "Job");
     draft.jobs = draft.jobs.filter((entry) => entry.id !== id);
@@ -9328,12 +9459,13 @@ app.post("/api/jobs/:id/assignments", requireAuth, asyncRoute(async (req, res) =
 
   const nextState = await updateDb((draft) => {
     draft.jobAssignments ||= [];
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     assertJobCanReceiveAssignments(job);
     reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
 
     const userId = resolveOptionalUserId(draft, payload.userId, "Assigned user");
     const assignmentUserRecord = findUserById(draft, userId);
+    assertRecordBelongsToUserCompany(assignmentUserRecord, req.auth.user, draft, "Assigned user");
     const roleOnJob = normalizeAssignmentRoleValue(payload.roleOnJob, "crew");
     assertAssignmentUserIsValid(assignmentUserRecord, roleOnJob);
 
@@ -9377,9 +9509,10 @@ app.patch("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(asy
 
   const nextState = await updateDb((draft) => {
     draft.jobAssignments ||= [];
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
     const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
+    assertRecordBelongsToUserCompany(assignment, req.auth.user, draft, "Crew assignment");
     materializeAssignmentRecord(assignment, req.auth.user, changedAt);
     const nextRole = payload.roleOnJob == null ? assignment.roleOnJob : normalizeAssignmentRoleValue(payload.roleOnJob, assignment.roleOnJob);
     const nextNotes = payload.notes == null ? assignment.notes || "" : optionalString(payload.notes, "");
@@ -9433,10 +9566,11 @@ app.delete("/api/jobs/:id/assignments/:assignmentId", requireAuth, asyncRoute(as
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     draft.jobAssignments ||= [];
     reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
     const assignment = findActiveAssignmentRecord(draft, id, assignmentId);
+    assertRecordBelongsToUserCompany(assignment, req.auth.user, draft, "Crew assignment");
     const userLabel = findUserById(draft, assignment.userId)?.name || assignment.userId;
     const title = normalizeJobRecord(job).title;
 
@@ -9463,7 +9597,7 @@ app.post("/api/jobs/:id/assignment-notice/acknowledge", requireAuth, asyncRoute(
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const job = findRequiredRecord(draft.jobs, id, "Job");
+    const job = findCompanyScopedRecord(draft.jobs, id, req.auth.user, draft, "Job");
     draft.jobAssignments ||= [];
     reconcileLegacyAssignmentAliases(draft, job, req.auth.user, changedAt);
 
@@ -9513,6 +9647,7 @@ app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
   };
 
   const nextState = await updateDb((draft) => {
+    assignCompanyIdForCreate(newTask, req.auth.user, draft);
     draft.queueItems.unshift(newTask);
     appendActivity(draft, "Queue item added", newTask.title);
     appendAuditEvent(draft, {
@@ -9534,7 +9669,7 @@ app.post("/api/queue-items/:id/archive", requireAuth, asyncRoute(async (req, res
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     task.archivedAt = changedAt;
     markUpdated(task, changedAt);
     appendActivity(draft, "Queue item archived", task.title);
@@ -9558,7 +9693,7 @@ app.post("/api/queue-items/:id/restore", requireAuth, asyncRoute(async (req, res
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     task.archivedAt = null;
     markUpdated(task, changedAt);
     appendActivity(draft, "Queue item restored", task.title);
@@ -9582,7 +9717,7 @@ app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     task.done = !task.done;
     markUpdated(task, changedAt);
     appendActivity(draft, task.done ? "Queue item completed" : "Queue item reopened", task.title);
@@ -9605,7 +9740,7 @@ app.delete("/api/queue-items/:id", requireAuth, asyncRoute(async (req, res) => {
   const { id } = req.params;
 
   const nextState = await updateDb((draft) => {
-    const task = findRequiredRecord(draft.queueItems, id, "Queue item");
+    const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     assertArchived(task, "Queue item");
     draft.queueItems = draft.queueItems.filter((entry) => entry.id !== id);
     appendActivity(draft, "Queue item deleted", task.title);

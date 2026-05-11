@@ -210,6 +210,19 @@ test("imported draft edits normalize, persist, and filter safely", () => {
   assert.equal(normalizeImportedJobDrafts(collection)[0].importStatus, "Needs Review");
 });
 
+test("imported draft normalization preserves company ownership", () => {
+  const original = createImportedJobDraftFromPackage(validPackage, { id: "import-1" }).draft;
+  const edited = normalizeImportedJobDraft({
+    ...original,
+    companyId: "COMPANY-LYF",
+    city: "Salem",
+  });
+  const collection = upsertImportedJobDraft([original], edited);
+
+  assert.equal(edited.companyId, "COMPANY-LYF");
+  assert.equal(normalizeImportedJobDrafts(collection)[0].companyId, "COMPANY-LYF");
+});
+
 test("job creation mapping requires city/state unless override is explicit", () => {
   const needsReview = createImportedJobDraftFromPackage({
     ...validPackage,
