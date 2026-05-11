@@ -201,13 +201,13 @@ textarea {
 
   .co-command-page {
     position: relative;
-    background-color: rgba(241, 245, 249, 0.72);
+    background-color: rgba(241, 245, 249, 0.86);
   }
 
   .co-command-card {
     position: relative;
     overflow: hidden;
-    border-color: rgba(148, 163, 184, 0.48);
+    border-color: rgba(148, 163, 184, 0.56);
     background: #ffffff;
     box-shadow: 0 14px 34px -32px rgba(15, 23, 42, 0.52);
   }
@@ -274,7 +274,7 @@ textarea {
 
   .co-command-priority-row {
     position: relative;
-    border-color: rgba(148, 163, 184, 0.42);
+    border-color: rgba(148, 163, 184, 0.5);
     background: #ffffff;
     box-shadow: 0 8px 20px -24px rgba(15, 23, 42, 0.52);
     transition:
@@ -346,12 +346,12 @@ textarea {
   }
 
   .co-command-action-row {
-    border-color: rgba(203, 213, 225, 0.88);
+    border-color: rgba(148, 163, 184, 0.46);
     background: #ffffff;
   }
 
   .co-command-table-shell {
-    border: 1px solid rgba(148, 163, 184, 0.46);
+    border: 1px solid rgba(148, 163, 184, 0.54);
     border-radius: 1rem;
     background: #ffffff;
     box-shadow:
@@ -369,8 +369,8 @@ textarea {
   }
 
   .co-command-table th {
-    border-bottom: 1px solid rgba(148, 163, 184, 0.62);
-    color: #1e293b;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.72);
+    color: #0f172a;
     font-size: 0.68rem;
     font-weight: 900;
     letter-spacing: 0.13em;
@@ -380,7 +380,7 @@ textarea {
   }
 
   .co-command-table td {
-    border-bottom: 1px solid rgba(203, 213, 225, 0.88);
+    border-bottom: 1px solid rgba(203, 213, 225, 0.98);
     background: #ffffff;
     vertical-align: middle;
     transition:
@@ -390,7 +390,7 @@ textarea {
   }
 
   .co-command-table-row:hover td {
-    border-bottom-color: rgba(251, 146, 60, 0.2);
+    border-bottom-color: rgba(249, 115, 22, 0.28);
     background: rgba(255, 247, 237, 0.5);
     box-shadow: inset 0 1px 0 rgba(251, 146, 60, 0.08);
   }
@@ -438,6 +438,16 @@ textarea {
   .co-command-right-rail {
     position: sticky;
     top: calc(var(--layout-topbar-height, 4.5rem) + 1rem);
+  }
+
+  .co-command-card .co-section-accent h2 {
+    color: #020617;
+    letter-spacing: -0.01em;
+  }
+
+  .co-command-card .co-section-accent p {
+    color: #475569;
+    font-weight: 700;
   }
 
   .co-section-accent {

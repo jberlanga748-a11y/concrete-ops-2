@@ -7134,7 +7134,7 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
               <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${row.dotClassName}`} aria-hidden="true" />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-black text-slate-950">{row.label}</span>
-                <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{row.detail}</span>
+                <span className="mt-0.5 block truncate text-xs font-bold text-slate-600">{row.detail}</span>
               </span>
             </span>
             <Badge tone={row.tone}>{row.pill}</Badge>
@@ -7238,7 +7238,7 @@ function CommandCenterQuickAction({ icon, label, helper, onClick }) {
         </span>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{label}</span>
-          {helper ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{helper}</span> : null}
+          {helper ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-600">{helper}</span> : null}
         </span>
       </span>
       <span className="text-lg font-black text-slate-400" aria-hidden="true">&rsaquo;</span>
@@ -7474,7 +7474,7 @@ function CommandCenterPage({
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
             <h1 className="mt-1 break-words text-3xl font-black tracking-tight text-slate-950">Command Center</h1>
-            <p className="mt-1 max-w-3xl text-sm font-bold leading-6 text-slate-600">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
+            <p className="mt-1 max-w-3xl text-sm font-bold leading-6 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
@@ -7501,7 +7501,7 @@ function CommandCenterPage({
               compact
               footer={
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm font-bold text-slate-600">
+                  <p className="text-sm font-bold text-slate-700">
                     Showing {visiblePriorityRows.length} of {priorityRows.length} priority item{priorityRows.length === 1 ? "" : "s"}.
                   </p>
                   <Button type="button" size="sm" variant="ghost" onClick={() => openModule("leads")}>View all priority items</Button>
@@ -7536,10 +7536,10 @@ function CommandCenterPage({
                       <tr key={row.id} className="co-command-table-row align-middle">
                         <td className="px-3 py-2.5">
                           <p className="max-w-[16rem] truncate text-sm font-black text-slate-950">{row.title}</p>
-                          <p className="mt-0.5 max-w-[16rem] truncate text-xs font-bold text-slate-500">{row.subtitle}</p>
+                          <p className="mt-0.5 max-w-[16rem] truncate text-xs font-bold text-slate-600">{row.subtitle}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.source}</td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.lastContact}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.source}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.lastContact}</td>
                         <td className="px-3 py-2.5">
                           <p className="max-w-[18rem] truncate text-sm font-bold text-slate-700">{row.nextStep}</p>
                         </td>
@@ -7586,10 +7586,10 @@ function CommandCenterPage({
                           <button type="button" onClick={() => openJob(row.id)} className="co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black text-slate-950 hover:text-orange-700">
                             {row.title}
                           </button>
-                          <p className="mt-0.5 max-w-[17rem] truncate text-xs font-bold text-slate-500">{row.subtitle}</p>
+                          <p className="mt-0.5 max-w-[17rem] truncate text-xs font-bold text-slate-600">{row.subtitle}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.phase}</td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.foreman}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.phase}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.foreman}</td>
                         <td className="px-3 py-2.5"><Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Yes" : "No"}</Badge></td>
                         <td className="px-3 py-2.5"><Badge tone={row.missingReports > 0 ? "amber" : "green"}>{row.missingReports}</Badge></td>
                         <td className="px-3 py-2.5"><Badge tone={row.missingPhotos > 0 ? "amber" : "green"}>{row.missingPhotos}</Badge></td>
@@ -7629,7 +7629,7 @@ function CommandCenterPage({
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-black text-slate-950">{alert.title}</span>
-                      <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-500">{alert.description}</span>
+                      <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-600">{alert.description}</span>
                     </span>
                     <Badge tone={alert.tone}>Alert</Badge>
                   </button>
@@ -7637,7 +7637,7 @@ function CommandCenterPage({
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">No top alerts right now.</div>
                 )}
               </div>
-              <p className="mt-3 text-xs font-bold text-slate-500">Use the bell in the top bar for the full notification center.</p>
+              <p className="mt-3 text-xs font-bold text-slate-600">Use the bell in the top bar for the full notification center.</p>
             </Card>
           </div>
       </div>
