@@ -10884,6 +10884,98 @@ function ReleaseSafetyRollbackPanel({ canView = false }) {
   );
 }
 
+function PwaInstallGuidancePanel({ canView = false }) {
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installState, setInstallState] = useState("idle");
+
+  useEffect(() => {
+    if (!canView || typeof window === "undefined") return undefined;
+
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setInstallState("available");
+    }
+
+    function handleInstalled() {
+      setInstallPrompt(null);
+      setInstallState("installed");
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, [canView]);
+
+  async function handleInstallClick() {
+    if (!installPrompt?.prompt) return;
+
+    setInstallState("prompting");
+    try {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      setInstallState(choice?.outcome === "accepted" ? "installed" : "dismissed");
+    } catch {
+      setInstallState("fallback");
+    }
+  }
+
+  if (!canView) return null;
+
+  const installAvailable = Boolean(installPrompt);
+  const statusMessage = installState === "installed"
+    ? "Concrete Ops has been installed or the browser reported a successful install."
+    : installState === "dismissed"
+      ? "Install was dismissed. You can still use the browser menu install option later."
+      : installState === "fallback"
+        ? "The browser install prompt was not available. Use the manual install steps below."
+        : "Chrome or Edge may show an install button when the browser confirms this device supports app install.";
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Install Concrete Ops"
+        description="Add Concrete Ops 2 to a desktop or mobile home screen as an installable app shell. Live workspace data still requires an internet connection."
+        action={installAvailable ? (
+          <Button type="button" variant="primary" size="sm" onClick={handleInstallClick} disabled={installState === "prompting"}>
+            {installState === "prompting" ? "Opening..." : "Install App"}
+          </Button>
+        ) : null}
+      />
+      <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="amber">Installable app shell</Badge>
+          <Badge tone="slate">No offline editing</Badge>
+          <Badge tone="slate">No browser alerts</Badge>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-orange-900">
+          Offline editing is not enabled yet. Keep an internet connection active for leads, jobs, reports, photos, estimates, and owner tools.
+        </p>
+        <p className="mt-2 text-sm font-bold text-orange-800">{statusMessage}</p>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">Windows desktop</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open Concrete Ops 2 in Chrome or Edge, use the browser install button or menu, then pin it to the taskbar or Start menu.</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">iPhone or iPad</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open the live app in Safari, tap Share, then choose Add to Home Screen.</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">Android</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open the live app in Chrome, then use Install app or Add to Home screen from the browser menu.</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SettingsPage({
   user,
   sessionToken,
@@ -11049,6 +11141,7 @@ function SettingsPage({
         />
         <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
         <ReleaseSafetyRollbackPanel canView={canViewSettings} />
+        <PwaInstallGuidancePanel canView={canViewSettings} />
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
           <div className="grid min-w-0 self-start gap-4">
             <Card className="self-start p-5">
