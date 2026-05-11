@@ -7042,20 +7042,23 @@ function CommandCenterSection({ title, description, count, emptyTitle, emptyDesc
   );
 }
 
-function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, compact = false }) {
+function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, tone = "orange", compact = false }) {
   return (
-    <div className={`co-command-priority-row rounded-2xl border ${compact ? "px-3 py-2.5" : "p-4"}`}>
-      <div className={`grid min-w-0 gap-2 ${compact ? "xl:grid-cols-[minmax(0,1fr)_auto]" : "xl:grid-cols-[minmax(0,1fr)_auto]"} xl:items-center xl:justify-between`}>
-        <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+    <div className={`co-command-priority-row rounded-2xl border ${compact ? "p-3" : "p-4"}`} data-tone={tone}>
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(10rem,0.9fr)_auto] lg:items-center">
+        <div className="flex min-w-0 gap-3">
+          <span className="co-command-priority-dot mt-1.5 shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
             {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-700">{eyebrow}</p> : null}
-            {badges ? <div className="flex shrink-0 flex-wrap gap-1.5">{badges}</div> : null}
+            <p className={`${compact ? "mt-0.5 text-sm" : "mt-1 text-base"} break-words font-black leading-5 text-slate-950`}>{title}</p>
+            {description ? <p className="mt-1 break-words text-sm font-semibold leading-5 text-slate-600">{description}</p> : null}
           </div>
-          <p className={`${compact ? "mt-1 text-sm" : "mt-1 text-base"} break-words font-black text-slate-950`}>{title}</p>
-          {description ? <p className="mt-0.5 break-words text-sm leading-5 text-slate-600">{description}</p> : null}
-          {meta ? <p className={`${compact ? "mt-0.5" : "mt-2"} break-words text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400`}>{meta}</p> : null}
         </div>
-        {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 xl:w-auto xl:justify-end">{actions}</div> : null}
+        <div className="grid min-w-0 gap-1.5 lg:justify-items-start">
+          {badges ? <div className="flex min-w-0 flex-wrap gap-1.5">{badges}</div> : null}
+          {meta ? <p className="break-words text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{meta}</p> : null}
+        </div>
+        {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 lg:w-auto lg:justify-end">{actions}</div> : null}
       </div>
     </div>
   );
@@ -7339,7 +7342,7 @@ function CommandCenterPage({
       <button
         type="button"
         onClick={onClick}
-        className="co-focus-ring inline-flex items-center justify-center rounded-full bg-orange-600 px-3 py-1.5 text-xs font-black text-white shadow-sm shadow-orange-600/20 transition hover:bg-orange-700"
+        className="co-focus-ring inline-flex items-center justify-center rounded-2xl border border-orange-200 bg-white px-3 py-2 text-xs font-black text-orange-700 shadow-sm shadow-orange-600/10 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-800"
       >
         {label}
         <span aria-hidden="true" className="ml-1">-&gt;</span>
@@ -7362,6 +7365,7 @@ function CommandCenterPage({
       title: item.title,
       description: item.subtitle || item.reason,
       meta: `Last: ${item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "not contacted"} / Next: ${item.nextFollowUpDate || "not scheduled"}`,
+      tone: item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : item.bucket === "waiting" ? "blue" : "orange",
       badges: <Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge>,
       actions: renderPriorityAction(item.type === "leadSource" ? "Open Source Check" : "Open Follow-Up", () => openModule("leads")),
     })),
@@ -7371,6 +7375,7 @@ function CommandCenterPage({
       eyebrow: draft.customerMatchStatus || "Customer match",
       title: draft.customerName || draft.jobName || "Imported draft",
       description: draft.customerMatchReason || "Open the imported draft to confirm the customer or choose create-new.",
+      tone: customerMatchStatusTone(draft.customerMatchStatus),
       badges: <Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Needs Review"}</Badge>,
       actions: renderPriorityAction("Review Match", () => openImportedDraft(draft.id)),
     })),
@@ -7381,6 +7386,7 @@ function CommandCenterPage({
       title: jobTitle(job),
       description: job.address || "Address pending",
       meta: `${job.startupWarnings.length} critical warning${job.startupWarnings.length === 1 ? "" : "s"}`,
+      tone: job.startupWarnings.length > 0 ? "amber" : "slate",
       badges: <Badge tone={job.startupWarnings.length > 0 ? "amber" : "slate"}>{job.startupWarnings.length > 0 ? "Critical items missing" : job.startupStatus}</Badge>,
       actions: renderPriorityAction("Open Job", () => openJob(job.id)),
     })),
