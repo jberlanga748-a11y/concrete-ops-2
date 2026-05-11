@@ -11,6 +11,10 @@ export const DEFAULT_COMPANY_SETTINGS = {
   printPacketFooter: "",
   printPacketDisclaimer: "",
   toolChecklistEnabled: true,
+  managedSetupStatus: "Not Started",
+  managedSetupChecklist: [],
+  managedSetupNotes: "",
+  managedSetupUpdatedAt: "",
 };
 
 export function normalizeRole(role) {

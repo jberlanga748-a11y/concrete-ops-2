@@ -126,6 +126,7 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
+import { deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -235,6 +236,10 @@ const EMPTY_APP_STATE = {
     printPacketFooter: "",
     printPacketDisclaimer: "",
     toolChecklistEnabled: true,
+    managedSetupStatus: "Not Started",
+    managedSetupChecklist: [],
+    managedSetupNotes: "",
+    managedSetupUpdatedAt: "",
   },
   users: [],
   customers: [],
@@ -9622,6 +9627,195 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
   );
 }
 
+function setupStatusTone(status) {
+  if (status === "Ready for Field Rollout") return "green";
+  if (status === "Ready for Managed Use") return "blue";
+  if (status === "In Progress") return "amber";
+  return "slate";
+}
+
+function ManagedCompanySetupPanel({
+  companySettings,
+  users,
+  leadSources,
+  jobs,
+  busy,
+  onUpdateCompanySettings,
+  onNavigate,
+}) {
+  const setupState = useMemo(() => deriveManagedCompanySetupState({
+    companySettings,
+    users,
+    leadSources,
+    jobs,
+  }), [companySettings, jobs, leadSources, users]);
+  const [itemDraft, setItemDraft] = useState(() => Object.fromEntries(
+    setupState.items.map((item) => [item.key, { completed: item.completed, note: item.note || "" }]),
+  ));
+  const [notesDraft, setNotesDraft] = useState(setupState.notes || "");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    setItemDraft(Object.fromEntries(
+      setupState.items.map((item) => [item.key, { completed: item.completed, note: item.note || "" }]),
+    ));
+    setNotesDraft(setupState.notes || "");
+    setNotice("");
+  }, [setupState.completedCount, setupState.notes, setupState.totalCount, setupState.updatedAt]);
+
+  const draftRows = setupState.items.map((item) => ({
+    ...item,
+    completed: itemDraft[item.key]?.completed ?? item.completed,
+    note: itemDraft[item.key]?.note ?? item.note ?? "",
+  }));
+  const draftCompletedCount = draftRows.filter((item) => item.completed).length;
+  const draftPercent = draftRows.length > 0 ? Math.round((draftCompletedCount / draftRows.length) * 100) : 0;
+  const draftBlockers = draftRows.filter((item) => item.critical && !item.completed);
+  const dirty = notesDraft !== setupState.notes
+    || draftRows.some((item) => {
+      const source = setupState.items.find((candidate) => candidate.key === item.key);
+      return item.completed !== source?.completed || item.note !== (source?.note || "");
+    });
+  const canSave = typeof onUpdateCompanySettings === "function" && !busy;
+
+  function updateItem(key, patch) {
+    setItemDraft((current) => ({
+      ...current,
+      [key]: {
+        completed: current[key]?.completed ?? setupState.items.find((item) => item.key === key)?.completed ?? false,
+        note: current[key]?.note || "",
+        ...patch,
+      },
+    }));
+    setNotice("");
+  }
+
+  function resetDraft() {
+    setItemDraft(Object.fromEntries(
+      setupState.items.map((item) => [item.key, { completed: item.completed, note: item.note || "" }]),
+    ));
+    setNotesDraft(setupState.notes || "");
+    setNotice("");
+  }
+
+  async function saveSetup() {
+    if (!canSave) return;
+    const payloadChecklist = setupState.items.map((item) => {
+      const draft = itemDraft[item.key] || {};
+      return {
+        key: item.key,
+        completed: draft.completed ?? item.completed,
+        note: draft.note || "",
+        updatedAt: item.updatedAt || "",
+        derivedCompleted: item.derivedCompleted,
+      };
+    }).filter((item) => item.note || item.completed !== item.derivedCompleted);
+    const saved = await onUpdateCompanySettings({
+      managedSetupChecklist: payloadChecklist,
+      managedSetupNotes: notesDraft.trim(),
+    });
+    setNotice(saved ? "Managed setup saved." : "Could not save managed setup. Please try again.");
+  }
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Managed Company Setup"
+        description="Track what still needs to be configured before this contractor is ready to run leads, estimates, jobs, and field work."
+      />
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Readiness</p>
+          <div className="mt-2">
+            <Badge tone={setupStatusTone(setupState.status)}>{setupState.status}</Badge>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Checklist</p>
+          <p className="mt-2 text-2xl font-black text-slate-950">{draftCompletedCount}/{draftRows.length}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Progress</p>
+          <p className="mt-2 text-2xl font-black text-slate-950">{draftPercent}%</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Critical missing</p>
+          <p className="mt-2 text-2xl font-black text-slate-950">{draftBlockers.length}</p>
+        </div>
+      </div>
+      <div className="mt-4 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-3 rounded-full bg-blue-700 transition-all" style={{ width: `${Math.max(0, Math.min(100, draftPercent))}%` }} />
+      </div>
+      <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+        <p className="text-sm font-black text-amber-800">Next action</p>
+        <p className="mt-1 text-sm leading-6 text-amber-800/90">{draftBlockers[0] ? `Finish ${draftBlockers[0].label.toLowerCase()} before this contractor is ready for managed use.` : setupState.nextAction}</p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {["settings", "employees", "leads", "estimates", "jobs", "commandCenter"].map((moduleId) => (
+          <Button key={moduleId} type="button" size="sm" variant="secondary" onClick={() => onNavigate?.(moduleId)}>
+            {moduleId === "commandCenter" ? "Command Center" : moduleId === "employees" ? "Users" : moduleId[0].toUpperCase() + moduleId.slice(1)}
+          </Button>
+        ))}
+      </div>
+      <div className="mt-5 grid gap-4">
+        {setupState.categories.map((category) => {
+          const categoryRows = category.items.map((item) => draftRows.find((row) => row.key === item.key) || item);
+          const categoryComplete = categoryRows.filter((item) => item.completed).length;
+          return (
+            <div key={category.id} className="rounded-2xl border border-blue-100 bg-white/90 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-slate-950">{category.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">{category.description}</p>
+                </div>
+                <Badge tone={categoryComplete === categoryRows.length ? "green" : "slate"}>{categoryComplete}/{categoryRows.length}</Badge>
+              </div>
+              <div className="mt-4 grid gap-2 md:grid-cols-2">
+                {categoryRows.map((item) => (
+                  <label key={item.key} className={`flex min-w-0 items-start gap-3 rounded-2xl border p-3 text-sm font-bold ${item.completed ? "border-green-100 bg-green-50/60 text-green-900" : item.critical ? "border-amber-100 bg-amber-50/70 text-amber-900" : "border-blue-100 bg-blue-50/50 text-slate-700"}`}>
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-blue-200 text-blue-700"
+                      checked={Boolean(item.completed)}
+                      disabled={!canSave}
+                      onChange={(event) => updateItem(item.key, { completed: event.target.checked })}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-slate-950">{item.label}</span>
+                      <span className="mt-1 flex flex-wrap gap-1 text-[11px] font-black uppercase tracking-[0.12em]">
+                        {item.critical ? <span className="text-amber-700">Critical</span> : <span className="text-slate-500">Recommended</span>}
+                        <span className="text-slate-400">/</span>
+                        <span className={item.source === "manual" ? "text-blue-700" : "text-slate-500"}>{item.source === "manual" ? "Manual" : "Auto hint"}</span>
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4">
+        <TextAreaField
+          label="Managed setup notes"
+          value={notesDraft}
+          onChange={(event) => {
+            setNotesDraft(event.target.value);
+            setNotice("");
+          }}
+          placeholder="Use this for operator notes, walkthrough needs, and contractor-specific setup reminders."
+          disabled={!canSave}
+        />
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button type="button" onClick={saveSetup} disabled={!canSave || !dirty}>Save setup checklist</Button>
+        <Button type="button" variant="secondary" onClick={resetDraft} disabled={!dirty}>Reset unsaved changes</Button>
+        <p className="text-sm text-slate-500">{notice || "Manual checklist choices are stored in Settings. Smart hints use existing company, user, lead source, and job data."}</p>
+      </div>
+    </Card>
+  );
+}
+
 function SettingsPage({
   user,
   onReset,
@@ -9629,8 +9823,12 @@ function SettingsPage({
   auditEvents,
   demoMode,
   companySettings,
+  users,
+  leadSources,
+  jobs,
   permissions,
   onUpdateCompanySettings,
+  setActive,
   publicEstimateRequestEnabled,
 }) {
   const safeCompanySettings = {
@@ -9771,6 +9969,15 @@ function SettingsPage({
     <div>
       <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace details, admin access, and field tools for your team."} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
+        <ManagedCompanySetupPanel
+          companySettings={safeCompanySettings}
+          users={users}
+          leadSources={leadSources}
+          jobs={jobs}
+          busy={busy}
+          onUpdateCompanySettings={onUpdateCompanySettings}
+          onNavigate={setActive}
+        />
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
           <div className="grid min-w-0 self-start gap-4">
             <Card className="self-start p-5">
@@ -12722,7 +12929,7 @@ function MainContent(props) {
   }
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
-  if (active === "settings") return <SettingsPage user={props.user} onReset={props.onReset} busy={props.busy} auditEvents={props.auditEvents} demoMode={props.demoMode} companySettings={props.companySettings} permissions={props.permissions} onUpdateCompanySettings={props.onUpdateCompanySettings} publicEstimateRequestEnabled={props.publicEstimateRequestEnabled} />;
+  if (active === "settings") return <SettingsPage {...props} />;
   return <GenericPage active={active} queueItems={props.queueItems} selectedLead={props.selectedLead} selectedJob={props.selectedJob} />;
 }
 

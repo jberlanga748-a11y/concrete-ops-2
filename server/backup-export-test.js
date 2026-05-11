@@ -51,6 +51,10 @@ async function run() {
       throw new Error("Expected JSON export to include lead source records.");
     }
 
+    if (!Array.isArray(exportPayload.state?.companySettings?.managedSetupChecklist)) {
+      throw new Error("Expected JSON export to include managed setup company settings.");
+    }
+
     const exportedJob = exportPayload.state.jobs?.[0];
     if (!exportedJob || !Array.isArray(exportedJob.startupChecklist) || !exportedJob.startupStatus) {
       throw new Error("Expected JSON export to include job startup checklist fields.");

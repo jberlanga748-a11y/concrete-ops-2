@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { DEMO_COMPANY_NAME, DEMO_CREDENTIALS, DEMO_USERS, INITIAL_ACTIVITY, INITIAL_CUSTOMERS, INITIAL_JOBS, INITIAL_LEADS, INITIAL_QUEUE_ITEMS } from "./seed-data.js";
 import { serverConfig } from "./config.js";
+import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
 import { normalizeJobStartupFields } from "../shared/jobStartup.js";
@@ -2445,6 +2446,10 @@ function ensureDemoCompanySettingsInDatabase(database, companySettings, changedA
     ["printPacketFooter", normalized.printPacketFooter || ""],
     ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
     ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
+    ["managedSetupStatus", normalized.managedSetupStatus || "Not Started"],
+    ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],
+    ["managedSetupNotes", normalized.managedSetupNotes || ""],
+    ["managedSetupUpdatedAt", normalized.managedSetupUpdatedAt || ""],
   ];
   const selectSetting = database.prepare(`
     SELECT value
@@ -3223,6 +3228,7 @@ function normalizeCompanySettings(settings = {}) {
     : "";
   const normalizedAccentColor = typeof settings?.accentColor === "string" ? settings.accentColor.trim().toLowerCase() : "";
   const normalizeText = (value, limit) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
+  const managedSetup = normalizeManagedSetupSettings(settings);
 
   return {
     ...DEFAULT_COMPANY_SETTINGS,
@@ -3241,6 +3247,7 @@ function normalizeCompanySettings(settings = {}) {
     printPacketFooter: normalizeText(settings?.printPacketFooter, 240),
     printPacketDisclaimer: normalizeText(settings?.printPacketDisclaimer, 320),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
+    ...managedSetup,
   };
 }
 
@@ -5087,6 +5094,10 @@ function writeStateToDb(state) {
     insertCompanySetting.run("printPacketFooter", normalizedCompanySettings.printPacketFooter || "", isoNow());
     insertCompanySetting.run("printPacketDisclaimer", normalizedCompanySettings.printPacketDisclaimer || "", isoNow());
     insertCompanySetting.run("toolChecklistEnabled", normalizedCompanySettings.toolChecklistEnabled ? "true" : "false", isoNow());
+    insertCompanySetting.run("managedSetupStatus", normalizedCompanySettings.managedSetupStatus || "Not Started", isoNow());
+    insertCompanySetting.run("managedSetupChecklist", JSON.stringify(normalizedCompanySettings.managedSetupChecklist || []), isoNow());
+    insertCompanySetting.run("managedSetupNotes", normalizedCompanySettings.managedSetupNotes || "", isoNow());
+    insertCompanySetting.run("managedSetupUpdatedAt", normalizedCompanySettings.managedSetupUpdatedAt || "", isoNow());
 
     state.users.forEach((user) => {
       insertUser.run(

@@ -58,6 +58,7 @@ import {
   buildLeadAssistantContext,
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
+import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
 import {
   calculateStartupStatus,
   canMarkStartupReady,
@@ -4921,6 +4922,7 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
 app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
   assertCanToggleToolChecklist(req.auth.user);
   const payload = req.body || {};
+  const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     draft.companySettings = companySettingsForState(draft);
@@ -4931,7 +4933,11 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const profileChangedFields = [];
     const printPacketChanges = [];
     const printPacketChangedFields = [];
+    const setupChanges = [];
+    const setupChangedFields = [];
     const hasToolChecklistEnabledUpdate = Object.prototype.hasOwnProperty.call(payload, "toolChecklistEnabled");
+    const hasManagedSetupUpdate = Object.prototype.hasOwnProperty.call(payload, "managedSetupChecklist")
+      || Object.prototype.hasOwnProperty.call(payload, "managedSetupNotes");
     const nextToolChecklistEnabled = optionalBoolean(payload.toolChecklistEnabled, previousToolChecklistEnabled);
     const nextCompanyName = payload.companyName == null
       ? draft.companySettings.companyName
@@ -4966,6 +4972,7 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const nextPrintPacketDisclaimer = payload.printPacketDisclaimer == null
       ? draft.companySettings.printPacketDisclaimer
       : optionalCompanySettingText(payload.printPacketDisclaimer, "", 320);
+    let nextManagedSetup = null;
 
     if (hasToolChecklistEnabledUpdate && previousToolChecklistEnabled !== nextToolChecklistEnabled) {
       draft.companySettings.toolChecklistEnabled = nextToolChecklistEnabled;
@@ -5036,6 +5043,34 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       printPacketChangedFields.push("printPacketDisclaimer");
       printPacketChanges.push("packet disclaimer");
     }
+    if (hasManagedSetupUpdate) {
+      nextManagedSetup = managedSetupSettingsFromPayload(payload, draft.companySettings, {
+        users: draft.users || [],
+        leadSources: draft.leadSources || [],
+        jobs: draft.jobs || [],
+      }, changedAt);
+    }
+    if (nextManagedSetup) {
+      if (draft.companySettings.managedSetupStatus !== nextManagedSetup.managedSetupStatus) {
+        draft.companySettings.managedSetupStatus = nextManagedSetup.managedSetupStatus;
+        setupChangedFields.push("managedSetupStatus");
+        setupChanges.push("readiness status");
+      }
+      if (JSON.stringify(draft.companySettings.managedSetupChecklist || []) !== JSON.stringify(nextManagedSetup.managedSetupChecklist || [])) {
+        draft.companySettings.managedSetupChecklist = nextManagedSetup.managedSetupChecklist;
+        setupChangedFields.push("managedSetupChecklist");
+        setupChanges.push("checklist");
+      }
+      if (draft.companySettings.managedSetupNotes !== nextManagedSetup.managedSetupNotes) {
+        draft.companySettings.managedSetupNotes = nextManagedSetup.managedSetupNotes;
+        setupChangedFields.push("managedSetupNotes");
+        setupChanges.push("notes");
+      }
+      if (draft.companySettings.managedSetupUpdatedAt !== nextManagedSetup.managedSetupUpdatedAt) {
+        draft.companySettings.managedSetupUpdatedAt = nextManagedSetup.managedSetupUpdatedAt;
+        setupChangedFields.push("managedSetupUpdatedAt");
+      }
+    }
 
     if (brandingChanges.length > 0) {
       const detail = `${req.auth.user.name} updated the workspace ${brandingChanges.join(", ")}.`;
@@ -5074,6 +5109,19 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
         detail,
         actor: req.auth.user,
         changedFields: [...printPacketChangedFields, "updatedAt"],
+      });
+    }
+    if (setupChanges.length > 0) {
+      const detail = `${req.auth.user.name} updated the managed company setup ${setupChanges.join(", ")}.`;
+      appendActivity(draft, "Managed company setup updated", detail);
+      appendAuditEvent(draft, {
+        entityType: "companySettings",
+        entityId: "managedSetup",
+        action: "updated",
+        summary: "Managed company setup updated",
+        detail,
+        actor: req.auth.user,
+        changedFields: [...setupChangedFields, "updatedAt"],
       });
     }
 
