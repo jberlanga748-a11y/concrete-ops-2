@@ -155,6 +155,10 @@ export function checkLeadMissingInfo(token, id) {
   return request(`/api/leads/${id}/check-missing-info`, { method: "POST", token });
 }
 
+export function assistLead(token, id) {
+  return request(`/api/ai/leads/${id}/assist`, { method: "POST", token });
+}
+
 export function archiveLead(token, id) {
   return request(`/api/leads/${id}/archive`, { method: "POST", token });
 }

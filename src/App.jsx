@@ -20,6 +20,7 @@ import {
   archiveLead,
   archiveLeadSource,
   archiveQueueItem,
+  assistLead as assistLeadRequest,
   bootstrapAdminAccount,
   convertEstimateToJob,
   convertLead,
@@ -2467,6 +2468,7 @@ function LeadDetailPanel({
   onCreateEstimateFromLead = () => {},
   onScoreLead = () => {},
   onCheckMissingInfo = () => {},
+  onGenerateLeadAssistant = () => {},
   onConvertToCustomer = () => {},
   onArchive,
   onRestore,
@@ -2479,6 +2481,7 @@ function LeadDetailPanel({
   saveState,
   canManage = true,
   canCreateEstimate = false,
+  leadAssistantState = null,
 }) {
   if (!lead) {
     return (
@@ -2522,6 +2525,13 @@ function LeadDetailPanel({
         <TimestampMeta createdAt={lead.createdAt} updatedAt={lead.updatedAt} />
         <LeadScoreCard lead={lead} canManage={canManage} disabled={disabled} onScoreLead={onScoreLead} />
         <LeadMissingInfoCard lead={lead} canManage={canManage} disabled={disabled} onCheckMissingInfo={onCheckMissingInfo} />
+        <LeadAiAssistantCard
+          lead={lead}
+          canManage={canManage}
+          disabled={disabled}
+          assistant={leadAssistantState?.leadId === lead.id ? leadAssistantState : null}
+          onGenerateLeadAssistant={onGenerateLeadAssistant}
+        />
         {canCreateEstimate ? (
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-4">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -7075,6 +7085,8 @@ function DashboardPage({
   onLeadFieldChange,
   onScoreLead,
   onCheckMissingInfo,
+  onGenerateLeadAssistant,
+  leadAssistantState,
   onCreateJobFromLead,
   onCreateEstimateFromLead,
   onConvertLeadToCustomer,
@@ -7238,7 +7250,7 @@ function DashboardPage({
             <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
               <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
             </div>
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
           </div>
         </div>
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
@@ -7384,6 +7396,109 @@ function LeadMissingInfoCard({ lead, canManage = false, disabled = false, onChec
           </div>
           {items.length === 0 ? <p className="text-sm font-bold text-emerald-700">No missing items found.</p> : null}
           <p className="text-xs font-bold text-slate-500">Checked {formatDateTime(lead.missingInfoCheckedAt)}. Missing info checks are office-only and use saved lead/source fields.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LeadAiAssistantCard({ lead, canManage = false, disabled = false, assistant = null, onGenerateLeadAssistant = () => {} }) {
+  const [copyMessage, setCopyMessage] = useState("");
+  if (!canManage) return null;
+
+  const result = assistant?.result || null;
+  const loading = Boolean(assistant?.loading);
+  const message = assistant?.error || result?.message || "";
+  const generated = Boolean(result?.configured && result?.ok);
+  const unavailable = Boolean(message && !generated);
+
+  async function copyText(label, value) {
+    if (!value) return;
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setCopyMessage("Copy is not available in this browser. Select the draft text and copy it manually.");
+      return;
+    }
+    await navigator.clipboard.writeText(value);
+    setCopyMessage(`${label} copied.`);
+  }
+
+  function DraftBlock({ title, value, copyLabel }) {
+    if (!value) return null;
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-white p-3">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</p>
+          <Button type="button" size="sm" variant="secondary" onClick={() => copyText(copyLabel || title, value)}>Copy</Button>
+        </div>
+        <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">{value}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-sky-100 bg-sky-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-black text-slate-950">AI Lead Assistant</p>
+            <Badge tone="blue">Draft only</Badge>
+            <Badge tone="slate">Office review</Badge>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Generate review-only lead help: summary, next step, missing info questions, email/SMS drafts, call script, and estimating handoff notes. Nothing is sent.
+          </p>
+        </div>
+        <Button type="button" className="w-full sm:w-auto" onClick={() => onGenerateLeadAssistant(lead)} disabled={disabled || loading || Boolean(lead.archivedAt)}>
+          {loading ? "Generating..." : generated ? "Regenerate" : "Generate AI Lead Drafts"}
+        </Button>
+      </div>
+
+      {unavailable ? (
+        <p className="mt-3 rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm font-bold text-amber-800">{message}</p>
+      ) : null}
+
+      {generated ? (
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">AI summary</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{result.leadSummary || "Review the lead details before follow-up."}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Recommended next step</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{result.recommendedNextStep || "Choose the next office action."}</p>
+              {result.suggestedFollowUpTiming ? <p className="mt-2 text-xs font-bold text-slate-500">Suggested timing: {result.suggestedFollowUpTiming}</p> : null}
+              {result.suggestedStatus ? <Badge tone="blue">{result.suggestedStatus}</Badge> : null}
+            </div>
+          </div>
+
+          {Array.isArray(result.missingInfoQuestions) && result.missingInfoQuestions.length > 0 ? (
+            <div className="rounded-2xl border border-blue-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Missing info questions</p>
+              <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+                {result.missingInfoQuestions.map((question) => <li key={question}>- {question}</li>)}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 xl:grid-cols-2">
+            <DraftBlock title="Follow-up email draft" value={result.followUpEmailDraft} copyLabel="Email draft" />
+            <DraftBlock title="SMS/text draft" value={result.followUpSmsDraft} copyLabel="SMS draft" />
+            <DraftBlock title="Call script" value={result.callScript} copyLabel="Call script" />
+            <DraftBlock title="Estimating handoff notes" value={result.estimatingHandoffNotes} copyLabel="Estimating handoff notes" />
+          </div>
+
+          {Array.isArray(result.riskNotes) && result.riskNotes.length > 0 ? (
+            <div className="rounded-2xl border border-amber-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Risk notes</p>
+              <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-amber-800">
+                {result.riskNotes.map((risk) => <li key={risk}>- {risk}</li>)}
+              </ul>
+            </div>
+          ) : null}
+
+          <p className="text-xs font-bold text-slate-500">AI drafts are review-only. Concrete Ops 2 does not send emails or texts from this card.</p>
+          {copyMessage ? <p className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
         </div>
       ) : null}
     </div>
@@ -7836,6 +7951,8 @@ function LeadsPage({
   onLeadFieldChange,
   onScoreLead,
   onCheckMissingInfo,
+  onGenerateLeadAssistant,
+  leadAssistantState,
   leadDraft,
   setLeadDraft,
   onCreateLead,
@@ -7937,7 +8054,7 @@ function LeadsPage({
         </Card>
         <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
         </div>
       </div>
     </div>
@@ -12659,6 +12776,7 @@ export default function App() {
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
   const [leadDraft, setLeadDraft] = useState(INITIAL_LEAD_FORM);
+  const [leadAssistantState, setLeadAssistantState] = useState({ leadId: "", loading: false, result: null, error: "" });
   const [jobDraft, setJobDraft] = useState(INITIAL_JOB_FORM);
   const [createReportDraft, setCreateReportDraft] = useState(INITIAL_DAILY_REPORT_FORM);
   const [reportEditDraft, setReportEditDraft] = useState(INITIAL_DAILY_REPORT_FORM);
@@ -13641,6 +13759,28 @@ export default function App() {
       return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleGenerateLeadAssistant(lead = selectedLead) {
+    if (!sessionToken || !lead?.id || !appState.permissions.leads.canManage) return false;
+    setLeadAssistantState((current) => ({
+      leadId: lead.id,
+      loading: true,
+      result: current.leadId === lead.id ? current.result : null,
+      error: "",
+    }));
+    try {
+      const result = await assistLeadRequest(sessionToken, lead.id);
+      setLeadAssistantState({ leadId: lead.id, loading: false, result, error: "" });
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      const message = error.message || "AI Lead Assistant could not generate drafts.";
+      if (error.status === 401) clearSession();
+      else setErrorMessage(message);
+      setLeadAssistantState({ leadId: lead.id, loading: false, result: null, error: message });
+      return false;
     }
   }
 
@@ -15068,6 +15208,8 @@ export default function App() {
               onLeadFieldChange={handleLeadFieldChange}
               onScoreLead={handleScoreLead}
               onCheckMissingInfo={handleCheckLeadMissingInfo}
+              onGenerateLeadAssistant={handleGenerateLeadAssistant}
+              leadAssistantState={leadAssistantState}
               leadSaveState={leadSaveState}
               onArchiveLead={handleArchiveLead}
               onRestoreLead={handleRestoreLead}

@@ -55,6 +55,10 @@ import {
   missingInfoResultToFields,
 } from "../shared/leadMissingInfo.js";
 import {
+  buildLeadAssistantContext,
+  generateLeadAssistantDrafts,
+} from "../shared/leadAiAssistant.js";
+import {
   calculateStartupStatus,
   canMarkStartupReady,
   createStartupChecklistFields,
@@ -8747,6 +8751,23 @@ app.post("/api/leads/:id/check-missing-info", requireAuth, asyncRoute(async (req
   });
 
   return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/ai/leads/:id/assist", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const state = await readDb();
+  const lead = findRequiredRecord(state.leads, req.params.id, "Lead");
+
+  const result = await generateLeadAssistantDrafts({
+    context: buildLeadAssistantContext({
+      lead,
+      leadSources: state.leadSources || [],
+      companySettings: companySettingsForState(state),
+    }),
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  return res.json(result);
 }));
 
 app.delete("/api/leads/:id", requireAuth, asyncRoute(async (req, res) => {
