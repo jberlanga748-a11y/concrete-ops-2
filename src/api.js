@@ -103,6 +103,30 @@ export function restoreCustomer(token, id) {
   return request(`/api/customers/${id}/restore`, { method: "POST", token });
 }
 
+export function getContactHistory(token, params = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.entityType) searchParams.set("entityType", params.entityType);
+  if (params.entityId) searchParams.set("entityId", params.entityId);
+  const query = searchParams.toString();
+  return request(`/api/contact-history${query ? `?${query}` : ""}`, { token });
+}
+
+export function createContactHistory(token, payload) {
+  return request("/api/contact-history", { method: "POST", token, body: payload });
+}
+
+export function updateContactHistory(token, id, payload) {
+  return request(`/api/contact-history/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function archiveContactHistory(token, id) {
+  return request(`/api/contact-history/${id}/archive`, { method: "POST", token });
+}
+
+export function restoreContactHistory(token, id) {
+  return request(`/api/contact-history/${id}/restore`, { method: "POST", token });
+}
+
 export function createLead(token, lead) {
   return request("/api/leads", { method: "POST", token, body: lead });
 }

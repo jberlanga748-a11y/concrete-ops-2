@@ -618,6 +618,7 @@ export function createEmptyState() {
     leads: [],
     leadSources: [],
     leadStatusHistory: [],
+    contactHistory: [],
     jobs: [],
     jobAssignments: [],
     jobDraftImports: [],
@@ -1784,6 +1785,7 @@ export function createSeedState() {
     leads,
     leadSources: [],
     leadStatusHistory,
+    contactHistory: [],
     jobs,
     jobAssignments: includeDemoRecords ? jobAssignments : [],
     jobDraftImports: [],
@@ -4938,6 +4940,42 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 41,
+      description: "Add company scoped manual contact history.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS contact_history (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            company_id TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            contact_name TEXT NOT NULL DEFAULT '',
+            contact_email TEXT NOT NULL DEFAULT '',
+            contact_phone TEXT NOT NULL DEFAULT '',
+            method TEXT NOT NULL DEFAULT 'Call',
+            direction TEXT NOT NULL DEFAULT 'outbound',
+            outcome TEXT NOT NULL DEFAULT 'Follow-Up Needed',
+            subject TEXT NOT NULL DEFAULT '',
+            message_draft TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            contacted_at TEXT NOT NULL,
+            next_follow_up_date TEXT NOT NULL DEFAULT '',
+            created_by TEXT NOT NULL DEFAULT '',
+            created_by_name TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_contact_history_company_id ON contact_history(company_id);
+          CREATE INDEX IF NOT EXISTS idx_contact_history_entity ON contact_history(entity_type, entity_id);
+          CREATE INDEX IF NOT EXISTS idx_contact_history_next_follow_up_date ON contact_history(next_follow_up_date);
+          CREATE INDEX IF NOT EXISTS idx_contact_history_contacted_at ON contact_history(contacted_at);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5009,6 +5047,11 @@ function writeStateToDb(state) {
   const insertLeadStatusHistory = database.prepare(`
     INSERT INTO lead_status_history (id, sort_index, company_id, lead_id, from_status, to_status, note, actor_user_id, actor_name, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertContactHistory = database.prepare(`
+    INSERT INTO contact_history (id, sort_index, company_id, entity_type, entity_id, contact_name, contact_email, contact_phone, method, direction, outcome, subject, message_draft, notes, contacted_at, next_follow_up_date, created_by, created_by_name, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertJob = database.prepare(`
@@ -5153,6 +5196,7 @@ function writeStateToDb(state) {
       DELETE FROM sessions;
       DELETE FROM users;
       DELETE FROM customers;
+      DELETE FROM contact_history;
       DELETE FROM lead_status_history;
       DELETE FROM lead_sources;
       DELETE FROM leads;
@@ -5328,6 +5372,32 @@ function writeStateToDb(state) {
         event.actorUserId || null,
         event.actorName,
         event.createdAt || isoNow(),
+      );
+    });
+
+    (state.contactHistory || []).forEach((entry, index) => {
+      insertContactHistory.run(
+        entry.id,
+        index,
+        normalizeCompanyId(entry.companyId),
+        entry.entityType || "lead",
+        entry.entityId || "",
+        entry.contactName || "",
+        entry.contactEmail || "",
+        entry.contactPhone || "",
+        entry.method || "Call",
+        entry.direction || "outbound",
+        entry.outcome || "Follow-Up Needed",
+        entry.subject || "",
+        entry.messageDraft || "",
+        entry.notes || "",
+        entry.contactedAt || entry.createdAt || isoNow(),
+        entry.nextFollowUpDate || "",
+        entry.createdBy || "",
+        entry.createdByName || "",
+        entry.createdAt || isoNow(),
+        entry.updatedAt || entry.createdAt || isoNow(),
+        entry.archivedAt || null,
       );
     });
 
@@ -5934,6 +6004,15 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all().map((entry) => withDefaultCompanyId(entry));
 
+  const contactHistory = database.prepare(`
+    SELECT id, company_id AS companyId, entity_type AS entityType, entity_id AS entityId, contact_name AS contactName, contact_email AS contactEmail,
+           contact_phone AS contactPhone, method, direction, outcome, subject, message_draft AS messageDraft, notes, contacted_at AS contactedAt,
+           next_follow_up_date AS nextFollowUpDate, created_by AS createdBy, created_by_name AS createdByName, created_at AS createdAt,
+           updated_at AS updatedAt, archived_at AS archivedAt
+    FROM contact_history
+    ORDER BY sort_index ASC
+  `).all().map((entry) => withDefaultCompanyId(entry));
+
   const jobs = database.prepare(`
     SELECT id, company_id AS companyId, customer_id AS customerId, lead_id AS leadId, title, job, customer, address, site_contact AS siteContact, scope_summary AS scopeSummary, scheduled_start AS scheduledStart, scheduled_end AS scheduledEnd, estimated_duration AS estimatedDuration, crew_size_needed AS crewSizeNeeded, equipment_notes AS equipmentNotes, safety_notes AS safetyNotes, material_notes AS materialNotes, field_notes AS fieldNotes, assigned_foreman_id AS assignedForemanId, assigned_user_id AS assignedUserId, field_planning_visible AS fieldPlanningVisible, visible_to_foreman AS visibleToForeman, status, stage, crew, next_step_v2 AS nextStep, next_step AS next, due, progress, notes, startup_checklist AS startupChecklist, startup_status AS startupStatus, startup_completed_at AS startupCompletedAt, startup_completed_by AS startupCompletedBy, startup_notes AS startupNotes, source_imported_draft_id AS sourceImportedDraftId, startup_last_updated_at AS startupLastUpdatedAt, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM jobs
@@ -6170,6 +6249,7 @@ function readTableState() {
     leads,
     leadSources,
     leadStatusHistory,
+    contactHistory,
     jobs: derivedAssignmentState.jobs,
     jobAssignments: derivedAssignmentState.jobAssignments,
     jobDraftImports,

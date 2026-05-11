@@ -9,6 +9,7 @@ import {
   archiveSafetyIncident,
   archiveSafetyPolicy,
   archiveToolChecklist,
+  archiveContactHistory,
   archiveCustomer,
   archiveChangeOrderRequest,
   archiveDeliveryTicket,
@@ -26,6 +27,7 @@ import {
   convertLead,
   convertLeadToCustomer,
   createChangeOrderRequest,
+  createContactHistory,
   createEstimate,
   createCustomer,
   createDailyReport,
@@ -67,6 +69,7 @@ import {
   reviewSafetyIncident,
   reviewPostPourChecklist,
   reviewPrePourChecklist,
+  restoreContactHistory,
   restoreCustomer,
   restoreJob,
   restoreLead,
@@ -80,6 +83,7 @@ import {
   toggleQueueItem,
   archiveDailyReport,
   updateChangeOrderRequest,
+  updateContactHistory,
   updateCustomer,
   updateDailyReport,
   updateDeliveryTicket,
@@ -111,6 +115,7 @@ import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPa
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { deriveCommandCenterState } from "./command-center-utils";
+import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveContactHistoryPanelState } from "./contact-history-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
@@ -139,6 +144,7 @@ import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklist
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
+import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
 const APP_NAME = "Concrete Ops";
 const DEFAULT_COMPANY_NAME = "Concrete Ops Workspace";
@@ -251,6 +257,7 @@ const EMPTY_APP_STATE = {
   leads: [],
   leadSources: [],
   leadStatusHistory: [],
+  contactHistory: [],
   estimates: [],
   jobDraftImports: [],
   jobs: [],
@@ -283,6 +290,10 @@ const EMPTY_APP_STATE = {
       canManage: false,
     },
     leads: {
+      canView: false,
+      canManage: false,
+    },
+    contactHistory: {
       canView: false,
       canManage: false,
     },
@@ -567,6 +578,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     leads: normalizeObjectArray(source.leads, fallback.leads),
     leadSources: normalizeObjectArray(source.leadSources, fallback.leadSources),
     leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
+    contactHistory: normalizeObjectArray(source.contactHistory, fallback.contactHistory),
     estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
     jobDraftImports: normalizeObjectArray(source.jobDraftImports, fallback.jobDraftImports),
     jobs: normalizeObjectArray(source.jobs, fallback.jobs),
@@ -595,6 +607,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       users: mergePermissionScope(EMPTY_APP_STATE.permissions.users, source.permissions?.users || fallback.permissions?.users),
       customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
       leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
+      contactHistory: mergePermissionScope(EMPTY_APP_STATE.permissions.contactHistory, source.permissions?.contactHistory || fallback.permissions?.contactHistory),
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
       jobDraftImports: mergePermissionScope(EMPTY_APP_STATE.permissions.jobDraftImports, source.permissions?.jobDraftImports || fallback.permissions?.jobDraftImports),
         jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
@@ -2512,6 +2525,163 @@ function QueueList({ items, onToggleTask, onArchiveTask, onRestoreTask, onDelete
   );
 }
 
+function ContactHistoryPanel({
+  entityType,
+  entity,
+  records = [],
+  permissions,
+  disabled,
+  onCreate,
+  onUpdate,
+  onArchive,
+  onRestore,
+}) {
+  const canManage = Boolean(permissions?.canManage);
+  const entityId = entity?.id || "";
+  const panelState = useMemo(() => deriveContactHistoryPanelState(records, entityType, entityId), [entityId, entityType, records]);
+  const timeline = useMemo(() => contactHistoryTimeline(records, entityType, entityId), [entityId, entityType, records]);
+  const [draft, setDraft] = useState(() => createContactHistoryDraft(entity, entityType, "Call"));
+  const [copyMessage, setCopyMessage] = useState("");
+
+  useEffect(() => {
+    setDraft(createContactHistoryDraft(entity, entityType, "Call"));
+    setCopyMessage("");
+  }, [entity?.id, entityType]);
+
+  if (!permissions?.canView) {
+    return null;
+  }
+
+  function setQuickMethod(method) {
+    setDraft((current) => ({
+      ...current,
+      method,
+      outcome: method === "Email" || method === "Text" ? "Sent" : "Follow-Up Needed",
+    }));
+  }
+
+  async function submitContactHistory(event) {
+    event.preventDefault();
+    if (!canManage || !entityId || typeof onCreate !== "function") return;
+    const saved = await onCreate({
+      ...draft,
+      entityType,
+      entityId,
+    });
+    if (saved) {
+      setDraft(createContactHistoryDraft(entity, entityType, draft.method || "Call"));
+    }
+  }
+
+  async function copyDraftText(record) {
+    const content = [record.subject ? `Subject: ${record.subject}` : "", record.messageDraft || record.notes || ""].filter(Boolean).join("\n\n");
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopyMessage("Draft copied.");
+    } catch {
+      setCopyMessage("Could not copy draft from this browser.");
+    }
+  }
+
+  const latest = panelState.latestContact;
+  const nextFollowUp = panelState.nextFollowUp;
+
+  return (
+    <Card className="p-4">
+      <SectionHeader
+        title="Contact history"
+        description="Manual calls, emails, texts, follow-ups, and outreach drafts. Concrete Ops does not send email or SMS here."
+        action={<Badge tone={nextFollowUp ? "amber" : latest ? "blue" : "slate"}>{nextFollowUp ? `Next ${nextFollowUp.nextFollowUpDate}` : `${panelState.records.length} logged`}</Badge>}
+      />
+      {latest ? (
+        <div className="mb-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+            <p><span className="font-black text-slate-950">Latest:</span> {latest.method} / {latest.outcome}</p>
+            <p className="mt-1"><span className="font-black text-slate-950">When:</span> {formatDateTime(latest.contactedAt)}</p>
+          </div>
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-3 text-sm text-amber-800">
+            <p className="font-black">{nextFollowUp ? "Follow-up scheduled" : "No follow-up date set"}</p>
+            <p className="mt-1">{nextFollowUp ? `${nextFollowUp.nextFollowUpDate} - ${nextFollowUp.outcome}` : "Add a next follow-up date when the office needs another touch."}</p>
+          </div>
+        </div>
+      ) : (
+        <StateCard title="No contact history yet" description="Log the first manual outreach note so future calls, drafts, and follow-ups are visible." tone="slate" />
+      )}
+
+      {canManage ? (
+        <form className="mt-4 grid gap-3 rounded-3xl border border-blue-100 bg-blue-50/40 p-3" onSubmit={submitContactHistory}>
+          <div className="flex flex-wrap gap-2">
+            {["Call", "Email", "Text", "Other"].map((method) => (
+              <Button key={method} type="button" size="sm" variant={draft.method === method ? "primary" : "secondary"} onClick={() => setQuickMethod(method)} disabled={disabled}>
+                Log {method}
+              </Button>
+            ))}
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <InputField label="Contact name" value={draft.contactName} onChange={(event) => setDraft((current) => ({ ...current, contactName: event.target.value }))} disabled={disabled} />
+            <InputField label="Email" value={draft.contactEmail} onChange={(event) => setDraft((current) => ({ ...current, contactEmail: event.target.value }))} disabled={disabled} />
+            <InputField label="Phone" value={draft.contactPhone} onChange={(event) => setDraft((current) => ({ ...current, contactPhone: event.target.value }))} disabled={disabled} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <SelectField label="Method" value={draft.method} onChange={(event) => setDraft((current) => ({ ...current, method: event.target.value }))} disabled={disabled}>
+              {CONTACT_HISTORY_METHODS.map((method) => <option key={method}>{method}</option>)}
+            </SelectField>
+            <SelectField label="Direction" value={draft.direction} onChange={(event) => setDraft((current) => ({ ...current, direction: event.target.value }))} disabled={disabled}>
+              {CONTACT_HISTORY_DIRECTIONS.map((direction) => <option key={direction} value={direction}>{direction === "outbound" ? "Outbound" : "Inbound"}</option>)}
+            </SelectField>
+            <SelectField label="Outcome" value={draft.outcome} onChange={(event) => setDraft((current) => ({ ...current, outcome: event.target.value }))} disabled={disabled}>
+              {CONTACT_HISTORY_OUTCOMES.map((outcome) => <option key={outcome}>{outcome}</option>)}
+            </SelectField>
+            <InputField label="Contacted at" type="datetime-local" value={draft.contactedAt} onChange={(event) => setDraft((current) => ({ ...current, contactedAt: event.target.value }))} disabled={disabled} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <InputField label="Subject / short title" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} disabled={disabled} placeholder="Follow-up on estimate request" />
+            <InputField label="Next follow-up date" type="date" value={draft.nextFollowUpDate} onChange={(event) => setDraft((current) => ({ ...current, nextFollowUpDate: event.target.value }))} disabled={disabled} />
+          </div>
+          <TextAreaField label="Draft message / script" value={draft.messageDraft} onChange={(event) => setDraft((current) => ({ ...current, messageDraft: event.target.value }))} disabled={disabled} placeholder="Paste an AI draft, SMS draft, call script, or email text here. This is stored only; nothing is sent." />
+          <TextAreaField label="Outcome notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={disabled} placeholder="Manual result, customer response, or office follow-up note." />
+          <Button type="submit" disabled={disabled || !entityId}>Save contact history</Button>
+        </form>
+      ) : (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-600">Read-only contact history.</div>
+      )}
+
+      {copyMessage ? <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
+
+      {timeline.length > 0 ? (
+        <div className="mt-4 space-y-3">
+          {timeline.slice(0, 8).map((record) => (
+            <div key={record.id} className={`rounded-2xl border p-3 ${record.archivedAt ? "border-slate-200 bg-slate-50 opacity-75" : "border-blue-100 bg-white"}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={contactHistoryBadgeTone(record.method, "method")}>{record.method}</Badge>
+                    <Badge tone={contactHistoryBadgeTone(record.outcome)}>{record.outcome}</Badge>
+                    <Badge tone="slate">{record.direction === "outbound" ? "Outbound" : "Inbound"}</Badge>
+                    {record.archivedAt ? <Badge tone="slate">Archived</Badge> : null}
+                  </div>
+                  <p className="mt-2 text-sm font-black text-slate-950">{record.subject || record.contactName || "Manual outreach"}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{formatDateTime(record.contactedAt)} by {record.createdByName || "Office"}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {record.messageDraft || record.notes ? <Button type="button" size="sm" variant="ghost" onClick={() => copyDraftText(record)}>Copy Draft</Button> : null}
+                  {canManage && !record.archivedAt && typeof onUpdate === "function" ? <Button type="button" size="sm" variant="ghost" onClick={() => onUpdate(record.id, { outcome: "Waiting on Response" })} disabled={disabled}>Mark waiting</Button> : null}
+                  {canManage && !record.archivedAt ? <Button type="button" size="sm" variant="ghost" onClick={() => onArchive?.(record.id)} disabled={disabled}>Archive</Button> : null}
+                  {canManage && record.archivedAt ? <Button type="button" size="sm" variant="ghost" onClick={() => onRestore?.(record.id)} disabled={disabled}>Restore</Button> : null}
+                </div>
+              </div>
+              {record.messageDraft ? <p className="mt-3 whitespace-pre-wrap rounded-2xl bg-blue-50/60 p-3 text-sm leading-6 text-slate-700">{record.messageDraft}</p> : null}
+              {record.notes ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{record.notes}</p> : null}
+              {record.nextFollowUpDate ? <p className="mt-3 text-xs font-black uppercase tracking-[0.16em] text-amber-700">Next follow-up: {record.nextFollowUpDate}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 function LeadDetailPanel({
   lead,
   onFieldChange,
@@ -2528,6 +2698,12 @@ function LeadDetailPanel({
   related = { customer: null, activity: [], statusHistory: [] },
   users = [],
   customers = [],
+  contactHistory = [],
+  contactHistoryPermissions,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
   disabled,
   saveState,
   canManage = true,
@@ -2582,6 +2758,17 @@ function LeadDetailPanel({
           disabled={disabled}
           assistant={leadAssistantState?.leadId === lead.id ? leadAssistantState : null}
           onGenerateLeadAssistant={onGenerateLeadAssistant}
+        />
+        <ContactHistoryPanel
+          entityType="lead"
+          entity={lead}
+          records={contactHistory}
+          permissions={contactHistoryPermissions}
+          disabled={disabled}
+          onCreate={onCreateContactHistory}
+          onUpdate={onUpdateContactHistory}
+          onArchive={onArchiveContactHistory}
+          onRestore={onRestoreContactHistory}
         />
         {canCreateEstimate ? (
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-4">
@@ -6259,6 +6446,12 @@ function CustomerDetailPanel({
   related,
   onSelectLead,
   onSelectJob,
+  contactHistory = [],
+  contactHistoryPermissions,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
 }) {
   if (!canView) {
     return (
@@ -6330,6 +6523,18 @@ function CustomerDetailPanel({
           <TextAreaField label="Notes" value={customer.notes} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} />
         </div>
       </Card>
+
+      <ContactHistoryPanel
+        entityType="customer"
+        entity={customer}
+        records={contactHistory}
+        permissions={contactHistoryPermissions}
+        disabled={disabled}
+        onCreate={onCreateContactHistory}
+        onUpdate={onUpdateContactHistory}
+        onArchive={onArchiveContactHistory}
+        onRestore={onRestoreContactHistory}
+      />
 
       <RelatedRecordsCard
         title="Related leads"
@@ -7977,6 +8182,7 @@ function LeadSourcesPanel({
 function LeadsPage({
   leads = [],
   leadSources = [],
+  contactHistory = [],
   rows,
   filter,
   setFilter,
@@ -8018,6 +8224,10 @@ function LeadsPage({
   onArchiveLeadSource,
   onRestoreLeadSource,
   onMarkLeadSourceChecked,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
   relatedLeadRecords,
   busy,
   leadSaveState,
@@ -8105,7 +8315,7 @@ function LeadsPage({
         </Card>
         <div className="min-w-0 space-y-4">
           <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} contactHistory={contactHistory} contactHistoryPermissions={permissions.contactHistory} onCreateContactHistory={onCreateContactHistory} onUpdateContactHistory={onUpdateContactHistory} onArchiveContactHistory={onArchiveContactHistory} onRestoreContactHistory={onRestoreContactHistory} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
         </div>
       </div>
     </div>
@@ -8814,6 +9024,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
 
 function CustomersPage({
   customers,
+  contactHistory = [],
   filter,
   setFilter,
   search,
@@ -8834,6 +9045,10 @@ function CustomersPage({
   relatedRecords,
   onSelectLead,
   onSelectJob,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
   customerRouteRequested,
 }) {
   const canView = permissions.customers.canView;
@@ -8893,6 +9108,12 @@ function CustomersPage({
             related={relatedRecords}
             onSelectLead={onSelectLead}
             onSelectJob={onSelectJob}
+            contactHistory={contactHistory}
+            contactHistoryPermissions={permissions.contactHistory}
+            onCreateContactHistory={onCreateContactHistory}
+            onUpdateContactHistory={onUpdateContactHistory}
+            onArchiveContactHistory={onArchiveContactHistory}
+            onRestoreContactHistory={onRestoreContactHistory}
           />
         </div>
       </div>
@@ -13192,6 +13413,7 @@ export default function App() {
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadSources: normalizedNextState.leadSources,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
+        contactHistory: normalizedNextState.contactHistory,
         jobDraftImports: normalizedNextState.jobDraftImports,
         jobs: kind === "job" && !shouldReplaceRecord ? current.jobs : normalizedNextState.jobs,
         calculatorResults: normalizedNextState.calculatorResults,
@@ -14001,6 +14223,74 @@ export default function App() {
     setBusy(true);
     try {
       const nextState = await markLeadSourceChecked(sessionToken, sourceId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateContactHistory(payload) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await createContactHistory(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateContactHistory(contactHistoryId, payload) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateContactHistory(sessionToken, contactHistoryId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveContactHistory(contactHistoryId) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await archiveContactHistory(sessionToken, contactHistoryId);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestoreContactHistory(contactHistoryId) {
+    if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
+    setBusy(true);
+    try {
+      const nextState = await restoreContactHistory(sessionToken, contactHistoryId);
       applyBootstrap(nextState);
       setErrorMessage("");
       return true;
@@ -15403,6 +15693,7 @@ export default function App() {
               customers={appState.customers}
               leads={appState.leads}
               leadSources={appState.leadSources}
+              contactHistory={appState.contactHistory}
               estimates={appState.estimates}
               jobDraftImports={appState.jobDraftImports}
               jobs={appState.jobs}
@@ -15524,6 +15815,10 @@ export default function App() {
               onArchiveLeadSource={handleArchiveLeadSource}
               onRestoreLeadSource={handleRestoreLeadSource}
               onMarkLeadSourceChecked={handleMarkLeadSourceChecked}
+              onCreateContactHistory={handleCreateContactHistory}
+              onUpdateContactHistory={handleUpdateContactHistory}
+              onArchiveContactHistory={handleArchiveContactHistory}
+              onRestoreContactHistory={handleRestoreContactHistory}
               onCreateJobFromLead={handleCreateJobFromLead}
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}

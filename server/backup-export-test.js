@@ -51,6 +51,10 @@ async function run() {
       throw new Error("Expected JSON export to include lead source records.");
     }
 
+    if (!Array.isArray(exportPayload.state?.contactHistory)) {
+      throw new Error("Expected JSON export to include contact history records.");
+    }
+
     if (!Array.isArray(exportPayload.state?.companies) || !exportPayload.state.companies.some((company) => company.id === "COMPANY-DEFAULT")) {
       throw new Error("Expected JSON export to include the default company workspace.");
     }
@@ -82,6 +86,11 @@ async function run() {
       const leadSourceCount = database.prepare("SELECT COUNT(*) AS count FROM lead_sources").get().count;
       if (leadSourceCount !== exportPayload.state.leadSources.length) {
         throw new Error("Expected SQLite backup and JSON export to contain the same lead source count.");
+      }
+
+      const contactHistoryCount = database.prepare("SELECT COUNT(*) AS count FROM contact_history").get().count;
+      if (contactHistoryCount !== exportPayload.state.contactHistory.length) {
+        throw new Error("Expected SQLite backup and JSON export to contain the same contact history count.");
       }
 
       const companyCount = database.prepare("SELECT COUNT(*) AS count FROM companies").get().count;

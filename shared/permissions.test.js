@@ -7,6 +7,7 @@ import {
   canCreateDeliveryTickets,
   canCreateJobs,
   canCreateUploads,
+  canManageContactHistory,
   canManageCustomers,
   canManageDeliveryTickets,
   canManageEstimates,
@@ -33,6 +34,7 @@ import {
   canViewDeliveryTickets,
   canViewEstimates,
   canViewChangeOrders,
+  canViewContactHistory,
   canViewLeads,
   canViewPrePour,
   canViewPostPour,
@@ -49,6 +51,8 @@ test("owner has full office access and export rights", () => {
 
   assert.equal(canManageCompanies(owner), false);
   assert.equal(canManageLeads(owner), true);
+  assert.equal(canViewContactHistory(owner), true);
+  assert.equal(canManageContactHistory(owner), true);
   assert.equal(canManageCustomers(owner), true);
   assert.equal(canManageEstimates(owner), true);
   assert.equal(canManageChangeOrders(owner), true);
@@ -105,6 +109,8 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageLeads(estimator), true);
   assert.equal(canViewCustomers(estimator), true);
   assert.equal(canManageCustomers(estimator), true);
+  assert.equal(canViewContactHistory(estimator), true);
+  assert.equal(canManageContactHistory(estimator), true);
   assert.equal(canViewEstimates(estimator), true);
   assert.equal(canManageEstimates(estimator), true);
   assert.equal(canViewChangeOrders(estimator), true);
@@ -126,6 +132,8 @@ test("foreman stays field-only with calculator and safety access", () => {
   const foreman = { role: "Foreman" };
 
   assert.equal(canViewLeads(foreman), false);
+  assert.equal(canViewContactHistory(foreman), false);
+  assert.equal(canManageContactHistory(foreman), false);
   assert.equal(canCreateJobs(foreman), false);
   assert.equal(canViewCustomers(foreman), false);
   assert.equal(canViewEstimates(foreman), false);
@@ -160,6 +168,8 @@ test("employee stays field-only with no office modules", () => {
   const modules = getAllowedModuleIds(employee, { toolChecklistEnabled: false });
 
   assert.equal(canViewLeads(employee), false);
+  assert.equal(canViewContactHistory(employee), false);
+  assert.equal(canManageContactHistory(employee), false);
   assert.equal(canViewCustomers(employee), false);
   assert.equal(canViewEstimates(employee), false);
   assert.equal(canViewReports(employee), false);

@@ -65,6 +65,10 @@ import {
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
 import {
+  contactHistoryPayloadToRecord,
+  validateContactHistoryPayload,
+} from "../shared/contactHistory.js";
+import {
   companiesForUser,
   currentCompanyIdForUser,
   normalizeCompanies,
@@ -120,6 +124,7 @@ import {
   canExportData,
   canManageChangeOrders,
   canManageCompanies,
+  canManageContactHistory,
   canManageCustomers,
   canManageDeliveryTickets,
   canManageEstimates,
@@ -147,6 +152,7 @@ import {
   canToggleToolChecklist,
   canViewAudit,
   canViewChangeOrders,
+  canViewContactHistory,
   canViewCustomers,
   canViewDeliveryTickets,
   canViewEstimates,
@@ -1035,6 +1041,7 @@ function buildDemoScope(state) {
   const activity = Array.isArray(state?.activity) ? state.activity : [];
   const auditEvents = Array.isArray(state?.auditEvents) ? state.auditEvents : [];
   const leadStatusHistory = Array.isArray(state?.leadStatusHistory) ? state.leadStatusHistory : [];
+  const contactHistory = Array.isArray(state?.contactHistory) ? state.contactHistory : [];
 
   const userIds = new Set(
     users
@@ -1207,6 +1214,15 @@ function buildDemoScope(state) {
       .filter((entry) => isDemoId(entry?.id) || hasDemoReference(entry?.leadId, leadIds))
       .map((entry) => String(entry.id)),
   );
+  const contactHistoryIds = new Set(
+    contactHistory
+      .filter((entry) => isDemoId(entry?.id)
+        || (entry?.entityType === "lead" && hasDemoReference(entry?.entityId, leadIds))
+        || (entry?.entityType === "customer" && hasDemoReference(entry?.entityId, customerIds))
+        || (entry?.entityType === "job" && hasDemoReference(entry?.entityId, jobIds))
+        || (entry?.entityType === "estimate" && hasDemoReference(entry?.entityId, estimateIds)))
+      .map((entry) => String(entry.id)),
+  );
   const auditEventIds = new Set(
     auditEvents
       .filter((entry) => isDemoId(entry?.id)
@@ -1238,6 +1254,7 @@ function buildDemoScope(state) {
     leadIds,
     leadSourceIds: new Set(),
     leadStatusHistoryIds,
+    contactHistoryIds,
     jobIds,
     estimateIds,
     timeEntryIds,
@@ -1276,6 +1293,8 @@ function filterDemoRecordsForUser(state, user, records, entityType) {
       return entries.filter((entry) => scope.leadSourceIds.has(String(entry?.id || "")));
     case "leadStatusHistory":
       return entries.filter((entry) => scope.leadStatusHistoryIds.has(String(entry?.id || "")));
+    case "contactHistory":
+      return entries.filter((entry) => scope.contactHistoryIds.has(String(entry?.id || "")));
     case "jobs":
       return entries.filter((entry) => scope.jobIds.has(String(entry?.id || "")));
     case "estimates":
@@ -3173,6 +3192,12 @@ function visibleLeadStatusHistoryForUser(state, user) {
   return filterVisibleRecordsForUser(state, user, state.leadStatusHistory, "leadStatusHistory");
 }
 
+function visibleContactHistoryForUser(state, user) {
+  if (!canViewContactHistory(user)) return [];
+  return filterVisibleRecordsForUser(state, user, state.contactHistory || [], "contactHistory")
+    .sort((left, right) => new Date(right.contactedAt || right.createdAt || 0).getTime() - new Date(left.contactedAt || left.createdAt || 0).getTime());
+}
+
 function customerPermissionsForUser(state, user) {
   if (!user) {
     return { canView: false, canManage: false };
@@ -3246,6 +3271,25 @@ function assertCanManageCompanies(user) {
 function assertCanViewLeads(user) {
   if (!canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to view leads.");
+  }
+}
+
+function contactHistoryPermissionsForUser(user) {
+  return {
+    canView: canViewContactHistory(user),
+    canManage: canManageContactHistory(user),
+  };
+}
+
+function assertCanViewContactHistory(user) {
+  if (!canViewContactHistory(user)) {
+    throw new ApiError(403, "You do not have permission to view contact history.");
+  }
+}
+
+function assertCanManageContactHistory(user) {
+  if (!canManageContactHistory(user)) {
+    throw new ApiError(403, "You do not have permission to manage contact history.");
   }
 }
 
@@ -4200,6 +4244,135 @@ function ensureCustomerRecord(state, payload, actor, { fallbackStatus = "Prospec
   return customer;
 }
 
+function findContactHistoryLinkedRecord(state, entityType, entityId, user) {
+  const type = optionalString(entityType, "");
+  const id = optionalString(entityId, "");
+  switch (type) {
+    case "lead":
+      return findCompanyScopedRecord(state.leads || [], id, user, state, "Lead");
+    case "customer":
+      return findCompanyScopedRecord(state.customers || [], id, user, state, "Customer");
+    case "estimate":
+      return findCompanyScopedRecord(state.estimates || [], id, user, state, "Estimate");
+    case "job":
+      return findCompanyScopedRecord(state.jobs || [], id, user, state, "Job");
+    default:
+      throw new ApiError(400, "Choose a valid contact history record type.");
+  }
+}
+
+function contactHistoryEntityLabel(record, entityType) {
+  if (!record) return "record";
+  if (entityType === "lead") return record.customer || record.project || record.id;
+  if (entityType === "customer") return record.name || record.company || record.id;
+  if (entityType === "estimate") return record.title || record.id;
+  if (entityType === "job") return normalizeJobRecord(record).title || record.id;
+  return record.id;
+}
+
+function contactDefaultsForLinkedRecord(state, linkedRecord, entityType) {
+  if (!linkedRecord) return {};
+  if (entityType === "customer") {
+    return {
+      contactName: linkedRecord.name || linkedRecord.company || "",
+      contactEmail: linkedRecord.email || "",
+      contactPhone: linkedRecord.phone || "",
+    };
+  }
+  if (entityType === "lead") {
+    const linkedCustomer = linkedRecord.customerId
+      ? (state.customers || []).find((customer) => customer.id === linkedRecord.customerId)
+      : null;
+    return {
+      contactName: linkedRecord.customer || linkedCustomer?.name || "",
+      contactEmail: linkedCustomer?.email || "",
+      contactPhone: linkedCustomer?.phone || "",
+    };
+  }
+  if (entityType === "estimate") {
+    const linkedCustomer = linkedRecord.customerId
+      ? (state.customers || []).find((customer) => customer.id === linkedRecord.customerId)
+      : null;
+    return {
+      contactName: linkedCustomer?.name || linkedRecord.title || "",
+      contactEmail: linkedRecord.customerEmail || linkedCustomer?.email || "",
+      contactPhone: linkedCustomer?.phone || "",
+    };
+  }
+  if (entityType === "job") {
+    const linkedCustomer = linkedRecord.customerId
+      ? (state.customers || []).find((customer) => customer.id === linkedRecord.customerId)
+      : null;
+    return {
+      contactName: linkedRecord.customer || linkedCustomer?.name || "",
+      contactEmail: linkedCustomer?.email || "",
+      contactPhone: linkedCustomer?.phone || "",
+    };
+  }
+  return {};
+}
+
+function normalizeContactHistoryForWrite(state, payload, user, { id = makeId("CH"), existing = null, changedAt = new Date().toISOString() } = {}) {
+  const errors = validateContactHistoryPayload(payload || {}, { partial: Boolean(existing) });
+  if (errors.length > 0) {
+    throw new ApiError(400, errors[0]);
+  }
+
+  const entityType = payload.entityType ?? existing?.entityType;
+  const entityId = payload.entityId ?? existing?.entityId;
+  const linkedRecord = findContactHistoryLinkedRecord(state, entityType, entityId, user);
+  const defaults = contactDefaultsForLinkedRecord(state, linkedRecord, entityType);
+  const record = contactHistoryPayloadToRecord({
+    ...defaults,
+    ...(existing || {}),
+    ...(payload || {}),
+    entityType,
+    entityId,
+  }, {
+    id,
+    companyId: linkedRecord.companyId,
+    actor: user,
+    existing,
+    now: changedAt,
+  });
+  record.companyId = linkedRecord.companyId;
+
+  return { record, linkedRecord };
+}
+
+function syncLeadContactSummaryFromHistory(lead, contactRecord, changedAt = new Date().toISOString()) {
+  if (!lead || !contactRecord) return [];
+  const changedFields = [];
+  if (contactRecord.nextFollowUpDate && lead.followUpDueAt !== contactRecord.nextFollowUpDate) {
+    lead.followUpDueAt = contactRecord.nextFollowUpDate;
+    changedFields.push("followUpDueAt");
+  }
+
+  const nextStepByOutcome = {
+    "No Answer": `Try ${contactRecord.method.toLowerCase()} again${contactRecord.nextFollowUpDate ? ` by ${contactRecord.nextFollowUpDate}` : ""}`,
+    "Left Message": `Wait for response or follow up${contactRecord.nextFollowUpDate ? ` by ${contactRecord.nextFollowUpDate}` : ""}`,
+    Sent: `Waiting on response to ${contactRecord.method.toLowerCase()} outreach`,
+    Replied: "Review reply and move the lead forward",
+    Interested: "Schedule estimate or site visit",
+    "Not Interested": "Review lead status before closing",
+    "Follow-Up Needed": `Follow up${contactRecord.nextFollowUpDate ? ` by ${contactRecord.nextFollowUpDate}` : ""}`,
+    "Waiting on Response": "Waiting on customer response",
+    Won: "Move forward with estimate, approval, or job handoff",
+    Lost: "Review lead status before archiving",
+    Other: "Review latest contact note",
+  };
+  const nextStep = nextStepByOutcome[contactRecord.outcome] || "Review latest contact note";
+  if (nextStep && lead.nextStep !== nextStep) {
+    lead.nextStep = nextStep;
+    changedFields.push("nextStep");
+  }
+
+  if (changedFields.length > 0) {
+    markUpdated(lead, changedAt);
+  }
+  return changedFields;
+}
+
 function createCustomerFromImportedDraft(state, draft, actor, changedAt) {
   const customer = createCustomerShape({
     name: draft.customerName,
@@ -4406,6 +4579,7 @@ function sanitizeBootstrap(state, user) {
   const leads = visibleLeadsForUser(state, user);
   const leadSources = visibleLeadSourcesForUser(state, user);
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
+  const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
   const jobDraftImports = visibleImportedJobDraftsForUser(state, user);
   const jobs = visibleJobsForUser(state, user, hydrationContext);
@@ -4440,6 +4614,7 @@ function sanitizeBootstrap(state, user) {
     leads,
     leadSources,
     leadStatusHistory,
+    contactHistory,
     estimates,
     jobDraftImports,
     jobs,
@@ -4467,6 +4642,7 @@ function sanitizeBootstrap(state, user) {
       users: userPermissions,
       customers: customerPermissions,
       leads: leadPermissions,
+      contactHistory: contactHistoryPermissionsForUser(user),
       estimates: {
         canView: canViewEstimates(user),
         canManage: canManageEstimates(user),
@@ -8858,6 +9034,163 @@ app.post("/api/customers/:id/restore", requireAuth, asyncRoute(async (req, res) 
       detail: `${customer.name} was restored.`,
       actor: req.auth.user,
       changedFields: ["archivedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.get("/api/contact-history", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewContactHistory(req.auth.user);
+  const state = await readDb();
+  const entityType = optionalString(req.query.entityType, "");
+  const entityId = optionalString(req.query.entityId, "");
+  let contactHistory = visibleContactHistoryForUser(state, req.auth.user);
+
+  if (entityType || entityId) {
+    if (!entityType || !entityId) {
+      throw new ApiError(400, "Provide both entityType and entityId to filter contact history.");
+    }
+    findContactHistoryLinkedRecord(state, entityType, entityId, req.auth.user);
+    contactHistory = contactHistory.filter((entry) => entry.entityType === entityType && entry.entityId === entityId);
+  }
+
+  return res.json({
+    contactHistory,
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/contact-history", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.contactHistory ||= [];
+    const { record, linkedRecord } = normalizeContactHistoryForWrite(draft, req.body || {}, req.auth.user, {
+      id: makeId("CH"),
+      changedAt,
+    });
+    draft.contactHistory.unshift(record);
+    const leadChangedFields = record.entityType === "lead"
+      ? syncLeadContactSummaryFromHistory(linkedRecord, record, changedAt)
+      : [];
+    const label = contactHistoryEntityLabel(linkedRecord, record.entityType);
+    appendActivity(draft, "Contact history logged", `${req.auth.user.name} logged ${record.method.toLowerCase()} outreach for ${label}.`, { companyId: record.companyId });
+    appendAuditEvent(draft, {
+      entityType: "contactHistory",
+      entityId: record.id,
+      action: "created",
+      summary: "Contact history logged",
+      detail: `${record.method} ${record.direction} contact logged for ${label}. No email or SMS was sent by Concrete Ops.`,
+      actor: req.auth.user,
+      changedFields: ["method", "direction", "outcome", "nextFollowUpDate", ...leadChangedFields],
+    });
+    return draft;
+  });
+
+  return res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/contact-history/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.contactHistory ||= [];
+    const existing = findCompanyScopedRecord(draft.contactHistory, id, req.auth.user, draft, "Contact history");
+    const previous = { ...existing };
+    const { record, linkedRecord } = normalizeContactHistoryForWrite(draft, req.body || {}, req.auth.user, {
+      existing,
+      changedAt,
+    });
+    const changedFields = [
+      "entityType",
+      "entityId",
+      "contactName",
+      "contactEmail",
+      "contactPhone",
+      "method",
+      "direction",
+      "outcome",
+      "subject",
+      "messageDraft",
+      "notes",
+      "contactedAt",
+      "nextFollowUpDate",
+    ].filter((field) => (previous[field] || "") !== (record[field] || ""));
+    Object.assign(existing, record);
+    const leadChangedFields = existing.entityType === "lead"
+      ? syncLeadContactSummaryFromHistory(linkedRecord, existing, changedAt)
+      : [];
+    const label = contactHistoryEntityLabel(linkedRecord, existing.entityType);
+    appendActivity(draft, "Contact history updated", `${req.auth.user.name} updated contact history for ${label}.`, { companyId: existing.companyId });
+    appendAuditEvent(draft, {
+      entityType: "contactHistory",
+      entityId: existing.id,
+      action: "updated",
+      summary: "Contact history updated",
+      detail: `Manual contact history for ${label} was updated.`,
+      actor: req.auth.user,
+      changedFields: [...new Set([...changedFields, ...leadChangedFields, "updatedAt"])],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/contact-history/:id/archive", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.contactHistory ||= [];
+    const entry = findCompanyScopedRecord(draft.contactHistory, id, req.auth.user, draft, "Contact history");
+    entry.archivedAt = changedAt;
+    entry.updatedAt = changedAt;
+    const linkedRecord = findContactHistoryLinkedRecord(draft, entry.entityType, entry.entityId, req.auth.user);
+    const label = contactHistoryEntityLabel(linkedRecord, entry.entityType);
+    appendActivity(draft, "Contact history archived", `${req.auth.user.name} archived a contact history record for ${label}.`, { companyId: entry.companyId });
+    appendAuditEvent(draft, {
+      entityType: "contactHistory",
+      entityId: entry.id,
+      action: "archived",
+      summary: "Contact history archived",
+      detail: `Manual contact history for ${label} was archived.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt", "updatedAt"],
+    });
+    return draft;
+  });
+
+  return res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/contact-history/:id/restore", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageContactHistory(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.contactHistory ||= [];
+    const entry = findCompanyScopedRecord(draft.contactHistory, id, req.auth.user, draft, "Contact history");
+    entry.archivedAt = null;
+    entry.updatedAt = changedAt;
+    const linkedRecord = findContactHistoryLinkedRecord(draft, entry.entityType, entry.entityId, req.auth.user);
+    const label = contactHistoryEntityLabel(linkedRecord, entry.entityType);
+    appendActivity(draft, "Contact history restored", `${req.auth.user.name} restored a contact history record for ${label}.`, { companyId: entry.companyId });
+    appendAuditEvent(draft, {
+      entityType: "contactHistory",
+      entityId: entry.id,
+      action: "restored",
+      summary: "Contact history restored",
+      detail: `Manual contact history for ${label} was restored.`,
+      actor: req.auth.user,
+      changedFields: ["archivedAt", "updatedAt"],
     });
     return draft;
   });

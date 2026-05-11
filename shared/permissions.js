@@ -77,6 +77,14 @@ export function canManageCustomers(user) {
   return isOfficeManager(user) || isEstimator(user);
 }
 
+export function canViewContactHistory(user) {
+  return isOfficeManager(user) || isEstimator(user);
+}
+
+export function canManageContactHistory(user) {
+  return isOfficeManager(user) || isEstimator(user);
+}
+
 export function canViewEstimates(user) {
   return isOfficeManager(user) || isEstimator(user);
 }
