@@ -2163,7 +2163,7 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, hideMobileModuleSelect = false, notificationSource = {}, onOpenPath, logoInitials = DEFAULT_LOGO_INITIALS }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, notificationSource = {}, onOpenPath, logoInitials = DEFAULT_LOGO_INITIALS }) {
   const current = navItems.find((item) => item.id === active);
   const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
   const userInitials = sanitizeLogoInitials((user?.name || "User").split(/\s+/).map((part) => part[0] || "").join("")) || "U";
@@ -2235,17 +2235,8 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
             Log out
           </Button>
         </div>
-        <div className="co-mobile-select-tray grid gap-2 md:hidden">
-          {hideMobileModuleSelect ? null : (
-            <select value={active} onChange={(event) => setActive(event.target.value)} className="co-mobile-select field-input w-full min-w-0 py-2 text-xs font-black text-orange-700">
-              {navItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          )}
-          {canSwitchCompanies ? (
+        {canSwitchCompanies ? (
+          <div className="co-mobile-select-tray grid gap-2 md:hidden">
             <select
               value={currentCompanyId}
               onChange={(event) => onSelectCompany?.(event.target.value)}
@@ -2258,8 +2249,8 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
                 </option>
               ))}
             </select>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
       {syncing ? <div className="h-1 bg-gradient-to-r from-orange-200 via-orange-600 to-slate-200" /> : null}
     </div>
@@ -3691,20 +3682,25 @@ const FIELD_MOBILE_NAV_ORDER = [
 
 function getFieldMobileNavItems(visibleNavItems) {
   const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
-  return FIELD_MOBILE_NAV_ORDER
+  const orderedItems = FIELD_MOBILE_NAV_ORDER
     .map((item) => {
       const visible = visibleById.get(item.id);
       return visible ? { ...visible, label: item.label, icon: item.icon || visible.icon } : null;
     })
     .filter(Boolean);
+  const orderedIds = new Set(orderedItems.map((item) => item.id));
+  return [
+    ...orderedItems,
+    ...(visibleNavItems || []).filter((item) => !orderedIds.has(item.id)),
+  ];
 }
 
 function FieldMobileQuickNav({ items, active, onOpen }) {
   if (!items.length) return null;
 
   return (
-    <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Field quick actions">
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Mobile navigation">
+      <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {items.map((item) => {
           const isActive = active === item.id;
           return (
@@ -6559,36 +6555,79 @@ function ReportsPage({
 
 function CustomersTable({ rows, selectedId, onSelect }) {
   return (
-    <table className="w-full min-w-[980px] text-left">
-      <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
-        <tr>
-          <th className="px-4 py-3">Customer</th>
-          <th className="px-4 py-3">Status</th>
-          <th className="px-4 py-3">Phone</th>
-          <th className="px-4 py-3">Email</th>
-          <th className="px-4 py-3">City</th>
-          <th className="px-4 py-3">Service area</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-blue-50">
+    <>
+      <div className="space-y-3 md:hidden">
         {rows.map((customer) => {
           const selected = customer.id === selectedId;
           return (
-            <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
-              <td className="px-4 py-3">
-                <p className="font-black text-slate-950">{customer.name}</p>
-                <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
-              </td>
-              <td className="px-4 py-3"><StatusBadge status={customer.archivedAt ? "Archived" : customer.status} /></td>
-              <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.phone || "Not set"}</td>
-              <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.email || "Not set"}</td>
-              <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.city || "Not set"}</td>
-              <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.serviceArea || "Not set"}</td>
-            </tr>
+            <button
+              key={customer.id}
+              type="button"
+              onClick={() => onSelect(customer.id)}
+              className={`co-mobile-record-card co-office-list-card w-full rounded-2xl border p-4 text-left transition ${selected ? "is-selected border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-lg font-black text-slate-950">{customer.name}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                </div>
+                <div className="shrink-0">
+                  <StatusBadge status={customer.archivedAt ? "Archived" : customer.status} />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Contact</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.phone || "Phone not set"}</p>
+                  <p className="mt-0.5 break-words text-sm font-bold text-slate-700">{customer.email || "Email not set"}</p>
+                </div>
+                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">City</p>
+                    <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.city || "Not set"}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Service area</p>
+                    <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.serviceArea || "Not set"}</p>
+                  </div>
+                </div>
+              </div>
+              {selected ? <div className="mt-4"><Badge tone="blue">Selected</Badge></div> : null}
+            </button>
           );
         })}
-      </tbody>
-    </table>
+      </div>
+      <table className="hidden w-full min-w-[980px] text-left md:table">
+        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Customer</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Phone</th>
+            <th className="px-4 py-3">Email</th>
+            <th className="px-4 py-3">City</th>
+            <th className="px-4 py-3">Service area</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50">
+          {rows.map((customer) => {
+            const selected = customer.id === selectedId;
+            return (
+              <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+                <td className="px-4 py-3">
+                  <p className="font-black text-slate-950">{customer.name}</p>
+                  <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                </td>
+                <td className="px-4 py-3"><StatusBadge status={customer.archivedAt ? "Archived" : customer.status} /></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.phone || "Not set"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{customer.email || "Not set"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.city || "Not set"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-500">{customer.serviceArea || "Not set"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
   );
 }
 
@@ -8907,7 +8946,7 @@ function LeadsPage({
   }
 
   return (
-    <div>
+    <div className="co-office-page co-leads-page">
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
@@ -9172,7 +9211,7 @@ function ImportedJobDraftsPage({
 }) {
   if (!permissions.jobDraftImports?.canView) {
     return (
-      <div>
+      <div className="co-office-page co-imports-page">
         <PageHeader eyebrow="Office" title="Imported Job Drafts" description="Imported draft packages are only available to office roles that can create jobs." />
         <div className="px-5 sm:px-6 lg:px-8">
           <StateCard title="Imported drafts unavailable" description="This role cannot import or create jobs from external draft packages." tone="slate" />
@@ -9242,7 +9281,7 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
   }
 
   return (
-    <div>
+    <div className="co-office-page co-imports-page">
       <PageHeader
         eyebrow="Office"
         title="Imported Job Drafts"
@@ -9294,7 +9333,7 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
           ) : (
             <div className="divide-y divide-blue-100">
               {filteredDrafts.map((draft) => (
-                <div key={draft.id} className="block w-full text-left transition hover:bg-blue-50/60">
+                <div key={draft.id} className="co-office-list-card block w-full text-left transition hover:bg-blue-50/60">
                   <div className="grid gap-3 p-4 lg:grid-cols-[1.2fr_0.8fr_0.7fr_auto] lg:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -9538,7 +9577,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
   }
 
   return (
-    <form onSubmit={saveDraft}>
+    <form className="co-office-page co-imports-page co-import-detail-page" onSubmit={saveDraft}>
       <PageHeader
         eyebrow="Imported Job Draft"
         title={draftForm.jobName || "Untitled imported draft"}
@@ -9728,7 +9767,7 @@ function CustomersPage({
   const visibleRows = debugState.renderedRows;
 
   return (
-    <div>
+    <div className="co-office-page co-customers-page">
       <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} visible customers</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
@@ -12651,7 +12690,7 @@ function EstimatesPage({
 
   if (!permissions?.estimates?.canView) {
     return (
-      <div>
+      <div className="co-office-page co-estimates-page">
         <PageHeader eyebrow="Office Sales" title="Estimates" description="Estimates are only available to office and estimator roles." />
         <div className="px-5 sm:px-6 lg:px-8">
           <StateCard title="Estimate access unavailable" description="Field roles are blocked from estimates, proposal totals, and pricing." tone="slate" />
@@ -12661,7 +12700,7 @@ function EstimatesPage({
   }
 
   return (
-    <div>
+    <div className="co-office-page co-estimates-page">
       <PageHeader
         eyebrow="Office Sales"
         title="Estimates"
@@ -12703,7 +12742,7 @@ function EstimatesPage({
                     key={estimate.id}
                     type="button"
                     onClick={() => setSelectedEstimateId(estimate.id)}
-                    className={`w-full rounded-3xl border p-4 text-left transition ${selectedEstimate?.id === estimate.id ? "border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+                    className={`co-office-list-card w-full rounded-3xl border p-4 text-left transition ${selectedEstimate?.id === estimate.id ? "is-selected border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -16740,10 +16779,8 @@ export default function App() {
     );
   }
 
-  const mobileItems = visibleNavItems.slice(0, 5).map((item) => item.id);
-  const allItems = visibleNavItems;
   const isFieldMobileWorkspace = !appState.permissions?.jobs?.canManageAll && !appState.permissions?.leads?.canView;
-  const fieldMobileItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : [];
+  const mobileNavItems = isFieldMobileWorkspace ? getFieldMobileNavItems(visibleNavItems) : visibleNavItems;
   const customerRelated = relatedCustomerRecords(selectedCustomer, appState.leads, appState.jobs, appState.activity);
   const leadRelated = relatedLeadActivity(selectedLead, appState.customers, appState.activity, appState.leadStatusHistory);
 
@@ -16768,7 +16805,6 @@ export default function App() {
             onSelectCompany={handleSelectCompany}
             notificationSource={notificationCenterSource}
             onOpenPath={navigateTo}
-            hideMobileModuleSelect={isFieldMobileWorkspace}
             logoInitials={workspaceLogoInitials}
           />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
@@ -17029,24 +17065,7 @@ export default function App() {
           </main>
         </div>
       </div>
-      {isFieldMobileWorkspace ? (
-        <FieldMobileQuickNav items={fieldMobileItems} active={active} onOpen={setActive} />
-      ) : (
-        <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
-          <div className="grid grid-cols-5 gap-1">
-            {mobileItems.map((id) => {
-              const item = allItems.find((nav) => nav.id === id);
-              const isActive = active === id;
-              return (
-                <button key={id} type="button" onClick={() => setActive(id)} className={`co-mobile-bottom-nav-button rounded-2xl px-1.5 py-2 text-[11px] font-black ${isActive ? "is-active bg-blue-700 text-white" : "text-slate-500"}`}>
-                  <Icon name={item?.icon || "grid"} className="mx-auto h-4 w-4" />
-                  <span className="mt-1 block truncate">{item?.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+      <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
     </div>
   );
 }
