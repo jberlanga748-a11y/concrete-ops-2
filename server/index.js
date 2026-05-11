@@ -78,6 +78,14 @@ import {
 } from "../shared/companyScope.js";
 import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
 import {
+  buildOwnerHealthWarnings,
+  checkOwnerHealthDatabase,
+  checkOwnerHealthStorage,
+  ownerHealthAiStatus,
+  ownerHealthBackupStatus,
+  ownerHealthWebsiteIntakeStatus,
+} from "./owner-health.js";
+import {
   calculateStartupStatus,
   canMarkStartupReady,
   createStartupChecklistFields,
@@ -3268,6 +3276,12 @@ function assertCanManageCompanies(user) {
   }
 }
 
+function assertCanViewOwnerHealth(user) {
+  if (!canViewSettings(user) && !canManageCompanies(user)) {
+    throw new ApiError(403, "You do not have permission to view owner health status.");
+  }
+}
+
 function assertCanViewLeads(user) {
   if (!canViewLeads(user)) {
     throw new ApiError(403, "You do not have permission to view leads.");
@@ -4564,6 +4578,44 @@ function statsForUser(state, user, { jobs = null, leads = null, queueItems = nul
   };
 }
 
+function ownerHealthOpenFollowUpCount(leads = [], contactHistory = []) {
+  const openLeadFollowUps = (Array.isArray(leads) ? leads : []).filter((lead) => {
+    const status = String(lead?.status || "").trim().toLowerCase();
+    return !lead?.archivedAt
+      && lead?.followUpDueAt
+      && !["approved", "won", "lost", "rejected", "archived", "converted"].includes(status);
+  }).length;
+
+  const openContactFollowUps = (Array.isArray(contactHistory) ? contactHistory : []).filter((entry) => (
+    !entry?.archivedAt && entry?.nextFollowUpDate
+  )).length;
+
+  return openLeadFollowUps + openContactFollowUps;
+}
+
+function ownerHealthCountsForUser(state, user) {
+  const hydrationContext = getHydrationContext(state, user);
+  const users = visibleUsers(state, user);
+  const leads = visibleLeadsForUser(state, user);
+  const customers = visibleCustomersForUser(state, user);
+  const estimates = visibleEstimatesForUser(state, user);
+  const jobs = visibleJobsForUser(state, user, hydrationContext);
+  const uploads = visibleUploadsForUser(state, user);
+  const contactHistory = visibleContactHistoryForUser(state, user);
+
+  return {
+    companies: accessibleCompaniesForUser(state, user).length,
+    users: users.length,
+    leads: leads.length,
+    customers: customers.length,
+    estimates: estimates.length,
+    jobs: jobs.length,
+    uploads: uploads.length,
+    activeJobs: jobs.filter((job) => !job.archivedAt && normalizeJobStatusValue(job.status || job.stage, "scheduled") === "in_progress").length,
+    openFollowUps: ownerHealthOpenFollowUpCount(leads, contactHistory),
+  };
+}
+
 function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
@@ -4933,6 +4985,42 @@ app.get("/api/ready", asyncRoute(async (_req, res) => {
       requestId: res.locals.requestId,
     });
   }
+}));
+
+app.get("/api/owner-health", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewOwnerHealth(req.auth.user);
+
+  const generatedAt = new Date().toISOString();
+  const state = await readDb();
+  const { dataDir, sqliteFile } = getDataPaths();
+  const database = await checkOwnerHealthDatabase({ state, sqliteFile });
+  const storageWithWarnings = await checkOwnerHealthStorage({ dataDir });
+  const { warnings: _storageWarnings, ...storage } = storageWithWarnings;
+  const payload = {
+    ok: database.status === "ok" && storage.status !== "unknown",
+    generatedAt,
+    app: {
+      status: "ok",
+      environment: serverConfig.nodeEnv,
+      version: String(process.env.FLY_RELEASE_VERSION || "").trim(),
+      uptimeSeconds: Math.round((Date.now() - serverStartedAt) / 1000),
+    },
+    database,
+    storage,
+    ai: ownerHealthAiStatus(process.env),
+    websiteIntake: ownerHealthWebsiteIntakeStatus(process.env),
+    backups: ownerHealthBackupStatus(),
+    counts: ownerHealthCountsForUser(state, req.auth.user),
+    warnings: [],
+    requestId: res.locals.requestId,
+  };
+
+  payload.warnings = buildOwnerHealthWarnings({
+    ...payload,
+    storage: storageWithWarnings,
+  });
+
+  res.json(payload);
 }));
 
 app.get("/api/setup/status", asyncRoute(async (_req, res) => {

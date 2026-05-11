@@ -67,6 +67,10 @@ export function getBootstrap(token) {
   return request("/api/bootstrap", { token });
 }
 
+export function getOwnerHealth(token) {
+  return request("/api/owner-health", { token });
+}
+
 export function selectCompany(token, companyId) {
   return request("/api/companies/select", { method: "POST", token, body: { companyId } });
 }

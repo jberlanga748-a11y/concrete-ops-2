@@ -55,6 +55,7 @@ import {
   endBreak,
   getBootstrap,
   getHealth,
+  getOwnerHealth,
   getSetupStatus,
   login,
   logout,
@@ -132,6 +133,7 @@ import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calcula
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
+import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -10621,8 +10623,183 @@ function ManagedCompanySetupPanel({
   );
 }
 
+function OwnerHealthStatusPanel({ sessionToken, canView = false }) {
+  const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  async function refreshHealth({ silent = false } = {}) {
+    if (!canView || !sessionToken) return;
+    setLoading(true);
+    if (!silent) setNotice("");
+    try {
+      const payload = await getOwnerHealth(sessionToken);
+      setHealth(payload);
+      setNotice("");
+    } catch {
+      setNotice("Owner Health Status could not be loaded. Try again in a moment.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHealth() {
+      if (!canView || !sessionToken) return;
+      setLoading(true);
+      try {
+        const payload = await getOwnerHealth(sessionToken);
+        if (!cancelled) {
+          setHealth(payload);
+          setNotice("");
+        }
+      } catch {
+        if (!cancelled) setNotice("Owner Health Status could not be loaded. Try again in a moment.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadHealth();
+    return () => {
+      cancelled = true;
+    };
+  }, [canView, sessionToken]);
+
+  if (!canView) return null;
+
+  const overallStatus = deriveOverallOwnerHealthStatus(health || {});
+  const warnings = ownerHealthWarnings(health || {});
+  const counts = health?.counts || {};
+  const sectionCards = [
+    {
+      id: "app",
+      label: "App",
+      status: health?.app?.status || "unknown",
+      message: health?.app?.environment ? `${health.app.environment} · uptime ${Math.max(0, Number(health.app.uptimeSeconds || 0))}s` : "App status has not been checked yet.",
+    },
+    {
+      id: "database",
+      label: "Database",
+      status: health?.database?.status || "unknown",
+      message: health?.database?.message || "Database status has not been checked yet.",
+    },
+    {
+      id: "storage",
+      label: "Storage",
+      status: health?.storage?.status || "unknown",
+      message: health?.storage
+        ? `${health.storage.message || "Storage checked."} Free: ${formatBytes(health.storage.freeBytes)} / Total: ${formatBytes(health.storage.totalBytes)}`
+        : "Storage status has not been checked yet.",
+    },
+    {
+      id: "ai",
+      label: "AI",
+      status: health?.ai?.status || "unknown",
+      message: health?.ai?.message || "AI configuration status has not been checked yet.",
+    },
+    {
+      id: "websiteIntake",
+      label: "Website intake",
+      status: health?.websiteIntake?.status || "unknown",
+      message: health?.websiteIntake?.message || "Website intake status has not been checked yet.",
+    },
+    {
+      id: "backups",
+      label: "Backups",
+      status: health?.backups?.status || "unknown",
+      message: health?.backups?.message || "Backup/export status has not been checked yet.",
+    },
+  ];
+  const countItems = [
+    ["Companies", counts.companies],
+    ["Users", counts.users],
+    ["Leads", counts.leads],
+    ["Customers", counts.customers],
+    ["Estimates", counts.estimates],
+    ["Jobs", counts.jobs],
+    ["Active jobs", counts.activeJobs],
+    ["Uploads", counts.uploads],
+    ["Open follow-ups", counts.openFollowUps],
+  ];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Owner Health Status"
+        description="A safe owner-only status check for app readiness, database, storage, configured integrations, and workspace activity."
+        action={(
+          <Button type="button" variant="secondary" size="sm" onClick={() => refreshHealth()} disabled={loading || !sessionToken}>
+            {loading ? "Checking..." : "Refresh"}
+          </Button>
+        )}
+      />
+      <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-slate-950">Overall owner status</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">No secrets, tokens, customer lists, pricing, or internal record details are shown here.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={healthStatusTone(overallStatus)}>{ownerHealthStatusLabel(overallStatus)}</Badge>
+            {health?.generatedAt ? <Badge tone="slate">Checked {formatDateTime(health.generatedAt)}</Badge> : null}
+          </div>
+        </div>
+        {notice ? <p className="mt-3 text-sm font-bold text-amber-700">{notice}</p> : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {sectionCards.map((section) => (
+          <div key={section.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-black text-slate-950">{section.label}</p>
+              <Badge tone={healthStatusTone(section.status)}>{ownerHealthStatusLabel(section.status)}</Badge>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{section.message}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">Workspace counts</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {countItems.map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-blue-50 bg-blue-50/50 p-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
+                <p className="mt-1 text-xl font-black text-slate-950">{Number.isFinite(Number(value)) ? Number(value) : 0}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-black text-slate-950">Warnings</p>
+          <div className="mt-3 grid gap-2">
+            {warnings.length ? warnings.map((warning) => (
+              <div key={warning.id} className="rounded-2xl border border-blue-50 bg-blue-50/50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={healthStatusTone(warning.severity)}>{ownerHealthStatusLabel(warning.severity)}</Badge>
+                  <p className="text-sm font-black text-slate-950">{warning.title}</p>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{warning.message}</p>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
+                No owner health warnings are active.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SettingsPage({
   user,
+  sessionToken,
   onReset,
   busy,
   auditEvents,
@@ -10783,6 +10960,7 @@ function SettingsPage({
           onUpdateCompanySettings={onUpdateCompanySettings}
           onNavigate={setActive}
         />
+        <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
           <div className="grid min-w-0 self-start gap-4">
             <Card className="self-start p-5">
