@@ -8,6 +8,7 @@ import {
   buildEstimateDraftFromLead,
   buildScopeSummaryFromProposalSections,
   calculateEstimateLineTotal,
+  calculateEstimateOptionTotals,
   calculateEstimateTotals,
   deriveEstimateListState,
   deriveEstimateProposalSections,
@@ -182,6 +183,8 @@ test("proposal section helpers keep old estimates safe", () => {
     exclusions: "",
     assumptions: "",
     customerNotes: "Estimate valid for 30 days.",
+    alternates: [],
+    addOns: [],
     internalNotes: "Check pricing before sending.",
   });
   assert.equal(buildScopeSummaryFromProposalSections(sections), oldEstimate.scopeSummary);
@@ -210,6 +213,87 @@ test("proposal section helpers store customer-facing sections in scope summary o
   assert.equal(parsed.inclusions, "Concrete, formwork, standard cleanup.");
   assert.equal(parsed.exclusions, "Permit fees and utility relocation.");
   assert.equal(parsed.assumptions, "Existing base is suitable after removals.");
+});
+
+test("proposal option helpers preserve alternates and add-ons in customer notes", () => {
+  const draft = mergeEstimateProposalSections({ customerNotes: "Estimate valid for 30 days." }, {
+    alternates: [
+      {
+        title: "Stamped border",
+        description: "Add stamped border around patio.",
+        amount: "1250",
+        status: "optional",
+        notes: "Owner to choose color.",
+      },
+      {
+        title: "Thicker driveway edge",
+        description: "Upgrade edge thickening at garage apron.",
+        amount: "900",
+        status: "accepted",
+        notes: "",
+      },
+    ],
+    addOns: [
+      {
+        title: "Sealer",
+        description: "Apply cure-and-seal after finish.",
+        amount: "450",
+        status: "selected",
+        notes: "Weather dependent.",
+      },
+      {
+        title: "Extra sawcutting",
+        description: "Additional sawcuts beyond base scope.",
+        amount: "300",
+        status: "excluded",
+        notes: "",
+      },
+    ],
+  });
+
+  assert.match(draft.customerNotes, /Customer Notes \/ Terms:\nEstimate valid for 30 days\./);
+  assert.match(draft.customerNotes, /Alternates:\n- \[optional\] Stamped border \| Amount: \$1,250\.00/);
+  assert.match(draft.customerNotes, /- \[accepted\] Thicker driveway edge \| Amount: \$900\.00/);
+  assert.match(draft.customerNotes, /Optional Add-ons:\n- \[selected\] Sealer \| Amount: \$450\.00/);
+  assert.match(draft.customerNotes, /- \[excluded\] Extra sawcutting \| Amount: \$300\.00/);
+
+  const parsed = deriveEstimateProposalSections(draft);
+  assert.equal(parsed.customerNotes, "Estimate valid for 30 days.");
+  assert.equal(parsed.alternates.length, 2);
+  assert.equal(parsed.addOns.length, 2);
+  assert.equal(parsed.alternates[0].status, "optional");
+  assert.equal(parsed.addOns[0].amount, 450);
+});
+
+test("selected option totals stay separate from base estimate total", () => {
+  const estimate = mergeEstimateProposalSections({
+    items: [{ description: "Base concrete", quantity: 10, unitPrice: 200 }],
+    taxRate: "",
+    feesTotal: 100,
+  }, {
+    alternates: [
+      { title: "Optional color", amount: 800, status: "optional" },
+      { title: "Accepted pump add", amount: 600, status: "accepted" },
+      { title: "Excluded demo", amount: 500, status: "excluded" },
+    ],
+    addOns: [
+      { title: "Selected sealer", amount: 250, status: "selected" },
+      { title: "Included cleanup", amount: 150, status: "included" },
+    ],
+  });
+
+  assert.deepEqual(calculateEstimateTotals(estimate.items, { taxRate: estimate.taxRate, feesTotal: estimate.feesTotal }), {
+    subtotal: 2000,
+    taxRate: null,
+    taxTotal: null,
+    feesTotal: 100,
+    grandTotal: 2100,
+  });
+  assert.deepEqual(calculateEstimateOptionTotals(estimate), {
+    baseTotal: 2100,
+    selectedOptionsTotal: 1000,
+    totalWithSelectedOptions: 3100,
+  });
 });
 
 test("estimate copy helpers include customer-facing pricing content without internal notes", () => {

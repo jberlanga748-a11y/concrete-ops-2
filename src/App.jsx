@@ -105,7 +105,7 @@ import { deriveCommandCenterState } from "./command-center-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
@@ -1049,12 +1049,85 @@ function StatCard({ title, value, detail }) {
   );
 }
 
-function ProposalTotalCard({ value, detail }) {
+function ProposalTotalCard({ value, detail, label = "Proposal total" }) {
   return (
     <div className="min-w-0 max-w-full rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-700 to-slate-950 p-5 text-white shadow-sm shadow-blue-900/20">
-      <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Proposal total</p>
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">{label}</p>
       <p className="mt-2 break-words text-3xl font-black tracking-tight sm:text-4xl">{value}</p>
       {detail ? <p className="mt-2 break-words text-sm font-bold leading-6 text-blue-100">{detail}</p> : null}
+    </div>
+  );
+}
+
+const ESTIMATE_ALTERNATE_STATUS_OPTIONS = ["optional", "included", "excluded", "accepted"];
+const ESTIMATE_ADD_ON_STATUS_OPTIONS = ["optional", "selected", "included", "accepted", "excluded"];
+
+function estimateOptionStatusLabel(status = "optional") {
+  const labels = {
+    optional: "Optional",
+    included: "Included",
+    excluded: "Excluded",
+    accepted: "Accepted",
+    selected: "Selected",
+  };
+  return labels[String(status || "optional").trim().toLowerCase()] || "Optional";
+}
+
+function EstimateOptionsEditor({
+  title,
+  description,
+  options = [],
+  onChange,
+  addLabel,
+  nameLabel = "Title",
+  defaultTitle,
+  statusOptions = ESTIMATE_ALTERNATE_STATUS_OPTIONS,
+  disabled = false,
+}) {
+  const rows = Array.isArray(options) ? options : [];
+  const updateOption = (index, field, value) => {
+    onChange(rows.map((option, optionIndex) => optionIndex === index ? { ...option, [field]: value } : option));
+  };
+  const addOption = () => {
+    onChange([
+      ...rows,
+      { title: defaultTitle, description: "", amount: "", status: statusOptions[0] || "optional", notes: "" },
+    ]);
+  };
+  const removeOption = (index) => {
+    onChange(rows.filter((_, optionIndex) => optionIndex !== index));
+  };
+
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+      <SectionHeader title={title} description={description} />
+      {rows.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-blue-200 bg-white/70 px-3 py-4 text-sm font-bold text-slate-500">No {title.toLowerCase()} added yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((option, index) => (
+            <div key={`${title}-${index}`} className="rounded-2xl border border-blue-100 bg-white p-3">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_130px_160px]">
+                <InputField label={`${nameLabel} ${index + 1}`} value={option.title || ""} onChange={(event) => updateOption(index, "title", event.target.value)} disabled={disabled} />
+                <InputField label="Amount" value={option.amount ?? ""} onChange={(event) => updateOption(index, "amount", event.target.value)} inputMode="decimal" disabled={disabled} />
+                <SelectField label="Status" value={option.status || "optional"} onChange={(event) => updateOption(index, "status", event.target.value)} disabled={disabled}>
+                  {statusOptions.map((status) => <option key={status} value={status}>{estimateOptionStatusLabel(status)}</option>)}
+                </SelectField>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <TextAreaField label="Description" value={option.description || ""} onChange={(event) => updateOption(index, "description", event.target.value)} className="field-input min-h-20 resize-y" disabled={disabled} />
+                <TextAreaField label="Notes" value={option.notes || ""} onChange={(event) => updateOption(index, "notes", event.target.value)} className="field-input min-h-20 resize-y" disabled={disabled} />
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300" onClick={() => removeOption(index)} disabled={disabled}>Remove</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3">
+        <Button type="button" variant="secondary" size="sm" onClick={addOption} disabled={disabled}>{addLabel}</Button>
+      </div>
     </div>
   );
 }
@@ -1103,6 +1176,29 @@ function EstimateProposalSectionsEditor({ draft, setDraft, disabled = false }) {
             onChange={(event) => updateSection("assumptions", event.target.value)}
             placeholder="Access, weather, base conditions, schedule, or other assumptions."
             className="field-input min-h-24 resize-y"
+            disabled={disabled}
+          />
+        </div>
+        <div className="grid gap-3 xl:grid-cols-2">
+          <EstimateOptionsEditor
+            title="Alternates"
+            description="Optional proposal choices. Optional or excluded alternates do not change the base estimate total."
+            options={sections.alternates}
+            onChange={(nextOptions) => updateSection("alternates", nextOptions)}
+            addLabel="Add alternate"
+            defaultTitle="New alternate"
+            statusOptions={ESTIMATE_ALTERNATE_STATUS_OPTIONS}
+            disabled={disabled}
+          />
+          <EstimateOptionsEditor
+            title="Optional Add-ons"
+            description="Add-ons can be tracked as optional, selected, included, accepted, or excluded without changing base line items."
+            options={sections.addOns}
+            onChange={(nextOptions) => updateSection("addOns", nextOptions)}
+            addLabel="Add add-on"
+            nameLabel="Name"
+            defaultTitle="New add-on"
+            statusOptions={ESTIMATE_ADD_ON_STATUS_OPTIONS}
             disabled={disabled}
           />
         </div>
@@ -9647,6 +9743,8 @@ function EstimatesPage({
   const singleCustomerEmail = singleCustomerId ? visibleCustomers.find((customer) => customer.id === singleCustomerId)?.email || "" : "";
   const createTotals = useMemo(() => calculateEstimateTotals(createDraft.items, { taxRate: createDraft.taxRate, feesTotal: createDraft.feesTotal }), [createDraft.feesTotal, createDraft.items, createDraft.taxRate]);
   const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
+  const createOptionTotals = useMemo(() => calculateEstimateOptionTotals(createDraft), [createDraft]);
+  const detailOptionTotals = useMemo(() => calculateEstimateOptionTotals(detailDraft), [detailDraft]);
   const detailCustomer = useMemo(
     () => visibleCustomers.find((customer) => customer.id === detailDraft.customerId) || selectedEstimate?.customer || null,
     [detailDraft.customerId, selectedEstimate?.customer, visibleCustomers],
@@ -9930,12 +10028,14 @@ function EstimatesPage({
                 <Button type="button" variant="secondary" onClick={() => appendDraftItem(setCreateDraft)}>Add line item</Button>
               </div>
               <div className="mt-4">
-                <ProposalTotalCard value={formatEstimateCurrency(createTotals.grandTotal)} detail="Customer-facing grand total from line items, tax, and fees." />
+                <ProposalTotalCard label="Base Estimate Total" value={formatEstimateCurrency(createTotals.grandTotal)} detail="Saved estimate total from line items, tax, and fees. Optional or excluded options do not change this base total." />
               </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <StatCard title="Subtotal" value={formatEstimateCurrency(createTotals.subtotal)} />
                 <StatCard title="Tax" value={formatEstimateCurrency(createTotals.taxTotal || 0)} />
                 <StatCard title="Fees" value={formatEstimateCurrency(createTotals.feesTotal || 0)} />
+                <StatCard title="Selected options" value={formatEstimateCurrency(createOptionTotals.selectedOptionsTotal)} detail="Included, accepted, or selected alternates/add-ons only." />
+                <StatCard title="Total with selected options" value={formatEstimateCurrency(createOptionTotals.totalWithSelectedOptions)} detail="Review total only; base estimate total remains separate." />
               </div>
               <div className="mt-4">
                 <Button
@@ -10015,11 +10115,13 @@ function EstimatesPage({
                   ))}
                   <Button type="button" variant="secondary" onClick={() => appendDraftItem(setDetailDraft)}>Add line item</Button>
                 </div>
-                <ProposalTotalCard value={formatEstimateCurrency(detailTotals.grandTotal)} detail="Customer-facing grand total from the current proposal draft." />
-                <div className="grid gap-3 md:grid-cols-3">
+                <ProposalTotalCard label="Base Estimate Total" value={formatEstimateCurrency(detailTotals.grandTotal)} detail="Saved estimate total from line items, tax, and fees. Optional or excluded options do not change this base total." />
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                   <StatCard title="Subtotal" value={formatEstimateCurrency(detailTotals.subtotal)} />
                   <StatCard title="Tax" value={formatEstimateCurrency(detailTotals.taxTotal || 0)} />
                   <StatCard title="Fees" value={formatEstimateCurrency(detailTotals.feesTotal || 0)} />
+                  <StatCard title="Selected options" value={formatEstimateCurrency(detailOptionTotals.selectedOptionsTotal)} detail="Included, accepted, or selected alternates/add-ons only." />
+                  <StatCard title="Total with selected options" value={formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions)} detail="Review total only; base estimate total remains separate." />
                 </div>
                 {copyFeedback ? (
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">

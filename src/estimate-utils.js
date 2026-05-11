@@ -79,6 +79,9 @@ const ESTIMATE_PROPOSAL_SECTION_LOOKUP = new Map(
   }),
 );
 
+const ESTIMATE_OPTION_STATUSES = new Set(["optional", "included", "excluded", "accepted", "selected"]);
+const ESTIMATE_OPTION_TOTAL_STATUSES = new Set(["included", "accepted", "selected"]);
+
 function textBlock(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trim();
 }
@@ -128,6 +131,161 @@ function parseScopeSummarySections(scopeSummary = "") {
   return sections;
 }
 
+function customerNotesHeadingKey(line = "") {
+  const normalized = String(line || "").trim().replace(/:$/, "").replace(/\s+/g, " ").toLowerCase();
+  if (["customer notes / terms", "customer notes", "terms", "notes"].includes(normalized)) return "customerNotes";
+  if (["alternates", "alternate options", "alternate pricing"].includes(normalized)) return "alternates";
+  if (["optional add-ons", "optional add ons", "add-ons", "add ons", "addons"].includes(normalized)) return "addOns";
+  return "";
+}
+
+function normalizeEstimateOptionStatus(value, fallback = "optional") {
+  const normalized = textValue(value).toLowerCase();
+  return ESTIMATE_OPTION_STATUSES.has(normalized) ? normalized : fallback;
+}
+
+function parseOptionAmount(value) {
+  if (value == null || value === "") return "";
+  const parsed = Number(String(value).replace(/[$,]/g, "").trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return "";
+  return roundCurrency(parsed);
+}
+
+function optionAmountForTotals(value) {
+  const parsed = parseOptionAmount(value);
+  return parsed === "" ? 0 : parsed;
+}
+
+function normalizeEstimateOption(option = {}, fallbackStatus = "optional") {
+  return {
+    title: firstText(option.title, option.name),
+    description: textBlock(option.description),
+    amount: parseOptionAmount(option.amount),
+    status: normalizeEstimateOptionStatus(option.status || option.type, fallbackStatus),
+    notes: textBlock(option.notes),
+  };
+}
+
+function estimateOptionHasContent(option = {}) {
+  return Boolean(
+    textBlock(option.title)
+    || textBlock(option.description)
+    || textBlock(option.notes)
+    || optionAmountForTotals(option.amount) > 0,
+  );
+}
+
+function parseEstimateOptionLine(line = "", fallbackStatus = "optional") {
+  const match = String(line || "").trim().match(/^-\s*(?:\[([^\]]+)\]\s*)?(.*)$/);
+  if (!match) return null;
+
+  const [, rawStatus, rawBody] = match;
+  const parts = rawBody.split("|").map((part) => part.trim()).filter(Boolean);
+  const option = {
+    title: parts.shift() || "",
+    description: "",
+    amount: "",
+    status: rawStatus || fallbackStatus,
+    notes: "",
+  };
+
+  parts.forEach((part) => {
+    if (/^amount:/i.test(part)) {
+      option.amount = part.replace(/^amount:\s*/i, "");
+    } else if (/^description:/i.test(part)) {
+      option.description = part.replace(/^description:\s*/i, "");
+    } else if (/^notes?:/i.test(part)) {
+      option.notes = part.replace(/^notes?:\s*/i, "");
+    } else if (!option.description) {
+      option.description = part;
+    } else {
+      option.notes = [option.notes, part].filter(Boolean).join(" ");
+    }
+  });
+
+  return normalizeEstimateOption(option, fallbackStatus);
+}
+
+function formatOptionAmountForNotes(amount) {
+  const parsed = parseOptionAmount(amount);
+  return parsed === "" ? "" : formatEstimateCurrency(parsed);
+}
+
+function buildEstimateOptionLine(option = {}) {
+  const normalized = normalizeEstimateOption(option);
+  const amount = formatOptionAmountForNotes(normalized.amount);
+  return [
+    `- [${normalized.status}] ${normalized.title || "Untitled option"}`,
+    amount ? `Amount: ${amount}` : "",
+    normalized.description ? `Description: ${normalized.description}` : "",
+    normalized.notes ? `Notes: ${normalized.notes}` : "",
+  ].filter(Boolean).join(" | ");
+}
+
+function normalizeEstimateOptions(options = [], fallbackStatus = "optional") {
+  return (Array.isArray(options) ? options : [])
+    .map((option) => normalizeEstimateOption(option, fallbackStatus))
+    .filter(estimateOptionHasContent);
+}
+
+function parseCustomerNotesProposalOptions(customerNotes = "") {
+  const sections = {
+    customerNotes: "",
+    alternates: [],
+    addOns: [],
+  };
+  const text = textBlock(customerNotes);
+  if (!text) return sections;
+
+  let activeKey = "customerNotes";
+  let foundHeading = false;
+  const buckets = {
+    customerNotes: [],
+    alternates: [],
+    addOns: [],
+  };
+
+  text.split("\n").forEach((line) => {
+    const key = customerNotesHeadingKey(line);
+    if (key) {
+      activeKey = key;
+      foundHeading = true;
+      return;
+    }
+    buckets[activeKey].push(line);
+  });
+
+  if (!foundHeading) {
+    sections.customerNotes = text;
+    return sections;
+  }
+
+  sections.customerNotes = textBlock(buckets.customerNotes.join("\n"));
+  sections.alternates = buckets.alternates
+    .map((line) => parseEstimateOptionLine(line, "optional"))
+    .filter(Boolean);
+  sections.addOns = buckets.addOns
+    .map((line) => parseEstimateOptionLine(line, "optional"))
+    .filter(Boolean);
+  return sections;
+}
+
+function buildCustomerNotesFromProposalOptions(sections = {}) {
+  const customerNotes = textBlock(sections.customerNotes);
+  const alternates = normalizeEstimateOptions(sections.alternates, "optional");
+  const addOns = normalizeEstimateOptions(sections.addOns, "optional");
+
+  if (alternates.length === 0 && addOns.length === 0) {
+    return customerNotes;
+  }
+
+  return [
+    customerNotes ? `Customer Notes / Terms:\n${customerNotes}` : "",
+    alternates.length > 0 ? `Alternates:\n${alternates.map(buildEstimateOptionLine).join("\n")}` : "",
+    addOns.length > 0 ? `Optional Add-ons:\n${addOns.map(buildEstimateOptionLine).join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
 export function buildScopeSummaryFromProposalSections(sections = {}) {
   const normalized = {
     scopeOfWork: textBlock(sections.scopeOfWork),
@@ -149,9 +307,10 @@ export function buildScopeSummaryFromProposalSections(sections = {}) {
 
 export function deriveEstimateProposalSections(estimate = {}) {
   const scopeSections = parseScopeSummarySections(estimate?.scopeSummary);
+  const customerSections = parseCustomerNotesProposalOptions(estimate?.customerNotes);
   return {
     ...scopeSections,
-    customerNotes: String(estimate?.customerNotes || ""),
+    ...customerSections,
     internalNotes: String(estimate?.internalNotes || ""),
   };
 }
@@ -165,8 +324,26 @@ export function mergeEstimateProposalSections(estimate = {}, updates = {}) {
   return {
     ...estimate,
     scopeSummary: buildScopeSummaryFromProposalSections(nextSections),
-    customerNotes: String(nextSections.customerNotes || ""),
+    customerNotes: buildCustomerNotesFromProposalOptions(nextSections),
     internalNotes: String(nextSections.internalNotes || ""),
+  };
+}
+
+export function calculateEstimateOptionTotals(estimate = {}) {
+  const sections = deriveEstimateProposalSections(estimate);
+  const selectedOptionsTotal = [...sections.alternates, ...sections.addOns].reduce((sum, option) => {
+    const status = normalizeEstimateOptionStatus(option.status);
+    return ESTIMATE_OPTION_TOTAL_STATUSES.has(status) ? roundCurrency(sum + optionAmountForTotals(option.amount)) : sum;
+  }, 0);
+  const baseTotals = calculateEstimateTotals(estimate?.items, {
+    taxRate: estimate?.taxRate,
+    feesTotal: estimate?.feesTotal,
+  });
+
+  return {
+    baseTotal: baseTotals.grandTotal,
+    selectedOptionsTotal: roundCurrency(selectedOptionsTotal),
+    totalWithSelectedOptions: roundCurrency(baseTotals.grandTotal + selectedOptionsTotal),
   };
 }
 
