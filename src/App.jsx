@@ -7113,27 +7113,33 @@ function CommandCenterTableCard({ title, description, action, children, emptyTex
 
 function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
   const rows = [
-    { label: "App / database / storage", detail: "Checked in Owner Health" },
-    { label: "AI / website intake", detail: "Server-side status only" },
-    { label: "Backups / release safety", detail: "Review before deploys" },
+    { label: "App Status", detail: "Runtime health in Settings", pill: "Check", tone: "slate", dotClassName: "bg-slate-400" },
+    { label: "Database", detail: "Readiness check available", pill: "Check", tone: "slate", dotClassName: "bg-slate-400" },
+    { label: "Storage", detail: "Volume status in Owner Health", pill: "Check", tone: "slate", dotClassName: "bg-slate-400" },
+    { label: "AI Configured", detail: "Server-side only", pill: "Review", tone: "amber", dotClassName: "bg-amber-400" },
+    { label: "Website Intake", detail: "Token status hidden", pill: "Review", tone: "amber", dotClassName: "bg-amber-400" },
+    { label: "Backups / Release Safety", detail: "Checklist in Settings", pill: "Open", tone: "blue", dotClassName: "bg-blue-500" },
   ];
 
   return (
     <Card className="co-command-card p-4">
-      <SectionHeader title="Owner Health Status" description="Safe owner checks stay in Settings." />
-      <div className="grid gap-2">
+      <SectionHeader title="Owner Health Status" description="Live status checks open in Settings." />
+      <div className="grid gap-1.5">
         {rows.map((row) => (
           <div key={row.label} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/90 px-3 py-2">
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-black text-slate-950">{row.label}</span>
-              <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{row.detail}</span>
+            <span className="flex min-w-0 items-start gap-2.5">
+              <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${row.dotClassName}`} aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-black text-slate-950">{row.label}</span>
+                <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{row.detail}</span>
+              </span>
             </span>
-            <Badge tone="slate">View</Badge>
+            <Badge tone={row.tone}>{row.pill}</Badge>
           </div>
         ))}
       </div>
       <button type="button" onClick={onOpenOwnerHealth} className="co-focus-ring mt-3 inline-flex items-center gap-1 rounded-full text-sm font-black text-orange-700 hover:text-orange-800">
-        View owner health
+        View Owner Health
         <span aria-hidden="true">-&gt;</span>
       </button>
     </Card>
