@@ -7096,6 +7096,50 @@ function CommandCenterSummaryCard({ title, description, count, tone = "orange", 
   );
 }
 
+function CommandCenterTableCard({ title, description, action, children, emptyText }) {
+  return (
+    <Card className="co-command-card p-4">
+      <SectionHeader title={title} description={description} action={action} />
+      {children ? (
+        <div className="table-shell rounded-2xl border border-slate-100 bg-white/90">
+          {children}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-sm font-bold text-slate-500">{emptyText}</div>
+      )}
+    </Card>
+  );
+}
+
+function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
+  const rows = [
+    { label: "App / database / storage", detail: "Checked in Owner Health" },
+    { label: "AI / website intake", detail: "Server-side status only" },
+    { label: "Backups / release safety", detail: "Review before deploys" },
+  ];
+
+  return (
+    <Card className="co-command-card p-4">
+      <SectionHeader title="Owner Health Status" description="Safe owner checks stay in Settings." />
+      <div className="grid gap-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/90 px-3 py-2">
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black text-slate-950">{row.label}</span>
+              <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{row.detail}</span>
+            </span>
+            <Badge tone="slate">View</Badge>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={onOpenOwnerHealth} className="co-focus-ring mt-3 inline-flex items-center gap-1 rounded-full text-sm font-black text-orange-700 hover:text-orange-800">
+        View owner health
+        <span aria-hidden="true">-&gt;</span>
+      </button>
+    </Card>
+  );
+}
+
 function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports }) {
   const steps = [
     "Review drafts and match customers",
@@ -7241,8 +7285,6 @@ function CommandCenterPage({
     if (draftId) onSelectImportedDraft?.(draftId);
   }
 
-  const limited = (rows) => (Array.isArray(rows) ? rows.slice(0, 6) : []);
-  const recentUploadCount = commandCenter.uploads.recentUploads.length;
   const timeIssueCount = commandCenter.stats.timeIssues;
   const reportsUploadsDue = commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + commandCenter.stats.jobsMissingPhotos;
   const priorityStatCards = [
@@ -7282,18 +7324,6 @@ function CommandCenterPage({
       actionLabel: "Open reports",
       onAction: () => openModule("reports"),
     },
-  ];
-  const operationsPulseCards = [
-    { key: "importedDraftsNeedingReview", label: "Imported drafts", helper: "Need review", icon: "database" },
-    { key: "importedDraftsNeedingCustomerMatch", label: "Customer match", helper: "Confirm draft customer", icon: "users" },
-    { key: "sourceChecksNeeded", label: "Source checks", helper: "Due or overdue", icon: "inbox" },
-    { key: "jobsReadyForField", label: "Ready for field", helper: "Startup complete", icon: "check" },
-    { key: "pendingPrePourChecklists", label: "Pre-pour", helper: "Pending checklists", icon: "clipboard" },
-    { key: "pendingPostPourChecklists", label: "Post-pour", helper: "Pending checklists", icon: "clipboard" },
-    { key: "pendingDeliveryTickets", label: "Delivery tickets", helper: "Open records", icon: "clipboard" },
-    { key: "openChangeOrders", label: "Change orders", helper: "Open requests", icon: "refresh" },
-    { key: "timeIssues", label: "Time issues", helper: "Active or unassigned", icon: "clock" },
-    { key: "activeJobs", label: "Active jobs", helper: "Non-closed jobs", icon: "briefcase" },
   ];
   function renderPriorityAction(label, onClick) {
     return (
@@ -7354,124 +7384,73 @@ function CommandCenterPage({
     commandCenter.stats.importedDraftsNeedingReview > 0 ? { id: "drafts", title: "Imported drafts", description: `${commandCenter.stats.importedDraftsNeedingReview} draft${commandCenter.stats.importedDraftsNeedingReview === 1 ? "" : "s"} waiting`, tone: "blue", action: () => openModule("jobDraftImports") } : null,
     timeIssueCount > 0 ? { id: "time", title: "Time issues", description: `${timeIssueCount} active or unassigned time ${timeIssueCount === 1 ? "entry" : "entries"}`, tone: "orange", action: () => openModule("time") } : null,
   ].filter(Boolean).slice(0, 5);
-  const dailyReportRows = [
-    ...limited([...commandCenter.dailyReports.openDailyReports, ...commandCenter.dailyReports.dailyReportsNeedingReview]).map((report) => ({
-      id: `report-${report.id}`,
-      title: report.job?.title || report.jobTitle || report.jobName || report.id,
-      description: report.reportDate || report.createdAt || "Date pending",
-      badge: reportStatusLabel(report.status),
-      tone: "blue",
-    })),
-    ...limited(commandCenter.dailyReports.activeJobsMissingTodayReport).map((job) => ({
-      id: `missing-report-${job.id}`,
+  const leadById = new Map((leads || []).map((lead) => [lead.id, lead]));
+  const customerById = new Map((customers || []).map((customer) => [customer.id, customer]));
+  const estimateById = new Map((estimates || []).map((estimate) => [estimate.id, estimate]));
+  const followUpModuleByType = { lead: "leads", customer: "customers", estimate: "estimates" };
+  const leadCommandRows = commandCenter.followUpQueue.items
+    .filter((item) => item.type !== "leadSource")
+    .slice(0, 5)
+    .map((item) => {
+      const record = item.type === "lead" ? leadById.get(item.recordId) : item.type === "customer" ? customerById.get(item.recordId) : estimateById.get(item.recordId);
+      const group = FOLLOW_UP_QUEUE_GROUPS.find((entry) => entry.id === item.bucket);
+      const source = record?.source || record?.leadSource || record?.requestSource || (item.type === "estimate" ? "Estimate" : item.type === "customer" ? "Customer" : "Lead");
+      const nextStep = record?.nextStep || item.reason || item.actionLabel || "Review follow-up";
+      return {
+        id: item.id,
+        type: item.type,
+        title: item.title || record?.customer || record?.name || record?.title || "Follow-up item",
+        subtitle: item.subtitle || record?.city || record?.project || "Follow-up queue",
+        source,
+        lastContact: item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "Not contacted",
+        nextStep,
+        status: group?.label || item.status || "Follow-Up",
+        tone: item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : item.bucket === "waiting" ? "blue" : "slate",
+        actionLabel: item.actionLabel || "Open",
+        moduleId: followUpModuleByType[item.type] || "leads",
+      };
+    });
+  const missingReportJobIds = new Set(commandCenter.dailyReports.activeJobsMissingTodayReport.map((job) => job.id).filter(Boolean));
+  const missingPhotoJobIds = new Set(commandCenter.uploads.jobsMissingPhotos.map((job) => job.id).filter(Boolean));
+  const missingSetupByJobId = new Map(commandCenter.jobsMissingCrewOrStartDate.map((job) => [job.id, job]));
+  const jobSnapshotById = new Map();
+  [
+    ...commandCenter.jobsNeedingStartupReview,
+    ...commandCenter.jobsMissingCrewOrStartDate,
+    ...commandCenter.dailyReports.activeJobsMissingTodayReport,
+    ...commandCenter.uploads.jobsMissingPhotos,
+  ].forEach((job) => {
+    if (job?.id && !jobSnapshotById.has(job.id)) jobSnapshotById.set(job.id, job);
+  });
+  const jobSnapshotRows = Array.from(jobSnapshotById.values()).slice(0, 5).map((job) => {
+    const setup = missingSetupByJobId.get(job.id) || {};
+    const startupWarnings = Array.isArray(job.startupWarnings) ? job.startupWarnings : [];
+    const missingReport = missingReportJobIds.has(job.id);
+    const missingPhoto = missingPhotoJobIds.has(job.id);
+    const startupStatus = job.startupStatus || "Not Started";
+    const startupNeedsReview = startupWarnings.length > 0 || ["Not Started", "In Progress", "Needs Review"].includes(startupStatus);
+    const nextAction = startupWarnings.length > 0
+      ? `${startupWarnings.length} startup blocker${startupWarnings.length === 1 ? "" : "s"}`
+      : setup.missingCrew || setup.missingStartDate
+        ? [setup.missingCrew ? "Assign crew" : "", setup.missingStartDate ? "Set start date" : ""].filter(Boolean).join(" / ")
+        : missingReport
+          ? "Daily report"
+          : missingPhoto
+            ? "Upload photos"
+            : jobNextStep(job);
+    return {
+      id: job.id,
       title: jobTitle(job),
-      description: job.customer || "Customer pending",
-      badge: "No report today",
-      tone: "amber",
-    })),
-  ];
-  const uploadRows = [
-    ...limited(commandCenter.uploads.jobsMissingPhotos).map((job) => ({
-      id: `missing-upload-${job.id}`,
-      title: jobTitle(job),
-      description: job.customer || job.address || "Job needs photo evidence",
-      badge: "Missing photos",
-      tone: "amber",
-    })),
-    ...limited(commandCenter.uploads.recentUploads).map((upload) => ({
-      id: `recent-upload-${upload.id}`,
-      title: uploadTitle(upload),
-      description: upload.caption || upload.notes || "Photo evidence captured",
-      badge: "Recent",
-      tone: "blue",
-    })),
-  ];
-  const fieldRecordRows = [
-    ...limited(commandCenter.fieldRecords.pendingPrePour).map((checklist) => ({
-      id: `pre-${checklist.id}`,
-      title: checklist.job?.title || checklist.jobTitle || checklist.id,
-      description: "Pre-pour checklist pending",
-      badge: prePourChecklistStatusLabel(checklist.status),
-      tone: "amber",
-    })),
-    ...limited(commandCenter.fieldRecords.pendingPostPour).map((checklist) => ({
-      id: `post-${checklist.id}`,
-      title: checklist.job?.title || checklist.jobTitle || checklist.id,
-      description: "Post-pour checklist pending",
-      badge: postPourChecklistStatusLabel(checklist.status),
-      tone: "amber",
-    })),
-    ...limited(commandCenter.fieldRecords.pendingDeliveryTickets).map((ticket) => ({
-      id: `ticket-${ticket.id}`,
-      title: deliveryTicketTitle(ticket),
-      description: ticket.supplier || ticket.mixNotes || "Delivery ticket pending",
-      badge: ticket.status || "Open",
-      tone: "blue",
-    })),
-  ];
-  const jobOpsRows = [
-    ...limited(commandCenter.importedDraftsNeedingReview).map((draft) => ({
-      id: `draft-${draft.id}`,
-      title: draft.jobName || "Untitled imported draft",
-      description: `${draft.customerName || "Customer pending"} - ${draft.city || draft.jobAddress || "Location needs review"}`,
-      badge: draft.importStatus || "Imported",
-      tone: "amber",
-    })),
-    ...limited(commandCenter.jobsReadyForField).map((job) => ({
-      id: `ready-${job.id}`,
-      title: jobTitle(job),
-      description: jobScheduleLabel(job),
-      badge: "Ready",
-      tone: "green",
-    })),
-    ...limited(commandCenter.jobsMissingCrewOrStartDate).map((job) => ({
-      id: `missing-crew-date-${job.id}`,
-      title: jobTitle(job),
-      description: [job.missingCrew ? "Missing crew" : "", job.missingStartDate ? "Missing start date" : ""].filter(Boolean).join(" / "),
-      badge: "Needs setup",
-      tone: "amber",
-    })),
-  ];
-  const importedDraftRows = [
-    ...limited(commandCenter.importedDraftsNeedingCustomerMatch).map((draft) => ({
-      id: `match-${draft.id}`,
-      title: draft.customerName || draft.jobName || "Imported draft",
-      description: draft.customerMatchReason || "Customer match needs office review",
-      badge: draft.customerMatchStatus || "Match",
-      tone: customerMatchStatusTone(draft.customerMatchStatus),
-    })),
-    ...limited(commandCenter.importedDraftsNeedingReview).map((draft) => ({
-      id: `draft-summary-${draft.id}`,
-      title: draft.jobName || "Untitled imported draft",
-      description: `${draft.customerName || "Customer pending"} - ${draft.city || draft.jobAddress || "Location needs review"}`,
-      badge: draft.importStatus || "Imported",
-      tone: "amber",
-    })),
-  ];
-  const reportsUploadsRows = [...dailyReportRows, ...uploadRows];
-  const fieldOpsRows = [
-    ...fieldRecordRows,
-    ...limited(commandCenter.timeIssues.allTimeIssues).map((entry) => ({
-      id: `time-${entry.id}`,
-      title: entry.userName || entry.employeeName || entry.userId || "Crew member",
-      description: entry.jobTitle || entry.category || "Time entry needs review",
-      badge: entry.clockOutAt ? "Needs job" : "Active time",
-      tone: "orange",
-    })),
-    ...limited(commandCenter.changeOrders.openChangeOrders).map((request) => ({
-      id: `change-${request.id}`,
-      title: request.title || request.summary || request.id,
-      description: request.jobTitle || request.description || "Change order request needs review",
-      badge: changeOrderStatusLabel(request.status),
-      tone: "amber",
-    })),
-  ];
-  const fieldOpsCount = commandCenter.stats.pendingPrePourChecklists
-    + commandCenter.stats.pendingPostPourChecklists
-    + commandCenter.stats.pendingDeliveryTickets
-    + timeIssueCount
-    + commandCenter.changeOrders.openChangeOrders.length;
-  const rightRailPulseCards = operationsPulseCards.slice(0, 6);
+      subtitle: job.customer || job.address || "Assigned site",
+      phase: job.phase || jobStatusLabel(job.status || job.stage || "Not Started"),
+      foreman: job.assignedForemanName || job.foremanName || job.foreman || job.crew || job.assignedUserName || "Unassigned",
+      startupStatus,
+      startupNeedsReview,
+      missingReports: missingReport ? 1 : 0,
+      missingPhotos: missingPhoto ? 1 : 0,
+      nextAction,
+    };
+  });
 
   return (
     <div className="co-command-page">
@@ -7519,51 +7498,100 @@ function CommandCenterPage({
               ))}
             </CommandCenterSection>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <CommandCenterSummaryCard
-                title="Job Operations Snapshot"
-                description="Startup review, ready-for-field, crew, and schedule items."
-                count={commandCenter.stats.jobsNeedingStartupReview + commandCenter.stats.jobsReadyForField + commandCenter.stats.jobsMissingCrew + commandCenter.stats.jobsMissingStartDate}
-                tone="amber"
-                rows={jobOpsRows}
-                emptyText="Job operations look quiet."
-                actionLabel="View jobs"
-                onAction={() => openModule("jobs")}
-              />
-              <CommandCenterSummaryCard
-                title="Imported Drafts / Customer Match"
-                description="Draft packages summarized for review without filling the dashboard."
-                count={commandCenter.importedDraftsNeedingCustomerMatch.length + commandCenter.importedDraftsNeedingReview.length}
-                tone="blue"
-                rows={importedDraftRows}
-                emptyText="No imported drafts waiting."
-                actionLabel="Review drafts"
-                onAction={() => openModule("jobDraftImports")}
-              />
-              <CommandCenterSummaryCard
-                title="Reports / Uploads"
-                description="Daily reports, missing photos, and recent field evidence."
-                count={reportsUploadsDue + recentUploadCount}
-                tone="green"
-                rows={reportsUploadsRows}
-                emptyText="Reports and uploads are caught up."
-                actionLabel="Open reports"
-                onAction={() => openModule("reports")}
-              />
-              <CommandCenterSummaryCard
-                title="Field Records / Back Office"
-                description="Checklist, ticket, time, and change-order exceptions."
-                count={fieldOpsCount}
-                tone="orange"
-                rows={fieldOpsRows}
-                emptyText="No field record exceptions."
-                actionLabel="Open delivery tickets"
-                onAction={() => openModule("deliveryTickets")}
-              />
-            </div>
+            <CommandCenterTableCard
+              title="Lead / Follow-Up Command"
+              description="The top manual outreach work from leads, customers, and estimates."
+              action={<Button type="button" size="sm" variant="ghost" onClick={() => openModule("leads")}>Open Follow-Up Queue</Button>}
+              emptyText="No follow-up command rows waiting."
+            >
+              {leadCommandRows.length ? (
+                <table className="w-full min-w-[760px] text-left">
+                  <thead className="bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Lead / Company</th>
+                      <th className="px-3 py-2">Source</th>
+                      <th className="px-3 py-2">Last Contact</th>
+                      <th className="px-3 py-2">Next Step</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leadCommandRows.map((row) => (
+                      <tr key={row.id} className="align-middle transition hover:bg-orange-50/35">
+                        <td className="px-3 py-2.5">
+                          <p className="max-w-[16rem] truncate text-sm font-black text-slate-950">{row.title}</p>
+                          <p className="mt-0.5 max-w-[16rem] truncate text-xs font-bold text-slate-500">{row.subtitle}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.source}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.lastContact}</td>
+                        <td className="px-3 py-2.5">
+                          <p className="max-w-[18rem] truncate text-sm font-bold text-slate-700">{row.nextStep}</p>
+                        </td>
+                        <td className="px-3 py-2.5"><Badge tone={row.tone}>{row.status}</Badge></td>
+                        <td className="px-3 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openModule(row.moduleId)}
+                            className="co-focus-ring inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-black text-slate-700 transition hover:border-orange-200 hover:text-orange-700"
+                          >
+                            {row.actionLabel}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </CommandCenterTableCard>
+
+            <CommandCenterTableCard
+              title="Job Operations Snapshot"
+              description="Startup blockers, report gaps, missing photos, and next job actions."
+              action={<Button type="button" size="sm" variant="ghost" onClick={() => openModule("jobs")}>View all jobs</Button>}
+              emptyText="Job operations look quiet."
+            >
+              {jobSnapshotRows.length ? (
+                <table className="w-full min-w-[820px] text-left">
+                  <thead className="bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Job</th>
+                      <th className="px-3 py-2">Phase / Status</th>
+                      <th className="px-3 py-2">Foreman / Crew</th>
+                      <th className="px-3 py-2">Startup Needs Review</th>
+                      <th className="px-3 py-2">Missing Reports</th>
+                      <th className="px-3 py-2">Missing Photos</th>
+                      <th className="px-3 py-2">Next Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {jobSnapshotRows.map((row) => (
+                      <tr key={row.id} className="align-middle transition hover:bg-orange-50/35">
+                        <td className="px-3 py-2.5">
+                          <button type="button" onClick={() => openJob(row.id)} className="co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black text-slate-950 hover:text-orange-700">
+                            {row.title}
+                          </button>
+                          <p className="mt-0.5 max-w-[17rem] truncate text-xs font-bold text-slate-500">{row.subtitle}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.phase}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-slate-600">{row.foreman}</td>
+                        <td className="px-3 py-2.5"><Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Yes" : "No"}</Badge></td>
+                        <td className="px-3 py-2.5"><Badge tone={row.missingReports > 0 ? "amber" : "green"}>{row.missingReports}</Badge></td>
+                        <td className="px-3 py-2.5"><Badge tone={row.missingPhotos > 0 ? "amber" : "green"}>{row.missingPhotos}</Badge></td>
+                        <td className="px-3 py-2.5">
+                          <p className="max-w-[16rem] truncate text-sm font-bold text-slate-700">{row.nextAction}</p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </CommandCenterTableCard>
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-4">
+            <CommandCenterOwnerHealthCard onOpenOwnerHealth={() => openModule("settings")} />
+
             <Card className="co-command-card p-4">
               <SectionHeader title="Quick Actions" description="Fast jumps into existing office workflows." />
               <div className="grid gap-2">
@@ -7572,30 +7600,6 @@ function CommandCenterPage({
                 <CommandCenterQuickAction icon="briefcase" label="Open Jobs" helper="Startup, crews, and schedules" onClick={() => openModule("jobs")} />
                 <CommandCenterQuickAction icon="document" label="Open Reports" helper="Daily report review" onClick={() => openModule("reports")} />
               </div>
-            </Card>
-
-            <Card className="co-command-card p-4">
-              <SectionHeader title="Operations Pulse" description="Compact owner health from current app data." />
-              <div className="grid gap-2">
-                {rightRailPulseCards.map((card) => (
-                  <div key={card.key} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/90 px-3 py-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-700">
-                        <Icon name={card.icon} className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-black text-slate-950">{card.label}</span>
-                        <span className="block truncate text-xs font-bold text-slate-500">{card.helper}</span>
-                      </span>
-                    </div>
-                    <span className="shrink-0 text-lg font-black text-slate-950">{commandCenter.stats[card.key] || 0}</span>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={() => openModule("settings")} className="co-focus-ring mt-3 inline-flex items-center gap-1 rounded-full text-sm font-black text-orange-700 hover:text-orange-800">
-                View owner health
-                <span aria-hidden="true">-&gt;</span>
-              </button>
             </Card>
 
             <Card className="co-command-card p-4">
