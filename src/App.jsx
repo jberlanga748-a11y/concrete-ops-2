@@ -125,6 +125,7 @@ import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibl
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
+import { buildManualFollowUpContactPayload, deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
@@ -6892,6 +6893,10 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
 }
 
 function CommandCenterPage({
+  leads,
+  customers,
+  estimates,
+  contactHistory,
   jobs,
   leadSources,
   jobDraftImports,
@@ -6910,6 +6915,10 @@ function CommandCenterPage({
 }) {
   const [copyMessage, setCopyMessage] = useState("");
   const commandCenter = useMemo(() => deriveCommandCenterState({
+    leads,
+    customers,
+    estimates,
+    contactHistory,
     jobs,
     leadSources,
     jobDraftImports,
@@ -6920,7 +6929,7 @@ function CommandCenterPage({
     deliveryTickets,
     timeEntries,
     changeOrderRequests,
-  }), [changeOrderRequests, dailyReports, deliveryTickets, jobDraftImports, jobs, leadSources, postPourChecklists, prePourChecklists, timeEntries, uploads]);
+  }), [changeOrderRequests, contactHistory, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, timeEntries, uploads]);
 
   function openModule(moduleId) {
     setActive?.(moduleId);
@@ -6952,6 +6961,9 @@ function CommandCenterPage({
     { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review missing details before job creation", icon: "database" },
     { key: "importedDraftsNeedingCustomerMatch", label: "Drafts Needing Customer Match", helper: "Confirm match or choose create-new", icon: "users" },
     { key: "sourceChecksNeeded", label: "Source Checks Needed", helper: "Manual Lead Sources due or overdue", icon: "inbox" },
+    { key: "followUpsDueToday", label: "Follow-Ups Due Today", helper: "Manual outreach due today", icon: "clock" },
+    { key: "overdueFollowUps", label: "Overdue Follow-Ups", helper: "Manual outreach past due", icon: "alert" },
+    { key: "leadsNotContacted", label: "Leads Not Contacted", helper: "New leads without contact history", icon: "quote" },
     { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Clear critical startup items", icon: "alert" },
     { key: "jobsReadyForField", label: "Jobs Ready for Field", helper: "Ready but still active", icon: "check" },
     { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Assign crew or mark TBD in startup", icon: "users" },
@@ -6997,6 +7009,27 @@ function CommandCenterPage({
             <KpiCard key={card.key} item={{ ...card, value: commandCenter.stats[card.key] }} />
           ))}
         </div>
+
+        <CommandCenterSection
+          title="Manual Follow-Up Queue"
+          description="Office outreach due today, overdue, waiting, or not contacted. No email or SMS is sent from Concrete Ops."
+          count={commandCenter.followUpQueue.items.length}
+          emptyTitle="No manual follow-ups waiting"
+          emptyDescription="Follow-up dates and contact-history outcomes will appear here when the office has outreach to do."
+          badgeTone="amber"
+        >
+          {limited(commandCenter.followUpQueue.items).map((item) => (
+            <CommandCenterItem
+              key={item.id}
+              eyebrow={FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}
+              title={item.title}
+              description={item.subtitle || item.reason}
+              meta={`Last: ${item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "not contacted"} / Next: ${item.nextFollowUpDate || "not scheduled"}`}
+              badges={<><Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge><Badge tone="slate">{item.type === "leadSource" ? "Lead Source" : item.type}</Badge></>}
+              actions={<Button type="button" size="sm" onClick={() => openModule("leads")}>Open Follow-Up Queue</Button>}
+            />
+          ))}
+        </CommandCenterSection>
 
         <CommandCenterSection
           title="Lead Source Checks Needed"
@@ -7352,9 +7385,14 @@ function DashboardPage({
   leadSaveState,
   users,
   customers,
+  contactHistory = [],
   permissions,
   onSelectCustomer,
   relatedLeadRecords,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
   taskDraft,
   setTaskDraft,
   onAddTask,
@@ -7506,7 +7544,7 @@ function DashboardPage({
             <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
               <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
             </div>
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} contactHistory={contactHistory} contactHistoryPermissions={permissions.contactHistory} onCreateContactHistory={onCreateContactHistory} onUpdateContactHistory={onUpdateContactHistory} onArchiveContactHistory={onArchiveContactHistory} onRestoreContactHistory={onRestoreContactHistory} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
           </div>
         </div>
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
@@ -7817,6 +7855,161 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
           </div>
         )) : (
           <StateCard title="Lead inbox is clear" description="New leads, due follow-ups, missing next steps, and estimate-ready leads will appear here." tone="slate" />
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function FollowUpQueuePanel({
+  leads = [],
+  customers = [],
+  estimates = [],
+  leadSources = [],
+  contactHistory = [],
+  permissions,
+  disabled = false,
+  onOpenLead = () => {},
+  onOpenCustomer = () => {},
+  onOpenEstimate = () => {},
+  onOpenLeads = () => {},
+  onCreateContactHistory = async () => false,
+}) {
+  const canView = Boolean(permissions?.contactHistory?.canView && permissions?.leads?.canView);
+  const canManage = Boolean(permissions?.contactHistory?.canManage);
+  const [groupFilter, setGroupFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [message, setMessage] = useState("");
+  const today = todayDateInputValue();
+  const queueState = useMemo(() => deriveFollowUpQueueState({
+    leads,
+    customers,
+    estimates,
+    leadSources,
+    contactHistory,
+  }, { today }), [contactHistory, customers, estimates, leadSources, leads, today]);
+  const visibleItems = useMemo(() => filterFollowUpQueueItems(queueState.items, {
+    group: groupFilter,
+    type: typeFilter,
+    query,
+  }), [groupFilter, query, queueState.items, typeFilter]);
+
+  if (!canView) return null;
+
+  function openItem(item) {
+    if (item.type === "lead") onOpenLead(item.recordId);
+    else if (item.type === "customer") onOpenCustomer(item.recordId);
+    else if (item.type === "estimate") onOpenEstimate(item.recordId);
+    else onOpenLeads();
+  }
+
+  async function runQueueAction(item, action) {
+    if (!canManage || disabled) return;
+    if (item.type === "leadSource") {
+      onOpenLeads();
+      setMessage("Open the Daily Source Check card below to mark this source checked.");
+      return;
+    }
+
+    const payload = buildManualFollowUpContactPayload(item, action, { today });
+    if (!payload) return;
+    const didSave = await onCreateContactHistory(payload);
+    if (didSave) {
+      const label = action === "follow-up-tomorrow"
+        ? "Follow-up moved to tomorrow."
+        : action === "follow-up-two-days"
+          ? "Follow-up moved out two days."
+          : action === "waiting"
+            ? "Marked waiting on response."
+            : action === "no-follow-up"
+              ? "No follow-up note logged."
+              : "Manual outreach logged.";
+      setMessage(`${label} No email or text was sent.`);
+    }
+  }
+
+  const stats = [
+    { label: "Due Today", value: queueState.stats.dueToday, tone: "amber" },
+    { label: "Overdue", value: queueState.stats.overdue, tone: "red" },
+    { label: "Waiting", value: queueState.stats.waiting, tone: "blue" },
+    { label: "Not Contacted", value: queueState.stats.notContacted, tone: "slate" },
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-blue-100 bg-white p-4">
+        <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <Badge tone="amber">Follow-Up Queue</Badge>
+            <h3 className="mt-2 text-base font-black text-slate-950">Manual outreach queue</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Leads, customers, estimates, and source checks needing office attention. No emails or texts are sent from here.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-4 xl:min-w-[560px]">
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+                <p className="text-lg font-black text-slate-950">{stat.value}</p>
+                <Badge tone={stat.value > 0 ? stat.tone : "slate"}>{stat.label}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+        {message ? <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{message}</p> : null}
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <input
+            className="field-input"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search follow-ups, customers, projects, notes..."
+          />
+          <SelectField label="Queue" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
+            {FOLLOW_UP_QUEUE_GROUPS.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}
+          </SelectField>
+          <SelectField label="Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+            {FOLLOW_UP_QUEUE_TYPE_FILTERS.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+          </SelectField>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-4">
+        {visibleItems.length > 0 ? visibleItems.slice(0, 12).map((item) => (
+          <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="break-words text-sm font-black text-slate-950">{item.title}</p>
+                  <Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : item.bucket === "waiting" ? "blue" : "slate"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge>
+                  <Badge tone="slate">{item.type === "leadSource" ? "Lead Source" : item.type[0].toUpperCase() + item.type.slice(1)}</Badge>
+                </div>
+                <p className="mt-1 break-words text-xs font-bold text-slate-500">{item.subtitle || "No extra context"}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.reason}</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                  <span>Last: {item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "Not contacted"}</span>
+                  <span>Next: {item.nextFollowUpDate || "Not scheduled"}</span>
+                  {item.lastContactMethod ? <span>Method: {item.lastContactMethod}</span> : null}
+                  {item.outcome ? <span>Outcome: {item.outcome}</span> : null}
+                </div>
+                {item.notesPreview ? <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-500">{item.notesPreview}</p> : null}
+              </div>
+              <div className="flex w-full flex-col gap-2 xl:w-auto xl:min-w-[240px]">
+                <Button type="button" size="sm" variant="secondary" onClick={() => openItem(item)}>{item.actionLabel}</Button>
+                {canManage && item.type !== "leadSource" ? (
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                    <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "log-call")} disabled={disabled}>Log Manual Call</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "log-email")} disabled={disabled}>Log Manual Email</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "log-text")} disabled={disabled}>Log Manual Text</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "waiting")} disabled={disabled}>Mark Waiting</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "follow-up-tomorrow")} disabled={disabled}>Follow-Up Tomorrow</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => runQueueAction(item, "follow-up-two-days")} disabled={disabled}>Follow-Up in 2 Days</Button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )) : (
+          <StateCard title="Follow-up queue is clear" description="Due, overdue, waiting, not-contacted, and recently contacted records will appear here." tone="slate" />
         )}
       </div>
     </Card>
@@ -8183,6 +8376,7 @@ function LeadsPage({
   leads = [],
   leadSources = [],
   contactHistory = [],
+  estimates = [],
   rows,
   filter,
   setFilter,
@@ -8228,7 +8422,9 @@ function LeadsPage({
   onUpdateContactHistory,
   onArchiveContactHistory,
   onRestoreContactHistory,
+  onOpenEstimate = () => {},
   relatedLeadRecords,
+  setActive,
   busy,
   leadSaveState,
 }) {
@@ -8262,6 +8458,22 @@ function LeadsPage({
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
+      </div>
+      <div className="px-5 pb-4 sm:px-6 lg:px-8">
+        <FollowUpQueuePanel
+          leads={leads}
+          customers={customers}
+          estimates={estimates}
+          leadSources={leadSources}
+          contactHistory={contactHistory}
+          permissions={permissions}
+          disabled={busy}
+          onOpenLead={onSelectLead}
+          onOpenCustomer={onSelectCustomer}
+          onOpenEstimate={onOpenEstimate}
+          onOpenLeads={() => setActive?.("leads")}
+          onCreateContactHistory={onCreateContactHistory}
+        />
       </div>
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <DailySourceCheckPanel
@@ -13349,6 +13561,11 @@ export default function App() {
     navigateTo(buildCustomerPath(id));
   }
 
+  function navigateToEstimate(id) {
+    setEstimateFocusId(id || "");
+    navigateTo(getModulePath("estimates"));
+  }
+
   function navigateToReport(id) {
     setSelectedReportId(id);
     navigateTo(buildReportPath(id));
@@ -15819,6 +16036,7 @@ export default function App() {
               onUpdateContactHistory={handleUpdateContactHistory}
               onArchiveContactHistory={handleArchiveContactHistory}
               onRestoreContactHistory={handleRestoreContactHistory}
+              onOpenEstimate={navigateToEstimate}
               onCreateJobFromLead={handleCreateJobFromLead}
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}

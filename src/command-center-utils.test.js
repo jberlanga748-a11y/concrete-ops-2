@@ -22,6 +22,15 @@ test("command center derives priority stats across existing concrete modules", (
       { id: "LS-2", name: "Due today source", status: "Active", nextCheckAt: "2026-05-10", checkCadence: "Weekly" },
       { id: "LS-3", name: "Inactive source", status: "Inactive", nextCheckAt: "2026-05-01" },
     ],
+    leads: [
+      { id: "L-1", customer: "Due lead", status: "New", followUpDueAt: "2026-05-10" },
+      { id: "L-2", customer: "Overdue lead", status: "Contacted", followUpDueAt: "2026-05-09" },
+      { id: "L-3", customer: "No contact lead", status: "New" },
+      { id: "L-4", customer: "Waiting lead", status: "Contacted" },
+    ],
+    contactHistory: [
+      { id: "CH-1", entityType: "lead", entityId: "L-4", outcome: "Waiting on Response", method: "Email", contactedAt: "2026-05-10T12:00:00.000Z" },
+    ],
     jobs: [
       { id: "J-1", title: "Shop apron", status: "scheduled", customer: "Cascade Flatwork", startupStatus: "Not Started" },
       { id: "J-2", title: "Driveway pour", status: "scheduled", customer: "North Ridge", scheduledStart: "2026-05-10T14:00:00.000Z", assignments: [{ userId: "U-1", roleOnJob: "foreman" }], startupStatus: "Ready for Field", startupChecklist: READY_STARTUP_CHECKLIST },
@@ -59,6 +68,11 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.leadSourcesDueToday, 1);
   assert.equal(result.stats.overdueLeadSources, 1);
   assert.equal(result.stats.sourceChecksNeeded, 2);
+  assert.equal(result.stats.followUpsDueToday, 2);
+  assert.equal(result.stats.overdueFollowUps, 2);
+  assert.equal(result.stats.waitingFollowUps, 1);
+  assert.equal(result.stats.leadsNotContacted, 1);
+  assert.equal(result.followUpQueue.groups.waiting[0].recordId, "L-4");
   assert.equal(result.stats.jobsNeedingStartupReview, 1);
   assert.equal(result.stats.jobsReadyForField, 1);
   assert.equal(result.stats.jobsMissingCrew, 1);

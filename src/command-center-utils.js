@@ -1,5 +1,6 @@
 import { getStartupCriticalWarnings, normalizeJobStartupFields } from "../shared/jobStartup.js";
 import { deriveDailySourceCheckState } from "../shared/leadSources.js";
+import { deriveFollowUpQueueState } from "./follow-up-queue-utils.js";
 
 const CLOSED_JOB_STATUSES = new Set(["archived", "cancelled", "canceled", "complete", "completed", "closed"]);
 const REVIEW_DRAFT_STATUSES = new Set(["imported", "needs review", "ready to create job"]);
@@ -20,6 +21,13 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   const timeEntries = asArray(source.timeEntries).filter((entry) => !isArchived(entry));
   const changeOrderRequests = asArray(source.changeOrderRequests).filter((request) => !isArchived(request));
   const leadSourceChecks = deriveDailySourceCheckState(source.leadSources || [], { today: todayKey });
+  const followUpQueue = deriveFollowUpQueueState({
+    leads: source.leads || [],
+    customers: source.customers || [],
+    estimates: source.estimates || [],
+    leadSources: source.leadSources || [],
+    contactHistory: source.contactHistory || [],
+  }, { today: todayKey, companyId: options.companyId || source.currentCompanyId || "" });
 
   const importedDraftsNeedingReview = asArray(source.jobDraftImports)
     .filter((draft) => !draft.createdJobId && REVIEW_DRAFT_STATUSES.has(normalizeStatus(draft.importStatus || draft.status)))
@@ -87,6 +95,10 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       leadSourcesDueToday: leadSourceChecks.stats.dueToday,
       overdueLeadSources: leadSourceChecks.stats.overdue,
       sourceChecksNeeded: leadSourceChecks.stats.checksNeeded,
+      followUpsDueToday: followUpQueue.stats.dueToday,
+      overdueFollowUps: followUpQueue.stats.overdue,
+      waitingFollowUps: followUpQueue.stats.waiting,
+      leadsNotContacted: followUpQueue.stats.notContacted,
       jobsNeedingStartupReview: jobsNeedingStartupReview.length,
       jobsReadyForField: jobsReadyForField.length,
       jobsMissingCrew: jobsMissingCrew.length,
@@ -104,6 +116,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     importedDraftsNeedingReview,
     importedDraftsNeedingCustomerMatch,
     leadSourceChecks,
+    followUpQueue,
     jobsNeedingStartupReview,
     jobsReadyForField,
     jobsMissingCrew,
