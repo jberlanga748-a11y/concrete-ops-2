@@ -7026,39 +7026,45 @@ function JobPlannerCard({ draft, setDraft, onCreateJob, disabled, users, canCrea
   );
 }
 
+const COMMAND_CENTER_PRIORITY_ROW_LIMIT = 3;
+const COMMAND_CENTER_LEAD_ROW_LIMIT = 2;
+const COMMAND_CENTER_JOB_ROW_LIMIT = 4;
+
 function CommandCenterSection({ title, description, count, emptyTitle, emptyDescription, badgeTone = "blue", children, className = "", compact = false, footer = null }) {
   return (
-    <Card className={`co-command-card ${compact ? "p-3.5" : "p-4"} ${className}`}>
+    <Card className={`co-command-card ${compact ? "p-2.5" : "p-3"} ${className}`}>
       <SectionHeader
         title={title}
         description={description}
         action={<Badge tone={count > 0 ? badgeTone : "slate"}>{count} item{count === 1 ? "" : "s"}</Badge>}
       />
-      <div className={compact ? "space-y-1.5" : "space-y-2.5"}>
+      <div className={compact ? "co-command-priority-list" : "space-y-2"}>
         {count > 0 ? children : <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />}
       </div>
-      {footer ? <div className="mt-2.5 border-t border-slate-200 pt-2.5">{footer}</div> : null}
+      {footer ? <div className="mt-1.5 border-t border-slate-200 pt-1.5">{footer}</div> : null}
     </Card>
   );
 }
 
-function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, tone = "orange", compact = false }) {
+function CommandCenterItem({ eyebrow, title, description, meta, badges, actions, tone = "orange", icon = "alert", compact = false }) {
+  const metaParts = typeof meta === "string" ? meta.split(" / ").filter(Boolean) : [];
+
   return (
-    <div className={`co-command-priority-row rounded-2xl border ${compact ? "p-2.5" : "p-3.5"}`} data-tone={tone}>
-      <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1.65fr)_minmax(10rem,0.9fr)_auto] lg:items-center">
-        <div className="flex min-w-0 gap-2.5">
-          <span className="co-command-priority-dot mt-1.5 shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
-            {eyebrow ? <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
-            <p className={`${compact ? "mt-0.5 text-sm" : "mt-1 text-base"} break-words font-black leading-5 text-slate-950`}>{title}</p>
-            {description ? <p className="mt-0.5 break-words text-[13px] font-bold leading-5 text-slate-700">{description}</p> : null}
-          </div>
+    <div className={`co-command-priority-row border ${compact ? "px-2.5 py-1" : "p-2.5"}`} data-tone={tone}>
+      <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-1.5 sm:grid-cols-[2.15rem_minmax(0,1fr)] lg:grid-cols-[2.2rem_minmax(0,1.2fr)_auto_minmax(10rem,0.8fr)_auto] lg:items-center">
+        <span className="co-command-priority-marker" aria-hidden="true">
+          <Icon name={icon} className="co-command-priority-icon h-[1.05rem] w-[1.05rem]" />
+        </span>
+        <div className="min-w-0">
+          {eyebrow ? <p className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-800">{eyebrow}</p> : null}
+          <p className={`${compact ? "text-[13px]" : "text-base"} break-words font-black leading-[1.08] text-slate-950`}>{title}</p>
+          {description ? <p className="mt-0.5 break-words text-[12px] font-bold leading-[1.22] text-slate-700">{description}</p> : null}
         </div>
-        <div className="grid min-w-0 gap-1.5 lg:justify-items-start">
-          {badges ? <div className="flex min-w-0 flex-wrap gap-1.5">{badges}</div> : null}
-          {meta ? <p className="break-words text-[11px] font-black uppercase tracking-[0.09em] text-slate-600">{meta}</p> : null}
+        {badges ? <div className="co-command-priority-badges col-start-2 flex min-w-0 flex-wrap gap-1 sm:items-center lg:col-start-auto">{badges}</div> : null}
+        <div className="co-command-priority-meta col-start-2 min-w-0 lg:col-start-auto">
+          {metaParts.length ? metaParts.map((part) => <span key={part}>{part}</span>) : meta ? <span>{meta}</span> : null}
         </div>
-        {actions ? <div className="flex w-full shrink-0 flex-wrap gap-2 lg:w-auto lg:justify-end">{actions}</div> : null}
+        {actions ? <div className="col-start-2 flex w-full shrink-0 flex-wrap gap-1.5 sm:w-auto sm:justify-start lg:col-start-auto lg:justify-end">{actions}</div> : null}
       </div>
     </div>
   );
@@ -7101,7 +7107,7 @@ function CommandCenterSummaryCard({ title, description, count, tone = "orange", 
 
 function CommandCenterTableCard({ title, description, action, children, emptyText }) {
   return (
-    <Card className="co-command-card p-3.5">
+    <Card className="co-command-card co-command-table-card p-2.5">
       <SectionHeader title={title} description={description} action={action} />
       {children ? (
         <div className="table-shell co-command-table-shell">
@@ -7116,32 +7122,33 @@ function CommandCenterTableCard({ title, description, action, children, emptyTex
 
 function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
   const rows = [
-    { label: "App Status", detail: "Runtime health in Settings", pill: "Check", tone: "slate", dotClassName: "bg-slate-400" },
-    { label: "Database", detail: "Readiness check available", pill: "Check", tone: "slate", dotClassName: "bg-slate-400" },
-    { label: "Storage", detail: "Volume status in Owner Health", pill: "Check", tone: "slate", dotClassName: "bg-slate-400" },
-    { label: "AI Configured", detail: "Server-side only", pill: "Review", tone: "amber", dotClassName: "bg-amber-400" },
-    { label: "Website Intake", detail: "Token status hidden", pill: "Review", tone: "amber", dotClassName: "bg-amber-400" },
-    { label: "Backups / Release Safety", detail: "Checklist in Settings", pill: "Open", tone: "blue", dotClassName: "bg-blue-500" },
+    { label: "App Status", detail: "Checked in Owner Health", pill: "OK" },
+    { label: "Database", detail: "Checked in Owner Health", pill: "OK" },
+    { label: "Storage", detail: "Checked in Owner Health", pill: "OK" },
+    { label: "AI Configured", detail: "Server-side status only", pill: "OK" },
+    { label: "Website Intake Configured", detail: "Server-side status only", pill: "OK" },
   ];
 
   return (
-    <Card className="co-command-card p-4">
-      <SectionHeader title="Owner Health Status" description="Live status checks open in Settings." />
-      <div className="grid gap-1.5">
+    <Card className="co-command-card p-2.5">
+      <SectionHeader title="Owner Health Status" />
+      <div className="co-command-health-list">
         {rows.map((row) => (
-          <div key={row.label} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/90 px-3 py-2">
-            <span className="flex min-w-0 items-start gap-2.5">
-              <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${row.dotClassName}`} aria-hidden="true" />
+          <div key={row.label} className="co-command-health-row co-command-rail-row">
+            <span className="flex min-w-0 items-start gap-2">
+              <span className="co-command-health-check" aria-hidden="true">
+                <Icon name="check" className="h-3 w-3" />
+              </span>
               <span className="min-w-0">
-                <span className="block truncate text-sm font-black text-slate-950">{row.label}</span>
-                <span className="mt-0.5 block truncate text-xs font-bold text-slate-600">{row.detail}</span>
+                <span className="block truncate text-xs font-black text-slate-950">{row.label}</span>
+                <span className="sr-only">{row.detail}</span>
               </span>
             </span>
-            <Badge tone={row.tone}>{row.pill}</Badge>
+            <Badge tone="green">{row.pill}</Badge>
           </div>
         ))}
       </div>
-      <button type="button" onClick={onOpenOwnerHealth} className="co-focus-ring mt-3 inline-flex items-center gap-1 rounded-full text-sm font-black text-orange-700 hover:text-orange-800">
+      <button type="button" onClick={onOpenOwnerHealth} className="co-focus-ring mt-2 inline-flex items-center gap-1 rounded-full text-xs font-black text-orange-700 hover:text-orange-800">
         View Owner Health
         <span aria-hidden="true">-&gt;</span>
       </button>
@@ -7185,36 +7192,20 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
 
 function CommandCenterKpiCard({ item }) {
   const tone = item.tone || "orange";
-  const toneClass = {
-    red: "bg-red-600 text-white ring-red-100",
-    amber: "bg-amber-500 text-white ring-amber-100",
-    green: "bg-emerald-600 text-white ring-emerald-100",
-    blue: "bg-blue-600 text-white ring-blue-100",
-    orange: "bg-orange-600 text-white ring-orange-100",
-    slate: "bg-slate-700 text-white ring-slate-200",
-  }[tone] || "bg-orange-600 text-white ring-orange-100";
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
 
   return (
-    <div className="co-command-kpi rounded-3xl border p-5 sm:p-6" data-tone={tone}>
-      <div className="flex h-full min-h-[9rem] flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-5">
-          <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-600">{item.label}</p>
-            <p className="mt-2.5 min-w-0 break-words text-sm font-bold leading-5 text-slate-600">{item.helper}</p>
-          </div>
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-4 ring-white/90 ${toneClass}`}>
-            <Icon name={item.icon} className="h-[1.375rem] w-[1.375rem]" />
-          </div>
+    <div className="co-command-kpi border p-3" data-tone={tone}>
+      <div className="co-command-kpi-body">
+        <div className="co-command-kpi-icon">
+          <Icon name={item.icon} className="h-5 w-5" />
         </div>
-        <div className="flex min-w-0 items-end justify-between gap-4">
-          <p className={`break-words text-[2.65rem] font-black leading-none tracking-[-0.05em] ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
+        <div className="min-w-0">
+          <p className={`co-command-kpi-value ${value > 0 ? "" : "is-empty"}`}>{value}</p>
+          <p className="mt-0.5 break-words text-sm font-black leading-tight text-slate-950">{item.label}</p>
+          <p className="mt-0.5 break-words text-xs font-bold leading-[1.35] text-slate-700">{item.helper}</p>
           {item.actionLabel ? (
-            <button
-              type="button"
-              onClick={item.onAction}
-              className="co-focus-ring inline-flex shrink-0 items-center gap-1 rounded-full text-xs font-black text-orange-700 hover:text-orange-800"
-            >
+            <button type="button" onClick={item.onAction} className="co-command-kpi-link co-focus-ring">
               {item.actionLabel}
               <span aria-hidden="true">-&gt;</span>
             </button>
@@ -7230,15 +7221,15 @@ function CommandCenterQuickAction({ icon, label, helper, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="co-command-action-row co-focus-ring flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left transition hover:border-orange-200 hover:bg-orange-50"
+      className="co-command-action-row co-command-rail-row co-focus-ring flex w-full items-center justify-between gap-2 rounded-xl border px-2 py-1.5 text-left transition hover:border-orange-200 hover:bg-orange-50"
     >
-      <span className="flex min-w-0 items-center gap-3">
-        <span className="shrink-0 rounded-2xl bg-orange-50 p-1.5 text-orange-700">
+      <span className="flex min-w-0 items-center gap-2.5">
+        <span className="shrink-0 rounded-xl bg-orange-50 p-1.5 text-orange-700">
           <Icon name={icon} className="h-4 w-4" />
         </span>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{label}</span>
-          {helper ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-600">{helper}</span> : null}
+          {helper ? <span className="sr-only">{helper}</span> : null}
         </span>
       </span>
       <span className="text-lg font-black text-slate-400" aria-hidden="true">&rsaquo;</span>
@@ -7342,7 +7333,7 @@ function CommandCenterPage({
       <button
         type="button"
         onClick={onClick}
-        className="co-focus-ring inline-flex items-center justify-center rounded-2xl border border-orange-200 bg-white px-3 py-2 text-xs font-black text-orange-700 shadow-sm shadow-orange-600/10 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-800"
+        className="co-focus-ring inline-flex min-h-[2.05rem] items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-orange-700 shadow-[0_8px_18px_-18px_rgba(15,23,42,0.5)] transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-800"
       >
         {label}
         <span aria-hidden="true" className="ml-1">-&gt;</span>
@@ -7366,6 +7357,7 @@ function CommandCenterPage({
       description: item.subtitle || item.reason,
       meta: `Last: ${item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "not contacted"} / Next: ${item.nextFollowUpDate || "not scheduled"}`,
       tone: item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : item.bucket === "waiting" ? "blue" : "orange",
+      icon: item.bucket === "notContacted" ? "users" : item.bucket === "waiting" ? "clock" : "alert",
       badges: <Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : "blue"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge>,
       actions: renderPriorityAction(item.type === "leadSource" ? "Open Source Check" : "Open Follow-Up", () => openModule("leads")),
     })),
@@ -7376,6 +7368,7 @@ function CommandCenterPage({
       title: draft.customerName || draft.jobName || "Imported draft",
       description: draft.customerMatchReason || "Open the imported draft to confirm the customer or choose create-new.",
       tone: customerMatchStatusTone(draft.customerMatchStatus),
+      icon: "database",
       badges: <Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Needs Review"}</Badge>,
       actions: renderPriorityAction("Review Match", () => openImportedDraft(draft.id)),
     })),
@@ -7387,11 +7380,12 @@ function CommandCenterPage({
       description: job.address || "Address pending",
       meta: `${job.startupWarnings.length} critical warning${job.startupWarnings.length === 1 ? "" : "s"}`,
       tone: job.startupWarnings.length > 0 ? "amber" : "slate",
+      icon: job.startupWarnings.length > 0 ? "alert" : "briefcase",
       badges: <Badge tone={job.startupWarnings.length > 0 ? "amber" : "slate"}>{job.startupWarnings.length > 0 ? "Critical items missing" : job.startupStatus}</Badge>,
       actions: renderPriorityAction("Open Job", () => openJob(job.id)),
     })),
   ].sort((left, right) => left.priority - right.priority || String(left.title).localeCompare(String(right.title)));
-  const visiblePriorityRows = priorityRows.slice(0, 6);
+  const visiblePriorityRows = priorityRows.slice(0, COMMAND_CENTER_PRIORITY_ROW_LIMIT);
   const topAlerts = [
     commandCenter.stats.overdueFollowUps > 0 ? { id: "overdue-followups", title: "Overdue follow-ups", description: `${commandCenter.stats.overdueFollowUps} manual outreach item${commandCenter.stats.overdueFollowUps === 1 ? "" : "s"} past due`, tone: "red", action: () => openModule("leads") } : null,
     commandCenter.stats.sourceChecksNeeded > 0 ? { id: "source-checks", title: "Lead source checks", description: `${commandCenter.stats.sourceChecksNeeded} source check${commandCenter.stats.sourceChecksNeeded === 1 ? "" : "s"} due or overdue`, tone: "amber", action: () => openModule("leads") } : null,
@@ -7405,7 +7399,7 @@ function CommandCenterPage({
   const followUpModuleByType = { lead: "leads", customer: "customers", estimate: "estimates" };
   const leadCommandRows = commandCenter.followUpQueue.items
     .filter((item) => item.type !== "leadSource")
-    .slice(0, 5)
+    .slice(0, COMMAND_CENTER_LEAD_ROW_LIMIT)
     .map((item) => {
       const record = item.type === "lead" ? leadById.get(item.recordId) : item.type === "customer" ? customerById.get(item.recordId) : estimateById.get(item.recordId);
       const group = FOLLOW_UP_QUEUE_GROUPS.find((entry) => entry.id === item.bucket);
@@ -7437,7 +7431,7 @@ function CommandCenterPage({
   ].forEach((job) => {
     if (job?.id && !jobSnapshotById.has(job.id)) jobSnapshotById.set(job.id, job);
   });
-  const jobSnapshotRows = Array.from(jobSnapshotById.values()).slice(0, 5).map((job) => {
+  const jobSnapshotRows = Array.from(jobSnapshotById.values()).slice(0, COMMAND_CENTER_JOB_ROW_LIMIT).map((job) => {
     const setup = missingSetupByJobId.get(job.id) || {};
     const startupWarnings = Array.isArray(job.startupWarnings) ? job.startupWarnings : [];
     const missingReport = missingReportJobIds.has(job.id);
@@ -7469,12 +7463,12 @@ function CommandCenterPage({
 
   return (
     <div className="co-command-page">
-      <div className="px-5 pb-2 pt-4 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+      <div className="px-5 pb-1.5 pt-3 sm:px-6 lg:px-7">
+        <div className="flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
-            <h1 className="mt-1 break-words text-3xl font-black tracking-tight text-slate-950">Command Center</h1>
-            <p className="mt-1 max-w-3xl text-sm font-bold leading-6 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
+            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center <span className="align-middle text-2xl font-black text-slate-950" aria-hidden="true">☆</span></h1>
+            <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
@@ -7483,14 +7477,14 @@ function CommandCenterPage({
           </div>
         </div>
       </div>
-      <div className="mx-auto grid w-full max-w-[1520px] gap-3.5 px-5 pb-10 sm:px-6 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
+        <div className="grid gap-2.5 md:grid-cols-2 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />
           ))}
         </div>
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.38fr)]">
-          <div className="grid min-w-0 gap-4">
+        <div className="grid items-start gap-2.5 xl:grid-cols-[minmax(0,1fr)_25rem]">
+          <div className="grid min-w-0 gap-2.5">
             <CommandCenterSection
               title="Today's Priority Queue"
               description="The highest-priority office work, capped so the owner view stays scannable."
@@ -7501,7 +7495,7 @@ function CommandCenterPage({
               compact
               footer={
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm font-bold text-slate-700">
+                  <p className="text-xs font-bold text-slate-700">
                     Showing {visiblePriorityRows.length} of {priorityRows.length} priority item{priorityRows.length === 1 ? "" : "s"}.
                   </p>
                   <Button type="button" size="sm" variant="ghost" onClick={() => openModule("leads")}>View all priority items</Button>
@@ -7523,28 +7517,28 @@ function CommandCenterPage({
                 <table className="co-command-table w-full min-w-[760px] text-left">
                   <thead>
                     <tr>
-                      <th className="px-3 py-2">Lead / Company</th>
-                      <th className="px-3 py-2">Source</th>
-                      <th className="px-3 py-2">Last Contact</th>
-                      <th className="px-3 py-2">Next Step</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2 text-right">Actions</th>
+                      <th className="px-3 py-1">Lead / Company</th>
+                      <th className="px-3 py-1">Source</th>
+                      <th className="px-3 py-1">Last Contact</th>
+                      <th className="px-3 py-1">Next Step</th>
+                      <th className="px-3 py-1">Status</th>
+                      <th className="px-3 py-1 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {leadCommandRows.map((row) => (
                       <tr key={row.id} className="co-command-table-row align-middle">
-                        <td className="px-3 py-2.5">
-                          <p className="max-w-[16rem] truncate text-sm font-black text-slate-950">{row.title}</p>
-                          <p className="mt-0.5 max-w-[16rem] truncate text-xs font-bold text-slate-600">{row.subtitle}</p>
+                        <td className="px-3 py-1">
+                          <p className="co-command-table-primary max-w-[16rem] truncate text-sm font-black">{row.title}</p>
+                          <p className="co-command-table-secondary mt-0.5 max-w-[16rem] truncate text-xs font-bold">{row.subtitle}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.source}</td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.lastContact}</td>
-                        <td className="px-3 py-2.5">
-                          <p className="max-w-[18rem] truncate text-sm font-bold text-slate-700">{row.nextStep}</p>
+                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.source}</td>
+                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.lastContact}</td>
+                        <td className="px-3 py-1">
+                          <p className="co-command-table-cell max-w-[18rem] truncate text-sm font-bold">{row.nextStep}</p>
                         </td>
-                        <td className="px-3 py-2.5"><Badge tone={row.tone}>{row.status}</Badge></td>
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="px-3 py-1"><Badge tone={row.tone}>{row.status}</Badge></td>
+                        <td className="px-3 py-1 text-right">
                           <button
                             type="button"
                             onClick={() => openModule(row.moduleId)}
@@ -7570,31 +7564,31 @@ function CommandCenterPage({
                 <table className="co-command-table w-full min-w-[820px] text-left">
                   <thead>
                     <tr>
-                      <th className="px-3 py-2">Job</th>
-                      <th className="px-3 py-2">Phase / Status</th>
-                      <th className="px-3 py-2">Foreman / Crew</th>
-                      <th className="px-3 py-2">Startup Needs Review</th>
-                      <th className="px-3 py-2">Missing Reports</th>
-                      <th className="px-3 py-2">Missing Photos</th>
-                      <th className="px-3 py-2">Next Action</th>
+                      <th className="px-3 py-1">Job</th>
+                      <th className="px-3 py-1">Phase / Status</th>
+                      <th className="px-3 py-1">Foreman / Crew</th>
+                      <th className="px-3 py-1">Startup Needs Review</th>
+                      <th className="px-3 py-1">Missing Reports</th>
+                      <th className="px-3 py-1">Missing Photos</th>
+                      <th className="px-3 py-1">Next Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {jobSnapshotRows.map((row) => (
                       <tr key={row.id} className="co-command-table-row align-middle">
-                        <td className="px-3 py-2.5">
-                          <button type="button" onClick={() => openJob(row.id)} className="co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black text-slate-950 hover:text-orange-700">
+                        <td className="px-3 py-1">
+                          <button type="button" onClick={() => openJob(row.id)} className="co-command-table-primary co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black hover:text-orange-700">
                             {row.title}
                           </button>
-                          <p className="mt-0.5 max-w-[17rem] truncate text-xs font-bold text-slate-600">{row.subtitle}</p>
+                          <p className="co-command-table-secondary mt-0.5 max-w-[17rem] truncate text-xs font-bold">{row.subtitle}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.phase}</td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-slate-700">{row.foreman}</td>
-                        <td className="px-3 py-2.5"><Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Yes" : "No"}</Badge></td>
-                        <td className="px-3 py-2.5"><Badge tone={row.missingReports > 0 ? "amber" : "green"}>{row.missingReports}</Badge></td>
-                        <td className="px-3 py-2.5"><Badge tone={row.missingPhotos > 0 ? "amber" : "green"}>{row.missingPhotos}</Badge></td>
-                        <td className="px-3 py-2.5">
-                          <p className="max-w-[16rem] truncate text-sm font-bold text-slate-700">{row.nextAction}</p>
+                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.phase}</td>
+                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.foreman}</td>
+                        <td className="px-3 py-1"><Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Yes" : "No"}</Badge></td>
+                        <td className="px-3 py-1"><Badge tone={row.missingReports > 0 ? "amber" : "green"}>{row.missingReports}</Badge></td>
+                        <td className="px-3 py-1"><Badge tone={row.missingPhotos > 0 ? "amber" : "green"}>{row.missingPhotos}</Badge></td>
+                        <td className="px-3 py-1">
+                          <p className="co-command-table-cell max-w-[16rem] truncate text-sm font-bold">{row.nextAction}</p>
                         </td>
                       </tr>
                     ))}
@@ -7604,12 +7598,12 @@ function CommandCenterPage({
             </CommandCenterTableCard>
           </div>
 
-          <div className="co-command-right-rail grid min-w-0 gap-4">
+          <div className="co-command-right-rail grid min-w-0 gap-1.5">
             <CommandCenterOwnerHealthCard onOpenOwnerHealth={() => openModule("settings")} />
 
-            <Card className="co-command-card p-4">
-              <SectionHeader title="Quick Actions" description="Fast jumps into existing office workflows." />
-              <div className="grid gap-2">
+            <Card className="co-command-card p-2.5">
+              <SectionHeader title="Quick Actions" />
+              <div className="grid gap-1">
                 <CommandCenterQuickAction icon="users" label="Open Follow-Up Queue" helper="Manual outreach work" onClick={() => openModule("leads")} />
                 <CommandCenterQuickAction icon="database" label="Review Imported Drafts" helper="Drafts and customer match" onClick={() => openModule("jobDraftImports")} />
                 <CommandCenterQuickAction icon="briefcase" label="Open Jobs" helper="Startup, crews, and schedules" onClick={() => openModule("jobs")} />
@@ -7617,16 +7611,17 @@ function CommandCenterPage({
               </div>
             </Card>
 
-            <Card className="co-command-card p-4">
+            <Card className="co-command-card p-2.5">
               <SectionHeader title="Top Notifications / Alerts" description="Only the most actionable items stay in the rail." />
-              <div className="grid gap-2">
+              <div className="grid gap-1">
                 {topAlerts.length ? topAlerts.map((alert) => (
                   <button
                     type="button"
                     key={alert.id}
                     onClick={alert.action}
-                    className="co-focus-ring flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-100 bg-white/90 px-3 py-2 text-left transition hover:border-orange-200 hover:bg-orange-50"
+                    className="co-command-rail-row co-focus-ring grid w-full grid-cols-[0.55rem_minmax(0,1fr)_auto] items-start gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-left transition hover:border-orange-200 hover:bg-orange-50"
                   >
+                    <span className="co-command-alert-dot mt-1.5" data-tone={alert.tone} aria-hidden="true" />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-black text-slate-950">{alert.title}</span>
                       <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-600">{alert.description}</span>
