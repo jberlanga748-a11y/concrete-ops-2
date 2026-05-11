@@ -51,16 +51,16 @@ export const DESIGN_SEMANTIC_COLORS = {
 };
 
 export const DESIGN_RADIUS = {
-  control: "0.875rem",
-  card: "1.25rem",
-  panel: "1.5rem",
+  control: "0.625rem",
+  card: "0.75rem",
+  panel: "0.875rem",
   shell: "1.75rem",
   pill: "999px",
 };
 
 export const DESIGN_SHADOWS = {
-  card: "0 14px 34px -28px rgba(15, 23, 42, 0.42)",
-  panel: "0 24px 60px -36px rgba(15, 23, 42, 0.38)",
+  card: "0 18px 45px -36px rgba(7, 17, 31, 0.5)",
+  panel: "0 24px 54px -38px rgba(7, 17, 31, 0.56)",
   shell: "8px 0 34px -28px rgba(15, 23, 42, 0.72)",
   focus: "0 0 0 3px rgba(249, 115, 22, 0.22)",
 };
@@ -68,8 +68,8 @@ export const DESIGN_SHADOWS = {
 export const DESIGN_SPACING = {
   pageX: "1.25rem",
   pageXWide: "2rem",
-  cardPadding: "1.25rem",
-  sectionGap: "1rem",
+  cardPadding: "1rem",
+  sectionGap: "0.875rem",
   controlGap: "0.5rem",
 };
 
@@ -88,35 +88,35 @@ export const DESIGN_LAYOUT = {
 };
 
 const BUTTON_TONE_CLASSES = {
-  primary: "bg-orange-600 text-white hover:bg-orange-700 shadow-sm shadow-orange-600/25 focus-visible:ring-orange-500",
-  secondary: "border border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-slate-950 focus-visible:ring-orange-500",
-  ghost: "text-slate-600 hover:bg-orange-50 hover:text-orange-700 focus-visible:ring-orange-500",
-  danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm shadow-red-600/20 focus-visible:ring-red-500",
-  dark: "bg-slate-950 text-white hover:bg-slate-800 shadow-sm shadow-slate-900/20 focus-visible:ring-orange-500",
+  primary: "bg-blue-700 text-white shadow-sm shadow-blue-700/25 hover:bg-blue-800 hover:shadow-blue-800/25 focus-visible:ring-orange-500",
+  secondary: "border border-slate-300 bg-white text-slate-950 shadow-sm shadow-slate-200/60 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:ring-orange-500",
+  ghost: "text-slate-700 hover:bg-orange-50 hover:text-orange-700 focus-visible:ring-orange-500",
+  danger: "bg-red-600 text-white shadow-sm shadow-red-600/20 hover:bg-red-700 focus-visible:ring-red-500",
+  dark: "bg-slate-950 text-white shadow-sm shadow-slate-900/20 hover:bg-slate-800 focus-visible:ring-orange-500",
 };
 
 const STATUS_TONE_CLASSES = {
-  blue: "bg-blue-50 text-blue-700 ring-blue-100",
-  info: "bg-blue-50 text-blue-700 ring-blue-100",
-  green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  success: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  amber: "bg-amber-50 text-amber-700 ring-amber-100",
-  warning: "bg-amber-50 text-amber-700 ring-amber-100",
-  orange: "bg-orange-50 text-orange-700 ring-orange-100",
-  red: "bg-red-50 text-red-700 ring-red-100",
-  danger: "bg-red-50 text-red-700 ring-red-100",
-  violet: "bg-violet-50 text-violet-700 ring-violet-100",
-  slate: "bg-slate-100 text-slate-700 ring-slate-200",
-  neutral: "bg-slate-100 text-slate-700 ring-slate-200",
+  blue: "bg-blue-50 text-blue-700 ring-blue-200",
+  info: "bg-blue-50 text-blue-700 ring-blue-200",
+  green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  success: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  amber: "bg-amber-50 text-amber-700 ring-amber-200",
+  warning: "bg-amber-50 text-amber-700 ring-amber-200",
+  orange: "bg-orange-50 text-orange-700 ring-orange-200",
+  red: "bg-red-50 text-red-700 ring-red-200",
+  danger: "bg-red-50 text-red-700 ring-red-200",
+  violet: "bg-violet-50 text-violet-700 ring-violet-200",
+  slate: "bg-slate-100 text-slate-700 ring-slate-300",
+  neutral: "bg-slate-100 text-slate-700 ring-slate-300",
   shell: "bg-slate-950 text-white ring-slate-800",
 };
 
 const CARD_VARIANT_CLASSES = {
-  default: "panel-sheen co-card w-full min-w-0 max-w-full rounded-3xl border bg-white/95 shadow-panel",
-  flat: "co-card w-full min-w-0 max-w-full rounded-3xl border bg-white",
-  rail: "co-action-panel w-full min-w-0 max-w-full rounded-3xl border bg-white shadow-panel",
-  shell: "co-sidebar-panel w-full min-w-0 max-w-full rounded-3xl border shadow-panel",
+  default: "panel-sheen co-card w-full min-w-0 max-w-full rounded-xl border bg-white/95",
+  flat: "co-card w-full min-w-0 max-w-full rounded-xl border bg-white",
+  rail: "co-action-panel w-full min-w-0 max-w-full rounded-xl border bg-white",
+  shell: "co-sidebar-panel w-full min-w-0 max-w-full rounded-2xl border shadow-panel",
 };
 
 export const DESIGN_COMPONENTS = {

@@ -1019,20 +1019,20 @@ function Icon({ name, className = "h-4 w-4" }) {
 
 function Button({ children, variant = "primary", size = "md", className = "", ...props }) {
   const sizes = {
-    sm: "px-3 py-2 text-xs",
-    md: "px-4 py-2.5 text-sm",
-    lg: "px-5 py-3 text-sm",
+    sm: "px-3 py-1.5 text-xs",
+    md: "px-3.5 py-2 text-sm",
+    lg: "px-4 py-2.5 text-sm",
   };
 
   return (
-    <button className={`co-focus-ring inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-2xl text-center font-black leading-tight transition whitespace-normal break-words disabled:cursor-not-allowed disabled:opacity-60 ${getButtonToneClass(variant)} ${sizes[size]} ${className}`} {...props}>
+    <button className={`co-focus-ring inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-xl text-center font-black leading-tight transition whitespace-normal break-words disabled:cursor-not-allowed disabled:opacity-60 ${getButtonToneClass(variant)} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
   );
 }
 
 function Badge({ children, tone = "blue" }) {
-  return <span className={`inline-flex min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-black ring-1 break-words ${getStatusToneClass(tone)}`}>{children}</span>;
+  return <span className={`inline-flex min-w-0 max-w-full items-center rounded-lg px-2.5 py-0.5 text-[11px] font-black leading-5 tracking-[0.02em] ring-1 break-words ${getStatusToneClass(tone)}`}>{children}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -1061,17 +1061,17 @@ function Card({ children, className = "", variant = "default", ...props }) {
 
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
   return (
-    <div className="mb-5 border-b border-slate-200/80 bg-white/85 px-5 py-5 backdrop-blur sm:px-6">
+    <div className="mb-4 border-b border-slate-200/90 bg-white/95 px-5 py-4 shadow-[0_18px_48px_-44px_rgba(7,17,31,0.62)] backdrop-blur sm:px-6">
       <div className="mx-auto w-full max-w-[1520px]">
-        <div className="flex min-w-0 max-w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 max-w-full flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-700">{eyebrow}</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
-            {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-orange-700">{eyebrow}</p>
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-[1.85rem]">{title}</h1>
+            {description ? <p className="mt-1.5 max-w-4xl text-sm font-bold leading-5 text-slate-600">{description}</p> : null}
           </div>
           {actions ? <div className="flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
         </div>
-        {tabs ? <div className="mt-5 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
+        {tabs ? <div className="mt-4 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
       </div>
     </div>
   );
@@ -1079,10 +1079,10 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
 
 function SectionHeader({ title, description, action }) {
   return (
-    <div className="mb-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div className="co-section-accent min-w-0">
         <h2 className="break-words text-base font-black text-slate-950">{title}</h2>
-        {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-500">{description}</p> : null}
+        {description ? <p className="mt-1 break-words text-sm font-bold leading-5 text-slate-600">{description}</p> : null}
       </div>
       {action ? <div className="min-w-0 max-w-full w-full sm:w-auto sm:shrink-0">{action}</div> : null}
     </div>
@@ -1091,20 +1091,20 @@ function SectionHeader({ title, description, action }) {
 
 function StatCard({ title, value, detail }) {
   return (
-    <div className="min-w-0 max-w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+    <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white/95 p-3 shadow-[0_14px_34px_-30px_rgba(7,17,31,0.5)]">
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{title}</p>
       <p className="mt-2 break-words text-xl font-black text-slate-950">{value}</p>
-      {detail ? <p className="mt-1 break-words text-sm text-slate-500">{detail}</p> : null}
+      {detail ? <p className="mt-1 break-words text-sm font-bold text-slate-600">{detail}</p> : null}
     </div>
   );
 }
 
 function ProposalTotalCard({ value, detail, label = "Proposal total" }) {
   return (
-    <div className="min-w-0 max-w-full rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-700 to-slate-950 p-5 text-white shadow-sm shadow-blue-900/20">
-      <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">{label}</p>
+    <div className="min-w-0 max-w-full rounded-xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-orange-950 p-5 text-white shadow-sm shadow-slate-900/20">
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-100">{label}</p>
       <p className="mt-2 break-words text-3xl font-black tracking-tight sm:text-4xl">{value}</p>
-      {detail ? <p className="mt-2 break-words text-sm font-bold leading-6 text-blue-100">{detail}</p> : null}
+      {detail ? <p className="mt-2 break-words text-sm font-bold leading-6 text-orange-100">{detail}</p> : null}
     </div>
   );
 }
@@ -1710,14 +1710,14 @@ function EstimatePacketSettingsPanel({
 
 function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   return (
-    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-blue-100 bg-blue-50/60 p-3 md:flex-row md:items-center md:justify-between">
+    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-slate-200 bg-slate-50/80 p-3 md:flex-row md:items-center md:justify-between">
       <div className="scrollbar-none -mx-1 flex min-w-0 max-w-full gap-2 overflow-x-auto overflow-y-hidden px-1 pb-1">
         {filters.map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => setActive(filter)}
-            className={`shrink-0 rounded-2xl px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+            className={`shrink-0 rounded-lg px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-orange-50 hover:text-orange-700 hover:ring-orange-200"}`}
           >
             {filter}
           </button>
@@ -1741,7 +1741,7 @@ function CustomerFilterHeader({ filters, active, setActive, search, setSearch, p
             key={filter}
             type="button"
             onClick={() => setActive(filter)}
-            className={`rounded-2xl px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white" : "bg-white text-slate-600 ring-1 ring-blue-100 hover:bg-blue-50"}`}
+            className={`rounded-lg px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-orange-50 hover:text-orange-700 hover:ring-orange-200"}`}
           >
             {filter}
           </button>
@@ -2447,11 +2447,11 @@ function KpiCard({ item }) {
     <Card className="min-w-0 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-500">{item.label}</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
           <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">{item.value}</p>
-          <p className="mt-1 break-words text-sm font-bold text-slate-500">{item.helper}</p>
+          <p className="mt-1 break-words text-sm font-bold text-slate-600">{item.helper}</p>
         </div>
-        <div className="shrink-0 rounded-2xl bg-blue-50 p-2.5 text-blue-700">
+        <div className="shrink-0 rounded-xl border border-blue-100 bg-blue-50 p-2.5 text-blue-700">
           <Icon name={item.icon} />
         </div>
       </div>
@@ -3521,15 +3521,15 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
 
 function StateCard({ title, description, tone = "blue" }) {
   const tones = {
-    blue: "border-blue-200 bg-blue-50 text-slate-600",
-    red: "border-red-100 bg-red-50 text-red-700",
-    slate: "border-slate-200 bg-slate-50 text-slate-600",
+    blue: "border-blue-200 bg-white text-slate-600",
+    red: "border-red-200 bg-red-50 text-red-700",
+    slate: "border-slate-200 bg-white text-slate-600",
   };
 
   return (
-    <div className={`min-w-0 max-w-full rounded-2xl border p-4 text-center sm:p-6 ${tones[tone] || tones.blue}`}>
+    <div className={`min-w-0 max-w-full rounded-xl border p-4 text-center shadow-[0_14px_34px_-30px_rgba(7,17,31,0.5)] sm:p-5 ${tones[tone] || tones.blue}`}>
       <p className="font-black text-slate-950">{title}</p>
-      <p className="mt-2 break-words text-sm">{description}</p>
+      <p className="mt-2 break-words text-sm font-bold">{description}</p>
     </div>
   );
 }
