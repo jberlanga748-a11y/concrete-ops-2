@@ -5,10 +5,31 @@
 @tailwind utilities;
 
 :root {
-  color: #0f172a;
+  --color-brand-orange: #F97316;
+  --color-brand-orange-strong: #FF5A00;
+  --color-brand-orange-dark: #C2410C;
+  --color-brand-orange-soft: #FFF7ED;
+  --color-shell-dark: #07111F;
+  --color-shell-dark-soft: #0F172A;
+  --color-shell-dark-muted: #1E293B;
+  --color-workspace: #F8FAFC;
+  --color-workspace-panel: #F1F5F9;
+  --color-card: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-border-strong: #CBD5E1;
+  --color-text-main: #0F172A;
+  --color-text-muted: #64748B;
+  --shadow-card: 0 14px 34px -28px rgba(15, 23, 42, 0.42);
+  --shadow-panel: 0 24px 60px -36px rgba(15, 23, 42, 0.38);
+  --shadow-shell: 8px 0 34px -28px rgba(15, 23, 42, 0.72);
+  --radius-card: 1.25rem;
+  --radius-panel: 1.5rem;
+  --radius-control: 0.875rem;
+  --layout-sidebar-width: 16rem;
+  color: var(--color-text-main);
   background:
-    radial-gradient(circle at top right, rgba(191, 219, 254, 0.9), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, #eef5fb 100%);
+    radial-gradient(circle at top right, rgba(253, 186, 116, 0.34), transparent 30%),
+    linear-gradient(180deg, var(--color-workspace) 0%, #EEF2F7 100%);
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
 }
 
@@ -44,19 +65,61 @@ textarea {
   }
 
   .field-input {
-    @apply block w-full min-w-0 max-w-full rounded-2xl border border-blue-100 bg-white px-3 py-2.5 text-sm leading-5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100;
+    @apply block w-full min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100;
   }
 
   .panel-sheen {
     background:
       linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.98)),
-      linear-gradient(180deg, rgba(219, 234, 254, 0.08), rgba(29, 78, 216, 0.02));
+      linear-gradient(180deg, rgba(255, 247, 237, 0.26), rgba(15, 23, 42, 0.018));
   }
 
   .table-shell {
     @apply min-w-0 max-w-full overflow-x-auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .co-sidebar-shell {
+    background:
+      radial-gradient(circle at top left, rgba(249, 115, 22, 0.18), transparent 34%),
+      linear-gradient(180deg, var(--color-shell-dark-soft), var(--color-shell-dark));
+    box-shadow: var(--shadow-shell);
+  }
+
+  .co-sidebar-panel {
+    background: rgba(7, 17, 31, 0.88);
+    border-color: rgba(148, 163, 184, 0.16);
+    color: #f8fafc;
+  }
+
+  .co-card {
+    border-color: var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .co-action-panel {
+    border-color: var(--color-border);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .co-section-accent {
+    border-left: 3px solid var(--color-brand-orange);
+    padding-left: 0.75rem;
+  }
+
+  .co-table-row {
+    @apply transition;
+  }
+
+  .co-table-row:hover {
+    background: var(--color-brand-orange-soft);
+  }
+
+  .co-focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
   }
 }
 

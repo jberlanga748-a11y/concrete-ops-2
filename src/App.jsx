@@ -135,6 +135,7 @@ import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
+import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -1017,12 +1018,6 @@ function Icon({ name, className = "h-4 w-4" }) {
 }
 
 function Button({ children, variant = "primary", size = "md", className = "", ...props }) {
-  const variants = {
-    primary: "bg-blue-700 text-white hover:bg-blue-800 shadow-sm shadow-blue-700/20",
-    secondary: "border border-blue-100 bg-white text-slate-700 hover:bg-blue-50",
-    ghost: "text-slate-600 hover:bg-blue-50 hover:text-blue-700",
-    danger: "bg-red-600 text-white hover:bg-red-700",
-  };
   const sizes = {
     sm: "px-3 py-2 text-xs",
     md: "px-4 py-2.5 text-sm",
@@ -1030,22 +1025,14 @@ function Button({ children, variant = "primary", size = "md", className = "", ..
   };
 
   return (
-    <button className={`inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-2xl text-center font-black leading-tight transition whitespace-normal break-words ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+    <button className={`co-focus-ring inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-2xl text-center font-black leading-tight transition whitespace-normal break-words disabled:cursor-not-allowed disabled:opacity-60 ${getButtonToneClass(variant)} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
   );
 }
 
 function Badge({ children, tone = "blue" }) {
-  const tones = {
-    blue: "bg-blue-50 text-blue-700 ring-blue-100",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    amber: "bg-amber-50 text-amber-700 ring-amber-100",
-    red: "bg-red-50 text-red-700 ring-red-100",
-    violet: "bg-violet-50 text-violet-700 ring-violet-100",
-    slate: "bg-slate-100 text-slate-700 ring-slate-200",
-  };
-  return <span className={`inline-flex min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-black ring-1 break-words ${tones[tone] || tones.blue}`}>{children}</span>;
+  return <span className={`inline-flex min-w-0 max-w-full rounded-full px-2.5 py-1 text-xs font-black ring-1 break-words ${getStatusToneClass(tone)}`}>{children}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -1068,17 +1055,17 @@ function StartupStatusBadge({ status }) {
   return <Badge tone={tone}>{normalizedStatus}</Badge>;
 }
 
-function Card({ children, className = "", ...props }) {
-  return <div className={`panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel ${className}`} {...props}>{children}</div>;
+function Card({ children, className = "", variant = "default", ...props }) {
+  return <div className={`${getCardClass(variant)} ${className}`} {...props}>{children}</div>;
 }
 
 function PageHeader({ eyebrow, title, description, actions, tabs }) {
   return (
-    <div className="mb-5 border-b border-blue-100/80 bg-white/80 px-5 py-5 backdrop-blur sm:px-6">
+    <div className="mb-5 border-b border-slate-200/80 bg-white/85 px-5 py-5 backdrop-blur sm:px-6">
       <div className="mx-auto w-full max-w-[1520px]">
         <div className="flex min-w-0 max-w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-700">{eyebrow}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-700">{eyebrow}</p>
             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
             {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{description}</p> : null}
           </div>
@@ -1093,7 +1080,7 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
 function SectionHeader({ title, description, action }) {
   return (
     <div className="mb-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
+      <div className="co-section-accent min-w-0">
         <h2 className="break-words text-base font-black text-slate-950">{title}</h2>
         {description ? <p className="mt-1 break-words text-sm leading-5 text-slate-500">{description}</p> : null}
       </div>
@@ -10976,6 +10963,58 @@ function PwaInstallGuidancePanel({ canView = false }) {
   );
 }
 
+function UiStyleFoundationPanel({ canView = false }) {
+  if (!canView) return null;
+
+  const swatches = [
+    ["Brand orange", DESIGN_COLORS.brand.orange],
+    ["Shell dark", DESIGN_COLORS.shell.dark],
+    ["Workspace", DESIGN_COLORS.workspace.page],
+    ["Card", DESIGN_COLORS.workspace.card],
+  ];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="UI Style Foundation"
+        description="Design tokens are now in place for the dark shell, orange brand accent, light workspace, rounded cards, and soft construction SaaS polish. Full page-by-page UI polish continues in phases 12B-12J."
+      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div className="co-sidebar-shell rounded-3xl border border-slate-800 p-4 text-white">
+          <div className="flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-2xl bg-orange-500 text-sm font-black text-slate-950">CO</div>
+            <div>
+              <p className="text-sm font-black">Concrete Ops 2</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300">Team workspace</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 text-sm font-bold">
+            <div className="rounded-2xl bg-orange-600 px-3 py-2">Dashboard active state</div>
+            <div className="rounded-2xl px-3 py-2 text-slate-300">Jobs / Leads / Reports</div>
+          </div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {swatches.map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="h-10 rounded-xl border border-slate-200" style={{ background: value }} />
+                <p className="mt-2 text-sm font-black text-slate-950">{label}</p>
+                <p className="text-xs font-bold text-slate-500">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" size="sm">Primary action</Button>
+            <Button type="button" size="sm" variant="secondary">Secondary action</Button>
+            <Badge tone="orange">Orange accent</Badge>
+            <Badge tone="slate">Soft badge</Badge>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SettingsPage({
   user,
   sessionToken,
@@ -11142,6 +11181,7 @@ function SettingsPage({
         <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
         <ReleaseSafetyRollbackPanel canView={canViewSettings} />
         <PwaInstallGuidancePanel canView={canViewSettings} />
+        <UiStyleFoundationPanel canView={canViewSettings} />
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
           <div className="grid min-w-0 self-start gap-4">
             <Card className="self-start p-5">
