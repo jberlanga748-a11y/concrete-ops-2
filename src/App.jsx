@@ -7181,38 +7181,41 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
 }
 
 function CommandCenterKpiCard({ item }) {
+  const tone = item.tone || "orange";
   const toneClass = {
-    red: "bg-red-50 text-red-700 ring-red-100",
-    amber: "bg-amber-50 text-amber-700 ring-amber-100",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    blue: "bg-blue-50 text-blue-700 ring-blue-100",
-    orange: "bg-orange-50 text-orange-700 ring-orange-100",
-    slate: "bg-slate-100 text-slate-700 ring-slate-200",
-  }[item.tone || "orange"] || "bg-orange-50 text-orange-700 ring-orange-100";
+    red: "bg-red-600 text-white ring-red-100",
+    amber: "bg-amber-500 text-white ring-amber-100",
+    green: "bg-emerald-600 text-white ring-emerald-100",
+    blue: "bg-blue-600 text-white ring-blue-100",
+    orange: "bg-orange-600 text-white ring-orange-100",
+    slate: "bg-slate-700 text-white ring-slate-200",
+  }[tone] || "bg-orange-600 text-white ring-orange-100";
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
 
   return (
-    <div className="co-command-kpi rounded-3xl border p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-          <div className="mt-2 flex min-w-0 items-end gap-3">
-            <p className={`break-words text-3xl font-black leading-none tracking-tight ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
-            <p className="min-w-0 break-words pb-0.5 text-sm font-bold leading-5 text-slate-500">{item.helper}</p>
+    <div className="co-command-kpi rounded-3xl border p-4 sm:p-5" data-tone={tone}>
+      <div className="flex h-full min-h-[8.25rem] flex-col justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">{item.label}</p>
+            <p className="mt-2 min-w-0 break-words text-sm font-bold leading-5 text-slate-500">{item.helper}</p>
           </div>
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-4 ring-white/90 ${toneClass}`}>
+            <Icon name={item.icon} className="h-5 w-5" />
+          </div>
+        </div>
+        <div className="flex min-w-0 items-end justify-between gap-3">
+          <p className={`break-words text-4xl font-black leading-none tracking-[-0.045em] ${value > 0 ? "text-slate-950" : "text-slate-400"}`}>{value}</p>
           {item.actionLabel ? (
             <button
               type="button"
               onClick={item.onAction}
-              className="co-focus-ring mt-2 inline-flex items-center gap-1 rounded-full text-xs font-black uppercase tracking-[0.12em] text-orange-700 hover:text-orange-800"
+              className="co-focus-ring inline-flex shrink-0 items-center gap-1 rounded-full text-xs font-black text-orange-700 hover:text-orange-800"
             >
               {item.actionLabel}
               <span aria-hidden="true">-&gt;</span>
             </button>
           ) : null}
-        </div>
-        <div className={`shrink-0 rounded-2xl p-2.5 ring-1 ${toneClass}`}>
-          <Icon name={item.icon} className="h-4 w-4" />
         </div>
       </div>
     </div>
