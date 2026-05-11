@@ -188,6 +188,20 @@ test("lead workflow supports assignment, status history, customer linking, archi
     assert.equal(restoredSource.status, "Active");
     assert.equal(restoredSource.archivedAt, null);
 
+    const checkedSourceState = await assertOk(fixture.baseUrl, `/api/lead-sources/${createdSource.id}/check`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        checkedAt: "2026-05-11",
+        checkNote: "No new concrete bid matches today.",
+      }),
+    });
+    const checkedSource = checkedSourceState.leadSources.find((source) => source.id === createdSource.id);
+    assert.equal(checkedSource.lastCheckedAt, "2026-05-11");
+    assert.equal(checkedSource.nextCheckAt, "2026-06-11");
+    assert.match(checkedSource.notes, /No new concrete bid matches today/);
+    assert.ok(checkedSourceState.auditEvents.some((event) => event.entityType === "leadSource" && event.entityId === createdSource.id && event.action === "checked"));
+
     const invalidSource = await requestJson(fixture.baseUrl, "/api/lead-sources", {
       method: "POST",
       headers,
@@ -459,6 +473,15 @@ test("lead permissions keep office access while hiding lead data from employees 
       headers: employeeHeaders,
     });
     assert.equal(sourceArchiveDenied.response.status, 403);
+
+    const sourceCheckDenied = await requestJson(fixture.baseUrl, `/api/lead-sources/${opsSource.id}/check`, {
+      method: "POST",
+      headers: employeeHeaders,
+      body: JSON.stringify({
+        checkedAt: "2026-05-11",
+      }),
+    });
+    assert.equal(sourceCheckDenied.response.status, 403);
 
     const patchDenied = await requestJson(fixture.baseUrl, `/api/leads/${opsLead.id}`, {
       method: "PATCH",

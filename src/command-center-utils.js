@@ -1,4 +1,5 @@
 import { getStartupCriticalWarnings, normalizeJobStartupFields } from "../shared/jobStartup.js";
+import { deriveDailySourceCheckState } from "../shared/leadSources.js";
 
 const CLOSED_JOB_STATUSES = new Set(["archived", "cancelled", "canceled", "complete", "completed", "closed"]);
 const REVIEW_DRAFT_STATUSES = new Set(["imported", "needs review", "ready to create job"]);
@@ -18,6 +19,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   const deliveryTickets = asArray(source.deliveryTickets).filter((ticket) => !isArchived(ticket));
   const timeEntries = asArray(source.timeEntries).filter((entry) => !isArchived(entry));
   const changeOrderRequests = asArray(source.changeOrderRequests).filter((request) => !isArchived(request));
+  const leadSourceChecks = deriveDailySourceCheckState(source.leadSources || [], { today: todayKey });
 
   const importedDraftsNeedingReview = asArray(source.jobDraftImports)
     .filter((draft) => !draft.createdJobId && REVIEW_DRAFT_STATUSES.has(normalizeStatus(draft.importStatus || draft.status)))
@@ -82,6 +84,9 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     stats: {
       importedDraftsNeedingReview: importedDraftsNeedingReview.length,
       importedDraftsNeedingCustomerMatch: importedDraftsNeedingCustomerMatch.length,
+      leadSourcesDueToday: leadSourceChecks.stats.dueToday,
+      overdueLeadSources: leadSourceChecks.stats.overdue,
+      sourceChecksNeeded: leadSourceChecks.stats.checksNeeded,
       jobsNeedingStartupReview: jobsNeedingStartupReview.length,
       jobsReadyForField: jobsReadyForField.length,
       jobsMissingCrew: jobsMissingCrew.length,
@@ -98,6 +103,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     },
     importedDraftsNeedingReview,
     importedDraftsNeedingCustomerMatch,
+    leadSourceChecks,
     jobsNeedingStartupReview,
     jobsReadyForField,
     jobsMissingCrew,

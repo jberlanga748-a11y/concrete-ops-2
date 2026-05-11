@@ -124,10 +124,82 @@ function collapseSpaces(value) {
   return toText(value).replace(/\s+/g, " ");
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function normalizeOption(value, options, fallback) {
   const text = collapseSpaces(value);
   const match = options.find((option) => option.toLowerCase() === text.toLowerCase());
   return match || fallback;
+}
+
+export function normalizeLeadSourceDate(value) {
+  const text = toText(value);
+  if (!text) return "";
+  const dateOnly = /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : "";
+  if (!dateOnly) return "";
+
+  const parsed = new Date(`${dateOnly}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10) === dateOnly ? dateOnly : "";
+}
+
+function addDays(dateKey, days) {
+  const parsed = new Date(`${dateKey}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function addMonths(dateKey, months) {
+  const parsed = new Date(`${dateKey}T00:00:00.000Z`);
+  const originalDay = parsed.getUTCDate();
+  parsed.setUTCMonth(parsed.getUTCMonth() + months);
+
+  if (parsed.getUTCDate() !== originalDay) {
+    parsed.setUTCDate(0);
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function calculateNextLeadSourceCheckDate(checkCadence, checkedAt = todayKey()) {
+  const checkedDate = normalizeLeadSourceDate(checkedAt) || todayKey();
+  const cadence = normalizeOption(checkCadence, LEAD_SOURCE_CADENCE_OPTIONS, "Manual");
+
+  switch (cadence) {
+    case "Daily":
+      return addDays(checkedDate, 1);
+    case "Weekly":
+      return addDays(checkedDate, 7);
+    case "Biweekly":
+      return addDays(checkedDate, 14);
+    case "Monthly":
+      return addMonths(checkedDate, 1);
+    case "Quarterly":
+      return addMonths(checkedDate, 3);
+    default:
+      return "";
+  }
+}
+
+export function buildLeadSourceCheckedPatch(source = {}, { checkedAt = todayKey(), nextCheckAt, checkNote = "" } = {}) {
+  const checkedDate = normalizeLeadSourceDate(checkedAt) || todayKey();
+  const hasManualNextDate = nextCheckAt !== undefined;
+  const nextDate = hasManualNextDate
+    ? normalizeLeadSourceDate(nextCheckAt)
+    : calculateNextLeadSourceCheckDate(source.checkCadence, checkedDate);
+  const note = toText(checkNote);
+  const existingNotes = toText(source.notes);
+  const checkNoteLine = note ? `[${checkedDate} source check] ${note}` : "";
+
+  return {
+    lastCheckedAt: checkedDate,
+    nextCheckAt: nextDate,
+    notes: checkNoteLine
+      ? [checkNoteLine, existingNotes].filter(Boolean).join("\n")
+      : existingNotes,
+  };
 }
 
 export function normalizeLeadSourceUrl(value) {
@@ -186,8 +258,8 @@ export function normalizeLeadSourcePayload(payload = {}, { existing = {}, now = 
     notes: toText(hasOwn(payload, "notes") ? payload.notes : existing.notes),
     status: normalizeOption(statusInput, LEAD_SOURCE_STATUS_OPTIONS, existing.status || "Active"),
     checkCadence: normalizeOption(hasOwn(payload, "checkCadence") ? payload.checkCadence : existing.checkCadence, LEAD_SOURCE_CADENCE_OPTIONS, "Manual"),
-    lastCheckedAt: toText(hasOwn(payload, "lastCheckedAt") ? payload.lastCheckedAt : existing.lastCheckedAt),
-    nextCheckAt: toText(hasOwn(payload, "nextCheckAt") ? payload.nextCheckAt : existing.nextCheckAt),
+    lastCheckedAt: normalizeLeadSourceDate(hasOwn(payload, "lastCheckedAt") ? payload.lastCheckedAt : existing.lastCheckedAt),
+    nextCheckAt: normalizeLeadSourceDate(hasOwn(payload, "nextCheckAt") ? payload.nextCheckAt : existing.nextCheckAt),
     createdAt,
     updatedAt: now || existing.updatedAt || createdAt,
     archivedAt: existing.archivedAt || null,
@@ -249,12 +321,63 @@ export function deriveLeadSourceListState(sources = [], { includeInactive = fals
       total: sources.length,
       active: sources.filter((source) => normalizeOption(source.status, LEAD_SOURCE_STATUS_OPTIONS, "Active") === "Active").length,
       inactive: sources.filter((source) => normalizeOption(source.status, LEAD_SOURCE_STATUS_OPTIONS, "Active") !== "Active").length,
-      dueForCheck: sources.filter((source) => {
-        const nextCheckAt = toText(source.nextCheckAt);
-        return normalizeOption(source.status, LEAD_SOURCE_STATUS_OPTIONS, "Active") === "Active"
-          && nextCheckAt
-          && nextCheckAt <= new Date().toISOString().slice(0, 10);
-      }).length,
+      dueForCheck: deriveDailySourceCheckState(sources).stats.checksNeeded,
+    },
+  };
+}
+
+export function deriveDailySourceCheckState(sources = [], { today = todayKey() } = {}) {
+  const dateToday = normalizeLeadSourceDate(today) || todayKey();
+  const activeSources = sources
+    .map((source) => normalizeLeadSourcePayload(source, { existing: source }))
+    .filter((source) => source.status === "Active");
+
+  const overdueSources = [];
+  const dueTodaySources = [];
+  const upcomingSources = [];
+  const recentlyCheckedSources = [];
+
+  for (const source of activeSources) {
+    const nextCheckAt = normalizeLeadSourceDate(source.nextCheckAt);
+    const lastCheckedAt = normalizeLeadSourceDate(source.lastCheckedAt);
+    const enrichedSource = {
+      ...source,
+      nextCheckAt,
+      lastCheckedAt,
+      checkBucket: "unscheduled",
+    };
+
+    if (nextCheckAt && nextCheckAt < dateToday) {
+      overdueSources.push({ ...enrichedSource, checkBucket: "overdue" });
+    } else if (nextCheckAt && nextCheckAt === dateToday) {
+      dueTodaySources.push({ ...enrichedSource, checkBucket: "dueToday" });
+    } else if (nextCheckAt && nextCheckAt > dateToday) {
+      upcomingSources.push({ ...enrichedSource, checkBucket: "upcoming" });
+    }
+
+    if (lastCheckedAt) {
+      recentlyCheckedSources.push(enrichedSource);
+    }
+  }
+
+  overdueSources.sort((left, right) => left.nextCheckAt.localeCompare(right.nextCheckAt) || left.name.localeCompare(right.name));
+  dueTodaySources.sort((left, right) => left.name.localeCompare(right.name));
+  upcomingSources.sort((left, right) => left.nextCheckAt.localeCompare(right.nextCheckAt) || left.name.localeCompare(right.name));
+  recentlyCheckedSources.sort((left, right) => right.lastCheckedAt.localeCompare(left.lastCheckedAt) || left.name.localeCompare(right.name));
+
+  return {
+    today: dateToday,
+    overdueSources,
+    dueTodaySources,
+    upcomingSources,
+    recentlyCheckedSources,
+    checksNeeded: [...overdueSources, ...dueTodaySources],
+    stats: {
+      overdue: overdueSources.length,
+      dueToday: dueTodaySources.length,
+      upcoming: upcomingSources.length,
+      recentlyChecked: recentlyCheckedSources.length,
+      checksNeeded: overdueSources.length + dueTodaySources.length,
     },
   };
 }

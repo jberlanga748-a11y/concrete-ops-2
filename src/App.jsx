@@ -54,6 +54,7 @@ import {
   getSetupStatus,
   login,
   logout,
+  markLeadSourceChecked,
   resetWorkspace,
   reviewDailyReport,
   reviewToolChecklist,
@@ -119,7 +120,7 @@ import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobT
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
-import { createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
+import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -908,6 +909,10 @@ function formatDateTime(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(parsed);
+}
+
+function todayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function toDateTimeInputValue(value) {
@@ -6608,6 +6613,7 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
 
 function CommandCenterPage({
   jobs,
+  leadSources,
   jobDraftImports,
   dailyReports,
   uploads,
@@ -6625,6 +6631,7 @@ function CommandCenterPage({
   const [copyMessage, setCopyMessage] = useState("");
   const commandCenter = useMemo(() => deriveCommandCenterState({
     jobs,
+    leadSources,
     jobDraftImports,
     dailyReports,
     uploads,
@@ -6633,7 +6640,7 @@ function CommandCenterPage({
     deliveryTickets,
     timeEntries,
     changeOrderRequests,
-  }), [changeOrderRequests, dailyReports, deliveryTickets, jobDraftImports, jobs, postPourChecklists, prePourChecklists, timeEntries, uploads]);
+  }), [changeOrderRequests, dailyReports, deliveryTickets, jobDraftImports, jobs, leadSources, postPourChecklists, prePourChecklists, timeEntries, uploads]);
 
   function openModule(moduleId) {
     setActive?.(moduleId);
@@ -6664,6 +6671,7 @@ function CommandCenterPage({
   const statCards = [
     { key: "importedDraftsNeedingReview", label: "Imported Drafts Needing Review", helper: "Review missing details before job creation", icon: "database" },
     { key: "importedDraftsNeedingCustomerMatch", label: "Drafts Needing Customer Match", helper: "Confirm match or choose create-new", icon: "users" },
+    { key: "sourceChecksNeeded", label: "Source Checks Needed", helper: "Manual Lead Sources due or overdue", icon: "inbox" },
     { key: "jobsNeedingStartupReview", label: "Jobs Needing Startup Review", helper: "Clear critical startup items", icon: "alert" },
     { key: "jobsReadyForField", label: "Jobs Ready for Field", helper: "Ready but still active", icon: "check" },
     { key: "jobsMissingCrew", label: "Jobs Missing Crew", helper: "Assign crew or mark TBD in startup", icon: "users" },
@@ -6709,6 +6717,27 @@ function CommandCenterPage({
             <KpiCard key={card.key} item={{ ...card, value: commandCenter.stats[card.key] }} />
           ))}
         </div>
+
+        <CommandCenterSection
+          title="Lead Source Checks Needed"
+          description="Manual Lead Source checks due today or overdue. No source is scraped or checked automatically."
+          count={commandCenter.leadSourceChecks.checksNeeded.length}
+          emptyTitle="No lead source checks due"
+          emptyDescription="Sources with due or overdue next-check dates will appear here."
+          badgeTone="amber"
+        >
+          {limited(commandCenter.leadSourceChecks.checksNeeded).map((source) => (
+            <CommandCenterItem
+              key={source.id}
+              eyebrow={source.checkBucket === "overdue" ? "Overdue source check" : "Due today"}
+              title={source.name || "Unnamed source"}
+              description={[source.type, leadSourceLocation(source), source.tradeFocus].filter(Boolean).join(" / ")}
+              meta={`Last checked: ${source.lastCheckedAt || "not set"} / Next check: ${source.nextCheckAt || "not scheduled"}`}
+              badges={<><Badge tone={source.checkBucket === "overdue" ? "red" : "amber"}>{source.checkBucket === "overdue" ? "Overdue" : "Due today"}</Badge><Badge tone="slate">{source.checkCadence || "Manual"}</Badge></>}
+              actions={<Button type="button" size="sm" onClick={() => openModule("leads")}>Open Daily Source Check</Button>}
+            />
+          ))}
+        </CommandCenterSection>
 
         <CommandCenterSection
           title="Drafts Needing Customer Match"
@@ -7272,6 +7301,175 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
   );
 }
 
+function DailySourceCheckPanel({
+  sources = [],
+  canManage = false,
+  disabled = false,
+  onMarkSourceChecked = async () => false,
+  onStartLeadFromSource = () => {},
+}) {
+  const today = todayDateInputValue();
+  const checkState = useMemo(() => deriveDailySourceCheckState(sources, { today }), [sources, today]);
+  const [checkingSourceId, setCheckingSourceId] = useState("");
+  const [checkDraft, setCheckDraft] = useState({ checkedAt: today, nextCheckAt: "", checkNote: "" });
+  const [message, setMessage] = useState("");
+
+  function beginCheck(source) {
+    const checkedAt = todayDateInputValue();
+    setCheckingSourceId(source.id);
+    setCheckDraft({
+      checkedAt,
+      nextCheckAt: calculateNextLeadSourceCheckDate(source.checkCadence, checkedAt),
+      checkNote: "",
+    });
+    setMessage("");
+  }
+
+  function cancelCheck() {
+    setCheckingSourceId("");
+    setCheckDraft({ checkedAt: todayDateInputValue(), nextCheckAt: "", checkNote: "" });
+  }
+
+  function updateCheckedAt(value, source) {
+    setCheckDraft((current) => ({
+      ...current,
+      checkedAt: value,
+      nextCheckAt: calculateNextLeadSourceCheckDate(source.checkCadence, value),
+    }));
+  }
+
+  async function submitCheck(event, source) {
+    event.preventDefault();
+    if (!canManage) return;
+    const didSave = await onMarkSourceChecked(source.id, checkDraft);
+    if (didSave) {
+      setMessage(`${source.name} marked checked.`);
+      cancelCheck();
+    }
+  }
+
+  function startLead(source) {
+    onStartLeadFromSource(source);
+    setMessage(`Source context copied into the new lead form for ${source.name}.`);
+  }
+
+  function SourceActions({ source }) {
+    const isChecking = checkingSourceId === source.id;
+    return (
+      <div className="mt-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {source.url ? (
+            <a className="inline-flex min-w-0 max-w-full items-center justify-center rounded-2xl border border-blue-100 bg-white px-3 py-2 text-center text-xs font-black leading-tight text-slate-700 transition hover:bg-blue-50" href={source.url} target="_blank" rel="noreferrer">Open source URL</a>
+          ) : null}
+          {canManage ? <Button type="button" size="sm" onClick={() => beginCheck(source)} disabled={disabled}>Mark Checked</Button> : null}
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => startLead(source)} disabled={disabled}>Add Lead From Source</Button> : null}
+        </div>
+        {isChecking ? (
+          <form onSubmit={(event) => submitCheck(event, source)} className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <InputField label="Checked date" type="date" value={checkDraft.checkedAt} onChange={(event) => updateCheckedAt(event.target.value, source)} disabled={disabled} />
+              <InputField label="Next check date" type="date" value={checkDraft.nextCheckAt} onChange={(event) => setCheckDraft((current) => ({ ...current, nextCheckAt: event.target.value }))} disabled={disabled} />
+            </div>
+            <TextAreaField label="Check note / result" value={checkDraft.checkNote} onChange={(event) => setCheckDraft((current) => ({ ...current, checkNote: event.target.value }))} disabled={disabled} placeholder="Example: no concrete bids found today; check again next week." />
+            <p className="mt-2 text-xs font-bold text-slate-500">Manual and as-needed cadences leave the next check blank unless you set one.</p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" size="sm" disabled={disabled}>Save Check</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={cancelCheck} disabled={disabled}>Cancel</Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
+    );
+  }
+
+  function SourceCard({ source, tone = "blue", helper }) {
+    return (
+      <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="break-words text-sm font-black text-slate-950">{source.name || "Unnamed source"}</p>
+              <Badge tone={tone}>{helper}</Badge>
+            </div>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{[source.type, leadSourceLocation(source), source.checkCadence || "Manual"].filter(Boolean).join(" / ")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Last checked: {source.lastCheckedAt || "Not set"} / Next check: {source.nextCheckAt || "Not scheduled"}</p>
+          </div>
+        </div>
+        <SourceActions source={source} />
+      </div>
+    );
+  }
+
+  function SourceSection({ title, description, rows, emptyTitle, tone, helperForSource }) {
+    return (
+      <div className="min-w-0 space-y-3">
+        <SectionHeader title={title} description={description} action={<Badge tone={rows.length > 0 ? tone : "slate"}>{rows.length}</Badge>} />
+        {rows.length > 0 ? rows.slice(0, 6).map((source) => (
+          <SourceCard key={`${title}-${source.id}`} source={source} tone={tone} helper={helperForSource(source)} />
+        )) : <StateCard title={emptyTitle} description="Sources will appear here when their check dates match this bucket." tone="slate" />}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-blue-100 bg-amber-50/70 p-4">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <Badge tone="amber">Daily Source Check</Badge>
+            <h3 className="mt-2 text-base font-black text-slate-950">Manual source check queue</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Check bid pages, plan rooms, referrals, and relationship sources manually. Nothing is scraped, emailed, texted, or checked automatically.
+            </p>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-4 xl:min-w-[560px]">
+            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.overdue}</p><Badge tone={checkState.stats.overdue > 0 ? "red" : "slate"}>Overdue</Badge></div>
+            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.dueToday}</p><Badge tone={checkState.stats.dueToday > 0 ? "amber" : "slate"}>Due today</Badge></div>
+            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.upcoming}</p><Badge tone="blue">Upcoming</Badge></div>
+            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.recentlyChecked}</p><Badge tone="green">Recently checked</Badge></div>
+          </div>
+        </div>
+        {message ? <p className="mt-3 rounded-2xl border border-blue-100 bg-white px-3 py-2 text-sm font-bold text-blue-800">{message}</p> : null}
+      </div>
+
+      <div className="grid gap-5 p-4 xl:grid-cols-2">
+        <SourceSection
+          title="Overdue Sources"
+          description="Active sources with a next check date before today."
+          rows={checkState.overdueSources}
+          emptyTitle="No overdue sources"
+          tone="red"
+          helperForSource={(source) => `Overdue ${source.nextCheckAt}`}
+        />
+        <SourceSection
+          title="Sources Due Today"
+          description="Active sources scheduled for today."
+          rows={checkState.dueTodaySources}
+          emptyTitle="No sources due today"
+          tone="amber"
+          helperForSource={() => "Due today"}
+        />
+        <SourceSection
+          title="Upcoming Sources"
+          description="Active sources scheduled after today."
+          rows={checkState.upcomingSources}
+          emptyTitle="No upcoming checks scheduled"
+          tone="blue"
+          helperForSource={(source) => `Next ${source.nextCheckAt}`}
+        />
+        <SourceSection
+          title="Recently Checked Sources"
+          description="Newest manual source checks, sorted by last checked date."
+          rows={checkState.recentlyCheckedSources}
+          emptyTitle="No checks recorded yet"
+          tone="green"
+          helperForSource={(source) => `Checked ${source.lastCheckedAt}`}
+        />
+      </div>
+    </Card>
+  );
+}
+
 function LeadSourcesPanel({
   sources = [],
   canManage = false,
@@ -7494,17 +7692,50 @@ function LeadsPage({
   onUpdateLeadSource,
   onArchiveLeadSource,
   onRestoreLeadSource,
+  onMarkLeadSourceChecked,
   relatedLeadRecords,
   busy,
   leadSaveState,
 }) {
   const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
 
+  function handleStartLeadFromSource(source) {
+    const sourceContext = [
+      `Lead source: ${source.name || "Unnamed source"}`,
+      source.type ? `Type: ${source.type}` : "",
+      source.url ? `URL: ${source.url}` : "",
+      source.serviceArea ? `Service area: ${source.serviceArea}` : "",
+      source.tradeFocus ? `Trade focus: ${source.tradeFocus}` : "",
+      source.notes ? `Source notes: ${source.notes}` : "",
+    ].filter(Boolean).join("\n");
+
+    setLeadDraft((current) => ({
+      ...current,
+      customer: "",
+      customerId: "",
+      city: source.city || source.serviceArea || current.city || "",
+      project: source.tradeFocus || "",
+      status: "New",
+      source: "Lead Finder",
+      nextStep: "Review lead found from source",
+      notes: sourceContext,
+    }));
+  }
+
   return (
     <div>
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onCreateEstimateFromLead={onCreateEstimateFromLead} canCreateEstimate={permissions?.estimates?.canManage} />
+      </div>
+      <div className="px-5 pb-4 sm:px-6 lg:px-8">
+        <DailySourceCheckPanel
+          sources={leadSources}
+          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
+          onMarkSourceChecked={onMarkLeadSourceChecked}
+          onStartLeadFromSource={handleStartLeadFromSource}
+          disabled={busy}
+        />
       </div>
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <LeadSourcesPanel
@@ -13189,6 +13420,23 @@ export default function App() {
     }
   }
 
+  async function handleMarkLeadSourceChecked(sourceId, payload) {
+    if (!sessionToken || !(appState.permissions.leads.canManageSources ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await markLeadSourceChecked(sessionToken, sourceId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleCreateCustomer(event) {
     event.preventDefault();
     const existingCustomerIds = new Set(appState.customers.map((customer) => customer.id));
@@ -14620,6 +14868,7 @@ export default function App() {
               onUpdateLeadSource={handleUpdateLeadSource}
               onArchiveLeadSource={handleArchiveLeadSource}
               onRestoreLeadSource={handleRestoreLeadSource}
+              onMarkLeadSourceChecked={handleMarkLeadSourceChecked}
               onCreateJobFromLead={handleCreateJobFromLead}
               selectedJobId={selectedJobId}
               onSelectJob={navigateToJob}

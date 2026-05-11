@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildLeadSourceCheckedPatch,
+  calculateNextLeadSourceCheckDate,
   createLeadSourceDraftFromStarter,
+  deriveDailySourceCheckState,
   deriveLeadSourceListState,
   normalizeLeadSourcePayload,
   normalizeLeadSourceUrl,
@@ -63,4 +66,56 @@ test("lead source list state filters inactive rows and tracks due checks", () =>
   assert.equal(state.stats.active, 2);
   assert.equal(state.stats.inactive, 1);
   assert.equal(state.stats.dueForCheck, 1);
+});
+
+test("daily source check state groups overdue, due today, upcoming, and recent checks", () => {
+  const state = deriveDailySourceCheckState([
+    { id: "LS1", name: "Overdue portal", status: "Active", nextCheckAt: "2026-05-10", lastCheckedAt: "2026-05-01" },
+    { id: "LS2", name: "Today portal", status: "Active", nextCheckAt: "2026-05-11" },
+    { id: "LS3", name: "Upcoming portal", status: "Active", nextCheckAt: "2026-05-15", lastCheckedAt: "2026-05-09" },
+    { id: "LS4", name: "Inactive portal", status: "Inactive", nextCheckAt: "2026-05-01", lastCheckedAt: "2026-05-10" },
+    { id: "LS5", name: "Manual relationship", status: "Active", checkCadence: "Manual" },
+  ], { today: "2026-05-11" });
+
+  assert.deepEqual(state.overdueSources.map((source) => source.id), ["LS1"]);
+  assert.deepEqual(state.dueTodaySources.map((source) => source.id), ["LS2"]);
+  assert.deepEqual(state.upcomingSources.map((source) => source.id), ["LS3"]);
+  assert.deepEqual(state.recentlyCheckedSources.map((source) => source.id), ["LS3", "LS1"]);
+  assert.deepEqual(state.checksNeeded.map((source) => source.id), ["LS1", "LS2"]);
+  assert.equal(state.stats.checksNeeded, 2);
+});
+
+test("next check date calculation follows cadence and leaves manual cadences blank", () => {
+  assert.equal(calculateNextLeadSourceCheckDate("Daily", "2026-05-11"), "2026-05-12");
+  assert.equal(calculateNextLeadSourceCheckDate("Weekly", "2026-05-11"), "2026-05-18");
+  assert.equal(calculateNextLeadSourceCheckDate("Biweekly", "2026-05-11"), "2026-05-25");
+  assert.equal(calculateNextLeadSourceCheckDate("Monthly", "2026-01-31"), "2026-02-28");
+  assert.equal(calculateNextLeadSourceCheckDate("Quarterly", "2026-05-11"), "2026-08-11");
+  assert.equal(calculateNextLeadSourceCheckDate("Manual", "2026-05-11"), "");
+  assert.equal(calculateNextLeadSourceCheckDate("As needed", "2026-05-11"), "");
+});
+
+test("checked patch stamps last check, calculates next check, and appends office note", () => {
+  const patch = buildLeadSourceCheckedPatch({
+    checkCadence: "Weekly",
+    notes: "Existing source note.",
+  }, {
+    checkedAt: "2026-05-11",
+    checkNote: "No matching concrete bids today.",
+  });
+
+  assert.equal(patch.lastCheckedAt, "2026-05-11");
+  assert.equal(patch.nextCheckAt, "2026-05-18");
+  assert.match(patch.notes, /^\[2026-05-11 source check\] No matching concrete bids today\./);
+  assert.match(patch.notes, /Existing source note\./);
+});
+
+test("checked patch accepts manual next check date override", () => {
+  const patch = buildLeadSourceCheckedPatch({ checkCadence: "Daily" }, {
+    checkedAt: "2026-05-11",
+    nextCheckAt: "2026-05-30",
+  });
+
+  assert.equal(patch.lastCheckedAt, "2026-05-11");
+  assert.equal(patch.nextCheckAt, "2026-05-30");
 });

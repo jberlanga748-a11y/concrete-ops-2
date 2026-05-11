@@ -17,6 +17,11 @@ test("command center derives priority stats across existing concrete modules", (
       { id: "IJD-1", importStatus: "Needs Review", customerMatchStatus: "Review Required", customerName: "Cascade Flatwork", jobName: "Shop apron" },
       { id: "IJD-2", importStatus: "Job Created", createdJobId: "J-2" },
     ],
+    leadSources: [
+      { id: "LS-1", name: "Overdue source", status: "Active", nextCheckAt: "2026-05-09", checkCadence: "Daily" },
+      { id: "LS-2", name: "Due today source", status: "Active", nextCheckAt: "2026-05-10", checkCadence: "Weekly" },
+      { id: "LS-3", name: "Inactive source", status: "Inactive", nextCheckAt: "2026-05-01" },
+    ],
     jobs: [
       { id: "J-1", title: "Shop apron", status: "scheduled", customer: "Cascade Flatwork", startupStatus: "Not Started" },
       { id: "J-2", title: "Driveway pour", status: "scheduled", customer: "North Ridge", scheduledStart: "2026-05-10T14:00:00.000Z", assignments: [{ userId: "U-1", roleOnJob: "foreman" }], startupStatus: "Ready for Field", startupChecklist: READY_STARTUP_CHECKLIST },
@@ -51,6 +56,9 @@ test("command center derives priority stats across existing concrete modules", (
 
   assert.equal(result.stats.importedDraftsNeedingReview, 1);
   assert.equal(result.stats.importedDraftsNeedingCustomerMatch, 1);
+  assert.equal(result.stats.leadSourcesDueToday, 1);
+  assert.equal(result.stats.overdueLeadSources, 1);
+  assert.equal(result.stats.sourceChecksNeeded, 2);
   assert.equal(result.stats.jobsNeedingStartupReview, 1);
   assert.equal(result.stats.jobsReadyForField, 1);
   assert.equal(result.stats.jobsMissingCrew, 1);
@@ -64,6 +72,7 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.openChangeOrders, 1);
   assert.equal(result.stats.timeIssues, 2);
   assert.equal(result.stats.activeJobs, 2);
+  assert.deepEqual(result.leadSourceChecks.checksNeeded.map((source) => source.id), ["LS-1", "LS-2"]);
 });
 
 test("command center exposes route-safe records for office actions", () => {

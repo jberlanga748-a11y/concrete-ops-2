@@ -41,6 +41,8 @@ import {
   findLeadImportDuplicate,
 } from "../shared/leadImports.js";
 import {
+  buildLeadSourceCheckedPatch,
+  normalizeLeadSourceDate,
   normalizeLeadSourcePayload,
   validateLeadSourcePayload,
 } from "../shared/leadSources.js";
@@ -3141,6 +3143,25 @@ function normalizeLeadSourceForWrite(payload, { existing = null, changedAt = new
   return normalizeLeadSourcePayload(payload, {
     existing: existing || { id },
     now: changedAt,
+  });
+}
+
+function normalizeLeadSourceCheckPayload(payload = {}, source = {}, fallbackCheckedAt = new Date().toISOString()) {
+  const checkedAt = normalizeLeadSourceDate(payload.checkedAt) || normalizeLeadSourceDate(fallbackCheckedAt);
+  if (!checkedAt) {
+    throw new ApiError(400, "Enter a valid checked date.");
+  }
+
+  const nextCheckProvided = Object.prototype.hasOwnProperty.call(payload, "nextCheckAt");
+  const rawNextCheckAt = payload.nextCheckAt;
+  if (nextCheckProvided && rawNextCheckAt && !normalizeLeadSourceDate(rawNextCheckAt)) {
+    throw new ApiError(400, "Enter a valid next check date or leave it blank.");
+  }
+
+  return buildLeadSourceCheckedPatch(source, {
+    checkedAt,
+    nextCheckAt: nextCheckProvided ? rawNextCheckAt : undefined,
+    checkNote: optionalString(payload.checkNote, ""),
   });
 }
 
@@ -6988,6 +7009,36 @@ app.post("/api/lead-sources/:id/restore", requireAuth, asyncRoute(async (req, re
       detail: leadSource.name,
       actor: req.auth.user,
       changedFields: ["status", "archivedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/lead-sources/:id/check", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.leadSources ||= [];
+    const leadSource = findRequiredRecord(draft.leadSources, id, "Lead source");
+    const checkPatch = normalizeLeadSourceCheckPayload(req.body || {}, leadSource, changedAt);
+
+    Object.assign(leadSource, checkPatch, {
+      updatedAt: changedAt,
+    });
+
+    appendActivity(draft, "Lead source checked", `${req.auth.user.name} checked ${leadSource.name}.`);
+    appendAuditEvent(draft, {
+      entityType: "leadSource",
+      entityId: leadSource.id,
+      action: "checked",
+      summary: "Lead source checked",
+      detail: `${leadSource.name} was manually checked. Next check: ${leadSource.nextCheckAt || "not scheduled"}.`,
+      actor: req.auth.user,
+      changedFields: ["lastCheckedAt", "nextCheckAt", "notes", "updatedAt"],
     });
     return draft;
   });

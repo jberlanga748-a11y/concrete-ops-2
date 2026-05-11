@@ -119,6 +119,10 @@ export function restoreLeadSource(token, id) {
   return request(`/api/lead-sources/${id}/restore`, { method: "POST", token });
 }
 
+export function markLeadSourceChecked(token, id, payload = {}) {
+  return request(`/api/lead-sources/${id}/check`, { method: "POST", token, body: payload });
+}
+
 export function getEstimates(token) {
   return request("/api/estimates", { token });
 }
