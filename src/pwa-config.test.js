@@ -93,3 +93,11 @@ test("PWA configuration does not add private-data caching or offline editing cla
   assert.doesNotMatch(changedFiles, offlineClaimPattern);
   assert.doesNotMatch(changedFiles, envSecretPattern);
 });
+
+test("server exposes PWA static assets without changing API behavior", () => {
+  const serverSource = fs.readFileSync(path.join(repoRoot, "server", "index.js"), "utf8");
+
+  assert.match(serverSource, /app\.use\("\/icons", express\.static\(path\.join\(distDir, "icons"\)\)\)/);
+  assert.match(serverSource, /app\.get\("\/manifest\.webmanifest"/);
+  assert.match(serverSource, /application\/manifest\+json/);
+});

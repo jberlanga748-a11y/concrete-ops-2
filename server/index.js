@@ -10408,6 +10408,10 @@ app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.use("/assets", express.static(path.join(distDir, "assets")));
+app.use("/icons", express.static(path.join(distDir, "icons")));
+app.get("/manifest.webmanifest", (_req, res) => {
+  res.type("application/manifest+json").sendFile(path.join(distDir, "manifest.webmanifest"));
+});
 
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api")) return next();
