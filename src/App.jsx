@@ -134,6 +134,7 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
+import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -10797,6 +10798,92 @@ function OwnerHealthStatusPanel({ sessionToken, canView = false }) {
   );
 }
 
+function ReleaseSafetyRollbackPanel({ canView = false }) {
+  const [copyMessage, setCopyMessage] = useState("");
+  const sections = useMemo(() => getReleaseSafetySections(), []);
+  const commandGroups = useMemo(() => getReleaseSafetyCommandGroups(), []);
+
+  async function copyCommandGroup(group) {
+    const value = group?.text || "";
+    if (!value) return;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } else {
+        throw new Error("Clipboard unavailable");
+      }
+      setCopyMessage(`${group.title} copied.`);
+    } catch {
+      setCopyMessage("Could not copy automatically. Select the command text and copy it manually.");
+    }
+  }
+
+  if (!canView) return null;
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Release Safety / Rollback Notes"
+        description="A manual owner checklist for safe deploys, health checks, and conservative rollback decisions. This is guidance only - no automatic rollback or external monitoring runs here."
+      />
+      <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="amber">Manual checklist</Badge>
+          <Badge tone="slate">No automation</Badge>
+          <Badge tone="slate">No secrets</Badge>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-amber-800">Pause before deploys when the folder, repo, branch, modified files, or health status does not look exactly right. If anything feels weird, stop and ask before guessing.</p>
+        {copyMessage ? <p className="mt-3 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        {sections.map((section) => (
+          <div key={section.id} className={`rounded-2xl border p-4 ${section.tone === "red" ? "border-red-100 bg-red-50/70" : section.tone === "amber" ? "border-amber-100 bg-amber-50/70" : "border-blue-100 bg-white"}`}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-black text-slate-950">{section.title}</p>
+              {section.tone ? <Badge tone={releaseSafetyStatusTone(section.tone)}>{section.tone === "red" ? "Stop first" : "Review"}</Badge> : null}
+            </div>
+            <ul className="grid gap-2 text-sm leading-6 text-slate-700">
+              {section.items.map((item) => (
+                <li key={item} className="rounded-2xl border border-white/80 bg-white/70 px-3 py-2">{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+        <SectionHeader title="Safe Commands Reference" description="Copy these only from the correct folder and only when the checklist above is clean. Replace MACHINE_ID or VOLUME_ID with a real value from the list command first." />
+        <div className="grid gap-3 lg:grid-cols-2">
+          {commandGroups.map((group) => (
+            <div key={group.id} className="rounded-2xl border border-blue-100 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-slate-950">{group.title}</p>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">{group.description}</p>
+                </div>
+                <Button type="button" size="sm" variant="secondary" onClick={() => copyCommandGroup(group)}>Copy</Button>
+              </div>
+              <pre className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-950 p-3 text-xs leading-5 text-slate-100"><code>{group.text}</code></pre>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SettingsPage({
   user,
   sessionToken,
@@ -10961,6 +11048,7 @@ function SettingsPage({
           onNavigate={setActive}
         />
         <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
+        <ReleaseSafetyRollbackPanel canView={canViewSettings} />
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
           <div className="grid min-w-0 self-start gap-4">
             <Card className="self-start p-5">
