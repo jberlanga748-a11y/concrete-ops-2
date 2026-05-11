@@ -106,6 +106,7 @@ import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
+import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
 import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
@@ -1127,6 +1128,61 @@ function EstimateOptionsEditor({
       )}
       <div className="mt-3">
         <Button type="button" variant="secondary" size="sm" onClick={addOption} disabled={disabled}>{addLabel}</Button>
+      </div>
+    </div>
+  );
+}
+
+function EstimateStarterPanel({ setDraft, disabled = false }) {
+  const [templateId, setTemplateId] = useState(ESTIMATE_TEMPLATE_STARTERS[0]?.id || "");
+  const [lineItemStarterId, setLineItemStarterId] = useState(ESTIMATE_LINE_ITEM_STARTERS[0]?.id || "");
+  const selectedTemplate = ESTIMATE_TEMPLATE_STARTERS.find((template) => template.id === templateId) || ESTIMATE_TEMPLATE_STARTERS[0];
+  const selectedLineItem = ESTIMATE_LINE_ITEM_STARTERS.find((starter) => starter.id === lineItemStarterId) || ESTIMATE_LINE_ITEM_STARTERS[0];
+
+  function handleApplyTemplate() {
+    if (!selectedTemplate) return;
+    setDraft((current) => createEstimateDraft(applyEstimateTemplateStarter(current, selectedTemplate.id)));
+  }
+
+  function handleAddLineItemStarter() {
+    if (!selectedLineItem) return;
+    setDraft((current) => createEstimateDraft(addEstimateLineItemStarter(current, selectedLineItem.id)));
+  }
+
+  return (
+    <div className="rounded-3xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm shadow-emerald-100/50">
+      <SectionHeader
+        title="Estimate starters"
+        description="Templates are starters only. Review scope, pricing, exclusions, and totals before sending."
+        action={<Badge tone="emerald">Editable</Badge>}
+      />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-emerald-100 bg-white/80 p-3">
+          <SelectField label="Start From Template" value={templateId} onChange={(event) => setTemplateId(event.target.value)} disabled={disabled}>
+            {ESTIMATE_TEMPLATE_STARTERS.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
+          </SelectField>
+          <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedTemplate?.description || "Choose a reusable estimate starter."}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
+            Adds {selectedTemplate?.lineItems?.length || 0} editable line item starter{selectedTemplate?.lineItems?.length === 1 ? "" : "s"} with blank pricing.
+          </p>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={handleApplyTemplate} disabled={disabled || !selectedTemplate}>
+              Start From Template
+            </Button>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-white/80 p-3">
+          <SelectField label="Add Line Item From Library" value={lineItemStarterId} onChange={(event) => setLineItemStarterId(event.target.value)} disabled={disabled}>
+            {ESTIMATE_LINE_ITEM_STARTERS.map((starter) => <option key={starter.id} value={starter.id}>{starter.title}</option>)}
+          </SelectField>
+          <p className="mt-2 text-sm font-bold leading-5 text-slate-600">{selectedLineItem?.description || "Choose a reusable line item starter."}</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Pricing stays blank until office fills it in.</p>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={handleAddLineItemStarter} disabled={disabled || !selectedLineItem}>
+              Add Line Item From Library
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -10007,6 +10063,7 @@ function EstimatesPage({
                 <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
               </div>
               <div className="mt-3 grid gap-3">
+                <EstimateStarterPanel setDraft={setCreateDraft} disabled={busy} />
                 <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
               </div>
               <div className="mt-4 space-y-3">
@@ -10095,6 +10152,7 @@ function EstimatesPage({
                   <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" />
                 </div>
                 <div className="grid gap-3">
+                  <EstimateStarterPanel setDraft={setDetailDraft} disabled={busy || !canManage} />
                   <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
                 </div>
                 <div className="space-y-3">
