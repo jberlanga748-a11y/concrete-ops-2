@@ -11211,6 +11211,76 @@ function DashboardCommandRailPolished({
   );
 }
 
+function DashboardPriorityCard({ item }) {
+  return (
+    <Card className="co-dashboard-priority-card" data-tone={item.tone || "orange"}>
+      <div className="co-dashboard-priority-topline">
+        <span className="co-dashboard-priority-icon">
+          <Icon name={item.icon || "alert"} />
+        </span>
+        <Badge tone={item.tone || "orange"}>{item.badge}</Badge>
+      </div>
+      <div className="co-dashboard-priority-body">
+        <p>{item.value}</p>
+        <h3>{item.title}</h3>
+        <span>{item.description}</span>
+      </div>
+      <div className="co-dashboard-priority-actions">
+        <Button type="button" size="sm" onClick={item.onPrimary}>{item.primaryLabel}</Button>
+        {item.secondaryLabel ? (
+          <Button type="button" size="sm" variant="secondary" onClick={item.onSecondary}>{item.secondaryLabel}</Button>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function DashboardOfficeQueueCard({
+  items,
+  openCount,
+  onToggleTask,
+  onArchiveTask,
+  onOpenTools,
+  disabled,
+}) {
+  const visibleItems = normalizeObjectArray(items).slice(0, 4);
+
+  return (
+    <Card className="co-dashboard-office-queue-card overflow-hidden">
+      <div className="co-dashboard-board-header border-b border-slate-200 bg-white p-4">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <h2>Office Queue</h2>
+            <p>Today's queue stays visible, while full lead and task tools stay tucked into the operator drawer.</p>
+          </div>
+          <Button type="button" size="sm" onClick={onOpenTools}>Open queue tools</Button>
+        </div>
+      </div>
+      <div className="co-dashboard-office-queue-list">
+        {visibleItems.length ? visibleItems.map((item) => (
+          <div key={item.id} className="co-dashboard-office-queue-row">
+            <button type="button" onClick={() => onToggleTask?.(item.id)} disabled={disabled} className="co-dashboard-office-queue-check" aria-label={`Toggle ${item.title}`}>
+              <Icon name="check" />
+            </button>
+            <div className="min-w-0">
+              <p>{item.title}</p>
+              <span>{item.meta || "Queue context pending"}</span>
+            </div>
+            <StatusBadge status={item.done ? "Done" : item.status} />
+            <button type="button" className="co-dashboard-office-queue-archive" onClick={() => onArchiveTask?.(item.id)} disabled={disabled}>Archive</button>
+          </div>
+        )) : (
+          <StateCard title="Queue is clear" description="New tasks, blockers, and due-today items will appear here." tone="slate" />
+        )}
+      </div>
+      <div className="co-dashboard-board-footer">
+        <p>Showing {visibleItems.length} of {openCount} active queue items</p>
+        <Button type="button" size="sm" variant="secondary" onClick={onOpenTools}>Add or edit queue</Button>
+      </div>
+    </Card>
+  );
+}
+
 function DashboardPage(props) {
   return <DashboardPagePolished {...props} />;
 }
@@ -11269,6 +11339,8 @@ function DashboardPagePolished({
   const queueRef = useRef(null);
   const jobsRef = useRef(null);
   const leadPipelineRef = useRef(null);
+  const [showOfficeTools, setShowOfficeTools] = useState(false);
+  const [showBackTop, setShowBackTop] = useState(false);
 
   useEffect(() => {
     const targets = {
@@ -11281,6 +11353,17 @@ function DashboardPagePolished({
     nextTarget.scrollIntoView({ behavior: "smooth", block: "start" });
     nextTarget.focus({ preventScroll: true });
   }, [dashboardFocusTarget]);
+
+  useEffect(() => {
+    function handleScroll() {
+      const shouldShow = window.scrollY > 520;
+      setShowBackTop((current) => (current === shouldShow ? current : shouldShow));
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const tabs = (Array.isArray(dashboardShortcuts) ? dashboardShortcuts : []).map((shortcut) => (
     <button
@@ -11310,6 +11393,8 @@ function DashboardPagePolished({
   const liveLeadCount = dashboardMetrics?.liveLeadCount ?? 0;
   const liveJobsPreview = Array.isArray(dashboardMetrics?.liveJobsPreview) ? dashboardMetrics.liveJobsPreview : [];
   const canViewLeads = Boolean(permissions?.leads?.canView);
+  const normalizedQueueItems = useMemo(() => normalizeObjectArray(queueItems), [queueItems]);
+  const activeQueueItems = useMemo(() => normalizedQueueItems.filter((item) => !item.archivedAt && !item.done), [normalizedQueueItems]);
   const fieldDashboardActions = useMemo(() => (
     [
       { title: "My jobs", description: "Open assigned jobs and field-visible planning work.", icon: "briefcase", moduleId: "jobs", badge: "Open", tone: "blue" },
@@ -11322,17 +11407,72 @@ function DashboardPagePolished({
   ), [permissions?.reports?.canView, permissions?.time?.canView, permissions?.toolChecklist?.canUse, permissions?.uploads?.canView]);
   const pipelineValue = Number(stats.pipelineValue || 0);
   const pipelineKValue = Math.round(pipelineValue / 1000);
-  const visibleLeadRowCap = 6;
-  const visibleJobRowCap = 6;
+  const visibleLeadRowCap = 5;
+  const visibleJobRowCap = 4;
   const visibleJobRows = liveJobsPreview.slice(0, visibleJobRowCap);
-  const openQueueCount = normalizeObjectArray(queueItems).filter((item) => !item.archivedAt && !item.done).length;
+  const openQueueCount = activeQueueItems.length;
+  const dueQueueCount = activeQueueItems.filter((item) => item.status === "Due today").length;
+  const readyQueueCount = activeQueueItems.filter((item) => item.status === "Ready").length;
+  const blockedQueueCount = activeQueueItems.filter((item) => item.status === "Blocked").length;
   const startupNeedsAttention = Number(stats.startupReviewJobs || 0) + Number(stats.startupMissingCrewStart || 0);
   const dashboardKpis = [
-    { label: "New Leads", value: Number(stats.newLeads || 0), helper: `${stats.highPriorityLeads || 0} high priority`, icon: "inbox", tone: "blue", actionLabel: "Open leads", onAction: () => setActive("leads") },
-    { label: "Pipeline $K", value: pipelineKValue, helper: `${currency(pipelineValue)} open / ${liveLeadCount} live`, icon: "quote", tone: "orange", actionLabel: "Review pipeline", onAction: () => setActive("leads") },
-    { label: "Active Jobs", value: Number(stats.activeJobs || 0), helper: `${stats.scheduledJobs || 0} scheduled next`, icon: "briefcase", tone: "green", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
-    { label: "Reports Due", value: Number(stats.reportsDue || 0), helper: `${openQueueCount} queue item${openQueueCount === 1 ? "" : "s"} open`, icon: "document", tone: Number(stats.reportsDue || 0) ? "amber" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Review queue", onAction: () => (permissions?.reports?.canView ? setActive("reports") : focusDashboardRef(queueRef)) },
-    { label: "Startup Watch", value: startupNeedsAttention, helper: `${stats.startupReadyJobs || 0} ready for field`, icon: "alert", tone: startupNeedsAttention ? "amber" : "green", actionLabel: "Review jobs", onAction: () => setActive("jobs") },
+    { label: "New Leads", value: Number(stats.newLeads || 0), helper: `${stats.highPriorityLeads || 0} high priority`, icon: "inbox", tone: "blue", actionLabel: "View new", onAction: () => { setLeadFilter("New"); focusDashboardRef(leadPipelineRef); } },
+    { label: "Pipeline $K", value: pipelineKValue, helper: `${currency(pipelineValue)} open / ${liveLeadCount} live`, icon: "quote", tone: "orange", actionLabel: "Review pipeline", onAction: () => { setLeadFilter("All"); focusDashboardRef(leadPipelineRef); } },
+    { label: "Active Jobs", value: Number(stats.activeJobs || 0), helper: `${stats.scheduledJobs || 0} scheduled next`, icon: "briefcase", tone: "green", actionLabel: "View jobs", onAction: () => focusDashboardRef(jobsRef) },
+    { label: "Reports Due", value: Number(stats.reportsDue || 0), helper: `${openQueueCount} queue item${openQueueCount === 1 ? "" : "s"} open`, icon: "document", tone: Number(stats.reportsDue || 0) ? "amber" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Review queue", onAction: () => (permissions?.reports?.canView ? setActive("reports") : openDashboardTools(queueRef)) },
+    { label: "Startup Watch", value: startupNeedsAttention, helper: `${stats.startupReadyJobs || 0} ready for field`, icon: "alert", tone: startupNeedsAttention ? "amber" : "green", actionLabel: "Review jobs", onAction: () => focusDashboardRef(jobsRef) },
+  ];
+  const blockedWorkCount = Math.max(blockedQueueCount, Number(stats.queueBlocked || 0));
+  const attentionCount = Number(stats.reportsDue || 0) + startupNeedsAttention + dueQueueCount + blockedWorkCount;
+  const dashboardPriorityCards = [
+    {
+      title: "Needs attention today",
+      value: attentionCount,
+      description: `${Number(stats.reportsDue || 0)} reports due / ${dueQueueCount} queue due / ${startupNeedsAttention} startup checks`,
+      badge: "Attention",
+      icon: "alert",
+      tone: attentionCount ? "amber" : "green",
+      primaryLabel: permissions?.jobs?.canManageAll ? "Open Command Center" : "Review Queue",
+      onPrimary: () => (permissions?.jobs?.canManageAll ? setActive("commandCenter") : openDashboardTools(queueRef)),
+      secondaryLabel: "Queue tools",
+      onSecondary: () => openDashboardTools(queueRef),
+    },
+    {
+      title: "Ready to move",
+      value: Number(stats.startupReadyJobs || 0) + readyQueueCount,
+      description: `${stats.startupReadyJobs || 0} jobs ready / ${readyQueueCount} queue items ready`,
+      badge: "Ready",
+      icon: "check",
+      tone: "green",
+      primaryLabel: "Review jobs",
+      onPrimary: () => focusDashboardRef(jobsRef),
+      secondaryLabel: "Open jobs",
+      onSecondary: () => setActive("jobs"),
+    },
+    {
+      title: "Pipeline next",
+      value: Number(stats.newLeads || 0) + Number(stats.highPriorityLeads || 0),
+      description: `${stats.newLeads || 0} new leads / ${stats.highPriorityLeads || 0} high priority`,
+      badge: "Leads",
+      icon: "users",
+      tone: "blue",
+      primaryLabel: "Review leads",
+      onPrimary: () => { setLeadFilter("New"); focusDashboardRef(leadPipelineRef); },
+      secondaryLabel: "Open leads",
+      onSecondary: () => setActive("leads"),
+    },
+    {
+      title: "Blocked work",
+      value: blockedWorkCount,
+      description: blockedWorkCount ? "Blocked queue items need owner decision before the day moves." : "No blocked queue items right now.",
+      badge: "Blocked",
+      icon: "clipboard",
+      tone: blockedWorkCount ? "red" : "slate",
+      primaryLabel: "Review blockers",
+      onPrimary: () => openDashboardTools(queueRef),
+      secondaryLabel: permissions?.jobs?.canManageAll ? "Command Center" : "",
+      onSecondary: () => setActive("commandCenter"),
+    },
   ];
   const fieldKpis = [
     { label: "Visible Jobs", value: liveJobsPreview.length, helper: "Assigned and field-visible work", icon: "briefcase", tone: "blue", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
@@ -11344,6 +11484,15 @@ function DashboardPagePolished({
   function focusDashboardRef(ref) {
     ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     ref.current?.focus?.({ preventScroll: true });
+  }
+
+  function openDashboardTools(ref = queueRef) {
+    setShowOfficeTools(true);
+    window.setTimeout(() => focusDashboardRef(ref), 0);
+  }
+
+  function scrollDashboardTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (!canViewLeads) {
@@ -11403,6 +11552,7 @@ function DashboardPagePolished({
             </div>
           </div>
         </div>
+        {showBackTop ? <button type="button" className="co-dashboard-back-top" onClick={scrollDashboardTop}>Top</button> : null}
       </div>
     );
   }
@@ -11425,6 +11575,10 @@ function DashboardPagePolished({
 
       <div className="co-dashboard-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {dashboardKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-dashboard-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {dashboardPriorityCards.map((item) => <DashboardPriorityCard key={item.title} item={item} />)}
       </div>
 
       <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
@@ -11483,11 +11637,20 @@ function DashboardPagePolished({
             </Card>
           </div>
 
-          <details className="co-dashboard-tools-drawer" open>
+          <DashboardOfficeQueueCard
+            items={activeQueueItems}
+            openCount={openQueueCount}
+            onToggleTask={onToggleTask}
+            onArchiveTask={onArchiveTask}
+            onOpenTools={() => openDashboardTools(queueRef)}
+            disabled={busy}
+          />
+
+          <details className="co-dashboard-tools-drawer" open={showOfficeTools} onToggle={(event) => setShowOfficeTools(event.currentTarget.open)}>
             <summary>
               <span>
-                <strong>Queue / Lead Tools</strong>
-                <em>Keep task actions and selected lead editing available without crowding the command board.</em>
+                <strong>Operator Tools</strong>
+                <em>Full task queue, add-task form, and selected lead editing stay here when deeper work is needed.</em>
               </span>
               <span>{openQueueCount} open queue item{openQueueCount === 1 ? "" : "s"}</span>
             </summary>
@@ -11533,6 +11696,7 @@ function DashboardPagePolished({
           onFocusLeads={() => focusDashboardRef(leadPipelineRef)}
         />
       </div>
+      {showBackTop ? <button type="button" className="co-dashboard-back-top" onClick={scrollDashboardTop}>Top</button> : null}
     </div>
   );
 }
