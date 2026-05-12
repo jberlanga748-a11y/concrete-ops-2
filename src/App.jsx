@@ -14533,6 +14533,60 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityDraft(matchDraft, options = {}) {
+    const targetDraft = filteredDrafts.find(matchDraft) || normalizedDrafts.find(matchDraft);
+    if (options.statusFilter) setStatusFilter(options.statusFilter);
+    if (options.readinessFilter) setReadinessFilter(options.readinessFilter);
+    if (options.serviceTypeFilter) setServiceTypeFilter(options.serviceTypeFilter);
+    if (options.createdFilter) setCreatedFilter(options.createdFilter);
+    if (options.cityFilter !== undefined) setCityFilter(options.cityFilter);
+    if (options.search !== undefined) setSearch(options.search);
+    if (targetDraft?.id) setSelectedDraftId(targetDraft.id);
+    if (options.review && targetDraft?.id) {
+      onSelectDraft(targetDraft.id);
+    }
+  }
+
+  const matchReviewDraft = normalizedDrafts.find((draft) => ["Review Required", "Possible Match", "Not Checked"].includes(draft.customerMatchStatus));
+  const importsPriorityCards = [
+    {
+      label: "Needs review",
+      value: stats.needsReview,
+      helper: stats.needsReview ? "Missing info, warnings, or readiness gaps need office review." : "No imported draft is currently marked needs-review.",
+      icon: "alert",
+      tone: stats.needsReview ? "amber" : "green",
+      actionLabel: stats.needsReview ? "Review" : "All clear",
+      onAction: () => openPriorityDraft((draft) => draft.importStatus === "Needs Review", { statusFilter: stats.needsReview ? "Needs Review" : "All", review: Boolean(stats.needsReview) }),
+    },
+    {
+      label: "Ready to create",
+      value: stats.readyToCreate,
+      helper: stats.readyToCreate ? "Drafts are ready to become real jobs after final office check." : "No draft is ready for job creation yet.",
+      icon: "check",
+      tone: stats.readyToCreate ? "green" : "slate",
+      actionLabel: stats.readyToCreate ? "Open ready" : "Not ready",
+      onAction: () => openPriorityDraft((draft) => draft.importStatus === "Ready to Create Job", { statusFilter: stats.readyToCreate ? "Ready to Create Job" : "All", review: Boolean(stats.readyToCreate) }),
+    },
+    {
+      label: "Match review",
+      value: matchReviewCount,
+      helper: matchReviewCount ? "Customer matching needs a look before creating jobs." : "Customer match state is clean in the imported list.",
+      icon: "users",
+      tone: matchReviewCount ? "orange" : "green",
+      actionLabel: matchReviewCount ? "Review match" : "Matched",
+      onAction: () => openPriorityDraft((draft) => draft.id === matchReviewDraft?.id, { review: Boolean(matchReviewDraft) }),
+    },
+    {
+      label: "Import package",
+      value: permissions?.jobDraftImports?.canManage ? "Ready" : stats.total,
+      helper: permissions?.jobDraftImports?.canManage ? "Load a JSON package into the review queue." : "Review-only access keeps job creation controlled.",
+      icon: "upload",
+      tone: permissions?.jobDraftImports?.canManage ? "blue" : "slate",
+      actionLabel: permissions?.jobDraftImports?.canManage ? "Import" : "View only",
+      onAction: () => permissions?.jobDraftImports?.canManage ? openTools() : openPriorityDraft((draft) => draft.id === selectedDraft?.id),
+    },
+  ];
+
   return (
     <div className="co-office-page co-imports-page">
       <PageHeader
@@ -14549,6 +14603,20 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
 
       <div className="co-imports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {importKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {importsPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-imports-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
