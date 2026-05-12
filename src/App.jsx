@@ -2569,9 +2569,9 @@ function LeadsTable({ rows, selectedId, onSelect, maxRows = null }) {
                   <p className="font-black text-slate-950">{row.customer}</p>
                   <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
                 </td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project || "No project yet"}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-600">{row.city || "No city"}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-600">{leadSourceLabel(row.source || "Call-in")}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700"><span className="line-clamp-2">{row.project || "No project yet"}</span></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-600"><span className="truncate">{row.city || "No city"}</span></td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-600"><span className="line-clamp-2">{leadSourceLabel(row.source || "Call-in")}</span></td>
                 <td className="px-4 py-3"><StatusBadge status={row.status || "New"} /></td>
                 <td className="max-w-[260px] px-4 py-3 text-sm font-bold text-slate-600">
                   <span className="line-clamp-2">{row.nextStep || "Add next step"}</span>
@@ -8463,6 +8463,8 @@ function FollowUpQueuePanel({
   onOpenEstimate = () => {},
   onOpenLeads = () => {},
   onCreateContactHistory = async () => false,
+  compact = false,
+  maxItems = 12,
 }) {
   const canView = Boolean(permissions?.contactHistory?.canView && permissions?.leads?.canView);
   const canManage = Boolean(permissions?.contactHistory?.canManage);
@@ -8534,6 +8536,133 @@ function FollowUpQueuePanel({
     { label: "Waiting", value: queueState.stats.waiting, tone: "blue" },
     { label: "Not Contacted", value: queueState.stats.notContacted, tone: "slate" },
   ];
+  const visibleDisplayItems = visibleItems.slice(0, maxItems);
+
+  if (compact) {
+    return (
+      <Card className="co-leads-followup-card co-leads-followup-compact overflow-hidden">
+        <div className="co-leads-followup-header border-b border-slate-200 bg-white p-3">
+          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-sm font-black uppercase tracking-[0.06em] text-slate-950">Follow-Up Queue / Office Action Board</h3>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-600">Work the next calls, manual drafts, waiting records, and due follow-ups without opening every lead tool.</p>
+            </div>
+            <div className="co-leads-followup-stat-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[430px]">
+              {stats.map((stat) => (
+                <div key={stat.label} className="co-leads-followup-stat">
+                  <p>{stat.value}</p>
+                  <span>{stat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="co-leads-followup-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+            {FOLLOW_UP_QUEUE_GROUPS.slice(0, 7).map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className={groupFilter === group.id ? "is-active" : ""}
+                onClick={() => setGroupFilter(group.id)}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+          {message ? <p className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">{message}</p> : null}
+          <ManualOutreachDraftPanel
+            item={draftItem}
+            companyName={companyName}
+            user={user}
+            disabled={disabled}
+            onClose={() => setDraftItemId("")}
+            onAction={runQueueAction}
+          />
+        </div>
+
+        <div className="hidden md:block">
+          <div className="table-shell co-leads-followup-table-shell">
+            <table className="co-leads-followup-table w-full min-w-[860px] text-left">
+              <thead>
+                <tr>
+                  <th>Customer / Company</th>
+                  <th>Last Contact</th>
+                  <th>Next Step</th>
+                  <th>Status</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleDisplayItems.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <p className="font-black text-slate-950">{item.title}</p>
+                      <p className="text-xs font-bold text-slate-500">{item.subtitle || item.type}</p>
+                    </td>
+                    <td className="text-sm font-bold text-slate-700">{item.lastContactedAt ? formatDateTime(item.lastContactedAt) : "Not contacted"}</td>
+                    <td className="text-sm font-bold text-slate-700"><span className="line-clamp-2">{item.notesPreview || item.reason || "Review next action"}</span></td>
+                    <td><Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : item.bucket === "waiting" ? "blue" : "slate"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge></td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="co-leads-row-action" onClick={() => openItem(item)}>{item.actionLabel}</button>
+                        {canManage && item.type !== "leadSource" ? <button type="button" className="co-leads-row-action" onClick={() => setDraftItemId(item.id)} disabled={disabled}>Draft / Copy</button> : null}
+                        {canManage && item.type !== "leadSource" ? <button type="button" className="co-leads-icon-button" onClick={() => runQueueAction(item, "mark-waiting")} disabled={disabled} aria-label={`Mark ${item.title} waiting`}><Icon name="clock" /></button> : null}
+                        {canManage && item.type !== "leadSource" ? <button type="button" className="co-leads-icon-button" onClick={() => runQueueAction(item, "follow-up-tomorrow")} disabled={disabled} aria-label={`Follow up with ${item.title} tomorrow`}><Icon name="clipboard" /></button> : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="co-leads-followup-mobile-list grid gap-2 p-3 md:hidden">
+          {visibleDisplayItems.map((item) => (
+            <div key={item.id} className="co-office-list-card rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-black text-slate-950">{item.title}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{item.subtitle || item.reason}</p>
+                </div>
+                <Badge tone={item.bucket === "overdue" ? "red" : item.bucket === "dueToday" ? "amber" : item.bucket === "waiting" ? "blue" : "slate"}>{FOLLOW_UP_QUEUE_GROUPS.find((group) => group.id === item.bucket)?.label || "Follow-Up"}</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => openItem(item)}>{item.actionLabel}</Button>
+                {canManage && item.type !== "leadSource" ? <Button type="button" size="sm" onClick={() => setDraftItemId(item.id)} disabled={disabled}>Draft / Copy</Button> : null}
+              </div>
+            </div>
+          ))}
+          {visibleDisplayItems.length === 0 ? <StateCard title="Follow-up queue is clear" description="Due, overdue, waiting, not-contacted, and recently contacted records will appear here." tone="slate" /> : null}
+        </div>
+
+        <details className="co-leads-tool-disclosure co-leads-followup-filters mx-3 mb-3">
+          <summary>
+            <span>Search and queue filters</span>
+            <span>{visibleItems.length} matching records</span>
+          </summary>
+          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+            <input
+              className="field-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search follow-ups, customers, projects, notes..."
+            />
+            <SelectField label="Queue" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
+              {FOLLOW_UP_QUEUE_GROUPS.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}
+            </SelectField>
+            <SelectField label="Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+              {FOLLOW_UP_QUEUE_TYPE_FILTERS.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+            </SelectField>
+          </div>
+        </details>
+
+        <div className="co-leads-followup-footer flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2">
+          <p className="text-xs font-black text-slate-500">Showing {visibleDisplayItems.length} of {visibleItems.length} follow-up records.</p>
+          <button type="button" className="text-xs font-black text-orange-700" onClick={() => setGroupFilter("all")}>View all follow-up work</button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -8581,7 +8710,7 @@ function FollowUpQueuePanel({
       </div>
 
       <div className="grid gap-3 p-4">
-        {visibleItems.length > 0 ? visibleItems.slice(0, 12).map((item) => (
+        {visibleItems.length > 0 ? visibleDisplayItems.map((item) => (
           <div key={item.id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
             <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
@@ -9086,9 +9215,12 @@ function LeadCommandRail({
         </div>
       </Card>
 
-      <Card className="co-leads-rail-card p-4">
-        <SectionHeader title="Lead edit" description="Fast fields for status, owner, follow-up, and next step." />
-        <div className="grid gap-3">
+      <details className="co-leads-rail-details">
+        <summary>
+          <span>Lead edit</span>
+          <span>Status, owner, follow-up, and notes</span>
+        </summary>
+        <div className="grid gap-3 p-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <SelectField label="Status" value={lead.status || "New"} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
               <option>New</option>
@@ -9119,7 +9251,7 @@ function LeadCommandRail({
           </SelectField>
           <TextAreaField label="Notes" value={lead.notes || ""} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} className="field-input min-h-24 resize-y" />
         </div>
-      </Card>
+      </details>
 
       <Card className="co-leads-rail-card p-4">
         <SectionHeader title="AI lead assistant" description="Draft-only support for next steps and outreach copy." action={<Badge tone="blue">Beta</Badge>} />
@@ -9149,19 +9281,25 @@ function LeadCommandRail({
         ) : (
           <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">No contact history yet.</p>
         )}
-        <div className="co-leads-contact-editor mt-3">
-          <ContactHistoryPanel
-            entityType="lead"
-            entity={lead}
-            records={contactHistory}
-            permissions={contactHistoryPermissions}
-            disabled={disabled}
-            onCreate={onCreateContactHistory}
-            onUpdate={onUpdateContactHistory}
-            onArchive={onArchiveContactHistory}
-            onRestore={onRestoreContactHistory}
-          />
-        </div>
+        <details className="co-leads-rail-details co-leads-contact-editor mt-3">
+          <summary>
+            <span>Log contact / edit history</span>
+            <span>Manual outreach notes</span>
+          </summary>
+          <div className="pt-3">
+            <ContactHistoryPanel
+              entityType="lead"
+              entity={lead}
+              records={contactHistory}
+              permissions={contactHistoryPermissions}
+              disabled={disabled}
+              onCreate={onCreateContactHistory}
+              onUpdate={onUpdateContactHistory}
+              onArchive={onArchiveContactHistory}
+              onRestore={onRestoreContactHistory}
+            />
+          </div>
+        </details>
       </Card>
     </div>
   );
@@ -9227,12 +9365,21 @@ function LeadsPage({
 }) {
   const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
   const today = todayDateInputValue();
+  const [activeLeadTool, setActiveLeadTool] = useState("intake");
+  const visibleLeadRowCap = 6;
+  const canManageSources = permissions?.leads?.canManageSources ?? permissions?.leads?.canManage;
   const leadKpis = [
     { label: "New Leads", value: rows.filter((lead) => lead.status === "New").length, helper: "Uncontacted new leads", icon: "users", tone: "blue", actionLabel: "View new leads", onAction: () => setFilter("New") },
     { label: "Follow-Ups Due", value: rows.filter((lead) => isLeadFollowUpDue(lead, today)).length, helper: "Need your follow-up today", icon: "clipboard", tone: "orange", actionLabel: "View follow-up queue", onAction: () => setDueFilter("Due today") },
     { label: "Overdue", value: rows.filter((lead) => lead.followUpDueAt && String(lead.followUpDueAt).slice(0, 10) < today).length, helper: "Past due follow-ups", icon: "alert", tone: "red", actionLabel: "View overdue", onAction: () => setDueFilter("Overdue") },
     { label: "Waiting on Response", value: rows.filter(isLeadWaitingOnResponse).length, helper: "Customer has not replied", icon: "clock", tone: "amber", actionLabel: "View waiting", onAction: () => setFilter("All") },
     { label: "Ready for Estimate", value: rows.filter(isLeadReadyForEstimate).length, helper: "Ready to build estimate", icon: "check", tone: "green", actionLabel: "View ready leads", onAction: () => setScoreFilter("All scores") },
+  ];
+  const leadToolTabs = [
+    { id: "intake", label: "Intake", count: permissions.leads.canManage ? 1 : 0 },
+    { id: "review", label: "Review Queue", count: leadInboxState.items.length },
+    { id: "sourceChecks", label: "Source Checks", count: leadSources.length },
+    { id: "sources", label: "Lead Sources", count: leadSources.length },
   ];
 
   function handleStartLeadFromSource(source) {
@@ -9271,59 +9418,86 @@ function LeadsPage({
           </div>
         }
       />
-      <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-5 lg:px-8">
+      <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {leadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
-      <div className="co-leads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-6">
-        <Card className="co-leads-main-board overflow-hidden">
-          <div className="co-leads-board-header border-b border-slate-200 bg-white p-4">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Lead Inbox / Review Queue</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter active leads, select a record, and work the next action from the right rail.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All leads</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setDueFilter("Due today")}>Due today</Button>
-                {permissions?.estimates?.canManage && selectedLead ? <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(selectedLead)}>Create Estimate</Button> : null}
+      <div className="co-leads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-leads-left-stack min-w-0 space-y-3">
+          <Card className="co-leads-main-board overflow-hidden">
+            <div className="co-leads-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Lead Inbox / Review Queue</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter active leads, select a record, and work the next action from the right rail.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All leads</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setDueFilter("Due today")}>Due today</Button>
+                  {permissions?.estimates?.canManage && selectedLead ? <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(selectedLead)}>Create Estimate</Button> : null}
+                </div>
               </div>
             </div>
-          </div>
-          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, or notes..." />
-          <div className="co-office-filter-grid co-leads-filter-grid grid gap-3 border-b border-slate-200 bg-slate-50/70 p-3 md:grid-cols-5">
-            <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
-              <option>All owners</option>
-              {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
-            </SelectField>
-            <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
-              <option>All sources</option>
-              {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
-            </SelectField>
-            <SelectField label="Follow-up due" value={dueFilter} onChange={(event) => setDueFilter(event.target.value)}>
-              <option>All due dates</option>
-              <option>Overdue</option>
-              <option>Due today</option>
-              <option>Due soon</option>
-              <option>No due date</option>
-            </SelectField>
-            <SelectField label="Fit score" value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)}>
-              <option>All scores</option>
-              {LEAD_SCORE_LABELS.map((label) => <option key={label}>{label}</option>)}
-            </SelectField>
-            <SelectField label="Sort" value={scoreSort} onChange={(event) => setScoreSort(event.target.value)}>
-              <option>Default order</option>
-              <option>High score first</option>
-            </SelectField>
-          </div>
-          <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {Math.min(rows.length, rows.length)} of {leads.filter((lead) => !lead.archivedAt).length} leads</p>
-            <div className="flex gap-2">
-              <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>Clear filters</Button>
+            <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, or notes..." />
+            <details className="co-leads-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[ownerFilter !== "All owners" ? ownerFilter : "", sourceFilter !== "All sources" ? sourceFilter : "", dueFilter !== "All due dates" ? dueFilter : "", scoreFilter !== "All scores" ? scoreFilter : ""].filter(Boolean).length || "Owner, source, due date, score"}</span>
+              </summary>
+              <div className="co-office-filter-grid co-leads-filter-grid grid gap-3 p-3 md:grid-cols-5">
+                <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+                  <option>All owners</option>
+                  {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
+                </SelectField>
+                <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+                  <option>All sources</option>
+                  {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
+                </SelectField>
+                <SelectField label="Follow-up due" value={dueFilter} onChange={(event) => setDueFilter(event.target.value)}>
+                  <option>All due dates</option>
+                  <option>Overdue</option>
+                  <option>Due today</option>
+                  <option>Due soon</option>
+                  <option>No due date</option>
+                </SelectField>
+                <SelectField label="Fit score" value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)}>
+                  <option>All scores</option>
+                  {LEAD_SCORE_LABELS.map((label) => <option key={label}>{label}</option>)}
+                </SelectField>
+                <SelectField label="Sort" value={scoreSort} onChange={(event) => setScoreSort(event.target.value)}>
+                  <option>Default order</option>
+                  <option>High score first</option>
+                </SelectField>
+              </div>
+            </details>
+            <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} maxRows={visibleLeadRowCap} />
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {Math.min(rows.length, visibleLeadRowCap)} of {leads.filter((lead) => !lead.archivedAt).length} leads</p>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>Clear filters</Button>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          <FollowUpQueuePanel
+            leads={leads}
+            customers={customers}
+            estimates={estimates}
+            leadSources={leadSources}
+            contactHistory={contactHistory}
+            permissions={permissions}
+            companyName={companyName}
+            user={user}
+            disabled={busy}
+            onOpenLead={onSelectLead}
+            onOpenCustomer={onSelectCustomer}
+            onOpenEstimate={onOpenEstimate}
+            onOpenLeads={() => setActive?.("leads")}
+            onCreateContactHistory={onCreateContactHistory}
+            compact
+            maxItems={5}
+          />
+        </div>
 
         <LeadCommandRail
           lead={selectedLead}
@@ -9353,48 +9527,51 @@ function LeadsPage({
         />
       </div>
 
-      <div className="co-leads-followup-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-4 px-5 pb-4 sm:px-6 lg:px-8">
-        <FollowUpQueuePanel
-          leads={leads}
-          customers={customers}
-          estimates={estimates}
-          leadSources={leadSources}
-          contactHistory={contactHistory}
-          permissions={permissions}
-          companyName={companyName}
-          user={user}
-          disabled={busy}
-          onOpenLead={onSelectLead}
-          onOpenCustomer={onSelectCustomer}
-          onOpenEstimate={onOpenEstimate}
-          onOpenLeads={() => setActive?.("leads")}
-          onCreateContactHistory={onCreateContactHistory}
-        />
-      </div>
-
-      <div className="co-leads-secondary-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-4 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:px-8">
-        <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
-      </div>
-
-      <div className="co-leads-source-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-4 px-5 pb-4 sm:px-6 lg:px-8">
-        <DailySourceCheckPanel
-          sources={leadSources}
-          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
-          onMarkSourceChecked={onMarkLeadSourceChecked}
-          onStartLeadFromSource={handleStartLeadFromSource}
-          disabled={busy}
-        />
-        <LeadSourcesPanel
-          sources={leadSources}
-          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
-          onCreateSource={onCreateLeadSource}
-          onUpdateSource={onUpdateLeadSource}
-          onArchiveSource={onArchiveLeadSource}
-          onRestoreSource={onRestoreLeadSource}
-          disabled={busy}
-        />
-      </div>
+      <details className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8">
+        <summary>
+          <span>
+            <strong>Lead Tools</strong>
+            <em>Intake, review queue, source checks, and source management stay available here.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-leads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {leadToolTabs.map((tab) => (
+            <button key={tab.id} type="button" className={activeLeadTool === tab.id ? "is-active" : ""} onClick={() => setActiveLeadTool(tab.id)}>
+              {tab.label}
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="co-leads-tools-panel mt-3">
+          {activeLeadTool === "intake" ? (
+            <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
+          ) : null}
+          {activeLeadTool === "review" ? (
+            <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
+          ) : null}
+          {activeLeadTool === "sourceChecks" ? (
+            <DailySourceCheckPanel
+              sources={leadSources}
+              canManage={canManageSources}
+              onMarkSourceChecked={onMarkLeadSourceChecked}
+              onStartLeadFromSource={handleStartLeadFromSource}
+              disabled={busy}
+            />
+          ) : null}
+          {activeLeadTool === "sources" ? (
+            <LeadSourcesPanel
+              sources={leadSources}
+              canManage={canManageSources}
+              onCreateSource={onCreateLeadSource}
+              onUpdateSource={onUpdateLeadSource}
+              onArchiveSource={onArchiveLeadSource}
+              onRestoreSource={onRestoreLeadSource}
+              disabled={busy}
+            />
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }
