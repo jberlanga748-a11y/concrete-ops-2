@@ -13695,13 +13695,14 @@ function jobStartupNeedsReview(job) {
   return ["Not Started", "In Progress", "Needs Review"].includes(startupStatus);
 }
 
-function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
+function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8, mobileMaxRows = null }) {
   const visibleRows = rows.slice(0, maxRows);
+  const mobileRows = rows.slice(0, mobileMaxRows || maxRows);
 
   return (
     <>
       <div className="co-jobs-mobile-list grid gap-3 p-3 md:hidden">
-        {visibleRows.map((job) => {
+        {mobileRows.map((job) => {
           const selected = job.id === selectedId;
           const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
           const missingCrew = jobMissingCrew(job);
@@ -14058,6 +14059,7 @@ function JobsPagePolished({
 
   const [showJobTools, setShowJobTools] = useState(false);
   const [activeJobTool, setActiveJobTool] = useState("create");
+  const [showAllMobileJobs, setShowAllMobileJobs] = useState(false);
   const jobToolsRef = useRef(null);
   const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : "scope review";
   const pageTitle = "Jobs";
@@ -14071,6 +14073,8 @@ function JobsPagePolished({
   }, users), [customerFilter, dateFilter, filter, foremanFilter, rows, search, users]);
   const visibleRows = jobListState.filteredJobs.filter((job) => startupFilter === "All startup" || (job.startupStatus || "Not Started") === startupFilter);
   const visibleJobRowCap = 8;
+  const mobileJobPreviewCap = 3;
+  const mobileVisibleJobRowCap = showAllMobileJobs ? visibleJobRowCap : mobileJobPreviewCap;
   const jobKpis = [
     { label: "Jobs", value: visibleRows.length, helper: "Matching current filters", icon: "briefcase", tone: "blue", actionLabel: "View jobs", onAction: () => setFilter("All") },
     { label: "Startup Review", value: visibleRows.filter(jobStartupNeedsReview).length, helper: "Needs office or field prep", icon: "alert", tone: "orange", actionLabel: "Review startup", onAction: () => setStartupFilter("Needs Review") },
@@ -14091,6 +14095,13 @@ function JobsPagePolished({
     window.setTimeout(() => jobToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function jumpToJobSection(sectionId) {
+    if (typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   function focusNewJob() {
     openJobTool("create");
   }
@@ -14103,7 +14114,7 @@ function JobsPagePolished({
         description={`Manage active jobs, startup readiness, crews, schedules, and field visibility from one ${roleLabel} command view.`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => openJobTool("details")}>{visibleRows.length} visible jobs</Button>
+            <Button type="button" variant="secondary" onClick={() => jumpToJobSection("jobs-operations-board")}>{visibleRows.length} visible jobs</Button>
             {permissions.jobs.canCreate ? <Button type="button" onClick={focusNewJob}>Create Job</Button> : null}
           </div>
         }
@@ -14114,7 +14125,7 @@ function JobsPagePolished({
 
       <div className="co-jobs-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-jobs-left-stack min-w-0 space-y-3">
-          <Card className="co-jobs-main-board overflow-hidden">
+          <Card id="jobs-operations-board" className="co-jobs-main-board overflow-hidden">
             <div className="co-jobs-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
@@ -14162,11 +14173,21 @@ function JobsPagePolished({
                 <StateCard title="No jobs match this view" description="Adjust filters or create a job to bring active work into the operations board." tone="blue" />
               </div>
             ) : (
-              <JobsTablePolished rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} maxRows={visibleJobRowCap} />
+              <JobsTablePolished rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} maxRows={visibleJobRowCap} mobileMaxRows={mobileVisibleJobRowCap} />
             )}
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-              <p className="text-sm font-bold text-slate-600">Showing {Math.min(visibleRows.length, visibleJobRowCap)} of {visibleRows.length} filtered jobs</p>
-              <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setCustomerFilter("All customers"); setForemanFilter("All foremen"); setDateFilter("All dates"); setStartupFilter("All startup"); setSearch(""); }}>Clear filters</Button>
+              <p className="text-sm font-bold text-slate-600">
+                <span className="hidden md:inline">Showing {Math.min(visibleRows.length, visibleJobRowCap)} of {visibleRows.length} filtered jobs</span>
+                <span className="md:hidden">Showing {Math.min(visibleRows.length, mobileVisibleJobRowCap)} of {visibleRows.length} filtered jobs</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {visibleRows.length > mobileJobPreviewCap ? (
+                  <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobileJobs((current) => !current)}>
+                    {showAllMobileJobs ? "Show less" : "Show more"}
+                  </Button>
+                ) : null}
+                <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setCustomerFilter("All customers"); setForemanFilter("All foremen"); setDateFilter("All dates"); setStartupFilter("All startup"); setSearch(""); }}>Clear filters</Button>
+              </div>
             </div>
           </Card>
         </div>
