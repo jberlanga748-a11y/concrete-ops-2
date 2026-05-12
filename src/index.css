@@ -7001,6 +7001,24 @@ textarea {
   align-items: stretch;
 }
 
+.co-calculator-priority-desktop {
+  display: none;
+}
+
+.co-calculator-priority-mobile {
+  display: grid;
+}
+
+@media (min-width: 768px) {
+  .co-calculator-priority-desktop {
+    display: grid;
+  }
+
+  .co-calculator-priority-mobile {
+    display: none;
+  }
+}
+
 .co-toolbox-priority-card {
   --co-toolbox-priority-tone: #f97316;
   display: grid;

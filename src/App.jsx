@@ -16556,6 +16556,7 @@ function CalculatorPagePolished({
   duplicateSection,
   removeSection,
 }) {
+  const [showAllMobileCalculatorActions, setShowAllMobileCalculatorActions] = useState(false);
   const enteredDimensionCount = activeFields.filter((field) => String(activeDraft[field.key] ?? "").trim() !== "").length;
   const resultReady = result.status === "ready";
 
@@ -16623,6 +16624,22 @@ function CalculatorPagePolished({
       },
     },
   ];
+  const mobileCalculatorActionCap = 2;
+  const mobileCalculatorPriorityCards = showAllMobileCalculatorActions ? calculatorPriorityCards : calculatorPriorityCards.slice(0, mobileCalculatorActionCap);
+
+  function renderCalculatorPriorityCard(card) {
+    return (
+      <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+        <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+        <span className="min-w-0">
+          <span className="co-toolbox-priority-value">{card.value}</span>
+          <span className="co-toolbox-priority-label">{card.label}</span>
+          <span className="co-toolbox-priority-helper">{card.helper}</span>
+        </span>
+        <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+      </button>
+    );
+  }
 
   return (
     <div className={`co-office-page co-toolbox-page co-calculator-page ${isFieldTool ? "co-field-tool-page" : ""}`}>
@@ -16642,18 +16659,17 @@ function CalculatorPagePolished({
         {calculatorKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
-      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
-        {calculatorPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
-            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
-            <span className="min-w-0">
-              <span className="co-toolbox-priority-value">{card.value}</span>
-              <span className="co-toolbox-priority-label">{card.label}</span>
-              <span className="co-toolbox-priority-helper">{card.helper}</span>
-            </span>
-            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
-          </button>
-        ))}
+      <div className="co-toolbox-priority-grid co-calculator-priority-desktop mx-auto w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {calculatorPriorityCards.map(renderCalculatorPriorityCard)}
+      </div>
+
+      <div className="co-toolbox-priority-grid co-calculator-priority-mobile mx-auto w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:px-6">
+        {mobileCalculatorPriorityCards.map(renderCalculatorPriorityCard)}
+        {calculatorPriorityCards.length > mobileCalculatorActionCap ? (
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAllMobileCalculatorActions((current) => !current)}>
+            {showAllMobileCalculatorActions ? "Show fewer actions" : "Show save and takeoff"}
+          </Button>
+        ) : null}
       </div>
 
       <div className="mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6">
