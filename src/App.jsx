@@ -17500,6 +17500,36 @@ function ManagedSetupPanelPolished({
   const draftCompletedCount = draftRows.filter((item) => item.completed).length;
   const draftPercent = draftRows.length > 0 ? Math.round((draftCompletedCount / draftRows.length) * 100) : 0;
   const draftBlockers = draftRows.filter((item) => item.critical && !item.completed);
+  const suggestedOpenCategoryId = setupState.categories.find((category) => (
+    category.items.some((item) => {
+      const row = draftRows.find((candidate) => candidate.key === item.key) || item;
+      return row.critical && !row.completed;
+    })
+  ))?.id || setupState.categories.find((category) => (
+    category.items.some((item) => {
+      const row = draftRows.find((candidate) => candidate.key === item.key) || item;
+      return !row.completed;
+    })
+  ))?.id || setupState.categories[0]?.id || "";
+  const [openChecklistCategories, setOpenChecklistCategories] = useState(() => (
+    suggestedOpenCategoryId ? { [suggestedOpenCategoryId]: true } : {}
+  ));
+
+  useEffect(() => {
+    setOpenChecklistCategories((current) => {
+      const validIds = new Set(setupState.categories.map((category) => category.id));
+      const next = Object.fromEntries(Object.entries(current).filter(([id]) => validIds.has(id)));
+      if (!Object.values(next).some(Boolean) && suggestedOpenCategoryId) {
+        next[suggestedOpenCategoryId] = true;
+      }
+      if (Object.keys(next).length === Object.keys(current).length
+        && Object.entries(next).every(([id, isOpen]) => current[id] === isOpen)) {
+        return current;
+      }
+      return next;
+    });
+  }, [setupState.categories, suggestedOpenCategoryId]);
+
   const dirty = notesDraft !== setupState.notes
     || draftRows.some((item) => {
       const source = setupState.items.find((candidate) => candidate.key === item.key);
@@ -17636,7 +17666,17 @@ function ManagedSetupPanelPolished({
             const categoryComplete = categoryRows.filter((item) => item.completed).length;
             const categoryOpenBlockers = categoryRows.filter((item) => item.critical && !item.completed).length;
             return (
-              <details key={category.id} className="co-settings-checklist-group" open={categoryComplete < categoryRows.length}>
+              <details
+                key={category.id}
+                className="co-settings-checklist-group"
+                open={Boolean(openChecklistCategories[category.id])}
+                onToggle={(event) => {
+                  const nextOpen = event.currentTarget.open;
+                  setOpenChecklistCategories((current) => (
+                    current[category.id] === nextOpen ? current : { ...current, [category.id]: nextOpen }
+                  ));
+                }}
+              >
                 <summary>
                   <span>
                     <strong>{category.title}</strong>
@@ -18428,7 +18468,7 @@ function SettingsPagePolished({
             />
           </section>
 
-          <details id="settings-company-profile" className="co-settings-tools-drawer" open>
+          <details id="settings-company-profile" className="co-settings-tools-drawer">
             <summary>
               <span>
                 <strong>Company Profile / Workspace Identity</strong>
