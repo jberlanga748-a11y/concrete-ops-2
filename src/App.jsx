@@ -17576,6 +17576,33 @@ function ManagedSetupPanelPolished({
     setNotice(saved ? "Managed setup saved." : "Could not save managed setup. Please try again.");
   }
 
+  function renderChecklistItem(item) {
+    return (
+      <div key={item.key} className={`co-settings-checklist-item ${item.completed ? "is-complete" : item.critical ? "is-critical" : ""}`}>
+        <label>
+          <input
+            type="checkbox"
+            checked={Boolean(item.completed)}
+            disabled={!canSave}
+            onChange={(event) => updateItem(item.key, { completed: event.target.checked })}
+          />
+          <span>
+            <strong>{item.label}</strong>
+            <em>{item.critical ? "Critical" : "Recommended"} / {item.source === "manual" ? "Manual" : "Auto hint"}</em>
+          </span>
+        </label>
+        <input
+          type="text"
+          value={item.note}
+          onChange={(event) => updateItem(item.key, { note: event.target.value })}
+          placeholder="Setup note"
+          disabled={!canSave}
+          aria-label={`${item.label} setup note`}
+        />
+      </div>
+    );
+  }
+
   return (
     <Card className="co-settings-managed-board overflow-hidden">
       <div className="co-settings-board-header border-b border-slate-200 bg-white p-4">
@@ -17665,6 +17692,13 @@ function ManagedSetupPanelPolished({
             const categoryRows = category.items.map((item) => draftRows.find((row) => row.key === item.key) || item);
             const categoryComplete = categoryRows.filter((item) => item.completed).length;
             const categoryOpenBlockers = categoryRows.filter((item) => item.critical && !item.completed).length;
+            const priorityRows = [
+              ...categoryRows.filter((item) => item.critical && !item.completed),
+              ...categoryRows.filter((item) => !(item.critical && !item.completed)),
+            ];
+            const primaryRows = priorityRows.slice(0, 4);
+            const primaryKeys = new Set(primaryRows.map((item) => item.key));
+            const extraRows = categoryRows.filter((item) => !primaryKeys.has(item.key));
             return (
               <details
                 key={category.id}
@@ -17687,30 +17721,18 @@ function ManagedSetupPanelPolished({
                   </span>
                 </summary>
                 <div className="co-settings-checklist-items">
-                  {categoryRows.map((item) => (
-                    <div key={item.key} className={`co-settings-checklist-item ${item.completed ? "is-complete" : item.critical ? "is-critical" : ""}`}>
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(item.completed)}
-                          disabled={!canSave}
-                          onChange={(event) => updateItem(item.key, { completed: event.target.checked })}
-                        />
-                        <span>
-                          <strong>{item.label}</strong>
-                          <em>{item.critical ? "Critical" : "Recommended"} / {item.source === "manual" ? "Manual" : "Auto hint"}</em>
-                        </span>
-                      </label>
-                      <input
-                        type="text"
-                        value={item.note}
-                        onChange={(event) => updateItem(item.key, { note: event.target.value })}
-                        placeholder="Setup note"
-                        disabled={!canSave}
-                        aria-label={`${item.label} setup note`}
-                      />
-                    </div>
-                  ))}
+                  {primaryRows.map(renderChecklistItem)}
+                  {extraRows.length ? (
+                    <details className="co-settings-extra-items-drawer">
+                      <summary>
+                        <span>More {category.title} items</span>
+                        <Badge tone={extraRows.some((item) => item.critical && !item.completed) ? "amber" : "slate"}>{extraRows.length}</Badge>
+                      </summary>
+                      <div className="co-settings-extra-items-list">
+                        {extraRows.map(renderChecklistItem)}
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
               </details>
             );
@@ -18166,7 +18188,87 @@ function SettingsCommandRailPolished({
   const toolChecklistEnabled = safeCompanySettings.toolChecklistEnabled !== false;
 
   return (
-    <div className="co-settings-right-rail space-y-4">
+    <>
+      <details className="co-settings-mobile-rail-drawer">
+        <summary>
+          <span>
+            <strong>Settings Console</strong>
+            <em>{workspaceCompanyName} / {setupState.status}</em>
+          </span>
+          <span>
+            <Badge tone={setupStatusTone(setupState.status)}>{setupState.percentComplete}%</Badge>
+          </span>
+        </summary>
+        <div className="co-settings-mobile-rail-panel">
+          <div className="co-settings-mobile-rail-strip">
+            <div>
+              <span>Checklist</span>
+              <strong>{setupState.completedCount}/{setupState.totalCount}</strong>
+            </div>
+            <div>
+              <span>Critical</span>
+              <strong>{setupState.blockerCount}</strong>
+            </div>
+            <div>
+              <span>Field tools</span>
+              <strong>{toolChecklistEnabled ? "On" : "Off"}</strong>
+            </div>
+          </div>
+
+          <div className="co-settings-mobile-action-grid">
+            <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-managed-setup")}>
+              <span>Review setup readiness</span>
+              <Icon name="clipboard" />
+            </button>
+            <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-company-profile")}>
+              <span>Update company profile</span>
+              <Icon name="settings" />
+            </button>
+            <button type="button" className="co-settings-action-row" onClick={() => onNavigate?.("employees")}>
+              <span>Users / roles</span>
+              <Icon name="users" />
+            </button>
+            <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-admin-controls")}>
+              <span>Field modules / packet text</span>
+              <Icon name="document" />
+            </button>
+            <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
+              <span>Backup / owner health</span>
+              <Icon name="database" />
+            </button>
+          </div>
+
+          <div className="co-settings-mobile-blocker-stack">
+            {setupBlockers.length ? setupBlockers.map((item) => (
+              <div key={item.key} className="co-settings-blocker-row">
+                <span>{item.label}</span>
+                <Badge tone="amber">Critical</Badge>
+              </div>
+            )) : (
+              <div className="co-settings-blocker-row is-clear">
+                <span>No critical blockers</span>
+                <Badge tone="green">Clear</Badge>
+              </div>
+            )}
+          </div>
+
+          <div className="co-settings-count-grid">
+            <div><span>Users</span><strong>{activeUsers.length}</strong></div>
+            <div><span>Lead sources</span><strong>{activeLeadSources.length}</strong></div>
+            <div><span>Active jobs</span><strong>{activeJobs.length}</strong></div>
+            <div><span>Public intake</span><strong>{showPublicEstimateRequestStatus ? (publicEstimateRequestEnabled ? "On" : "Off") : "N/A"}</strong></div>
+          </div>
+
+          {demoMode ? (
+            <div className="co-settings-mobile-danger-row">
+              <span>Demo reset</span>
+              <Button variant="danger" size="sm" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset</Button>
+            </div>
+          ) : null}
+        </div>
+      </details>
+
+      <div className="co-settings-right-rail space-y-4">
       <Card className="co-settings-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -18255,7 +18357,8 @@ function SettingsCommandRailPolished({
           <Button variant="danger" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button>
         </Card>
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }
 
