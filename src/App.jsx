@@ -11613,7 +11613,7 @@ function DashboardOfficeQueueCard({
   onOpenTools,
   disabled,
 }) {
-  const visibleItems = normalizeObjectArray(items).slice(0, 4);
+  const visibleItems = normalizeObjectArray(items).slice(0, 3);
 
   return (
     <Card className="co-dashboard-office-queue-card overflow-hidden">
@@ -11777,8 +11777,8 @@ function DashboardPagePolished({
   ), [permissions?.reports?.canView, permissions?.time?.canView, permissions?.toolChecklist?.canUse, permissions?.uploads?.canView]);
   const pipelineValue = Number(stats.pipelineValue || 0);
   const pipelineKValue = Math.round(pipelineValue / 1000);
-  const visibleLeadRowCap = 5;
-  const visibleJobRowCap = 4;
+  const visibleLeadRowCap = 3;
+  const visibleJobRowCap = 3;
   const visibleJobRows = liveJobsPreview.slice(0, visibleJobRowCap);
   const openQueueCount = activeQueueItems.length;
   const dueQueueCount = activeQueueItems.filter((item) => item.status === "Due today").length;
