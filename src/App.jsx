@@ -20046,6 +20046,44 @@ function PostPourCloseoutItemsPolished({
     );
   }
 
+  const visibleItems = selectedItems.slice(0, 6);
+  const remainingItems = selectedItems.slice(6);
+  function renderCloseoutItem(item) {
+    return (
+      <div key={item.id} className="co-postpour-item-row" data-status={item.status}>
+        <div className="co-postpour-item-main">
+          <div className="co-postpour-item-copy">
+            <p className="co-postpour-item-title">{item.label}</p>
+            <p className="co-postpour-item-note">{item.notes || "No item note yet."}</p>
+          </div>
+          <Badge tone={postPourItemTone(item.status)}>{postPourItemStatusLabel(item.status)}</Badge>
+        </div>
+        {canEditChecklist ? (
+          <div className="co-postpour-item-actions">
+            <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+          </div>
+        ) : null}
+        {canEditChecklist ? (
+          <details className="co-postpour-note-drawer">
+            <summary>{item.notes ? "Edit note" : "Add note"}</summary>
+            <div className="co-postpour-note-body">
+              <TextAreaField
+                key={`${item.id}-${item.updatedAt}`}
+                label="Item note"
+                defaultValue={item.notes || ""}
+                onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
+                disabled={busy}
+                placeholder="Add a note for this finish or closeout item."
+              />
+            </div>
+          </details>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="co-postpour-items-panel">
       <div className="co-postpour-items-header">
@@ -20056,39 +20094,18 @@ function PostPourCloseoutItemsPolished({
         <Badge tone={checklistSummary.incompleteCount > 0 ? "amber" : "green"}>{checklistSummary.incompleteCount} open</Badge>
       </div>
       <div className="co-postpour-items-list">
-        {selectedItems.map((item) => (
-          <div key={item.id} className="co-postpour-item-row" data-status={item.status}>
-            <div className="co-postpour-item-main">
-              <div className="co-postpour-item-copy">
-                <p className="co-postpour-item-title">{item.label}</p>
-                <p className="co-postpour-item-note">{item.notes || "No item note yet."}</p>
-              </div>
-              <Badge tone={postPourItemTone(item.status)}>{postPourItemStatusLabel(item.status)}</Badge>
+        {visibleItems.map(renderCloseoutItem)}
+        {remainingItems.length ? (
+          <details className="co-postpour-extra-items-drawer">
+            <summary>
+              <span>{remainingItems.length} more closeout item{remainingItems.length === 1 ? "" : "s"}</span>
+              <strong>Open full checklist</strong>
+            </summary>
+            <div className="co-postpour-extra-items-list">
+              {remainingItems.map(renderCloseoutItem)}
             </div>
-            {canEditChecklist ? (
-              <div className="co-postpour-item-actions">
-                <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
-              </div>
-            ) : null}
-            {canEditChecklist ? (
-              <details className="co-postpour-note-drawer">
-                <summary>{item.notes ? "Edit note" : "Add note"}</summary>
-                <div className="co-postpour-note-body">
-                  <TextAreaField
-                    key={`${item.id}-${item.updatedAt}`}
-                    label="Item note"
-                    defaultValue={item.notes || ""}
-                    onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
-                    disabled={busy}
-                    placeholder="Add a note for this finish or closeout item."
-                  />
-                </div>
-              </details>
-            ) : null}
-          </div>
-        ))}
+          </details>
+        ) : null}
       </div>
     </div>
   );
