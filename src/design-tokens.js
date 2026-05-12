@@ -88,7 +88,7 @@ export const DESIGN_LAYOUT = {
 };
 
 const BUTTON_TONE_CLASSES = {
-  primary: "bg-blue-700 text-white shadow-sm shadow-blue-700/25 hover:bg-blue-800 hover:shadow-blue-800/25 focus-visible:ring-orange-500",
+  primary: "bg-orange-600 text-white shadow-sm shadow-orange-600/25 hover:bg-orange-700 hover:shadow-orange-700/25 focus-visible:ring-orange-500",
   secondary: "border border-slate-300 bg-white text-slate-950 shadow-sm shadow-slate-200/60 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:ring-orange-500",
   ghost: "text-slate-700 hover:bg-orange-50 hover:text-orange-700 focus-visible:ring-orange-500",
   danger: "bg-red-600 text-white shadow-sm shadow-red-600/20 hover:bg-red-700 focus-visible:ring-red-500",

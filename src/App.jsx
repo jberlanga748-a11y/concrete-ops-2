@@ -1710,7 +1710,7 @@ function EstimatePacketSettingsPanel({
 
 function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   return (
-    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-slate-200 bg-slate-50/80 p-3 md:flex-row md:items-center md:justify-between">
+    <div className="co-filter-bar flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-slate-200 bg-slate-50/80 p-3 md:flex-row md:items-center md:justify-between">
       <div className="scrollbar-none -mx-1 flex min-w-0 max-w-full gap-2 overflow-x-auto overflow-y-hidden px-1 pb-1">
         {filters.map((filter) => (
           <button
@@ -1734,7 +1734,7 @@ function CustomerFilterHeader({ filters, active, setActive, search, setSearch, p
   const layout = getCustomerFilterLayoutClasses();
 
   return (
-    <div className={layout.header}>
+    <div className={`co-filter-bar co-customer-filter-bar ${layout.header}`}>
       <div className={layout.pillsRow}>
         {filters.map((filter) => (
           <button
@@ -2448,15 +2448,16 @@ function loadNotificationState(storageKey) {
 }
 
 function KpiCard({ item }) {
+  const displayValue = item.value ?? 0;
   return (
-    <Card className="min-w-0 p-4">
+    <Card className="co-kpi-card min-w-0 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-          <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">{item.value}</p>
+          <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">{displayValue}</p>
           <p className="mt-1 break-words text-sm font-bold text-slate-600">{item.helper}</p>
         </div>
-        <div className="shrink-0 rounded-xl border border-blue-100 bg-blue-50 p-2.5 text-blue-700">
+        <div className="shrink-0 rounded-xl border border-orange-200 bg-orange-50 p-2.5 text-orange-700">
           <Icon name={item.icon} />
         </div>
       </div>
@@ -2475,7 +2476,7 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               key={row.id}
               type="button"
               onClick={() => onSelect(row.id)}
-              className={`co-mobile-record-card w-full rounded-[28px] border p-4 text-left transition ${selected ? "is-selected border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+              className={`co-mobile-record-card co-office-list-card w-full rounded-[28px] border p-4 text-left transition ${selected ? "is-selected border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -3532,7 +3533,7 @@ function StateCard({ title, description, tone = "blue" }) {
   };
 
   return (
-    <div className={`min-w-0 max-w-full rounded-xl border p-4 text-center shadow-[0_14px_34px_-30px_rgba(7,17,31,0.5)] sm:p-5 ${tones[tone] || tones.blue}`}>
+    <div className={`co-state-card min-w-0 max-w-full rounded-xl border p-4 text-center shadow-[0_14px_34px_-30px_rgba(7,17,31,0.5)] sm:p-5 ${tones[tone] || tones.blue}`}>
       <p className="font-black text-slate-950">{title}</p>
       <p className="mt-2 break-words text-sm font-bold">{description}</p>
     </div>
@@ -4662,6 +4663,12 @@ function TimePage({
   const workspace = useMemo(() => deriveTimeWorkspace(rows, jobs, user?.id, permissions.time.allowedCategories || []), [jobs, permissions.time.allowedCategories, rows, user?.id]);
   const activeEntry = workspace.activeEntry;
   const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(rows, { excludeUserId: user?.id }), [rows, user?.id]);
+  const timeKpis = [
+    { label: "Visible Entries", value: rows.length, helper: "Role-scoped time log", icon: "clock" },
+    { label: "Clocked In", value: rows.filter((entry) => entry.status === "active").length, helper: "Active right now", icon: "users" },
+    { label: "Needs Review", value: rows.filter((entry) => ["needs_correction", "pending_review"].includes(entry.status)).length, helper: "Corrections or approvals", icon: "alert" },
+    { label: "My Week", value: formatMinutes(workspace.weeklySummary.totalMinutes || 0), helper: "Your visible hours", icon: "clipboard" },
+  ];
 
   if (permissions.time.canViewAll) {
     const ownRecentEntries = workspace.ownEntries.slice(0, 5);
@@ -4669,6 +4676,7 @@ function TimePage({
     return (
       <div>
         <PageHeader eyebrow="Time" title="Time Entries" description="Review all field time entries and correct timestamps when needed." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
+        <ModuleKpiStrip items={timeKpis} />
         <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
           {permissions.time.canManageOwn ? (
             <div className="min-w-0 space-y-4">
@@ -4715,6 +4723,7 @@ function TimePage({
     return (
       <div>
         <PageHeader eyebrow="Field Time" title="Crew Time" description="Assigned crew time only, without payroll, rates, or office-only business data." actions={<Badge tone="blue">{rows.length} entries</Badge>} />
+        <ModuleKpiStrip items={timeKpis} />
         <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
           <ActiveTimeCard
             activeEntry={activeEntry}
@@ -4752,6 +4761,7 @@ function TimePage({
   return (
     <div>
       <PageHeader eyebrow="My Time" title="My Time" description="Track only your assigned work. Contact office if your job assignment looks wrong." actions={activeEntry ? <TimeStatusBadge status={activeEntry.status} /> : <Badge tone="slate">Ready to clock in</Badge>} />
+      <ModuleKpiStrip items={timeKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[380px_1fr] lg:px-8">
         <ActiveTimeCard
           activeEntry={activeEntry}
@@ -5596,6 +5606,12 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
   const selectedUpload = useMemo(() => findSelectedUpload(visibleRows, safeUploads, selectedUploadId), [safeUploads, selectedUploadId, visibleRows]);
   const latestVisibleUpload = visibleRows[0] || null;
   const uploadListSummary = `${visibleRows.length} uploads${latestVisibleUpload ? ` / Latest ${uploadJobLabel(latestVisibleUpload)}` : ""}`;
+  const uploadKpis = [
+    { label: "Visible Uploads", value: visibleRows.length, helper: "Current photo/document log", icon: "upload" },
+    { label: "Photo Evidence", value: visibleRows.filter((upload) => String(upload.fileType || "").startsWith("image/")).length, helper: "Images in this view", icon: "document" },
+    { label: "GPS Captured", value: visibleRows.filter((upload) => Number.isFinite(Number(upload.latitude)) && Number.isFinite(Number(upload.longitude))).length, helper: "Location metadata present", icon: "check" },
+    { label: "Needs Link", value: visibleRows.filter((upload) => !upload.jobId && !upload.reportId).length, helper: "Not tied to a job/report", icon: "alert" },
+  ];
 
   useEffect(() => {
     const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
@@ -5746,6 +5762,7 @@ function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionTok
   return (
     <div>
       <PageHeader eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"} title="Uploads" description="Job-linked photo evidence with timestamp metadata and optional GPS capture for field documentation." actions={<Badge tone="blue">{visibleRows.length} uploads</Badge>} />
+      <ModuleKpiStrip items={uploadKpis} />
       <div className="grid min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
         <div className="min-w-0">
           <UploadMobileAccordionCard title="Upload list" summary={uploadListSummary} badge={<Badge tone="blue">{visibleRows.length}</Badge>}>
@@ -6027,6 +6044,13 @@ function SafetyPage({
       : ppeFocused
         ? `${activePpeItems.length} PPE items`
         : `${visibleIncidents.length} visible incidents`;
+  const openIncidentCount = visibleIncidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(incident.status)).length;
+  const safetyKpis = [
+    { label: "Policies", value: visiblePolicies.length, helper: "Field-safe guidance", icon: "clipboard" },
+    { label: "PPE Items", value: activePpeItems.length, helper: "Required equipment list", icon: "hardhat" },
+    { label: "Open Incidents", value: openIncidentCount, helper: "Needs safety follow-up", icon: "alert" },
+    { label: "Acknowledgments", value: acknowledgmentState.count, helper: acknowledgmentState.hasAcknowledged ? "Latest user acknowledgment" : "No user acknowledgment yet", icon: "check" },
+  ];
   function renderPoliciesCard() {
     return (
       <Card className="p-4 md:p-5">
@@ -6122,6 +6146,7 @@ function SafetyPage({
         description={headerDescription}
         actions={<Badge tone="blue">{headerBadgeLabel}</Badge>}
       />
+      <ModuleKpiStrip items={safetyKpis} />
       {routeCallout ? (
         <div className="px-5 pb-4 sm:px-6 lg:px-8">
           <Card className="p-4">
@@ -6449,10 +6474,17 @@ function ReportsPage({
   const canReviewActions = permissions.reports.canReview;
   const latestVisibleReport = visibleRows[0] || null;
   const reportLogSummary = `${visibleRows.length} reports${latestVisibleReport ? ` / Latest ${reportStatusLabel(latestVisibleReport.status)}` : ""}`;
+  const reportKpis = [
+    { label: "Visible Reports", value: visibleRows.length, helper: "Matching current filters", icon: "document" },
+    { label: "Submitted", value: visibleRows.filter((report) => report.status === "submitted").length, helper: "Waiting office review", icon: "clipboard" },
+    { label: "Reviewed", value: visibleRows.filter((report) => report.status === "reviewed").length, helper: "Closed for field review", icon: "check" },
+    { label: "Needs Action", value: visibleRows.filter((report) => ["draft", "reopened"].includes(report.status)).length, helper: "Drafts or reopened reports", icon: "alert" },
+  ];
 
   return (
     <div>
       <PageHeader eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"} title="Daily Reports" description="Capture crew notes, job progress, weather, and pour details in one daily field report." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} reports</Badge>} />
+      {canView ? <ModuleKpiStrip items={reportKpis} /> : null}
       <div className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start xl:grid-cols-[minmax(0,1fr)_420px]">
           {canView ? (
@@ -7257,14 +7289,25 @@ function CommandCenterKpiCard({ item }) {
           <p className={`co-command-kpi-value ${value > 0 ? "" : "is-empty"}`}>{value}</p>
           <p className="mt-0.5 break-words text-sm font-black leading-tight text-slate-950">{item.label}</p>
           <p className="mt-0.5 break-words text-xs font-bold leading-[1.35] text-slate-700">{item.helper}</p>
-          {item.actionLabel ? (
-            <button type="button" onClick={item.onAction} className="co-command-kpi-link co-focus-ring">
-              {item.actionLabel}
-              <span aria-hidden="true">-&gt;</span>
-            </button>
-          ) : null}
         </div>
       </div>
+      {item.actionLabel ? (
+        <button type="button" onClick={item.onAction} className="co-command-kpi-link co-focus-ring">
+          {item.actionLabel}
+          <span aria-hidden="true">-&gt;</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function ModuleKpiStrip({ items = [] }) {
+  const visibleItems = items.filter(Boolean);
+  if (visibleItems.length === 0) return null;
+
+  return (
+    <div className="co-module-kpi-strip mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-2 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
+      {visibleItems.map((item) => <KpiCard key={item.label} item={item} />)}
     </div>
   );
 }
@@ -8183,7 +8226,7 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
     { label: "Missing Next Step", value: inboxState.stats.missingNextStep, tone: "amber" },
     { label: "Ready for Estimate", value: inboxState.stats.readyForEstimate, tone: "green" },
   ];
-  const queueItems = inboxState.items.slice(0, 6);
+  const queueItems = inboxState.items.slice(0, 4);
 
   return (
     <Card className="p-4">
@@ -8204,22 +8247,22 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
           ))}
         </div>
       </div>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-3 grid gap-2 xl:grid-cols-2">
         {queueItems.length > 0 ? queueItems.map((lead) => (
-          <div key={lead.id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <div key={lead.id} className="rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="break-words text-sm font-black text-slate-950">{lead.customer || "Unnamed lead"}</p>
                 <p className="mt-1 break-words text-xs font-bold text-slate-500">
                   {[lead.project, lead.city || lead.state, leadSourceLabel(lead.source || "Call-in")].filter(Boolean).join(" / ")}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {lead.reviewReasons.map((reason) => <Badge key={reason.label} tone={reason.tone}>{reason.label}</Badge>)}
                   <LeadScoreBadge lead={lead} />
                   <LeadMissingInfoBadge lead={lead} />
                 </div>
               </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto">
+              <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[10rem]">
                 <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead?.(lead.id)}>Review lead</Button>
                 {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt)}>{leadHasMissingInfoCheck(lead) ? "Re-check info" : "Check info"}</Button> : null}
                 {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt)}>{leadHasScore(lead) ? "Re-score" : "Score"}</Button> : null}
@@ -8228,7 +8271,7 @@ function LeadInboxReviewQueue({ inboxState, onSelectLead, onCreateEstimateFromLe
                 ) : null}
               </div>
             </div>
-            <p className="mt-3 text-xs font-bold leading-5 text-slate-600">{lead.nextStep || lead.reviewReasons[0]?.helper || "Add a next step before this lead moves forward."}</p>
+            <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-600">{lead.nextStep || lead.reviewReasons[0]?.helper || "Add a next step before this lead moves forward."}</p>
           </div>
         )) : (
           <StateCard title="Lead inbox is clear" description="New leads, due follow-ups, missing next steps, and estimate-ready leads will appear here." tone="slate" />
@@ -8921,6 +8964,13 @@ function LeadsPage({
   leadSaveState,
 }) {
   const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
+  const today = todayDateInputValue();
+  const leadKpis = [
+    { label: "Visible Leads", value: rows.length, helper: "Current office view", icon: "inbox" },
+    { label: "New Leads", value: rows.filter((lead) => lead.status === "New").length, helper: "Needs first contact", icon: "users" },
+    { label: "Follow-Ups Due", value: rows.filter((lead) => lead.followUpDueAt && String(lead.followUpDueAt).slice(0, 10) <= today).length, helper: "Due today or overdue", icon: "clock" },
+    { label: "High Priority", value: rows.filter((lead) => lead.priority === "High").length, helper: "Top sales attention", icon: "alert" },
+  ];
 
   function handleStartLeadFromSource(source) {
     const sourceContext = [
@@ -8948,6 +8998,7 @@ function LeadsPage({
   return (
     <div className="co-office-page co-leads-page">
       <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
+      <ModuleKpiStrip items={leadKpis} />
       <div className="px-5 pb-4 sm:px-6 lg:px-8">
         <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
       </div>
@@ -8992,7 +9043,7 @@ function LeadsPage({
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
-          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-5">
+          <div className="co-office-filter-grid grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-5">
             <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option>All owners</option>
               {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
@@ -9126,10 +9177,17 @@ function JobsPage({
     date: dateFilter,
   }, users), [customerFilter, dateFilter, filter, foremanFilter, rows, search, users]);
   const visibleRows = jobListState.filteredJobs.filter((job) => startupFilter === "All startup" || (job.startupStatus || "Not Started") === startupFilter);
+  const jobKpis = [
+    { label: "Visible Jobs", value: visibleRows.length, helper: "Matching current filters", icon: "briefcase" },
+    { label: "Startup Review", value: visibleRows.filter((job) => ["Not Started", "In Progress", "Needs Review"].includes(job.startupStatus || "Not Started")).length, helper: "Needs office or field prep", icon: "alert" },
+    { label: "Missing Crew", value: visibleRows.filter((job) => !(job.assignedForemanId || job.assignedUserId)).length, helper: "No foreman or lead assigned", icon: "users" },
+    { label: "In Progress", value: visibleRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length, helper: "Active field work", icon: "clock" },
+  ];
 
   return (
     <div>
       <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
+      <ModuleKpiStrip items={jobKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
         <Card className="self-start overflow-hidden">
           <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
@@ -9259,6 +9317,12 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
   const readinessLabels = useMemo(() => Array.from(new Set(drafts.map((draft) => draft.opsReadinessLabel).filter(Boolean))).sort(), [drafts]);
   const serviceTypes = useMemo(() => Array.from(new Set(drafts.map((draft) => draft.serviceType).filter(Boolean))).sort(), [drafts]);
   const filteredDrafts = filterImportedJobDrafts(drafts, { cityFilter, createdFilter, readinessFilter, serviceTypeFilter, statusFilter });
+  const importKpis = [
+    { label: "Imported Drafts", value: stats.total, helper: "Review before creating jobs", icon: "database" },
+    { label: "Needs Review", value: stats.needsReview, helper: "Missing info or not ready", icon: "alert" },
+    { label: "Ready To Create", value: stats.readyToCreate, helper: "Ready for job creation", icon: "check" },
+    { label: "Jobs Created", value: stats.jobCreated, helper: "Converted into jobs", icon: "briefcase" },
+  ];
 
   async function handleImportFile(event) {
     const file = event.target.files?.[0];
@@ -9294,19 +9358,14 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
           </label>
         }
       />
+      <ModuleKpiStrip items={importKpis} />
       <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
         {importMessage ? <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{importMessage}</div> : null}
         <div className="rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-slate-600">
           Direct import endpoint available for proposal app integration.
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard item={{ label: "Imported drafts", value: stats.total, helper: "Review before creating jobs", icon: "database" }} />
-          <KpiCard item={{ label: "Needs review", value: stats.needsReview, helper: "Missing info or not ready", icon: "alert" }} />
-          <KpiCard item={{ label: "Ready to create", value: stats.readyToCreate, helper: "Ready for job creation", icon: "check" }} />
-          <KpiCard item={{ label: "Jobs created", value: stats.jobCreated, helper: "Converted into jobs", icon: "briefcase" }} />
-        </div>
         <Card className="overflow-hidden">
-          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/50 p-4 md:grid-cols-5">
+          <div className="co-office-filter-grid grid gap-3 border-b border-blue-100 bg-blue-50/50 p-4 md:grid-cols-5">
             <SelectField label="Import status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option>All</option>
               {IMPORTED_JOB_DRAFT_STATUSES.map((status) => <option key={status}>{status}</option>)}
@@ -9765,10 +9824,17 @@ function CustomersPage({
     query: search,
   }), [customers, filter, search]);
   const visibleRows = debugState.renderedRows;
+  const customerKpis = [
+    { label: "Visible Customers", value: canView ? visibleRows.length : 0, helper: "Current customer view", icon: "users" },
+    { label: "Prospects", value: visibleRows.filter((customer) => customer.status === "Prospect").length, helper: "Potential work", icon: "inbox" },
+    { label: "Active", value: visibleRows.filter((customer) => customer.status === "Active").length, helper: "Current relationships", icon: "check" },
+    { label: "Archived", value: visibleRows.filter((customer) => customer.archivedAt || customer.status === "Archived").length, helper: "Hidden from active work", icon: "database" },
+  ];
 
   return (
     <div className="co-office-page co-customers-page">
       <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} visible customers</Badge>} />
+      {canView ? <ModuleKpiStrip items={customerKpis} /> : null}
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           {canView ? (
@@ -10056,10 +10122,17 @@ function EmployeesPage({
   }), [filter, search, statusFilter, users]);
   const visibleRows = listState.filteredUsers;
   const notFound = Boolean(selectedUserId) && !selectedUser;
+  const employeeKpis = [
+    { label: "Visible Users", value: visibleRows.length, helper: "Matching current filters", icon: "users" },
+    { label: "Active", value: visibleRows.filter((entry) => entry.status === "active").length, helper: "Can sign in now", icon: "check" },
+    { label: "Foremen", value: visibleRows.filter((entry) => entry.role === "Foreman").length, helper: "Field crew leads", icon: "hardhat" },
+    { label: "Office Roles", value: visibleRows.filter((entry) => ["Administrator", "Operations Manager", "Estimator"].includes(entry.role)).length, helper: "Office/admin access", icon: "settings" },
+  ];
 
   return (
     <div>
       <PageHeader eyebrow="Office" title="Employees" description="Create and manage office, foreman, and employee logins so crew assignments stay usable." actions={<Badge tone="blue">{visibleRows.length} users</Badge>} />
+      <ModuleKpiStrip items={employeeKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
         <Card className="overflow-hidden">
           <FilterBar filters={["All roles", ...USER_ROLE_OPTIONS]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, email, phone..." />
@@ -10158,6 +10231,12 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
     [activeWastePercent, takeoffSections],
   );
   const result = calculatorMode === "multi_section" ? takeoffResult : singleResult;
+  const calculatorKpis = [
+    { label: "Mode", value: calculatorMode === "multi_section" ? "Takeoff" : "Single", helper: "Current calculation workflow", icon: "calculator" },
+    { label: "Type", value: calculatorTypeLabel(calculatorType), helper: "Active concrete shape", icon: "layers" },
+    { label: "Waste", value: `${activeWastePercent || 0}%`, helper: "Concrete waste factor", icon: "refresh" },
+    { label: "Result", value: result.status === "ready" ? formatCubicYards(result.cubicYardsWithWaste) : "Enter dims", helper: result.status === "ready" ? "With waste included" : "Waiting on valid dimensions", icon: "check" },
+  ];
 
   useEffect(() => {
     const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
@@ -10336,6 +10415,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
   return (
     <div>
       <PageHeader eyebrow="Tools" title="Concrete Calculator" description="Estimate concrete volume in cubic yards." />
+      <ModuleKpiStrip items={calculatorKpis} />
       <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4 sm:p-5">
@@ -10575,10 +10655,17 @@ function CopilotPage({ stats, leads, jobs, queueItems }) {
           jobs.some((job) => normalizeJobStatus(job.status || job.stage) === "planned") ? "Planned jobs need a concrete next step or owner handoff." : "No jobs are currently stalled in a planning state.",
     leads.some((lead) => lead.status === "Approved") ? "Approved leads can be promoted into jobs directly from the lead detail panel." : "No approved leads are waiting on job creation.",
   ];
+  const copilotKpis = [
+    { label: "New Leads", value: stats.newLeads, helper: "Needs first response", icon: "inbox" },
+    { label: "Active Jobs", value: stats.activeJobs, helper: "Field work in motion", icon: "briefcase" },
+    { label: "Reports Due", value: stats.reportsDue, helper: "Daily field paperwork", icon: "document" },
+    { label: "Pipeline", value: currency(stats.pipelineValue), helper: "Open opportunity value", icon: "quote" },
+  ];
 
   return (
     <div>
       <PageHeader eyebrow="System" title="Ops Copilot" description="A lightweight operations summary page based on current workspace activity." />
+      <ModuleKpiStrip items={copilotKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
           <SectionHeader title="Suggested actions" description="Derived from the current state of leads, jobs, and the queue." />
@@ -11299,6 +11386,12 @@ function SettingsPage({
     || profileDraft.licenseText !== (safeCompanySettings.licenseText || "");
   const printPacketDirty = printPacketDraft.printPacketFooter !== (safeCompanySettings.printPacketFooter || "")
     || printPacketDraft.printPacketDisclaimer !== (safeCompanySettings.printPacketDisclaimer || "");
+  const settingsKpis = [
+    { label: "Users", value: normalizeObjectArray(users).length, helper: "Workspace accounts", icon: "users" },
+    { label: "Lead Sources", value: normalizeObjectArray(leadSources).length, helper: "Tracked intake channels", icon: "inbox" },
+    { label: "Jobs", value: normalizeObjectArray(jobs).filter((job) => !job.archivedAt).length, helper: "Active job records", icon: "briefcase" },
+    { label: "Setup", value: safeCompanySettings.managedSetupStatus || "Not Started", helper: "Managed rollout status", icon: "settings" },
+  ];
 
   async function handleBrandingSave(event) {
     event.preventDefault();
@@ -11346,6 +11439,7 @@ function SettingsPage({
   return (
     <div>
       <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace details, admin access, and field tools for your team."} />
+      <ModuleKpiStrip items={settingsKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
         <ManagedCompanySetupPanel
           companySettings={safeCompanySettings}
@@ -11765,6 +11859,12 @@ function PrePourPage({
   const createChecklistSummary = createJob ? createJob.title : "Select job";
   const selectedChecklistSummary = selectedChecklist ? `${selectedChecklist.statusLabel || prePourChecklistStatusLabel(selectedChecklist.status)} / ${checklistSummary.incompleteCount} incomplete` : "Select a checklist";
   const completionInfoSummary = selectedChecklist ? `${selectedChecklist.completedByName || "Not completed"} / ${selectedChecklist.reviewedByName || "Not reviewed"}` : "Completion info";
+  const prePourKpis = [
+    { label: "Visible Checklists", value: filteredRows.length, helper: "Current readiness board", icon: "clipboard" },
+    { label: "Needs Review", value: filteredRows.filter((checklist) => checklist.status === "completed").length, helper: "Submitted by field", icon: "alert" },
+    { label: "Ready", value: filteredRows.filter((checklist) => checklist.status === "reviewed").length, helper: "Cleared for placement", icon: "check" },
+    { label: "Open Items", value: filteredRows.reduce((sum, checklist) => sum + Number(checklist.incompleteItemCount || 0), 0), helper: "Incomplete checklist items", icon: "document" },
+  ];
 
   if (!permissions.prePour.canView) {
     return (
@@ -11780,6 +11880,7 @@ function PrePourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
+      <ModuleKpiStrip items={prePourKpis} />
       <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
         <div className="min-w-0 space-y-4 lg:self-start">
           <PrePourMobileAccordionCard title="Checklist list" summary={checklistListSummary} badge={<Badge tone="blue">{filteredRows.length}</Badge>}>
@@ -12245,6 +12346,12 @@ function PostPourPage({
     && !selectedChecklist.archivedAt
     && ["draft", "reopened"].includes(selectedChecklist.status);
   const noFieldJob = !permissions.postPour.canManageAll && visibleJobs.length === 0;
+  const postPourKpis = [
+    { label: "Visible Checklists", value: filteredRows.length, helper: "Current closeout board", icon: "clipboard" },
+    { label: "Needs Review", value: filteredRows.filter((checklist) => checklist.status === "completed").length, helper: "Ready for office review", icon: "alert" },
+    { label: "Reviewed", value: filteredRows.filter((checklist) => checklist.status === "reviewed").length, helper: "Closeout accepted", icon: "check" },
+    { label: "Open Items", value: filteredRows.reduce((sum, checklist) => sum + Number(checklist.incompleteItemCount || 0), 0), helper: "Finish or cleanup gaps", icon: "document" },
+  ];
 
   if (!permissions.postPour.canView) {
     return (
@@ -12260,6 +12367,7 @@ function PostPourPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Post-Pour Checklist" description={permissions.postPour.canManageAll ? "Track finish, cleanup, and closeout readiness across every job, then reopen checklists when the field needs another pass." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."} />
+      <ModuleKpiStrip items={postPourKpis} />
       <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
         <div className="min-w-0 space-y-4 lg:self-start">
           <Card className="p-5">
@@ -12526,6 +12634,12 @@ function EstimatesPage({
     sectionIds: packetSectionIds,
     allowInternalSections: canManage,
   }), [canManage, packetPresetId, packetSectionIds]);
+  const estimateKpis = [
+    { label: "Visible Estimates", value: filteredRows.length, helper: "Current proposal board", icon: "quote" },
+    { label: "Drafts", value: filteredRows.filter((estimate) => estimate.status === "draft").length, helper: "Need pricing or review", icon: "document" },
+    { label: "Sent", value: filteredRows.filter((estimate) => estimate.status === "sent").length, helper: "Waiting on customer", icon: "arrowUpRight" },
+    { label: "Approved", value: filteredRows.filter((estimate) => estimate.status === "approved").length, helper: "Ready to convert", icon: "check" },
+  ];
 
   function linkedEstimateCustomerEmail(draft = {}) {
     const customer = visibleCustomers.find((entry) => entry.id === draft.customerId) || null;
@@ -12707,6 +12821,7 @@ function EstimatesPage({
         description="Build clean customer proposals, share them, and move approved work into jobs."
         actions={canManage ? <Button type="button" size="lg" onClick={focusNewEstimate}>New Estimate</Button> : null}
       />
+      <ModuleKpiStrip items={estimateKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4">
@@ -13046,6 +13161,12 @@ function ChangeOrdersPage({
   const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
   const canCreate = permissions.changeOrders.canRequest || permissions.changeOrders.canManage;
   const canManage = permissions.changeOrders.canManage;
+  const changeOrderKpis = [
+    { label: "Visible Requests", value: filteredRows.length, helper: "Current change-order board", icon: "refresh" },
+    { label: "Requested", value: filteredRows.filter((request) => request.status === "requested").length, helper: "Waiting for office review", icon: "alert" },
+    { label: "Under Review", value: filteredRows.filter((request) => request.status === "under_review").length, helper: "Being reviewed now", icon: "clock" },
+    { label: "Approved", value: filteredRows.filter((request) => request.status === "approved_for_pricing").length, helper: "Ready for pricing", icon: "check" },
+  ];
 
   useEffect(() => {
     if (!selectedRequestId && filteredRows[0]?.id) {
@@ -13080,6 +13201,7 @@ function ChangeOrdersPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Change Order Requests" description={canManage ? "Review field scope-change requests across every job and keep pricing decisions on the office side." : "Request a scope change from the field without exposing pricing, billing, or profit data."} />
+      <ModuleKpiStrip items={changeOrderKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4">
@@ -13317,6 +13439,12 @@ function DeliveryTicketsPage({
   const createReportOptions = scopedReports.filter((report) => !createJobId || report.jobId === createJobId);
   const detailUploadOptions = scopedUploads.filter((upload) => !detailDraft.jobId || upload.jobId === detailDraft.jobId);
   const detailReportOptions = scopedReports.filter((report) => !detailDraft.jobId || report.jobId === detailDraft.jobId);
+  const ticketKpis = [
+    { label: "Visible Tickets", value: filteredRows.length, helper: "Current delivery board", icon: "clipboard" },
+    { label: "Missing Photo", value: filteredRows.filter((ticket) => !ticket.ticketUploadId).length, helper: "Ticket image not linked", icon: "alert" },
+    { label: "Yards Logged", value: filteredRows.reduce((sum, ticket) => sum + Number(ticket.yardsDelivered || 0), 0), helper: "Delivered yards in view", icon: "database" },
+    { label: "Linked Reports", value: filteredRows.filter((ticket) => ticket.reportId).length, helper: "Connected to daily reports", icon: "document" },
+  ];
 
   useEffect(() => {
     if (!selectedTicketId && filteredRows[0]?.id) {
@@ -13394,6 +13522,7 @@ function DeliveryTicketsPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."} />
+      <ModuleKpiStrip items={ticketKpis} />
       <div className="grid min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <DeliveryTicketMobileAccordionCard title="Ticket list" summary={ticketListSummary} badge={<Badge tone="blue">{filteredRows.length}</Badge>}>
@@ -13879,6 +14008,12 @@ function ToolChecklistPage({
   const canCreateChecklist = permissions.toolChecklist.canManage;
   const canAddItems = permissions.toolChecklist.canContribute && Boolean(selectedChecklist);
   const noFieldJob = !permissions.toolChecklist.canManageAll && visibleJobs.length === 0;
+  const toolChecklistKpis = [
+    { label: "Visible Checklists", value: filteredRows.length, helper: "Current tool board", icon: "clipboard" },
+    { label: "Submitted", value: filteredRows.filter((checklist) => checklist.status === "submitted").length, helper: "Waiting office review", icon: "upload" },
+    { label: "Missing Items", value: filteredRows.reduce((sum, checklist) => sum + Number(checklist.missingItemCount || 0), 0), helper: "Items not on hand", icon: "alert" },
+    { label: "Damaged Items", value: filteredRows.reduce((sum, checklist) => sum + Number(checklist.damagedItemCount || 0), 0), helper: "Needs replacement", icon: "refresh" },
+  ];
 
   if (!permissions.toolChecklist.canUse && !permissions.toolChecklist.canManageAll) {
     return (
@@ -13894,6 +14029,7 @@ function ToolChecklistPage({
   return (
     <div>
       <PageHeader eyebrow="Field Tools" title="Tool Checklist" description={permissions.toolChecklist.canManageAll ? "Manage job checklists, review submissions, and keep field tool status visible to the office." : "Keep job tools organized, flag missing or damaged items, and submit the field checklist without exposing office-only data."} />
+      <ModuleKpiStrip items={toolChecklistKpis} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8">
         <div className="min-w-0 space-y-4">
           <Card className="p-4">
@@ -16809,259 +16945,261 @@ export default function App() {
           />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
           <main className="min-w-0 overflow-x-hidden py-0">
-            <MainContent
-              active={active}
-              setActive={setActive}
-              sessionToken={sessionToken}
-              user={appState.user}
-              companySettings={appState.companySettings}
-              companyName={workspaceCompanyName}
-              companyProfile={workspacePrintProfile}
-              emailSendingConfigured={Boolean(appState.email?.estimateSendingConfigured)}
-              stats={stats}
-              dashboardMetrics={dashboardMetrics}
-              customers={appState.customers}
-              leads={appState.leads}
-              leadSources={appState.leadSources}
-              contactHistory={appState.contactHistory}
-              estimates={appState.estimates}
-              jobDraftImports={appState.jobDraftImports}
-              jobs={appState.jobs}
-              safetyPolicies={appState.safetyPolicies}
-                ppeItems={appState.ppeItems}
-                safetyAcknowledgments={appState.safetyAcknowledgments}
-                safetyIncidents={appState.safetyIncidents}
-                changeOrderRequests={appState.changeOrderRequests}
-                deliveryTickets={appState.deliveryTickets}
-                prePourChecklists={appState.prePourChecklists}
-                postPourChecklists={appState.postPourChecklists}
-                toolChecklists={appState.toolChecklists}
-              dailyReports={appState.dailyReports}
-              timeEntries={appState.timeEntries}
-              queueItems={appState.queueItems}
-              activity={appState.activity}
-              auditEvents={appState.auditEvents}
-              demoMode={setupStatus.demoMode}
-              publicEstimateRequestEnabled={setupStatus.publicEstimateRequestEnabled}
-              permissions={appState.permissions}
-              users={appState.users}
-              customerFilter={customerFilter}
-              setCustomerFilter={setCustomerFilter}
-              customerSearch={customerSearch}
-              setCustomerSearch={setCustomerSearch}
-              userRoleFilter={userRoleFilter}
-              setUserRoleFilter={setUserRoleFilter}
-              userStatusFilter={userStatusFilter}
-              setUserStatusFilter={setUserStatusFilter}
-              userSearch={userSearch}
-              setUserSearch={setUserSearch}
-              selectedUserId={selectedUserId}
-              onSelectUser={setSelectedUserId}
-              selectedUser={selectedUser}
-              createUserDraft={createUserDraft}
-              setCreateUserDraft={setCreateUserDraft}
-              userEditDraft={userEditDraft}
-              setUserEditDraft={setUserEditDraft}
-              onCreateUser={handleCreateUser}
-              onSaveUser={handleSaveUser}
-              userProvisionNotice={userProvisionNotice}
-              selectedCustomerId={selectedCustomerId}
-              onSelectCustomer={navigateToCustomer}
-              selectedCustomer={selectedCustomer}
-              onCustomerFieldChange={handleCustomerFieldChange}
-              customerSaveState={customerSaveState}
-              customerDraft={customerDraft}
-              setCustomerDraft={setCustomerDraft}
-                onCreateCustomer={handleCreateCustomer}
-                onArchiveCustomer={handleArchiveCustomer}
-                onRestoreCustomer={handleRestoreCustomer}
-                onCreateEstimate={handleCreateEstimate}
-                onSaveEstimate={handleSaveEstimate}
-                onConvertEstimate={handleConvertEstimate}
-                onPrintEstimate={handlePrintEstimate}
-                onSendEstimate={handleSendEstimate}
-                onCreateEstimateFromLead={handleCreateEstimateFromLead}
-                estimateFocusId={estimateFocusId}
-                relatedRecords={customerRelated}
-              customerRouteRequested={Boolean(routeState.customerId)}
-              leadFilter={leadFilter}
-              setLeadFilter={setLeadFilter}
-              leadSearch={leadSearch}
-              setLeadSearch={setLeadSearch}
-              leadOwnerFilter={leadOwnerFilter}
-              setLeadOwnerFilter={setLeadOwnerFilter}
-              leadSourceFilter={leadSourceFilter}
-              setLeadSourceFilter={setLeadSourceFilter}
-              leadDueFilter={leadDueFilter}
-              setLeadDueFilter={setLeadDueFilter}
-              leadScoreFilter={leadScoreFilter}
-              setLeadScoreFilter={setLeadScoreFilter}
-              leadScoreSort={leadScoreSort}
-              setLeadScoreSort={setLeadScoreSort}
-              jobFilter={jobFilter}
-              setJobFilter={setJobFilter}
-              jobSearch={jobSearch}
-              setJobSearch={setJobSearch}
-              jobCustomerFilter={jobCustomerFilter}
-              setJobCustomerFilter={setJobCustomerFilter}
-              jobForemanFilter={jobForemanFilter}
-              setJobForemanFilter={setJobForemanFilter}
-              jobDateFilter={jobDateFilter}
-              setJobDateFilter={setJobDateFilter}
-              jobStartupFilter={jobStartupFilter}
-              setJobStartupFilter={setJobStartupFilter}
-              reportFilter={reportFilter}
-              setReportFilter={setReportFilter}
-              reportSearch={reportSearch}
-              setReportSearch={setReportSearch}
-              reportJobFilter={reportJobFilter}
-              setReportJobFilter={setReportJobFilter}
-              reportCreatorFilter={reportCreatorFilter}
-              setReportCreatorFilter={setReportCreatorFilter}
-              reportDateFilter={reportDateFilter}
-              setReportDateFilter={setReportDateFilter}
-              dashboardShortcuts={dashboardShortcuts}
-              dashboardFocusTarget={dashboardFocusTarget}
-              onRunDashboardShortcut={runDashboardShortcut}
-              selectedLeadId={selectedLeadId}
-              onSelectLead={navigateToLead}
-              selectedLead={selectedLead}
-              onLeadFieldChange={handleLeadFieldChange}
-              onScoreLead={handleScoreLead}
-              onCheckMissingInfo={handleCheckLeadMissingInfo}
-              onGenerateLeadAssistant={handleGenerateLeadAssistant}
-              leadAssistantState={leadAssistantState}
-              leadSaveState={leadSaveState}
-              onArchiveLead={handleArchiveLead}
-              onRestoreLead={handleRestoreLead}
-              onDeleteLead={handleDeleteLead}
-              onConvertLeadToCustomer={handleConvertLeadToCustomer}
-              relatedLeadRecords={leadRelated}
-              leadDraft={leadDraft}
-              setLeadDraft={setLeadDraft}
-              onCreateLead={handleCreateLead}
-              onCreateLeadSource={handleCreateLeadSource}
-              onUpdateLeadSource={handleUpdateLeadSource}
-              onArchiveLeadSource={handleArchiveLeadSource}
-              onRestoreLeadSource={handleRestoreLeadSource}
-              onMarkLeadSourceChecked={handleMarkLeadSourceChecked}
-              onCreateContactHistory={handleCreateContactHistory}
-              onUpdateContactHistory={handleUpdateContactHistory}
-              onArchiveContactHistory={handleArchiveContactHistory}
-              onRestoreContactHistory={handleRestoreContactHistory}
-              onOpenEstimate={navigateToEstimate}
-              onCreateJobFromLead={handleCreateJobFromLead}
-              selectedJobId={selectedJobId}
-              onSelectJob={navigateToJob}
-              selectedJob={selectedJob}
-              selectedImportedDraftId={selectedImportedDraftId}
-              selectedImportedDraft={selectedImportedDraft}
-              onSelectImportedDraft={navigateToImportedDraft}
-              onBackToImportedDrafts={() => {
-                setSelectedImportedDraftId("");
-                setActive("jobDraftImports");
-              }}
-              onImportJobDraftPackage={handleImportJobDraftPackage}
-              onSaveImportedJobDraft={handleSaveImportedJobDraft}
-              onCreateJobFromImportedDraft={handleCreateJobFromImportedDraft}
-              onOpenCreatedJob={navigateToJob}
-              uploads={appState.uploads}
-              calculatorResults={appState.calculatorResults}
-              onCreateUpload={handleCreateUpload}
-              onUpdateUpload={handleUpdateUpload}
-              onArchiveUpload={handleArchiveUpload}
-              onSaveCalculatorResult={handleSaveCalculatorResult}
-              onCreateSafetyPolicy={handleCreateSafetyPolicy}
-              onSaveSafetyPolicy={handleSaveSafetyPolicy}
-              onArchiveSafetyPolicy={handleArchiveSafetyPolicy}
-              onCreatePpeItem={handleCreatePpeItem}
-              onSavePpeItem={handleSavePpeItem}
-              onArchivePpeItem={handleArchivePpeItem}
-              onAcknowledgeSafety={handleAcknowledgeSafety}
-              onCreateSafetyIncident={handleCreateSafetyIncident}
-              onReviewSafetyIncident={handleReviewSafetyIncident}
-              onResolveSafetyIncident={handleResolveSafetyIncident}
-              onCreateChangeOrderRequest={handleCreateChangeOrderRequest}
-              onUpdateChangeOrderRequest={handleUpdateChangeOrderRequest}
-              onArchiveChangeOrderRequest={handleArchiveChangeOrderRequest}
-              onCreateDeliveryTicket={handleCreateDeliveryTicket}
-              onUpdateDeliveryTicket={handleUpdateDeliveryTicket}
-              onArchiveDeliveryTicket={handleArchiveDeliveryTicket}
-              onPrintJobPacket={handlePrintJobPacket}
-              onPrintDailyReport={handlePrintDailyReport}
-                onArchiveSafetyIncident={handleArchiveSafetyIncident}
-                onUpdateCompanySettings={handleUpdateCompanySettings}
-                onCreateChecklist={handleCreateToolChecklist}
-                onSaveChecklist={handleSaveToolChecklist}
-                onAddChecklistItem={handleAddToolChecklistItem}
-                onUpdateChecklistItem={handleUpdateToolChecklistItem}
-                onSubmitChecklist={handleSubmitToolChecklist}
-                onReviewChecklist={handleReviewToolChecklist}
-                onArchiveChecklist={handleArchiveToolChecklist}
-                onCreatePrePourChecklist={handleCreatePrePourChecklist}
-                onSavePrePourChecklist={handleSavePrePourChecklist}
-                onUpdatePrePourChecklistItem={handleUpdatePrePourChecklistItem}
-                onCompletePrePourChecklist={handleCompletePrePourChecklist}
-                onReviewPrePourChecklist={handleReviewPrePourChecklist}
-                onReopenPrePourChecklist={handleReopenPrePourChecklist}
-                onArchivePrePourChecklist={handleArchivePrePourChecklist}
-                onCreatePostPourChecklist={handleCreatePostPourChecklist}
-                onSavePostPourChecklist={handleSavePostPourChecklist}
-                onUpdatePostPourChecklistItem={handleUpdatePostPourChecklistItem}
-                onCompletePostPourChecklist={handleCompletePostPourChecklist}
-                onReviewPostPourChecklist={handleReviewPostPourChecklist}
-                onReopenPostPourChecklist={handleReopenPostPourChecklist}
-                onArchivePostPourChecklist={handleArchivePostPourChecklist}
-                selectedReportId={selectedReportId}
-              onSelectReport={navigateToReport}
-              selectedReport={selectedReport}
-              reportEditDraft={reportEditDraft}
-              setReportEditDraft={setReportEditDraft}
-              createReportDraft={createReportDraft}
-              setCreateReportDraft={setCreateReportDraft}
-              onCreateReport={handleCreateReport}
-              onSaveReport={handleSaveReport}
-              onSubmitReport={handleSubmitReport}
-              onReviewReport={handleReviewReport}
-              onReopenReport={handleReopenReport}
-              onArchiveReport={handleArchiveReport}
-              reportRouteRequested={Boolean(routeState.reportId)}
-              selectedTimeEntryId={selectedTimeEntryId}
-              onSelectTimeEntry={setSelectedTimeEntryId}
-              selectedTimeEntry={selectedTimeEntry}
-              timeEditDraft={timeEditDraft}
-              setTimeEditDraft={setTimeEditDraft}
-              onSaveTimeEntry={handleSaveTimeEntry}
-              onClockIn={handleClockIn}
-              onClockOut={handleClockOut}
-              onStartBreak={handleStartBreak}
-              onEndBreak={handleEndBreak}
-              onJobFieldChange={handleJobFieldChange}
-              onChangeForeman={handleChangeJobForeman}
-              onAddAssignment={handleAddJobAssignment}
-              onUpdateAssignment={handleUpdateJobAssignmentRole}
-              onRemoveAssignment={handleRemoveJobAssignment}
-              onAcknowledgeAssignmentNotice={handleAcknowledgeJobAssignmentNotice}
-              jobSaveState={jobSaveState}
-              onArchiveJob={handleArchiveJob}
-              onRestoreJob={handleRestoreJob}
-              onDeleteJob={handleDeleteJob}
-              jobDraft={jobDraft}
-              setJobDraft={setJobDraft}
-              onCreateJob={handleCreateJob}
-              taskDraft={taskDraft}
-              setTaskDraft={setTaskDraft}
-              onAddTask={handleAddTask}
-              onToggleTask={handleToggleTask}
-              onArchiveTask={handleArchiveTask}
-              onRestoreTask={handleRestoreTask}
-              onDeleteTask={handleDeleteTask}
-              visibleCustomers={visibleCustomers}
-              visibleLeads={visibleLeads}
-              visibleJobs={enrichedJobs}
-              onReset={handleReset}
-              busy={busy}
-            />
+            <div className={`co-module-frame co-module-${active}`}>
+              <MainContent
+                active={active}
+                setActive={setActive}
+                sessionToken={sessionToken}
+                user={appState.user}
+                companySettings={appState.companySettings}
+                companyName={workspaceCompanyName}
+                companyProfile={workspacePrintProfile}
+                emailSendingConfigured={Boolean(appState.email?.estimateSendingConfigured)}
+                stats={stats}
+                dashboardMetrics={dashboardMetrics}
+                customers={appState.customers}
+                leads={appState.leads}
+                leadSources={appState.leadSources}
+                contactHistory={appState.contactHistory}
+                estimates={appState.estimates}
+                jobDraftImports={appState.jobDraftImports}
+                jobs={appState.jobs}
+                safetyPolicies={appState.safetyPolicies}
+                  ppeItems={appState.ppeItems}
+                  safetyAcknowledgments={appState.safetyAcknowledgments}
+                  safetyIncidents={appState.safetyIncidents}
+                  changeOrderRequests={appState.changeOrderRequests}
+                  deliveryTickets={appState.deliveryTickets}
+                  prePourChecklists={appState.prePourChecklists}
+                  postPourChecklists={appState.postPourChecklists}
+                  toolChecklists={appState.toolChecklists}
+                dailyReports={appState.dailyReports}
+                timeEntries={appState.timeEntries}
+                queueItems={appState.queueItems}
+                activity={appState.activity}
+                auditEvents={appState.auditEvents}
+                demoMode={setupStatus.demoMode}
+                publicEstimateRequestEnabled={setupStatus.publicEstimateRequestEnabled}
+                permissions={appState.permissions}
+                users={appState.users}
+                customerFilter={customerFilter}
+                setCustomerFilter={setCustomerFilter}
+                customerSearch={customerSearch}
+                setCustomerSearch={setCustomerSearch}
+                userRoleFilter={userRoleFilter}
+                setUserRoleFilter={setUserRoleFilter}
+                userStatusFilter={userStatusFilter}
+                setUserStatusFilter={setUserStatusFilter}
+                userSearch={userSearch}
+                setUserSearch={setUserSearch}
+                selectedUserId={selectedUserId}
+                onSelectUser={setSelectedUserId}
+                selectedUser={selectedUser}
+                createUserDraft={createUserDraft}
+                setCreateUserDraft={setCreateUserDraft}
+                userEditDraft={userEditDraft}
+                setUserEditDraft={setUserEditDraft}
+                onCreateUser={handleCreateUser}
+                onSaveUser={handleSaveUser}
+                userProvisionNotice={userProvisionNotice}
+                selectedCustomerId={selectedCustomerId}
+                onSelectCustomer={navigateToCustomer}
+                selectedCustomer={selectedCustomer}
+                onCustomerFieldChange={handleCustomerFieldChange}
+                customerSaveState={customerSaveState}
+                customerDraft={customerDraft}
+                setCustomerDraft={setCustomerDraft}
+                  onCreateCustomer={handleCreateCustomer}
+                  onArchiveCustomer={handleArchiveCustomer}
+                  onRestoreCustomer={handleRestoreCustomer}
+                  onCreateEstimate={handleCreateEstimate}
+                  onSaveEstimate={handleSaveEstimate}
+                  onConvertEstimate={handleConvertEstimate}
+                  onPrintEstimate={handlePrintEstimate}
+                  onSendEstimate={handleSendEstimate}
+                  onCreateEstimateFromLead={handleCreateEstimateFromLead}
+                  estimateFocusId={estimateFocusId}
+                  relatedRecords={customerRelated}
+                customerRouteRequested={Boolean(routeState.customerId)}
+                leadFilter={leadFilter}
+                setLeadFilter={setLeadFilter}
+                leadSearch={leadSearch}
+                setLeadSearch={setLeadSearch}
+                leadOwnerFilter={leadOwnerFilter}
+                setLeadOwnerFilter={setLeadOwnerFilter}
+                leadSourceFilter={leadSourceFilter}
+                setLeadSourceFilter={setLeadSourceFilter}
+                leadDueFilter={leadDueFilter}
+                setLeadDueFilter={setLeadDueFilter}
+                leadScoreFilter={leadScoreFilter}
+                setLeadScoreFilter={setLeadScoreFilter}
+                leadScoreSort={leadScoreSort}
+                setLeadScoreSort={setLeadScoreSort}
+                jobFilter={jobFilter}
+                setJobFilter={setJobFilter}
+                jobSearch={jobSearch}
+                setJobSearch={setJobSearch}
+                jobCustomerFilter={jobCustomerFilter}
+                setJobCustomerFilter={setJobCustomerFilter}
+                jobForemanFilter={jobForemanFilter}
+                setJobForemanFilter={setJobForemanFilter}
+                jobDateFilter={jobDateFilter}
+                setJobDateFilter={setJobDateFilter}
+                jobStartupFilter={jobStartupFilter}
+                setJobStartupFilter={setJobStartupFilter}
+                reportFilter={reportFilter}
+                setReportFilter={setReportFilter}
+                reportSearch={reportSearch}
+                setReportSearch={setReportSearch}
+                reportJobFilter={reportJobFilter}
+                setReportJobFilter={setReportJobFilter}
+                reportCreatorFilter={reportCreatorFilter}
+                setReportCreatorFilter={setReportCreatorFilter}
+                reportDateFilter={reportDateFilter}
+                setReportDateFilter={setReportDateFilter}
+                dashboardShortcuts={dashboardShortcuts}
+                dashboardFocusTarget={dashboardFocusTarget}
+                onRunDashboardShortcut={runDashboardShortcut}
+                selectedLeadId={selectedLeadId}
+                onSelectLead={navigateToLead}
+                selectedLead={selectedLead}
+                onLeadFieldChange={handleLeadFieldChange}
+                onScoreLead={handleScoreLead}
+                onCheckMissingInfo={handleCheckLeadMissingInfo}
+                onGenerateLeadAssistant={handleGenerateLeadAssistant}
+                leadAssistantState={leadAssistantState}
+                leadSaveState={leadSaveState}
+                onArchiveLead={handleArchiveLead}
+                onRestoreLead={handleRestoreLead}
+                onDeleteLead={handleDeleteLead}
+                onConvertLeadToCustomer={handleConvertLeadToCustomer}
+                relatedLeadRecords={leadRelated}
+                leadDraft={leadDraft}
+                setLeadDraft={setLeadDraft}
+                onCreateLead={handleCreateLead}
+                onCreateLeadSource={handleCreateLeadSource}
+                onUpdateLeadSource={handleUpdateLeadSource}
+                onArchiveLeadSource={handleArchiveLeadSource}
+                onRestoreLeadSource={handleRestoreLeadSource}
+                onMarkLeadSourceChecked={handleMarkLeadSourceChecked}
+                onCreateContactHistory={handleCreateContactHistory}
+                onUpdateContactHistory={handleUpdateContactHistory}
+                onArchiveContactHistory={handleArchiveContactHistory}
+                onRestoreContactHistory={handleRestoreContactHistory}
+                onOpenEstimate={navigateToEstimate}
+                onCreateJobFromLead={handleCreateJobFromLead}
+                selectedJobId={selectedJobId}
+                onSelectJob={navigateToJob}
+                selectedJob={selectedJob}
+                selectedImportedDraftId={selectedImportedDraftId}
+                selectedImportedDraft={selectedImportedDraft}
+                onSelectImportedDraft={navigateToImportedDraft}
+                onBackToImportedDrafts={() => {
+                  setSelectedImportedDraftId("");
+                  setActive("jobDraftImports");
+                }}
+                onImportJobDraftPackage={handleImportJobDraftPackage}
+                onSaveImportedJobDraft={handleSaveImportedJobDraft}
+                onCreateJobFromImportedDraft={handleCreateJobFromImportedDraft}
+                onOpenCreatedJob={navigateToJob}
+                uploads={appState.uploads}
+                calculatorResults={appState.calculatorResults}
+                onCreateUpload={handleCreateUpload}
+                onUpdateUpload={handleUpdateUpload}
+                onArchiveUpload={handleArchiveUpload}
+                onSaveCalculatorResult={handleSaveCalculatorResult}
+                onCreateSafetyPolicy={handleCreateSafetyPolicy}
+                onSaveSafetyPolicy={handleSaveSafetyPolicy}
+                onArchiveSafetyPolicy={handleArchiveSafetyPolicy}
+                onCreatePpeItem={handleCreatePpeItem}
+                onSavePpeItem={handleSavePpeItem}
+                onArchivePpeItem={handleArchivePpeItem}
+                onAcknowledgeSafety={handleAcknowledgeSafety}
+                onCreateSafetyIncident={handleCreateSafetyIncident}
+                onReviewSafetyIncident={handleReviewSafetyIncident}
+                onResolveSafetyIncident={handleResolveSafetyIncident}
+                onCreateChangeOrderRequest={handleCreateChangeOrderRequest}
+                onUpdateChangeOrderRequest={handleUpdateChangeOrderRequest}
+                onArchiveChangeOrderRequest={handleArchiveChangeOrderRequest}
+                onCreateDeliveryTicket={handleCreateDeliveryTicket}
+                onUpdateDeliveryTicket={handleUpdateDeliveryTicket}
+                onArchiveDeliveryTicket={handleArchiveDeliveryTicket}
+                onPrintJobPacket={handlePrintJobPacket}
+                onPrintDailyReport={handlePrintDailyReport}
+                  onArchiveSafetyIncident={handleArchiveSafetyIncident}
+                  onUpdateCompanySettings={handleUpdateCompanySettings}
+                  onCreateChecklist={handleCreateToolChecklist}
+                  onSaveChecklist={handleSaveToolChecklist}
+                  onAddChecklistItem={handleAddToolChecklistItem}
+                  onUpdateChecklistItem={handleUpdateToolChecklistItem}
+                  onSubmitChecklist={handleSubmitToolChecklist}
+                  onReviewChecklist={handleReviewToolChecklist}
+                  onArchiveChecklist={handleArchiveToolChecklist}
+                  onCreatePrePourChecklist={handleCreatePrePourChecklist}
+                  onSavePrePourChecklist={handleSavePrePourChecklist}
+                  onUpdatePrePourChecklistItem={handleUpdatePrePourChecklistItem}
+                  onCompletePrePourChecklist={handleCompletePrePourChecklist}
+                  onReviewPrePourChecklist={handleReviewPrePourChecklist}
+                  onReopenPrePourChecklist={handleReopenPrePourChecklist}
+                  onArchivePrePourChecklist={handleArchivePrePourChecklist}
+                  onCreatePostPourChecklist={handleCreatePostPourChecklist}
+                  onSavePostPourChecklist={handleSavePostPourChecklist}
+                  onUpdatePostPourChecklistItem={handleUpdatePostPourChecklistItem}
+                  onCompletePostPourChecklist={handleCompletePostPourChecklist}
+                  onReviewPostPourChecklist={handleReviewPostPourChecklist}
+                  onReopenPostPourChecklist={handleReopenPostPourChecklist}
+                  onArchivePostPourChecklist={handleArchivePostPourChecklist}
+                  selectedReportId={selectedReportId}
+                onSelectReport={navigateToReport}
+                selectedReport={selectedReport}
+                reportEditDraft={reportEditDraft}
+                setReportEditDraft={setReportEditDraft}
+                createReportDraft={createReportDraft}
+                setCreateReportDraft={setCreateReportDraft}
+                onCreateReport={handleCreateReport}
+                onSaveReport={handleSaveReport}
+                onSubmitReport={handleSubmitReport}
+                onReviewReport={handleReviewReport}
+                onReopenReport={handleReopenReport}
+                onArchiveReport={handleArchiveReport}
+                reportRouteRequested={Boolean(routeState.reportId)}
+                selectedTimeEntryId={selectedTimeEntryId}
+                onSelectTimeEntry={setSelectedTimeEntryId}
+                selectedTimeEntry={selectedTimeEntry}
+                timeEditDraft={timeEditDraft}
+                setTimeEditDraft={setTimeEditDraft}
+                onSaveTimeEntry={handleSaveTimeEntry}
+                onClockIn={handleClockIn}
+                onClockOut={handleClockOut}
+                onStartBreak={handleStartBreak}
+                onEndBreak={handleEndBreak}
+                onJobFieldChange={handleJobFieldChange}
+                onChangeForeman={handleChangeJobForeman}
+                onAddAssignment={handleAddJobAssignment}
+                onUpdateAssignment={handleUpdateJobAssignmentRole}
+                onRemoveAssignment={handleRemoveJobAssignment}
+                onAcknowledgeAssignmentNotice={handleAcknowledgeJobAssignmentNotice}
+                jobSaveState={jobSaveState}
+                onArchiveJob={handleArchiveJob}
+                onRestoreJob={handleRestoreJob}
+                onDeleteJob={handleDeleteJob}
+                jobDraft={jobDraft}
+                setJobDraft={setJobDraft}
+                onCreateJob={handleCreateJob}
+                taskDraft={taskDraft}
+                setTaskDraft={setTaskDraft}
+                onAddTask={handleAddTask}
+                onToggleTask={handleToggleTask}
+                onArchiveTask={handleArchiveTask}
+                onRestoreTask={handleRestoreTask}
+                onDeleteTask={handleDeleteTask}
+                visibleCustomers={visibleCustomers}
+                visibleLeads={visibleLeads}
+                visibleJobs={enrichedJobs}
+                onReset={handleReset}
+                busy={busy}
+              />
+            </div>
           </main>
         </div>
       </div>
