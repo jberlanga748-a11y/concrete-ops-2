@@ -7443,6 +7443,7 @@ function SafetyIncidentsPagePolished({
   const toolsRef = useRef(null);
   const visibleOpen = visibleIncidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(incident.status)).length;
   const highSeverity = visibleIncidents.filter((incident) => ["high", "critical"].includes(String(incident.severity || "").toLowerCase())).length;
+  const reviewNeeded = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "open").length;
   const incidentKpis = [
     { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "blue" },
     { label: "Open Follow-Up", value: visibleOpen, helper: "Needs safety action", icon: "clock", tone: visibleOpen ? "amber" : "green", actionLabel: "Open", onAction: () => setIncidentStatusFilter("open") },
@@ -7474,6 +7475,57 @@ function SafetyIncidentsPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityIncident(matchIncident, options = {}) {
+    const targetIncident = visibleIncidents.find(matchIncident) || (allIncidents || []).find(matchIncident);
+    if (options.statusFilter) setIncidentStatusFilter(options.statusFilter);
+    if (options.typeFilter) setIncidentTypeFilter(options.typeFilter);
+    if (options.severityFilter) setIncidentSeverityFilter(options.severityFilter);
+    if (options.archiveFilter) setIncidentArchiveFilter(options.archiveFilter);
+    if (targetIncident?.id) setSelectedIncidentId(targetIncident.id);
+    openTools(options.tool || "detail");
+  }
+
+  const severeIncident = visibleIncidents.find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()))
+    || (allIncidents || []).find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()));
+  const incidentPriorityCards = [
+    {
+      label: "Open response",
+      value: visibleOpen,
+      helper: visibleOpen ? "Unresolved safety items need the next office or field action." : "Visible incidents are reviewed or closed.",
+      icon: "clock",
+      tone: visibleOpen ? "amber" : "green",
+      actionLabel: visibleOpen ? "Open response" : "View board",
+      onAction: () => openPriorityIncident((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || "").toLowerCase()), { statusFilter: "All", archiveFilter: "Active only" }),
+    },
+    {
+      label: "High severity",
+      value: highSeverity,
+      helper: highSeverity ? "Critical or high severity incidents should stay easy to inspect." : "No high severity incidents in the visible scope.",
+      icon: "alert",
+      tone: highSeverity ? "red" : "green",
+      actionLabel: highSeverity ? "Open severe" : "All clear",
+      onAction: () => openPriorityIncident((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()), { severityFilter: severeIncident ? String(severeIncident.severity || "critical").toLowerCase() : "critical", archiveFilter: "Active only" }),
+    },
+    {
+      label: "Needs review",
+      value: reviewNeeded,
+      helper: reviewNeeded ? "Open reports are ready for documentation or office follow-up." : "No open report is waiting in the current view.",
+      icon: "document",
+      tone: reviewNeeded ? "orange" : "green",
+      actionLabel: canReview ? "Review" : "View open",
+      onAction: () => openPriorityIncident((incident) => String(incident.status || "").toLowerCase() === "open", { statusFilter: reviewNeeded ? "open" : "All", archiveFilter: "Active only" }),
+    },
+    {
+      label: "Submit incident",
+      value: canSubmitIncidents ? "Ready" : "Locked",
+      helper: canSubmitIncidents ? "Start a field-safe concern, hazard, near miss, or injury report." : "This role can review visible safety records only.",
+      icon: "plus",
+      tone: canSubmitIncidents ? "blue" : "slate",
+      actionLabel: canSubmitIncidents ? "Start report" : "Read only",
+      onAction: () => openTools(canSubmitIncidents ? "submit" : "detail"),
+    },
+  ];
+
   return (
     <div className="co-office-page co-incidents-page">
       <PageHeader
@@ -7490,6 +7542,20 @@ function SafetyIncidentsPagePolished({
 
       <div className="co-incidents-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {incidentKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-incidents-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {incidentPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-incidents-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-incidents-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-incidents-priority-value">{card.value}</span>
+              <span className="co-incidents-priority-label">{card.label}</span>
+              <span className="co-incidents-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-incidents-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-incidents-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
