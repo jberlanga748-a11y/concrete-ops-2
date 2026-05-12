@@ -238,7 +238,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { id: "calculator", label: "Calculator", icon: "calculator" },
-      { id: "copilot", label: "Ops Copilot", icon: "spark" },
+      { id: "copilot", label: "AI Office", icon: "spark" },
       { id: "design", label: "Design System", icon: "layers" },
       { id: "settings", label: "Settings", icon: "settings" },
     ],
@@ -16529,40 +16529,339 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permi
   );
 }
 
-function CopilotPage({ stats, leads, jobs, queueItems }) {
-  const suggestions = [
-    stats.queueBlocked > 0 ? `Clear ${stats.queueBlocked} blocked queue item${stats.queueBlocked > 1 ? "s" : ""} before closeout slips.` : "Queue is clear enough to keep crews moving.",
-    stats.newLeads > 0 ? `Assign callbacks for ${stats.newLeads} new lead${stats.newLeads > 1 ? "s" : ""} to keep response times tight.` : "No new leads are waiting for first contact.",
-          jobs.some((job) => normalizeJobStatus(job.status || job.stage) === "planned") ? "Planned jobs need a concrete next step or owner handoff." : "No jobs are currently stalled in a planning state.",
-    leads.some((lead) => lead.status === "Approved") ? "Approved leads can be promoted into jobs directly from the lead detail panel." : "No approved leads are waiting on job creation.",
+function CopilotPage(props) {
+  return <CopilotPagePolished {...props} />;
+}
+
+function CopilotPagePolished({
+  stats = {},
+  leads = [],
+  jobs = [],
+  queueItems = [],
+  jobDraftImports = [],
+  dailyReports = [],
+  uploads = [],
+  permissions,
+  setActive,
+  onSelectLead,
+  onSelectJob,
+  onSelectImportedDraft,
+  onSelectReport,
+}) {
+  const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
+  const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
+  const openQueueItems = normalizeObjectArray(queueItems).filter((item) => !item.archivedAt && !item.done);
+  const liveDrafts = normalizeObjectArray(jobDraftImports).filter((draft) => !draft.archivedAt);
+  const visibleReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
+  const visibleUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt);
+
+  const newLeads = liveLeads.filter((lead) => lead.status === "New");
+  const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High");
+  const approvedLeads = liveLeads.filter((lead) => lead.status === "Approved");
+  const plannedJobs = liveJobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "planned");
+  const startupWatchJobs = liveJobs.filter((job) => ["Not Started", "In Progress", "Needs Review"].includes(job.startupStatus || "Not Started"));
+  const blockedQueueItems = openQueueItems.filter((item) => item.status === "Blocked");
+  const dueQueueItems = openQueueItems.filter((item) => item.status === "Due today");
+  const reportsNeedingReview = visibleReports.filter((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus)).length;
+  const readyDrafts = liveDrafts.filter((draft) => ["Ready", "Needs Review", "Imported"].includes(draft.status || draft.importStatus || "Imported"));
+  const pipelineValue = Number(stats.pipelineValue || 0);
+
+  function openModule(moduleId) {
+    if (moduleId) setActive?.(moduleId);
+  }
+
+  function openLead(lead) {
+    if (lead?.id) onSelectLead?.(lead.id);
+    openModule("leads");
+  }
+
+  function openJob(job) {
+    if (job?.id) onSelectJob?.(job.id);
+    openModule("jobs");
+  }
+
+  function openDraft(draft) {
+    if (draft?.id) onSelectImportedDraft?.(draft.id);
+    openModule("jobDraftImports");
+  }
+
+  function openReport(report) {
+    if (report?.id) onSelectReport?.(report.id);
+    openModule("reports");
+  }
+
+  const aiKpis = [
+    {
+      label: "Lead AI Queue",
+      value: newLeads.length + highPriorityLeads.length,
+      helper: `${newLeads.length} new / ${highPriorityLeads.length} high priority`,
+      icon: "spark",
+      tone: newLeads.length || highPriorityLeads.length ? "orange" : "slate",
+      actionLabel: "Open leads",
+      onAction: () => openModule("leads"),
+    },
+    {
+      label: "Office Queue",
+      value: openQueueItems.length,
+      helper: `${blockedQueueItems.length} blocked / ${dueQueueItems.length} due today`,
+      icon: "clipboard",
+      tone: blockedQueueItems.length ? "red" : dueQueueItems.length ? "amber" : "green",
+      actionLabel: "Open dashboard",
+      onAction: () => openModule("dashboard"),
+    },
+    {
+      label: "Startup Watch",
+      value: startupWatchJobs.length,
+      helper: `${plannedJobs.length} planned / ${stats.startupReadyJobs || 0} ready`,
+      icon: "briefcase",
+      tone: startupWatchJobs.length ? "amber" : "green",
+      actionLabel: "Open jobs",
+      onAction: () => openModule("jobs"),
+    },
+    {
+      label: "Pipeline Assist",
+      value: Math.round(pipelineValue / 1000),
+      helper: `${currency(pipelineValue)} open pipeline`,
+      icon: "quote",
+      tone: pipelineValue > 0 ? "blue" : "slate",
+      actionLabel: "Review pipeline",
+      onAction: () => openModule("leads"),
+    },
   ];
-  const copilotKpis = [
-    { label: "New Leads", value: stats.newLeads, helper: "Needs first response", icon: "inbox" },
-    { label: "Active Jobs", value: stats.activeJobs, helper: "Field work in motion", icon: "briefcase" },
-    { label: "Reports Due", value: stats.reportsDue, helper: "Daily field paperwork", icon: "document" },
-    { label: "Pipeline", value: currency(stats.pipelineValue), helper: "Open opportunity value", icon: "quote" },
+
+  const workflowCards = [
+    {
+      title: "Lead AI assistant",
+      helper: "Open the lead command board and use the saved-field assistant from the selected lead panel.",
+      icon: "spark",
+      badge: `${newLeads.length + highPriorityLeads.length} ready`,
+      tone: "orange",
+      actionLabel: "Open lead AI",
+      onAction: () => openModule("leads"),
+    },
+    {
+      title: "Manual outreach drafts",
+      helper: "Use the follow-up queue to copy email, SMS, call, and voicemail drafts. Apex HQ does not auto-send.",
+      icon: "document",
+      badge: `${dueQueueItems.length + blockedQueueItems.length} queued`,
+      tone: dueQueueItems.length || blockedQueueItems.length ? "amber" : "slate",
+      actionLabel: "Open follow-ups",
+      onAction: () => openModule("leads"),
+    },
+    {
+      title: "Job startup decisions",
+      helper: "Review planned jobs, crew assignment gaps, and startup readiness before field work slips.",
+      icon: "briefcase",
+      badge: `${startupWatchJobs.length} watching`,
+      tone: startupWatchJobs.length ? "amber" : "green",
+      actionLabel: "Open jobs",
+      onAction: () => openModule("jobs"),
+    },
+    {
+      title: "Command review",
+      helper: "Jump to the operational command center for one owner view of follow-ups, jobs, reports, and blockers.",
+      icon: "grid",
+      badge: "Operator",
+      tone: "blue",
+      actionLabel: "Command Center",
+      onAction: () => openModule("commandCenter"),
+    },
+  ];
+
+  const focusRows = [
+    ...blockedQueueItems.slice(0, 2).map((item) => ({
+      id: `queue-${item.id}`,
+      eyebrow: "Blocked queue",
+      title: item.title || "Queue item",
+      description: item.meta || item.status || "Blocked item needs owner review.",
+      tone: "red",
+      icon: "alert",
+      actionLabel: "Open dashboard",
+      onAction: () => openModule("dashboard"),
+    })),
+    ...newLeads.slice(0, 2).map((lead) => ({
+      id: `lead-${lead.id}`,
+      eyebrow: "New lead",
+      title: lead.customer || "Unnamed lead",
+      description: lead.project || lead.nextStep || "Needs first office response.",
+      tone: lead.priority === "High" ? "amber" : "blue",
+      icon: "inbox",
+      actionLabel: "Open lead",
+      onAction: () => openLead(lead),
+    })),
+    ...approvedLeads.slice(0, 2).map((lead) => ({
+      id: `approved-${lead.id}`,
+      eyebrow: "Approved lead",
+      title: lead.customer || "Approved lead",
+      description: "Ready for job or estimate workflow from the lead detail panel.",
+      tone: "green",
+      icon: "check",
+      actionLabel: "Open lead",
+      onAction: () => openLead(lead),
+    })),
+    ...startupWatchJobs.slice(0, 2).map((job) => ({
+      id: `job-${job.id}`,
+      eyebrow: "Startup watch",
+      title: jobTitle(job),
+      description: jobNextStep(job),
+      tone: "amber",
+      icon: "briefcase",
+      actionLabel: "Open job",
+      onAction: () => openJob(job),
+    })),
+    ...readyDrafts.slice(0, 1).map((draft) => ({
+      id: `draft-${draft.id}`,
+      eyebrow: "Imported draft",
+      title: draft.customerName || draft.jobName || "Imported job draft",
+      description: draft.customerMatchReason || "Review the imported package before job creation.",
+      tone: "blue",
+      icon: "database",
+      actionLabel: "Open draft",
+      onAction: () => openDraft(draft),
+    })),
+  ].slice(0, 7);
+
+  const reportPreview = visibleReports.find((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus));
+  const nextActions = [
+    blockedQueueItems.length ? { label: "Clear blocked queue items", action: () => openModule("dashboard"), tone: "red" } : null,
+    newLeads.length ? { label: "Assign first responses", action: () => openModule("leads"), tone: "orange" } : null,
+    startupWatchJobs.length ? { label: "Review startup readiness", action: () => openModule("jobs"), tone: "amber" } : null,
+    reportPreview ? { label: "Review submitted report", action: () => openReport(reportPreview), tone: "blue" } : null,
+    !blockedQueueItems.length && !newLeads.length && !startupWatchJobs.length ? { label: "Open Command Center", action: () => openModule("commandCenter"), tone: "green" } : null,
+  ].filter(Boolean);
+
+  const snapshotRows = [
+    { label: "Leads", value: liveLeads.length, helper: `${approvedLeads.length} approved` },
+    { label: "Jobs", value: liveJobs.length, helper: `${stats.activeJobs || 0} active` },
+    { label: "Reports", value: visibleReports.length, helper: `${reportsNeedingReview} review` },
+    { label: "Uploads", value: visibleUploads.length, helper: "Photo evidence" },
   ];
 
   return (
-    <div>
-      <PageHeader eyebrow="System" title="Ops Copilot" description="A lightweight operations summary page based on current workspace activity." />
-      <ModuleKpiStrip items={copilotKpis} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
-        <Card className="p-5">
-          <SectionHeader title="Suggested actions" description="Derived from the current state of leads, jobs, and the queue." />
-          <div className="space-y-3">
-            {suggestions.map((item) => <div key={item} className="rounded-2xl border border-blue-100 bg-white p-4"><p className="text-sm font-bold text-slate-700">{item}</p></div>)}
+    <div className="co-office-page co-ai-office-page">
+      <PageHeader
+        eyebrow="System"
+        title="AI Office"
+        description="Office-only Apex HQ AI command space for lead review, manual outreach drafts, startup signals, and operator next actions."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="green">Field roles blocked</Badge>
+            <Badge tone="amber">No auto-send</Badge>
+            <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Open Command Center</Button>
           </div>
-        </Card>
-        <Card className="p-5">
-          <SectionHeader title="Snapshot" description="Quick counts for the modules doing real work." />
-          <div className="space-y-3 text-sm text-slate-600">
-            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Leads</span><strong className="text-slate-950">{leads.length}</strong></div>
-            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Jobs</span><strong className="text-slate-950">{jobs.length}</strong></div>
-            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Queue items</span><strong className="text-slate-950">{queueItems.length}</strong></div>
-            <div className="flex items-center justify-between rounded-2xl bg-blue-50 px-3 py-2"><span>Open pipeline</span><strong className="text-slate-950">{currency(stats.pipelineValue)}</strong></div>
-          </div>
-        </Card>
+        }
+      />
+
+      <div className="co-ai-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
+        {aiKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-ai-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="min-w-0 space-y-3">
+          <Card className="co-ai-main-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2>AI Office Command Board</h2>
+                  <p>Use AI where Apex HQ already has real saved context: leads, follow-ups, job readiness, and operator review.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Assistant</Button>
+                  <Button type="button" size="sm" onClick={() => openModule("dashboard")}>Office Queue</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-workflow-grid grid gap-3 p-4 md:grid-cols-2">
+              {workflowCards.map((card) => (
+                <button key={card.title} type="button" className="co-ai-workflow-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+                  <span className="co-ai-workflow-icon"><Icon name={card.icon} className="h-5 w-5" /></span>
+                  <span className="min-w-0">
+                    <span className="co-ai-workflow-title">{card.title}</span>
+                    <span className="co-ai-workflow-helper">{card.helper}</span>
+                  </span>
+                  <Badge tone={card.tone === "orange" ? "amber" : card.tone}>{card.badge}</Badge>
+                  <span className="co-ai-workflow-action">{card.actionLabel} -&gt;</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="co-ai-main-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="min-w-0">
+                <h2>Operator Focus</h2>
+                <p>Highest-signal records and queues to open next. Every row routes to an existing Apex HQ workflow.</p>
+              </div>
+            </div>
+            <div className="co-ai-focus-list">
+              {focusRows.length ? focusRows.map((row) => (
+                <button key={row.id} type="button" className="co-ai-focus-row co-focus-ring" data-tone={row.tone} onClick={row.onAction}>
+                  <span className="co-ai-focus-icon"><Icon name={row.icon} className="h-4 w-4" /></span>
+                  <span className="min-w-0">
+                    <span className="co-ai-focus-eyebrow">{row.eyebrow}</span>
+                    <span className="co-ai-focus-title">{row.title}</span>
+                    <span className="co-ai-focus-description">{row.description}</span>
+                  </span>
+                  <span className="co-ai-focus-action">{row.actionLabel}</span>
+                </button>
+              )) : (
+                <div className="p-4">
+                  <StateCard title="AI Office is clear" description="New leads, blocked queue items, approved leads, and startup-watch jobs will appear here when they need office review." tone="slate" />
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <aside className="co-ai-right-rail min-w-0">
+          <Card className="co-ai-rail-card">
+            <SectionHeader title="Office Guardrails" description="Apex HQ AI stays inside office workflows and saved records." />
+            <div className="co-ai-boundary-list">
+              <div className="co-ai-boundary-row" data-state="safe">
+                <span>Field roles</span>
+                <strong>Blocked</strong>
+              </div>
+              <div className="co-ai-boundary-row" data-state="safe">
+                <span>Pricing and margin</span>
+                <strong>Office only</strong>
+              </div>
+              <div className="co-ai-boundary-row" data-state="manual">
+                <span>Messages</span>
+                <strong>Manual copy</strong>
+              </div>
+              <div className="co-ai-boundary-row" data-state="safe">
+                <span>Workflows</span>
+                <strong>Existing routes</strong>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="co-ai-rail-card">
+            <SectionHeader title="Workspace Snapshot" description="Current live record counts feeding the AI Office view." />
+            <div className="co-ai-snapshot-grid">
+              {snapshotRows.map((row) => (
+                <div key={row.label}>
+                  <span>{row.label}</span>
+                  <strong>{row.value}</strong>
+                  <em>{row.helper}</em>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="co-ai-rail-card">
+            <SectionHeader title="Next Best Actions" description="Shortcuts stay visible instead of hiding in a messy tool list." />
+            <div className="grid gap-2">
+              {nextActions.map((action) => (
+                <button key={action.label} type="button" className="co-ai-action-row co-focus-ring" data-tone={action.tone} onClick={action.action}>
+                  <span>{action.label}</span>
+                  <Icon name="arrowUpRight" className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+          </Card>
+        </aside>
       </div>
     </div>
   );

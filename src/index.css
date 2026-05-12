@@ -10989,6 +10989,317 @@ textarea {
   }
 }
 
+.co-ai-office-page {
+  --co-ai-border: rgba(203, 213, 225, 0.98);
+  --co-ai-border-strong: rgba(148, 163, 184, 0.62);
+  --co-ai-soft: rgba(248, 250, 252, 0.88);
+  --co-ai-shadow: 0 18px 44px -36px rgba(7, 17, 31, 0.58);
+}
+
+.co-ai-office-page .co-page-header {
+  margin-bottom: 0.75rem;
+}
+
+.co-ai-office-page .co-page-header h1 {
+  letter-spacing: 0;
+}
+
+.co-ai-kpi-grid .co-command-kpi {
+  min-height: 8rem;
+}
+
+.co-ai-command-layout {
+  align-items: start;
+}
+
+.co-ai-main-board,
+.co-ai-rail-card {
+  border-color: var(--co-ai-border) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: var(--co-ai-shadow) !important;
+}
+
+.co-ai-board-header h2,
+.co-ai-rail-card h3 {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.co-ai-board-header p,
+.co-ai-rail-card .co-section-accent p {
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.co-ai-workflow-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  min-height: 10.25rem;
+  border: 1px solid var(--co-ai-border);
+  border-left: 3px solid var(--co-ai-tone, #f97316);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.92));
+  padding: 0.95rem;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.co-ai-workflow-card:hover {
+  border-color: rgba(249, 115, 22, 0.45);
+  box-shadow: 0 18px 36px -32px rgba(15, 23, 42, 0.62);
+  transform: translateY(-1px);
+}
+
+.co-ai-workflow-card[data-tone="red"],
+.co-ai-focus-row[data-tone="red"],
+.co-ai-action-row[data-tone="red"] {
+  --co-ai-tone: #ef4444;
+}
+
+.co-ai-workflow-card[data-tone="amber"],
+.co-ai-focus-row[data-tone="amber"],
+.co-ai-action-row[data-tone="amber"],
+.co-ai-workflow-card[data-tone="orange"],
+.co-ai-focus-row[data-tone="orange"],
+.co-ai-action-row[data-tone="orange"] {
+  --co-ai-tone: #f97316;
+}
+
+.co-ai-workflow-card[data-tone="green"],
+.co-ai-focus-row[data-tone="green"],
+.co-ai-action-row[data-tone="green"] {
+  --co-ai-tone: #16a34a;
+}
+
+.co-ai-workflow-card[data-tone="blue"],
+.co-ai-focus-row[data-tone="blue"],
+.co-ai-action-row[data-tone="blue"] {
+  --co-ai-tone: #2563eb;
+}
+
+.co-ai-workflow-card[data-tone="slate"],
+.co-ai-focus-row[data-tone="slate"],
+.co-ai-action-row[data-tone="slate"] {
+  --co-ai-tone: #64748b;
+}
+
+.co-ai-workflow-icon,
+.co-ai-focus-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--co-ai-tone) 28%, white);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--co-ai-tone) 12%, white);
+  color: var(--co-ai-tone);
+}
+
+.co-ai-workflow-icon {
+  height: 2.5rem;
+  width: 2.5rem;
+}
+
+.co-ai-workflow-title,
+.co-ai-focus-title {
+  display: block;
+  color: #0f172a;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.co-ai-workflow-helper {
+  display: block;
+  margin-top: 0.35rem;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.co-ai-workflow-action {
+  grid-column: 2 / 4;
+  color: var(--co-ai-tone);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.co-ai-focus-list {
+  display: grid;
+  gap: 0;
+}
+
+.co-ai-focus-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.94);
+  background: #ffffff;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.co-ai-focus-row:hover {
+  background: color-mix(in srgb, var(--co-ai-tone) 5%, white);
+}
+
+.co-ai-focus-row:last-child {
+  border-bottom: 0;
+}
+
+.co-ai-focus-icon {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+
+.co-ai-focus-eyebrow {
+  display: block;
+  color: var(--co-ai-tone);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.co-ai-focus-description {
+  display: block;
+  margin-top: 0.15rem;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.co-ai-focus-action {
+  color: var(--co-ai-tone);
+  font-size: 0.75rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.co-ai-right-rail {
+  position: sticky;
+  top: 5rem;
+}
+
+.co-ai-right-rail > * + * {
+  margin-top: 0.75rem;
+}
+
+.co-ai-rail-card {
+  padding: 1rem;
+}
+
+.co-ai-boundary-list,
+.co-ai-snapshot-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.co-ai-boundary-row,
+.co-ai-action-row,
+.co-ai-snapshot-grid > div {
+  border: 1px solid var(--co-ai-border);
+  border-radius: 0.85rem;
+  background: var(--co-ai-soft);
+}
+
+.co-ai-boundary-row,
+.co-ai-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.72rem 0.8rem;
+}
+
+.co-ai-boundary-row span,
+.co-ai-action-row span,
+.co-ai-snapshot-grid span,
+.co-ai-snapshot-grid em {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.co-ai-boundary-row strong,
+.co-ai-snapshot-grid strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.co-ai-boundary-row[data-state="safe"] strong {
+  color: #15803d;
+}
+
+.co-ai-boundary-row[data-state="manual"] strong {
+  color: #c2410c;
+}
+
+.co-ai-snapshot-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.co-ai-snapshot-grid > div {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.75rem;
+}
+
+.co-ai-action-row {
+  color: var(--co-ai-tone);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.co-ai-action-row:hover {
+  border-color: color-mix(in srgb, var(--co-ai-tone) 40%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 6%, white);
+}
+
+@media (max-width: 1023px) {
+  .co-ai-right-rail {
+    position: static;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-ai-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .co-ai-workflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .co-ai-workflow-card,
+  .co-ai-focus-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .co-ai-workflow-card .co-badge,
+  .co-ai-workflow-action,
+  .co-ai-focus-action {
+    grid-column: 1 / -1;
+  }
+
+  .co-ai-focus-action {
+    justify-self: start;
+  }
+}
+
 .co-settings-page {
   min-width: 0;
 }
