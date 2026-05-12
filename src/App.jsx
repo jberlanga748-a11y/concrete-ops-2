@@ -2556,12 +2556,13 @@ function KpiCard({ item }) {
   );
 }
 
-function LeadsTable({ rows, selectedId, onSelect, maxRows = null }) {
+function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows = null }) {
   const displayRows = maxRows ? rows.slice(0, maxRows) : rows;
+  const mobileRows = mobileMaxRows ? rows.slice(0, mobileMaxRows) : displayRows;
   return (
     <>
       <div className="space-y-3 md:hidden">
-        {displayRows.map((row) => {
+        {mobileRows.map((row) => {
           const selected = row.id === selectedId;
           const contactLine = [leadContactPhone(row), leadContactEmail(row)].filter(Boolean).join(" / ");
           return (
@@ -13417,7 +13418,10 @@ function LeadsPage({
   const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
   const today = todayDateInputValue();
   const [activeLeadTool, setActiveLeadTool] = useState("intake");
+  const [showAllMobileLeads, setShowAllMobileLeads] = useState(false);
   const visibleLeadRowCap = 6;
+  const mobileLeadPreviewCap = 3;
+  const mobileVisibleLeadRowCap = showAllMobileLeads ? visibleLeadRowCap : mobileLeadPreviewCap;
   const canManageSources = permissions?.leads?.canManageSources ?? permissions?.leads?.canManage;
   const leadKpis = [
     { label: "New Leads", value: rows.filter((lead) => lead.status === "New").length, helper: "Uncontacted new leads", icon: "users", tone: "blue", actionLabel: "View new leads", onAction: () => setFilter("New") },
@@ -13456,6 +13460,26 @@ function LeadsPage({
     }));
   }
 
+  function jumpToLeadSection(sectionId) {
+    if (typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      const target = document.getElementById(sectionId);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function openLeadTools(toolId = "intake") {
+    setActiveLeadTool(toolId);
+    if (typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      const target = document.getElementById("lead-tools-drawer");
+      if (target?.tagName === "DETAILS") {
+        target.open = true;
+      }
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return (
     <div className="co-office-page co-leads-page">
       <PageHeader
@@ -13464,8 +13488,8 @@ function LeadsPage({
         description="Track new leads, follow-ups, estimates, missing info, and next actions from one contractor command view."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => setDueFilter("Due today")}>Open Follow-Up Queue</Button>
-            {permissions?.leads?.canManage ? <Button type="button" onClick={() => setFilter("New")}>New Lead</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => { setDueFilter("Due today"); jumpToLeadSection("lead-followup-board"); }}>Open Follow-Up Queue</Button>
+            {permissions?.leads?.canManage ? <Button type="button" onClick={() => openLeadTools("intake")}>New Lead</Button> : null}
           </div>
         }
       />
@@ -13521,33 +13545,43 @@ function LeadsPage({
                 </SelectField>
               </div>
             </details>
-            <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} maxRows={visibleLeadRowCap} />
+            <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} maxRows={visibleLeadRowCap} mobileMaxRows={mobileVisibleLeadRowCap} />
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-              <p className="text-sm font-bold text-slate-600">Showing {Math.min(rows.length, visibleLeadRowCap)} of {leads.filter((lead) => !lead.archivedAt).length} leads</p>
+              <p className="text-sm font-bold text-slate-600">
+                <span className="hidden md:inline">Showing {Math.min(rows.length, visibleLeadRowCap)} of {leads.filter((lead) => !lead.archivedAt).length} leads</span>
+                <span className="md:hidden">Showing {Math.min(rows.length, mobileVisibleLeadRowCap)} of {leads.filter((lead) => !lead.archivedAt).length} leads</span>
+              </p>
               <div className="flex gap-2">
+                {rows.length > mobileLeadPreviewCap ? (
+                  <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobileLeads((current) => !current)}>
+                    {showAllMobileLeads ? "Show less" : "Show more"}
+                  </Button>
+                ) : null}
                 <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>Clear filters</Button>
               </div>
             </div>
           </Card>
 
-          <FollowUpQueuePanel
-            leads={leads}
-            customers={customers}
-            estimates={estimates}
-            leadSources={leadSources}
-            contactHistory={contactHistory}
-            permissions={permissions}
-            companyName={companyName}
-            user={user}
-            disabled={busy}
-            onOpenLead={onSelectLead}
-            onOpenCustomer={onSelectCustomer}
-            onOpenEstimate={onOpenEstimate}
-            onOpenLeads={() => setActive?.("leads")}
-            onCreateContactHistory={onCreateContactHistory}
-            compact
-            maxItems={5}
-          />
+          <section id="lead-followup-board">
+            <FollowUpQueuePanel
+              leads={leads}
+              customers={customers}
+              estimates={estimates}
+              leadSources={leadSources}
+              contactHistory={contactHistory}
+              permissions={permissions}
+              companyName={companyName}
+              user={user}
+              disabled={busy}
+              onOpenLead={onSelectLead}
+              onOpenCustomer={onSelectCustomer}
+              onOpenEstimate={onOpenEstimate}
+              onOpenLeads={() => setActive?.("leads")}
+              onCreateContactHistory={onCreateContactHistory}
+              compact
+              maxItems={5}
+            />
+          </section>
         </div>
 
         <LeadCommandRail
@@ -13578,7 +13612,7 @@ function LeadsPage({
         />
       </div>
 
-      <details className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8">
+      <details id="lead-tools-drawer" className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8">
         <summary>
           <span>
             <strong>Lead Tools</strong>
