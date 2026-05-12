@@ -157,6 +157,16 @@ const APP_NAME = "Apex HQ";
 const DEFAULT_COMPANY_NAME = "Apex HQ Workspace";
 const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
 const DEFAULT_LOGO_INITIALS = "AH";
+const APEX_BRAND_ASSETS = {
+  loginLogo: "/brand/apex-login-logo.png",
+  loginIcon: "/brand/apex-login-icon.png",
+  appLogo: "/brand/apex-app-logo.png",
+  appWordmark: "/brand/apex-app-wordmark.png",
+  wordmarkTransparent: "/brand/apex-wordmark-transparent.png",
+  appMark: "/brand/apex-app-mark.png",
+  appIcon: "/brand/apex-app-icon.png",
+  splash: "/brand/apex-splash.png",
+};
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
@@ -1861,18 +1871,34 @@ function AuditActionBadge({ action }) {
   return <Badge tone={tones[action] || "slate"}>{action}</Badge>;
 }
 
-function LoadingScreen({ label = "Loading workspace..." }) {
+function BrandIntroScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
-      <Card className="w-full max-w-md p-6 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-700 text-white">
-          <Icon name="database" className="h-6 w-6" />
-        </div>
-        <p className="mt-4 text-lg font-black text-slate-950">{label}</p>
-        <p className="mt-2 text-sm text-slate-500">Reconnecting to your Apex HQ workspace.</p>
-      </Card>
+    <div className="co-brand-intro-screen" role="status" aria-live="polite">
+      <img className="co-brand-intro-logo" src={APEX_BRAND_ASSETS.loginLogo} alt={APP_NAME} />
+      <div className="co-splash-progress" aria-hidden="true">
+        <span />
+      </div>
     </div>
   );
+}
+
+function SplashScreen({ label = "Loading Apex HQ...", supportingCopy = "Preparing your contractor command center." }) {
+  return (
+    <div className="co-splash-screen" role="status" aria-live="polite">
+      <div className="co-splash-card">
+        <img className="co-splash-icon" src={APEX_BRAND_ASSETS.loginIcon} alt={APP_NAME} />
+        <div className="co-splash-progress" aria-hidden="true">
+          <span />
+        </div>
+        <p className="co-splash-label">{label}</p>
+        <p className="co-splash-copy">{supportingCopy}</p>
+      </div>
+    </div>
+  );
+}
+
+function LoadingScreen({ label = "Loading workspace..." }) {
+  return <SplashScreen label={label} supportingCopy="Reconnecting to your Apex HQ workspace." />;
 }
 
 function StartupFallbackScreen({ message, onRetry, onClearSession }) {
@@ -1912,106 +1938,115 @@ function LoginScreen({
   const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
+  if (loading) {
+    return (
+      <SplashScreen
+        label={isSetupMode ? "Setting up Apex HQ..." : "Opening Apex HQ..."}
+        supportingCopy={isSetupMode ? "Creating the first workspace admin." : "Checking your account and loading the command center."}
+      />
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="overflow-hidden p-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="blue">Team workspace</Badge>
-            {setupStatus.demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
-          </div>
-          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950">Run office, crews, and field work from one concrete workspace.</h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-            Keep leads, jobs, reports, photos, safety, and field coordination in sync without juggling separate tools.
-          </p>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Team sign-in</p>
-              <p className="mt-2 text-sm text-slate-500">Office and field users sign in to the same shared workspace with role-based access.</p>
+    <div className="co-login-screen">
+      <div className="co-login-shell">
+        <section className="co-login-hero" aria-label="Apex HQ login brand">
+          <img className="co-login-hero-art" src={APEX_BRAND_ASSETS.loginLogo} alt="" />
+          <div className="co-login-hero-shade" aria-hidden="true" />
+        </section>
+        <section className="co-login-panel" aria-label={isSetupMode ? "Workspace setup" : "Workspace sign in"}>
+          <div className="co-login-panel-head">
+            <div className="co-login-icon-tile">
+              <img src={APEX_BRAND_ASSETS.loginIcon} alt="" />
             </div>
-            <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Shared records</p>
-              <p className="mt-2 text-sm text-slate-500">Leads, jobs, queue items, and activity stay current for the whole team.</p>
-            </div>
-            <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="text-sm font-black text-slate-950">Ready for daily work</p>
-              <p className="mt-2 text-sm text-slate-500">Schedule crews, capture field updates, and keep the office aligned from one place.</p>
+            <div className="min-w-0">
+              <img className="co-login-wordmark-transparent" src={APEX_BRAND_ASSETS.wordmarkTransparent} alt={APP_NAME} />
             </div>
           </div>
-        </Card>
-        <Card className="p-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-700 text-white">
-              <Icon name="lock" className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-black text-slate-950">{isSetupMode ? "Set up workspace" : "Sign in"}</p>
-              <p className="text-sm text-slate-500">
-                {isSetupMode
-                  ? "Create the first admin account for this workspace."
-                  : canShowDemoCredentials
-                    ? "Use the demo logins for fake company data, or sign in with your own office account."
-                    : "Enter the admin account for this workspace."}
-              </p>
-            </div>
-          </div>
-          <div className="mt-5 flex items-center justify-between rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
+
+          <div className="co-login-status-row">
             <span>
               {backendStatus === "online" && !setupStatus.checked
                 ? "Checking workspace access."
-                : "If sign-in fails, confirm this workspace is online and available."}
+                : "Workspace status and account access are checked before entry."}
             </span>
-            <Badge tone={backendTone}>{backendLabel}</Badge>
+            <span className="co-login-status-meta">
+              <Badge tone={backendTone}>{backendLabel}</Badge>
+            </span>
           </div>
+
+          <div className="co-login-form-intro">
+            <p>{isSetupMode ? "Set up workspace" : "Sign in"}</p>
+            <span>
+              {isSetupMode
+                ? "Create the first admin account for this workspace."
+                : canShowDemoCredentials
+                  ? "Use demo logins for demo data, or sign in with your own office account."
+                  : "Enter the admin account for this workspace."}
+            </span>
+          </div>
+
           {isSetupMode ? (
-            <form className="mt-6 grid gap-4" onSubmit={onSetupSubmit}>
+            <form className="co-login-form" onSubmit={onSetupSubmit}>
               <InputField label="Full name" value={setupDraft.name} onChange={(event) => setSetupDraft((current) => ({ ...current, name: event.target.value }))} />
               <InputField label="Email" type="email" value={setupDraft.email} onChange={(event) => setSetupDraft((current) => ({ ...current, email: event.target.value }))} />
               <InputField label="Password" type="password" value={setupDraft.password} onChange={(event) => setSetupDraft((current) => ({ ...current, password: event.target.value }))} />
               <InputField label="Role" value={setupDraft.role} onChange={(event) => setSetupDraft((current) => ({ ...current, role: event.target.value }))} />
-              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-              <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+              {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
+              <Button type="submit" size="lg" disabled={loading} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
                 {loading ? "Creating admin..." : "Create admin and enter workspace"}
               </Button>
             </form>
           ) : (
-            <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+            <form className="co-login-form" onSubmit={onSubmit}>
               <InputField label="Email" type="email" value={credentials.email} onChange={(event) => setCredentials((current) => ({ ...current, email: event.target.value }))} />
               <InputField label="Password" type="password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} />
-              {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-              <Button type="submit" disabled={loading} className={loading ? "opacity-70" : ""}>
+              {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
+              <Button type="submit" size="lg" disabled={loading} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
                 {loading ? "Signing in..." : "Enter workspace"}
               </Button>
             </form>
           )}
-          <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-4 text-sm text-slate-600">
-            <p className="font-black text-slate-950">Need help signing in?</p>
-            <p className="mt-2">Use the office account for this workspace, or the shared demo users when you are opening the demo workspace.</p>
-            <p className="mt-2">Public estimate requests can also be opened from here when that workflow is enabled.</p>
+
+          <div className="co-login-support-grid">
+            <div>
+              <p>Account help</p>
+              <span>Use the office account for this workspace, or the shared demo users when opening demo mode.</span>
+            </div>
+            {setupStatus.publicEstimateRequestEnabled ? (
+              <div>
+                <p>Public request</p>
+                <span>Open the estimate request intake when that workflow is enabled.</span>
+                <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onOpenPublicEstimateRequest}>Open public form</Button>
+              </div>
+            ) : null}
           </div>
-          {setupStatus.publicEstimateRequestEnabled ? (
-            <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-slate-600">
-              <p className="font-black text-slate-950">Public estimate request</p>
-              <p className="mt-2">Want to demo the lead generator flow first? Open the public request form and submit a fake concrete project.</p>
-              <Button type="button" variant="secondary" className="mt-3" onClick={onOpenPublicEstimateRequest}>Open public form</Button>
-            </div>
-          ) : null}
+
           {canShowDemoCredentials ? (
-            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
-              <p className="font-black text-slate-950">Demo users</p>
-              <p className="mt-2">
-                Admin: <span className="font-black text-blue-700">demo.admin@concreteops.app</span>
-              </p>
-              <p>
-                Foreman: <span className="font-black text-blue-700">demo.foreman@concreteops.app</span>
-              </p>
-              <p>
-                Employee: <span className="font-black text-blue-700">demo.employee@concreteops.app</span>
-              </p>
-              <p className="mt-2 text-xs text-slate-500">The demo password should be shared privately with the demo link.</p>
+            <div className="co-login-demo-card">
+              <p>Demo users</p>
+              <span>Admin: <strong>demo.admin@concreteops.app</strong></span>
+              <span>Foreman: <strong>demo.foreman@concreteops.app</strong></span>
+              <span>Employee: <strong>demo.employee@concreteops.app</strong></span>
+              <small>The demo password should be shared privately with the demo link.</small>
             </div>
           ) : null}
-        </Card>
+
+          <div className="co-login-quick-tabs" aria-label="Workspace coverage">
+            <div>
+              <span>Office</span>
+              <strong>Leads to jobs</strong>
+            </div>
+            <div>
+              <span>Field</span>
+              <strong>Crews and reports</strong>
+            </div>
+            <div>
+              <span>Admin</span>
+              <strong>Setup and control</strong>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -2132,14 +2167,9 @@ function PublicEstimateRequestPage({
 function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   return (
     <aside className="co-sidebar-shell hidden h-screen shrink-0 overflow-hidden border-r text-white lg:sticky lg:top-0 lg:block">
-      <div className="border-b border-white/10 px-4 py-5">
-        <div className="flex items-center gap-3">
-          <div className="co-brand-mark flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black text-white">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
-          <div>
-            <p className="co-brand-wordmark" aria-label={APP_NAME}>Apex <span>HQ</span></p>
-            <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
-          </div>
-        </div>
+      <div className="co-sidebar-brand-panel border-b border-white/10 px-4 py-4">
+        <img className="co-sidebar-brand-logo" src={APEX_BRAND_ASSETS.appLogo} alt={APP_NAME} />
+        <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
       </div>
       <div className="co-sidebar-scroll flex h-[calc(100vh-86px)] flex-col overflow-y-auto p-3">
         <div className="co-sidebar-nav-groups">
@@ -2189,11 +2219,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
       <div className="flex min-h-16 flex-col justify-center gap-3 px-4 py-3 sm:px-6 lg:h-[4.5rem] lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-0">
         <div className="co-mobile-appbar md:hidden">
           <div className="co-mobile-brand-lockup min-w-0">
-            <div className="co-mobile-brand-mark">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
-            <div className="min-w-0">
-              <p className="co-mobile-brand-title">Apex <span>HQ</span></p>
-              <p className="co-mobile-brand-subtitle">Team workspace</p>
-            </div>
+            <img className="co-mobile-brand-logo" src={APEX_BRAND_ASSETS.appLogo} alt={APP_NAME} />
           </div>
           <div className="co-mobile-user-cluster">
             <NotificationCenterButton
@@ -23778,6 +23804,7 @@ export default function App() {
   const [pathname, setPathname] = useState(() => normalizePathname(window.location.pathname));
   const [sessionToken, setSessionToken] = useState(() => window.localStorage.getItem(SESSION_TOKEN_KEY) || "");
   const [authStatus, setAuthStatus] = useState(sessionToken ? "checking" : "loggedOut");
+  const [splashVisible, setSplashVisible] = useState(true);
   const [appState, setAppState] = useState(EMPTY_APP_STATE);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -23854,6 +23881,11 @@ export default function App() {
   const selectedReport = appState.dailyReports.find((report) => report.id === selectedReportId) || null;
   const selectedImportedDraft = appState.jobDraftImports.find((draft) => draft.id === selectedImportedDraftId) || null;
   const selectedTimeEntry = appState.timeEntries.find((entry) => entry.id === selectedTimeEntryId) || null;
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => setSplashVisible(false), 900);
+    return () => window.clearTimeout(timerId);
+  }, []);
 
   useEffect(() => {
     if (active !== "dashboard" && dashboardFocusTarget) {
@@ -26193,6 +26225,10 @@ export default function App() {
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
+  }
+
+  if (splashVisible) {
+    return <BrandIntroScreen />;
   }
 
   if (publicEstimateRequestRoute) {
