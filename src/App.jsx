@@ -22523,9 +22523,16 @@ function DeliveryTicketsPagePolished({
   const detailUploadOptions = scopedUploads.filter((upload) => !detailDraft.jobId || upload.jobId === detailDraft.jobId);
   const detailReportOptions = scopedReports.filter((report) => !detailDraft.jobId || report.jobId === detailDraft.jobId);
   const missingPhotoCount = filteredRows.filter((ticket) => !ticket.ticketUploadId).length;
+  const missingReportCount = filteredRows.filter((ticket) => !ticket.reportId).length;
+  const incompleteBasicsCount = filteredRows.filter((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0)).length;
   const yardsLogged = filteredRows.reduce((sum, ticket) => sum + Number(ticket.yardsDelivered || 0), 0);
   const linkedReports = filteredRows.filter((ticket) => ticket.reportId).length;
   const archivedCount = filteredRows.filter((ticket) => ticket.archivedAt).length;
+  const latestTicket = filteredRows.reduce((latest, ticket) => {
+    const currentTime = new Date(deliveryTicketPrimaryTime(ticket) || 0).getTime() || 0;
+    const latestTime = new Date(deliveryTicketPrimaryTime(latest) || 0).getTime() || 0;
+    return currentTime > latestTime ? ticket : latest;
+  }, filteredRows[0] || null);
   const ticketKpis = [
     { label: "Visible Tickets", value: filteredRows.length, helper: "Current delivery board", icon: "clipboard", tone: "blue", actionLabel: "View active", onAction: () => setArchiveFilter("Active") },
     { label: "Missing Photo", value: missingPhotoCount, helper: "Ticket image not linked", icon: "alert", tone: missingPhotoCount ? "amber" : "green" },
@@ -22606,6 +22613,13 @@ function DeliveryTicketsPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityTicket(matchTicket, options = {}) {
+    const targetTicket = filteredRows.find(matchTicket) || ticketRows.find(matchTicket);
+    if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
+    if (targetTicket?.id) setSelectedTicketId(targetTicket.id);
+    openTool(options.tool || "details");
+  }
+
   function clearFilters() {
     setJobFilter("All jobs");
     setSupplierFilter("All suppliers");
@@ -22614,6 +22628,45 @@ function DeliveryTicketsPagePolished({
     setArchiveFilter("Active");
     setSearch("");
   }
+
+  const deliveryPriorityCards = [
+    {
+      label: "Need ticket photo",
+      value: missingPhotoCount,
+      helper: missingPhotoCount ? "Tickets without linked photo evidence need review." : "Visible tickets have linked photo evidence.",
+      icon: "upload",
+      tone: missingPhotoCount ? "amber" : "green",
+      actionLabel: missingPhotoCount ? "Open missing" : "View board",
+      onAction: () => openPriorityTicket((ticket) => !ticket.ticketUploadId, { archiveFilter: "Active" }),
+    },
+    {
+      label: "Link daily report",
+      value: missingReportCount,
+      helper: missingReportCount ? "Connect delivery tickets to the right daily report when available." : "Visible tickets are linked to reports.",
+      icon: "document",
+      tone: missingReportCount ? "orange" : "green",
+      actionLabel: missingReportCount ? "Open gaps" : "All linked",
+      onAction: () => openPriorityTicket((ticket) => !ticket.reportId, { archiveFilter: "Active" }),
+    },
+    {
+      label: "Complete basics",
+      value: incompleteBasicsCount,
+      helper: "Checks supplier, truck, ticket number, and delivered yardage.",
+      icon: "alert",
+      tone: incompleteBasicsCount ? "amber" : "green",
+      actionLabel: incompleteBasicsCount ? "Find gaps" : "Ready",
+      onAction: () => openPriorityTicket((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0), { archiveFilter: "Active" }),
+    },
+    {
+      label: "Latest delivery",
+      value: latestTicket ? 1 : 0,
+      helper: latestTicket ? `${latestTicket.job?.title || "Assigned job"} / ${latestTicket.supplier || "Supplier pending"}` : "No visible delivery ticket selected.",
+      icon: "arrowUpRight",
+      tone: latestTicket ? "blue" : "slate",
+      actionLabel: latestTicket ? "Open latest" : "No ticket",
+      onAction: () => openPriorityTicket((ticket) => ticket.id === latestTicket?.id, { archiveFilter: "Active" }),
+    },
+  ];
 
   if (!permissions.deliveryTickets.canView) {
     return (
@@ -22642,6 +22695,20 @@ function DeliveryTicketsPagePolished({
 
       <div className="co-delivery-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {ticketKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-delivery-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {deliveryPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-delivery-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-delivery-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-delivery-priority-value">{card.value}</span>
+              <span className="co-delivery-priority-label">{card.label}</span>
+              <span className="co-delivery-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-delivery-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-delivery-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
