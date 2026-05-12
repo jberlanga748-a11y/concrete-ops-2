@@ -5309,6 +5309,113 @@ function DailyReportsTable({ rows, selectedId, onSelect }) {
   );
 }
 
+function dailyReportNeedsAction(report) {
+  return ["draft", "reopened"].includes(String(report?.status || "").toLowerCase());
+}
+
+function dailyReportNeedsReview(report) {
+  return String(report?.status || "").toLowerCase() === "submitted";
+}
+
+function dailyReportConcreteSummary(report) {
+  if (!report?.concretePoured) return "No pour marked";
+  const yards = Number(report.yardsPoured || 0);
+  return `${yards || 0} yd${yards === 1 ? "" : "s"} poured`;
+}
+
+function dailyReportPrimaryNote(report) {
+  return report?.workPerformed || report?.crewSummary || report?.delays || report?.safetyNotes || report?.weather || "No field notes yet.";
+}
+
+function DailyReportsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
+  const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
+
+  return (
+    <>
+      <div className="co-reports-mobile-list grid gap-3 p-3 md:hidden">
+        {visibleRows.map((report) => {
+          const selected = report.id === selectedId;
+
+          return (
+            <button
+              key={report.id}
+              type="button"
+              onClick={() => onSelect(report.id)}
+              className={`co-reports-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-lg font-black text-slate-950">{jobTitle(report.job)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{report.reportDate} / {report.createdByName}</p>
+                </div>
+                <div className="shrink-0">
+                  <DailyReportStatusBadge status={report.status} />
+                </div>
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm font-bold leading-5 text-slate-700">{dailyReportPrimaryNote(report)}</p>
+              <div className="co-reports-mobile-metrics">
+                <span>Time <strong>{formatMinutes(report.timeSummary?.totalMinutes || 0)}</strong></span>
+                <span>Crew <strong>{report.crewAssignments?.length || 0}</strong></span>
+                <span>Concrete <strong>{dailyReportConcreteSummary(report)}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="table-shell hidden min-w-0 overflow-x-auto md:block">
+        <table className="co-reports-command-table w-full min-w-[840px] text-left">
+          <thead>
+            <tr>
+              <th>Job / Report</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Crew / Time</th>
+              <th>Field Notes</th>
+              <th>Concrete</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((report) => {
+              const selected = report.id === selectedId;
+
+              return (
+                <tr key={report.id} onClick={() => onSelect(report.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{jobTitle(report.job)}</p>
+                    <p className="text-xs font-bold text-slate-500">{report.id} / {report.createdByName}</p>
+                  </td>
+                  <td><DailyReportStatusBadge status={report.status} /></td>
+                  <td className="font-bold text-slate-700">{report.reportDate}</td>
+                  <td>
+                    <p className="font-bold text-slate-700">{report.crewAssignments?.length || 0} assigned</p>
+                    <p className="text-xs font-bold text-slate-500">{formatMinutes(report.timeSummary?.totalMinutes || 0)} worked</p>
+                  </td>
+                  <td>
+                    <p className="font-bold text-slate-700">{dailyReportPrimaryNote(report)}</p>
+                    <p className="text-xs font-bold text-slate-500">{report.weather || "Weather not set"}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{dailyReportConcreteSummary(report)}</td>
+                  <td>
+                    <div className="flex justify-end gap-1">
+                      <button type="button" className="co-reports-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(report.id); }} aria-label={`Review report ${report.id}`}>
+                        <Icon name="document" />
+                      </button>
+                      <button type="button" className="co-reports-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(report.id); }} aria-label={`Open report ${report.id}`}>
+                        <Icon name="arrowUpRight" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate, jobs }) {
   if (!canCreate) {
     return (
@@ -6842,7 +6949,342 @@ function SafetyPage({
   );
 }
 
-function ReportsPage({
+function ReportsCommandRailPolished({
+  report,
+  canView,
+  canCreate,
+  canEdit,
+  canReview,
+  canArchive,
+  disabled,
+  notFound,
+  onPrintReport,
+  onSubmit,
+  onReview,
+  onReopen,
+  onArchive,
+  onOpenTool,
+}) {
+  if (!canView) {
+    return (
+      <div className="co-reports-right-rail space-y-4">
+        <Card className="co-reports-rail-card p-4">
+          <SectionHeader title="Reports unavailable" description="This role cannot access daily reports." />
+          <StateCard title="Access blocked" description="Daily reports stay limited to approved field and office roles." tone="slate" />
+        </Card>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="co-reports-right-rail space-y-4">
+        <Card className="co-reports-rail-card p-4">
+          <SectionHeader title="Report not found" description="This route is outside the current visible report scope." />
+          <StateCard title="Unavailable report" description="The report may be archived, removed, or hidden by role scope." tone="red" />
+        </Card>
+      </div>
+    );
+  }
+
+  if (!report) {
+    return (
+      <div className="co-reports-right-rail space-y-4">
+        <Card className="co-reports-rail-card p-4">
+          <SectionHeader title="Report Console" description="Select a daily report or start a new draft." />
+          <div className="co-reports-empty-rail">
+            <span><Icon name="document" /></span>
+            <strong>No report selected</strong>
+            <p>Choose a row to review job context, crew/time, concrete notes, and review actions here.</p>
+          </div>
+          {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>Start Report</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-reports-right-rail space-y-4">
+      <Card className="co-reports-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected report summary</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{jobTitle(report.job)}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{report.reportDate} / {report.createdByName}</p>
+          </div>
+          <DailyReportStatusBadge status={report.status} />
+        </div>
+
+        <div className="co-reports-selected-metrics">
+          <div>
+            <span>Time</span>
+            <strong>{formatMinutes(report.timeSummary?.totalMinutes || 0)}</strong>
+          </div>
+          <div>
+            <span>Crew</span>
+            <strong>{report.crewAssignments?.length || 0} assigned</strong>
+          </div>
+          <div>
+            <span>Concrete</span>
+            <strong>{dailyReportConcreteSummary(report)}</strong>
+          </div>
+          <div>
+            <span>Weather</span>
+            <strong>{report.weather || "Not set"}</strong>
+          </div>
+        </div>
+
+        <div className="co-reports-note-panel">
+          <span>Field notes</span>
+          <p>{dailyReportPrimaryNote(report)}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("details")}>Edit / View</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onPrintReport} disabled={disabled || typeof onPrintReport !== "function"}>Print</Button>
+          {canEdit && ["draft", "reopened"].includes(report.status) ? <Button type="button" size="sm" variant="secondary" onClick={onSubmit} disabled={disabled}>Submit</Button> : null}
+          {canReview && ["submitted", "reopened"].includes(report.status) ? <Button type="button" size="sm" variant="secondary" onClick={onReview} disabled={disabled}>Review</Button> : null}
+          {canReview && ["submitted", "reviewed"].includes(report.status) ? <Button type="button" size="sm" variant="secondary" onClick={onReopen} disabled={disabled}>Reopen</Button> : null}
+          {canArchive && !report.archivedAt ? <Button type="button" size="sm" variant="secondary" onClick={onArchive} disabled={disabled}>Archive</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-reports-rail-card p-4">
+        <SectionHeader title="Readiness" description="Daily report review should explain the field day quickly." />
+        <div className="co-reports-readiness-list">
+          <span data-state={report.workPerformed ? "ready" : "needs"}>Work <strong>{report.workPerformed ? "Set" : "Needed"}</strong></span>
+          <span data-state={report.crewSummary ? "ready" : "needs"}>Crew <strong>{report.crewSummary ? "Set" : "Needed"}</strong></span>
+          <span data-state={report.weather ? "ready" : "needs"}>Weather <strong>{report.weather ? "Set" : "Needed"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ReportsPagePolished({
+  user,
+  permissions,
+  reports,
+  jobs,
+  users,
+  filter,
+  setFilter,
+  search,
+  setSearch,
+  jobFilter,
+  setJobFilter,
+  creatorFilter,
+  setCreatorFilter,
+  dateFilter,
+  setDateFilter,
+  selectedReportId,
+  onSelectReport,
+  selectedReport,
+  reportDraft,
+  setReportDraft,
+  createDraft,
+  setCreateDraft,
+  onCreateReport,
+  onSaveReport,
+  onSubmitReport,
+  onReviewReport,
+  onReopenReport,
+  onArchiveReport,
+  onPrintDailyReport,
+  busy,
+  reportRouteRequested,
+}) {
+  const canView = permissions.reports.canView;
+  const canCreate = permissions.reports.canCreate;
+  const [showReportTools, setShowReportTools] = useState(false);
+  const [activeReportTool, setActiveReportTool] = useState("create");
+  const reportToolsRef = useRef(null);
+  const listState = useMemo(() => deriveDailyReportListState(reports), [reports]);
+  const visibleRows = useMemo(() => filterDailyReports(reports, {
+    status: filter,
+    query: search,
+    jobId: jobFilter,
+    createdBy: creatorFilter,
+    date: dateFilter,
+  }), [creatorFilter, dateFilter, filter, jobFilter, reports, search]);
+  const notFound = Boolean(reportRouteRequested) && !selectedReport;
+  const canEdit = Boolean(selectedReport) && ((permissions.reports.canManageAll && !selectedReport.archivedAt) || (user?.role === "Foreman" && ["draft", "reopened"].includes(selectedReport.status)));
+  const canReviewActions = permissions.reports.canReview;
+  const visibleReportCap = 8;
+  const submittedCount = visibleRows.filter(dailyReportNeedsReview).length;
+  const reviewedCount = visibleRows.filter((report) => report.status === "reviewed").length;
+  const needsActionCount = visibleRows.filter(dailyReportNeedsAction).length;
+  const concreteCount = visibleRows.filter((report) => report.concretePoured).length;
+  const reportKpis = [
+    { label: "Reports", value: visibleRows.length, helper: "Matching current filters", icon: "document", tone: "blue", actionLabel: "View reports", onAction: () => setFilter("All") },
+    { label: "Submitted", value: submittedCount, helper: "Waiting office review", icon: "clipboard", tone: submittedCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setFilter("Submitted") },
+    { label: "Reviewed", value: reviewedCount, helper: "Closed for field review", icon: "check", tone: "green", actionLabel: "View reviewed", onAction: () => setFilter("Reviewed") },
+    { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened reports", icon: "alert", tone: needsActionCount ? "amber" : "slate", actionLabel: "Open drafts", onAction: () => setFilter("Draft") },
+    { label: "Concrete", value: concreteCount, helper: "Reports with pour detail", icon: "hardhat", tone: concreteCount ? "orange" : "slate" },
+  ];
+  const reportToolTabs = [
+    { id: "create", label: "Start Report", count: canCreate ? 1 : 0 },
+    { id: "details", label: "Edit / Review", count: selectedReport ? 1 : 0 },
+  ];
+
+  function openReportTool(toolId = "details") {
+    setActiveReportTool(toolId);
+    setShowReportTools(true);
+    window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  return (
+    <div className="co-office-page co-reports-page">
+      <PageHeader
+        eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"}
+        title={<span>Daily Reports <span className="text-orange-500">{"\u2606"}</span></span>}
+        description="Capture field progress, crew notes, weather, concrete activity, and review status from one daily report board."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => openReportTool("details")}>{canView ? visibleRows.length : 0} visible reports</Button>
+            {canCreate ? <Button type="button" onClick={() => openReportTool("create")}>Start Report</Button> : null}
+          </div>
+        }
+      />
+
+      {canView ? (
+        <div className="co-reports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+          {reportKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
+      ) : null}
+
+      <div className="co-reports-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-reports-left-stack min-w-0 space-y-3">
+          <Card className="co-reports-main-board overflow-hidden">
+            {canView ? (
+              <>
+                <div className="co-reports-board-header border-b border-slate-200 bg-white p-4">
+                  <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                      <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Daily Report Board</h2>
+                      <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter reports, select a field day, and keep status, crew, time, and concrete notes in the right rail.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All reports</Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Submitted")}>Review queue</Button>
+                      {canCreate ? <Button type="button" size="sm" onClick={() => openReportTool("create")}>Start Report</Button> : null}
+                    </div>
+                  </div>
+                </div>
+                <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
+                <details className="co-reports-advanced-filters border-b border-slate-200 bg-white">
+                  <summary>
+                    <span>Advanced filters</span>
+                    <span>{[jobFilter !== "All jobs" ? jobFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", dateFilter !== "All dates" ? dateFilter : ""].filter(Boolean).length || "Job, creator, date"}</span>
+                  </summary>
+                  <div className="co-office-filter-grid co-reports-filter-grid grid gap-3 p-3 md:grid-cols-3">
+                    <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                      <option>All jobs</option>
+                      {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </SelectField>
+                    <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                      <option>All creators</option>
+                      {listState.creatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </SelectField>
+                    <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                      <option>All dates</option>
+                      {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </SelectField>
+                  </div>
+                </details>
+                {busy && visibleRows.length === 0 ? (
+                  <div className="p-5"><StateCard title="Loading reports" description="Pulling in the latest field reports for this workspace." /></div>
+                ) : visibleRows.length === 0 ? (
+                  <div className="p-5">
+                    <StateCard title="No reports match this view" description="Start a report or adjust filters to bring field paperwork into the board." tone="slate" />
+                  </div>
+                ) : (
+                  <DailyReportsTablePolished rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} maxRows={visibleReportCap} />
+                )}
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+                  <p className="text-sm font-bold text-slate-600">Showing {Math.min(visibleRows.length, visibleReportCap)} of {visibleRows.length} filtered reports</p>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setJobFilter("All jobs"); setCreatorFilter("All creators"); setDateFilter("All dates"); setSearch(""); }}>Clear filters</Button>
+                </div>
+              </>
+            ) : (
+              <div className="p-5"><StateCard title="Reports unavailable" description="This role cannot access the daily reports workspace." tone="slate" /></div>
+            )}
+          </Card>
+        </div>
+
+        <ReportsCommandRailPolished
+          report={selectedReport}
+          canView={canView}
+          canCreate={canCreate}
+          canEdit={canEdit}
+          canReview={canReviewActions}
+          canArchive={permissions.reports.canManageAll}
+          disabled={busy}
+          notFound={notFound}
+          onPrintReport={selectedReport ? () => onPrintDailyReport?.(selectedReport) : undefined}
+          onSubmit={onSubmitReport}
+          onReview={onReviewReport}
+          onReopen={onReopenReport}
+          onArchive={onArchiveReport}
+          onOpenTool={openReportTool}
+        />
+      </div>
+
+      <details
+        ref={reportToolsRef}
+        className="co-reports-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8"
+        open={showReportTools}
+        onToggle={(event) => setShowReportTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Report Tools</strong>
+            <em>Start daily reports, edit field notes, print packets, and complete review actions here.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-reports-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {reportToolTabs.map((tab) => (
+            <button key={tab.id} type="button" className={activeReportTool === tab.id ? "is-active" : ""} onClick={() => setActiveReportTool(tab.id)}>
+              {tab.label}
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="co-reports-tools-panel mt-3">
+          {activeReportTool === "create" ? (
+            <DailyReportCreateCard draft={createDraft} setDraft={setCreateDraft} onCreate={onCreateReport} disabled={busy} canCreate={canCreate} jobs={jobs.filter((job) => !job.archivedAt)} />
+          ) : null}
+          {activeReportTool === "details" ? (
+            <DailyReportDetailPanel
+              report={selectedReport}
+              reportDraft={reportDraft}
+              setReportDraft={setReportDraft}
+              onSave={onSaveReport}
+              onSubmit={onSubmitReport}
+              onReview={onReviewReport}
+              onReopen={onReopenReport}
+              onArchive={onArchiveReport}
+              canView={canView}
+              canEdit={canEdit}
+              canReview={canReviewActions}
+              canArchive={permissions.reports.canManageAll}
+              disabled={busy}
+              notFound={notFound}
+              onPrintReport={selectedReport ? () => onPrintDailyReport?.(selectedReport) : undefined}
+            />
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function ReportsPage(props) {
+  return <ReportsPagePolished {...props} />;
+}
+
+function ReportsPageLegacy({
   user,
   permissions,
   reports,
