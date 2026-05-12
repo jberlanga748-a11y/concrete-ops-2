@@ -8208,11 +8208,13 @@ function ppeItemStatusTone(item) {
   return "amber";
 }
 
-function PpeChecklistTablePolished({ items, selectedId, onSelect }) {
+function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows = null }) {
+  const mobileItems = mobileMaxRows ? items.slice(0, mobileMaxRows) : items;
+
   return (
     <>
       <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
-        {items.map((item) => {
+        {mobileItems.map((item) => {
           const selected = item.id === selectedId;
 
           return (
@@ -8544,6 +8546,7 @@ function PpeChecklistPagePolished({
   const [search, setSearch] = useState("");
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState(canAcknowledge ? "ack" : "ppe");
+  const [showAllMobilePpe, setShowAllMobilePpe] = useState(false);
   const toolsRef = useRef(null);
   const ppePolicies = useMemo(() => visiblePolicies.filter((policy) => String(policy.category || "").toLowerCase().includes("ppe") || `${policy.title || ""} ${policy.body || ""}`.toLowerCase().includes("ppe")), [visiblePolicies]);
   const filteredPpeItems = useMemo(() => {
@@ -8559,6 +8562,9 @@ function PpeChecklistPagePolished({
   const requiredCount = activePpeItems.filter((item) => item.requiredByDefault).length;
   const optionalCount = activePpeItems.length - requiredCount;
   const openIncidents = visibleIncidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || ""))).length;
+  const mobilePpePreviewCap = 4;
+  const mobileVisiblePpeCap = showAllMobilePpe ? filteredPpeItems.length : mobilePpePreviewCap;
+  const mobileVisiblePpeCount = Math.min(filteredPpeItems.length, mobileVisiblePpeCap);
   const ppeKpis = [
     { label: "PPE Items", value: filteredPpeItems.length, helper: "Matching current view", icon: "hardhat", tone: "blue" },
     { label: "Required", value: requiredCount, helper: "Default crew checklist", icon: "check", tone: "green", actionLabel: "Required", onAction: () => setRequirementFilter("Required") },
@@ -8571,6 +8577,13 @@ function PpeChecklistPagePolished({
   function clearFilters() {
     setRequirementFilter("All");
     setSearch("");
+    setShowAllMobilePpe(false);
+  }
+
+  function jumpToBoard() {
+    setRequirementFilter("All");
+    setShowAllMobilePpe(false);
+    window.setTimeout(() => document.getElementById("ppe-readiness-board")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   function openTools(nextTab = canAcknowledge ? "ack" : "ppe") {
@@ -8634,7 +8647,7 @@ function PpeChecklistPagePolished({
         description="Review required jobsite protection, acknowledge current safety expectations, and keep PPE management close but uncluttered."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => setRequirementFilter("All")}>{filteredPpeItems.length} visible</Button>
+            <Button type="button" variant="secondary" onClick={jumpToBoard}>{filteredPpeItems.length} visible</Button>
             {canAcknowledge ? <Button type="button" onClick={() => openTools("ack")}>Acknowledge PPE</Button> : null}
           </div>
         }
@@ -8659,7 +8672,7 @@ function PpeChecklistPagePolished({
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card className="co-toolbox-main-board overflow-hidden">
+        <Card id="ppe-readiness-board" className="co-toolbox-main-board overflow-hidden">
           <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
             <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
@@ -8686,11 +8699,21 @@ function PpeChecklistPagePolished({
           {filteredPpeItems.length === 0 ? (
             <div className="p-5"><StateCard title={activePpeItems.length === 0 ? "No PPE items yet" : "No PPE items match these filters"} description={activePpeItems.length === 0 ? "Office/admin can add the first PPE item from the management drawer." : "Clear the filter or search another equipment requirement."} tone="slate" /></div>
           ) : (
-            <PpeChecklistTablePolished items={filteredPpeItems} selectedId={selectedItem?.id} onSelect={setSelectedPpeId} />
+            <PpeChecklistTablePolished items={filteredPpeItems} selectedId={selectedItem?.id} onSelect={setSelectedPpeId} mobileMaxRows={mobileVisiblePpeCap} />
           )}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</p>
-            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            <p className="text-sm font-bold text-slate-600">
+              <span className="hidden md:inline">Showing {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</span>
+              <span className="md:hidden">Showing {mobileVisiblePpeCount} of {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {filteredPpeItems.length > mobilePpePreviewCap ? (
+                <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobilePpe((current) => !current)}>
+                  {showAllMobilePpe ? "Show fewer" : `Show all ${filteredPpeItems.length}`}
+                </Button>
+              ) : null}
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            </div>
           </div>
         </Card>
 
