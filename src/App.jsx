@@ -24338,11 +24338,13 @@ function toolChecklistUpdatedAt(checklist) {
   return checklist?.updatedAt || checklist?.createdAt;
 }
 
-function ToolChecklistTablePolished({ rows, selectedId, onSelect }) {
+function ToolChecklistTablePolished({ rows, selectedId, onSelect, mobileMaxRows = null }) {
+  const mobileRows = mobileMaxRows ? rows.slice(0, mobileMaxRows) : rows;
+
   return (
     <>
       <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
-        {rows.map((checklist) => {
+        {mobileRows.map((checklist) => {
           const selected = checklist.id === selectedId;
 
           return (
@@ -24689,9 +24691,13 @@ function ToolChecklistPagePolished({
 }) {
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState(canCreateChecklist ? "create" : "items");
+  const [showAllMobileChecklists, setShowAllMobileChecklists] = useState(false);
   const toolsRef = useRef(null);
   const statusOptions = ["All", "Draft", "Active", "Submitted", "Reviewed", "Archived"];
   const openIssueCount = filteredRows.reduce((sum, checklist) => sum + Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0), 0);
+  const mobileChecklistPreviewCap = 3;
+  const mobileVisibleChecklistCap = showAllMobileChecklists ? filteredRows.length : mobileChecklistPreviewCap;
+  const mobileVisibleChecklistCount = Math.min(filteredRows.length, mobileVisibleChecklistCap);
 
   function clearFilters() {
     setStatusFilter("All");
@@ -24700,6 +24706,13 @@ function ToolChecklistPagePolished({
     setArchiveFilter("Active");
     setIssueFilter("All items");
     setSearch("");
+    setShowAllMobileChecklists(false);
+  }
+
+  function jumpToBoard() {
+    setArchiveFilter("Active");
+    setShowAllMobileChecklists(false);
+    window.setTimeout(() => document.getElementById("tool-checklist-loadout-board")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   function openTools(nextTab = canCreateChecklist ? "create" : "items") {
@@ -24726,44 +24739,46 @@ function ToolChecklistPagePolished({
   const activeWorkCount = filteredRows.filter((checklist) => !["submitted", "reviewed", "archived"].includes(String(checklist.status || "").toLowerCase())).length;
   const reviewLaneLabel = permissions.toolChecklist.canReview ? "Needs review" : "Ready to submit";
   const reviewLaneCount = permissions.toolChecklist.canReview ? submittedCount : activeWorkCount;
-  const toolChecklistPriorityCards = [
-    {
-      label: "Open tool issues",
-      value: openIssueCount,
-      helper: openIssueCount ? "Missing or damaged items need a crew or office decision." : "No missing or damaged tools in the current view.",
-      icon: "alert",
-      tone: openIssueCount ? "amber" : "green",
-      actionLabel: openIssueCount ? "Open issues" : "All clear",
-      onAction: () => openPriorityChecklist((checklist) => Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0) > 0, { issueFilter: openIssueCount ? "Missing or damaged" : "All items", archiveFilter: "Active", tool: "items" }),
-    },
-    {
-      label: reviewLaneLabel,
-      value: reviewLaneCount,
-      helper: permissions.toolChecklist.canReview ? "Submitted checklists are ready for office review." : "Active field loadouts can be finished and submitted.",
-      icon: "check",
-      tone: reviewLaneCount ? "orange" : "slate",
-      actionLabel: permissions.toolChecklist.canReview ? "Review" : "Submit",
-      onAction: () => openPriorityChecklist((checklist) => permissions.toolChecklist.canReview ? String(checklist.status || "").toLowerCase() === "submitted" : !["submitted", "reviewed", "archived"].includes(String(checklist.status || "").toLowerCase()), { statusFilter: permissions.toolChecklist.canReview ? "Submitted" : "All", archiveFilter: "Active", tool: "detail" }),
-    },
-    {
-      label: "Selected loadout",
-      value: selectedChecklist ? selectedItems.length : 0,
-      helper: selectedChecklist ? `${selectedChecklist.title || "Tool checklist"} / ${toolChecklistJobLabel(selectedChecklist)}` : "Select a checklist to inspect tools and notes.",
-      icon: "clipboard",
-      tone: selectedChecklist ? "blue" : "slate",
-      actionLabel: selectedChecklist ? "Open items" : "Pick one",
-      onAction: () => openPriorityChecklist((checklist) => checklist.id === selectedChecklist?.id || checklist.id === issueChecklist?.id, { tool: "items" }),
-    },
-    {
-      label: canCreateChecklist ? "Create loadout" : (canAddItems ? "Add tool item" : "Review tools"),
-      value: canCreateChecklist || canAddItems ? "Ready" : filteredRows.length,
-      helper: canCreateChecklist ? "Start a job-level loadout for visible work." : canAddItems ? "Add missing tools or field notes to the selected checklist." : "Review assigned loadouts without office-only controls.",
-      icon: canCreateChecklist || canAddItems ? "plus" : "layers",
-      tone: canCreateChecklist || canAddItems ? "blue" : "green",
-      actionLabel: canCreateChecklist ? "Create" : (canAddItems ? "Add item" : "Review"),
-      onAction: () => openTools(canCreateChecklist ? "create" : (canAddItems ? "add" : "items")),
-    },
-  ];
+  const hasReviewLane = reviewLaneCount > 0;
+  const issuePriorityCard = {
+    label: "Open tool issues",
+    value: openIssueCount,
+    helper: openIssueCount ? "Missing or damaged items need a crew or office decision." : "No missing or damaged tools in the current view.",
+    icon: "alert",
+    tone: openIssueCount ? "amber" : "green",
+    actionLabel: openIssueCount ? "Open issues" : "All clear",
+    onAction: () => openPriorityChecklist((checklist) => Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0) > 0, { issueFilter: openIssueCount ? "Missing or damaged" : "All items", archiveFilter: "Active", tool: "items" }),
+  };
+  const reviewPriorityCard = {
+    label: reviewLaneLabel,
+    value: reviewLaneCount,
+    helper: permissions.toolChecklist.canReview ? "Submitted checklists are ready for office review." : "Active field loadouts can be finished and submitted.",
+    icon: "check",
+    tone: reviewLaneCount ? "orange" : "slate",
+    actionLabel: hasReviewLane ? (permissions.toolChecklist.canReview ? "Review" : "Submit") : "View board",
+    onAction: () => hasReviewLane ? openPriorityChecklist((checklist) => permissions.toolChecklist.canReview ? String(checklist.status || "").toLowerCase() === "submitted" : !["submitted", "reviewed", "archived"].includes(String(checklist.status || "").toLowerCase()), { statusFilter: permissions.toolChecklist.canReview ? "Submitted" : "All", archiveFilter: "Active", tool: "detail" }) : jumpToBoard(),
+  };
+  const selectedPriorityCard = {
+    label: "Selected loadout",
+    value: selectedChecklist ? selectedItems.length : 0,
+    helper: selectedChecklist ? `${selectedChecklist.title || "Tool checklist"} / ${toolChecklistJobLabel(selectedChecklist)}` : canCreateChecklist ? "Start the first job loadout, then add tools and crew notes." : "Select an assigned checklist when one is available.",
+    icon: "clipboard",
+    tone: selectedChecklist ? "blue" : "slate",
+    actionLabel: selectedChecklist ? "Open items" : (canCreateChecklist ? "Create" : "View board"),
+    onAction: () => selectedChecklist ? openPriorityChecklist((checklist) => checklist.id === selectedChecklist?.id || checklist.id === issueChecklist?.id, { tool: "items" }) : (canCreateChecklist ? openTools("create") : jumpToBoard()),
+  };
+  const createPriorityCard = {
+    label: canCreateChecklist ? "Create loadout" : (canAddItems ? "Add tool item" : "Review tools"),
+    value: canCreateChecklist || canAddItems ? "Ready" : filteredRows.length,
+    helper: canCreateChecklist ? "Start a job-level loadout for visible work." : canAddItems ? "Add missing tools or field notes to the selected checklist." : "Review assigned loadouts without office-only controls.",
+    icon: canCreateChecklist || canAddItems ? "plus" : "layers",
+    tone: canCreateChecklist || canAddItems ? "blue" : "green",
+    actionLabel: canCreateChecklist ? "Create" : (canAddItems ? "Add item" : "Review"),
+    onAction: () => openTools(canCreateChecklist ? "create" : (canAddItems ? "add" : "items")),
+  };
+  const toolChecklistPriorityCards = filteredRows.length === 0 && canCreateChecklist
+    ? [createPriorityCard, issuePriorityCard, reviewPriorityCard, selectedPriorityCard]
+    : [issuePriorityCard, reviewPriorityCard, selectedPriorityCard, createPriorityCard];
 
   return (
     <div className={`co-office-page co-toolbox-page co-tool-checklist-page ${permissions.toolChecklist.canManageAll ? "" : "co-field-tool-page"}`}>
@@ -24773,7 +24788,7 @@ function ToolChecklistPagePolished({
         description={permissions.toolChecklist.canManageAll ? "Manage job tool loadouts, review submissions, and keep field issues visible to the office." : "Keep assigned job tools organized, flag missing or damaged items, and submit the checklist without office-only data."}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => setArchiveFilter("Active")}>{filteredRows.length} visible</Button>
+            <Button type="button" variant="secondary" onClick={jumpToBoard}>{filteredRows.length} visible</Button>
             {canCreateChecklist ? <Button type="button" onClick={() => openTools("create")}>Create Checklist</Button> : null}
           </div>
         }
@@ -24798,7 +24813,7 @@ function ToolChecklistPagePolished({
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card className="co-toolbox-main-board overflow-hidden">
+        <Card id="tool-checklist-loadout-board" className="co-toolbox-main-board overflow-hidden">
           <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
             <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
@@ -24845,11 +24860,21 @@ function ToolChecklistPagePolished({
           {filteredRows.length === 0 ? (
             <div className="p-5"><StateCard title={noFieldJob ? "No assigned job yet" : "No checklists match these filters"} description={noFieldJob ? "Contact office if a checklist should already be on your phone." : checklistRows.length === 0 ? "Create the first job tool checklist to start tracking loadouts." : "Clear a filter or search another job, foreman, checklist, or tool note."} tone="slate" /></div>
           ) : (
-            <ToolChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} />
+            <ToolChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} mobileMaxRows={mobileVisibleChecklistCap} />
           )}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</p>
-            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            <p className="text-sm font-bold text-slate-600">
+              <span className="hidden md:inline">Showing {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
+              <span className="md:hidden">Showing {mobileVisibleChecklistCount} of {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {filteredRows.length > mobileChecklistPreviewCap ? (
+                <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobileChecklists((current) => !current)}>
+                  {showAllMobileChecklists ? "Show fewer" : `Show all ${filteredRows.length}`}
+                </Button>
+              ) : null}
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            </div>
           </div>
         </Card>
 
