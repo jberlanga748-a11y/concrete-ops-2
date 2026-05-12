@@ -98,6 +98,7 @@ test("server exposes PWA static assets without changing API behavior", () => {
   const serverSource = fs.readFileSync(path.join(repoRoot, "server", "index.js"), "utf8");
 
   assert.match(serverSource, /app\.use\("\/icons", express\.static\(path\.join\(distDir, "icons"\)\)\)/);
+  assert.match(serverSource, /app\.use\("\/brand", express\.static\(path\.join\(distDir, "brand"\)\)\)/);
   assert.match(serverSource, /app\.get\("\/manifest\.webmanifest"/);
   assert.match(serverSource, /application\/manifest\+json/);
 });
