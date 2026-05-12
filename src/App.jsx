@@ -128,7 +128,7 @@ import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLin
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
-import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
+import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSES, createImportedJobDraftFromPackage, filterImportedJobDrafts, formatImportedDraftSummary, getCustomerMatchWarnings, getImportedDraftWarnings, getImportedJobDraftStats, isImportedDraftReadyForJob, normalizeImportedJobDraft, normalizeImportedJobDrafts, validateJobDraftImportPackage } from "../shared/jobDraftImports.js";
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
@@ -12054,6 +12054,35 @@ function customerMatchStatusTone(status) {
   return "slate";
 }
 
+function importedDraftImportedAt(draft) {
+  return draft?.importedAt || draft?.createdAt || draft?.updatedAt;
+}
+
+function importedDraftLocation(draft) {
+  return [draft?.city, draft?.state].filter(Boolean).join(", ") || "Location needs review";
+}
+
+function importedDraftSearchMatch(draft, query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  const haystack = [
+    draft.jobName,
+    draft.customerName,
+    draft.contactName,
+    draft.city,
+    draft.state,
+    draft.serviceType,
+    draft.projectType,
+    draft.scopeSummary,
+    draft.opsReadinessLabel,
+    draft.importStatus,
+    draft.customerMatchStatus,
+    draft.opsJobDraftId,
+    draft.sourceHandoffId,
+  ].filter(Boolean).join(" ").toLowerCase();
+  return haystack.includes(normalizedQuery);
+}
+
 function ImportedJobDraftsPage({
   drafts,
   jobs,
@@ -12097,17 +12126,368 @@ function ImportedJobDraftsPage({
   }
 
   return (
-    <ImportedJobDraftListPage
-      drafts={drafts}
-      onImportPackage={onImportPackage}
-      onOpenCreatedJob={onOpenCreatedJob}
-      onSelectDraft={onSelectDraft}
-      busy={busy}
-    />
+      <ImportedJobDraftListPage
+        drafts={drafts}
+        onImportPackage={onImportPackage}
+        onOpenCreatedJob={onOpenCreatedJob}
+        onSelectDraft={onSelectDraft}
+        busy={busy}
+        permissions={permissions}
+      />
+    );
+  }
+
+function ImportedDraftsTablePolished({ drafts, selectedId, onSelect, onReview, onOpenCreatedJob }) {
+  return (
+    <>
+      <div className="co-imports-mobile-list grid gap-3 p-3 md:hidden">
+        {drafts.map((draft) => {
+          const selected = draft.id === selectedId;
+
+          return (
+            <button
+              key={draft.id}
+              type="button"
+              onClick={() => onSelect(draft.id)}
+              className={`co-imports-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{draft.jobName || "Untitled imported draft"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{draft.customerName || "Customer pending"} / {importedDraftLocation(draft)}</p>
+                </div>
+                <Badge tone={importedDraftStatusTone(draft.importStatus)}>{draft.importStatus}</Badge>
+              </div>
+              <div className="co-imports-mobile-metrics">
+                <span>Match <strong>{draft.customerMatchStatus || "Not Checked"}</strong></span>
+                <span>Ready <strong>{draft.opsReadinessLabel || "Needs review"}</strong></span>
+                <span>Job <strong>{draft.createdJobId ? "Created" : "Not created"}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-imports-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-imports-command-table w-full min-w-[980px] text-left">
+          <thead>
+            <tr>
+              <th>Draft / Customer</th>
+              <th>Status</th>
+              <th>Match</th>
+              <th>Readiness</th>
+              <th>Service</th>
+              <th>Imported</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drafts.map((draft) => {
+              const selected = draft.id === selectedId;
+
+              return (
+                <tr key={draft.id} onClick={() => onSelect(draft.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{draft.jobName || "Untitled imported draft"}</p>
+                    <p className="text-xs font-bold text-slate-500">{draft.customerName || "Customer pending"} / {importedDraftLocation(draft)}</p>
+                  </td>
+                  <td><Badge tone={importedDraftStatusTone(draft.importStatus)}>{draft.importStatus}</Badge></td>
+                  <td><Badge tone={customerMatchStatusTone(draft.customerMatchStatus)}>{draft.customerMatchStatus || "Not Checked"}</Badge></td>
+                  <td>
+                    <p className="font-bold text-slate-700">{draft.opsReadinessLabel || "Needs review"}</p>
+                    <p className="text-xs font-bold text-slate-500">{draft.opsReadinessScore !== "" ? `Score ${draft.opsReadinessScore}` : "No score"}</p>
+                  </td>
+                  <td>
+                    <p className="font-bold text-slate-700">{draft.serviceType || draft.projectType || "Service pending"}</p>
+                    <p className="text-xs font-bold text-slate-500">{draft.scopeSummary || "Scope pending"}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{formatDateTime(importedDraftImportedAt(draft))}</td>
+                  <td>
+                    <div className="flex gap-1.5">
+                      {draft.createdJobId ? (
+                        <button type="button" className="co-imports-icon-button" onClick={(event) => { event.stopPropagation(); onOpenCreatedJob(draft.createdJobId); }} aria-label={`Open created job for imported draft ${draft.id}`}>
+                          <Icon name="briefcase" />
+                        </button>
+                      ) : null}
+                      <button type="button" className="co-imports-icon-button" onClick={(event) => { event.stopPropagation(); onReview(draft.id); }} aria-label={`Review imported draft ${draft.id}`}>
+                        <Icon name="arrowUpRight" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
-function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, onSelectDraft, busy }) {
+function ImportedDraftCommandRailPolished({ draft, onReview, onImportClick, onOpenCreatedJob }) {
+  if (!draft) {
+    return (
+      <div className="co-imports-right-rail space-y-4">
+        <Card className="co-imports-rail-card p-4">
+          <SectionHeader title="Draft Console" description="Import a package or select a draft for office review." />
+          <div className="co-imports-empty-rail">
+            <span><Icon name="database" /></span>
+            <strong>No imported draft selected</strong>
+            <p>Imported packages will show customer match, readiness, service type, and job creation status here.</p>
+          </div>
+          <Button type="button" className="mt-3 w-full" onClick={onImportClick}>Import Package</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const warnings = getImportedDraftWarnings(draft);
+  const customerWarnings = getCustomerMatchWarnings(draft);
+
+  return (
+    <div className="co-imports-right-rail space-y-4">
+      <Card className="co-imports-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected draft</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{draft.jobName || "Untitled imported draft"}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{draft.customerName || "Customer pending"} / {importedDraftLocation(draft)}</p>
+          </div>
+          <Badge tone={importedDraftStatusTone(draft.importStatus)}>{draft.importStatus}</Badge>
+        </div>
+
+        <div className="co-imports-selected-metrics">
+          <div>
+            <span>Customer Match</span>
+            <strong>{draft.customerMatchStatus || "Not Checked"}</strong>
+          </div>
+          <div>
+            <span>Readiness</span>
+            <strong>{draft.opsReadinessLabel || "Needs review"}</strong>
+          </div>
+          <div>
+            <span>Service</span>
+            <strong>{draft.serviceType || draft.projectType || "Pending"}</strong>
+          </div>
+          <div>
+            <span>Created Job</span>
+            <strong>{draft.createdJobId ? "Created" : "Not created"}</strong>
+          </div>
+        </div>
+
+        <div className="co-imports-note-panel">
+          <span>Scope summary</span>
+          <p>{draft.scopeSummary || draft.jobDraftSummary || "No scope summary recorded yet."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onReview(draft.id)}>Review Draft</Button>
+          {draft.createdJobId ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenCreatedJob(draft.createdJobId)}>Open Job</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-imports-rail-card p-4">
+        <SectionHeader title="Readiness Checks" description="Resolve these before converting to a real job." />
+        <div className="co-imports-readiness-list">
+          <span data-state={draft.customerName ? "ready" : "needs"}>Customer <strong>{draft.customerName ? "Set" : "Needed"}</strong></span>
+          <span data-state={["Matched", "Confirmed", "New Customer Needed", "No Match"].includes(draft.customerMatchStatus) ? "ready" : "needs"}>Match <strong>{draft.customerMatchStatus || "Review"}</strong></span>
+          <span data-state={draft.jobName && draft.scopeSummary ? "ready" : "needs"}>Scope <strong>{draft.jobName && draft.scopeSummary ? "Set" : "Needed"}</strong></span>
+          <span data-state={warnings.length || customerWarnings.length ? "needs" : "ready"}>Warnings <strong>{warnings.length + customerWarnings.length}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ImportedDraftImportPanelPolished({ busy, importMessage, onImportFile }) {
+  return (
+    <Card className="co-imports-form-card p-4">
+      <SectionHeader title="Import Package" description="Load a Concrete Ops Job Draft Package JSON file for office review before job creation." />
+      <div className="co-imports-import-box">
+        <span><Icon name="upload" /></span>
+        <div className="min-w-0">
+          <strong>Job Draft Package</strong>
+          <p>Choose the exported JSON package. Sensitive keys are stripped by the import normalizer.</p>
+        </div>
+        <label className={`co-imports-file-button ${busy ? "is-disabled" : ""}`}>
+          Import JSON
+          <input className="hidden" type="file" accept="application/json,.json" onChange={onImportFile} disabled={busy} />
+        </label>
+      </div>
+      {importMessage ? <div className="co-imports-message mt-3">{importMessage}</div> : null}
+      <div className="co-imports-endpoint-note mt-3">
+        <span>Integration</span>
+        <p>Direct import endpoint remains available for proposal app integration.</p>
+      </div>
+    </Card>
+  );
+}
+
+function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreatedJob, onSelectDraft, busy, permissions }) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [readinessFilter, setReadinessFilter] = useState("All");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("All");
+  const [createdFilter, setCreatedFilter] = useState("All");
+  const [cityFilter, setCityFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [importMessage, setImportMessage] = useState("");
+  const [selectedDraftId, setSelectedDraftId] = useState("");
+  const [showTools, setShowTools] = useState(false);
+  const toolsRef = useRef(null);
+  const normalizedDrafts = useMemo(() => normalizeImportedJobDrafts(drafts), [drafts]);
+  const stats = getImportedJobDraftStats(normalizedDrafts);
+  const readinessLabels = useMemo(() => Array.from(new Set(normalizedDrafts.map((draft) => draft.opsReadinessLabel).filter(Boolean))).sort(), [normalizedDrafts]);
+  const serviceTypes = useMemo(() => Array.from(new Set(normalizedDrafts.map((draft) => draft.serviceType).filter(Boolean))).sort(), [normalizedDrafts]);
+  const filteredDrafts = useMemo(() => filterImportedJobDrafts(normalizedDrafts, { cityFilter, createdFilter, readinessFilter, serviceTypeFilter, statusFilter }).filter((draft) => importedDraftSearchMatch(draft, search)), [cityFilter, createdFilter, normalizedDrafts, readinessFilter, search, serviceTypeFilter, statusFilter]);
+  const selectedDraft = filteredDrafts.find((draft) => draft.id === selectedDraftId) || filteredDrafts[0] || normalizedDrafts.find((draft) => draft.id === selectedDraftId) || null;
+  const matchReviewCount = normalizedDrafts.filter((draft) => ["Review Required", "Possible Match", "Not Checked"].includes(draft.customerMatchStatus)).length;
+  const visibleWarnings = filteredDrafts.reduce((count, draft) => count + getImportedDraftWarnings(draft).length + getCustomerMatchWarnings(draft).length, 0);
+  const importKpis = [
+    { label: "Imported Drafts", value: stats.total, helper: "Review before creating jobs", icon: "database", tone: "blue" },
+    { label: "Needs Review", value: stats.needsReview, helper: "Missing info or not ready", icon: "alert", tone: stats.needsReview ? "amber" : "green", actionLabel: "Review", onAction: () => setStatusFilter("Needs Review") },
+    { label: "Ready To Create", value: stats.readyToCreate, helper: "Ready for job creation", icon: "check", tone: stats.readyToCreate ? "green" : "slate", actionLabel: "Ready", onAction: () => setStatusFilter("Ready to Create Job") },
+    { label: "Jobs Created", value: stats.jobCreated, helper: "Converted into jobs", icon: "briefcase", tone: stats.jobCreated ? "green" : "slate", actionLabel: "Created", onAction: () => setCreatedFilter("Created") },
+    { label: "Match Review", value: matchReviewCount, helper: "Customer match attention", icon: "users", tone: matchReviewCount ? "amber" : "green" },
+  ];
+
+  useEffect(() => {
+    if (!selectedDraftId && filteredDrafts[0]?.id) {
+      setSelectedDraftId(filteredDrafts[0].id);
+    }
+  }, [filteredDrafts, selectedDraftId]);
+
+  async function handleImportFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImportMessage("");
+
+    try {
+      const parsed = JSON.parse(await file.text());
+      const validation = validateJobDraftImportPackage(parsed);
+      if (!validation.ok) {
+        throw new Error(validation.errors.join(" "));
+      }
+      const result = await onImportPackage(parsed);
+      setImportMessage(result?.message || "Imported Job Draft Package.");
+    } catch (error) {
+      setImportMessage(error.message || "Could not import this JSON package.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  function clearFilters() {
+    setStatusFilter("All");
+    setReadinessFilter("All");
+    setServiceTypeFilter("All");
+    setCreatedFilter("All");
+    setCityFilter("");
+    setSearch("");
+  }
+
+  function openTools() {
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  return (
+    <div className="co-office-page co-imports-page">
+      <PageHeader
+        eyebrow="Office"
+        title={<span>Imported Drafts <span className="text-orange-500">{"\u2606"}</span></span>}
+        description="Import job draft packages, review customer match and missing details, then create a real Apex HQ job when the office is ready."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setStatusFilter("All")}>{filteredDrafts.length} visible</Button>
+            {permissions?.jobDraftImports?.canManage ? <Button type="button" onClick={openTools}>Import Package</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-imports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {importKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-imports-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <Card className="co-imports-main-board overflow-hidden">
+          <div className="co-imports-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Draft Intake Board</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Review imported packages, customer match state, readiness, service type, warnings, and job conversion status.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Needs Review")}>Needs Review</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Ready to Create Job")}>Ready</Button>
+                {permissions?.jobDraftImports?.canManage ? <Button type="button" size="sm" onClick={openTools}>Import Package</Button> : null}
+              </div>
+            </div>
+          </div>
+          <FilterBar filters={["All", "Needs Review", "Ready to Create Job", "Job Created"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search draft, customer, city, service, handoff..." />
+          <details className="co-imports-advanced-filters border-b border-slate-200 bg-white">
+            <summary>
+              <span>Advanced filters</span>
+              <span>{[readinessFilter !== "All" ? readinessFilter : "", serviceTypeFilter !== "All" ? serviceTypeFilter : "", createdFilter !== "All" ? createdFilter : "", cityFilter].filter(Boolean).length || "Readiness, service, city"}</span>
+            </summary>
+            <div className="co-office-filter-grid co-imports-filter-grid grid gap-3 p-3 md:grid-cols-4">
+              <SelectField label="Readiness" value={readinessFilter} onChange={(event) => setReadinessFilter(event.target.value)}>
+                <option>All</option>
+                {readinessLabels.map((label) => <option key={label}>{label}</option>)}
+              </SelectField>
+              <SelectField label="Service type" value={serviceTypeFilter} onChange={(event) => setServiceTypeFilter(event.target.value)}>
+                <option>All</option>
+                {serviceTypes.map((type) => <option key={type}>{type}</option>)}
+              </SelectField>
+              <SelectField label="Created job" value={createdFilter} onChange={(event) => setCreatedFilter(event.target.value)}>
+                <option>All</option>
+                <option>Created</option>
+                <option>Not Created</option>
+              </SelectField>
+              <InputField label="City" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} placeholder="Filter city..." />
+            </div>
+          </details>
+          {importMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{importMessage}</div> : null}
+          {filteredDrafts.length === 0 ? (
+            <div className="p-5">
+              <StateCard title={normalizedDrafts.length === 0 ? "No imported drafts yet" : "No drafts match these filters"} description={normalizedDrafts.length === 0 ? "Import a Concrete Ops Job Draft Package JSON file to review it before creating a real job." : "Clear a filter or search another customer, city, service, or handoff."} tone="slate" />
+            </div>
+          ) : (
+            <ImportedDraftsTablePolished drafts={filteredDrafts} selectedId={selectedDraft?.id} onSelect={setSelectedDraftId} onReview={onSelectDraft} onOpenCreatedJob={onOpenCreatedJob} />
+          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {filteredDrafts.length} imported draft{filteredDrafts.length === 1 ? "" : "s"} / {visibleWarnings} warning{visibleWarnings === 1 ? "" : "s"}</p>
+            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          </div>
+        </Card>
+
+        <ImportedDraftCommandRailPolished draft={selectedDraft} onReview={onSelectDraft} onImportClick={openTools} onOpenCreatedJob={onOpenCreatedJob} />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-imports-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Import Tools</strong>
+            <em>Load JSON packages and keep proposal-app intake separate from real job creation until office review is complete.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-imports-tools-panel mt-3">
+          <ImportedDraftImportPanelPolished busy={busy} importMessage={importMessage} onImportFile={handleImportFile} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function ImportedJobDraftListPage(props) {
+  return <ImportedJobDraftListPagePolished {...props} />;
+}
+
+function ImportedJobDraftListPageLegacy({ drafts, onImportPackage, onOpenCreatedJob, onSelectDraft, busy }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [readinessFilter, setReadinessFilter] = useState("All");
   const [serviceTypeFilter, setServiceTypeFilter] = useState("All");
