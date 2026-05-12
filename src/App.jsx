@@ -6104,7 +6104,509 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
   );
 }
 
-function UploadsPage({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
+function uploadCapturedAt(upload) {
+  return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
+}
+
+function UploadsTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-uploads-mobile-list grid gap-3 p-3 md:hidden">
+        {rows.map((upload) => {
+          const selected = upload.id === selectedId;
+
+          return (
+            <button
+              key={upload.id}
+              type="button"
+              onClick={() => onSelect(upload.id)}
+              className={`co-uploads-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{uploadTitle(upload)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
+                </div>
+                <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+              </div>
+              <div className="co-uploads-mobile-metrics">
+                <span>Captured <strong>{formatDateTime(uploadCapturedAt(upload))}</strong></span>
+                <span>Size <strong>{formatFileSize(upload.fileSize)}</strong></span>
+                <span>Status <strong>{upload.archivedAt ? "Archived" : "Active"}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-uploads-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-uploads-command-table w-full min-w-[900px] text-left">
+          <thead>
+            <tr>
+              <th>Evidence / Job</th>
+              <th>Uploader</th>
+              <th>Captured</th>
+              <th>GPS</th>
+              <th>File</th>
+              <th>Notes</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((upload) => {
+              const selected = upload.id === selectedId;
+
+              return (
+                <tr key={upload.id} onClick={() => onSelect(upload.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{uploadTitle(upload)}</p>
+                    <p className="text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadCustomerLabel(upload)}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{uploadUploaderLabel(upload)}</td>
+                  <td className="font-bold text-slate-700">{formatDateTime(uploadCapturedAt(upload))}</td>
+                  <td><Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge></td>
+                  <td>
+                    <p className="font-bold text-slate-700">{formatFileSize(upload.fileSize)}</p>
+                    <p className="text-xs font-bold text-slate-500">{upload.fileType || "Unknown"}</p>
+                  </td>
+                  <td>
+                    <p className="font-bold text-slate-700">{upload.notes || upload.caption || "No notes yet"}</p>
+                  </td>
+                  <td>
+                    <button type="button" className="co-uploads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(upload.id); }} aria-label={`Open upload ${upload.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function UploadsCommandRailPolished({
+  upload,
+  token,
+  canCreate,
+  canManage,
+  disabled,
+  onArchive,
+  onOpenTool,
+}) {
+  if (!upload) {
+    return (
+      <div className="co-uploads-right-rail space-y-4">
+        <Card className="co-uploads-rail-card p-4">
+          <SectionHeader title="Evidence Console" description="Select an upload or capture new photo evidence." />
+          <div className="co-uploads-empty-rail">
+            <span><Icon name="upload" /></span>
+            <strong>No upload selected</strong>
+            <p>Choose a row to review the image, job link, timestamp, GPS status, file metadata, and notes here.</p>
+          </div>
+          {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("upload")}>Upload Photo</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-uploads-right-rail space-y-4">
+      <Card className="co-uploads-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected evidence</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{uploadTitle(upload)}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
+          </div>
+          <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
+        </div>
+
+        <AuthenticatedUploadPreview upload={upload} token={token} className="co-uploads-rail-preview mt-3 h-44 w-full rounded-xl object-cover" />
+
+        <div className="co-uploads-selected-metrics">
+          <div>
+            <span>Captured</span>
+            <strong>{formatDateTime(uploadCapturedAt(upload))}</strong>
+          </div>
+          <div>
+            <span>File</span>
+            <strong>{formatFileSize(upload.fileSize)}</strong>
+          </div>
+          <div>
+            <span>Customer</span>
+            <strong>{uploadCustomerLabel(upload)}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{upload.archivedAt ? "Archived" : "Active"}</strong>
+          </div>
+        </div>
+
+        <div className="co-uploads-note-panel">
+          <span>Caption / notes</span>
+          <p>{upload.notes || upload.caption || "No notes recorded yet."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("details")}>Edit Notes</Button>
+          {canManage && !upload.archivedAt ? <Button type="button" size="sm" variant="secondary" onClick={() => onArchive(upload.id)} disabled={disabled}>Archive</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-uploads-rail-card p-4">
+        <SectionHeader title="Evidence Health" description="Photo evidence is strongest when job, time, and location context are present." />
+        <div className="co-uploads-readiness-list">
+          <span data-state={upload.jobId ? "ready" : "needs"}>Job link <strong>{upload.jobId ? "Set" : "Needed"}</strong></span>
+          <span data-state={upload.hasGps ? "ready" : "needs"}>GPS metadata <strong>{upload.hasGps ? "Captured" : gpsStatusLabel(upload)}</strong></span>
+          <span data-state={upload.caption || upload.notes ? "ready" : "needs"}>Notes <strong>{upload.caption || upload.notes ? "Added" : "Optional"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
+  const [filter, setFilter] = useState("Active only");
+  const [search, setSearch] = useState("");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [uploaderFilter, setUploaderFilter] = useState("All uploaders");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [gpsFilter, setGpsFilter] = useState("All locations");
+  const [selectedUploadId, setSelectedUploadId] = useState("");
+  const [draft, setDraft] = useState(INITIAL_UPLOAD_FORM);
+  const [fileError, setFileError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showTools, setShowTools] = useState(false);
+  const [activeTool, setActiveTool] = useState("upload");
+  const toolsRef = useRef(null);
+  const safeUploads = Array.isArray(uploads) ? uploads : [];
+  const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
+  const listState = useMemo(() => deriveUploadListState(safeUploads), [safeUploads]);
+  const visibleRows = useMemo(() => filterUploads(safeUploads, {
+    archived: filter,
+    query: search,
+    jobId: jobFilter,
+    uploaderId: uploaderFilter,
+    date: dateFilter,
+    gps: gpsFilter,
+  }), [dateFilter, filter, gpsFilter, jobFilter, safeUploads, search, uploaderFilter]);
+  const selectedUpload = useMemo(() => findSelectedUpload(visibleRows, safeUploads, selectedUploadId), [safeUploads, selectedUploadId, visibleRows]);
+  const canCreate = permissions.uploads.canCreate;
+  const canManage = permissions.uploads.canManageAll;
+  const imageCount = visibleRows.filter((upload) => String(upload.fileType || "").startsWith("image/")).length;
+  const gpsCount = visibleRows.filter((upload) => Number.isFinite(Number(upload.latitude)) && Number.isFinite(Number(upload.longitude))).length;
+  const missingGpsCount = visibleRows.filter((upload) => !upload.hasGps).length;
+  const archivedCount = visibleRows.filter((upload) => upload.archivedAt).length;
+  const uploadKpis = [
+    { label: "Uploads", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "blue", actionLabel: "View active", onAction: () => setFilter("Active only") },
+    { label: "Photos", value: imageCount, helper: "Image evidence in view", icon: "document", tone: "orange" },
+    { label: "GPS Captured", value: gpsCount, helper: "Location metadata present", icon: "check", tone: gpsCount ? "green" : "slate", actionLabel: "View GPS", onAction: () => setGpsFilter("Has GPS") },
+    { label: "Missing GPS", value: missingGpsCount, helper: "Still valid if denied", icon: "alert", tone: missingGpsCount ? "amber" : "slate", actionLabel: "Review missing", onAction: () => setGpsFilter("Missing GPS") },
+    { label: "Archived", value: archivedCount, helper: "Archived in this view", icon: "box", tone: archivedCount ? "slate" : "green", actionLabel: "View archive", onAction: () => setFilter("Archived only") },
+  ];
+  const toolTabs = [
+    { id: "upload", label: "Upload Photo", count: canCreate ? 1 : 0 },
+    { id: "details", label: "Details / Notes", count: selectedUpload ? 1 : 0 },
+  ];
+
+  useEffect(() => {
+    const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
+      ? selectedJob.id
+      : allowedJobs[0]?.id || "";
+    setDraft((current) => {
+      if (current.jobId && allowedJobs.some((job) => job.id === current.jobId)) return current;
+      return {
+        ...current,
+        jobId: preferredJobId,
+      };
+    });
+  }, [allowedJobs, selectedJob?.id]);
+
+  useEffect(() => {
+    const fallbackUploadId = visibleRows[0]?.id || "";
+    if (!selectedUploadId || !safeUploads.some((upload) => upload?.id === selectedUploadId)) {
+      setSelectedUploadId(fallbackUploadId);
+    }
+  }, [safeUploads, selectedUploadId, visibleRows]);
+
+  async function handleFileChange(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    const nextError = validateUploadFile(file);
+    setFileError(nextError);
+    setSuccessMessage("");
+    if (nextError || !file) {
+      setDraft((current) => ({
+        ...current,
+        fileName: "",
+        fileType: "",
+        fileSize: 0,
+        dataUrl: "",
+      }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDraft((current) => {
+        const nextDraft = deriveUploadDraftFromSelection(current, file, reader.result, new Date());
+        return {
+          ...nextDraft,
+          takenAt: toDateTimeInputValue(nextDraft.takenAtIso),
+        };
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleRequestLocation() {
+    setSuccessMessage("");
+    if (!navigator.geolocation) {
+      setDraft((current) => ({
+        ...current,
+        latitude: null,
+        longitude: null,
+        locationAccuracy: null,
+        locationCapturedAt: "",
+        locationUnavailableReason: "Location services are unavailable in this browser.",
+      }));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDraft((current) => ({
+          ...current,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          locationAccuracy: position.coords.accuracy,
+          locationCapturedAt: new Date(position.timestamp).toISOString(),
+          locationUnavailableReason: "",
+        }));
+      },
+      (error) => {
+        const reason = error.code === error.PERMISSION_DENIED
+          ? "Location permission denied by user."
+          : error.code === error.TIMEOUT
+            ? "Location request timed out."
+            : "Location unavailable on this device.";
+        setDraft((current) => ({
+          ...current,
+          latitude: null,
+          longitude: null,
+          locationAccuracy: null,
+          locationCapturedAt: "",
+          locationUnavailableReason: reason,
+        }));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    );
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setFileError("");
+    setSuccessMessage("");
+    const nextError = validateUploadFile({ type: draft.fileType, size: draft.fileSize });
+    if (nextError || !draft.dataUrl) {
+      setFileError(nextError || "Choose a photo to upload.");
+      return;
+    }
+
+    const success = await onCreateUpload({
+      jobId: draft.jobId,
+      caption: draft.caption,
+      notes: draft.notes,
+      fileName: draft.fileName,
+      fileType: draft.fileType,
+      dataUrl: draft.dataUrl,
+      takenAt: draft.takenAt ? new Date(draft.takenAt).toISOString() : "",
+      latitude: draft.latitude,
+      longitude: draft.longitude,
+      locationAccuracy: draft.locationAccuracy,
+      locationCapturedAt: draft.locationCapturedAt,
+      locationUnavailableReason: draft.locationUnavailableReason,
+    });
+
+    if (success) {
+      setSuccessMessage("Photo evidence uploaded.");
+      setDraft({
+        ...INITIAL_UPLOAD_FORM,
+        jobId: allowedJobs.some((job) => job.id === draft.jobId) ? draft.jobId : (allowedJobs[0]?.id || ""),
+      });
+      setFileError("");
+    }
+  }
+
+  async function handleSaveUpload(nextDraft) {
+    if (!selectedUpload) return;
+    setSuccessMessage("");
+    await onUpdateUpload(selectedUpload.id, nextDraft);
+  }
+
+  async function handleArchiveSelected(uploadId) {
+    setSuccessMessage("");
+    await onArchiveUpload(uploadId);
+  }
+
+  function openTool(toolId = "details") {
+    setActiveTool(toolId);
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function clearFilters() {
+    setFilter("Active only");
+    setSearch("");
+    setJobFilter("All jobs");
+    setUploaderFilter("All uploaders");
+    setDateFilter("All dates");
+    setGpsFilter("All locations");
+  }
+
+  return (
+    <div className="co-office-page co-uploads-page">
+      <PageHeader
+        eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"}
+        title={<span>Photo Evidence <span className="text-orange-500">{"\u2606"}</span></span>}
+        description="Job-linked photo evidence with timestamp metadata, optional GPS capture, and field-safe upload workflows."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setFilter("Active only")}>{visibleRows.length} visible</Button>
+            {canCreate ? <Button type="button" onClick={() => openTool("upload")}>Upload Photo</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-uploads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {uploadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-uploads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-uploads-left-stack min-w-0 space-y-3">
+          <Card className="co-uploads-main-board overflow-hidden">
+            <div className="co-uploads-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Evidence Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter photos, select evidence, and keep captions, timestamps, GPS, and job context in one review lane.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Active only")}>Active</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setGpsFilter("Has GPS")}>GPS</Button>
+                  {canCreate ? <Button type="button" size="sm" onClick={() => openTool("upload")}>Upload Photo</Button> : null}
+                </div>
+              </div>
+            </div>
+            <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
+            <details className="co-uploads-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[jobFilter !== "All jobs" ? jobFilter : "", uploaderFilter !== "All uploaders" ? uploaderFilter : "", dateFilter !== "All dates" ? dateFilter : "", gpsFilter !== "All locations" ? gpsFilter : ""].filter(Boolean).length || "Job, uploader, GPS"}</span>
+              </summary>
+              <div className="co-office-filter-grid co-uploads-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  <option>All jobs</option>
+                  {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Uploader" value={uploaderFilter} onChange={(event) => setUploaderFilter(event.target.value)}>
+                  <option>All uploaders</option>
+                  {listState.uploaderOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  <option>All dates</option>
+                  {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                </SelectField>
+                <SelectField label="GPS" value={gpsFilter} onChange={(event) => setGpsFilter(event.target.value)}>
+                  <option>All locations</option>
+                  <option>Has GPS</option>
+                  <option>Missing GPS</option>
+                </SelectField>
+              </div>
+            </details>
+            {successMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+            {errorMessage && visibleRows.length === 0 ? (
+              <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
+            ) : visibleRows.length === 0 ? (
+              <div className="p-5"><StateCard title="No uploads yet" description="Photo evidence will appear here after the first field upload." tone="slate" /></div>
+            ) : (
+              <UploadsTablePolished rows={visibleRows} selectedId={selectedUpload?.id} onSelect={setSelectedUploadId} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} upload{visibleRows.length === 1 ? "" : "s"}</p>
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            </div>
+          </Card>
+        </div>
+
+        <UploadsCommandRailPolished
+          upload={selectedUpload}
+          token={sessionToken}
+          canCreate={canCreate}
+          canManage={canManage}
+          disabled={busy}
+          onArchive={handleArchiveSelected}
+          onOpenTool={openTool}
+        />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-uploads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Evidence Tools</strong>
+            <em>Capture photo evidence, request GPS, edit captions, and review selected upload details below the board.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-uploads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {toolTabs.map((tab) => (
+            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => setActiveTool(tab.id)}>
+              {tab.label}
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="co-uploads-tools-panel mt-3">
+          {activeTool === "upload" ? (
+            <UploadCreateCard
+              canCreate={canCreate}
+              jobs={allowedJobs}
+              draft={draft}
+              setDraft={setDraft}
+              onRequestLocation={handleRequestLocation}
+              onFileChange={handleFileChange}
+              onSubmit={handleSubmit}
+              loading={busy}
+              fileError={fileError}
+            />
+          ) : null}
+          {activeTool === "details" ? (
+            <UploadDetailPanel upload={selectedUpload} token={sessionToken} canManage={canManage} disabled={busy} onSave={handleSaveUpload} onArchive={handleArchiveSelected} />
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function UploadsPage(props) {
+  return <UploadsPagePolished {...props} />;
+}
+
+function UploadsPageLegacy({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("All jobs");
