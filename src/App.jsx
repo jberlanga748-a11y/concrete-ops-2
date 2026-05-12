@@ -153,10 +153,10 @@ import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOpti
 import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
-const APP_NAME = "Concrete Ops";
-const DEFAULT_COMPANY_NAME = "Concrete Ops Workspace";
-const DEMO_COMPANY_NAME = "Concrete Ops Demo Company";
-const DEFAULT_LOGO_INITIALS = "CO";
+const APP_NAME = "Apex HQ";
+const DEFAULT_COMPANY_NAME = "Apex HQ Workspace";
+const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
+const DEFAULT_LOGO_INITIALS = "AH";
 const SESSION_TOKEN_KEY = "concrete-ops/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
@@ -477,12 +477,23 @@ function resolveWorkspaceCompanyName({ currentCompany, companySettings, user, de
   const explicitCompanyName = [currentCompany?.name, companySettings?.companyName, user?.companyName]
     .find((value) => typeof value === "string" && value.trim());
 
-  if (explicitCompanyName) return explicitCompanyName.trim();
+  if (explicitCompanyName) return normalizeVisibleBrandName(explicitCompanyName);
   return demoMode ? DEMO_COMPANY_NAME : DEFAULT_COMPANY_NAME;
 }
 
 function sanitizeLogoInitials(value) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+function normalizeVisibleBrandName(value) {
+  const trimmed = String(value ?? "").trim();
+  const legacyBrandNames = new Map([
+    ["Concrete Ops", APP_NAME],
+    ["Concrete Ops 2", APP_NAME],
+    ["Concrete Ops Workspace", DEFAULT_COMPANY_NAME],
+    ["Concrete Ops Demo Company", DEMO_COMPANY_NAME],
+  ]);
+  return legacyBrandNames.get(trimmed) || trimmed;
 }
 
 function deriveLogoInitialsFromCompanyName(companyName) {
@@ -498,7 +509,13 @@ function deriveLogoInitialsFromCompanyName(companyName) {
 
 function resolveWorkspaceLogoInitials({ companySettings, companyName } = {}) {
   const explicitLogoInitials = sanitizeLogoInitials(companySettings?.logoInitials);
-  if (explicitLogoInitials) return explicitLogoInitials;
+  if (explicitLogoInitials) {
+    const normalizedCompanyName = normalizeVisibleBrandName(companyName || companySettings?.companyName);
+    if (explicitLogoInitials === "CO" && [APP_NAME, DEFAULT_COMPANY_NAME, DEMO_COMPANY_NAME].includes(normalizedCompanyName)) {
+      return DEFAULT_LOGO_INITIALS;
+    }
+    return explicitLogoInitials;
+  }
 
   const derivedInitials = sanitizeLogoInitials(deriveLogoInitialsFromCompanyName(companyName));
   return derivedInitials || DEFAULT_LOGO_INITIALS;
@@ -1852,7 +1869,7 @@ function LoadingScreen({ label = "Loading workspace..." }) {
           <Icon name="database" className="h-6 w-6" />
         </div>
         <p className="mt-4 text-lg font-black text-slate-950">{label}</p>
-        <p className="mt-2 text-sm text-slate-500">Reconnecting to your Concrete Ops workspace.</p>
+        <p className="mt-2 text-sm text-slate-500">Reconnecting to your Apex HQ workspace.</p>
       </Card>
     </div>
   );
@@ -1867,7 +1884,7 @@ function StartupFallbackScreen({ message, onRetry, onClearSession }) {
         </div>
         <p className="mt-4 text-lg font-black text-slate-950">Workspace startup failed</p>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          {message || "Concrete Ops hit a startup problem before the workspace could render."}
+          {message || "Apex HQ hit a startup problem before the workspace could render."}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onRetry}>Retry startup</Button>
@@ -2060,7 +2077,7 @@ function PublicEstimateRequestPage({
             </div>
           ) : backendStatus === "offline" ? (
             <div className="mt-6">
-              <StateCard title="Workspace unavailable" description="The public estimate request form needs the Concrete Ops workspace to be online." tone="red" />
+              <StateCard title="Workspace unavailable" description="The public estimate request form needs the Apex HQ workspace to be online." tone="red" />
             </div>
           ) : !enabled ? (
             <div className="mt-6">
@@ -2117,9 +2134,9 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
     <aside className="co-sidebar-shell hidden h-screen shrink-0 overflow-hidden border-r text-white lg:sticky lg:top-0 lg:block">
       <div className="border-b border-white/10 px-4 py-5">
         <div className="flex items-center gap-3">
-          <div className="co-brand-mark flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black text-slate-950">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
+          <div className="co-brand-mark flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black text-white">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
           <div>
-            <p className="text-sm font-black leading-none text-white">{APP_NAME}</p>
+            <p className="co-brand-wordmark" aria-label={APP_NAME}>Apex <span>HQ</span></p>
             <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Team workspace</p>
           </div>
         </div>
@@ -2174,7 +2191,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           <div className="co-mobile-brand-lockup min-w-0">
             <div className="co-mobile-brand-mark">{logoInitials || DEFAULT_LOGO_INITIALS}</div>
             <div className="min-w-0">
-              <p className="co-mobile-brand-title">Concrete Ops <span>2</span></p>
+              <p className="co-mobile-brand-title">Apex <span>HQ</span></p>
               <p className="co-mobile-brand-subtitle">Team workspace</p>
             </div>
           </div>
@@ -2798,7 +2815,7 @@ function ContactHistoryPanel({
     <Card className="p-4">
       <SectionHeader
         title="Contact history"
-        description="Manual calls, emails, texts, follow-ups, and outreach drafts. Concrete Ops does not send email or SMS here."
+        description="Manual calls, emails, texts, follow-ups, and outreach drafts. Apex HQ does not send email or SMS here."
         action={<Badge tone={nextFollowUp ? "amber" : latest ? "blue" : "slate"}>{nextFollowUp ? `Next ${nextFollowUp.nextFollowUpDate}` : `${panelState.records.length} logged`}</Badge>}
       />
       {latest ? (
@@ -7562,7 +7579,7 @@ function CommandCenterPage({
       <div className="px-5 pb-1.5 pt-3 sm:px-6 lg:px-7">
         <div className="flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || "Concrete Ops Workspace"}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || DEFAULT_COMPANY_NAME}</p>
             <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center <span className="align-middle text-2xl font-black text-slate-950" aria-hidden="true">&#9734;</span></h1>
             <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
@@ -8211,7 +8228,7 @@ function LeadAiAssistantCard({ lead, canManage = false, disabled = false, assist
             </div>
           ) : null}
 
-          <p className="text-xs font-bold text-slate-500">AI drafts are review-only. Concrete Ops 2 does not send emails or texts from this card.</p>
+          <p className="text-xs font-bold text-slate-500">AI drafts are review-only. Apex HQ does not send emails or texts from this card.</p>
           {copyMessage ? <p className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-700">{copyMessage}</p> : null}
         </div>
       ) : null}
@@ -8325,7 +8342,7 @@ function ManualOutreachDraftPanel({
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-black text-slate-950">{title}</p>
-            <p className="mt-1 text-xs font-bold text-slate-500">Manual copy only — no message is sent from Concrete Ops.</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">Manual copy only — no message is sent from Apex HQ.</p>
           </div>
           <Button type="button" size="sm" variant="secondary" onClick={() => copyText(copyLabel, value)} disabled={disabled || !value}>Copy</Button>
         </div>
@@ -8346,7 +8363,7 @@ function ManualOutreachDraftPanel({
         <div className="min-w-0">
           <Badge tone="amber">Draft / Copy</Badge>
           <h4 className="mt-2 text-base font-black text-slate-950">{item.title}</h4>
-          <p className="mt-1 text-sm leading-6 text-slate-700">Manual copy only — Concrete Ops does not send email, SMS, or calls from this panel.</p>
+          <p className="mt-1 text-sm leading-6 text-slate-700">Manual copy only — Apex HQ does not send email, SMS, or calls from this panel.</p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={onClose}>Close Drafts</Button>
       </div>
@@ -8445,9 +8462,9 @@ function FollowUpQueuePanel({
           : normalizedAction === "mark-waiting"
             ? "Marked waiting on response."
             : normalizedAction === "mark-email-sent"
-              ? "Manual email draft logged as sent outside Concrete Ops."
+              ? "Manual email draft logged as sent outside Apex HQ."
               : normalizedAction === "mark-text-sent"
-                ? "Manual text draft logged as sent outside Concrete Ops."
+                ? "Manual text draft logged as sent outside Apex HQ."
                 : "Manual outreach logged.";
       setMessage(`${label} No email or text was sent.`);
     }
@@ -9349,7 +9366,7 @@ function ImportedJobDraftListPage({ drafts, onImportPackage, onOpenCreatedJob, o
       <PageHeader
         eyebrow="Office"
         title="Imported Job Drafts"
-        description="Import job draft packages, review missing details, and create a real Concrete Ops 2 job only when the office is ready."
+        description="Import job draft packages, review missing details, and create a real Apex HQ job only when the office is ready."
         actions={
           <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white shadow-sm shadow-blue-700/20 transition hover:bg-blue-800 ${busy ? "opacity-70" : ""}`}>
             <Icon name="upload" />
@@ -9430,10 +9447,10 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
   const activeCustomers = (Array.isArray(customers) ? customers : []).filter((customer) => !customer.archivedAt);
   const matchedCustomer = activeCustomers.find((customer) => customer.id === draft.matchedCustomerId) || null;
   const statusHelp = {
-    Matched: "Concrete Ops found one safe existing customer match. Confirm it if it looks right.",
+    Matched: "Apex HQ found one safe existing customer match. Confirm it if it looks right.",
     Confirmed: "The office confirmed this draft should use the selected existing customer.",
     "Review Required": "Possible duplicate or conflicting customer info. Choose or confirm a customer before creating the job.",
-    "Possible Match": "Concrete Ops found a possible match, but the office should confirm it first.",
+    "Possible Match": "Apex HQ found a possible match, but the office should confirm it first.",
     "New Customer Needed": "No existing customer matched. A new customer will be created only when the job is created.",
     "Not Checked": "Customer matching has not been reviewed yet.",
     "No Match": "No matching customer was found.",
@@ -9476,7 +9493,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
           </div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Selected Concrete Ops customer</p>
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Selected Apex HQ customer</p>
           <div className="mt-2 space-y-1 text-sm text-slate-700">
             <p className="font-black text-slate-950">{matchedCustomer?.name || draft.matchedCustomerName || "No customer selected"}</p>
             <p>{matchedCustomer?.email || "Email not on matched customer"}</p>
@@ -9590,7 +9607,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
         ? {
             label: "Ready to create job",
             tone: "green",
-            nextStep: "Create the Concrete Ops job, then schedule it and assign foreman/crew.",
+            nextStep: "Create the Apex HQ job, then schedule it and assign foreman/crew.",
           }
         : {
             label: "Needs review",
@@ -9640,14 +9657,14 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
       <PageHeader
         eyebrow="Imported Job Draft"
         title={draftForm.jobName || "Untitled imported draft"}
-        description="Review the direct-send draft, confirm the customer match, then create the real Concrete Ops job when the office is ready."
+        description="Review the direct-send draft, confirm the customer match, then create the real Apex HQ job when the office is ready."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={onBack}>Back to drafts</Button>
             {draftForm.createdJobId ? (
               <Button type="button" onClick={() => onOpenCreatedJob(draftForm.createdJobId)}>Open Created Job</Button>
             ) : (
-              <Button type="button" onClick={createJob} disabled={busy}>Create Concrete Ops 2 Job</Button>
+              <Button type="button" onClick={createJob} disabled={busy}>Create Apex HQ Job</Button>
             )}
             <Button type="submit" disabled={busy}>Save Imported Draft</Button>
           </div>
@@ -9755,7 +9772,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
                 <Badge tone={workflowState.tone}>{workflowState.label}</Badge>
                 <Badge tone={customerMatchStatusTone(draftForm.customerMatchStatus)}>{draftForm.customerMatchStatus}</Badge>
               </div>
-              <p className="text-sm leading-6 text-slate-600">Imported drafts stay as review records until the office creates the Concrete Ops job.</p>
+              <p className="text-sm leading-6 text-slate-600">Imported drafts stay as review records until the office creates the Apex HQ job.</p>
               {customerMatchNeedsReview ? (
                 <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">Customer match must be confirmed or set to create a new customer before job creation can continue.</p>
               ) : null}
@@ -9764,7 +9781,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
                 {draftForm.createdJobId ? (
                   <Button className="w-full" type="button" onClick={() => onOpenCreatedJob(draftForm.createdJobId)}>Open Created Job</Button>
                 ) : (
-                  <Button className="w-full" type="button" onClick={createJob} disabled={busy}>Create Concrete Ops 2 Job</Button>
+                  <Button className="w-full" type="button" onClick={createJob} disabled={busy}>Create Apex HQ Job</Button>
                 )}
                 <Button className="w-full" type="submit" variant="secondary" disabled={busy}>Save Imported Draft</Button>
                 <Button className="w-full" type="button" variant="ghost" onClick={copySummary}>Copy Startup Summary</Button>
@@ -11181,7 +11198,7 @@ function PwaInstallGuidancePanel({ canView = false }) {
 
   const installAvailable = Boolean(installPrompt);
   const statusMessage = installState === "installed"
-    ? "Concrete Ops has been installed or the browser reported a successful install."
+    ? "Apex HQ has been installed or the browser reported a successful install."
     : installState === "dismissed"
       ? "Install was dismissed. You can still use the browser menu install option later."
       : installState === "fallback"
@@ -11191,8 +11208,8 @@ function PwaInstallGuidancePanel({ canView = false }) {
   return (
     <Card className="p-5">
       <SectionHeader
-        title="Install Concrete Ops"
-        description="Add Concrete Ops 2 to a desktop or mobile home screen as an installable app shell. Live workspace data still requires an internet connection."
+        title="Install Apex HQ"
+        description="Add Apex HQ to a desktop or mobile home screen as an installable app shell. Live workspace data still requires an internet connection."
         action={installAvailable ? (
           <Button type="button" variant="primary" size="sm" onClick={handleInstallClick} disabled={installState === "prompting"}>
             {installState === "prompting" ? "Opening..." : "Install App"}
@@ -11213,7 +11230,7 @@ function PwaInstallGuidancePanel({ canView = false }) {
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-blue-100 bg-white p-4">
           <p className="text-sm font-black text-slate-950">Windows desktop</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Open Concrete Ops 2 in Chrome or Edge, use the browser install button or menu, then pin it to the taskbar or Start menu.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Open Apex HQ in Chrome or Edge, use the browser install button or menu, then pin it to the taskbar or Start menu.</p>
         </div>
         <div className="rounded-2xl border border-blue-100 bg-white p-4">
           <p className="text-sm font-black text-slate-950">iPhone or iPad</p>
@@ -11247,9 +11264,9 @@ function UiStyleFoundationPanel({ canView = false }) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <div className="co-sidebar-shell rounded-3xl border border-slate-800 p-4 text-white">
           <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-2xl bg-orange-500 text-sm font-black text-slate-950">CO</div>
+            <div className="grid size-11 place-items-center rounded-2xl bg-orange-500 text-sm font-black text-white">AH</div>
             <div>
-              <p className="text-sm font-black">Concrete Ops 2</p>
+              <p className="text-sm font-black">Apex HQ</p>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300">Team workspace</p>
             </div>
           </div>
@@ -11640,7 +11657,7 @@ function SettingsPage({
                     setPrintPacketDraft((current) => ({ ...current, printPacketFooter: event.target.value }));
                     setPrintPacketNotice("");
                   }}
-                  placeholder="Generated by Concrete Ops for job documentation, field reports, and closeout records."
+                  placeholder="Generated by Apex HQ for job documentation, field reports, and closeout records."
                   disabled={busy || typeof onUpdateCompanySettings !== "function"}
                 />
                 <TextAreaField
