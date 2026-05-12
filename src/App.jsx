@@ -16297,6 +16297,74 @@ function CalculatorPagePolished({
   duplicateSection,
   removeSection,
 }) {
+  const enteredDimensionCount = activeFields.filter((field) => String(activeDraft[field.key] ?? "").trim() !== "").length;
+  const resultReady = result.status === "ready";
+
+  function focusCalculatorInput() {
+    window.setTimeout(() => {
+      document.querySelector(".co-calculator-page input:not([type='hidden']), .co-calculator-page select, .co-calculator-page textarea")?.focus?.();
+    }, 0);
+  }
+
+  function openSaveFromPriority() {
+    if (!resultReady) {
+      focusCalculatorInput();
+      return;
+    }
+    setSavePanelOpen((current) => !current);
+    setSaveMessage("");
+  }
+
+  function copyFromPriority() {
+    if (!resultReady) {
+      focusCalculatorInput();
+      return;
+    }
+    copyResult();
+  }
+
+  const calculatorPriorityCards = [
+    {
+      label: "Dimensions",
+      value: `${enteredDimensionCount}/${activeFields.length}`,
+      helper: enteredDimensionCount === activeFields.length ? "Required fields are filled for the selected pour shape." : "Fill the missing dimensions to unlock the result.",
+      icon: "layers",
+      tone: enteredDimensionCount === activeFields.length ? "green" : "orange",
+      actionLabel: "Enter dims",
+      onAction: focusCalculatorInput,
+    },
+    {
+      label: "Live result",
+      value: resultReady ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open",
+      helper: resultReady ? "Concrete yield with waste is ready to copy or save." : "Waiting on valid dimensions before showing a total.",
+      icon: "calculator",
+      tone: resultReady ? "green" : "slate",
+      actionLabel: resultReady ? "Copy" : "Calculate",
+      onAction: copyFromPriority,
+    },
+    {
+      label: "Save to job",
+      value: allowedJobs.length,
+      helper: allowedJobs.length ? "Allowed jobs are available for internal calculation records." : "No assigned or visible job is available to save into.",
+      icon: "briefcase",
+      tone: resultReady && allowedJobs.length ? "blue" : "slate",
+      actionLabel: resultReady ? "Save" : "Finish dims",
+      onAction: openSaveFromPriority,
+    },
+    {
+      label: "Takeoff mode",
+      value: calculatorMode === "multi_section" ? takeoffSections.length : "Single",
+      helper: calculatorMode === "multi_section" ? "Build a multi-section takeoff one pour at a time." : "Switch to multi-section when the pour has separate areas.",
+      icon: "plus",
+      tone: calculatorMode === "multi_section" ? "blue" : "orange",
+      actionLabel: calculatorMode === "multi_section" ? "Add section" : "Build takeoff",
+      onAction: () => {
+        setCalculatorMode("multi_section");
+        focusCalculatorInput();
+      },
+    },
+  ];
+
   return (
     <div className={`co-office-page co-toolbox-page co-calculator-page ${isFieldTool ? "co-field-tool-page" : ""}`}>
       <PageHeader
@@ -16313,6 +16381,20 @@ function CalculatorPagePolished({
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {calculatorKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {calculatorPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6">
