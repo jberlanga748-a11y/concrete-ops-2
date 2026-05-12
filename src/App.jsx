@@ -6702,6 +6702,113 @@ function CustomersTable({ rows, selectedId, onSelect }) {
   );
 }
 
+function customerStatusText(customer) {
+  return customer?.archivedAt ? "Archived" : (customer?.status || "Prospect");
+}
+
+function customerContactText(customer) {
+  return [customer?.phone, customer?.email].filter(Boolean).join(" / ") || "No contact set";
+}
+
+function CustomersTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-customers-mobile-list grid gap-3 p-3 md:hidden">
+        {rows.map((customer) => {
+          const selected = customer.id === selectedId;
+          return (
+            <button
+              key={customer.id}
+              type="button"
+              onClick={() => onSelect(customer.id)}
+              className={`co-customers-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-base font-black text-slate-950">{customer.name || "Unnamed customer"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                </div>
+                <StatusBadge status={customerStatusText(customer)} />
+              </div>
+              <div className="mt-4 grid gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Contact</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{customerContactText(customer)}</p>
+                </div>
+                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">City</p>
+                    <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.city || "Not set"}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Service area</p>
+                    <p className="mt-1 break-words text-sm font-bold text-slate-700">{customer.serviceArea || "Not set"}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-2">
+                {selected ? <Badge tone="blue">Selected</Badge> : <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Review</span>}
+                <span className="co-leads-row-action">
+                  Open
+                  <Icon name="arrowUpRight" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="hidden md:block">
+        <div className="table-shell">
+          <table className="co-customers-command-table w-full min-w-[740px] text-left">
+            <thead>
+              <tr>
+                <th>Customer / Company</th>
+                <th>Status</th>
+                <th>Contact</th>
+                <th>City</th>
+                <th>Service Area</th>
+                <th>Notes</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((customer) => {
+                const selected = customer.id === selectedId;
+                return (
+                  <tr key={customer.id} onClick={() => onSelect(customer.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                    <td>
+                      <p className="font-black text-slate-950">{customer.name || "Unnamed customer"}</p>
+                      <p className="text-xs font-bold text-slate-500">{customer.company || customer.id}</p>
+                    </td>
+                    <td><StatusBadge status={customerStatusText(customer)} /></td>
+                    <td>
+                      <p className="font-bold text-slate-700">{customer.phone || "Phone not set"}</p>
+                      <p className="text-xs font-bold text-slate-500">{customer.email || "Email not set"}</p>
+                    </td>
+                    <td className="font-bold text-slate-700">{customer.city || "Not set"}</td>
+                    <td className="font-bold text-slate-700"><span className="line-clamp-2">{customer.serviceArea || "Not set"}</span></td>
+                    <td className="text-slate-600"><span className="line-clamp-2">{customer.notes || "No notes yet"}</span></td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(customer.id); }} aria-label={`Review ${customer.name || "customer"}`}>
+                          <Icon name="document" />
+                        </button>
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(customer.id); }} aria-label={`Open ${customer.name || "customer"}`}>
+                          <Icon name="arrowUpRight" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function CustomerIntakeCard({ draft, setDraft, onCreateCustomer, disabled, canManage }) {
   if (!canManage) {
     return (
@@ -6927,6 +7034,204 @@ function CustomerDetailPanel({
           </div>
         )}
       />
+    </div>
+  );
+}
+
+function CustomerCommandRailPolished({
+  customer,
+  canView,
+  canManage,
+  notFound,
+  disabled,
+  saveState,
+  onFieldChange,
+  onArchive,
+  onRestore,
+  related = { leads: [], jobs: [], activity: [] },
+  onSelectLead,
+  onSelectJob,
+  contactHistory = [],
+  contactHistoryPermissions,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
+}) {
+  if (!canView) {
+    return (
+      <div className="co-customers-right-rail space-y-4">
+        <Card className="co-customers-rail-card p-4">
+          <SectionHeader title="Customer details" description="Customer access follows role permissions." />
+          <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace right now." tone="slate" />
+        </Card>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="co-customers-right-rail space-y-4">
+        <Card className="co-customers-rail-card p-4">
+          <SectionHeader title="Customer details" description="The requested customer route does not match an available record." />
+          <StateCard title="Customer not found" description="The customer may have been archived, removed from your access scope, or never existed." tone="red" />
+        </Card>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="co-customers-right-rail space-y-4">
+        <Card className="co-customers-rail-card p-4">
+          <SectionHeader title="Selected customer summary" description="Choose a customer from the board to review contact details, linked work, and history." />
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No customer selected.</div>
+        </Card>
+      </div>
+    );
+  }
+
+  const safeRelated = {
+    leads: Array.isArray(related?.leads) ? related.leads : [],
+    jobs: Array.isArray(related?.jobs) ? related.jobs : [],
+    activity: Array.isArray(related?.activity) ? related.activity : [],
+  };
+  const recentHistory = contactHistoryTimeline(contactHistory, "customer", customer.id).slice(0, 4);
+
+  return (
+    <div className="co-customers-right-rail space-y-4">
+      <Card className="co-customers-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Customer Summary</p>
+            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{customer.name || "Unnamed customer"}</h3>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{[customer.company, customer.city, customer.serviceArea].filter(Boolean).join(" / ") || customer.id}</p>
+          </div>
+          <StatusBadge status={customerStatusText(customer)} />
+        </div>
+        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
+          <p><span className="text-slate-400">Phone:</span> {customer.phone || "Not set"}</p>
+          <p><span className="text-slate-400">Email:</span> {customer.email || "Not set"}</p>
+          <p><span className="text-slate-400">City:</span> {customer.city || "Not set"}</p>
+          <p><span className="text-slate-400">Service area:</span> {customer.serviceArea || "Not set"}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {canManage ? (
+            customer.archivedAt ? (
+              <Button type="button" size="sm" onClick={onRestore} disabled={disabled}>Restore</Button>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" onClick={onArchive} disabled={disabled}>Archive</Button>
+            )
+          ) : (
+            <Button type="button" size="sm" variant="secondary" disabled>Read Only</Button>
+          )}
+          <Button type="button" size="sm" variant="secondary" onClick={() => onSelectLead(safeRelated.leads[0]?.id)} disabled={!safeRelated.leads[0]}>Open Lead</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onSelectJob(safeRelated.jobs[0]?.id)} disabled={!safeRelated.jobs[0]}>Open Job</Button>
+        </div>
+        <SaveStateText saveState={saveState} />
+      </Card>
+
+      <Card className="co-customers-rail-card p-4">
+        <SectionHeader title="Related work" description="Existing records connected to this customer." />
+        <div className="grid grid-cols-3 gap-2">
+          <div className="co-customers-mini-stat">
+            <p>{safeRelated.leads.length}</p>
+            <span>Leads</span>
+          </div>
+          <div className="co-customers-mini-stat">
+            <p>{safeRelated.jobs.length}</p>
+            <span>Jobs</span>
+          </div>
+          <div className="co-customers-mini-stat">
+            <p>{safeRelated.activity.length}</p>
+            <span>Activity</span>
+          </div>
+        </div>
+        <div className="mt-3 space-y-2">
+          {safeRelated.leads.slice(0, 2).map((lead) => (
+            <button key={lead.id} type="button" onClick={() => onSelectLead(lead.id)} className="co-customers-related-row">
+              <span>
+                <strong>{lead.project || lead.customer}</strong>
+                <small>{lead.id} / {lead.city || "No city"}</small>
+              </span>
+              <StatusBadge status={lead.status || "New"} />
+            </button>
+          ))}
+          {safeRelated.jobs.slice(0, 2).map((job) => (
+            <button key={job.id} type="button" onClick={() => onSelectJob(job.id)} className="co-customers-related-row">
+              <span>
+                <strong>{jobTitle(job)}</strong>
+                <small>{job.id} / {jobNextStep(job)}</small>
+              </span>
+              <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+            </button>
+          ))}
+          {safeRelated.leads.length === 0 && safeRelated.jobs.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">No linked leads or jobs yet.</p>
+          ) : null}
+        </div>
+      </Card>
+
+      <details className="co-customers-rail-details">
+        <summary>
+          <span>Customer edit</span>
+          <span>Contact, service area, status, and notes</span>
+        </summary>
+        <div className="grid gap-3 p-3">
+          <InputField label="Customer name" value={customer.name} onChange={(event) => onFieldChange("name", event.target.value)} disabled={!canManage || disabled} />
+          <InputField label="Company" value={customer.company} onChange={(event) => onFieldChange("company", event.target.value)} disabled={!canManage || disabled} />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <InputField label="Phone" value={customer.phone} onChange={(event) => onFieldChange("phone", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Email" value={customer.email} onChange={(event) => onFieldChange("email", event.target.value)} disabled={!canManage || disabled} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <InputField label="City" value={customer.city} onChange={(event) => onFieldChange("city", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Service area" value={customer.serviceArea} onChange={(event) => onFieldChange("serviceArea", event.target.value)} disabled={!canManage || disabled} />
+          </div>
+          <SelectField label="Status" value={customer.status} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
+            <option>Prospect</option>
+            <option>Active</option>
+            <option>Inactive</option>
+          </SelectField>
+          <TextAreaField label="Notes" value={customer.notes} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} className="field-input min-h-24 resize-y" />
+          <TimestampMeta createdAt={customer.createdAt} updatedAt={customer.updatedAt} />
+        </div>
+      </details>
+
+      <Card className="co-customers-rail-card p-4">
+        <SectionHeader title="Recent contact history" description="Latest outreach tied to this customer." action={<Badge tone="slate">{recentHistory.length}</Badge>} />
+        {recentHistory.length > 0 ? (
+          <div className="space-y-2">
+            {recentHistory.map((item) => (
+              <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-sm font-black text-slate-950">{item.title || item.method || "Contact logged"}</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.description || item.notes || formatDateTime(item.createdAt)}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">No contact history yet.</p>
+        )}
+        <details className="co-customers-rail-details co-customers-contact-editor mt-3">
+          <summary>
+            <span>Log contact / edit history</span>
+            <span>Manual outreach notes</span>
+          </summary>
+          <div className="pt-3">
+            <ContactHistoryPanel
+              entityType="customer"
+              entity={customer}
+              records={contactHistory}
+              permissions={contactHistoryPermissions}
+              disabled={disabled}
+              onCreate={onCreateContactHistory}
+              onUpdate={onUpdateContactHistory}
+              onArchive={onArchiveContactHistory}
+              onRestore={onRestoreContactHistory}
+            />
+          </div>
+        </details>
+      </Card>
     </div>
   );
 }
@@ -10285,6 +10590,12 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
 }
 
 function CustomersPage({
+  ...props
+}) {
+  return <CustomersPagePolished {...props} />;
+}
+
+function CustomersPagePolished({
   customers,
   contactHistory = [],
   filter,
@@ -10315,56 +10626,89 @@ function CustomersPage({
 }) {
   const canView = permissions.customers.canView;
   const canManage = permissions.customers.canManage;
-  const layout = getCustomerFilterLayoutClasses();
+  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const debugState = useMemo(() => deriveCustomerListState(customers, {
     status: filter,
     query: search,
   }), [customers, filter, search]);
   const visibleRows = debugState.renderedRows;
+  const activeVisibleRows = visibleRows.filter((customer) => !customer.archivedAt);
+  const missingContactRows = activeVisibleRows.filter((customer) => !customer.phone || !customer.email);
   const customerKpis = [
-    { label: "Visible Customers", value: canView ? visibleRows.length : 0, helper: "Current customer view", icon: "users" },
-    { label: "Prospects", value: visibleRows.filter((customer) => customer.status === "Prospect").length, helper: "Potential work", icon: "inbox" },
-    { label: "Active", value: visibleRows.filter((customer) => customer.status === "Active").length, helper: "Current relationships", icon: "check" },
-    { label: "Archived", value: visibleRows.filter((customer) => customer.archivedAt || customer.status === "Archived").length, helper: "Hidden from active work", icon: "database" },
+    { label: "Customers", value: canView ? visibleRows.length : 0, helper: "Matching current filters", icon: "users", tone: "blue", actionLabel: "View customers", onAction: () => setFilter("All") },
+    { label: "Prospects", value: activeVisibleRows.filter((customer) => customer.status === "Prospect").length, helper: "Potential future work", icon: "inbox", tone: "orange", actionLabel: "View prospects", onAction: () => setFilter("Prospect") },
+    { label: "Active", value: activeVisibleRows.filter((customer) => customer.status === "Active").length, helper: "Current relationships", icon: "check", tone: "green", actionLabel: "View active", onAction: () => setFilter("Active") },
+    { label: "Missing Contact", value: missingContactRows.length, helper: "Needs phone or email", icon: "alert", tone: "amber", actionLabel: "Review customers", onAction: () => { setFilter("All"); setSearch(""); } },
+    { label: "Archived", value: visibleRows.filter((customer) => customer.archivedAt || customer.status === "Archived").length, helper: "Hidden from active work", icon: "database", tone: "slate", actionLabel: "View archive", onAction: () => setFilter("Archived") },
   ];
+  const totalCustomers = customers.length;
 
   return (
     <div className="co-office-page co-customers-page">
-      <PageHeader eyebrow="Office" title="Customers" description="Track real customer relationships, contact info, service area, and linked work from one place." actions={<Badge tone="blue">{canView ? visibleRows.length : 0} visible customers</Badge>} />
-      {canView ? <ModuleKpiStrip items={customerKpis} /> : null}
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
-        <Card className="overflow-hidden">
-          {canView ? (
-            <>
-              <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
-              {busy && visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records for this workspace." /></div>
-              ) : errorMessage && visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
-              ) : visibleRows.length === 0 ? (
-                <div className="p-5">
-                  <StateCard
-                    title={search || filter !== "All" ? "No matching customers" : "No customers yet"}
-                    description={search || filter !== "All" ? "Try a different search or status filter." : "Create the first customer record to start linking leads and jobs."}
-                  />
+      <PageHeader
+        eyebrow="Office"
+        title={<span>Customers <span className="text-orange-500">☆</span></span>}
+        description="Track customer relationships, contact gaps, linked leads, jobs, and follow-up history from one contractor command view."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setFilter("All")}>{canView ? visibleRows.length : 0} visible customers</Button>
+            {canManage ? <Button type="button" onClick={() => setShowCreateCustomer(true)}>New Customer</Button> : null}
+          </div>
+        }
+      />
+      {canView ? (
+        <div className="co-customers-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+          {customerKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
+      ) : null}
+
+      <div className="co-customers-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-customers-left-stack min-w-0 space-y-3">
+          <Card className="co-customers-main-board overflow-hidden">
+            <div className="co-customers-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Customer Directory / Account Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter customers, select an account, and work contact details from the right rail.</p>
                 </div>
-              ) : (
-                <div className={layout.tableSection}>
-                  <div className={layout.tableScroller}>
-                    <CustomersTable rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All customers</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Prospect")}>Prospects</Button>
+                  {canManage ? <Button type="button" size="sm" onClick={() => setShowCreateCustomer(true)}>Create Customer</Button> : null}
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="p-5">
-              <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace until customer-specific assignments exist." tone="slate" />
+              </div>
             </div>
-          )}
-        </Card>
-        <div className="min-w-0 space-y-4">
-          <CustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
-          <CustomerDetailPanel
+            {canView ? (
+              <>
+                <CustomerFilterHeader filters={["All", "Prospect", "Active", "Inactive", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, city, service area..." />
+                {busy && visibleRows.length === 0 ? (
+                  <div className="p-5"><StateCard title="Loading customers" description="Pulling customer records for this workspace." /></div>
+                ) : errorMessage && visibleRows.length === 0 ? (
+                  <div className="p-5"><StateCard title="Customers unavailable" description={errorMessage} tone="red" /></div>
+                ) : visibleRows.length === 0 ? (
+                  <div className="p-5">
+                    <StateCard
+                      title={search || filter !== "All" ? "No matching customers" : "No customers yet"}
+                      description={search || filter !== "All" ? "Try a different search or status filter." : "Create the first customer record to start linking leads and jobs."}
+                    />
+                  </div>
+                ) : (
+                  <CustomersTablePolished rows={visibleRows} selectedId={selectedCustomerId} onSelect={onSelectCustomer} />
+                )}
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+                  <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} of {totalCustomers} customers</p>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setSearch(""); }}>Clear filters</Button>
+                </div>
+              </>
+            ) : (
+              <div className="p-5">
+                <StateCard title="Customer access unavailable" description="This role cannot open the customer workspace until customer-specific assignments exist." tone="slate" />
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <CustomerCommandRailPolished
             customer={selectedCustomer}
             canView={canView}
             canManage={canManage}
@@ -10384,8 +10728,20 @@ function CustomersPage({
             onArchiveContactHistory={onArchiveContactHistory}
             onRestoreContactHistory={onRestoreContactHistory}
           />
-        </div>
       </div>
+
+      <details className="co-customers-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8" open={showCreateCustomer} onToggle={(event) => setShowCreateCustomer(event.currentTarget.open)}>
+        <summary>
+          <span>
+            <strong>Customer Tools</strong>
+            <em>Create customer records without crowding the command board.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-customers-tools-panel mt-3">
+          <CustomerIntakeCard draft={customerDraft} setDraft={setCustomerDraft} onCreateCustomer={onCreateCustomer} disabled={busy} canManage={canManage} />
+        </div>
+      </details>
     </div>
   );
 }

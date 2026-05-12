@@ -1645,6 +1645,403 @@ textarea {
     align-items: start;
   }
 
+  .co-customers-page {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.62)),
+      radial-gradient(circle at top right, rgba(255, 237, 213, 0.34), transparent 32rem);
+  }
+
+  .co-customers-page .co-page-header {
+    margin-bottom: 0.55rem !important;
+    padding-top: 0.85rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .co-customers-page .co-page-header h1 {
+    font-size: clamp(1.65rem, 2vw, 2.18rem) !important;
+    line-height: 1.02 !important;
+  }
+
+  .co-customers-page .co-page-header p:not(:first-child) {
+    margin-top: 0.35rem !important;
+    max-width: 58rem !important;
+    font-size: 0.88rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .co-customers-kpi-grid {
+    gap: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi {
+    display: flex;
+    min-height: 5.05rem;
+    height: 5.05rem;
+    flex-direction: column;
+    justify-content: center;
+    border-radius: 0.82rem !important;
+    padding: 0.56rem 0.66rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-body {
+    align-items: center !important;
+    gap: 0.58rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-icon {
+    height: 2.25rem !important;
+    width: 2.25rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-icon svg {
+    height: 1rem !important;
+    width: 1rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-value {
+    font-size: clamp(1.45rem, 1.7vw, 1.85rem) !important;
+    line-height: 0.9 !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi p {
+    line-height: 1.18 !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.76rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi p:nth-child(3),
+  .co-customers-kpi-grid .co-command-kpi-link {
+    font-size: 0.64rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-link {
+    margin-top: 0.35rem !important;
+  }
+
+  .co-customers-command-layout {
+    align-items: start;
+    gap: 0.85rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .co-customers-main-board {
+    border-top-color: rgba(249, 115, 22, 0.68) !important;
+  }
+
+  .co-customers-board-header {
+    box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.78);
+    padding: 0.68rem 1rem !important;
+  }
+
+  .co-customers-board-header h2 {
+    font-size: 0.95rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-customers-board-header p {
+    display: none;
+  }
+
+  .co-customers-main-board .co-filter-bar {
+    padding-top: 0.48rem !important;
+    padding-bottom: 0.42rem !important;
+  }
+
+  .co-customers-main-board .co-filter-bar button {
+    min-height: 1.78rem !important;
+    padding: 0.3rem 0.62rem !important;
+    font-size: 0.66rem !important;
+  }
+
+  .co-customers-main-board .co-filter-bar input {
+    min-height: 1.95rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .co-customers-command-table {
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .co-customers-command-table th {
+    padding: 0.42rem 0.58rem;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.9);
+    background: #f8fafc;
+    color: #07111f;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .co-customers-command-table td {
+    overflow: hidden;
+    padding: 0.45rem 0.58rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.94);
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.68rem;
+    font-weight: 750;
+    line-height: 1.15;
+    vertical-align: middle;
+  }
+
+  .co-customers-command-table td p {
+    overflow: hidden;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-customers-command-table td:nth-child(3) p {
+    max-width: 9.75rem;
+  }
+
+  .co-customers-command-table td:nth-child(4),
+  .co-customers-command-table td:nth-child(5) {
+    white-space: nowrap;
+  }
+
+  .co-customers-command-table tbody tr:hover td {
+    background: rgba(255, 247, 237, 0.48);
+  }
+
+  .co-customers-command-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .co-customers-command-table tbody tr td:first-child {
+    box-shadow: inset 3px 0 0 transparent;
+  }
+
+  .co-customers-command-table tbody tr:hover td:first-child,
+  .co-customers-command-table tbody tr.bg-orange-50\/70 td:first-child {
+    box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.82);
+  }
+
+  .co-customers-command-table th:nth-child(1) {
+    width: 22%;
+  }
+
+  .co-customers-command-table th:nth-child(2) {
+    width: 11%;
+  }
+
+  .co-customers-command-table th:nth-child(3) {
+    width: 19%;
+  }
+
+  .co-customers-command-table th:nth-child(4) {
+    width: 10%;
+  }
+
+  .co-customers-command-table th:nth-child(5) {
+    width: 14%;
+  }
+
+  .co-customers-command-table th:nth-child(6) {
+    width: 14%;
+  }
+
+  .co-customers-command-table th:nth-child(7) {
+    width: 10%;
+  }
+
+  .co-customers-main-board > .flex.border-t {
+    padding-top: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+  }
+
+  .co-customers-right-rail {
+    position: sticky;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.62rem);
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 0.95rem);
+    overflow-y: auto;
+    padding-right: 0.2rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-customers-right-rail > * + * {
+    margin-top: 0.72rem !important;
+  }
+
+  .co-customers-rail-card {
+    border-left-color: rgba(249, 115, 22, 0.62) !important;
+    padding: 0.82rem !important;
+  }
+
+  .co-customers-rail-card h3 {
+    font-size: 1.08rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .co-customers-rail-card .mt-4 {
+    margin-top: 0.65rem !important;
+  }
+
+  .co-customers-rail-card button {
+    min-height: 2.05rem !important;
+  }
+
+  .co-customers-mini-stat {
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+    border-radius: 0.62rem;
+    background: #f8fafc;
+    padding: 0.55rem 0.62rem;
+  }
+
+  .co-customers-mini-stat p {
+    color: #07111f;
+    font-size: 1rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-customers-mini-stat span {
+    display: block;
+    margin-top: 0.25rem;
+    color: #64748b;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+
+  .co-customers-related-row {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+    border-radius: 0.68rem;
+    background: #ffffff;
+    padding: 0.55rem 0.65rem;
+    text-align: left;
+    transition:
+      border-color 150ms ease,
+      background 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .co-customers-related-row:hover {
+    border-color: rgba(249, 115, 22, 0.38);
+    background: rgba(255, 247, 237, 0.54);
+  }
+
+  .co-customers-related-row span {
+    min-width: 0;
+  }
+
+  .co-customers-related-row strong,
+  .co-customers-related-row small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-customers-related-row strong {
+    color: #07111f;
+    font-size: 0.75rem;
+    font-weight: 950;
+  }
+
+  .co-customers-related-row small {
+    margin-top: 0.15rem;
+    color: #64748b;
+    font-size: 0.64rem;
+    font-weight: 800;
+  }
+
+  .co-customers-rail-details,
+  .co-customers-tools-drawer > summary {
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    border-left: 3px solid rgba(249, 115, 22, 0.54);
+    border-radius: 0.78rem;
+    background: #ffffff;
+    box-shadow: 0 12px 26px -28px rgba(7, 17, 31, 0.45);
+  }
+
+  .co-customers-rail-details > summary,
+  .co-customers-tools-drawer > summary {
+    display: flex;
+    min-width: 0;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+    padding: 0.78rem 0.9rem;
+    color: #07111f;
+    font-weight: 950;
+  }
+
+  .co-customers-rail-details > summary::-webkit-details-marker,
+  .co-customers-tools-drawer > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .co-customers-rail-details > summary span:first-child,
+  .co-customers-tools-drawer > summary strong {
+    color: #07111f;
+    font-size: 0.88rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .co-customers-tools-drawer > summary em,
+  .co-customers-rail-details > summary span:last-child,
+  .co-customers-tools-drawer > summary > span:last-child {
+    display: block;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .co-customers-rail-details > summary::after,
+  .co-customers-tools-drawer > summary::after {
+    content: "+";
+    display: inline-flex;
+    height: 1.35rem;
+    width: 1.35rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    border-radius: 0.45rem;
+    background: #ffffff;
+    color: var(--color-brand-orange-dark);
+    font-size: 0.9rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-customers-rail-details[open] > summary::after,
+  .co-customers-tools-drawer[open] > summary::after {
+    content: "-";
+  }
+
+  .co-customers-tools-panel > .co-card,
+  .co-customers-contact-editor > .co-card {
+    border-radius: 0.86rem !important;
+  }
+
   .co-module-frame {
     min-height: calc(100vh - var(--layout-topbar-height, 4.5rem));
   }
@@ -2858,6 +3255,109 @@ textarea {
 
   .co-leads-tools-drawer > summary {
     padding: 0.85rem !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-customers-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-customers-right-rail {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .co-customers-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.8rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-customers-board-header {
+    padding: 1rem !important;
+  }
+
+  .co-customers-main-board .hidden.md\:block {
+    display: none !important;
+  }
+
+  .co-customers-main-board .md\:hidden {
+    display: grid !important;
+    padding: 0.85rem;
+  }
+
+  .co-customers-rail-card {
+    padding: 1rem !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-customers-page .co-page-header {
+    padding-top: 1.15rem;
+    padding-bottom: 1rem;
+  }
+
+  .co-customers-kpi-grid {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 0.72rem !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-bottom: 0.65rem !important;
+    scroll-padding-inline: 1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi {
+    flex: 0 0 10.8rem;
+    min-height: 5.85rem !important;
+    padding: 0.68rem !important;
+    scroll-snap-align: start;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-body {
+    align-items: flex-start !important;
+    gap: 0.58rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-icon {
+    height: 2.2rem !important;
+    width: 2.2rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-icon svg {
+    height: 1rem !important;
+    width: 1rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-value {
+    font-size: 1.24rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi-link,
+  .co-customers-kpi-grid .co-command-kpi p:nth-child(3) {
+    font-size: 0.68rem !important;
+    line-height: 1.18 !important;
+  }
+
+  .co-customers-command-layout,
+  .co-customers-tools-drawer {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-customers-tools-drawer > summary {
+    padding: 0.85rem !important;
+  }
+
+  .co-customers-mobile-card {
+    box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.56) !important;
   }
 }
 
