@@ -4320,6 +4320,19 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
 
   if (actions.length === 0) return null;
 
+  const mobilePrimaryActionIds = new Set(["time", "reports", "uploads", "calculator"]);
+  const mobilePrimaryActions = actions.filter((action) => mobilePrimaryActionIds.has(action.id));
+  const mobileSecondaryActions = actions.filter((action) => !mobilePrimaryActionIds.has(action.id));
+  const renderFieldAction = (action) => (
+    <button key={action.id} type="button" className="co-field-action-card" data-tone={action.tone} onClick={() => setActive(action.id)}>
+      <span>
+        <Icon name={action.icon} />
+      </span>
+      <strong>{action.label}</strong>
+      <em>{action.helper}</em>
+    </button>
+  );
+
   return (
     <Card className="co-field-action-dock p-4">
       <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -4329,16 +4342,24 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
         />
         <Badge tone={focusJob ? "orange" : "slate"}>{focusJob ? jobTitle(focusJob) : "No job selected"}</Badge>
       </div>
-      <div className="co-field-action-grid mt-3">
-        {actions.map((action) => (
-          <button key={action.id} type="button" className="co-field-action-card" data-tone={action.tone} onClick={() => setActive(action.id)}>
-            <span>
-              <Icon name={action.icon} />
-            </span>
-            <strong>{action.label}</strong>
-            <em>{action.helper}</em>
-          </button>
-        ))}
+      <div className="co-field-action-grid co-field-action-grid-desktop mt-3">
+        {actions.map(renderFieldAction)}
+      </div>
+      <div className="co-field-mobile-actions mt-3">
+        <div className="co-field-action-grid co-field-action-grid-mobile">
+          {(mobilePrimaryActions.length ? mobilePrimaryActions : actions).map(renderFieldAction)}
+        </div>
+        {mobileSecondaryActions.length ? (
+          <details className="co-field-secondary-tools-drawer">
+            <summary>
+              <span>More field tools</span>
+              <strong>{mobileSecondaryActions.length}</strong>
+            </summary>
+            <div className="co-field-action-grid co-field-action-grid-mobile co-field-action-grid-secondary">
+              {mobileSecondaryActions.map(renderFieldAction)}
+            </div>
+          </details>
+        ) : null}
       </div>
     </Card>
   );
