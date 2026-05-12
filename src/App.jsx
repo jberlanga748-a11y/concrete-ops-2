@@ -6494,7 +6494,13 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const imageCount = visibleRows.filter((upload) => String(upload.fileType || "").startsWith("image/")).length;
   const gpsCount = visibleRows.filter((upload) => Number.isFinite(Number(upload.latitude)) && Number.isFinite(Number(upload.longitude))).length;
   const missingGpsCount = visibleRows.filter((upload) => !upload.hasGps).length;
+  const missingNotesCount = visibleRows.filter((upload) => !String(upload.caption || upload.notes || "").trim()).length;
   const archivedCount = visibleRows.filter((upload) => upload.archivedAt).length;
+  const latestVisibleUpload = visibleRows.reduce((latestUpload, upload) => {
+    const currentTime = new Date(uploadCapturedAt(upload) || 0).getTime() || 0;
+    const latestTime = new Date(uploadCapturedAt(latestUpload) || 0).getTime() || 0;
+    return currentTime > latestTime ? upload : latestUpload;
+  }, visibleRows[0] || null);
   const uploadKpis = [
     { label: "Uploads", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "blue", actionLabel: "View active", onAction: () => setFilter("Active only") },
     { label: "Photos", value: imageCount, helper: "Image evidence in view", icon: "document", tone: "orange" },
@@ -6659,6 +6665,15 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityUpload(matchUpload, options = {}) {
+    const targetUpload = visibleRows.find(matchUpload) || safeUploads.find(matchUpload);
+    if (options.filter) setFilter(options.filter);
+    if (options.gpsFilter) setGpsFilter(options.gpsFilter);
+    if (options.jobFilter) setJobFilter(options.jobFilter);
+    if (targetUpload?.id) setSelectedUploadId(targetUpload.id);
+    openTool(options.tool || "details");
+  }
+
   function clearFilters() {
     setFilter("Active only");
     setSearch("");
@@ -6667,6 +6682,45 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     setDateFilter("All dates");
     setGpsFilter("All locations");
   }
+
+  const uploadPriorityCards = [
+    {
+      label: "Review missing GPS",
+      value: missingGpsCount,
+      helper: missingGpsCount ? "Evidence without location metadata needs a quick look." : "Visible uploads have GPS context or no gaps.",
+      icon: "alert",
+      tone: missingGpsCount ? "amber" : "green",
+      actionLabel: missingGpsCount ? "Open missing" : "View evidence",
+      onAction: () => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }),
+    },
+    {
+      label: "Add captions",
+      value: missingNotesCount,
+      helper: missingNotesCount ? "Photos are stronger with a caption or office note." : "Visible evidence has caption context.",
+      icon: "document",
+      tone: missingNotesCount ? "orange" : "green",
+      actionLabel: missingNotesCount ? "Open gaps" : "All set",
+      onAction: () => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" }),
+    },
+    {
+      label: "Latest evidence",
+      value: latestVisibleUpload ? 1 : 0,
+      helper: latestVisibleUpload ? `${uploadJobLabel(latestVisibleUpload)} / ${uploadUploaderLabel(latestVisibleUpload)}` : "No visible upload selected yet.",
+      icon: "arrowUpRight",
+      tone: latestVisibleUpload ? "blue" : "slate",
+      actionLabel: latestVisibleUpload ? "Open latest" : "No evidence",
+      onAction: () => openPriorityUpload((upload) => upload.id === latestVisibleUpload?.id, { gpsFilter: "All locations" }),
+    },
+    {
+      label: "Upload photo",
+      value: canCreate ? 1 : 0,
+      helper: canCreate ? "Capture job-linked photo evidence with optional GPS." : "Upload access is not enabled for this role.",
+      icon: "upload",
+      tone: canCreate ? "blue" : "slate",
+      actionLabel: canCreate ? "Start upload" : "Read only",
+      onAction: () => openTool(canCreate ? "upload" : "details"),
+    },
+  ];
 
   return (
     <div className="co-office-page co-uploads-page">
@@ -6684,6 +6738,20 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
 
       <div className="co-uploads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {uploadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-uploads-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {uploadPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-uploads-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-uploads-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-uploads-priority-value">{card.value}</span>
+              <span className="co-uploads-priority-label">{card.label}</span>
+              <span className="co-uploads-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-uploads-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-uploads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
