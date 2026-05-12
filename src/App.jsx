@@ -4637,6 +4637,158 @@ function TimeEntriesTable({ rows, selectedId, onSelect }) {
   );
 }
 
+function TimeKpiCardPolished({ item }) {
+  const tone = item.tone || "orange";
+  const rawValue = Number(item.rawValue ?? item.value ?? 0);
+  const isEmpty = Number.isFinite(rawValue) ? rawValue <= 0 : false;
+
+  return (
+    <div className="co-command-kpi border p-3" data-tone={tone}>
+      <div className="co-command-kpi-body">
+        <div className="co-command-kpi-icon">
+          <Icon name={item.icon} className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className={`co-command-kpi-value ${isEmpty ? "is-empty" : ""}`}>{item.value ?? 0}</p>
+          <p className="mt-0.5 break-words text-sm font-black leading-tight text-slate-950">{item.label}</p>
+          <p className="mt-0.5 break-words text-xs font-bold leading-[1.35] text-slate-700">{item.helper}</p>
+        </div>
+      </div>
+      {item.actionLabel ? (
+        <button type="button" onClick={item.onAction} className="co-command-kpi-link co-focus-ring">
+          {item.actionLabel}
+          <span aria-hidden="true">-&gt;</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function TimeSummaryMetricsPolished({ summary, activeCount = 0, label = "This week" }) {
+  const safeSummary = summary || { totalMinutes: 0, breakMinutes: 0, groupedBreakdown: [] };
+
+  return (
+    <div className="co-time-summary-strip">
+      <div>
+        <span>{label}</span>
+        <strong>{formatMinutes(safeSummary.totalMinutes)}</strong>
+        <small>worked</small>
+      </div>
+      <div>
+        <span>Breaks</span>
+        <strong>{formatMinutes(safeSummary.breakMinutes)}</strong>
+        <small>recorded</small>
+      </div>
+      <div>
+        <span>Categories</span>
+        <strong>{safeSummary.groupedBreakdown?.length || 0}</strong>
+        <small>visible</small>
+      </div>
+      <div>
+        <span>Clocked in</span>
+        <strong>{activeCount}</strong>
+        <small>right now</small>
+      </div>
+    </div>
+  );
+}
+
+function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows = 8, showUser = true }) {
+  const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
+
+  return (
+    <>
+      <div className="co-time-mobile-list grid gap-3 p-3 md:hidden">
+        {visibleRows.map((entry) => {
+          const selected = entry.id === selectedId;
+          const totalLabel = entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress";
+
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => onSelect(entry.id)}
+              className={`co-time-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-lg font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{showUser ? `${entry.userName} / ${entry.userRole || "Field user"}` : workCategoryLabel(entry.workCategory)}</p>
+                </div>
+                <div className="shrink-0">
+                  <TimeStatusBadge status={entry.status} />
+                </div>
+              </div>
+              <div className="co-time-mobile-metrics">
+                <span>Clock in <strong>{formatDateTime(entry.clockInAt)}</strong></span>
+                <span>Clock out <strong>{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Active"}</strong></span>
+                <span>Total <strong>{totalLabel}</strong></span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
+                <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
+                {selected ? <Badge tone="blue">Selected</Badge> : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="table-shell hidden min-w-0 overflow-x-auto md:block">
+        <table className={`co-time-command-table ${showUser ? "" : "is-own-view"} w-full min-w-[820px] text-left`}>
+          <thead>
+            <tr>
+              {showUser ? <th>User</th> : null}
+              <th>Work</th>
+              <th>Clock in</th>
+              <th>Clock out</th>
+              <th>Break</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((entry) => {
+              const selected = entry.id === selectedId;
+              const totalLabel = entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress";
+
+              return (
+                <tr key={entry.id} onClick={() => onSelect(entry.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  {showUser ? (
+                    <td>
+                      <p className="font-black text-slate-950">{entry.userName}</p>
+                      <p className="text-xs font-bold text-slate-500">{entry.userRole || "Field user"}</p>
+                    </td>
+                  ) : null}
+                  <td>
+                    <p className="font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+                    <p className="text-xs font-bold text-slate-500">{workCategoryLabel(entry.workCategory)}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{formatDateTime(entry.clockInAt)}</td>
+                  <td className="font-bold text-slate-700">{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Still active"}</td>
+                  <td className="font-bold text-slate-700">{formatMinutes(entry.breakMinutes)}</td>
+                  <td className="font-bold text-slate-700">{totalLabel}</td>
+                  <td><TimeStatusBadge status={entry.status} /></td>
+                  <td>
+                    <div className="flex justify-end gap-1">
+                      <button type="button" className="co-time-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(entry.id); }} aria-label={`Review time entry ${entry.id}`}>
+                        <Icon name="clock" />
+                      </button>
+                      <button type="button" className="co-time-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(entry.id); }} aria-label={`Open time entry ${entry.id}`}>
+                        <Icon name="arrowUpRight" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorrect, compactMobile = false }) {
   if (!entry) {
     return (
@@ -4682,7 +4834,232 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
   );
 }
 
+function TimeCommandRailPolished({
+  user,
+  entry,
+  rows,
+  workspace,
+  permissions,
+  timeEditDraft,
+  setTimeEditDraft,
+  onSaveTimeEntry,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+  busy,
+}) {
+  const clockedInCount = rows.filter((item) => item.status !== "completed").length;
+  const reviewCount = rows.filter((item) => ["needs_correction", "pending_review"].includes(item.status)).length;
+  const totalLabel = entry ? (entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress") : `${rows.length} visible`;
+
+  return (
+    <div className="co-time-right-rail space-y-4">
+      {permissions.time.canManageOwn ? (
+        <ActiveTimeCard
+          activeEntry={workspace.activeEntry}
+          availableJobs={workspace.availableJobs}
+          allowedCategories={workspace.allowedCategories}
+          onClockIn={onClockIn}
+          onClockOut={onClockOut}
+          onStartBreak={onStartBreak}
+          onEndBreak={onEndBreak}
+          disabled={busy}
+          description="Clock your own office or field work while keeping payroll data out of this workspace."
+          compactMobile
+        />
+      ) : null}
+
+      <Card className="co-time-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{entry ? "Selected time summary" : "Time console"}</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{entry ? entry.userName : user?.name || "Workspace time"}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{entry ? `${entry.id} / ${entry.userRole || "Field user"}` : "Role-scoped time review"}</p>
+          </div>
+          {entry ? <TimeStatusBadge status={entry.status} /> : <Badge tone={clockedInCount ? "blue" : "slate"}>{clockedInCount} active</Badge>}
+        </div>
+
+        <div className="co-time-selected-metrics">
+          <div>
+            <span>{entry ? "Work" : "Entries"}</span>
+            <strong>{entry ? (entry.jobTitle || workCategoryLabel(entry.workCategory)) : rows.length}</strong>
+          </div>
+          <div>
+            <span>{entry ? "Clock in" : "Needs review"}</span>
+            <strong>{entry ? formatDateTime(entry.clockInAt) : reviewCount}</strong>
+          </div>
+          <div>
+            <span>{entry ? "Break" : "My week"}</span>
+            <strong>{entry ? formatMinutes(entry.breakMinutes) : formatMinutes(workspace.weeklySummary.totalMinutes || 0)}</strong>
+          </div>
+          <div>
+            <span>{entry ? "Total" : "Status"}</span>
+            <strong>{totalLabel}</strong>
+          </div>
+        </div>
+
+        {entry?.notes ? <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold leading-6 text-slate-600">{entry.notes}</p> : null}
+      </Card>
+
+      {permissions.time.canCorrect && entry ? (
+        <TimeCorrectionPanel entry={entry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
+      ) : null}
+
+      <Card className="co-time-rail-card p-4">
+        <SectionHeader title="Access Guardrails" description="Time stays role-scoped and field-safe." />
+        <div className="co-time-guardrail-list">
+          <span><Icon name="check" />No payroll rates shown</span>
+          <span><Icon name="check" />No pricing or margin data</span>
+          <span><Icon name="check" />Corrections limited by role</span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function TimePage({
+  user,
+  permissions,
+  rows,
+  jobs,
+  selectedTimeEntryId,
+  onSelectTimeEntry,
+  selectedTimeEntry,
+  timeEditDraft,
+  setTimeEditDraft,
+  onSaveTimeEntry,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+  busy,
+}) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const workspace = useMemo(() => deriveTimeWorkspace(safeRows, jobs, user?.id, permissions.time.allowedCategories || []), [jobs, permissions.time.allowedCategories, safeRows, user?.id]);
+  const clockedInCount = safeRows.filter((entry) => entry.status !== "completed").length;
+  const reviewCount = safeRows.filter((entry) => ["needs_correction", "pending_review"].includes(entry.status)).length;
+  const allWeeklySummary = useMemo(() => deriveCrewWeeklySummary(safeRows), [safeRows]);
+  const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(safeRows, { excludeUserId: user?.id }), [safeRows, user?.id]);
+  const canViewAll = permissions.time.canViewAll;
+  const canViewCrew = permissions.time.canViewCrew && !canViewAll;
+  const isOwnOnly = !canViewAll && !canViewCrew;
+  const boardSummary = canViewAll ? allWeeklySummary : canViewCrew ? crewWeeklySummary : workspace.weeklySummary;
+  const boardRows = isOwnOnly ? workspace.sortedEntries : safeRows;
+  const visibleRowCap = canViewAll ? 8 : 6;
+  const showUserColumn = !isOwnOnly;
+  const pageEyebrow = canViewAll ? "Time" : canViewCrew ? "Field Time" : "My Time";
+  const pageTitle = canViewAll ? "Time Entries" : canViewCrew ? "Crew Time" : "My Time";
+  const pageDescription = canViewAll
+    ? "Review field time, clock your own work, and correct timestamps from one operator time board."
+    : canViewCrew
+      ? "Review assigned crew time without exposing payroll, rates, pricing, or office-only data."
+      : "Track your assigned work and keep your weekly time clear for the office.";
+  const boardTitle = canViewAll ? "Time Operations Board" : canViewCrew ? "Crew Time Board" : "My Time Board";
+  const boardDescription = canViewAll
+    ? "Select an entry to inspect it in the rail, keep corrections contained, and watch active time."
+    : canViewCrew
+      ? "Crew entries stay scoped to assigned work and field-safe details."
+      : "Your own entries stay focused on clock-in status, breaks, and weekly totals.";
+  const timeKpis = [
+    { label: "Visible Entries", value: boardRows.length, rawValue: boardRows.length, helper: "Role-scoped time log", icon: "clock", tone: "blue" },
+    { label: "Clocked In", value: clockedInCount, rawValue: clockedInCount, helper: "Active or on break now", icon: "users", tone: "green" },
+    { label: "Needs Review", value: reviewCount, rawValue: reviewCount, helper: "Corrections or approvals", icon: "alert", tone: reviewCount ? "orange" : "slate" },
+    { label: "My Week", value: formatMinutes(workspace.weeklySummary.totalMinutes || 0), rawValue: workspace.weeklySummary.totalMinutes || 0, helper: "Your visible hours", icon: "clipboard", tone: "amber" },
+  ];
+
+  return (
+    <div className="co-office-page co-time-page">
+      <PageHeader
+        eyebrow={pageEyebrow}
+        title={<span>{pageTitle} <span className="text-orange-500">{"\u2606"}</span></span>}
+        description={pageDescription}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Badge tone={clockedInCount ? "blue" : "slate"}>{clockedInCount} clocked in</Badge>
+            <Badge tone={reviewCount ? "amber" : "green"}>{reviewCount} review</Badge>
+            <Badge tone="blue">{boardRows.length} entries</Badge>
+          </div>
+        }
+      />
+
+      <div className="co-time-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
+        {timeKpis.map((item) => <TimeKpiCardPolished key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-time-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-time-left-stack min-w-0 space-y-3">
+          <Card className="co-time-main-board overflow-hidden">
+            <div className="co-time-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">{boardTitle}</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">{boardDescription}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="slate">{formatMinutes(boardSummary.totalMinutes || 0)} worked</Badge>
+                  <Badge tone="slate">{formatMinutes(boardSummary.breakMinutes || 0)} breaks</Badge>
+                </div>
+              </div>
+            </div>
+            <TimeSummaryMetricsPolished summary={boardSummary} activeCount={clockedInCount} label={isOwnOnly ? "My week" : "Visible week"} />
+            {boardRows.length === 0 ? (
+              <div className="p-5">
+                <StateCard title="No time entries yet" description={permissions.time.canManageOwn ? "Use the clock-in rail to start the first entry for this workspace." : "Visible time entries will appear here once crews start tracking work."} tone="slate" />
+              </div>
+            ) : (
+              <TimeEntriesTablePolished rows={boardRows} selectedId={selectedTimeEntryId} onSelect={onSelectTimeEntry} maxRows={visibleRowCap} showUser={showUserColumn} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {Math.min(boardRows.length, visibleRowCap)} of {boardRows.length} visible entries</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{permissions.time.canCorrect ? "Corrections enabled" : "Read-only time view"}</p>
+            </div>
+          </Card>
+
+          <details className="co-time-tools-drawer">
+            <summary>
+              <span>
+                <strong>Weekly Time Details</strong>
+                <em>Daily breakdowns, category totals, and recent personal entries stay available without stretching the board.</em>
+              </span>
+              <span>Open details</span>
+            </summary>
+            <div className="co-time-tools-panel mt-3 grid gap-3 lg:grid-cols-2">
+              <WeekSummaryCard summary={workspace.weeklySummary} title="My Week" description="Your current-week hours, breaks, and work breakdown." compactMobile />
+              {!isOwnOnly ? <WeekSummaryCard summary={boardSummary} title={canViewAll ? "All Visible Time This Week" : "Crew This Week"} description="Role-scoped weekly totals across the entries you are allowed to view." compactMobile /> : null}
+              <RecentTimeEntriesCard
+                entries={workspace.ownEntries.slice(0, 5)}
+                title="My recent entries"
+                description="Your own clock-ins and break history."
+                emptyDescription="Use the clock-in rail to create your first time entry."
+                compact
+                compactMobile
+              />
+            </div>
+          </details>
+        </div>
+
+        <TimeCommandRailPolished
+          user={user}
+          entry={selectedTimeEntry}
+          rows={boardRows}
+          workspace={workspace}
+          permissions={permissions}
+          timeEditDraft={timeEditDraft}
+          setTimeEditDraft={setTimeEditDraft}
+          onSaveTimeEntry={onSaveTimeEntry}
+          onClockIn={onClockIn}
+          onClockOut={onClockOut}
+          onStartBreak={onStartBreak}
+          onEndBreak={onEndBreak}
+          busy={busy}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TimePageLegacy({
   user,
   permissions,
   rows,
