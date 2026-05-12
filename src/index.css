@@ -4639,6 +4639,217 @@ textarea {
   }
 }
 
+.co-field-workspace-page {
+  min-width: 0;
+}
+
+.co-field-workspace-page .co-page-header {
+  box-shadow: inset 0 -1px 0 rgba(203, 213, 225, 0.88);
+}
+
+.co-field-kpi-grid {
+  gap: 0.78rem !important;
+}
+
+.co-field-kpi-grid .co-command-kpi {
+  min-height: 5.25rem;
+  border-radius: 0.82rem !important;
+  background: #ffffff;
+  box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.52);
+}
+
+.co-field-command-layout {
+  align-items: start;
+}
+
+.co-field-right-rail {
+  position: sticky;
+  top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
+  max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 1rem);
+  overflow: auto;
+  padding-right: 0.12rem;
+}
+
+.co-field-action-dock {
+  border-top-color: rgba(249, 115, 22, 0.72) !important;
+}
+
+.co-field-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.58rem;
+}
+
+.co-field-action-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 5rem;
+  align-content: start;
+  gap: 0.28rem;
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 0.72rem;
+  background: #ffffff;
+  padding: 0.72rem;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.co-field-action-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  height: 3px;
+  width: 3.5rem;
+  background: var(--color-brand-orange);
+}
+
+.co-field-action-card:hover {
+  border-color: rgba(249, 115, 22, 0.42);
+  background: #fff7ed;
+  transform: translateY(-1px);
+}
+
+.co-field-action-card > span {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.62rem;
+  background: #fff7ed;
+  color: var(--color-brand-orange-dark);
+}
+
+.co-field-action-card > span svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.co-field-action-card strong {
+  color: #07111f;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.co-field-action-card em {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.co-field-action-card[data-tone="blue"] > span {
+  background: #eff6ff;
+  color: #1459d9;
+}
+
+.co-field-action-card[data-tone="green"] > span {
+  background: #ecfdf5;
+  color: #08782e;
+}
+
+.co-field-action-card[data-tone="amber"] > span {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.co-field-action-card[data-tone="slate"] > span {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.co-field-workspace-page .co-mobile-accordion,
+.co-field-workspace-page .co-mobile-field-group {
+  border-color: rgba(203, 213, 225, 0.96) !important;
+  border-radius: 0.86rem !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.54) !important;
+}
+
+.co-field-workspace-page .co-mobile-toggle-pill {
+  background: #fff7ed !important;
+  color: var(--color-brand-orange-dark) !important;
+}
+
+.co-field-tool-page .co-page-header {
+  box-shadow: inset 0 -1px 0 rgba(203, 213, 225, 0.88);
+}
+
+.co-field-tool-page .co-toolbox-main-board,
+.co-field-tool-page .co-toolbox-rail-card,
+.co-field-tool-page .co-toolbox-form-card {
+  border-top-color: rgba(249, 115, 22, 0.82) !important;
+}
+
+@media (min-width: 900px) {
+  .co-field-action-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .co-field-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-field-right-rail {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-field-kpi-grid {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 0.72rem !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-bottom: 0.65rem !important;
+    scroll-padding-inline: 1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .co-field-kpi-grid .co-command-kpi {
+    flex: 0 0 10.8rem;
+    min-height: 5.85rem !important;
+    padding: 0.68rem !important;
+    scroll-snap-align: start;
+  }
+
+  .co-field-command-layout {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-field-action-grid {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.1rem;
+    scroll-padding-inline: 0.1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .co-field-action-card {
+    flex: 0 0 8.8rem;
+    min-height: 5.3rem;
+    scroll-snap-align: start;
+  }
+}
+
 .co-time-page {
   min-width: 0;
 }

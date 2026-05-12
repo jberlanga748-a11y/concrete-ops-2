@@ -4138,32 +4138,187 @@ function FieldWalkthroughCard({ role = "employee" }) {
   );
 }
 
-function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
-  const safeRows = Array.isArray(rows) ? rows : [];
-  const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
-  const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
-  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, safeRows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, safeRows, timeEntries, user?.id]);
+function FieldWorkspaceKpisPolished({ workspace, timeWorkspace, focusJob, role = "employee" }) {
+  const assignedCount = workspace.assignedJobs.length;
+  const noticeCount = workspace.assignmentNotices.length;
+  const fieldNoteCount = focusJob ? [focusJob.fieldNotes, focusJob.materialNotes, focusJob.equipmentNotes, focusJob.safetyNotes].filter((value) => String(value || "").trim()).length : 0;
+  const isForeman = role === "foreman";
+  const items = [
+    { label: isForeman ? "Assigned Jobs" : "Assigned Work", value: assignedCount, helper: "Visible field work", icon: "briefcase", tone: assignedCount ? "orange" : "slate" },
+    { label: "Notices", value: noticeCount, helper: noticeCount ? "Needs ack" : "All acked", icon: "alert", tone: noticeCount ? "amber" : "green" },
+    { label: "Active Clock", value: timeWorkspace.activeEntry ? 1 : 0, helper: timeWorkspace.activeEntry ? "Crew time running" : "Ready to clock", icon: "clock", tone: timeWorkspace.activeEntry ? "green" : "slate" },
+    { label: "Field Notes", value: fieldNoteCount, helper: focusJob ? "Selected job notes" : "Select a job", icon: "document", tone: fieldNoteCount ? "blue" : "slate" },
+  ];
 
   return (
-    <div>
-      <PageHeader eyebrow="Field Workspace" title="My Crew" description="Start with new assignment notices, clock in, then open the next job. This view stays field-safe and hides office-only pricing or sales data." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-        <div className="min-w-0 space-y-4">
-          <FieldWalkthroughCard role="foreman" />
+    <div className="co-field-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-2 gap-3 px-5 pb-3 sm:px-6 lg:grid-cols-4 lg:px-6">
+      {items.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+    </div>
+  );
+}
+
+function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActive, activeEntry, focusJob }) {
+  if (typeof setActive !== "function") return null;
+
+  const actions = [
+    {
+      id: "time",
+      label: activeEntry ? "Clock Out" : "Clock In",
+      helper: activeEntry ? "Active time entry" : "Start field time",
+      icon: "clock",
+      enabled: permissions.time.canView,
+      tone: activeEntry ? "green" : "orange",
+    },
+    {
+      id: "reports",
+      label: "Reports",
+      helper: "Daily field notes",
+      icon: "document",
+      enabled: permissions.reports.canView,
+      tone: "blue",
+    },
+    {
+      id: "uploads",
+      label: "Photos",
+      helper: "Upload evidence",
+      icon: "upload",
+      enabled: permissions.uploads.canView,
+      tone: "slate",
+    },
+    {
+      id: "deliveryTickets",
+      label: "Tickets",
+      helper: "Delivery records",
+      icon: "clipboard",
+      enabled: permissions.deliveryTickets.canView,
+      tone: "slate",
+    },
+    {
+      id: "prePour",
+      label: "Pre-Pour",
+      helper: "Readiness checks",
+      icon: "clipboard",
+      enabled: permissions.prePour.canView,
+      tone: "amber",
+    },
+    {
+      id: "postPour",
+      label: "Post-Pour",
+      helper: "Closeout checks",
+      icon: "clipboard",
+      enabled: permissions.postPour.canView,
+      tone: "amber",
+    },
+    {
+      id: "ppe",
+      label: "PPE",
+      helper: "Safety gear",
+      icon: "hardhat",
+      enabled: permissions.safety.canView,
+      tone: "green",
+    },
+    {
+      id: "toolChecklist",
+      label: "Tools",
+      helper: "Loadout list",
+      icon: "clipboard",
+      enabled: permissions.toolChecklist.canUse,
+      tone: "orange",
+    },
+    {
+      id: "calculator",
+      label: "Calculator",
+      helper: focusJob ? "Save to job" : "Yardage math",
+      icon: "calculator",
+      enabled: permissions.calculator.canUse,
+      tone: "blue",
+    },
+    {
+      id: "changeOrders",
+      label: "Changes",
+      helper: "Field request",
+      icon: "refresh",
+      enabled: permissions.changeOrders.canRequest || permissions.changeOrders.canManage,
+      tone: "slate",
+    },
+  ].filter((action) => action.enabled);
+
+  if (actions.length === 0) return null;
+
+  return (
+    <Card className="co-field-action-dock p-4">
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <SectionHeader
+          title={role === "foreman" ? "Foreman Command Tools" : "Employee Field Tools"}
+          description="Open the field-safe tools tied to the work visible for this role."
+        />
+        <Badge tone={focusJob ? "orange" : "slate"}>{focusJob ? jobTitle(focusJob) : "No job selected"}</Badge>
+      </div>
+      <div className="co-field-action-grid mt-3">
+        {actions.map((action) => (
+          <button key={action.id} type="button" className="co-field-action-card" data-tone={action.tone} onClick={() => setActive(action.id)}>
+            <span>
+              <Icon name={action.icon} />
+            </span>
+            <strong>{action.label}</strong>
+            <em>{action.helper}</em>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function FieldWorkspacePagePolished({
+  role = "employee",
+  workspace,
+  focusJob,
+  permissions,
+  setActive,
+  timeWorkspace,
+  onSelectJob,
+  onJobFieldChange,
+  onAcknowledgeAssignmentNotice,
+  busy,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+}) {
+  const isForeman = role === "foreman";
+  const assignedTitle = isForeman ? "Assigned Jobs" : "Assigned Work";
+  const assignedDescription = isForeman ? "Jobs you are currently responsible for in the field." : "Only your assigned jobs appear here. Contact office if something looks wrong.";
+  const emptyAssignedTitle = isForeman ? "No assigned jobs yet" : "No assigned jobs yet";
+  const emptyAssignedDescription = isForeman ? "Contact office if this is wrong or if a scheduled job is missing from your workspace." : "Contact office if you expected a job to be assigned to you today.";
+
+  return (
+    <div className="co-office-page co-jobs-page co-field-workspace-page">
+      <PageHeader
+        eyebrow="Field Workspace"
+        title={isForeman ? "My Crew" : "My Job"}
+        description={isForeman ? "Run today's assigned work, crew time, field notes, checklists, photos, tickets, and job-safe tools from one operator view." : "Open your assigned work, clock in, review field notes, and use job-safe tools without office-only data."}
+        actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>}
+      />
+      <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
+      <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
+        <div className="co-field-left-stack min-w-0 space-y-3">
+          <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
-          <ActiveTimeCard
-            activeEntry={timeWorkspace.activeEntry}
-            availableJobs={timeWorkspace.availableJobs}
-            allowedCategories={timeWorkspace.allowedCategories}
-            onClockIn={onClockIn}
-            onClockOut={onClockOut}
-            onStartBreak={onStartBreak}
-            onEndBreak={onEndBreak}
-            disabled={busy}
-            description="Clock your own assigned or field-visible work without exposing payroll or pricing data."
-          />
-          <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
-          <FieldWorkspaceDisclosure title="Assigned jobs" description="Jobs you are currently responsible for in the field." badge={`${workspace.assignedJobs.length} assigned`}>
+          <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
+            <ActiveTimeCard
+              activeEntry={timeWorkspace.activeEntry}
+              availableJobs={timeWorkspace.availableJobs}
+              allowedCategories={timeWorkspace.allowedCategories}
+              onClockIn={onClockIn}
+              onClockOut={onClockOut}
+              onStartBreak={onStartBreak}
+              onEndBreak={onEndBreak}
+              disabled={busy}
+              description={isForeman ? "Clock your own assigned or field-visible work without exposing payroll or pricing data." : undefined}
+            />
+            <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
+          </div>
+          <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="space-y-3">
                 {workspace.assignedJobs.map((job) => (
@@ -4171,24 +4326,54 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
                 ))}
               </div>
             ) : (
-              <StateCard title="No assigned jobs yet" description="Contact office if this is wrong or if a scheduled job is missing from your workspace." tone="slate" />
+              <StateCard title={emptyAssignedTitle} description={emptyAssignedDescription} tone="slate" />
             )}
           </FieldWorkspaceDisclosure>
-          <FieldWorkspaceDisclosure title="Upcoming planning jobs" description="Future field-visible jobs for crew, tools, and site prep." badge={`${workspace.upcomingJobs.length} upcoming`}>
-            {workspace.upcomingJobs.length > 0 ? (
-              <div className="space-y-3">
-                {workspace.upcomingJobs.map((job) => (
-                  <FieldJobSummaryCard key={job.id} job={job} selected={focusJob?.id === job.id} onSelect={onSelectJob} note="Upcoming" />
-                ))}
-              </div>
-            ) : (
-              <StateCard title="No upcoming field-visible jobs" description="Once office planning flags future work for field visibility, it will appear here." tone="slate" />
-            )}
-          </FieldWorkspaceDisclosure>
+          {isForeman ? (
+            <FieldWorkspaceDisclosure title="Upcoming Planning Jobs" description="Future field-visible jobs for crew, tools, and site prep." badge={`${workspace.upcomingJobs.length} upcoming`}>
+              {workspace.upcomingJobs.length > 0 ? (
+                <div className="space-y-3">
+                  {workspace.upcomingJobs.map((job) => (
+                    <FieldJobSummaryCard key={job.id} job={job} selected={focusJob?.id === job.id} onSelect={onSelectJob} note="Upcoming" />
+                  ))}
+                </div>
+              ) : (
+                <StateCard title="No upcoming field-visible jobs" description="Once office planning flags future work for field visibility, it will appear here." tone="slate" />
+              )}
+            </FieldWorkspaceDisclosure>
+          ) : null}
         </div>
-        <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
+        <div className="co-field-right-rail min-w-0">
+          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
+  const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
+  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, safeRows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, safeRows, timeEntries, user?.id]);
+
+  return (
+    <FieldWorkspacePagePolished
+      role="foreman"
+      workspace={workspace}
+      focusJob={focusJob}
+      permissions={permissions}
+      setActive={setActive}
+      timeWorkspace={timeWorkspace}
+      onSelectJob={onSelectJob}
+      onJobFieldChange={onJobFieldChange}
+      onAcknowledgeAssignmentNotice={onAcknowledgeAssignmentNotice}
+      busy={busy}
+      onClockIn={onClockIn}
+      onClockOut={onClockOut}
+      onStartBreak={onStartBreak}
+      onEndBreak={onEndBreak}
+    />
   );
 }
 
@@ -4199,37 +4384,22 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
 
   return (
-    <div>
-      <PageHeader eyebrow="Field Workspace" title="My Job" description="Start with new assignment notices, clock in, then open your next assigned job. Only field-safe job details and tools are shown here." actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned jobs</Badge>} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-        <div className="min-w-0 space-y-4">
-          <FieldWalkthroughCard role="employee" />
-          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
-          <ActiveTimeCard
-            activeEntry={timeWorkspace.activeEntry}
-            availableJobs={timeWorkspace.availableJobs}
-            onClockIn={onClockIn}
-            onClockOut={onClockOut}
-            onStartBreak={onStartBreak}
-            onEndBreak={onEndBreak}
-            disabled={busy}
-          />
-          <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
-          <FieldWorkspaceDisclosure title="Assigned work" description="Only your assigned jobs appear here. Contact office if something looks wrong." badge={`${workspace.assignedJobs.length} assigned`}>
-            {workspace.assignedJobs.length > 0 ? (
-              <div className="space-y-3">
-                {workspace.assignedJobs.map((job) => (
-                  <FieldJobSummaryCard key={job.id} job={job} selected={fallbackJob?.id === job.id} onSelect={onSelectJob} note="Assigned" />
-                ))}
-              </div>
-            ) : (
-              <StateCard title="No assigned jobs yet" description="Contact office if you expected a job to be assigned to you today." tone="slate" />
-            )}
-          </FieldWorkspaceDisclosure>
-        </div>
-        <FieldJobFocusCard job={fallbackJob} permissions={permissions} onFieldChange={() => {}} disabled />
-      </div>
-    </div>
+    <FieldWorkspacePagePolished
+      role="employee"
+      workspace={workspace}
+      focusJob={fallbackJob}
+      permissions={permissions}
+      setActive={setActive}
+      timeWorkspace={timeWorkspace}
+      onSelectJob={onSelectJob}
+      onJobFieldChange={() => {}}
+      onAcknowledgeAssignmentNotice={onAcknowledgeAssignmentNotice}
+      busy={busy}
+      onClockIn={onClockIn}
+      onClockOut={onClockOut}
+      onStartBreak={onStartBreak}
+      onEndBreak={onEndBreak}
+    />
   );
 }
 
@@ -8139,7 +8309,7 @@ function PpeChecklistPagePolished({
   }
 
   return (
-    <div className="co-office-page co-toolbox-page co-ppe-page">
+    <div className={`co-office-page co-toolbox-page co-ppe-page ${canManage ? "" : "co-field-tool-page"}`}>
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title="PPE Checklist"
@@ -15609,15 +15779,16 @@ function CalculatorPagePolished({
   saveDraft,
   setSaveDraft,
   handleSaveResult,
+  isFieldTool = false,
   busy,
   editSection,
   duplicateSection,
   removeSection,
 }) {
   return (
-    <div className="co-office-page co-toolbox-page co-calculator-page">
+    <div className={`co-office-page co-toolbox-page co-calculator-page ${isFieldTool ? "co-field-tool-page" : ""}`}>
       <PageHeader
-        eyebrow="Field Tools"
+        eyebrow={isFieldTool ? "Field Tools" : "Tools"}
         title="Concrete Calculator"
         description="Calculate concrete yield, build multi-section takeoffs, copy field-ready totals, and save internal results to allowed jobs."
         actions={
@@ -15682,7 +15853,7 @@ function CalculatorPagePolished({
   );
 }
 
-function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
+function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permissions }) {
   const [calculatorMode, setCalculatorMode] = useState("single");
   const [calculatorType, setCalculatorType] = useState("slab");
   const [draftByType, setDraftByType] = useState(CALCULATOR_INPUT_DEFAULTS);
@@ -15715,6 +15886,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
     { label: "Waste %", value: Number(activeWastePercent || 0), helper: "Concrete waste factor", icon: "refresh", tone: Number(activeWastePercent || 0) > 0 ? "amber" : "slate" },
     { label: "Ready", value: result.status === "ready" ? 1 : 0, helper: result.status === "ready" ? "Can copy or save" : "Waiting on valid dimensions", icon: "check", tone: result.status === "ready" ? "green" : "slate" },
   ];
+  const isFieldTool = !permissions?.jobs?.canManageAll && !permissions?.leads?.canView;
 
   useEffect(() => {
     const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
@@ -15923,6 +16095,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
       saveDraft={saveDraft}
       setSaveDraft={setSaveDraft}
       handleSaveResult={handleSaveResult}
+      isFieldTool={isFieldTool}
       busy={busy}
       editSection={editSection}
       duplicateSection={duplicateSection}
@@ -22950,7 +23123,7 @@ function ToolChecklistPagePolished({
   }
 
   return (
-    <div className="co-office-page co-toolbox-page co-tool-checklist-page">
+    <div className={`co-office-page co-toolbox-page co-tool-checklist-page ${permissions.toolChecklist.canManageAll ? "" : "co-field-tool-page"}`}>
       <PageHeader
         eyebrow={permissions.toolChecklist.canManageAll ? "Office Tools" : "Field Tools"}
         title="Tool Checklist"
@@ -23587,7 +23760,7 @@ function MainContent(props) {
     );
   }
   if (active === "calculator") {
-    return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
+    return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} permissions={props.permissions} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
   }
   if (active === "changeOrders") {
     return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
