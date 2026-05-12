@@ -18601,7 +18601,7 @@ function SettingsPagePolished({
             </div>
           </details>
 
-          <details id="settings-admin-controls" className="co-settings-tools-drawer" open>
+          <details id="settings-admin-controls" className="co-settings-tools-drawer">
             <summary>
               <span>
                 <strong>Admin Controls / Field Modules</strong>
