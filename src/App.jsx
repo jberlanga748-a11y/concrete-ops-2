@@ -9275,6 +9275,7 @@ function ReportsPagePolished({
   const reviewedCount = visibleRows.filter((report) => report.status === "reviewed").length;
   const needsActionCount = visibleRows.filter(dailyReportNeedsAction).length;
   const concreteCount = visibleRows.filter((report) => report.concretePoured).length;
+  const missingBasicsCount = visibleRows.filter((report) => !report.workPerformed || !report.crewSummary || !report.weather).length;
   const reportKpis = [
     { label: "Reports", value: visibleRows.length, helper: "Matching current filters", icon: "document", tone: "blue", actionLabel: "View reports", onAction: () => setFilter("All") },
     { label: "Submitted", value: submittedCount, helper: "Waiting office review", icon: "clipboard", tone: submittedCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setFilter("Submitted") },
@@ -9287,11 +9288,59 @@ function ReportsPagePolished({
     { id: "details", label: "Edit / Review", count: selectedReport ? 1 : 0 },
   ];
 
+  function openPriorityReport(matchReport, fallbackFilter = "All") {
+    const targetReport = visibleRows.find(matchReport) || reports.find(matchReport);
+    if (targetReport?.id) {
+      onSelectReport(targetReport.id);
+    }
+    setFilter(fallbackFilter === "Draft" && targetReport?.status === "reopened" ? "Reopened" : fallbackFilter);
+    openReportTool("details");
+  }
+
   function openReportTool(toolId = "details") {
     setActiveReportTool(toolId);
     setShowReportTools(true);
     window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
+
+  const reportPriorityCards = [
+    {
+      label: "Review submitted",
+      value: submittedCount,
+      helper: submittedCount ? "Submitted reports waiting for office review." : "No submitted reports waiting right now.",
+      icon: "clipboard",
+      tone: submittedCount ? "amber" : "green",
+      actionLabel: submittedCount ? "Open review" : "View reviewed",
+      onAction: () => openPriorityReport(dailyReportNeedsReview, submittedCount ? "Submitted" : "Reviewed"),
+    },
+    {
+      label: "Finish field drafts",
+      value: needsActionCount,
+      helper: needsActionCount ? "Draft or reopened reports need field completion." : "No draft or reopened reports in this view.",
+      icon: "document",
+      tone: needsActionCount ? "orange" : "slate",
+      actionLabel: needsActionCount ? "Open draft" : "All clear",
+      onAction: () => openPriorityReport(dailyReportNeedsAction, "Draft"),
+    },
+    {
+      label: "Complete basics",
+      value: missingBasicsCount,
+      helper: "Checks work performed, crew summary, and weather fields.",
+      icon: "alert",
+      tone: missingBasicsCount ? "amber" : "green",
+      actionLabel: missingBasicsCount ? "Find gaps" : "Ready",
+      onAction: () => openPriorityReport((report) => !report.workPerformed || !report.crewSummary || !report.weather, "All"),
+    },
+    {
+      label: "Start today's report",
+      value: canCreate ? 1 : 0,
+      helper: canCreate ? "Open the real daily report form for a visible job." : "Creation is not enabled for this role.",
+      icon: "plus",
+      tone: canCreate ? "blue" : "slate",
+      actionLabel: canCreate ? "Start report" : "Read only",
+      onAction: () => (canCreate ? openReportTool("create") : openReportTool("details")),
+    },
+  ];
 
   return (
     <div className="co-office-page co-reports-page">
@@ -9310,6 +9359,22 @@ function ReportsPagePolished({
       {canView ? (
         <div className="co-reports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
           {reportKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
+      ) : null}
+
+      {canView ? (
+        <div className="co-reports-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+          {reportPriorityCards.map((card) => (
+            <button key={card.label} type="button" className="co-reports-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+              <span className="co-reports-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+              <span className="min-w-0">
+                <span className="co-reports-priority-value">{card.value}</span>
+                <span className="co-reports-priority-label">{card.label}</span>
+                <span className="co-reports-priority-helper">{card.helper}</span>
+              </span>
+              <span className="co-reports-priority-action">{card.actionLabel} -&gt;</span>
+            </button>
+          ))}
         </div>
       ) : null}
 
