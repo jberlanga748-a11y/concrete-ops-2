@@ -22150,6 +22150,10 @@ function ChangeOrdersPagePolished({
   const canCreate = permissions.changeOrders.canRequest || permissions.changeOrders.canManage;
   const canManage = permissions.changeOrders.canManage;
   const totalOpen = rows.filter((request) => !request.archivedAt && !["approved_for_pricing", "rejected", "archived"].includes(String(request.status || ""))).length;
+  const activeChangeRows = rows.filter((request) => !request.archivedAt && !["approved_for_pricing", "rejected", "archived"].includes(String(request.status || "")));
+  const requestedRows = activeChangeRows.filter((request) => request.status === "requested");
+  const underReviewRows = activeChangeRows.filter((request) => request.status === "under_review");
+  const missingDetailRows = activeChangeRows.filter((request) => !request.jobId || !request.reason || !request.scopeDescription);
   const changeOrderKpis = [
     { label: "Visible Requests", value: filteredRows.length, helper: "Current board", icon: "refresh", tone: "blue" },
     { label: "Needs Review", value: filteredRows.filter((request) => request.status === "requested").length, helper: "Waiting for office review", icon: "alert", tone: "amber", actionLabel: "Review", onAction: () => setStatusFilter("Requested") },
@@ -22192,6 +22196,54 @@ function ChangeOrdersPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityRequest(matchRequest, options = {}) {
+    const targetRequest = filteredRows.find(matchRequest) || rows.find(matchRequest);
+    if (options.statusFilter) setStatusFilter(options.statusFilter);
+    if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
+    if (options.search !== undefined) setSearch(options.search);
+    if (targetRequest?.id) setSelectedRequestId(targetRequest.id);
+    if (options.toolTab) openTools(options.toolTab);
+  }
+
+  const changeOrderPriorityCards = [
+    {
+      label: "Needs review",
+      value: requestedRows.length,
+      helper: requestedRows.length ? "Field scope changes are waiting for office triage." : "No requested change orders need first review.",
+      icon: "alert",
+      tone: requestedRows.length ? "amber" : "green",
+      actionLabel: requestedRows.length ? "Review" : "All clear",
+      onAction: () => openPriorityRequest((request) => request.status === "requested" && !request.archivedAt, { statusFilter: requestedRows.length ? "Requested" : "All", archiveFilter: "Active", search: "", toolTab: requestedRows.length ? "review" : "" }),
+    },
+    {
+      label: "In office review",
+      value: underReviewRows.length,
+      helper: underReviewRows.length ? "Requests are already being reviewed by the office." : "Nothing is currently marked under review.",
+      icon: "clock",
+      tone: underReviewRows.length ? "blue" : "slate",
+      actionLabel: underReviewRows.length ? "Open" : "None",
+      onAction: () => openPriorityRequest((request) => request.status === "under_review" && !request.archivedAt, { statusFilter: underReviewRows.length ? "Under Review" : "All", archiveFilter: "Active", search: "", toolTab: underReviewRows.length ? "review" : "" }),
+    },
+    {
+      label: "Needs details",
+      value: missingDetailRows.length,
+      helper: missingDetailRows.length ? "Job, reason, or scope context is incomplete." : "Open change requests have their core details.",
+      icon: "clipboard",
+      tone: missingDetailRows.length ? "orange" : "green",
+      actionLabel: missingDetailRows.length ? "Fix details" : "Ready",
+      onAction: () => openPriorityRequest((request) => missingDetailRows.some((entry) => entry.id === request.id), { statusFilter: "All", archiveFilter: "Active", search: "", toolTab: missingDetailRows.length ? "review" : "" }),
+    },
+    {
+      label: "New request",
+      value: canCreate ? "Ready" : "Locked",
+      helper: canCreate ? "Capture a field scope change without pricing or billing data." : "This role can review visible requests only.",
+      icon: "plus",
+      tone: canCreate ? "orange" : "slate",
+      actionLabel: canCreate ? "Create" : "View only",
+      onAction: () => canCreate ? openTools("create") : openPriorityRequest((request) => request.id === selectedRequest?.id),
+    },
+  ];
+
   if (!permissions.changeOrders.canView) {
     return (
       <div className="co-office-page co-change-orders-page">
@@ -22219,6 +22271,20 @@ function ChangeOrdersPagePolished({
 
       <div className="co-change-orders-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {changeOrderKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {changeOrderPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-change-orders-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
