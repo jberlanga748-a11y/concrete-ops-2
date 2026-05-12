@@ -7335,6 +7335,424 @@ function SafetyIncidentsPagePolished({
   );
 }
 
+function toolboxPolicyUpdatedAt(policy) {
+  return policy?.updatedAt || policy?.createdAt;
+}
+
+function toolboxPolicyStatusTone(policy) {
+  if (policy?.archivedAt) return "slate";
+  return "green";
+}
+
+function ToolboxTalksTablePolished({ policies, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
+        {policies.map((policy) => {
+          const selected = policy.id === selectedId;
+
+          return (
+            <button
+              key={policy.id}
+              type="button"
+              onClick={() => onSelect(policy.id)}
+              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{policy.title || "Untitled toolbox talk"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{policy.category || "Safety"} / {formatDateTime(toolboxPolicyUpdatedAt(policy)) || "No date"}</p>
+                </div>
+                <Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge>
+              </div>
+              <div className="co-toolbox-mobile-summary">{policy.body || "No guidance text recorded yet."}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-toolbox-command-table w-full min-w-[820px] text-left">
+          <thead>
+            <tr>
+              <th>Talk / Guidance</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Updated</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {policies.map((policy) => {
+              const selected = policy.id === selectedId;
+
+              return (
+                <tr key={policy.id} onClick={() => onSelect(policy.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{policy.title || "Untitled toolbox talk"}</p>
+                    <p className="text-xs font-bold text-slate-500">{policy.body || "No guidance text recorded yet."}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{policy.category || "Safety"}</td>
+                  <td><Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge></td>
+                  <td className="font-bold text-slate-700">{formatDateTime(toolboxPolicyUpdatedAt(policy))}</td>
+                  <td>
+                    <button type="button" className="co-toolbox-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(policy.id); }} aria-label={`Open toolbox talk ${policy.title || policy.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function ToolboxTalkCommandRailPolished({ policy, canAcknowledge, canManage, ackState, ppeItems, onOpenTool }) {
+  if (!policy) {
+    return (
+      <div className="co-toolbox-right-rail space-y-4">
+        <Card className="co-toolbox-rail-card p-4">
+          <SectionHeader title="Toolbox Console" description="Select a talk or create guidance for the crew." />
+          <div className="co-toolbox-empty-rail">
+            <span><Icon name="clipboard" /></span>
+            <strong>No toolbox talk selected</strong>
+            <p>Toolbox talks keep field guidance practical, visible, and separate from office-only data.</p>
+          </div>
+          {canManage ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("manage")}>Manage Guidance</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  const requiredPpeCount = ppeItems.filter((item) => item.requiredByDefault).length;
+
+  return (
+    <div className="co-toolbox-right-rail space-y-4">
+      <Card className="co-toolbox-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected talk</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{policy.title || "Untitled toolbox talk"}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{policy.category || "Safety"} / {formatDateTime(toolboxPolicyUpdatedAt(policy)) || "No date"}</p>
+          </div>
+          <Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge>
+        </div>
+
+        <div className="co-toolbox-selected-metrics">
+          <div>
+            <span>Category</span>
+            <strong>{policy.category || "Safety"}</strong>
+          </div>
+          <div>
+            <span>PPE</span>
+            <strong>{requiredPpeCount} required</strong>
+          </div>
+          <div>
+            <span>Acknowledged</span>
+            <strong>{ackState.hasAcknowledged ? "Yes" : "Not yet"}</strong>
+          </div>
+          <div>
+            <span>Updated</span>
+            <strong>{formatDateTime(toolboxPolicyUpdatedAt(policy)) || "No date"}</strong>
+          </div>
+        </div>
+
+        <div className="co-toolbox-note-panel">
+          <span>Talk outline</span>
+          <p>{policy.body || "No guidance text recorded yet."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {canAcknowledge ? <Button type="button" size="sm" onClick={() => onOpenTool("ack")}>Acknowledge</Button> : null}
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("manage")}>Edit Talk</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-toolbox-rail-card p-4">
+        <SectionHeader title="Talk Readiness" description="Keep the crew brief short, current, and actionable." />
+        <div className="co-toolbox-readiness-list">
+          <span data-state={policy.title ? "ready" : "needs"}>Title <strong>{policy.title ? "Set" : "Needed"}</strong></span>
+          <span data-state={policy.body ? "ready" : "needs"}>Guidance <strong>{policy.body ? "Written" : "Needed"}</strong></span>
+          <span data-state={ppeItems.length ? "ready" : "needs"}>PPE list <strong>{ppeItems.length ? `${ppeItems.length} items` : "Needed"}</strong></span>
+          <span data-state={ackState.hasAcknowledged ? "ready" : "needs"}>Crew ack <strong>{ackState.hasAcknowledged ? "Captured" : "Open"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ToolboxAcknowledgePanelPolished({ canAcknowledge, allowedJobs, visiblePolicies, ackDraft, setAckDraft, acknowledgments, canManage, ackState, busy, onSubmit }) {
+  if (!canAcknowledge) {
+    return (
+      <Card className="co-toolbox-form-card p-4">
+        <StateCard title="Acknowledgment unavailable" description="This role cannot acknowledge toolbox talks." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title="Acknowledge Toolbox Review" description={ackState.hasAcknowledged ? `Last acknowledged ${formatDateTime(ackState.latest?.acknowledgedAt)}.` : "Capture a quick field acknowledgment after the crew review."} />
+      <form className="co-toolbox-form-grid" onSubmit={onSubmit}>
+        <SelectField label="Job" value={ackDraft.jobId} onChange={(event) => setAckDraft((current) => ({ ...current, jobId: event.target.value }))}>
+          <option value="">General toolbox review</option>
+          {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+        </SelectField>
+        <SelectField label="Talk" value={ackDraft.policyId} onChange={(event) => setAckDraft((current) => ({ ...current, policyId: event.target.value }))}>
+          <option value="">All current toolbox guidance</option>
+          {visiblePolicies.filter((policy) => !policy.archivedAt).map((policy) => <option key={policy.id} value={policy.id}>{policy.title}</option>)}
+        </SelectField>
+        <div className="md:col-span-2">
+          <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Topics covered, PPE checked, crew questions, site hazards..." />
+        </div>
+        <div className="md:col-span-2">
+          <Button type="submit" disabled={busy}>Acknowledge</Button>
+        </div>
+      </form>
+      <div className="co-toolbox-ack-list">
+        {(acknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
+          <div key={acknowledgment.id}>
+            <strong>{acknowledgment.policyTitle || "General toolbox review"}</strong>
+            <span>{acknowledgment.userName}{acknowledgment.job?.title ? ` / ${acknowledgment.job.title}` : ""}</span>
+            <em>{formatDateTime(acknowledgment.acknowledgedAt)}</em>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ToolboxManagePanelPolished({
+  canManage,
+  selectedPolicy,
+  policyDraft,
+  setPolicyDraft,
+  onPolicySubmit,
+  onNewPolicy,
+  onArchivePolicy,
+  busy,
+}) {
+  if (!canManage) {
+    return (
+      <Card className="co-toolbox-form-card p-4">
+        <StateCard title="Management unavailable" description="Only office/admin roles can edit toolbox guidance." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title={selectedPolicy ? "Edit Toolbox Talk" : "Create Toolbox Talk"} description="Keep the language practical for the field. Avoid legal, payroll, or pricing content." />
+      <form className="co-toolbox-form-grid" onSubmit={onPolicySubmit}>
+        <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
+        <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
+        <div className="md:col-span-2">
+          <TextAreaField label="Talk body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
+        </div>
+        <div className="flex flex-wrap gap-2 md:col-span-2">
+          <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save talk</Button>
+          {selectedPolicy ? <Button type="button" variant="secondary" onClick={onNewPolicy}>New talk</Button> : null}
+          {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchivePolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function ToolboxPpePanelPolished({ ppeItems, canManage, selectedPpeItem, setSelectedPpeId, ppeDraft, setPpeDraft, onPpeSubmit, onArchivePpeItem, busy }) {
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title="PPE Reminders" description="PPE expectations stay visible with toolbox talks and editable only by office/admin roles." />
+      {ppeItems.length === 0 ? (
+        <StateCard title="No PPE items yet" description="Add PPE items to support field toolbox reviews." tone="slate" />
+      ) : (
+        <div className="co-toolbox-ppe-list">
+          {ppeItems.map((item) => (
+            <button key={item.id} type="button" onClick={() => canManage ? setSelectedPpeId(item.id) : undefined} className={selectedPpeItem?.id === item.id ? "is-selected" : ""}>
+              <span>
+                <strong>{item.label}</strong>
+                <em>{item.description || "No description"}</em>
+              </span>
+              <Badge tone={item.requiredByDefault ? "blue" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
+            </button>
+          ))}
+        </div>
+      )}
+      {canManage ? (
+        <form className="co-toolbox-form-grid mt-4" onSubmit={onPpeSubmit}>
+          <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
+          <label className="field-label">
+            <span>Required by default</span>
+            <div className="flex min-h-[2.75rem] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+              <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
+              <span>Surface this item first.</span>
+            </div>
+          </label>
+          <div className="md:col-span-2">
+            <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
+          </div>
+          <div className="flex flex-wrap gap-2 md:col-span-2">
+            <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
+            {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
+            {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
+          </div>
+        </form>
+      ) : null}
+    </Card>
+  );
+}
+
+function ToolboxTalksPagePolished({
+  canManage,
+  canAcknowledge,
+  visiblePolicies,
+  activePpeItems,
+  acknowledgmentState,
+  safetyAcknowledgments,
+  allowedJobs,
+  selectedPolicy,
+  setSelectedPolicyId,
+  policyDraft,
+  setPolicyDraft,
+  selectedPpeItem,
+  setSelectedPpeId,
+  ppeDraft,
+  setPpeDraft,
+  ackDraft,
+  setAckDraft,
+  busy,
+  onPolicySubmit,
+  onArchiveSafetyPolicy,
+  onPpeSubmit,
+  onArchivePpeItem,
+  onAcknowledge,
+}) {
+  const [categoryFilter, setCategoryFilter] = useState("All categories");
+  const [search, setSearch] = useState("");
+  const [showTools, setShowTools] = useState(false);
+  const [toolTab, setToolTab] = useState(canAcknowledge ? "ack" : "ppe");
+  const toolsRef = useRef(null);
+  const categories = useMemo(() => Array.from(new Set(visiblePolicies.map((policy) => policy.category).filter(Boolean))).sort(), [visiblePolicies]);
+  const filteredPolicies = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return visiblePolicies.filter((policy) => {
+      if (categoryFilter !== "All categories" && policy.category !== categoryFilter) return false;
+      if (!query) return true;
+      return [policy.title, policy.body, policy.category].filter(Boolean).join(" ").toLowerCase().includes(query);
+    });
+  }, [categoryFilter, search, visiblePolicies]);
+  const selectedTalk = filteredPolicies.find((policy) => policy.id === selectedPolicy?.id) || selectedPolicy || filteredPolicies[0] || visiblePolicies[0] || null;
+  const requiredPpeCount = activePpeItems.filter((item) => item.requiredByDefault).length;
+  const toolboxKpis = [
+    { label: "Guidance Items", value: filteredPolicies.length, helper: "Matching current filters", icon: "clipboard", tone: "blue" },
+    { label: "Active Talks", value: visiblePolicies.filter((policy) => !policy.archivedAt).length, helper: "Visible to field", icon: "check", tone: "green" },
+    { label: "Required PPE", value: requiredPpeCount, helper: "Default PPE reminders", icon: "hardhat", tone: "amber" },
+    { label: "Acknowledgments", value: acknowledgmentState.count, helper: acknowledgmentState.hasAcknowledged ? "Latest user acknowledgment" : "No user acknowledgment yet", icon: "users", tone: acknowledgmentState.hasAcknowledged ? "green" : "slate" },
+    { label: "Crew Review", value: acknowledgmentState.hasAcknowledged ? "Done" : "Open", helper: "Current user status", icon: "check", tone: acknowledgmentState.hasAcknowledged ? "green" : "amber" },
+  ];
+
+  function clearFilters() {
+    setCategoryFilter("All categories");
+    setSearch("");
+  }
+
+  function openTools(nextTab = canAcknowledge ? "ack" : "ppe") {
+    setToolTab(nextTab);
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  return (
+    <div className="co-office-page co-toolbox-page">
+      <PageHeader
+        eyebrow={canManage ? "Office Safety" : "Field Safety"}
+        title="Toolbox Talks"
+        description="Review field-ready safety guidance, PPE reminders, and crew acknowledgments before work starts."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setCategoryFilter("All categories")}>{filteredPolicies.length} visible</Button>
+            {canAcknowledge ? <Button type="button" onClick={() => openTools("ack")}>Acknowledge</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {toolboxKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <Card className="co-toolbox-main-board overflow-hidden">
+          <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Toolbox Guidance Board</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan safety topics, PPE reminders, current guidance, and crew acknowledgment status without office-only clutter.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {categories.slice(0, 2).map((category) => <Button key={category} type="button" size="sm" variant="secondary" onClick={() => setCategoryFilter(category)}>{category}</Button>)}
+                {canAcknowledge ? <Button type="button" size="sm" onClick={() => openTools("ack")}>Acknowledge</Button> : null}
+              </div>
+            </div>
+          </div>
+          <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
+            <div className="co-toolbox-category-tabs">
+              <button type="button" className={categoryFilter === "All categories" ? "is-active" : ""} onClick={() => setCategoryFilter("All categories")}>All</button>
+              {categories.map((category) => (
+                <button key={category} type="button" className={categoryFilter === category ? "is-active" : ""} onClick={() => setCategoryFilter(category)}>
+                  {category}
+                </button>
+              ))}
+            </div>
+            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search toolbox talk, category, guidance..." />
+          </div>
+          {filteredPolicies.length === 0 ? (
+            <div className="p-5"><StateCard title={visiblePolicies.length === 0 ? "No toolbox talks yet" : "No toolbox talks match these filters"} description={visiblePolicies.length === 0 ? "Create the first safety policy or toolbox talk to start crew guidance." : "Clear the category or search another topic."} tone="slate" /></div>
+          ) : (
+            <ToolboxTalksTablePolished policies={filteredPolicies} selectedId={selectedTalk?.id} onSelect={setSelectedPolicyId} />
+          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {filteredPolicies.length} toolbox talk{filteredPolicies.length === 1 ? "" : "s"} / {requiredPpeCount} required PPE reminder{requiredPpeCount === 1 ? "" : "s"}</p>
+            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          </div>
+        </Card>
+
+        <ToolboxTalkCommandRailPolished policy={selectedTalk} canAcknowledge={canAcknowledge} canManage={canManage} ackState={acknowledgmentState} ppeItems={activePpeItems} onOpenTool={openTools} />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-toolbox-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Toolbox Tools</strong>
+            <em>Acknowledge crew review, manage guidance, and keep PPE reminders close to the talk.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => setToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+          <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => setToolTab("ppe")}><Icon name="hardhat" />PPE</button>
+          {canManage ? <button type="button" className={toolTab === "manage" ? "is-active" : ""} onClick={() => setToolTab("manage")}><Icon name="settings" />Manage</button> : null}
+        </div>
+        <div className="co-toolbox-tools-panel mt-3">
+          {toolTab === "ack" ? (
+            <ToolboxAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
+          ) : toolTab === "manage" ? (
+            <ToolboxManagePanelPolished canManage={canManage} selectedPolicy={selectedPolicy} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onNewPolicy={() => setSelectedPolicyId("")} onArchivePolicy={onArchiveSafetyPolicy} busy={busy} />
+          ) : (
+            <ToolboxPpePanelPolished ppeItems={activePpeItems} canManage={canManage} selectedPpeItem={selectedPpeItem} setSelectedPpeId={setSelectedPpeId} ppeDraft={ppeDraft} setPpeDraft={setPpeDraft} onPpeSubmit={onPpeSubmit} onArchivePpeItem={onArchivePpeItem} busy={busy} />
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function SafetyPage({
   active,
   user,
@@ -7558,6 +7976,36 @@ function SafetyPage({
         onReviewSafetyIncident={onReviewSafetyIncident}
         onResolveSafetyIncident={onResolveSafetyIncident}
         onArchiveSafetyIncident={onArchiveSafetyIncident}
+      />
+    );
+  }
+
+  if (toolboxFocused) {
+    return (
+      <ToolboxTalksPagePolished
+        canManage={canManage}
+        canAcknowledge={canAcknowledge}
+        visiblePolicies={visiblePolicies}
+        activePpeItems={activePpeItems}
+        acknowledgmentState={acknowledgmentState}
+        safetyAcknowledgments={safetyAcknowledgments}
+        allowedJobs={allowedJobs}
+        selectedPolicy={selectedPolicy}
+        setSelectedPolicyId={setSelectedPolicyId}
+        policyDraft={policyDraft}
+        setPolicyDraft={setPolicyDraft}
+        selectedPpeItem={selectedPpeItem}
+        setSelectedPpeId={setSelectedPpeId}
+        ppeDraft={ppeDraft}
+        setPpeDraft={setPpeDraft}
+        ackDraft={ackDraft}
+        setAckDraft={setAckDraft}
+        busy={busy}
+        onPolicySubmit={handlePolicySubmit}
+        onArchiveSafetyPolicy={onArchiveSafetyPolicy}
+        onPpeSubmit={handlePpeSubmit}
+        onArchivePpeItem={onArchivePpeItem}
+        onAcknowledge={handleAcknowledge}
       />
     );
   }
