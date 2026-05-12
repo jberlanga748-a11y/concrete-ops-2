@@ -18284,7 +18284,487 @@ function EstimatesPagePolished({
   );
 }
 
-function ChangeOrdersPage({
+function changeOrderStatusTone(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "approved_for_pricing" || normalized === "approved for pricing") return "green";
+  if (normalized === "under_review" || normalized === "under review") return "blue";
+  if (normalized === "rejected") return "red";
+  if (normalized === "archived") return "slate";
+  return "amber";
+}
+
+function changeOrderJobLabel(request) {
+  return request?.job?.title || request?.jobTitle || "Assigned job";
+}
+
+function changeOrderCustomerLabel(request) {
+  return request?.job?.customer || request?.customerName || "Customer pending";
+}
+
+function changeOrderRequestDate(request) {
+  return request?.createdAt || request?.updatedAt || request?.reviewedAt;
+}
+
+function ChangeOrdersTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-change-orders-mobile-list grid gap-3 p-3 md:hidden">
+        {rows.map((request) => {
+          const selected = request.id === selectedId;
+          const statusLabel = changeOrderStatusLabel(request.status);
+
+          return (
+            <button
+              key={request.id}
+              type="button"
+              onClick={() => onSelect(request.id)}
+              className={`co-change-orders-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{changeOrderJobLabel(request)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{request.requestedByName || "Requester pending"} / {request.reason || "Reason pending"}</p>
+                </div>
+                <Badge tone={changeOrderStatusTone(request.status)}>{statusLabel}</Badge>
+              </div>
+              <div className="co-change-orders-mobile-metrics">
+                <span>Customer <strong>{changeOrderCustomerLabel(request)}</strong></span>
+                <span>Created <strong>{formatDateTime(changeOrderRequestDate(request)) || "Not set"}</strong></span>
+                <span>Review <strong>{request.reviewedByName || (request.status === "requested" ? "Pending" : "Office")}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-change-orders-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-change-orders-command-table w-full min-w-[920px] text-left">
+          <thead>
+            <tr>
+              <th>Job / Reason</th>
+              <th>Status</th>
+              <th>Customer</th>
+              <th>Requested By</th>
+              <th>Created</th>
+              <th>Review</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((request) => {
+              const selected = request.id === selectedId;
+              const statusLabel = changeOrderStatusLabel(request.status);
+
+              return (
+                <tr key={request.id} onClick={() => onSelect(request.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{changeOrderJobLabel(request)}</p>
+                    <p className="text-xs font-bold text-slate-500">{request.reason || "Reason pending"}</p>
+                  </td>
+                  <td><Badge tone={changeOrderStatusTone(request.status)}>{statusLabel}</Badge></td>
+                  <td className="font-bold text-slate-700">{changeOrderCustomerLabel(request)}</td>
+                  <td className="font-bold text-slate-700">{request.requestedByName || "Requester pending"}</td>
+                  <td className="font-bold text-slate-700">{formatDateTime(changeOrderRequestDate(request))}</td>
+                  <td className="font-bold text-slate-700">{request.reviewedByName || "Pending"}</td>
+                  <td>
+                    <button type="button" className="co-change-orders-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(request.id); }} aria-label={`Open change order request ${request.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, onOpenTool, onArchive }) {
+  if (!request) {
+    return (
+      <div className="co-change-orders-right-rail space-y-4">
+        <Card className="co-change-orders-rail-card p-4">
+          <SectionHeader title="Change Console" description="Select a request or capture a field scope change for office review." />
+          <div className="co-change-orders-empty-rail">
+            <span><Icon name="refresh" /></span>
+            <strong>No request selected</strong>
+            <p>Change orders stay field-safe here: scope, reason, job, status, and office review without pricing or margin exposure.</p>
+          </div>
+          {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>New Request</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  const statusLabel = changeOrderStatusLabel(request.status);
+  const needsOfficeReview = request.status === "requested" || request.status === "under_review";
+
+  return (
+    <div className="co-change-orders-right-rail space-y-4">
+      <Card className="co-change-orders-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected change</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{changeOrderJobLabel(request)}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{changeOrderCustomerLabel(request)} / {request.requestedByName || "Requester pending"}</p>
+          </div>
+          <Badge tone={changeOrderStatusTone(request.status)}>{statusLabel}</Badge>
+        </div>
+
+        <div className="co-change-orders-selected-metrics">
+          <div>
+            <span>Status</span>
+            <strong>{statusLabel}</strong>
+          </div>
+          <div>
+            <span>Created</span>
+            <strong>{formatDateTime(changeOrderRequestDate(request)) || "Not set"}</strong>
+          </div>
+          <div>
+            <span>Requester</span>
+            <strong>{request.requestedByName || "Pending"}</strong>
+          </div>
+          <div>
+            <span>Review</span>
+            <strong>{request.reviewedByName || "Pending"}</strong>
+          </div>
+        </div>
+
+        <div className="co-change-orders-note-panel">
+          <span>Reason</span>
+          <p>{request.reason || "No reason recorded yet."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("review")}>{canManage ? "Review" : "Details"}</Button>
+          {canCreate ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("create")}>New Request</Button> : null}
+          {canManage ? <Button type="button" size="sm" variant="danger" onClick={() => onArchive(request.id)} disabled={busy || request.archivedAt}>Archive</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-change-orders-rail-card p-4">
+        <SectionHeader title="Readiness" description="Track what the office needs before pricing or rejecting the change." />
+        <div className="co-change-orders-readiness-list">
+          <span data-state={request.jobId ? "ready" : "needs"}>Job link <strong>{request.jobId ? "Set" : "Needed"}</strong></span>
+          <span data-state={request.reason ? "ready" : "needs"}>Reason <strong>{request.reason ? "Set" : "Needed"}</strong></span>
+          <span data-state={request.scopeDescription ? "ready" : "needs"}>Scope <strong>{request.scopeDescription ? "Written" : "Needed"}</strong></span>
+          <span data-state={needsOfficeReview ? "needs" : "ready"}>Office <strong>{needsOfficeReview ? "Review" : statusLabel}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ChangeOrderCreatePanelPolished({
+  canCreate,
+  visibleJobs,
+  createDraft,
+  setCreateDraft,
+  singleJobId,
+  busy,
+  onCreateRequest,
+}) {
+  if (!canCreate) {
+    return (
+      <Card className="co-change-orders-form-card p-4">
+        <StateCard title="Create unavailable" description="This role can review visible change orders but cannot create new requests." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-change-orders-form-card p-4">
+      <SectionHeader title="New Change Order Request" description="Capture field scope changes for office review without adding pricing, billing, or margin details." />
+      <div className="co-change-orders-form-grid">
+        <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value }))}>
+          <option value="">Select a job</option>
+          {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+        </SelectField>
+        <InputField label="Reason" value={createDraft.reason} onChange={(event) => setCreateDraft((current) => ({ ...current, reason: event.target.value }))} placeholder="Why does this change need review?" />
+        <div className="md:col-span-2">
+          <TextAreaField label="Scope description" value={createDraft.scopeDescription} onChange={(event) => setCreateDraft((current) => ({ ...current, scopeDescription: event.target.value }))} placeholder="Describe the requested scope change clearly." />
+        </div>
+        <div className="md:col-span-2">
+          <TextAreaField label="Field notes" value={createDraft.fieldNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, fieldNotes: event.target.value }))} placeholder="Optional site notes for the office team." />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={async () => {
+            const saved = await onCreateRequest(createDraft);
+            if (saved) {
+              setCreateDraft({ ...INITIAL_CHANGE_ORDER_REQUEST_FORM, jobId: singleJobId });
+            }
+          }}
+          disabled={busy || !createDraft.jobId || !createDraft.reason || !createDraft.scopeDescription}
+        >
+          Submit request
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function ChangeOrderDetailPanelPolished({
+  request,
+  detailDraft,
+  setDetailDraft,
+  canManage,
+  busy,
+  onUpdateRequest,
+  onArchiveRequest,
+}) {
+  if (!request) {
+    return (
+      <Card className="co-change-orders-form-card p-4">
+        <StateCard title="No request selected" description="Choose a change order from the board to review scope, notes, and office status." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-change-orders-form-card p-4">
+      <SectionHeader
+        title={changeOrderJobLabel(request)}
+        description={`${request.requestedByName || "Requester pending"} / ${formatDateTime(changeOrderRequestDate(request)) || "Date pending"}`}
+        action={<Badge tone={changeOrderStatusTone(request.status)}>{changeOrderStatusLabel(request.status)}</Badge>}
+      />
+      <div className="co-change-orders-readonly-grid">
+        <div><span>Reason</span><strong>{request.reason || "Not provided"}</strong></div>
+        <div><span>Requested By</span><strong>{request.requestedByName || "Not provided"}</strong></div>
+        <div><span>Status</span><strong>{changeOrderStatusLabel(request.status)}</strong></div>
+        <div><span>Reviewed By</span><strong>{request.reviewedByName || "Not reviewed"}</strong></div>
+      </div>
+      <div className="co-change-orders-note-panel">
+        <span>Scope description</span>
+        <p>{request.scopeDescription || "No scope description provided."}</p>
+      </div>
+      <div className="co-change-orders-note-panel">
+        <span>Field notes</span>
+        <p>{request.fieldNotes || "No field notes provided."}</p>
+      </div>
+
+      {canManage ? (
+        <div className="mt-4 space-y-3">
+          <SelectField label="Status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))}>
+            <option value="requested">Requested</option>
+            <option value="under_review">Under Review</option>
+            <option value="approved_for_pricing">Approved for Pricing</option>
+            <option value="rejected">Rejected</option>
+            <option value="archived">Archived</option>
+          </SelectField>
+          <TextAreaField label="Office notes" value={detailDraft.officeNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, officeNotes: event.target.value }))} placeholder="Internal office notes only." />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => onUpdateRequest(request.id, detailDraft)} disabled={busy}>Save review</Button>
+            <Button type="button" variant="danger" onClick={() => onArchiveRequest(request.id)} disabled={busy || request.archivedAt}>Archive</Button>
+          </div>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function ChangeOrdersPagePolished({
+  user,
+  jobs,
+  changeOrderRequests,
+  permissions,
+  busy,
+  onCreateRequest,
+  onUpdateRequest,
+  onArchiveRequest,
+}) {
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [requesterFilter, setRequesterFilter] = useState("All requesters");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [createDraft, setCreateDraft] = useState(INITIAL_CHANGE_ORDER_REQUEST_FORM);
+  const [detailDraft, setDetailDraft] = useState({ status: "requested", officeNotes: "" });
+  const [showTools, setShowTools] = useState(false);
+  const [toolTab, setToolTab] = useState("create");
+  const toolsRef = useRef(null);
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const rows = Array.isArray(changeOrderRequests) ? changeOrderRequests : [];
+  const filteredRows = useMemo(() => filterChangeOrderRequests(rows, {
+    status: statusFilter,
+    job: jobFilter,
+    requestedBy: requesterFilter,
+    date: dateFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, dateFilter, jobFilter, requesterFilter, rows, search, statusFilter]);
+  const listState = useMemo(() => deriveChangeOrderListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedRequest = filteredRows.find((request) => request.id === selectedRequestId)
+    || filteredRows[0]
+    || rows.find((request) => request.id === selectedRequestId)
+    || null;
+  const singleJobId = visibleJobs.length === 1 ? visibleJobs[0].id : "";
+  const canCreate = permissions.changeOrders.canRequest || permissions.changeOrders.canManage;
+  const canManage = permissions.changeOrders.canManage;
+  const totalOpen = rows.filter((request) => !request.archivedAt && !["approved_for_pricing", "rejected", "archived"].includes(String(request.status || ""))).length;
+  const changeOrderKpis = [
+    { label: "Visible Requests", value: filteredRows.length, helper: "Current board", icon: "refresh", tone: "blue" },
+    { label: "Needs Review", value: filteredRows.filter((request) => request.status === "requested").length, helper: "Waiting for office review", icon: "alert", tone: "amber", actionLabel: "Review", onAction: () => setStatusFilter("Requested") },
+    { label: "Under Review", value: filteredRows.filter((request) => request.status === "under_review").length, helper: "Being reviewed now", icon: "clock", tone: "blue", actionLabel: "Open", onAction: () => setStatusFilter("Under Review") },
+    { label: "Approved", value: filteredRows.filter((request) => request.status === "approved_for_pricing").length, helper: "Ready for pricing", icon: "check", tone: "green", actionLabel: "Approved", onAction: () => setStatusFilter("Approved for Pricing") },
+    { label: "Open Total", value: totalOpen, helper: "All active request work", icon: "clipboard", tone: totalOpen ? "amber" : "green" },
+  ];
+
+  useEffect(() => {
+    if (!selectedRequestId && filteredRows[0]?.id) {
+      setSelectedRequestId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedRequestId]);
+
+  useEffect(() => {
+    if (singleJobId && !createDraft.jobId) {
+      setCreateDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [createDraft.jobId, singleJobId]);
+
+  useEffect(() => {
+    setDetailDraft({
+      status: selectedRequest?.status || "requested",
+      officeNotes: selectedRequest?.officeNotes || "",
+    });
+  }, [selectedRequest?.id, selectedRequest?.status, selectedRequest?.officeNotes]);
+
+  function clearFilters() {
+    setStatusFilter("All");
+    setJobFilter("All jobs");
+    setRequesterFilter("All requesters");
+    setDateFilter("All dates");
+    setArchiveFilter("Active");
+    setSearch("");
+  }
+
+  function openTools(nextTab = "create") {
+    setToolTab(nextTab);
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  if (!permissions.changeOrders.canView) {
+    return (
+      <div className="co-office-page co-change-orders-page">
+        <PageHeader eyebrow="Field Tools" title="Change Order Requests" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Change order access unavailable" description="Only office roles and foremen can open change order requests in this first pass." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-office-page co-change-orders-page">
+      <PageHeader
+        eyebrow="Field Tools"
+        title="Change Orders"
+        description={canManage ? "Review field scope-change requests across every job while keeping pricing decisions on the office side." : "Request a scope change from the field without exposing pricing, billing, or profit data."}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setArchiveFilter("Active")}>{filteredRows.length} visible</Button>
+            {canCreate ? <Button type="button" onClick={() => openTools("create")}>New Request</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-change-orders-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {changeOrderKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-change-orders-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <Card className="co-change-orders-main-board overflow-hidden">
+          <div className="co-change-orders-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Change Order Board</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track scope-change requests, field notes, status, requester, and office review without showing pricing data.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Requested")}>Requested</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Under Review")}>Under Review</Button>
+                {canCreate ? <Button type="button" size="sm" onClick={() => openTools("create")}>New Request</Button> : null}
+              </div>
+            </div>
+          </div>
+          <FilterBar filters={["All", "Requested", "Under Review", "Approved for Pricing", "Rejected", "Archived"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search reason, scope, notes, requester, job..." />
+          <details className="co-change-orders-advanced-filters border-b border-slate-200 bg-white">
+            <summary>
+              <span>Advanced filters</span>
+              <span>{[jobFilter !== "All jobs" ? jobFilter : "", requesterFilter !== "All requesters" ? requesterFilter : "", dateFilter !== "All dates" ? dateFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Job, requester, date"}</span>
+            </summary>
+            <div className="co-office-filter-grid co-change-orders-filter-grid grid gap-3 p-3 md:grid-cols-4">
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Requested by" value={requesterFilter} onChange={(event) => setRequesterFilter(event.target.value)}>
+                {listState.requesterOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+            </div>
+          </details>
+          {filteredRows.length === 0 ? (
+            <div className="p-5">
+              <StateCard title={visibleJobs.length === 0 && !canManage ? "No assigned job yet" : rows.length === 0 ? "No change order requests yet" : "No change order requests match these filters"} description={visibleJobs.length === 0 && !canManage ? "Contact office if you should be able to request a scope change for this job." : rows.length === 0 ? "Create a new request when a field scope change needs office review." : "Clear a filter or create a new request for a visible job."} tone="slate" />
+            </div>
+          ) : (
+            <ChangeOrdersTablePolished rows={filteredRows} selectedId={selectedRequest?.id} onSelect={setSelectedRequestId} />
+          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} change order request{filteredRows.length === 1 ? "" : "s"} / {totalOpen} open active</p>
+            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          </div>
+        </Card>
+
+        <ChangeOrdersCommandRailPolished request={selectedRequest} canCreate={canCreate} canManage={canManage} busy={busy} onOpenTool={openTools} onArchive={onArchiveRequest} />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-change-orders-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Change Order Tools</strong>
+            <em>Create a field request or review the selected change order without mixing in pricing or billing workflows.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-change-orders-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {canCreate ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />New Request</button> : null}
+          <button type="button" className={toolTab === "review" ? "is-active" : ""} onClick={() => setToolTab("review")}><Icon name="clipboard" />Review</button>
+        </div>
+        <div className="co-change-orders-tools-panel mt-3">
+          {toolTab === "create" ? (
+            <ChangeOrderCreatePanelPolished canCreate={canCreate} visibleJobs={visibleJobs} createDraft={createDraft} setCreateDraft={setCreateDraft} singleJobId={singleJobId} busy={busy} onCreateRequest={onCreateRequest} />
+          ) : (
+            <ChangeOrderDetailPanelPolished request={selectedRequest} detailDraft={detailDraft} setDetailDraft={setDetailDraft} canManage={canManage} busy={busy} onUpdateRequest={onUpdateRequest} onArchiveRequest={onArchiveRequest} />
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function ChangeOrdersPage(props) {
+  return <ChangeOrdersPagePolished {...props} />;
+}
+
+function ChangeOrdersPageLegacy({
   user,
   jobs,
   changeOrderRequests,
