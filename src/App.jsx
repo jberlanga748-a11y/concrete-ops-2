@@ -7994,6 +7994,54 @@ function ToolboxTalksPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityTalk(matchPolicy, options = {}) {
+    const targetPolicy = filteredPolicies.find(matchPolicy) || visiblePolicies.find(matchPolicy);
+    if (options.categoryFilter) setCategoryFilter(options.categoryFilter);
+    if (options.search !== undefined) setSearch(options.search);
+    if (targetPolicy?.id) setSelectedPolicyId(targetPolicy.id);
+    openTools(options.tool || (canAcknowledge ? "ack" : "ppe"));
+  }
+
+  const latestTalk = selectedTalk || filteredPolicies[0] || visiblePolicies[0] || null;
+  const toolboxPriorityCards = [
+    {
+      label: "Crew review",
+      value: acknowledgmentState.hasAcknowledged ? "Done" : "Open",
+      helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew review needs a field-safe acknowledgment.",
+      icon: "check",
+      tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
+      actionLabel: canAcknowledge ? "Acknowledge" : "View status",
+      onAction: () => openTools(canAcknowledge ? "ack" : "ppe"),
+    },
+    {
+      label: "Current talk",
+      value: latestTalk ? 1 : 0,
+      helper: latestTalk ? `${latestTalk.title || "Untitled talk"}${latestTalk.category ? ` / ${latestTalk.category}` : ""}` : "No toolbox guidance is visible yet.",
+      icon: "clipboard",
+      tone: latestTalk ? "blue" : "slate",
+      actionLabel: latestTalk ? "Open talk" : "No talk",
+      onAction: () => openPriorityTalk((policy) => policy.id === latestTalk?.id, { tool: canAcknowledge ? "ack" : "ppe" }),
+    },
+    {
+      label: "PPE reminders",
+      value: requiredPpeCount,
+      helper: requiredPpeCount ? "Required default PPE reminders are ready for the crew." : "No required PPE reminders are marked by default.",
+      icon: "hardhat",
+      tone: requiredPpeCount ? "orange" : "slate",
+      actionLabel: "Open PPE",
+      onAction: () => openTools("ppe"),
+    },
+    {
+      label: canManage ? "Manage guidance" : "Field guidance",
+      value: canManage ? "Ready" : filteredPolicies.length,
+      helper: canManage ? "Create or edit toolbox talks without exposing office-only data." : "Field-safe toolbox talks stay scoped to this workspace.",
+      icon: canManage ? "settings" : "users",
+      tone: canManage ? "blue" : "green",
+      actionLabel: canManage ? "Manage" : "Review",
+      onAction: () => openTools(canManage ? "manage" : (canAcknowledge ? "ack" : "ppe")),
+    },
+  ];
+
   return (
     <div className="co-office-page co-toolbox-page">
       <PageHeader
@@ -8010,6 +8058,20 @@ function ToolboxTalksPagePolished({
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {toolboxKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {toolboxPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
