@@ -13772,11 +13772,22 @@ textarea {
   }
 
   .co-dashboard-priority-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 0.72rem !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-bottom: 0.65rem !important;
+    scroll-padding-inline: 1rem;
+    scroll-snap-type: x proximity;
   }
 
   .co-dashboard-priority-card {
-    min-height: auto;
+    flex: 0 0 min(20rem, calc(100vw - 2rem));
+    min-height: 12.2rem;
+    scroll-snap-align: start;
   }
 
   .co-dashboard-priority-actions {
