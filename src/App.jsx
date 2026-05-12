@@ -18909,6 +18909,44 @@ function PrePourReadinessItemsPolished({
     );
   }
 
+  const visibleItems = selectedItems.slice(0, 6);
+  const remainingItems = selectedItems.slice(6);
+  function renderReadinessItem(item) {
+    return (
+      <div key={item.id} className="co-prepour-item-row" data-status={item.status}>
+        <div className="co-prepour-item-main">
+          <div className="co-prepour-item-copy">
+            <p className="co-prepour-item-title">{item.label}</p>
+            <p className="co-prepour-item-note">{item.notes || "No item note yet."}</p>
+          </div>
+          <Badge tone={prePourItemTone(item.status)}>{prePourItemStatusLabel(item.status)}</Badge>
+        </div>
+        {canEditChecklist ? (
+          <div className="co-prepour-item-actions">
+            <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+          </div>
+        ) : null}
+        {canEditChecklist ? (
+          <details className="co-prepour-note-drawer">
+            <summary>{item.notes ? "Edit note" : "Add note"}</summary>
+            <div className="co-prepour-note-body">
+              <TextAreaField
+                key={`${item.id}-${item.updatedAt}`}
+                label="Item note"
+                defaultValue={item.notes || ""}
+                onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
+                disabled={busy}
+                placeholder="Add a note for this readiness item."
+              />
+            </div>
+          </details>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="co-prepour-items-panel">
       <div className="co-prepour-items-header">
@@ -18919,39 +18957,18 @@ function PrePourReadinessItemsPolished({
         <Badge tone={checklistSummary.incompleteCount > 0 ? "amber" : "green"}>{checklistSummary.incompleteCount} open</Badge>
       </div>
       <div className="co-prepour-items-list">
-        {selectedItems.map((item) => (
-          <div key={item.id} className="co-prepour-item-row" data-status={item.status}>
-            <div className="co-prepour-item-main">
-              <div className="co-prepour-item-copy">
-                <p className="co-prepour-item-title">{item.label}</p>
-                <p className="co-prepour-item-note">{item.notes || "No item note yet."}</p>
-              </div>
-              <Badge tone={prePourItemTone(item.status)}>{prePourItemStatusLabel(item.status)}</Badge>
+        {visibleItems.map(renderReadinessItem)}
+        {remainingItems.length ? (
+          <details className="co-prepour-extra-items-drawer">
+            <summary>
+              <span>{remainingItems.length} more readiness item{remainingItems.length === 1 ? "" : "s"}</span>
+              <strong>Open full checklist</strong>
+            </summary>
+            <div className="co-prepour-extra-items-list">
+              {remainingItems.map(renderReadinessItem)}
             </div>
-            {canEditChecklist ? (
-              <div className="co-prepour-item-actions">
-                <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
-              </div>
-            ) : null}
-            {canEditChecklist ? (
-              <details className="co-prepour-note-drawer">
-                <summary>{item.notes ? "Edit note" : "Add note"}</summary>
-                <div className="co-prepour-note-body">
-                  <TextAreaField
-                    key={`${item.id}-${item.updatedAt}`}
-                    label="Item note"
-                    defaultValue={item.notes || ""}
-                    onBlur={(event) => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: item.status, notes: event.target.value })}
-                    disabled={busy}
-                    placeholder="Add a note for this readiness item."
-                  />
-                </div>
-              </details>
-            ) : null}
-          </div>
-        ))}
+          </details>
+        ) : null}
       </div>
     </div>
   );
