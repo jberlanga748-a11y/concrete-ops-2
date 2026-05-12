@@ -18670,6 +18670,14 @@ function PrePourPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityChecklist(matchChecklist, options = {}) {
+    const targetChecklist = filteredRows.find(matchChecklist) || checklistRows.find(matchChecklist);
+    if (options.statusFilter) setStatusFilter(options.statusFilter);
+    if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
+    if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
+    openTool(options.tool || "work");
+  }
+
   function clearFilters() {
     setStatusFilter("All");
     setJobFilter("All jobs");
@@ -18678,6 +18686,45 @@ function PrePourPagePolished({
     setArchiveFilter("Active");
     setSearch("");
   }
+
+  const prePourPriorityCards = [
+    {
+      label: "Review completed",
+      value: needsReviewCount,
+      helper: needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed pre-pour checklists waiting.",
+      icon: "clipboard",
+      tone: needsReviewCount ? "orange" : "green",
+      actionLabel: needsReviewCount ? "Open review" : "View board",
+      onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active" }),
+    },
+    {
+      label: "Clear open items",
+      value: openItemCount,
+      helper: openItemCount ? "Readiness items still need a field status." : "Visible checklist items are clear.",
+      icon: "alert",
+      tone: openItemCount ? "amber" : "green",
+      actionLabel: openItemCount ? "Open items" : "Ready",
+      onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active" }),
+    },
+    {
+      label: "Ready for pour",
+      value: readyCount,
+      helper: readyCount ? "Reviewed checklists are cleared for placement." : "No reviewed pre-pour checklists in view.",
+      icon: "check",
+      tone: readyCount ? "green" : "slate",
+      actionLabel: readyCount ? "View ready" : "No ready",
+      onAction: () => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active" }),
+    },
+    {
+      label: "Start checklist",
+      value: canCreateChecklist ? 1 : 0,
+      helper: canCreateChecklist ? "Create the real pre-pour readiness checklist for a visible job." : "Checklist creation is not enabled for this role.",
+      icon: "plus",
+      tone: canCreateChecklist ? "blue" : "slate",
+      actionLabel: canCreateChecklist ? "Start now" : "Read only",
+      onAction: () => openTool(canCreateChecklist ? "create" : "work"),
+    },
+  ];
 
   if (!permissions.prePour.canView) {
     return (
@@ -18706,6 +18753,20 @@ function PrePourPagePolished({
 
       <div className="co-prepour-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {prePourKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-prepour-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {prePourPriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-prepour-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-prepour-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-prepour-priority-value">{card.value}</span>
+              <span className="co-prepour-priority-label">{card.label}</span>
+              <span className="co-prepour-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-prepour-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-prepour-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
