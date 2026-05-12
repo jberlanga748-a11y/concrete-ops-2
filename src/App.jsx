@@ -2141,10 +2141,10 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
           </div>
         </div>
       </div>
-      <div className="co-sidebar-scroll flex h-[calc(100vh-86px)] flex-col justify-between overflow-y-auto p-3">
-        <div>
+      <div className="co-sidebar-scroll flex h-[calc(100vh-86px)] flex-col overflow-y-auto p-3">
+        <div className="co-sidebar-nav-groups">
           {navGroups.map((group) => (
-            <div key={group.label} className="mb-5">
+            <div key={group.label} className="co-sidebar-nav-group">
               <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{group.label}</p>
               <div className="space-y-1.5">
                 {group.items.map((item) => {
@@ -2171,7 +2171,7 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
             </div>
           ))}
         </div>
-        <Card variant="shell" className="p-4">
+        <Card variant="shell" className="co-sidebar-status-card p-4">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Live workspace</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">Office and field tools stay synced. Job, crew, report, upload, and safety records stay organized.</p>
         </Card>
@@ -8119,7 +8119,124 @@ function OfficePilotWalkthroughCard({ onOpenCommandCenter, onOpenDrafts, onOpenJ
   );
 }
 
-function DashboardPage({
+function DashboardCommandRailPolished({
+  stats,
+  selectedLead,
+  liveJobsPreview,
+  queueItems,
+  activity,
+  permissions,
+  setActive,
+  onFocusQueue,
+  onFocusJobs,
+  onFocusLeads,
+}) {
+  const activeQueueItems = normalizeObjectArray(queueItems).filter((item) => !item.archivedAt && !item.done);
+  const activeJobs = normalizeObjectArray(liveJobsPreview).filter((job) => !job.archivedAt);
+  const recentActivity = normalizeObjectArray(activity).slice(0, 3);
+  const selectedLeadTitle = selectedLead?.customer || selectedLead?.company || "No lead selected";
+
+  return (
+    <div className="co-dashboard-right-rail min-w-0">
+      <Card className="co-dashboard-rail-card p-4">
+        <SectionHeader title="Operator Snapshot" description="Live readout for the daily workspace." />
+        <div className="co-dashboard-rail-metrics">
+          <div>
+            <span>Active jobs</span>
+            <strong>{activeJobs.length}</strong>
+          </div>
+          <div>
+            <span>Queue open</span>
+            <strong>{activeQueueItems.length}</strong>
+          </div>
+          <div>
+            <span>Reports due</span>
+            <strong>{stats.reportsDue || 0}</strong>
+          </div>
+          <div>
+            <span>Pipeline</span>
+            <strong>{currency(stats.pipelineValue || 0)}</strong>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="co-dashboard-rail-card p-4">
+        <SectionHeader title="Quick Moves" description="Jump without losing the board context." />
+        <div className="grid gap-2">
+          {permissions?.jobs?.canManageAll ? (
+            <button type="button" className="co-dashboard-action-row" onClick={() => setActive("commandCenter")}>
+              <span>Command Center</span>
+              <Icon name="settings" />
+            </button>
+          ) : null}
+          <button type="button" className="co-dashboard-action-row" onClick={onFocusLeads}>
+            <span>Lead pipeline</span>
+            <Icon name="users" />
+          </button>
+          <button type="button" className="co-dashboard-action-row" onClick={onFocusJobs}>
+            <span>Active jobs</span>
+            <Icon name="briefcase" />
+          </button>
+          <button type="button" className="co-dashboard-action-row" onClick={onFocusQueue}>
+            <span>Task queue</span>
+            <Icon name="clipboard" />
+          </button>
+          {permissions?.reports?.canView ? (
+            <button type="button" className="co-dashboard-action-row" onClick={() => setActive("reports")}>
+              <span>Reports</span>
+              <Icon name="document" />
+            </button>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card className="co-dashboard-rail-card p-4">
+        <SectionHeader title="Selected Lead" description="The current opportunity stays visible while the board moves." />
+        {selectedLead ? (
+          <div className="co-dashboard-selected-record">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p>{selectedLeadTitle}</p>
+                <span>{selectedLead.project || selectedLead.city || "Project details pending"}</span>
+              </div>
+              <StatusBadge status={selectedLead.status || "New"} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge tone={selectedLead.priority === "High" ? "amber" : "blue"}>{selectedLead.priority || "Normal"}</Badge>
+              <LeadScoreBadge lead={selectedLead} />
+            </div>
+            <button type="button" className="co-dashboard-inline-link" onClick={() => setActive("leads")}>Open full lead record</button>
+          </div>
+        ) : (
+          <StateCard title="No lead selected" description="Select a lead from the pipeline board to show its summary here." tone="slate" />
+        )}
+      </Card>
+
+      <Card className="co-dashboard-rail-card p-4">
+        <SectionHeader title="Recent Activity" description="Latest visible workspace movement." />
+        <div className="grid gap-2">
+          {recentActivity.length ? recentActivity.map((entry, index) => (
+            <div key={entry.id || `${entry.type || "activity"}-${index}`} className="co-dashboard-activity-row">
+              <span>{entry.title || entry.label || entry.type || "Activity"}</span>
+              <p>{entry.description || entry.message || entry.detail || entry.timestamp || "Workspace update"}</p>
+            </div>
+          )) : (
+            <div className="co-dashboard-activity-row">
+              <span>No recent activity</span>
+              <p>Activity appears here when records change.</p>
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function DashboardPage(props) {
+  return <DashboardPagePolished {...props} />;
+}
+
+function DashboardPagePolished({
   stats,
   dashboardMetrics,
   leads,
@@ -8192,13 +8309,13 @@ function DashboardPage({
       type="button"
       onClick={() => onRunDashboardShortcut?.(shortcut.id)}
       aria-label={shortcut.ariaLabel || shortcut.label}
-      className={`min-w-0 rounded-2xl border px-3 py-2 text-left text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+      className={`shrink-0 rounded-2xl border px-3 py-2 text-left text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
         shortcut.id === "today"
           ? "border-blue-700 bg-blue-700 text-white hover:bg-blue-800"
           : "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200 hover:bg-white"
       }`}
     >
-      <span className="block break-words">{shortcut.label}</span>
+      <span className="block whitespace-nowrap">{shortcut.label}</span>
     </button>
   ));
 
@@ -8224,43 +8341,87 @@ function DashboardPage({
       { title: "Tool checklist", description: "Confirm assigned tools when the module is enabled.", icon: "clipboard", moduleId: permissions?.toolChecklist?.canUse ? "toolChecklist" : null, badge: permissions?.toolChecklist?.canUse ? "Open" : "Off", tone: permissions?.toolChecklist?.canUse ? "green" : "slate" },
     ]
   ), [permissions?.reports?.canView, permissions?.time?.canView, permissions?.toolChecklist?.canUse, permissions?.uploads?.canView]);
-  const kpis = useMemo(() => ([
-    { label: "Leads needing review", value: `${stats.newLeads}`, helper: `${stats.highPriorityLeads} high priority`, icon: "inbox" },
-    { label: "Pipeline open", value: currency(stats.pipelineValue), helper: `${liveLeadCount} active opportunities`, icon: "quote" },
-    { label: "Jobs active today", value: `${stats.activeJobs}`, helper: `${stats.scheduledJobs} scheduled next`, icon: "briefcase" },
-    { label: "Reports due", value: `${stats.reportsDue}`, helper: `${stats.queueBlocked} blocked items`, icon: "document" },
-  ]), [liveLeadCount, stats.activeJobs, stats.highPriorityLeads, stats.pipelineValue, stats.queueBlocked, stats.reportsDue, stats.scheduledJobs]);
-  const startupKpis = useMemo(() => ([
-    { label: "Jobs needing startup review", value: `${stats.startupReviewJobs || 0}`, helper: "Not started, in progress, or needs review", icon: "clipboard" },
-    { label: "Jobs ready for field", value: `${stats.startupReadyJobs || 0}`, helper: "Startup checklist ready or completed", icon: "check" },
-    { label: "Missing crew / start date", value: `${stats.startupMissingCrewStart || 0}`, helper: "Assign crew and schedule before field work", icon: "alert" },
-  ]), [stats.startupMissingCrewStart, stats.startupReadyJobs, stats.startupReviewJobs]);
+  const pipelineValue = Number(stats.pipelineValue || 0);
+  const pipelineKValue = Math.round(pipelineValue / 1000);
+  const visibleLeadRowCap = 6;
+  const visibleJobRowCap = 6;
+  const visibleJobRows = liveJobsPreview.slice(0, visibleJobRowCap);
+  const openQueueCount = normalizeObjectArray(queueItems).filter((item) => !item.archivedAt && !item.done).length;
+  const startupNeedsAttention = Number(stats.startupReviewJobs || 0) + Number(stats.startupMissingCrewStart || 0);
+  const dashboardKpis = [
+    { label: "New Leads", value: Number(stats.newLeads || 0), helper: `${stats.highPriorityLeads || 0} high priority`, icon: "inbox", tone: "blue", actionLabel: "Open leads", onAction: () => setActive("leads") },
+    { label: "Pipeline $K", value: pipelineKValue, helper: `${currency(pipelineValue)} open / ${liveLeadCount} live`, icon: "quote", tone: "orange", actionLabel: "Review pipeline", onAction: () => setActive("leads") },
+    { label: "Active Jobs", value: Number(stats.activeJobs || 0), helper: `${stats.scheduledJobs || 0} scheduled next`, icon: "briefcase", tone: "green", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
+    { label: "Reports Due", value: Number(stats.reportsDue || 0), helper: `${openQueueCount} queue item${openQueueCount === 1 ? "" : "s"} open`, icon: "document", tone: Number(stats.reportsDue || 0) ? "amber" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Review queue", onAction: () => (permissions?.reports?.canView ? setActive("reports") : focusDashboardRef(queueRef)) },
+    { label: "Startup Watch", value: startupNeedsAttention, helper: `${stats.startupReadyJobs || 0} ready for field`, icon: "alert", tone: startupNeedsAttention ? "amber" : "green", actionLabel: "Review jobs", onAction: () => setActive("jobs") },
+  ];
+  const fieldKpis = [
+    { label: "Visible Jobs", value: liveJobsPreview.length, helper: "Assigned and field-visible work", icon: "briefcase", tone: "blue", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
+    { label: "Daily Reports", value: permissions?.reports?.canView ? 1 : 0, helper: permissions?.reports?.canView ? "Available today" : "Not enabled", icon: "document", tone: permissions?.reports?.canView ? "green" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Unavailable", onAction: () => permissions?.reports?.canView && setActive("reports") },
+    { label: "Uploads", value: permissions?.uploads?.canView ? 1 : 0, helper: permissions?.uploads?.canView ? "Photo tools on" : "Not enabled", icon: "upload", tone: permissions?.uploads?.canView ? "green" : "slate", actionLabel: permissions?.uploads?.canView ? "Open uploads" : "Unavailable", onAction: () => permissions?.uploads?.canView && setActive("uploads") },
+    { label: "Time Tools", value: permissions?.time?.canView ? 1 : 0, helper: permissions?.time?.canView ? "Clock tools on" : "Not enabled", icon: "clock", tone: permissions?.time?.canView ? "green" : "slate", actionLabel: permissions?.time?.canView ? "Open time" : "Unavailable", onAction: () => permissions?.time?.canView && setActive("time") },
+  ];
+
+  function focusDashboardRef(ref) {
+    ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    ref.current?.focus?.({ preventScroll: true });
+  }
 
   if (!canViewLeads) {
     return (
-      <div>
+      <div className="co-office-page co-dashboard-page co-dashboard-field-page">
         <PageHeader
           eyebrow="Field Workspace"
-          title="Daily workspace"
+          title={<span>Daily workspace <span className="text-orange-500">{"\u2606"}</span></span>}
           description="Open assigned jobs, reports, uploads, safety tools, and time tracking without exposing office-only data."
           actions={
-            <>
-              <Button variant="secondary" onClick={() => setActive("jobs")}>My jobs</Button>
-              <Button onClick={() => setActive(permissions?.reports?.canView ? "reports" : "time")}>{permissions?.reports?.canView ? "Daily reports" : "Time tracking"}</Button>
-            </>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={() => setActive("jobs")}>My jobs</Button>
+              <Button type="button" onClick={() => setActive(permissions?.reports?.canView ? "reports" : "time")}>{permissions?.reports?.canView ? "Daily reports" : "Time tracking"}</Button>
+            </div>
           }
           tabs={tabs}
         />
-        <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
-          <Card className="p-4">
-            <SectionHeader title="Field shortcuts" description="Big tap targets for the field tools crews use most often." />
-            <FieldActionGrid actions={fieldDashboardActions} onOpen={setActive} />
-          </Card>
-          <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-            <Card className="overflow-hidden">
-              <div className="p-4"><SectionHeader title="Visible jobs" description="Only assigned and field-visible jobs appear here." /></div>
-              <JobsTable rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} />
+        <div className="co-dashboard-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
+          {fieldKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
+        <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:px-6">
+          <div className="co-dashboard-left-stack min-w-0 space-y-3">
+            <Card className="co-dashboard-main-board overflow-hidden">
+              <div className="co-dashboard-board-header border-b border-slate-200 bg-white p-4">
+                <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <h2>Field Operations Board</h2>
+                    <p>Tap into assigned job work, reports, uploads, time, safety, and tool checks from one field-safe workspace.</p>
+                  </div>
+                  <Button type="button" size="sm" onClick={() => setActive("jobs")}>Open my jobs</Button>
+                </div>
+              </div>
+              <div className="co-dashboard-field-actions p-4">
+                <FieldActionGrid actions={fieldDashboardActions} onOpen={setActive} />
+              </div>
             </Card>
+            <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+              <Card className="co-dashboard-main-board overflow-hidden">
+                <div className="co-dashboard-board-header border-b border-slate-200 bg-white p-4">
+                  <div className="min-w-0">
+                    <h2>Visible Jobs</h2>
+                    <p>Only assigned and field-visible jobs appear here.</p>
+                  </div>
+                </div>
+                {visibleJobRows.length ? (
+                  <JobsTablePolished rows={visibleJobRows} selectedId={selectedJobId} onSelect={onSelectJob} maxRows={visibleJobRowCap} />
+                ) : (
+                  <div className="p-4">
+                    <StateCard title="No field-visible jobs" description="Assigned jobs will appear here when the office makes them visible to this role." tone="slate" />
+                  </div>
+                )}
+                <div className="co-dashboard-board-footer">
+                  <p>Showing {Math.min(liveJobsPreview.length, visibleJobRowCap)} of {liveJobsPreview.length} visible jobs</p>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setActive("jobs")}>Open jobs</Button>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
@@ -8268,58 +8429,130 @@ function DashboardPage({
   }
 
   return (
-    <div>
+    <div className="co-office-page co-dashboard-page">
       <PageHeader
         eyebrow="Operations Command"
-        title="Daily workspace"
-        description="Start in Command Center for the morning checklist, then work leads, jobs, queue actions, and team activity."
+        title={<span>Dashboard <span className="text-orange-500">{"\u2606"}</span></span>}
+        description="Daily operator console for live leads, startup readiness, job movement, task queue, and activity."
         actions={
-          <>
-            {permissions?.jobs?.canManageAll ? <Button variant="secondary" onClick={() => setActive("commandCenter")}>Command Center</Button> : null}
-            <Button variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
-            <Button onClick={() => setActive("jobs")}>Open jobs</Button>
-          </>
+          <div className="flex flex-wrap gap-2">
+            {permissions?.jobs?.canManageAll ? <Button type="button" variant="secondary" onClick={() => setActive("commandCenter")}>Command Center</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
+            <Button type="button" onClick={() => setActive("jobs")}>Open jobs</Button>
+          </div>
         }
         tabs={tabs}
       />
-      <div className="mx-auto grid w-full max-w-[1520px] min-w-0 gap-5 px-5 sm:px-6 lg:px-8">
-        {permissions?.jobs?.canManageAll ? (
-          <OfficePilotWalkthroughCard
-            onOpenCommandCenter={() => setActive("commandCenter")}
-            onOpenDrafts={() => setActive("jobDraftImports")}
-            onOpenJobs={() => setActive("jobs")}
-          />
-        ) : null}
-        <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
-        {permissions?.jobs?.canManageAll ? (
-          <div className="grid min-w-0 gap-4 md:grid-cols-3">{startupKpis.map((item) => <KpiCard key={item.label} item={item} />)}</div>
-        ) : null}
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+
+      <div className="co-dashboard-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {dashboardKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-dashboard-left-stack min-w-0 space-y-3">
           <div ref={leadPipelineRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-            <Card className="overflow-hidden">
-              <div className="p-4">
-                <SectionHeader title="Lead Pipeline" description="Filter and search the live pipeline, then edit the selected record." action={<Button variant="secondary" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>} />
+            <Card className="co-dashboard-main-board overflow-hidden">
+              <div className="co-dashboard-board-header border-b border-slate-200 bg-white p-4">
+                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <h2>Lead Pipeline Board</h2>
+                    <p>Filter live opportunities, select a record, and keep the selected lead summary in the rail.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => { setLeadFilter("All"); setLeadSearch(""); }}>Clear filters</Button>
+                    <Button type="button" size="sm" onClick={() => setActive("leads")}>Manage leads</Button>
+                  </div>
+                </div>
               </div>
               <FilterBar filters={["All", "New", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={leadFilter} setActive={setLeadFilter} search={leadSearch} setSearch={setLeadSearch} placeholder="Search customer, project, city..." />
-              <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} />
+              {visibleLeads.length ? (
+                <LeadsTable rows={visibleLeads} selectedId={selectedLeadId} onSelect={onSelectLead} maxRows={visibleLeadRowCap} />
+              ) : (
+                <div className="p-4">
+                  <StateCard title="No leads match this view" description="Adjust filters or open Leads to add and manage opportunities." tone="blue" />
+                </div>
+              )}
+              <div className="co-dashboard-board-footer">
+                <p>Showing {Math.min(visibleLeads.length, visibleLeadRowCap)} of {visibleLeads.length} matching leads</p>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setActive("leads")}>Open full lead board</Button>
+              </div>
             </Card>
           </div>
-          <div className="min-w-0 space-y-4">
-            <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-              <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
-            </div>
-            <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} contactHistory={contactHistory} contactHistoryPermissions={permissions.contactHistory} onCreateContactHistory={onCreateContactHistory} onUpdateContactHistory={onUpdateContactHistory} onArchiveContactHistory={onArchiveContactHistory} onRestoreContactHistory={onRestoreContactHistory} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
-          </div>
-        </div>
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+
           <div ref={jobsRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-            <Card className="overflow-hidden">
-              <div className="p-4"><SectionHeader title="Active Jobs" description="Field progress, crew ownership, and next steps for current work." /></div>
-              <JobsTable rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} />
+            <Card className="co-dashboard-main-board overflow-hidden">
+              <div className="co-dashboard-board-header border-b border-slate-200 bg-white p-4">
+                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <h2>Active Jobs Snapshot</h2>
+                    <p>Current work, schedule, foreman ownership, startup status, and next action.</p>
+                  </div>
+                  <Button type="button" size="sm" onClick={() => setActive("jobs")}>Open jobs</Button>
+                </div>
+              </div>
+              {visibleJobRows.length ? (
+                <JobsTablePolished rows={liveJobsPreview} selectedId={selectedJobId} onSelect={onSelectJob} maxRows={visibleJobRowCap} />
+              ) : (
+                <div className="p-4">
+                  <StateCard title="No active jobs in preview" description="Jobs appear here when the current dashboard metrics include live work." tone="slate" />
+                </div>
+              )}
+              <div className="co-dashboard-board-footer">
+                <p>Showing {Math.min(liveJobsPreview.length, visibleJobRowCap)} of {liveJobsPreview.length} preview jobs</p>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setActive("jobs")}>Open job command board</Button>
+              </div>
             </Card>
           </div>
-          <ActivityPanel activity={activity} />
+
+          <details className="co-dashboard-tools-drawer" open>
+            <summary>
+              <span>
+                <strong>Queue / Lead Tools</strong>
+                <em>Keep task actions and selected lead editing available without crowding the command board.</em>
+              </span>
+              <span>{openQueueCount} open queue item{openQueueCount === 1 ? "" : "s"}</span>
+            </summary>
+            <div className="co-dashboard-tools-panel grid gap-3 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+              <div ref={queueRef} tabIndex={-1} className="min-w-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+                <QueueList items={queueItems} onToggleTask={onToggleTask} onArchiveTask={onArchiveTask} onRestoreTask={onRestoreTask} onDeleteTask={onDeleteTask} taskDraft={taskDraft} setTaskDraft={setTaskDraft} onAddTask={onAddTask} disabled={busy} />
+              </div>
+              <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} contactHistory={contactHistory} contactHistoryPermissions={permissions.contactHistory} onCreateContactHistory={onCreateContactHistory} onUpdateContactHistory={onUpdateContactHistory} onArchiveContactHistory={onArchiveContactHistory} onRestoreContactHistory={onRestoreContactHistory} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
+            </div>
+          </details>
+
+          <details className="co-dashboard-tools-drawer">
+            <summary>
+              <span>
+                <strong>Pilot Flow / Team Activity</strong>
+                <em>Secondary workflow guidance and activity stay one click away.</em>
+              </span>
+              <span>{normalizeObjectArray(activity).length} activity item{normalizeObjectArray(activity).length === 1 ? "" : "s"}</span>
+            </summary>
+            <div className="co-dashboard-tools-panel grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+              {permissions?.jobs?.canManageAll ? (
+                <OfficePilotWalkthroughCard
+                  onOpenCommandCenter={() => setActive("commandCenter")}
+                  onOpenDrafts={() => setActive("jobDraftImports")}
+                  onOpenJobs={() => setActive("jobs")}
+                />
+              ) : null}
+              <ActivityPanel activity={activity} />
+            </div>
+          </details>
         </div>
+
+        <DashboardCommandRailPolished
+          stats={stats}
+          selectedLead={selectedLead}
+          liveJobsPreview={liveJobsPreview}
+          queueItems={queueItems}
+          activity={activity}
+          permissions={permissions}
+          setActive={setActive}
+          onFocusQueue={() => focusDashboardRef(queueRef)}
+          onFocusJobs={() => focusDashboardRef(jobsRef)}
+          onFocusLeads={() => focusDashboardRef(leadPipelineRef)}
+        />
       </div>
     </div>
   );
