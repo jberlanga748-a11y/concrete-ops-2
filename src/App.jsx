@@ -13407,7 +13407,232 @@ function PostPourPage({
   );
 }
 
+function estimateDisplayTitle(estimate) {
+  return estimate?.title || "Estimate draft";
+}
+
+function estimateDisplayCustomer(estimate) {
+  return estimate?.customer?.name || estimate?.customerName || estimate?.lead?.customer || "Customer pending";
+}
+
+function estimateDisplayLead(estimate) {
+  return estimate?.lead?.project || estimate?.lead?.customer || "No linked lead";
+}
+
+function estimateDisplayTotal(estimate) {
+  return Number(estimate?.grandTotal ?? estimate?.total ?? 0) || 0;
+}
+
+function EstimatesTablePolished({ rows, selectedId, onSelect, maxRows = 6 }) {
+  const visibleRows = rows.slice(0, maxRows);
+
+  return (
+    <>
+      <div className="co-estimates-mobile-list grid gap-3 p-3 md:hidden">
+        {visibleRows.map((estimate) => {
+          const selected = estimate.id === selectedId;
+          return (
+            <button
+              key={estimate.id}
+              type="button"
+              onClick={() => onSelect(estimate.id)}
+              className={`co-estimates-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-base font-black text-slate-950">{estimateDisplayTitle(estimate)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimateDisplayCustomer(estimate)}</p>
+                </div>
+                <StatusBadge status={estimateStatusLabel(estimate.status)} />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Total</p>
+                  <p className="mt-1 break-words text-sm font-black text-slate-800">{formatEstimateCurrency(estimateDisplayTotal(estimate))}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Line items</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{estimate.items?.length || 0} item{estimate.items?.length === 1 ? "" : "s"}</p>
+                </div>
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Lead / job</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{estimate.jobId ? "Converted to job" : estimateDisplayLead(estimate)}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-2">
+                {selected ? <Badge tone="blue">Selected</Badge> : <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Review</span>}
+                <span className="co-leads-row-action">
+                  Open
+                  <Icon name="arrowUpRight" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="hidden md:block">
+        <div className="table-shell">
+          <table className="co-estimates-command-table w-full min-w-[780px] text-left">
+            <thead>
+              <tr>
+                <th>Estimate / Customer</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Line Items</th>
+                <th>Lead / Job</th>
+                <th>Updated</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((estimate) => {
+                const selected = estimate.id === selectedId;
+                return (
+                  <tr key={estimate.id} onClick={() => onSelect(estimate.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                    <td>
+                      <p className="font-black text-slate-950">{estimateDisplayTitle(estimate)}</p>
+                      <p className="text-xs font-bold text-slate-500">{estimateDisplayCustomer(estimate)}</p>
+                    </td>
+                    <td><StatusBadge status={estimateStatusLabel(estimate.status)} /></td>
+                    <td className="font-black text-slate-900">{formatEstimateCurrency(estimateDisplayTotal(estimate))}</td>
+                    <td className="font-bold text-slate-700">{estimate.items?.length || 0} item{estimate.items?.length === 1 ? "" : "s"}</td>
+                    <td>
+                      <p className="font-bold text-slate-700">{estimate.jobId ? "Converted" : estimateDisplayLead(estimate)}</p>
+                      <p className="text-xs font-bold text-slate-500">{estimate.jobId || estimate.leadId || "No linked record"}</p>
+                    </td>
+                    <td className="font-bold text-slate-700">{formatDateTime(estimate.updatedAt || estimate.createdAt)}</td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(estimate.id); }} aria-label={`Review ${estimateDisplayTitle(estimate)}`}>
+                          <Icon name="document" />
+                        </button>
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(estimate.id); }} aria-label={`Open ${estimateDisplayTitle(estimate)}`}>
+                          <Icon name="arrowUpRight" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EstimateCommandRailPolished({
+  estimate,
+  preview,
+  totals,
+  optionTotals,
+  canManage,
+  busy,
+  detailSaveDisabled,
+  canMarkSent,
+  copyFeedback,
+  emailSendingConfigured,
+  onSave,
+  onMarkSent,
+  onMarkApproved,
+  onConvert,
+  onPrint,
+  onSend,
+  onCopyEstimate,
+  onCopyCustomerMessage,
+  onOpenTool,
+}) {
+  if (!estimate) {
+    return (
+      <div className="co-estimates-right-rail space-y-4">
+        <Card className="co-estimates-rail-card p-4">
+          <SectionHeader title="Selected estimate summary" description="Choose an estimate from the board to review proposal totals, workflow, and tools." />
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No estimate selected.</div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-estimates-right-rail space-y-4">
+      <Card className="co-estimates-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Estimate Summary</p>
+            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{estimateDisplayTitle(estimate)}</h3>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimateDisplayCustomer(estimate)}</p>
+          </div>
+          <StatusBadge status={estimateStatusLabel(estimate.status)} />
+        </div>
+        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
+          <p><span className="text-slate-400">Base total:</span> {formatEstimateCurrency(totals.grandTotal)}</p>
+          <p><span className="text-slate-400">Selected options:</span> {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}</p>
+          <p><span className="text-slate-400">Customer email:</span> {estimateCustomerEmail(preview) || "Not set"}</p>
+          <p><span className="text-slate-400">Lead:</span> {estimateDisplayLead(estimate)}</p>
+          <p><span className="text-slate-400">Job:</span> {estimate.jobId ? "Converted" : "Not converted yet"}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={onSave} disabled={!canManage || detailSaveDisabled}>Save</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onPrint} disabled={!preview}>Print</Button>
+          <Button type="button" size="sm" onClick={onSend} disabled={!preview || busy}>Send</Button>
+        </div>
+        {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
+      </Card>
+
+      <Card className="co-estimates-rail-card p-4">
+        <SectionHeader title="Proposal actions" description={emailSendingConfigured ? "Email sending is configured." : "Email sending is not configured; copy and print still work."} />
+        <div className="grid gap-2">
+          <button type="button" className="co-estimates-action-row" onClick={onCopyEstimate} disabled={!preview}>
+            <span>Copy estimate</span>
+            <Icon name="document" />
+          </button>
+          <button type="button" className="co-estimates-action-row" onClick={onCopyCustomerMessage} disabled={!preview}>
+            <span>Copy customer message</span>
+            <Icon name="quote" />
+          </button>
+          {canMarkSent ? (
+            <button type="button" className="co-estimates-action-row" onClick={onMarkSent} disabled={detailSaveDisabled}>
+              <span>Mark sent</span>
+              <Icon name="check" />
+            </button>
+          ) : null}
+          {canManage && estimate.status !== "approved" && !estimate.jobId ? (
+            <button type="button" className="co-estimates-action-row" onClick={onMarkApproved} disabled={detailSaveDisabled}>
+              <span>Mark approved</span>
+              <Icon name="check" />
+            </button>
+          ) : null}
+          {estimate.status === "approved" && !estimate.jobId ? (
+            <button type="button" className="co-estimates-action-row" onClick={onConvert} disabled={busy}>
+              <span>Convert to job</span>
+              <Icon name="briefcase" />
+            </button>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card className="co-estimates-rail-card p-4">
+        <SectionHeader title="Estimate tools" description="Pricing, line items, proposal sections, SOV, and packet settings stay in the tools drawer." />
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit pricing</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("sections")}>Sections</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("backup")}>SOV / Backup</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function EstimatesPage({
+  ...props
+}) {
+  return <EstimatesPagePolished {...props} />;
+}
+
+function EstimatesPagePolished({
   customers,
   leads,
   estimates,
@@ -13435,6 +13660,8 @@ function EstimatesPage({
   const [copyFeedback, setCopyFeedback] = useState("");
   const [packetPresetId, setPacketPresetId] = useState(DEFAULT_ESTIMATE_PACKET_PRESET_ID);
   const [packetSectionIds, setPacketSectionIds] = useState(() => getEstimatePacketPreset(DEFAULT_ESTIMATE_PACKET_PRESET_ID).sectionIds);
+  const [showEstimateTools, setShowEstimateTools] = useState(false);
+  const [activeEstimateTool, setActiveEstimateTool] = useState("edit");
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
 
@@ -13487,11 +13714,20 @@ function EstimatesPage({
     sectionIds: packetSectionIds,
     allowInternalSections: canManage,
   }), [canManage, packetPresetId, packetSectionIds]);
+  const visibleEstimateRowCap = 6;
   const estimateKpis = [
-    { label: "Visible Estimates", value: filteredRows.length, helper: "Current proposal board", icon: "quote" },
-    { label: "Drafts", value: filteredRows.filter((estimate) => estimate.status === "draft").length, helper: "Need pricing or review", icon: "document" },
-    { label: "Sent", value: filteredRows.filter((estimate) => estimate.status === "sent").length, helper: "Waiting on customer", icon: "arrowUpRight" },
-    { label: "Approved", value: filteredRows.filter((estimate) => estimate.status === "approved").length, helper: "Ready to convert", icon: "check" },
+    { label: "Estimates", value: filteredRows.length, helper: "Matching current filters", icon: "quote", tone: "blue", actionLabel: "View estimates", onAction: () => setStatusFilter("All") },
+    { label: "Drafts", value: filteredRows.filter((estimate) => estimate.status === "draft").length, helper: "Need pricing or review", icon: "document", tone: "orange", actionLabel: "View drafts", onAction: () => setStatusFilter("Draft") },
+    { label: "Sent", value: filteredRows.filter((estimate) => estimate.status === "sent").length, helper: "Waiting on customer", icon: "arrowUpRight", tone: "amber", actionLabel: "View sent", onAction: () => setStatusFilter("Sent") },
+    { label: "Approved", value: filteredRows.filter((estimate) => estimate.status === "approved").length, helper: "Ready to convert", icon: "check", tone: "green", actionLabel: "View approved", onAction: () => setStatusFilter("Approved") },
+    { label: "Converted", value: filteredRows.filter((estimate) => estimate.jobId).length, helper: "Moved into jobs", icon: "briefcase", tone: "slate", actionLabel: "Review jobs", onAction: () => setStatusFilter("All") },
+  ];
+  const estimateToolTabs = [
+    { id: "create", label: "New Estimate", count: canManage ? 1 : 0 },
+    { id: "edit", label: "Edit / Pricing", count: selectedEstimate ? 1 : 0 },
+    { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
+    { id: "backup", label: "SOV / Backup", count: 1 },
+    { id: "packet", label: "Packet", count: packetSectionIds.length },
   ];
 
   function linkedEstimateCustomerEmail(draft = {}) {
@@ -13602,7 +13838,15 @@ function EstimatesPage({
       customerId: current.customerId || singleCustomerId,
       customerEmail: current.customerEmail || singleCustomerEmail,
     }));
-    newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    setActiveEstimateTool("create");
+    setShowEstimateTools(true);
+    window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function openEstimateTool(toolId = "edit") {
+    setActiveEstimateTool(toolId);
+    setShowEstimateTools(true);
+    window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   async function handleSendEstimate() {
@@ -13665,6 +13909,329 @@ function EstimatesPage({
       </div>
     );
   }
+
+  return (
+    <div className="co-office-page co-estimates-page">
+      <PageHeader
+        eyebrow="Office Sales"
+        title={<span>Estimates <span className="text-orange-500">{"\u2606"}</span></span>}
+        description="Build proposals, review pricing, send customer-ready packets, and move approved work into jobs."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => openEstimateTool("edit")}>{filteredRows.length} visible estimates</Button>
+            {canManage ? <Button type="button" onClick={focusNewEstimate}>New Estimate</Button> : null}
+          </div>
+        }
+      />
+      <div className="co-estimates-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {estimateKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-estimates-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-estimates-left-stack min-w-0 space-y-3">
+          <Card className="co-estimates-main-board overflow-hidden">
+            <div className="co-estimates-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Estimate Board / Proposal Queue</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter proposals, select a record, and work estimate actions from the right rail.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All estimates</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Draft")}>Drafts</Button>
+                  {canManage ? <Button type="button" size="sm" onClick={focusNewEstimate}>Create Estimate</Button> : null}
+                </div>
+              </div>
+            </div>
+            <FilterBar filters={["All", "Draft", "Sent", "Approved", "Rejected", "Archived"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search title, customer, notes, or line items..." />
+            <details className="co-estimates-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[customerFilter !== "All customers" ? customerFilter : "", leadFilter !== "All leads" ? leadFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Customer, lead, creator, archive"}</span>
+              </summary>
+              <div className="co-office-filter-grid co-estimates-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
+                  {listState.customerOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Lead" value={leadFilter} onChange={(event) => setLeadFilter(event.target.value)}>
+                  {listState.leadOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                  {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Archive view" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+              </div>
+            </details>
+            {filteredRows.length === 0 ? (
+              <div className="p-5">
+                <StateCard title="No estimates match this view" description="Create a proposal from a customer or lead, or clear filters to bring older work back into view." tone="blue" />
+              </div>
+            ) : (
+              <EstimatesTablePolished rows={filteredRows} selectedId={selectedEstimate?.id} onSelect={setSelectedEstimateId} maxRows={visibleEstimateRowCap} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {Math.min(filteredRows.length, visibleEstimateRowCap)} of {rows.length} estimates</p>
+              <Button type="button" size="sm" variant="secondary" onClick={() => { setStatusFilter("All"); setCustomerFilter("All customers"); setLeadFilter("All leads"); setCreatorFilter("All creators"); setArchiveFilter("Active"); setSearch(""); }}>Clear filters</Button>
+            </div>
+          </Card>
+        </div>
+
+        <EstimateCommandRailPolished
+          estimate={selectedEstimate}
+          preview={detailEstimatePreview}
+          totals={detailTotals}
+          optionTotals={detailOptionTotals}
+          canManage={canManage}
+          busy={busy}
+          detailSaveDisabled={detailSaveDisabled}
+          canMarkSent={canMarkSent}
+          copyFeedback={copyFeedback}
+          emailSendingConfigured={emailSendingConfigured}
+          onSave={() => onSaveEstimate(selectedEstimate.id, detailDraft)}
+          onMarkSent={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
+          onMarkApproved={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "approved" })}
+          onConvert={handleConvertApprovedEstimate}
+          onPrint={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)}
+          onSend={handleSendEstimate}
+          onCopyEstimate={() => copyEstimateText(
+            () => buildEstimateCopyText({ companyName, companyProfile, estimate: detailEstimatePreview }),
+            "Estimate copied.",
+          )}
+          onCopyCustomerMessage={() => copyEstimateText(
+            () => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }),
+            "Customer message copied.",
+          )}
+          onOpenTool={openEstimateTool}
+        />
+      </div>
+
+      <details
+        ref={newEstimateRef}
+        className="co-estimates-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8"
+        open={showEstimateTools}
+        onToggle={(event) => setShowEstimateTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Estimate Tools</strong>
+            <em>Create, edit, price, packet, and proposal backup tools stay available here.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-estimates-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {estimateToolTabs.map((tab) => (
+            <button key={tab.id} type="button" className={activeEstimateTool === tab.id ? "is-active" : ""} onClick={() => setActiveEstimateTool(tab.id)}>
+              {tab.label}
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="co-estimates-tools-panel mt-3">
+          {activeEstimateTool === "create" ? (
+            <Card className="p-4">
+              <SectionHeader title="New Estimate" description="Create a customer-ready proposal with scope, terms, line items, and a clear total." />
+              {canManage ? (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { customerId: event.target.value }))}>
+                      <option value="">Select a customer</option>
+                      {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                    </SelectField>
+                    <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { leadId: event.target.value }))}>
+                      <option value="">Optional linked lead</option>
+                      {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
+                    </SelectField>
+                    <InputField label="Customer email / Send estimate to" value={createDraft.customerEmail} onChange={(event) => setCreateDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" />
+                    <InputField label="Title" value={createDraft.title} onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Martinez driveway proposal" />
+                    <SelectField label="Starting status" value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value }))}>
+                      {["draft", "sent", "approved", "rejected"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
+                    </SelectField>
+                    <InputField label="Tax rate (%)" value={createDraft.taxRate} onChange={(event) => setCreateDraft((current) => ({ ...current, taxRate: event.target.value }))} placeholder="Optional" inputMode="decimal" />
+                    <InputField label="Fees total" value={createDraft.feesTotal} onChange={(event) => setCreateDraft((current) => ({ ...current, feesTotal: event.target.value }))} placeholder="Optional" inputMode="decimal" />
+                  </div>
+                  <div className="mt-3">
+                    <EstimateStarterPanel setDraft={setCreateDraft} disabled={busy} />
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    <SectionHeader title="Line items" description="Line totals update automatically from quantity and unit price." />
+                    {createDraft.items.map((item, index) => (
+                      <div key={item.id} className="co-estimates-line-card rounded-2xl border p-3">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
+                          <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Concrete, prep, cleanup, or finish work" />
+                          <InputField label="Qty" value={item.quantity} onChange={(event) => updateDraftItem(setCreateDraft, index, "quantity", event.target.value)} inputMode="decimal" />
+                          <InputField label="Unit" value={item.unit} onChange={(event) => updateDraftItem(setCreateDraft, index, "unit", event.target.value)} />
+                          <InputField label="Unit price" value={item.unitPrice} onChange={(event) => updateDraftItem(setCreateDraft, index, "unitPrice", event.target.value)} inputMode="decimal" />
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Line total: {formatEstimateCurrency(calculateEstimateLineTotal(item))}</p>
+                          <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950" onClick={() => removeDraftItem(setCreateDraft, index)}>Remove item</button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" variant="secondary" onClick={() => appendDraftItem(setCreateDraft)}>Add line item</Button>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <StatCard title="Subtotal" value={formatEstimateCurrency(createTotals.subtotal)} />
+                    <StatCard title="Tax" value={formatEstimateCurrency(createTotals.taxTotal || 0)} />
+                    <StatCard title="Fees" value={formatEstimateCurrency(createTotals.feesTotal || 0)} />
+                    <StatCard title="Selected options" value={formatEstimateCurrency(createOptionTotals.selectedOptionsTotal)} />
+                    <StatCard title="Total" value={formatEstimateCurrency(createOptionTotals.totalWithSelectedOptions)} />
+                  </div>
+                  <details className="co-estimates-tool-disclosure mt-3">
+                    <summary>
+                      <span>Advanced proposal setup</span>
+                      <span>SOV, sections, backup, and GC packet lite</span>
+                    </summary>
+                    <div className="grid gap-3 p-3">
+                      <EstimateBackupEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
+                      <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
+                      <EstimateGcPacketLiteEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
+                    </div>
+                  </details>
+                  <div className="mt-4">
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        const created = await onCreateEstimate(createDraft);
+                        if (created) {
+                          setCreateDraft(createEstimateDraft({
+                            ...INITIAL_ESTIMATE_FORM,
+                            customerId: singleCustomerId,
+                            customerEmail: singleCustomerEmail,
+                          }));
+                        }
+                      }}
+                      disabled={busy || (!createDraft.customerId && !createDraft.leadId) || !createDraft.title}
+                    >
+                      Create New Estimate
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <StateCard title="Estimate creation unavailable" description="This role can review estimates but cannot create new pricing records." tone="slate" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeEstimateTool === "edit" ? (
+            <Card className="p-4">
+              <SectionHeader title="Edit Estimate / Pricing" description={selectedEstimate ? "Update customer links, status, pricing fields, and line items." : "Select an estimate before editing pricing."} action={selectedEstimate ? <StatusBadge status={estimateStatusLabel(selectedEstimate.status)} /> : null} />
+              {selectedEstimate ? (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <SelectField label="Customer" value={detailDraft.customerId} onChange={(event) => setDetailDraft((current) => updateDraftLinkEmail(current, { customerId: event.target.value }))} disabled={!canManage || busy}>
+                      <option value="">Select a customer</option>
+                      {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+                    </SelectField>
+                    <SelectField label="Lead" value={detailDraft.leadId} onChange={(event) => setDetailDraft((current) => updateDraftLinkEmail(current, { leadId: event.target.value }))} disabled={!canManage || busy}>
+                      <option value="">Optional linked lead</option>
+                      {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
+                    </SelectField>
+                    <InputField label="Customer email / Send estimate to" value={detailDraft.customerEmail} onChange={(event) => setDetailDraft((current) => ({ ...current, customerEmail: event.target.value }))} placeholder="customer@example.com" disabled={!canManage || busy} />
+                    <InputField label="Title" value={detailDraft.title} onChange={(event) => setDetailDraft((current) => ({ ...current, title: event.target.value }))} disabled={!canManage || busy} />
+                    <SelectField label="Workflow status" value={detailDraft.status} onChange={(event) => setDetailDraft((current) => ({ ...current, status: event.target.value }))} disabled={!canManage || busy}>
+                      {["draft", "sent", "approved", "rejected", "archived"].map((option) => <option key={option} value={option}>{estimateStatusLabel(option)}</option>)}
+                    </SelectField>
+                    <InputField label="Tax rate (%)" value={detailDraft.taxRate} onChange={(event) => setDetailDraft((current) => ({ ...current, taxRate: event.target.value }))} inputMode="decimal" disabled={!canManage || busy} />
+                    <InputField label="Fees total" value={detailDraft.feesTotal} onChange={(event) => setDetailDraft((current) => ({ ...current, feesTotal: event.target.value }))} inputMode="decimal" disabled={!canManage || busy} />
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    <SectionHeader title="Line items" description="Office pricing stays in estimates and field roles stay blocked." />
+                    {detailDraft.items.map((item, index) => (
+                      <div key={item.id} className="co-estimates-line-card rounded-2xl border p-3">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
+                          <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setDetailDraft, index, "description", event.target.value)} disabled={!canManage || busy} />
+                          <InputField label="Qty" value={item.quantity} onChange={(event) => updateDraftItem(setDetailDraft, index, "quantity", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                          <InputField label="Unit" value={item.unit} onChange={(event) => updateDraftItem(setDetailDraft, index, "unit", event.target.value)} disabled={!canManage || busy} />
+                          <InputField label="Unit price" value={item.unitPrice} onChange={(event) => updateDraftItem(setDetailDraft, index, "unitPrice", event.target.value)} inputMode="decimal" disabled={!canManage || busy} />
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Line total: {formatEstimateCurrency(calculateEstimateLineTotal(item))}</p>
+                          <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:text-slate-300" onClick={() => removeDraftItem(setDetailDraft, index)} disabled={!canManage || busy}>Remove item</button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" variant="secondary" onClick={() => appendDraftItem(setDetailDraft)} disabled={!canManage || busy}>Add line item</Button>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <StatCard title="Subtotal" value={formatEstimateCurrency(detailTotals.subtotal)} />
+                    <StatCard title="Tax" value={formatEstimateCurrency(detailTotals.taxTotal || 0)} />
+                    <StatCard title="Fees" value={formatEstimateCurrency(detailTotals.feesTotal || 0)} />
+                    <StatCard title="Selected options" value={formatEstimateCurrency(detailOptionTotals.selectedOptionsTotal)} />
+                    <StatCard title="Total" value={formatEstimateCurrency(detailOptionTotals.totalWithSelectedOptions)} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled || !canManage}>Save estimate</Button>
+                    <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("packet")}>Open packet tools</Button>
+                  </div>
+                  <div className="mt-4">
+                    <EstimateSentHistoryCard estimate={detailEstimatePreview} disabled={detailSaveDisabled || !canManage} onRecordSnapshot={handleRecordSentSnapshot} />
+                  </div>
+                </>
+              ) : (
+                <StateCard title="No estimate selected" description="Select an estimate from the board before editing." tone="blue" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeEstimateTool === "sections" ? (
+            <Card className="p-4">
+              <SectionHeader title="Proposal Sections / Starters" description="Use reusable starters and customer-facing proposal sections without changing estimate math." />
+              {selectedEstimate ? (
+                <div className="grid gap-3">
+                  <EstimateStarterPanel setDraft={setDetailDraft} disabled={busy || !canManage} />
+                  <EstimateProposalSectionsEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
+                </div>
+              ) : (
+                <StateCard title="No estimate selected" description="Select an estimate before editing proposal sections." tone="blue" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeEstimateTool === "backup" ? (
+            <Card className="p-4">
+              <SectionHeader title="SOV / Takeoff Backup / GC Packet" description="Office-only backup stays organized without crowding the command board." />
+              {selectedEstimate ? (
+                <div className="grid gap-3">
+                  <EstimateBackupEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
+                  <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
+                </div>
+              ) : (
+                <StateCard title="No estimate selected" description="Select an estimate before editing backup notes." tone="blue" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeEstimateTool === "packet" ? (
+            <Card className="p-4">
+              <SectionHeader title="Packet / Send / Print" description="Proposal copy, print, email, and packet settings use the existing estimate handlers." />
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <EstimatePacketSettingsPanel
+                  presetId={packetPresetId}
+                  sectionIds={packetSectionIds}
+                  setPresetId={setPacketPresetId}
+                  setSectionIds={setPacketSectionIds}
+                  canIncludeInternalSections={canManage}
+                />
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Proposal actions</p>
+                  <div className="mt-3 grid gap-2">
+                    <Button type="button" variant="secondary" onClick={() => copyEstimateText(() => buildEstimateCopyText({ companyName, companyProfile, estimate: detailEstimatePreview }), "Estimate copied.")} disabled={!detailEstimatePreview}>Copy estimate</Button>
+                    <Button type="button" variant="secondary" onClick={() => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Customer message copied.")} disabled={!detailEstimatePreview}>Copy customer message</Button>
+                    <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)} disabled={!detailEstimatePreview}>Print proposal</Button>
+                    <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>Send estimate</Button>
+                  </div>
+                  {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
+                </div>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
 
   return (
     <div className="co-office-page co-estimates-page">
