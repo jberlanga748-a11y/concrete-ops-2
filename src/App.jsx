@@ -7753,6 +7753,493 @@ function ToolboxTalksPagePolished({
   );
 }
 
+function ppeItemUpdatedAt(item) {
+  return item?.updatedAt || item?.createdAt;
+}
+
+function ppeItemRequirementLabel(item) {
+  return item?.requiredByDefault ? "Required" : "As needed";
+}
+
+function ppeItemStatusTone(item) {
+  if (item?.archivedAt) return "slate";
+  if (item?.requiredByDefault) return "blue";
+  return "amber";
+}
+
+function PpeChecklistTablePolished({ items, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
+        {items.map((item) => {
+          const selected = item.id === selectedId;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelect(item.id)}
+              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{item.label || "Untitled PPE item"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{ppeItemRequirementLabel(item)} / {formatDateTime(ppeItemUpdatedAt(item)) || "No date"}</p>
+                </div>
+                <Badge tone={ppeItemStatusTone(item)}>{ppeItemRequirementLabel(item)}</Badge>
+              </div>
+              <div className="co-toolbox-mobile-summary">{item.description || "No PPE guidance recorded yet."}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-toolbox-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-toolbox-command-table w-full min-w-[820px] text-left">
+          <thead>
+            <tr>
+              <th>PPE / Requirement</th>
+              <th>Default</th>
+              <th>Status</th>
+              <th>Updated</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const selected = item.id === selectedId;
+
+              return (
+                <tr key={item.id} onClick={() => onSelect(item.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{item.label || "Untitled PPE item"}</p>
+                    <p className="text-xs font-bold text-slate-500">{item.description || "No PPE guidance recorded yet."}</p>
+                  </td>
+                  <td><Badge tone={item.requiredByDefault ? "blue" : "slate"}>{ppeItemRequirementLabel(item)}</Badge></td>
+                  <td><Badge tone={item.archivedAt ? "slate" : "green"}>{item.archivedAt ? "Archived" : item.statusLabel || "Active"}</Badge></td>
+                  <td className="font-bold text-slate-700">{formatDateTime(ppeItemUpdatedAt(item))}</td>
+                  <td>
+                    <button type="button" className="co-toolbox-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(item.id); }} aria-label={`Open PPE item ${item.label || item.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitIncidents, acknowledgmentState, policies, incidents, onOpenTool, onSelectItem }) {
+  if (!item) {
+    return (
+      <div className="co-toolbox-right-rail space-y-4">
+        <Card className="co-toolbox-rail-card p-4">
+          <SectionHeader title="PPE Console" description="Select an item to review field-ready equipment expectations." />
+          <div className="co-toolbox-empty-rail">
+            <span><Icon name="hardhat" /></span>
+            <strong>No PPE item selected</strong>
+            <p>PPE requirements stay field-safe and focused on jobsite readiness without office-only data.</p>
+          </div>
+          {canAcknowledge ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("ack")}>Acknowledge PPE</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  const ppePolicies = policies.filter((policy) => String(policy.category || "").toLowerCase().includes("ppe") || `${policy.title || ""} ${policy.body || ""}`.toLowerCase().includes("ppe"));
+  const openIncidents = incidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || ""))).length;
+
+  return (
+    <div className="co-toolbox-right-rail space-y-4">
+      <Card className="co-toolbox-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected PPE</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{item.label || "Untitled PPE item"}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{ppeItemRequirementLabel(item)} / {formatDateTime(ppeItemUpdatedAt(item)) || "No date"}</p>
+          </div>
+          <Badge tone={ppeItemStatusTone(item)}>{ppeItemRequirementLabel(item)}</Badge>
+        </div>
+
+        <div className="co-toolbox-selected-metrics">
+          <div>
+            <span>Default</span>
+            <strong>{item.requiredByDefault ? "Required" : "As needed"}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{item.archivedAt ? "Archived" : item.statusLabel || "Active"}</strong>
+          </div>
+          <div>
+            <span>Acknowledged</span>
+            <strong>{acknowledgmentState.hasAcknowledged ? "Yes" : "Open"}</strong>
+          </div>
+          <div>
+            <span>Guidance</span>
+            <strong>{ppePolicies.length} linked</strong>
+          </div>
+        </div>
+
+        <div className="co-toolbox-note-panel">
+          <span>Field expectation</span>
+          <p>{item.description || "No PPE guidance recorded yet."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {canAcknowledge ? <Button type="button" size="sm" onClick={() => onOpenTool("ack")}>Acknowledge</Button> : null}
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => { onSelectItem(item.id); onOpenTool("ppe"); }}>Edit PPE</Button> : null}
+          {canSubmitIncidents ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("incident")}>Report Concern</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-toolbox-rail-card p-4">
+        <SectionHeader title="Readiness Checks" description="A quick view of whether PPE guidance is ready for the crew." />
+        <div className="co-toolbox-readiness-list">
+          <span data-state={item.label ? "ready" : "needs"}>Label <strong>{item.label ? "Set" : "Needed"}</strong></span>
+          <span data-state={item.description ? "ready" : "needs"}>Description <strong>{item.description ? "Written" : "Needed"}</strong></span>
+          <span data-state={item.requiredByDefault ? "ready" : "needs"}>Default list <strong>{item.requiredByDefault ? "Included" : "As needed"}</strong></span>
+          <span data-state={openIncidents ? "needs" : "ready"}>Safety watch <strong>{openIncidents ? `${openIncidents} open` : "Clear"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function PpeAcknowledgePanelPolished({ canAcknowledge, allowedJobs, visiblePolicies, ackDraft, setAckDraft, acknowledgments, canManage, ackState, busy, onSubmit }) {
+  if (!canAcknowledge) {
+    return (
+      <Card className="co-toolbox-form-card p-4">
+        <StateCard title="Acknowledgment unavailable" description="This role can review PPE guidance but cannot submit acknowledgments." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title="Acknowledge PPE Check" description={ackState.hasAcknowledged ? `Last acknowledged ${formatDateTime(ackState.latest?.acknowledgedAt)}.` : "Capture a quick PPE acknowledgment for the current job or company safety guidance."} />
+      <form className="co-toolbox-form-grid" onSubmit={onSubmit}>
+        <SelectField label="Job" value={ackDraft.jobId} onChange={(event) => setAckDraft((current) => ({ ...current, jobId: event.target.value }))}>
+          <option value="">General safety review</option>
+          {allowedJobs.map((job) => <option key={job.id} value={job.id}>{job.label}</option>)}
+        </SelectField>
+        <SelectField label="Policy" value={ackDraft.policyId} onChange={(event) => setAckDraft((current) => ({ ...current, policyId: event.target.value }))}>
+          <option value="">All current safety guidance</option>
+          {visiblePolicies.filter((policy) => !policy.archivedAt).map((policy) => <option key={policy.id} value={policy.id}>{policy.title}</option>)}
+        </SelectField>
+        <div className="md:col-span-2">
+          <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="PPE checked, extra protection noted, crew questions, site hazards..." />
+        </div>
+        <div className="md:col-span-2">
+          <Button type="submit" disabled={busy}>Acknowledge PPE check</Button>
+        </div>
+      </form>
+      <div className="co-toolbox-ack-list">
+        {(acknowledgments || []).slice(0, canManage ? 6 : 3).map((acknowledgment) => (
+          <div key={acknowledgment.id}>
+            <strong>{acknowledgment.policyTitle || "General safety & PPE review"}</strong>
+            <span>{acknowledgment.userName}{acknowledgment.job?.title ? ` / ${acknowledgment.job.title}` : ""}</span>
+            <em>{formatDateTime(acknowledgment.acknowledgedAt)}</em>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function PpeManagePanelPolished({ canManage, selectedPpeItem, setSelectedPpeId, ppeDraft, setPpeDraft, onPpeSubmit, onArchivePpeItem, busy }) {
+  if (!canManage) {
+    return (
+      <Card className="co-toolbox-form-card p-4">
+        <StateCard title="PPE management unavailable" description="Only office/admin roles can edit PPE requirements." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title={selectedPpeItem ? "Edit PPE Item" : "Add PPE Item"} description="Keep field requirements direct, concrete, and easy to scan before work starts." />
+      <form className="co-toolbox-form-grid" onSubmit={onPpeSubmit}>
+        <InputField label="Label" value={ppeDraft.label} onChange={(event) => setPpeDraft((current) => ({ ...current, label: event.target.value }))} />
+        <label className="field-label">
+          <span>Required by default</span>
+          <div className="flex min-h-[2.75rem] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+            <input type="checkbox" checked={ppeDraft.requiredByDefault} onChange={(event) => setPpeDraft((current) => ({ ...current, requiredByDefault: event.target.checked }))} />
+            <span>Surface this item first in the PPE board.</span>
+          </div>
+        </label>
+        <div className="md:col-span-2">
+          <TextAreaField label="Description" value={ppeDraft.description} onChange={(event) => setPpeDraft((current) => ({ ...current, description: event.target.value }))} />
+        </div>
+        <div className="flex flex-wrap gap-2 md:col-span-2">
+          <Button type="submit" disabled={busy || !ppeDraft.label}>Save PPE item</Button>
+          {selectedPpeItem ? <Button type="button" variant="secondary" onClick={() => setSelectedPpeId("")}>New item</Button> : null}
+          {selectedPpeItem ? <Button type="button" variant="danger" onClick={() => onArchivePpeItem(selectedPpeItem.id)} disabled={busy || Boolean(selectedPpeItem.archivedAt)}>Archive</Button> : null}
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function PpePolicyPanelPolished({ canManage, visiblePolicies, selectedPolicy, setSelectedPolicyId, policyDraft, setPolicyDraft, onPolicySubmit, onArchiveSafetyPolicy, busy }) {
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title="Safety Guidance" description={canManage ? "Policy guidance remains available here for office/admin edits." : "Field-safe guidance remains visible without office-only information."} />
+      {visiblePolicies.length === 0 ? (
+        <StateCard title="No safety policies yet" description="Safety guidance will appear here after office/admin creates it." tone="slate" />
+      ) : (
+        <div className="co-toolbox-ppe-list">
+          {visiblePolicies.map((policy) => (
+            <button key={policy.id} type="button" onClick={() => canManage ? setSelectedPolicyId(policy.id) : undefined} className={selectedPolicy?.id === policy.id ? "is-selected" : ""}>
+              <span>
+                <strong>{policy.title || "Untitled safety policy"}</strong>
+                <em>{policy.category || "Safety"} / {policy.body || "No guidance text recorded yet."}</em>
+              </span>
+              <Badge tone={policy.archivedAt ? "slate" : "green"}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge>
+            </button>
+          ))}
+        </div>
+      )}
+      {canManage ? (
+        <form className="co-toolbox-form-grid mt-4" onSubmit={onPolicySubmit}>
+          <InputField label="Title" value={policyDraft.title} onChange={(event) => setPolicyDraft((current) => ({ ...current, title: event.target.value }))} />
+          <InputField label="Category" value={policyDraft.category} onChange={(event) => setPolicyDraft((current) => ({ ...current, category: event.target.value }))} />
+          <div className="md:col-span-2">
+            <TextAreaField label="Policy body" value={policyDraft.body} onChange={(event) => setPolicyDraft((current) => ({ ...current, body: event.target.value }))} />
+          </div>
+          <div className="flex flex-wrap gap-2 md:col-span-2">
+            <Button type="submit" disabled={busy || !policyDraft.title || !policyDraft.body}>Save policy</Button>
+            {selectedPolicy ? <Button type="button" variant="secondary" onClick={() => setSelectedPolicyId("")}>New policy</Button> : null}
+            {selectedPolicy ? <Button type="button" variant="danger" onClick={() => onArchiveSafetyPolicy(selectedPolicy.id)} disabled={busy || Boolean(selectedPolicy.archivedAt)}>Archive</Button> : null}
+          </div>
+        </form>
+      ) : null}
+    </Card>
+  );
+}
+
+function PpeIncidentToolsPanelPolished({
+  canSubmitIncidents,
+  canReview,
+  allowedJobs,
+  incidentDraft,
+  setIncidentDraft,
+  visibleIncidents,
+  selectedIncident,
+  setSelectedIncidentId,
+  busy,
+  onSubmitIncident,
+  onReviewSafetyIncident,
+  onResolveSafetyIncident,
+  onArchiveSafetyIncident,
+}) {
+  return (
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+      <SafetyIncidentSubmitPanelPolished canSubmit={canSubmitIncidents} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} busy={busy} onSubmit={onSubmitIncident} />
+      <Card className="co-toolbox-form-card p-4">
+        <SectionHeader title="Safety Watch" description="PPE-related concerns remain available without taking over the PPE checklist." />
+        {visibleIncidents.length === 0 ? (
+          <StateCard title="No visible incidents" description="Safety concerns will appear here when they are in this user's allowed scope." tone="slate" />
+        ) : (
+          <div className="co-toolbox-ppe-list">
+            {visibleIncidents.map((incident) => (
+              <button key={incident.id} type="button" onClick={() => setSelectedIncidentId(incident.id)} className={selectedIncident?.id === incident.id ? "is-selected" : ""}>
+                <span>
+                  <strong>{incident.title || "Untitled safety item"}</strong>
+                  <em>{safetyIncidentJobLabel(incident)} / {safetyIncidentReporterLabel(incident)}</em>
+                </span>
+                <Badge tone={safetyIncidentStatusTone(incident.status)}>{incident.statusLabel || incident.status || "Open"}</Badge>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      <div className="xl:col-span-2">
+        <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+      </div>
+    </div>
+  );
+}
+
+function PpeChecklistPagePolished({
+  canManage,
+  canAcknowledge,
+  canSubmitIncidents,
+  canReview,
+  activePpeItems,
+  visiblePolicies,
+  acknowledgmentState,
+  safetyAcknowledgments,
+  allowedJobs,
+  selectedPpeItem,
+  setSelectedPpeId,
+  ppeDraft,
+  setPpeDraft,
+  selectedPolicy,
+  setSelectedPolicyId,
+  policyDraft,
+  setPolicyDraft,
+  ackDraft,
+  setAckDraft,
+  incidentDraft,
+  setIncidentDraft,
+  visibleIncidents,
+  selectedIncident,
+  setSelectedIncidentId,
+  busy,
+  onPpeSubmit,
+  onArchivePpeItem,
+  onPolicySubmit,
+  onArchiveSafetyPolicy,
+  onAcknowledge,
+  onSubmitIncident,
+  onReviewSafetyIncident,
+  onResolveSafetyIncident,
+  onArchiveSafetyIncident,
+}) {
+  const [requirementFilter, setRequirementFilter] = useState("All");
+  const [search, setSearch] = useState("");
+  const [showTools, setShowTools] = useState(false);
+  const [toolTab, setToolTab] = useState(canAcknowledge ? "ack" : "ppe");
+  const toolsRef = useRef(null);
+  const ppePolicies = useMemo(() => visiblePolicies.filter((policy) => String(policy.category || "").toLowerCase().includes("ppe") || `${policy.title || ""} ${policy.body || ""}`.toLowerCase().includes("ppe")), [visiblePolicies]);
+  const filteredPpeItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return activePpeItems.filter((item) => {
+      if (requirementFilter === "Required" && !item.requiredByDefault) return false;
+      if (requirementFilter === "As needed" && item.requiredByDefault) return false;
+      if (!query) return true;
+      return [item.label, item.description, ppeItemRequirementLabel(item)].filter(Boolean).join(" ").toLowerCase().includes(query);
+    });
+  }, [activePpeItems, requirementFilter, search]);
+  const selectedItem = filteredPpeItems.find((item) => item.id === selectedPpeItem?.id) || selectedPpeItem || filteredPpeItems[0] || activePpeItems[0] || null;
+  const requiredCount = activePpeItems.filter((item) => item.requiredByDefault).length;
+  const optionalCount = activePpeItems.length - requiredCount;
+  const openIncidents = visibleIncidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || ""))).length;
+  const ppeKpis = [
+    { label: "PPE Items", value: filteredPpeItems.length, helper: "Matching current view", icon: "hardhat", tone: "blue" },
+    { label: "Required", value: requiredCount, helper: "Default crew checklist", icon: "check", tone: "green", actionLabel: "Required", onAction: () => setRequirementFilter("Required") },
+    { label: "As Needed", value: optionalCount, helper: "Task-specific gear", icon: "layers", tone: "amber", actionLabel: "As needed", onAction: () => setRequirementFilter("As needed") },
+    { label: "Acknowledgments", value: acknowledgmentState.count, helper: acknowledgmentState.hasAcknowledged ? "Latest user acknowledgment" : "No user acknowledgment yet", icon: "users", tone: acknowledgmentState.hasAcknowledged ? "green" : "slate" },
+    { label: "Safety Watch", value: openIncidents, helper: "Open visible incidents", icon: "alert", tone: openIncidents ? "amber" : "green" },
+  ];
+  const filterOptions = ["All", "Required", "As needed"];
+
+  function clearFilters() {
+    setRequirementFilter("All");
+    setSearch("");
+  }
+
+  function openTools(nextTab = canAcknowledge ? "ack" : "ppe") {
+    setToolTab(nextTab);
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  return (
+    <div className="co-office-page co-toolbox-page co-ppe-page">
+      <PageHeader
+        eyebrow={canManage ? "Office Safety" : "Field Safety"}
+        title="PPE Checklist"
+        description="Review required jobsite protection, acknowledge current safety expectations, and keep PPE management close but uncluttered."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setRequirementFilter("All")}>{filteredPpeItems.length} visible</Button>
+            {canAcknowledge ? <Button type="button" onClick={() => openTools("ack")}>Acknowledge PPE</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {ppeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <Card className="co-toolbox-main-board overflow-hidden">
+          <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">PPE Readiness Board</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan required gear, task-specific protection, crew acknowledgment status, and safety guidance before work starts.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setRequirementFilter("Required")}>Required</Button>
+                {canSubmitIncidents ? <Button type="button" size="sm" variant="secondary" onClick={() => openTools("incident")}>Report Concern</Button> : null}
+                {canManage ? <Button type="button" size="sm" onClick={() => { if (selectedItem) setSelectedPpeId(selectedItem.id); openTools("ppe"); }}>Manage PPE</Button> : null}
+              </div>
+            </div>
+          </div>
+          <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
+            <div className="co-toolbox-category-tabs">
+              {filterOptions.map((option) => (
+                <button key={option} type="button" className={requirementFilter === option ? "is-active" : ""} onClick={() => setRequirementFilter(option)}>
+                  {option}
+                </button>
+              ))}
+            </div>
+            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search PPE item, requirement, or description..." />
+          </div>
+          {filteredPpeItems.length === 0 ? (
+            <div className="p-5"><StateCard title={activePpeItems.length === 0 ? "No PPE items yet" : "No PPE items match these filters"} description={activePpeItems.length === 0 ? "Office/admin can add the first PPE item from the management drawer." : "Clear the filter or search another equipment requirement."} tone="slate" /></div>
+          ) : (
+            <PpeChecklistTablePolished items={filteredPpeItems} selectedId={selectedItem?.id} onSelect={setSelectedPpeId} />
+          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {filteredPpeItems.length} PPE item{filteredPpeItems.length === 1 ? "" : "s"} / {requiredCount} required / {optionalCount} as needed</p>
+            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          </div>
+        </Card>
+
+        <PpeCommandRailPolished
+          item={selectedItem}
+          canManage={canManage}
+          canAcknowledge={canAcknowledge}
+          canSubmitIncidents={canSubmitIncidents}
+          acknowledgmentState={acknowledgmentState}
+          policies={ppePolicies}
+          incidents={visibleIncidents}
+          onOpenTool={openTools}
+          onSelectItem={setSelectedPpeId}
+        />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-toolbox-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>PPE Tools</strong>
+            <em>Acknowledge PPE checks, manage equipment requirements, review safety guidance, and keep incident workflow available.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => setToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+          {canManage ? <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => { if (selectedItem) setSelectedPpeId(selectedItem.id); setToolTab("ppe"); }}><Icon name="hardhat" />PPE Setup</button> : null}
+          <button type="button" className={toolTab === "policy" ? "is-active" : ""} onClick={() => setToolTab("policy")}><Icon name="clipboard" />Guidance</button>
+          {canSubmitIncidents || canReview ? <button type="button" className={toolTab === "incident" ? "is-active" : ""} onClick={() => setToolTab("incident")}><Icon name="alert" />Safety Watch</button> : null}
+        </div>
+        <div className="co-toolbox-tools-panel mt-3">
+          {toolTab === "ack" ? (
+            <PpeAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
+          ) : toolTab === "ppe" ? (
+            <PpeManagePanelPolished canManage={canManage} selectedPpeItem={selectedPpeItem} setSelectedPpeId={setSelectedPpeId} ppeDraft={ppeDraft} setPpeDraft={setPpeDraft} onPpeSubmit={onPpeSubmit} onArchivePpeItem={onArchivePpeItem} busy={busy} />
+          ) : toolTab === "incident" ? (
+            <PpeIncidentToolsPanelPolished canSubmitIncidents={canSubmitIncidents} canReview={canReview} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} visibleIncidents={visibleIncidents} selectedIncident={selectedIncident} setSelectedIncidentId={setSelectedIncidentId} busy={busy} onSubmitIncident={onSubmitIncident} onReviewSafetyIncident={onReviewSafetyIncident} onResolveSafetyIncident={onResolveSafetyIncident} onArchiveSafetyIncident={onArchiveSafetyIncident} />
+          ) : (
+            <PpePolicyPanelPolished canManage={canManage} visiblePolicies={visiblePolicies} selectedPolicy={selectedPolicy} setSelectedPolicyId={setSelectedPolicyId} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onArchiveSafetyPolicy={onArchiveSafetyPolicy} busy={busy} />
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function SafetyPage({
   active,
   user,
@@ -8006,6 +8493,47 @@ function SafetyPage({
         onPpeSubmit={handlePpeSubmit}
         onArchivePpeItem={onArchivePpeItem}
         onAcknowledge={handleAcknowledge}
+      />
+    );
+  }
+
+  if (ppeFocused) {
+    return (
+      <PpeChecklistPagePolished
+        canManage={canManage}
+        canAcknowledge={canAcknowledge}
+        canSubmitIncidents={canSubmitIncidents}
+        canReview={canReview}
+        activePpeItems={activePpeItems}
+        visiblePolicies={visiblePolicies}
+        acknowledgmentState={acknowledgmentState}
+        safetyAcknowledgments={safetyAcknowledgments}
+        allowedJobs={allowedJobs}
+        selectedPpeItem={selectedPpeItem}
+        setSelectedPpeId={setSelectedPpeId}
+        ppeDraft={ppeDraft}
+        setPpeDraft={setPpeDraft}
+        selectedPolicy={selectedPolicy}
+        setSelectedPolicyId={setSelectedPolicyId}
+        policyDraft={policyDraft}
+        setPolicyDraft={setPolicyDraft}
+        ackDraft={ackDraft}
+        setAckDraft={setAckDraft}
+        incidentDraft={incidentDraft}
+        setIncidentDraft={setIncidentDraft}
+        visibleIncidents={visibleIncidents}
+        selectedIncident={selectedIncident}
+        setSelectedIncidentId={setSelectedIncidentId}
+        busy={busy}
+        onPpeSubmit={handlePpeSubmit}
+        onArchivePpeItem={onArchivePpeItem}
+        onPolicySubmit={handlePolicySubmit}
+        onArchiveSafetyPolicy={onArchiveSafetyPolicy}
+        onAcknowledge={handleAcknowledge}
+        onSubmitIncident={handleIncidentSubmit}
+        onReviewSafetyIncident={onReviewSafetyIncident}
+        onResolveSafetyIncident={onResolveSafetyIncident}
+        onArchiveSafetyIncident={onArchiveSafetyIncident}
       />
     );
   }
