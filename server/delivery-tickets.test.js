@@ -122,15 +122,16 @@ function insertUsers(sqliteFile, users) {
 
 function configureFieldVisibleJob(sqliteFile) {
   const database = new DatabaseSync(sqliteFile);
+  const futureStart = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   try {
     database.prepare(`
       UPDATE jobs
       SET field_planning_visible = 1,
           visible_to_foreman = 1,
-          scheduled_start = '2026-05-12T08:00:00.000Z',
+          scheduled_start = ?,
           status = 'scheduled'
       WHERE id = 'J-2198'
-    `).run();
+    `).run(futureStart);
   } finally {
     database.close();
   }

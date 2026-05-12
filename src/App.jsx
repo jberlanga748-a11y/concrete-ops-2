@@ -18166,7 +18166,670 @@ function DeliveryTicketMobileFieldGroup({ title, summary, defaultOpen = false, c
   );
 }
 
-function DeliveryTicketsPage({
+function deliveryTicketYardsLabel(ticket) {
+  const yards = Number(ticket?.yardsDelivered || 0);
+  if (!Number.isFinite(yards) || yards <= 0) return "0 yd";
+  const label = Number.isInteger(yards) ? String(yards) : yards.toFixed(1).replace(/\.0$/, "");
+  return `${label} yd`;
+}
+
+function deliveryTicketPrimaryTime(ticket) {
+  return ticket?.arrivalTime || ticket?.createdAt;
+}
+
+function DeliveryTicketsTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-delivery-mobile-list grid gap-3 p-3 md:hidden">
+        {rows.map((ticket) => {
+          const selected = ticket.id === selectedId;
+
+          return (
+            <button
+              key={ticket.id}
+              type="button"
+              onClick={() => onSelect(ticket.id)}
+              className={`co-delivery-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
+                </div>
+                {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone={ticket.ticketUploadId ? "green" : "orange"}>{deliveryTicketYardsLabel(ticket)}</Badge>}
+              </div>
+              <div className="co-delivery-mobile-metrics">
+                <span>Truck <strong>{ticket.truckNumber || "Not set"}</strong></span>
+                <span>Arrival <strong>{formatDateTime(deliveryTicketPrimaryTime(ticket))}</strong></span>
+                <span>Links <strong>{ticket.ticketUploadId ? "Photo" : ticket.reportId ? "Report" : "Needed"}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-delivery-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-delivery-command-table w-full min-w-[900px] text-left">
+          <thead>
+            <tr>
+              <th>Ticket / Job</th>
+              <th>Supplier</th>
+              <th>Truck</th>
+              <th>Yards</th>
+              <th>Arrival</th>
+              <th>Links</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((ticket) => {
+              const selected = ticket.id === selectedId;
+
+              return (
+                <tr key={ticket.id} onClick={() => onSelect(ticket.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
+                    <p className="text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.job?.customer || "Customer pending"}</p>
+                  </td>
+                  <td className="font-bold text-slate-700">{ticket.supplier || "Supplier pending"}</td>
+                  <td className="font-bold text-slate-700">{ticket.truckNumber || "Not set"}</td>
+                  <td><Badge tone={Number(ticket.yardsDelivered || 0) > 0 ? "green" : "slate"}>{deliveryTicketYardsLabel(ticket)}</Badge></td>
+                  <td className="font-bold text-slate-700">{formatDateTime(deliveryTicketPrimaryTime(ticket))}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge tone={ticket.ticketUploadId ? "green" : "slate"}>{ticket.ticketUploadId ? "Photo" : "No photo"}</Badge>
+                      <Badge tone={ticket.reportId ? "blue" : "slate"}>{ticket.reportId ? "Report" : "No report"}</Badge>
+                    </div>
+                  </td>
+                  <td>
+                    <button type="button" className="co-delivery-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(ticket.id); }} aria-label={`Open delivery ticket ${ticket.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function DeliveryTicketsCommandRailPolished({
+  ticket,
+  canCreate,
+  canManageAll,
+  canEditSelected,
+  busy,
+  sessionToken,
+  linkedUploadError,
+  onOpenTool,
+  onOpenLinkedUpload,
+  onArchive,
+}) {
+  if (!ticket) {
+    return (
+      <div className="co-delivery-right-rail space-y-4">
+        <Card className="co-delivery-rail-card p-4">
+          <SectionHeader title="Ticket Console" description="Select a delivery ticket or create a new field record." />
+          <div className="co-delivery-empty-rail">
+            <span><Icon name="clipboard" /></span>
+            <strong>No ticket selected</strong>
+            <p>Choose a row to review truck, supplier, yardage, daily-report link, photo status, and field notes.</p>
+          </div>
+          {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>New Ticket</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-delivery-right-rail space-y-4">
+      <Card className="co-delivery-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected delivery</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{deliveryTicketTitle(ticket)}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
+          </div>
+          {ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone={ticket.ticketUploadId ? "green" : "orange"}>{deliveryTicketYardsLabel(ticket)}</Badge>}
+        </div>
+
+        <div className="co-delivery-selected-metrics">
+          <div>
+            <span>Truck</span>
+            <strong>{ticket.truckNumber || "Not set"}</strong>
+          </div>
+          <div>
+            <span>Arrival</span>
+            <strong>{formatDateTime(deliveryTicketPrimaryTime(ticket))}</strong>
+          </div>
+          <div>
+            <span>Mix</span>
+            <strong>{ticket.psi ? `${ticket.psi} PSI` : "PSI open"}</strong>
+          </div>
+          <div>
+            <span>Report</span>
+            <strong>{ticket.report?.reportDate || "Not linked"}</strong>
+          </div>
+        </div>
+
+        <div className="co-delivery-note-panel">
+          <span>Mix / notes</span>
+          <p>{ticket.mixNotes || ticket.notes || "No mix notes recorded yet."}</p>
+        </div>
+
+        {ticket.ticketUpload ? (
+          <div className="co-delivery-upload-panel">
+            <span>Linked photo</span>
+            <p>{ticket.ticketUpload.caption || ticket.ticketUpload.fileName}</p>
+            <button
+              type="button"
+              onClick={() => onOpenLinkedUpload(ticket.ticketUpload)}
+              disabled={!ticket.ticketUpload.contentUrl || !sessionToken}
+            >
+              Open linked upload
+            </button>
+            {linkedUploadError ? <p className="text-red-600">{linkedUploadError}</p> : null}
+          </div>
+        ) : null}
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("details")}>{canEditSelected ? "Edit Ticket" : "Review"}</Button>
+          {canCreate ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("create")}>New Ticket</Button> : null}
+          {canManageAll ? <Button type="button" size="sm" variant="danger" onClick={() => onArchive(ticket.id)} disabled={busy || ticket.archivedAt}>Archive</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-delivery-rail-card p-4">
+        <SectionHeader title="Ticket Readiness" description="Delivery records are strongest when the core field links are complete." />
+        <div className="co-delivery-readiness-list">
+          <span data-state={ticket.jobId ? "ready" : "needs"}>Job link <strong>{ticket.jobId ? "Set" : "Needed"}</strong></span>
+          <span data-state={ticket.ticketNumber || ticket.truckNumber ? "ready" : "needs"}>Ticket info <strong>{ticket.ticketNumber || ticket.truckNumber ? "Set" : "Needed"}</strong></span>
+          <span data-state={ticket.yardsDelivered ? "ready" : "needs"}>Yardage <strong>{ticket.yardsDelivered ? "Logged" : "Needed"}</strong></span>
+          <span data-state={ticket.ticketUploadId ? "ready" : "needs"}>Photo <strong>{ticket.ticketUploadId ? "Linked" : "Optional"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function DeliveryTicketCreatePanelPolished({
+  canCreate,
+  visibleJobs,
+  createDraft,
+  setCreateDraft,
+  createReportOptions,
+  createUploadOptions,
+  singleJobId,
+  busy,
+  onCreateTicket,
+}) {
+  if (!canCreate) {
+    return (
+      <Card className="co-delivery-form-card p-4">
+        <StateCard title="Create unavailable" description="This role can review visible delivery tickets but cannot create new ones." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-delivery-form-card p-4">
+      <SectionHeader title="New Delivery Ticket" description="Record truck, ticket, mix, and linked evidence without adding pricing or billing data." />
+      <div className="co-delivery-form-grid">
+        <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+          <option value="">Select a job</option>
+          {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+        </SelectField>
+        <InputField label="Supplier" value={createDraft.supplier} onChange={(event) => setCreateDraft((current) => ({ ...current, supplier: event.target.value }))} placeholder="Knife River, Cadman, etc." />
+        <InputField label="Truck number" value={createDraft.truckNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+        <InputField label="Ticket number" value={createDraft.ticketNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+        <InputField label="Yards delivered" type="number" min="0" step="0.1" value={createDraft.yardsDelivered} onChange={(event) => setCreateDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+        <InputField label="PSI" type="number" min="0" step="1" value={createDraft.psi} onChange={(event) => setCreateDraft((current) => ({ ...current, psi: event.target.value }))} />
+        <InputField label="Arrival time" type="datetime-local" value={createDraft.arrivalTime} onChange={(event) => setCreateDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+        <InputField label="Discharge time" type="datetime-local" value={createDraft.dischargeTime} onChange={(event) => setCreateDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+        <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
+        <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
+          <option value="">No linked report</option>
+          {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} / ${report.reportDate || "No date"}`}</option>)}
+        </SelectField>
+        <div className="md:col-span-2">
+          <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+            <option value="">No linked upload</option>
+            {createUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+          </SelectField>
+        </div>
+        <div className="md:col-span-2">
+          <TextAreaField label="Mix notes" value={createDraft.mixNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, mixNotes: event.target.value }))} placeholder="Mix design, pump notes, temperature, additives, or placement details." />
+        </div>
+        <div className="md:col-span-2">
+          <TextAreaField label="Notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Any additional field notes for this delivery ticket." />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={async () => {
+            const saved = await onCreateTicket(createDraft);
+            if (saved) {
+              setCreateDraft({ ...INITIAL_DELIVERY_TICKET_FORM, jobId: singleJobId });
+            }
+          }}
+          disabled={busy || !createDraft.jobId}
+        >
+          Save delivery ticket
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function DeliveryTicketDetailPanelPolished({
+  ticket,
+  detailDraft,
+  setDetailDraft,
+  visibleJobs,
+  detailReportOptions,
+  detailUploadOptions,
+  canEditSelected,
+  canManageAll,
+  busy,
+  sessionToken,
+  linkedUploadError,
+  onOpenLinkedUpload,
+  onUpdateTicket,
+  onArchiveTicket,
+}) {
+  if (!ticket) {
+    return (
+      <Card className="co-delivery-form-card p-4">
+        <StateCard title="No delivery ticket selected" description="Choose a ticket from the board to review or edit details." tone="slate" />
+      </Card>
+    );
+  }
+
+  if (!canEditSelected) {
+    return (
+      <Card className="co-delivery-form-card p-4">
+        <SectionHeader
+          title={deliveryTicketTitle(ticket)}
+          description={`${ticket.job?.title || "Assigned job"} / ${ticket.createdByName || "Creator pending"} / ${formatDateTime(ticket.createdAt)}`}
+          action={ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{deliveryTicketYardsLabel(ticket)}</Badge>}
+        />
+        <div className="co-delivery-readonly-grid">
+          <div><span>Supplier</span><strong>{ticket.supplier || "Not provided"}</strong></div>
+          <div><span>Truck</span><strong>{ticket.truckNumber || "Not provided"}</strong></div>
+          <div><span>Ticket</span><strong>{ticket.ticketNumber || "Not provided"}</strong></div>
+          <div><span>Yards</span><strong>{deliveryTicketYardsLabel(ticket)}</strong></div>
+          <div><span>Arrival</span><strong>{ticket.arrivalTime ? formatDateTime(ticket.arrivalTime) : "Not provided"}</strong></div>
+          <div><span>Report</span><strong>{ticket.report?.reportDate || "Not linked"}</strong></div>
+        </div>
+        <div className="co-delivery-note-panel">
+          <span>Mix notes</span>
+          <p>{ticket.mixNotes || "No mix notes provided."}</p>
+        </div>
+        <div className="co-delivery-note-panel">
+          <span>Notes</span>
+          <p>{ticket.notes || "No notes provided."}</p>
+        </div>
+        {ticket.ticketUpload ? (
+          <div className="co-delivery-upload-panel">
+            <span>Linked photo</span>
+            <p>{ticket.ticketUpload.caption || ticket.ticketUpload.fileName}</p>
+            <button type="button" onClick={() => onOpenLinkedUpload(ticket.ticketUpload)} disabled={!ticket.ticketUpload.contentUrl || !sessionToken}>Open linked upload</button>
+            {linkedUploadError ? <p className="text-red-600">{linkedUploadError}</p> : null}
+          </div>
+        ) : null}
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-delivery-form-card p-4">
+      <SectionHeader
+        title={`Edit ${deliveryTicketTitle(ticket)}`}
+        description="Update the real ticket record, linked report, photo evidence, truck timing, mix notes, and yardage."
+        action={ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{deliveryTicketYardsLabel(ticket)}</Badge>}
+      />
+      <div className="co-delivery-form-grid">
+        <SelectField label="Job" value={detailDraft.jobId} onChange={(event) => setDetailDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+          {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+        </SelectField>
+        <InputField label="Supplier" value={detailDraft.supplier} onChange={(event) => setDetailDraft((current) => ({ ...current, supplier: event.target.value }))} />
+        <InputField label="Truck number" value={detailDraft.truckNumber} onChange={(event) => setDetailDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+        <InputField label="Ticket number" value={detailDraft.ticketNumber} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+        <InputField label="Yards delivered" type="number" min="0" step="0.1" value={detailDraft.yardsDelivered} onChange={(event) => setDetailDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+        <InputField label="PSI" type="number" min="0" step="1" value={detailDraft.psi} onChange={(event) => setDetailDraft((current) => ({ ...current, psi: event.target.value }))} />
+        <InputField label="Arrival time" type="datetime-local" value={detailDraft.arrivalTime} onChange={(event) => setDetailDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+        <InputField label="Discharge time" type="datetime-local" value={detailDraft.dischargeTime} onChange={(event) => setDetailDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+        <InputField label="Slump" type="number" min="0" step="0.1" value={detailDraft.slump} onChange={(event) => setDetailDraft((current) => ({ ...current, slump: event.target.value }))} />
+        <SelectField label="Daily report link" value={detailDraft.reportId} onChange={(event) => setDetailDraft((current) => ({ ...current, reportId: event.target.value }))}>
+          <option value="">No linked report</option>
+          {detailReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} / ${report.reportDate || "No date"}`}</option>)}
+        </SelectField>
+        <div className="md:col-span-2">
+          <SelectField label="Ticket photo/upload" value={detailDraft.ticketUploadId} onChange={(event) => setDetailDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+            <option value="">No linked upload</option>
+            {detailUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+          </SelectField>
+        </div>
+        <div className="md:col-span-2">
+          <TextAreaField label="Mix notes" value={detailDraft.mixNotes} onChange={(event) => setDetailDraft((current) => ({ ...current, mixNotes: event.target.value }))} />
+        </div>
+        <div className="md:col-span-2">
+          <TextAreaField label="Notes" value={detailDraft.notes} onChange={(event) => setDetailDraft((current) => ({ ...current, notes: event.target.value }))} />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" onClick={() => onUpdateTicket(ticket.id, detailDraft)} disabled={busy}>Save ticket</Button>
+        {canManageAll ? <Button type="button" variant="danger" onClick={() => onArchiveTicket(ticket.id)} disabled={busy || ticket.archivedAt}>Archive</Button> : null}
+      </div>
+    </Card>
+  );
+}
+
+function DeliveryTicketsPagePolished({
+  user,
+  sessionToken,
+  jobs,
+  deliveryTickets,
+  uploads,
+  dailyReports,
+  permissions,
+  busy,
+  onCreateTicket,
+  onUpdateTicket,
+  onArchiveTicket,
+}) {
+  const [jobFilter, setJobFilter] = useState("All jobs");
+  const [supplierFilter, setSupplierFilter] = useState("All suppliers");
+  const [creatorFilter, setCreatorFilter] = useState("All creators");
+  const [dateFilter, setDateFilter] = useState("All dates");
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const [search, setSearch] = useState("");
+  const [selectedTicketId, setSelectedTicketId] = useState("");
+  const [linkedUploadError, setLinkedUploadError] = useState("");
+  const [createDraft, setCreateDraft] = useState(INITIAL_DELIVERY_TICKET_FORM);
+  const [detailDraft, setDetailDraft] = useState(INITIAL_DELIVERY_TICKET_FORM);
+  const [showTools, setShowTools] = useState(false);
+  const [activeTool, setActiveTool] = useState("details");
+  const toolsRef = useRef(null);
+
+  const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
+  const ticketRows = Array.isArray(deliveryTickets) ? deliveryTickets : [];
+  const filteredRows = useMemo(() => filterDeliveryTickets(ticketRows, {
+    job: jobFilter,
+    supplier: supplierFilter,
+    createdBy: creatorFilter,
+    date: dateFilter,
+    archived: archiveFilter,
+    search,
+  }), [archiveFilter, creatorFilter, dateFilter, jobFilter, search, supplierFilter, ticketRows]);
+  const listState = useMemo(() => deriveDeliveryTicketListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
+  const selectedTicket = filteredRows.find((ticket) => ticket.id === selectedTicketId)
+    || filteredRows[0]
+    || ticketRows.find((ticket) => ticket.id === selectedTicketId)
+    || null;
+  const singleJobId = listState.defaultJobId || "";
+  const createJobId = createDraft.jobId || singleJobId;
+  const canCreate = permissions.deliveryTickets.canCreate || permissions.deliveryTickets.canManageAll;
+  const canManageAll = permissions.deliveryTickets.canManageAll;
+  const canEditSelected = Boolean(selectedTicket) && (canManageAll || (permissions.deliveryTickets.canEditOwn && selectedTicket.createdBy === user?.id && !selectedTicket.archivedAt));
+  const scopedUploads = (Array.isArray(uploads) ? uploads : []).filter((upload) => !upload.archivedAt);
+  const scopedReports = (Array.isArray(dailyReports) ? dailyReports : []).filter((report) => !report.archivedAt);
+  const createUploadOptions = scopedUploads.filter((upload) => !createJobId || upload.jobId === createJobId);
+  const createReportOptions = scopedReports.filter((report) => !createJobId || report.jobId === createJobId);
+  const detailUploadOptions = scopedUploads.filter((upload) => !detailDraft.jobId || upload.jobId === detailDraft.jobId);
+  const detailReportOptions = scopedReports.filter((report) => !detailDraft.jobId || report.jobId === detailDraft.jobId);
+  const missingPhotoCount = filteredRows.filter((ticket) => !ticket.ticketUploadId).length;
+  const yardsLogged = filteredRows.reduce((sum, ticket) => sum + Number(ticket.yardsDelivered || 0), 0);
+  const linkedReports = filteredRows.filter((ticket) => ticket.reportId).length;
+  const archivedCount = filteredRows.filter((ticket) => ticket.archivedAt).length;
+  const ticketKpis = [
+    { label: "Visible Tickets", value: filteredRows.length, helper: "Current delivery board", icon: "clipboard", tone: "blue", actionLabel: "View active", onAction: () => setArchiveFilter("Active") },
+    { label: "Missing Photo", value: missingPhotoCount, helper: "Ticket image not linked", icon: "alert", tone: missingPhotoCount ? "amber" : "green" },
+    { label: "Yards Logged", value: yardsLogged, helper: "Delivered yards in view", icon: "database", tone: yardsLogged ? "green" : "slate" },
+    { label: "Linked Reports", value: linkedReports, helper: "Connected to daily reports", icon: "document", tone: linkedReports ? "blue" : "slate" },
+    { label: "Archived", value: archivedCount, helper: "Archived in this view", icon: "box", tone: archivedCount ? "slate" : "green", actionLabel: "View archive", onAction: () => setArchiveFilter("Archived") },
+  ];
+  const toolTabs = [
+    canCreate ? { id: "create", label: "New Ticket", count: 1 } : null,
+    { id: "details", label: canEditSelected ? "Edit Selected" : "Review Selected", count: selectedTicket ? 1 : 0 },
+  ].filter(Boolean);
+
+  useEffect(() => {
+    if (!selectedTicketId && filteredRows[0]?.id) {
+      setSelectedTicketId(filteredRows[0].id);
+    }
+  }, [filteredRows, selectedTicketId]);
+
+  useEffect(() => {
+    if (singleJobId && !createDraft.jobId) {
+      setCreateDraft((current) => ({ ...current, jobId: singleJobId }));
+    }
+  }, [createDraft.jobId, singleJobId]);
+
+  useEffect(() => {
+    setDetailDraft({
+      jobId: selectedTicket?.jobId || "",
+      reportId: selectedTicket?.reportId || "",
+      supplier: selectedTicket?.supplier || "",
+      truckNumber: selectedTicket?.truckNumber || "",
+      ticketNumber: selectedTicket?.ticketNumber || "",
+      yardsDelivered: selectedTicket?.yardsDelivered ?? "",
+      arrivalTime: selectedTicket?.arrivalTime || "",
+      dischargeTime: selectedTicket?.dischargeTime || "",
+      psi: selectedTicket?.psi ?? "",
+      slump: selectedTicket?.slump ?? "",
+      mixNotes: selectedTicket?.mixNotes || "",
+      notes: selectedTicket?.notes || "",
+      ticketUploadId: selectedTicket?.ticketUploadId || "",
+    });
+  }, [selectedTicket?.id, selectedTicket?.updatedAt]);
+
+  useEffect(() => {
+    setLinkedUploadError("");
+  }, [selectedTicket?.id]);
+
+  async function handleOpenLinkedUpload(upload) {
+    if (!upload?.contentUrl || !sessionToken) return false;
+    setLinkedUploadError("");
+    const popup = window.open("", "_blank", "noopener,noreferrer");
+
+    if (popup) {
+      popup.document.title = "Loading upload";
+      popup.document.body.innerHTML = "<div style='font-family:Arial,sans-serif;padding:24px;color:#0f172a;'>Loading linked upload...</div>";
+    }
+
+    try {
+      const previewUrl = await fetchAuthenticatedUploadPreviewUrl(upload, sessionToken);
+      if (popup) {
+        popup.location.href = previewUrl;
+        return true;
+      }
+      const fallbackWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+      if (!fallbackWindow) {
+        throw new Error("Allow pop-ups to open the linked upload.");
+      }
+      return true;
+    } catch (error) {
+      if (popup) popup.close();
+      setLinkedUploadError(error?.message || "Could not open the linked upload.");
+      return false;
+    }
+  }
+
+  function openTool(toolId = "details") {
+    setActiveTool(toolId);
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function clearFilters() {
+    setJobFilter("All jobs");
+    setSupplierFilter("All suppliers");
+    setCreatorFilter("All creators");
+    setDateFilter("All dates");
+    setArchiveFilter("Active");
+    setSearch("");
+  }
+
+  if (!permissions.deliveryTickets.canView) {
+    return (
+      <div className="co-office-page co-delivery-page">
+        <PageHeader eyebrow="Field Tools" title="Delivery Tickets" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Delivery ticket access unavailable" description="Only office, foreman, and assigned field users can open delivery tickets in this pass." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-office-page co-delivery-page">
+      <PageHeader
+        eyebrow={canManageAll ? "Field Ops" : "Field Workspace"}
+        title={<span>Delivery Tickets <span className="text-orange-500">{"\u2606"}</span></span>}
+        description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setArchiveFilter("Active")}>{filteredRows.length} visible</Button>
+            {canCreate ? <Button type="button" onClick={() => openTool("create")}>New Ticket</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-delivery-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {ticketKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-delivery-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <Card className="co-delivery-main-board overflow-hidden">
+          <div className="co-delivery-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Delivery Board</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track tickets, loads, suppliers, truck timing, linked reports, and photo evidence in one operational lane.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Active")}>Active</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Archived")}>Archive</Button>
+                {canCreate ? <Button type="button" size="sm" onClick={() => openTool("create")}>New Ticket</Button> : null}
+              </div>
+            </div>
+          </div>
+          <FilterBar filters={["Active", "Archived", "All"]} active={archiveFilter} setActive={setArchiveFilter} search={search} setSearch={setSearch} placeholder="Search supplier, ticket, truck, mix notes, or job..." />
+          <details className="co-delivery-advanced-filters border-b border-slate-200 bg-white">
+            <summary>
+              <span>Advanced filters</span>
+              <span>{[jobFilter !== "All jobs" ? jobFilter : "", supplierFilter !== "All suppliers" ? supplierFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", dateFilter !== "All dates" ? dateFilter : ""].filter(Boolean).length || "Job, supplier, creator"}</span>
+            </summary>
+            <div className="co-office-filter-grid co-delivery-filter-grid grid gap-3 p-3 md:grid-cols-4">
+              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Supplier" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)}>
+                {listState.supplierOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+              </SelectField>
+            </div>
+          </details>
+          {filteredRows.length === 0 ? (
+            <div className="p-5">
+              <StateCard
+                title={visibleJobs.length === 0 && !canManageAll ? "No assigned job yet" : "No delivery tickets match these filters"}
+                description={visibleJobs.length === 0 && !canManageAll ? "Contact office if you should be able to record or view deliveries for this job." : "Clear a filter or create a new ticket for a visible job."}
+                tone="slate"
+              />
+            </div>
+          ) : (
+            <DeliveryTicketsTablePolished rows={filteredRows} selectedId={selectedTicket?.id} onSelect={setSelectedTicketId} />
+          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} ticket{filteredRows.length === 1 ? "" : "s"}</p>
+            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          </div>
+        </Card>
+
+        <DeliveryTicketsCommandRailPolished
+          ticket={selectedTicket}
+          canCreate={canCreate}
+          canManageAll={canManageAll}
+          canEditSelected={canEditSelected}
+          busy={busy}
+          sessionToken={sessionToken}
+          linkedUploadError={linkedUploadError}
+          onOpenTool={openTool}
+          onOpenLinkedUpload={handleOpenLinkedUpload}
+          onArchive={onArchiveTicket}
+        />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-delivery-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Delivery Tools</strong>
+            <em>Create tickets, edit selected ticket details, link reports, and attach existing photo evidence below the board.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-delivery-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {toolTabs.map((tab) => (
+            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => setActiveTool(tab.id)}>
+              {tab.label}
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="co-delivery-tools-panel mt-3">
+          {activeTool === "create" ? (
+            <DeliveryTicketCreatePanelPolished
+              canCreate={canCreate}
+              visibleJobs={visibleJobs}
+              createDraft={createDraft}
+              setCreateDraft={setCreateDraft}
+              createReportOptions={createReportOptions}
+              createUploadOptions={createUploadOptions}
+              singleJobId={singleJobId}
+              busy={busy}
+              onCreateTicket={onCreateTicket}
+            />
+          ) : null}
+          {activeTool === "details" ? (
+            <DeliveryTicketDetailPanelPolished
+              ticket={selectedTicket}
+              detailDraft={detailDraft}
+              setDetailDraft={setDetailDraft}
+              visibleJobs={visibleJobs}
+              detailReportOptions={detailReportOptions}
+              detailUploadOptions={detailUploadOptions}
+              canEditSelected={canEditSelected}
+              canManageAll={canManageAll}
+              busy={busy}
+              sessionToken={sessionToken}
+              linkedUploadError={linkedUploadError}
+              onOpenLinkedUpload={handleOpenLinkedUpload}
+              onUpdateTicket={onUpdateTicket}
+              onArchiveTicket={onArchiveTicket}
+            />
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function DeliveryTicketsPageLegacy({
   user,
   sessionToken,
   jobs,
@@ -18732,6 +19395,10 @@ function DeliveryTicketsPage({
       </div>
     </div>
   );
+}
+
+function DeliveryTicketsPage(props) {
+  return <DeliveryTicketsPagePolished {...props} />;
 }
 
 function ToolChecklistPage({
