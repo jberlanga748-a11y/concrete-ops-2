@@ -11954,7 +11954,11 @@ function setupStatusTone(status) {
   return "slate";
 }
 
-function ManagedCompanySetupPanel({
+function ManagedCompanySetupPanel(props) {
+  return <ManagedSetupPanelPolished {...props} />;
+}
+
+function ManagedSetupPanelPolished({
   companySettings,
   users,
   leadSources,
@@ -12038,99 +12042,153 @@ function ManagedCompanySetupPanel({
   }
 
   return (
-    <Card className="p-5">
-      <SectionHeader
-        title="Managed Company Setup"
-        description="Track what still needs to be configured before this contractor is ready to run leads, estimates, jobs, and field work."
-      />
-      <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Readiness</p>
-          <div className="mt-2">
-            <Badge tone={setupStatusTone(setupState.status)}>{setupState.status}</Badge>
+    <Card className="co-settings-managed-board overflow-hidden">
+      <div className="co-settings-board-header border-b border-slate-200 bg-white p-4">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={setupStatusTone(setupState.status)}>{setupState.status}</Badge>
+              {setupState.updatedAt ? <Badge tone="slate">Updated {formatDateTime(setupState.updatedAt)}</Badge> : <Badge tone="slate">Not saved yet</Badge>}
+            </div>
+            <h2 className="mt-3 text-base font-black uppercase tracking-[0.04em] text-slate-950">Managed Setup Readiness Board</h2>
+            <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track the operator rollout checklist before leads, estimates, jobs, and field work go live.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="secondary" onClick={() => onNavigate?.("employees")}>Users</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => onNavigate?.("commandCenter")}>Command Center</Button>
+            <Button type="button" size="sm" onClick={saveSetup} disabled={!canSave || !dirty}>Save Setup</Button>
           </div>
         </div>
-        <div className="rounded-2xl border border-blue-100 bg-white p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Checklist</p>
-          <p className="mt-2 text-2xl font-black text-slate-950">{draftCompletedCount}/{draftRows.length}</p>
+      </div>
+
+      <div className="p-4">
+        <div className="co-settings-readiness-grid grid gap-3 md:grid-cols-4">
+          <div className="co-settings-readiness-card is-primary">
+            <p>Checklist</p>
+            <strong>{draftCompletedCount}/{draftRows.length}</strong>
+            <span>Items ready</span>
+          </div>
+          <div className="co-settings-readiness-card">
+            <p>Progress</p>
+            <strong>{draftPercent}%</strong>
+            <span>Rollout completion</span>
+          </div>
+          <div className="co-settings-readiness-card">
+            <p>Critical Missing</p>
+            <strong>{draftBlockers.length}</strong>
+            <span>Must clear before rollout</span>
+          </div>
+          <div className="co-settings-readiness-card">
+            <p>Categories</p>
+            <strong>{setupState.categories.filter((category) => category.items.every((item) => draftRows.find((row) => row.key === item.key)?.completed)).length}/{setupState.categories.length}</strong>
+            <span>Sections complete</span>
+          </div>
         </div>
-        <div className="rounded-2xl border border-blue-100 bg-white p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Progress</p>
-          <p className="mt-2 text-2xl font-black text-slate-950">{draftPercent}%</p>
+
+        <div className="co-settings-progress-wrap mt-4">
+          <div className="co-settings-progress-label">
+            <span>Managed setup progress</span>
+            <strong>{draftPercent}%</strong>
+          </div>
+          <div className="co-settings-progress-track">
+            <div style={{ width: `${Math.max(0, Math.min(100, draftPercent))}%` }} />
+          </div>
         </div>
-        <div className="rounded-2xl border border-blue-100 bg-white p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Critical missing</p>
-          <p className="mt-2 text-2xl font-black text-slate-950">{draftBlockers.length}</p>
+
+        <div className={`co-settings-next-action mt-4 ${draftBlockers.length ? "is-blocked" : "is-ready"}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={draftBlockers.length ? "amber" : "green"}>{draftBlockers.length ? "Next blocker" : "Next action"}</Badge>
+            {draftBlockers.length ? <Badge tone="slate">{draftBlockers.length} critical open</Badge> : null}
+          </div>
+          <p>{draftBlockers[0] ? `Finish ${draftBlockers[0].label.toLowerCase()} before this contractor is ready for managed use.` : setupState.nextAction}</p>
         </div>
-      </div>
-      <div className="mt-4 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-3 rounded-full bg-blue-700 transition-all" style={{ width: `${Math.max(0, Math.min(100, draftPercent))}%` }} />
-      </div>
-      <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-        <p className="text-sm font-black text-amber-800">Next action</p>
-        <p className="mt-1 text-sm leading-6 text-amber-800/90">{draftBlockers[0] ? `Finish ${draftBlockers[0].label.toLowerCase()} before this contractor is ready for managed use.` : setupState.nextAction}</p>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {["settings", "employees", "leads", "estimates", "jobs", "commandCenter"].map((moduleId) => (
-          <Button key={moduleId} type="button" size="sm" variant="secondary" onClick={() => onNavigate?.(moduleId)}>
-            {moduleId === "commandCenter" ? "Command Center" : moduleId === "employees" ? "Users" : moduleId[0].toUpperCase() + moduleId.slice(1)}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-5 grid gap-4">
-        {setupState.categories.map((category) => {
-          const categoryRows = category.items.map((item) => draftRows.find((row) => row.key === item.key) || item);
-          const categoryComplete = categoryRows.filter((item) => item.completed).length;
-          return (
-            <div key={category.id} className="rounded-2xl border border-blue-100 bg-white/90 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-950">{category.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{category.description}</p>
+
+        <div className="co-settings-category-grid mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {setupState.categories.map((category) => {
+            const categoryRows = category.items.map((item) => draftRows.find((row) => row.key === item.key) || item);
+            const categoryComplete = categoryRows.filter((item) => item.completed).length;
+            const categoryPercent = categoryRows.length > 0 ? Math.round((categoryComplete / categoryRows.length) * 100) : 0;
+            return (
+              <div key={category.id} className="co-settings-category-card">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-slate-950">{category.title}</p>
+                    <span>{categoryComplete}/{categoryRows.length} ready</span>
+                  </div>
+                  <Badge tone={categoryComplete === categoryRows.length ? "green" : categoryRows.some((item) => item.critical && !item.completed) ? "amber" : "slate"}>{categoryPercent}%</Badge>
                 </div>
-                <Badge tone={categoryComplete === categoryRows.length ? "green" : "slate"}>{categoryComplete}/{categoryRows.length}</Badge>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div style={{ width: `${categoryPercent}%` }} />
+                </div>
               </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-2">
-                {categoryRows.map((item) => (
-                  <label key={item.key} className={`flex min-w-0 items-start gap-3 rounded-2xl border p-3 text-sm font-bold ${item.completed ? "border-green-100 bg-green-50/60 text-green-900" : item.critical ? "border-amber-100 bg-amber-50/70 text-amber-900" : "border-blue-100 bg-blue-50/50 text-slate-700"}`}>
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-blue-200 text-blue-700"
-                      checked={Boolean(item.completed)}
-                      disabled={!canSave}
-                      onChange={(event) => updateItem(item.key, { completed: event.target.checked })}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-slate-950">{item.label}</span>
-                      <span className="mt-1 flex flex-wrap gap-1 text-[11px] font-black uppercase tracking-[0.12em]">
-                        {item.critical ? <span className="text-amber-700">Critical</span> : <span className="text-slate-500">Recommended</span>}
-                        <span className="text-slate-400">/</span>
-                        <span className={item.source === "manual" ? "text-blue-700" : "text-slate-500"}>{item.source === "manual" ? "Manual" : "Auto hint"}</span>
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-4">
-        <TextAreaField
-          label="Managed setup notes"
-          value={notesDraft}
-          onChange={(event) => {
-            setNotesDraft(event.target.value);
-            setNotice("");
-          }}
-          placeholder="Use this for operator notes, walkthrough needs, and contractor-specific setup reminders."
-          disabled={!canSave}
-        />
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={saveSetup} disabled={!canSave || !dirty}>Save setup checklist</Button>
-        <Button type="button" variant="secondary" onClick={resetDraft} disabled={!dirty}>Reset unsaved changes</Button>
-        <p className="text-sm text-slate-500">{notice || "Manual checklist choices are stored in Settings. Smart hints use existing company, user, lead source, and job data."}</p>
+            );
+          })}
+        </div>
+
+        <div className="co-settings-checklist-stack mt-4 grid gap-3">
+          {setupState.categories.map((category) => {
+            const categoryRows = category.items.map((item) => draftRows.find((row) => row.key === item.key) || item);
+            const categoryComplete = categoryRows.filter((item) => item.completed).length;
+            const categoryOpenBlockers = categoryRows.filter((item) => item.critical && !item.completed).length;
+            return (
+              <details key={category.id} className="co-settings-checklist-group" open={categoryComplete < categoryRows.length}>
+                <summary>
+                  <span>
+                    <strong>{category.title}</strong>
+                    <em>{category.description}</em>
+                  </span>
+                  <span>
+                    <Badge tone={categoryOpenBlockers ? "amber" : categoryComplete === categoryRows.length ? "green" : "slate"}>{categoryComplete}/{categoryRows.length}</Badge>
+                  </span>
+                </summary>
+                <div className="co-settings-checklist-items">
+                  {categoryRows.map((item) => (
+                    <div key={item.key} className={`co-settings-checklist-item ${item.completed ? "is-complete" : item.critical ? "is-critical" : ""}`}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(item.completed)}
+                          disabled={!canSave}
+                          onChange={(event) => updateItem(item.key, { completed: event.target.checked })}
+                        />
+                        <span>
+                          <strong>{item.label}</strong>
+                          <em>{item.critical ? "Critical" : "Recommended"} / {item.source === "manual" ? "Manual" : "Auto hint"}</em>
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        value={item.note}
+                        onChange={(event) => updateItem(item.key, { note: event.target.value })}
+                        placeholder="Setup note"
+                        disabled={!canSave}
+                        aria-label={`${item.label} setup note`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+
+        <div className="co-settings-notes-panel mt-4">
+          <TextAreaField
+            label="Managed setup notes"
+            value={notesDraft}
+            onChange={(event) => {
+              setNotesDraft(event.target.value);
+              setNotice("");
+            }}
+            placeholder="Use this for operator notes, walkthrough needs, and contractor-specific setup reminders."
+            disabled={!canSave}
+          />
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={saveSetup} disabled={!canSave || !dirty}>Save setup checklist</Button>
+            <Button type="button" variant="secondary" onClick={resetDraft} disabled={!dirty}>Reset unsaved changes</Button>
+            <p className="text-sm font-bold text-slate-500">{notice || "Manual checklist choices are stored in Settings. Smart hints use existing company, user, lead source, and job data."}</p>
+          </div>
+        </div>
       </div>
     </Card>
   );
@@ -12540,7 +12598,127 @@ function UiStyleFoundationPanel({ canView = false }) {
   );
 }
 
-function SettingsPage({
+function SettingsCommandRailPolished({
+  workspaceCompanyName,
+  user,
+  demoMode,
+  setupState,
+  safeCompanySettings,
+  users,
+  leadSources,
+  jobs,
+  showPublicEstimateRequestStatus,
+  publicEstimateRequestEnabled,
+  busy,
+  onReset,
+  onNavigate,
+  onJump,
+}) {
+  const activeUsers = normalizeObjectArray(users).filter((entry) => (entry.status || "active") !== "inactive");
+  const activeLeadSources = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && (source.status || "active") !== "inactive");
+  const activeJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
+  const setupBlockers = setupState.blockers.slice(0, 4);
+  const toolChecklistEnabled = safeCompanySettings.toolChecklistEnabled !== false;
+
+  return (
+    <div className="co-settings-right-rail space-y-4">
+      <Card className="co-settings-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Operator Console</p>
+            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{workspaceCompanyName}</h3>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{user?.name || "Unknown user"} / {user?.role || "Unknown role"}</p>
+          </div>
+          <Badge tone={demoMode ? "amber" : "green"}>{demoMode ? "Demo" : "Live"}</Badge>
+        </div>
+        <div className="mt-4 grid gap-2">
+          <div className="co-settings-rail-row">
+            <span>Readiness</span>
+            <Badge tone={setupStatusTone(setupState.status)}>{setupState.status}</Badge>
+          </div>
+          <div className="co-settings-rail-row">
+            <span>Checklist</span>
+            <strong>{setupState.completedCount}/{setupState.totalCount}</strong>
+          </div>
+          <div className="co-settings-rail-row">
+            <span>Critical open</span>
+            <strong>{setupState.blockerCount}</strong>
+          </div>
+          <div className="co-settings-rail-row">
+            <span>Field tools</span>
+            <Badge tone={toolChecklistEnabled ? "green" : "slate"}>{toolChecklistEnabled ? "On" : "Off"}</Badge>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="co-settings-rail-card p-4">
+        <SectionHeader title="Quick Setup Actions" description="Jump to the settings area without opening a second route." />
+        <div className="grid gap-2">
+          <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-managed-setup")}>
+            <span>Review setup readiness</span>
+            <Icon name="clipboard" />
+          </button>
+          <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-company-profile")}>
+            <span>Update company profile</span>
+            <Icon name="settings" />
+          </button>
+          <button type="button" className="co-settings-action-row" onClick={() => onNavigate?.("employees")}>
+            <span>Users / roles</span>
+            <Icon name="users" />
+          </button>
+          <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-admin-controls")}>
+            <span>Field modules / packet text</span>
+            <Icon name="document" />
+          </button>
+          <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
+            <span>Backup / owner health</span>
+            <Icon name="database" />
+          </button>
+        </div>
+      </Card>
+
+      <Card className="co-settings-rail-card p-4">
+        <SectionHeader title="Readiness Blockers" description="Critical setup items that must stay visible." />
+        <div className="grid gap-2">
+          {setupBlockers.length ? setupBlockers.map((item) => (
+            <div key={item.key} className="co-settings-blocker-row">
+              <span>{item.label}</span>
+              <Badge tone="amber">Critical</Badge>
+            </div>
+          )) : (
+            <div className="co-settings-blocker-row is-clear">
+              <span>No critical blockers</span>
+              <Badge tone="green">Clear</Badge>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="co-settings-rail-card p-4">
+        <SectionHeader title="Workspace Counts" description="Live workspace scope without exposing field roles to Settings." />
+        <div className="co-settings-count-grid">
+          <div><span>Users</span><strong>{activeUsers.length}</strong></div>
+          <div><span>Lead sources</span><strong>{activeLeadSources.length}</strong></div>
+          <div><span>Active jobs</span><strong>{activeJobs.length}</strong></div>
+          <div><span>Public intake</span><strong>{showPublicEstimateRequestStatus ? (publicEstimateRequestEnabled ? "On" : "Off") : "N/A"}</strong></div>
+        </div>
+      </Card>
+
+      {demoMode ? (
+        <Card className="co-settings-rail-card co-settings-danger-card p-4">
+          <SectionHeader title="Danger Zone" description="Demo reset stays separated from normal setup work." />
+          <Button variant="danger" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsPage(props) {
+  return <SettingsPagePolished {...props} />;
+}
+
+function SettingsPagePolished({
   user,
   sessionToken,
   onReset,
@@ -12646,12 +12824,29 @@ function SettingsPage({
     || profileDraft.licenseText !== (safeCompanySettings.licenseText || "");
   const printPacketDirty = printPacketDraft.printPacketFooter !== (safeCompanySettings.printPacketFooter || "")
     || printPacketDraft.printPacketDisclaimer !== (safeCompanySettings.printPacketDisclaimer || "");
+  const settingsSetupState = useMemo(() => deriveManagedCompanySetupState({
+    companySettings: safeCompanySettings,
+    users,
+    leadSources,
+    jobs,
+  }), [jobs, leadSources, safeCompanySettings, users]);
   const settingsKpis = [
-    { label: "Users", value: normalizeObjectArray(users).length, helper: "Workspace accounts", icon: "users" },
-    { label: "Lead Sources", value: normalizeObjectArray(leadSources).length, helper: "Tracked intake channels", icon: "inbox" },
-    { label: "Jobs", value: normalizeObjectArray(jobs).filter((job) => !job.archivedAt).length, helper: "Active job records", icon: "briefcase" },
-    { label: "Setup", value: safeCompanySettings.managedSetupStatus || "Not Started", helper: "Managed rollout status", icon: "settings" },
+    { label: "Readiness", value: settingsSetupState.percentComplete, helper: `${settingsSetupState.status} status`, icon: "settings", tone: setupStatusTone(settingsSetupState.status), actionLabel: "Review setup", onAction: () => jumpToSettingsSection("settings-managed-setup") },
+    { label: "Checklist", value: settingsSetupState.completedCount, helper: `of ${settingsSetupState.totalCount} setup items`, icon: "clipboard", tone: "blue", actionLabel: "Open checklist", onAction: () => jumpToSettingsSection("settings-managed-setup") },
+    { label: "Critical Missing", value: settingsSetupState.blockerCount, helper: "Must clear for rollout", icon: "alert", tone: settingsSetupState.blockerCount ? "amber" : "green", actionLabel: "View blockers", onAction: () => jumpToSettingsSection("settings-managed-setup") },
+    { label: "Users", value: normalizeObjectArray(users).length, helper: "Workspace accounts", icon: "users", tone: "slate", actionLabel: "Open users", onAction: () => setActive?.("employees") },
+    { label: "Field Tools", value: safeCompanySettings.toolChecklistEnabled !== false ? 1 : 0, helper: safeCompanySettings.toolChecklistEnabled !== false ? "Tool checklist enabled" : "Tool checklist disabled", icon: "briefcase", tone: safeCompanySettings.toolChecklistEnabled !== false ? "green" : "slate", actionLabel: "Manage module", onAction: () => jumpToSettingsSection("settings-admin-controls") },
   ];
+
+  function jumpToSettingsSection(sectionId) {
+    if (typeof document === "undefined") return;
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    if (target.tagName === "DETAILS") {
+      target.open = true;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   async function handleBrandingSave(event) {
     event.preventDefault();
@@ -12697,249 +12892,226 @@ function SettingsPage({
   }
 
   return (
-    <div>
-      <PageHeader eyebrow="Admin" title="Settings" description={demoMode ? "Manage demo access, workspace details, and field tools for this demo workspace." : "Manage workspace details, admin access, and field tools for your team."} />
-      <ModuleKpiStrip items={settingsKpis} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:px-8">
-        <ManagedCompanySetupPanel
-          companySettings={safeCompanySettings}
-          users={users}
-          leadSources={leadSources}
-          jobs={jobs}
-          busy={busy}
-          onUpdateCompanySettings={onUpdateCompanySettings}
-          onNavigate={setActive}
-        />
-        <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
-        <ReleaseSafetyRollbackPanel canView={canViewSettings} />
-        <PwaInstallGuidancePanel canView={canViewSettings} />
-        <UiStyleFoundationPanel canView={canViewSettings} />
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
-          <div className="grid min-w-0 self-start gap-4">
-            <Card className="self-start p-5">
-              <SectionHeader title="Account" description="Current signed-in operator and workspace." />
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-600">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="blue">{user?.role || "Unknown role"}</Badge>
-                  {demoMode ? <Badge tone="amber">Demo workspace</Badge> : <Badge tone="green">Live workspace</Badge>}
+    <div className="co-office-page co-settings-page">
+      <PageHeader
+        eyebrow={demoMode ? "Demo Admin" : "Admin Console"}
+        title={<span>Settings <span className="text-orange-500">{"\u2606"}</span></span>}
+        description={demoMode ? "Manage demo access, workspace details, setup readiness, and field tools from one operator setup console." : "Manage workspace details, setup readiness, admin access, and field tools from one operator setup console."}
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => jumpToSettingsSection("settings-company-profile")}>Update Company Profile</Button>
+            <Button type="button" onClick={() => jumpToSettingsSection("settings-managed-setup")}>Review Setup</Button>
+          </div>
+        )}
+      />
+
+      <div className="co-settings-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {settingsKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-settings-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-settings-left-stack min-w-0 space-y-3">
+          <section id="settings-managed-setup">
+            <ManagedCompanySetupPanel
+              companySettings={safeCompanySettings}
+              users={users}
+              leadSources={leadSources}
+              jobs={jobs}
+              busy={busy}
+              onUpdateCompanySettings={onUpdateCompanySettings}
+              onNavigate={setActive}
+            />
+          </section>
+
+          <details id="settings-company-profile" className="co-settings-tools-drawer" open>
+            <summary>
+              <span>
+                <strong>Company Profile / Workspace Identity</strong>
+                <em>Account, branding, and business contact details used across the workspace.</em>
+              </span>
+              <span>{brandingDirty || profileDirty ? "Unsaved changes" : "Profile ready"}</span>
+            </summary>
+            <div className="co-settings-tools-panel grid gap-3 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+              <Card className="co-settings-console-card self-start p-5">
+                <SectionHeader title="Account" description="Current signed-in operator and workspace." />
+                <div className="co-settings-account-panel">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="blue">{user?.role || "Unknown role"}</Badge>
+                    {demoMode ? <Badge tone="amber">Demo workspace</Badge> : <Badge tone="green">Live workspace</Badge>}
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                    <div>
+                      <p>Workspace</p>
+                      <strong>{workspaceCompanyName}</strong>
+                    </div>
+                    <div>
+                      <p>Signed in as</p>
+                      <strong>{user?.name || "Unknown user"}</strong>
+                      <span>{user?.email || "No email on file"}</span>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm font-bold leading-6 text-slate-600">Admin-level workspace details stay here without changing field role access or saved records.</p>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="min-w-0 rounded-2xl border border-white/80 bg-white/80 p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Workspace</p>
-                    <p className="mt-2 break-words text-sm font-black text-slate-950">{workspaceCompanyName}</p>
-                  </div>
-                  <div className="min-w-0 rounded-2xl border border-white/80 bg-white/80 p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Signed in as</p>
-                    <p className="mt-2 break-words text-sm font-black text-slate-950">{user?.name || "Unknown user"}</p>
-                    <p className="mt-1 break-words text-xs text-slate-500">{user?.email || "No email on file"}</p>
-                  </div>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-slate-600">Use this page to manage admin-level workspace details without changing field role access or saved records.</p>
-              </div>
-              {demoMode ? (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 p-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-red-700">Demo reset</p>
-                    <p className="mt-1 text-sm leading-6 text-red-700/80">Refresh the fake demo records only when you need a clean walkthrough.</p>
-                  </div>
-                  <Button variant="danger" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button>
-                </div>
-              ) : null}
-            </Card>
-            <Card className="p-5">
-              <SectionHeader title="Branding & appearance" description="Set the workspace name, logo initials, and preview accent color without changing the rest of the app." />
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
-                <form className="grid gap-4" onSubmit={handleBrandingSave}>
-                  <InputField
-                    label="Company / workspace name"
-                    value={brandingDraft.companyName}
-                    onChange={(event) => {
-                      setBrandingDraft((current) => ({ ...current, companyName: event.target.value }));
-                      setBrandingNotice("");
-                    }}
-                    placeholder={workspaceCompanyName}
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  />
-                  <InputField
-                    label="Logo initials"
-                    value={brandingDraft.logoInitials}
-                    onChange={(event) => {
-                      setBrandingDraft((current) => ({ ...current, logoInitials: sanitizeLogoInitials(event.target.value) }));
-                      setBrandingNotice("");
-                    }}
-                    placeholder={resolveWorkspaceLogoInitials({ companySettings: safeCompanySettings, companyName: workspaceCompanyName })}
-                    maxLength={3}
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  />
-                  <SelectField
-                    label="Accent color"
-                    value={previewAccentColor}
-                    onChange={(event) => {
-                      setBrandingDraft((current) => ({ ...current, accentColor: event.target.value }));
-                      setBrandingNotice("");
-                    }}
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  >
-                    {BRANDING_ACCENT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </SelectField>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button type="submit" disabled={busy || !brandingDirty || typeof onUpdateCompanySettings !== "function"}>
-                      Save branding
-                    </Button>
-                    <p className="text-sm text-slate-500">{brandingNotice || "Accent color is saved here and used in the preview card while the main app styling stays unchanged."}</p>
-                  </div>
-                </form>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Preview</p>
-                  <div className="mt-4 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
+              </Card>
+
+              <Card className="co-settings-console-card p-5">
+                <SectionHeader title="Branding & appearance" description="Set the workspace name, logo initials, and preview accent color." />
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.82fr)]">
+                  <form className="grid gap-4" onSubmit={handleBrandingSave}>
+                    <InputField
+                      label="Company / workspace name"
+                      value={brandingDraft.companyName}
+                      onChange={(event) => {
+                        setBrandingDraft((current) => ({ ...current, companyName: event.target.value }));
+                        setBrandingNotice("");
+                      }}
+                      placeholder={workspaceCompanyName}
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <InputField
+                        label="Logo initials"
+                        value={brandingDraft.logoInitials}
+                        onChange={(event) => {
+                          setBrandingDraft((current) => ({ ...current, logoInitials: sanitizeLogoInitials(event.target.value) }));
+                          setBrandingNotice("");
+                        }}
+                        placeholder={resolveWorkspaceLogoInitials({ companySettings: safeCompanySettings, companyName: workspaceCompanyName })}
+                        maxLength={3}
+                        disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                      />
+                      <SelectField
+                        label="Accent color"
+                        value={previewAccentColor}
+                        onChange={(event) => {
+                          setBrandingDraft((current) => ({ ...current, accentColor: event.target.value }));
+                          setBrandingNotice("");
+                        }}
+                        disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                      >
+                        {BRANDING_ACCENT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </SelectField>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button type="submit" disabled={busy || !brandingDirty || typeof onUpdateCompanySettings !== "function"}>Save branding</Button>
+                      <p className="text-sm font-bold text-slate-500">{brandingNotice || "Accent preview saves here while the broader app styling stays unchanged."}</p>
+                    </div>
+                  </form>
+                  <div className="co-settings-brand-preview">
+                    <p>Preview</p>
+                    <div>
                       <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black ${previewTheme.previewClassName}`}>
                         {previewLogoInitials}
                       </div>
-                      <div className="min-w-0">
-                        <p className="break-words text-sm font-black text-slate-950">{previewCompanyName}</p>
-                        <p className="mt-1 text-xs text-slate-500">Brand preview inside Settings</p>
-                      </div>
+                      <span>
+                        <strong>{previewCompanyName}</strong>
+                        <em>{BRANDING_ACCENT_OPTIONS.find((option) => option.value === previewAccentColor)?.label || "Blue"} accent</em>
+                      </span>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       <span className={`inline-flex items-center rounded-2xl px-4 py-2 text-sm font-black ${previewTheme.buttonClassName}`}>Primary button</span>
                       <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black ring-1 ${previewTheme.badgeClassName}`}>Sample badge</span>
                     </div>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                      <span className={`h-3 w-3 rounded-full ${previewTheme.swatchClassName}`} aria-hidden="true" />
-                      <span>{BRANDING_ACCENT_OPTIONS.find((option) => option.value === previewAccentColor)?.label || "Blue"} accent</span>
-                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-            <Card className="p-5">
-              <SectionHeader title="Company profile" description="Keep the main business contact details ready for office records, demos, and printed job packets." />
-              <form className="grid gap-4" onSubmit={handleCompanyProfileSave}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <InputField
-                    label="Business phone"
-                    value={profileDraft.businessPhone}
-                    onChange={(event) => {
-                      setProfileDraft((current) => ({ ...current, businessPhone: event.target.value }));
-                      setProfileNotice("");
-                    }}
-                    placeholder="(503) 555-0100"
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  />
-                  <InputField
-                    label="Business email"
-                    type="email"
-                    value={profileDraft.businessEmail}
-                    onChange={(event) => {
-                      setProfileDraft((current) => ({ ...current, businessEmail: event.target.value }));
-                      setProfileNotice("");
-                    }}
-                    placeholder="office@concreteopsdemo.com"
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  />
-                  <InputField
-                    label="Website"
-                    type="url"
-                    value={profileDraft.website}
-                    onChange={(event) => {
-                      setProfileDraft((current) => ({ ...current, website: event.target.value }));
-                      setProfileNotice("");
-                    }}
-                    placeholder="https://concreteopsdemo.com"
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  />
-                  <InputField
-                    label="Service area"
-                    value={profileDraft.serviceArea}
-                    onChange={(event) => {
-                      setProfileDraft((current) => ({ ...current, serviceArea: event.target.value }));
-                      setProfileNotice("");
-                    }}
-                    placeholder="Portland metro, Salem, and nearby concrete work"
-                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                  />
-                </div>
-                <TextAreaField
-                  label="Business address"
-                  value={profileDraft.businessAddress}
-                  onChange={(event) => {
-                    setProfileDraft((current) => ({ ...current, businessAddress: event.target.value }));
-                    setProfileNotice("");
-                  }}
-                  placeholder="1234 Concrete Way, Salem, OR 97301"
-                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                />
-                <TextAreaField
-                  label="License / bonded / insured text"
-                  value={profileDraft.licenseText}
-                  onChange={(event) => {
-                    setProfileDraft((current) => ({ ...current, licenseText: event.target.value }));
-                    setProfileNotice("");
-                  }}
-                  placeholder="CCB #123456 · Bonded and insured for residential and commercial flatwork."
-                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button type="submit" disabled={busy || !profileDirty || typeof onUpdateCompanySettings !== "function"}>
-                    Save company profile
-                  </Button>
-                  <p className="text-sm text-slate-500">{profileNotice || "These details can be reused in daily report and job packet printouts when they are available."}</p>
-                </div>
-              </form>
-            </Card>
-            <Card className="p-5">
-              <SectionHeader title="Print packet settings" description="Set default footer text and internal notes that should appear at the bottom of printed daily reports and job packets." />
-              <form className="grid gap-4" onSubmit={handlePrintPacketSettingsSave}>
-                <TextAreaField
-                  label="Default packet footer"
-                  value={printPacketDraft.printPacketFooter}
-                  onChange={(event) => {
-                    setPrintPacketDraft((current) => ({ ...current, printPacketFooter: event.target.value }));
-                    setPrintPacketNotice("");
-                  }}
-                  placeholder="Generated by Apex HQ for job documentation, field reports, and closeout records."
-                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                />
-                <TextAreaField
-                  label="Default disclaimer / note"
-                  value={printPacketDraft.printPacketDisclaimer}
-                  onChange={(event) => {
-                    setPrintPacketDraft((current) => ({ ...current, printPacketDisclaimer: event.target.value }));
-                    setPrintPacketNotice("");
-                  }}
-                  placeholder="Internal job documentation. Review all details before sharing outside the company."
-                  disabled={busy || typeof onUpdateCompanySettings !== "function"}
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button type="submit" disabled={busy || !printPacketDirty || typeof onUpdateCompanySettings !== "function"}>
-                    Save print packet settings
-                  </Button>
-                  <p className="text-sm text-slate-500">{printPacketNotice || "Saved footer and disclaimer text stays optional and only appears on packets when it has been entered here."}</p>
-                </div>
-              </form>
-            </Card>
-            <Card className="p-5">
-              <SectionHeader title="Workspace setup" description="Practical notes for keeping office and field records clean." />
-              <div className="space-y-3 text-sm text-slate-600">
-                <div className="rounded-2xl border border-blue-100 p-4">Field tools stay scoped by role so office-only records stay out of field views.</div>
-                <div className="rounded-2xl border border-blue-100 p-4">Tool Checklist can be disabled without deleting saved checklist records.</div>
-                <div className="rounded-2xl border border-blue-100 p-4">Public Estimate Request status appears here whenever the public request form is enabled for this workspace.</div>
-                <div className="rounded-2xl border border-blue-100 p-4">Demo reset only affects demo records when demo mode is enabled.</div>
-              </div>
-            </Card>
-          </div>
-          <div className="grid min-w-0 gap-4">
-            <Card className="p-5">
-              <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              </Card>
+
+              <Card className="co-settings-console-card p-5 lg:col-span-2">
+                <SectionHeader title="Company profile" description="Keep the main business contact details ready for office records, demos, and printed job packets." />
+                <form className="grid gap-4" onSubmit={handleCompanyProfileSave}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <InputField
+                      label="Business phone"
+                      value={profileDraft.businessPhone}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, businessPhone: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      placeholder="(503) 555-0100"
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                    <InputField
+                      label="Business email"
+                      type="email"
+                      value={profileDraft.businessEmail}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, businessEmail: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      placeholder="office@concreteopsdemo.com"
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                    <InputField
+                      label="Website"
+                      type="url"
+                      value={profileDraft.website}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, website: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      placeholder="https://concreteopsdemo.com"
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                    <InputField
+                      label="Service area"
+                      value={profileDraft.serviceArea}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, serviceArea: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      placeholder="Portland metro, Salem, and nearby concrete work"
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <TextAreaField
+                      label="Business address"
+                      value={profileDraft.businessAddress}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, businessAddress: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      placeholder="1234 Concrete Way, Salem, OR 97301"
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                    <TextAreaField
+                      label="License / bonded / insured text"
+                      value={profileDraft.licenseText}
+                      onChange={(event) => {
+                        setProfileDraft((current) => ({ ...current, licenseText: event.target.value }));
+                        setProfileNotice("");
+                      }}
+                      placeholder="CCB #123456 / Bonded and insured for residential and commercial flatwork."
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button type="submit" disabled={busy || !profileDirty || typeof onUpdateCompanySettings !== "function"}>Save company profile</Button>
+                    <p className="text-sm font-bold text-slate-500">{profileNotice || "These details can be reused in daily report and job packet printouts when they are available."}</p>
+                  </div>
+                </form>
+              </Card>
+            </div>
+          </details>
+
+          <details id="settings-admin-controls" className="co-settings-tools-drawer" open>
+            <summary>
+              <span>
+                <strong>Admin Controls / Field Modules</strong>
+                <em>Field module visibility, packet text, and audit context stay separated from setup work.</em>
+              </span>
+              <span>{printPacketDirty ? "Packet text unsaved" : "Controls available"}</span>
+            </summary>
+            <div className="co-settings-tools-panel grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <Card className="co-settings-console-card p-5">
+                <SectionHeader title="Modules" description="Turn field tools on or off without deleting saved data." />
+                <div className="space-y-4">
+                  <div className="co-settings-module-row">
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-slate-950">Tool Checklist</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600">Field roles only see this module when it is enabled. Existing checklist data is preserved when it is off.</p>
+                      <p>Tool Checklist</p>
+                      <span>Field roles only see this module when it is enabled. Existing checklist data is preserved when it is off.</span>
                     </div>
                     <Button
                       type="button"
@@ -12949,38 +13121,98 @@ function SettingsPage({
                     >
                       {safeCompanySettings.toolChecklistEnabled ? "Disable module" : "Enable module"}
                     </Button>
-                  </div>
-                  <div className="mt-3">
                     <Badge tone={safeCompanySettings.toolChecklistEnabled ? "green" : "slate"}>
                       {safeCompanySettings.toolChecklistEnabled ? "Enabled for field roles" : "Disabled for field roles"}
                     </Badge>
                   </div>
-                </div>
-                {showPublicEstimateRequestStatus ? (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {showPublicEstimateRequestStatus ? (
+                    <div className="co-settings-module-row">
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-950">Public Estimate Request</p>
-                        <p className="mt-1 text-sm leading-6 text-slate-600">This status is shown here whenever the public estimate request form is available for this workspace.</p>
+                        <p>Public Estimate Request</p>
+                        <span>Status appears here whenever the public request form is available for this workspace.</span>
                       </div>
                       <Badge tone={publicEstimateRequestEnabled ? "green" : "slate"}>
                         {publicEstimateRequestEnabled ? "Public form enabled" : "Public form disabled"}
                       </Badge>
                     </div>
+                  ) : null}
+                </div>
+              </Card>
+
+              <Card className="co-settings-console-card p-5">
+                <SectionHeader title="Print packet settings" description="Set default footer text and internal notes that appear on printed daily reports and job packets." />
+                <form className="grid gap-4" onSubmit={handlePrintPacketSettingsSave}>
+                  <TextAreaField
+                    label="Default packet footer"
+                    value={printPacketDraft.printPacketFooter}
+                    onChange={(event) => {
+                      setPrintPacketDraft((current) => ({ ...current, printPacketFooter: event.target.value }));
+                      setPrintPacketNotice("");
+                    }}
+                    placeholder="Generated by Apex HQ for job documentation, field reports, and closeout records."
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <TextAreaField
+                    label="Default disclaimer / note"
+                    value={printPacketDraft.printPacketDisclaimer}
+                    onChange={(event) => {
+                      setPrintPacketDraft((current) => ({ ...current, printPacketDisclaimer: event.target.value }));
+                      setPrintPacketNotice("");
+                    }}
+                    placeholder="Internal job documentation. Review all details before sharing outside the company."
+                    disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button type="submit" disabled={busy || !printPacketDirty || typeof onUpdateCompanySettings !== "function"}>Save print packet settings</Button>
+                    <p className="text-sm font-bold text-slate-500">{printPacketNotice || "Saved footer and disclaimer text stays optional and only appears on packets when entered here."}</p>
                   </div>
-                ) : null}
+                </form>
+              </Card>
+
+              <div className="lg:col-span-2">
+                <AuditTrailPanel auditEvents={auditEvents} />
               </div>
-            </Card>
-            <div className="self-start">
-              <AuditTrailPanel auditEvents={auditEvents} />
             </div>
-          </div>
+          </details>
+
+          <details id="settings-owner-health" className="co-settings-tools-drawer">
+            <summary>
+              <span>
+                <strong>Owner Health / Backup / App Setup</strong>
+                <em>Backup status, release safety, install guidance, and UI foundation stay available without cluttering setup.</em>
+              </span>
+              <span>Owner tools</span>
+            </summary>
+            <div className="co-settings-tools-panel grid gap-3">
+              <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
+              <ReleaseSafetyRollbackPanel canView={canViewSettings} />
+              <PwaInstallGuidancePanel canView={canViewSettings} />
+              <UiStyleFoundationPanel canView={canViewSettings} />
+            </div>
+          </details>
         </div>
+
+        <SettingsCommandRailPolished
+          workspaceCompanyName={workspaceCompanyName}
+          user={user}
+          demoMode={demoMode}
+          setupState={settingsSetupState}
+          safeCompanySettings={safeCompanySettings}
+          users={users}
+          leadSources={leadSources}
+          jobs={jobs}
+          showPublicEstimateRequestStatus={showPublicEstimateRequestStatus}
+          publicEstimateRequestEnabled={publicEstimateRequestEnabled}
+          busy={busy}
+          onReset={onReset}
+          onNavigate={setActive}
+          onJump={jumpToSettingsSection}
+        />
       </div>
     </div>
   );
-}
 
+}
 function PrePourMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
