@@ -19989,34 +19989,35 @@ function PostPourCloseoutItemsPolished({
   }
 
   return (
-    <div className="co-prepour-items-panel">
-      <div className="co-prepour-items-header">
+    <div className="co-postpour-items-panel">
+      <div className="co-postpour-items-header">
         <div>
           <h3>Closeout Items</h3>
           <p>{selectedItems.length} checks / {checklistSummary.incompleteCount} still open before closeout.</p>
         </div>
         <Badge tone={checklistSummary.incompleteCount > 0 ? "amber" : "green"}>{checklistSummary.incompleteCount} open</Badge>
       </div>
-      <div className="co-prepour-items-list">
+      <div className="co-postpour-items-list">
         {selectedItems.map((item) => (
-          <div key={item.id} className="co-prepour-item-row">
-            <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="co-prepour-item-title">{item.label}</p>
-                  <p className="co-prepour-item-note">{item.notes || "No item note yet."}</p>
-                </div>
-                <Badge tone={postPourItemTone(item.status)}>{postPourItemStatusLabel(item.status)}</Badge>
+          <div key={item.id} className="co-postpour-item-row" data-status={item.status}>
+            <div className="co-postpour-item-main">
+              <div className="co-postpour-item-copy">
+                <p className="co-postpour-item-title">{item.label}</p>
+                <p className="co-postpour-item-note">{item.notes || "No item note yet."}</p>
               </div>
-              {canEditChecklist ? (
-                <div className="co-prepour-item-actions">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
-                </div>
-              ) : null}
-              <div className="mt-3">
-                {canEditChecklist ? (
+              <Badge tone={postPourItemTone(item.status)}>{postPourItemStatusLabel(item.status)}</Badge>
+            </div>
+            {canEditChecklist ? (
+              <div className="co-postpour-item-actions">
+                <Button type="button" size="sm" variant="secondary" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "checked", notes: item.notes || "" })} disabled={busy}>Check</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "unchecked", notes: item.notes || "" })} disabled={busy}>Uncheck</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateChecklistItem(selectedChecklist.id, item.id, { status: "not_applicable", notes: item.notes || "" })} disabled={busy}>N/A</Button>
+              </div>
+            ) : null}
+            {canEditChecklist ? (
+              <details className="co-postpour-note-drawer">
+                <summary>{item.notes ? "Edit note" : "Add note"}</summary>
+                <div className="co-postpour-note-body">
                   <TextAreaField
                     key={`${item.id}-${item.updatedAt}`}
                     label="Item note"
@@ -20025,9 +20026,9 @@ function PostPourCloseoutItemsPolished({
                     disabled={busy}
                     placeholder="Add a note for this finish or closeout item."
                   />
-                ) : null}
-              </div>
-            </div>
+                </div>
+              </details>
+            ) : null}
           </div>
         ))}
       </div>
