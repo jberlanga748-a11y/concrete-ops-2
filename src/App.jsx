@@ -9881,7 +9881,277 @@ function LeadsPage({
   );
 }
 
+function jobDisplayForeman(job) {
+  return job?.foremanAssignment?.userName || job?.assignedForemanName || job?.assignedForemanId || "Unassigned";
+}
+
+function jobCrewCount(job) {
+  const crewAssignments = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
+  return crewAssignments || Number(job?.crewSizeNeeded || 0) || 0;
+}
+
+function jobMissingCrew(job) {
+  return !(job?.foremanAssignment?.userId || job?.assignedForemanId || job?.assignedUserId);
+}
+
+function jobMissingStart(job) {
+  return !job?.scheduledStart;
+}
+
+function jobBoardScheduleLabel(job) {
+  if (!job?.scheduledStart) return "Unscheduled";
+  const parsed = new Date(job.scheduledStart);
+  if (Number.isNaN(parsed.getTime())) return job.scheduledStart;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
+function jobStartupNeedsReview(job) {
+  const startupStatus = job?.startupStatus || "Not Started";
+  return ["Not Started", "In Progress", "Needs Review"].includes(startupStatus);
+}
+
+function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
+  const visibleRows = rows.slice(0, maxRows);
+
+  return (
+    <>
+      <div className="co-jobs-mobile-list grid gap-3 p-3 md:hidden">
+        {visibleRows.map((job) => {
+          const selected = job.id === selectedId;
+          return (
+            <button
+              key={job.id}
+              type="button"
+              onClick={() => onSelect(job.id)}
+              className={`co-jobs-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-base font-black text-slate-950">{jobTitle(job)}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{job.id} / {job.customer || "Customer pending"}</p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+                  <StartupStatusBadge status={job.startupStatus || "Not Started"} />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Scheduled</p>
+                  <p className="mt-1 break-words text-sm font-black text-slate-800">{jobBoardScheduleLabel(job)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Foreman</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{jobDisplayForeman(job)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Crew</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{jobCrewCount(job)} assigned/needed</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next step</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{jobNextStep(job)}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex min-w-0 items-center gap-3">
+                <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-orange-600" style={{ width: `${Number(job.progress || 0)}%` }} />
+                </div>
+                <span className="shrink-0 text-xs font-black text-slate-500">{Number(job.progress || 0)}%</span>
+                {selected ? <Badge tone="blue">Selected</Badge> : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="hidden md:block">
+        <div className="table-shell">
+          <table className="co-jobs-command-table w-full min-w-[780px] text-left">
+            <thead>
+              <tr>
+                <th>Job / Customer</th>
+                <th>Status</th>
+                <th>Schedule</th>
+                <th>Startup</th>
+                <th>Foreman / Crew</th>
+                <th>Next Step</th>
+                <th>Progress</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((job) => {
+                const selected = job.id === selectedId;
+                return (
+                  <tr key={job.id} onClick={() => onSelect(job.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                    <td>
+                      <p className="font-black text-slate-950">{jobTitle(job)}</p>
+                      <p className="text-xs font-bold text-slate-500">{job.id} / {job.customer || "Customer pending"}</p>
+                    </td>
+                    <td><StatusBadge status={jobStatusLabel(job.status || job.stage)} /></td>
+                    <td className="font-bold text-slate-700">{jobBoardScheduleLabel(job)}</td>
+                    <td><StartupStatusBadge status={job.startupStatus || "Not Started"} /></td>
+                    <td>
+                      <p className="font-bold text-slate-700">{jobDisplayForeman(job)}</p>
+                      <p className="text-xs font-bold text-slate-500">{jobCrewCount(job)} assigned/needed</p>
+                    </td>
+                    <td className="font-bold text-slate-700">{jobNextStep(job)}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full rounded-full bg-orange-600" style={{ width: `${Number(job.progress || 0)}%` }} />
+                        </div>
+                        <span className="text-xs font-black text-slate-500">{Number(job.progress || 0)}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Review ${jobTitle(job)}`}>
+                          <Icon name="briefcase" />
+                        </button>
+                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Open ${jobTitle(job)}`}>
+                          <Icon name="arrowUpRight" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function JobCommandRailPolished({
+  job,
+  permissions,
+  disabled,
+  saveState,
+  onArchive,
+  onRestore,
+  onDelete,
+  onPrintPacket,
+  onOpenTool,
+  onOpenModule,
+}) {
+  if (!job) {
+    return (
+      <div className="co-jobs-right-rail space-y-4">
+        <Card className="co-jobs-rail-card p-4">
+          <SectionHeader title="Selected job summary" description="Choose a job from the board to review schedule, startup, crew, and field actions." />
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No job selected.</div>
+        </Card>
+      </div>
+    );
+  }
+
+  const canManageAll = Boolean(permissions?.jobs?.canManageAll);
+  const canPrint = canManageAll || job.canManageField || permissions?.jobs?.canViewMoney;
+  const canArchive = canManageAll;
+  const startupWarnings = getStartupCriticalWarnings(normalizeStartupChecklist(job.startupChecklist));
+
+  return (
+    <div className="co-jobs-right-rail space-y-4">
+      <Card className="co-jobs-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Job Summary</p>
+            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{jobTitle(job)}</h3>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{job.id} / {job.customer || "Customer pending"}</p>
+          </div>
+          <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+        </div>
+        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
+          <p><span className="text-slate-400">Schedule:</span> {jobBoardScheduleLabel(job)}</p>
+          <p><span className="text-slate-400">Foreman:</span> {jobDisplayForeman(job)}</p>
+          <p><span className="text-slate-400">Crew:</span> {jobCrewCount(job)} assigned/needed</p>
+          <p><span className="text-slate-400">Next step:</span> {jobNextStep(job)}</p>
+          <p><span className="text-slate-400">Startup blockers:</span> {startupWarnings.length}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("details")}>Edit Job</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("startup")}>Startup</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("crew")}>Crew</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onPrintPacket} disabled={disabled || !canPrint || typeof onPrintPacket !== "function"}>Print</Button>
+        </div>
+        <SaveStateText saveState={saveState} />
+      </Card>
+
+      <Card className="co-jobs-rail-card p-4">
+        <SectionHeader title="Readiness" description="Crew, start date, and startup review stay visible before release to field." />
+        <div className="grid gap-2">
+          <div className="co-jobs-readiness-row">
+            <span>Foreman / crew assigned</span>
+            <Badge tone={jobMissingCrew(job) ? "amber" : "green"}>{jobMissingCrew(job) ? "Needs" : "OK"}</Badge>
+          </div>
+          <div className="co-jobs-readiness-row">
+            <span>Start date set</span>
+            <Badge tone={jobMissingStart(job) ? "amber" : "green"}>{jobMissingStart(job) ? "Needs" : "OK"}</Badge>
+          </div>
+          <div className="co-jobs-readiness-row">
+            <span>Startup reviewed</span>
+            <StartupStatusBadge status={job.startupStatus || "Not Started"} />
+          </div>
+          <div className="co-jobs-readiness-row">
+            <span>Visible to field</span>
+            <Badge tone={job.visibleToForeman || job.fieldPlanningVisible ? "green" : "slate"}>{job.visibleToForeman || job.fieldPlanningVisible ? "Yes" : "No"}</Badge>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="co-jobs-rail-card p-4">
+        <SectionHeader title="Job actions" description="Jump to the operational records that support the selected job." />
+        <div className="grid gap-2">
+          <button type="button" className="co-jobs-action-row" onClick={() => onOpenModule?.("reports")}>
+            <span>Daily reports</span>
+            <Icon name="document" />
+          </button>
+          <button type="button" className="co-jobs-action-row" onClick={() => onOpenModule?.("uploads")}>
+            <span>Uploads / photos</span>
+            <Icon name="upload" />
+          </button>
+          <button type="button" className="co-jobs-action-row" onClick={() => onOpenModule?.("deliveryTickets")}>
+            <span>Delivery tickets</span>
+            <Icon name="clipboard" />
+          </button>
+          {job.archivedAt ? (
+            <>
+              <button type="button" className="co-jobs-action-row" onClick={onRestore} disabled={disabled || !canArchive}>
+                <span>Restore job</span>
+                <Icon name="refresh" />
+              </button>
+              <button type="button" className="co-jobs-action-row" onClick={onDelete} disabled={disabled || !canArchive}>
+                <span>Delete job</span>
+                <Icon name="alert" />
+              </button>
+            </>
+          ) : (
+            <button type="button" className="co-jobs-action-row" onClick={onArchive} disabled={disabled || !canArchive}>
+              <span>Archive job</span>
+              <Icon name="database" />
+            </button>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function JobsPage({
+  ...props
+}) {
+  return <JobsPagePolished {...props} />;
+}
+
+function JobsPagePolished({
   rows,
   user,
   filter,
@@ -9968,6 +10238,9 @@ function JobsPage({
     );
   }
 
+  const [showJobTools, setShowJobTools] = useState(false);
+  const [activeJobTool, setActiveJobTool] = useState("create");
+  const jobToolsRef = useRef(null);
   const roleLabel = permissions.jobs.canManageAll ? "office scheduling" : "scope review";
   const pageTitle = "Jobs";
   const pageEyebrow = permissions.jobs.canManageAll ? "Field Ops" : "Job Scope";
@@ -9979,64 +10252,198 @@ function JobsPage({
     date: dateFilter,
   }, users), [customerFilter, dateFilter, filter, foremanFilter, rows, search, users]);
   const visibleRows = jobListState.filteredJobs.filter((job) => startupFilter === "All startup" || (job.startupStatus || "Not Started") === startupFilter);
+  const visibleJobRowCap = 8;
   const jobKpis = [
-    { label: "Visible Jobs", value: visibleRows.length, helper: "Matching current filters", icon: "briefcase" },
-    { label: "Startup Review", value: visibleRows.filter((job) => ["Not Started", "In Progress", "Needs Review"].includes(job.startupStatus || "Not Started")).length, helper: "Needs office or field prep", icon: "alert" },
-    { label: "Missing Crew", value: visibleRows.filter((job) => !(job.assignedForemanId || job.assignedUserId)).length, helper: "No foreman or lead assigned", icon: "users" },
-    { label: "In Progress", value: visibleRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length, helper: "Active field work", icon: "clock" },
+    { label: "Jobs", value: visibleRows.length, helper: "Matching current filters", icon: "briefcase", tone: "blue", actionLabel: "View jobs", onAction: () => setFilter("All") },
+    { label: "Startup Review", value: visibleRows.filter(jobStartupNeedsReview).length, helper: "Needs office or field prep", icon: "alert", tone: "orange", actionLabel: "Review startup", onAction: () => setStartupFilter("Needs Review") },
+    { label: "Missing Crew", value: visibleRows.filter(jobMissingCrew).length, helper: "No foreman or lead assigned", icon: "users", tone: "amber", actionLabel: "Assign crew", onAction: () => setForemanFilter("All foremen") },
+    { label: "Missing Start", value: visibleRows.filter(jobMissingStart).length, helper: "Date not set", icon: "clock", tone: "red", actionLabel: "View unscheduled", onAction: () => setDateFilter("Unscheduled") },
+    { label: "In Progress", value: visibleRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length, helper: "Active field work", icon: "clock", tone: "green", actionLabel: "View active", onAction: () => setFilter("In Progress") },
+  ];
+  const jobToolTabs = [
+    { id: "create", label: "Create Job", count: permissions.jobs.canCreate ? 1 : 0 },
+    { id: "details", label: "Edit / Details", count: selectedJob ? 1 : 0 },
+    { id: "startup", label: "Startup", count: selectedJob ? getStartupCriticalWarnings(normalizeStartupChecklist(selectedJob.startupChecklist)).length : 0 },
+    { id: "crew", label: "Crew", count: selectedJob ? jobCrewCount(selectedJob) : 0 },
   ];
 
+  function openJobTool(toolId = "details") {
+    setActiveJobTool(toolId);
+    setShowJobTools(true);
+    window.setTimeout(() => jobToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function focusNewJob() {
+    openJobTool("create");
+  }
+
   return (
-    <div>
-      <PageHeader eyebrow={pageEyebrow} title={pageTitle} description={`This workspace now supports ${roleLabel} without exposing office money data to field roles.`} actions={<Badge tone="violet">{visibleRows.length} visible jobs</Badge>} />
-      <ModuleKpiStrip items={jobKpis} />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start lg:px-8">
-        <Card className="self-start overflow-hidden">
-          <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
-          <div className="grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-4">
-            <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
-              <option>All customers</option>
-              {jobListState.customerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SelectField>
-            <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
-              <option>All foremen</option>
-              {jobListState.foremanOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SelectField>
-            <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-              <option>All dates</option>
-              <option>Today</option>
-              <option>This Week</option>
-              <option>Upcoming</option>
-              <option>Overdue</option>
-              <option>Unscheduled</option>
-            </SelectField>
-            <SelectField label="Startup" value={startupFilter} onChange={(event) => setStartupFilter(event.target.value)}>
-              <option>All startup</option>
-              {JOB_STARTUP_STATUSES.map((status) => <option key={status}>{status}</option>)}
-            </SelectField>
+    <div className="co-office-page co-jobs-page">
+      <PageHeader
+        eyebrow={pageEyebrow}
+        title={<span>{pageTitle} <span className="text-orange-500">{"\u2606"}</span></span>}
+        description={`Manage active jobs, startup readiness, crews, schedules, and field visibility from one ${roleLabel} command view.`}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => openJobTool("details")}>{visibleRows.length} visible jobs</Button>
+            {permissions.jobs.canCreate ? <Button type="button" onClick={focusNewJob}>Create Job</Button> : null}
           </div>
-          <JobsTable rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} />
-        </Card>
-        <div className="min-w-0 self-start space-y-4">
-          <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
-          <JobDetailPanel
-            job={selectedJob}
-            users={users}
-            onFieldChange={onJobFieldChange}
-            onArchive={onArchiveJob}
-            onRestore={onRestoreJob}
-            onDelete={onDeleteJob}
-            onChangeForeman={onChangeForeman}
-            onAddAssignment={onAddAssignment}
-            onUpdateAssignment={onUpdateAssignment}
-            onRemoveAssignment={onRemoveAssignment}
-            saveState={jobSaveState}
-            disabled={busy}
-            permissions={permissions}
-            onPrintPacket={selectedJob ? () => onPrintJobPacket?.(selectedJob) : undefined}
-          />
-        </div>
+        }
+      />
+      <div className="co-jobs-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {jobKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
+
+      <div className="co-jobs-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="co-jobs-left-stack min-w-0 space-y-3">
+          <Card className="co-jobs-main-board overflow-hidden">
+            <div className="co-jobs-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Job Operations Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter jobs, select a record, and keep schedule, crew, and startup readiness in the right rail.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All jobs</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setStartupFilter("Needs Review")}>Startup review</Button>
+                  {permissions.jobs.canCreate ? <Button type="button" size="sm" onClick={focusNewJob}>Create Job</Button> : null}
+                </div>
+              </div>
+            </div>
+            <FilterBar filters={["All", "Draft", "Planned", "Scheduled", "In Progress", "Field Complete", "Completed", "Billing Ready", "Closed", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, customer, address, next step..." />
+            <details className="co-jobs-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[customerFilter !== "All customers" ? customerFilter : "", foremanFilter !== "All foremen" ? foremanFilter : "", dateFilter !== "All dates" ? dateFilter : "", startupFilter !== "All startup" ? startupFilter : ""].filter(Boolean).length || "Customer, foreman, date, startup"}</span>
+              </summary>
+              <div className="co-office-filter-grid co-jobs-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
+                  <option>All customers</option>
+                  {jobListState.customerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                  <option>All foremen</option>
+                  {jobListState.foremanOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  <option>All dates</option>
+                  <option>Today</option>
+                  <option>This Week</option>
+                  <option>Upcoming</option>
+                  <option>Overdue</option>
+                  <option>Unscheduled</option>
+                </SelectField>
+                <SelectField label="Startup" value={startupFilter} onChange={(event) => setStartupFilter(event.target.value)}>
+                  <option>All startup</option>
+                  {JOB_STARTUP_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                </SelectField>
+              </div>
+            </details>
+            {visibleRows.length === 0 ? (
+              <div className="p-5">
+                <StateCard title="No jobs match this view" description="Adjust filters or create a job to bring active work into the operations board." tone="blue" />
+              </div>
+            ) : (
+              <JobsTablePolished rows={visibleRows} selectedId={selectedJobId} onSelect={onSelectJob} maxRows={visibleJobRowCap} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {Math.min(visibleRows.length, visibleJobRowCap)} of {visibleRows.length} filtered jobs</p>
+              <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setCustomerFilter("All customers"); setForemanFilter("All foremen"); setDateFilter("All dates"); setStartupFilter("All startup"); setSearch(""); }}>Clear filters</Button>
+            </div>
+          </Card>
+        </div>
+
+        <JobCommandRailPolished
+          job={selectedJob}
+          permissions={permissions}
+          disabled={busy}
+          saveState={jobSaveState}
+          onArchive={onArchiveJob}
+          onRestore={onRestoreJob}
+          onDelete={onDeleteJob}
+          onPrintPacket={selectedJob ? () => onPrintJobPacket?.(selectedJob) : undefined}
+          onOpenTool={openJobTool}
+          onOpenModule={setActive}
+        />
+      </div>
+
+      <details
+        ref={jobToolsRef}
+        className="co-jobs-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8"
+        open={showJobTools}
+        onToggle={(event) => setShowJobTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>Job Tools</strong>
+            <em>Create jobs, edit details, finish startup readiness, and assign field crews here.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-jobs-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {jobToolTabs.map((tab) => (
+            <button key={tab.id} type="button" className={activeJobTool === tab.id ? "is-active" : ""} onClick={() => setActiveJobTool(tab.id)}>
+              {tab.label}
+              <span>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="co-jobs-tools-panel mt-3">
+          {activeJobTool === "create" ? (
+            <JobPlannerCard draft={jobDraft} setDraft={setJobDraft} onCreateJob={onCreateJob} disabled={busy || !permissions.jobs.canCreate} users={users} canCreate={permissions.jobs.canCreate} />
+          ) : null}
+
+          {activeJobTool === "details" ? (
+            <JobDetailPanel
+              job={selectedJob}
+              users={users}
+              onFieldChange={onJobFieldChange}
+              onArchive={onArchiveJob}
+              onRestore={onRestoreJob}
+              onDelete={onDeleteJob}
+              onChangeForeman={onChangeForeman}
+              onAddAssignment={onAddAssignment}
+              onUpdateAssignment={onUpdateAssignment}
+              onRemoveAssignment={onRemoveAssignment}
+              saveState={jobSaveState}
+              disabled={busy}
+              permissions={permissions}
+              onPrintPacket={selectedJob ? () => onPrintJobPacket?.(selectedJob) : undefined}
+            />
+          ) : null}
+
+          {activeJobTool === "startup" ? (
+            <Card className="p-4">
+              <SectionHeader title="Startup Readiness" description="Review blockers before the job is treated as ready for field work." action={selectedJob ? <StartupStatusBadge status={selectedJob.startupStatus || "Not Started"} /> : null} />
+              {selectedJob && permissions.jobs.canManageAll ? (
+                <JobStartupChecklistCard job={selectedJob} onFieldChange={onJobFieldChange} disabled={busy} />
+              ) : (
+                <StateCard title="Startup review unavailable" description={selectedJob ? "Startup checklist editing is only available to office scheduling roles." : "Select a job before reviewing startup readiness."} tone="slate" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeJobTool === "crew" ? (
+            <Card className="p-4">
+              <SectionHeader title="Crew / Foreman" description="Assign the foreman and crew without crowding the main job board." />
+              {selectedJob ? (
+                <JobCrewSection
+                  job={selectedJob}
+                  users={users}
+                  disabled={busy}
+                  canManageAssignments={Boolean(permissions?.jobs?.canManageAssignments)}
+                  onChangeForeman={onChangeForeman}
+                  onAddAssignment={onAddAssignment}
+                  onUpdateAssignment={onUpdateAssignment}
+                  onRemoveAssignment={onRemoveAssignment}
+                />
+              ) : (
+                <StateCard title="No job selected" description="Select a job before assigning a foreman or crew." tone="blue" />
+              )}
+            </Card>
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }
