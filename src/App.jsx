@@ -2053,6 +2053,12 @@ function LoginScreen({
 }
 
 function PublicEstimateRequestPage({
+  ...props
+}) {
+  return <PublicEstimateRequestPagePolished {...props} />;
+}
+
+function PublicEstimateRequestPagePolished({
   draft,
   setDraft,
   onSubmit,
@@ -2067,45 +2073,74 @@ function PublicEstimateRequestPage({
 }) {
   const disabled = !enabled || backendStatus === "offline" || setupStatus.needsSetup;
   const checkingStatus = backendStatus === "checking" || !setupStatus.checked;
+  const readyForRequests = !checkingStatus && !disabled;
+  const statusTone = checkingStatus ? "blue" : readyForRequests ? "green" : "amber";
+  const statusLabel = checkingStatus ? "Checking" : readyForRequests ? "Workspace online" : "Requests paused";
 
   return (
-    <div className="flex min-h-screen items-center justify-center overflow-x-clip bg-transparent p-4 sm:p-6">
-      <div className="grid min-w-0 w-full max-w-5xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card className="min-w-0 overflow-hidden p-5 sm:p-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="emerald">Public estimate request</Badge>
+    <div className="co-public-request-screen">
+      <div className="co-public-request-shell">
+        <section className="co-public-request-hero" aria-label="Apex HQ public estimate intake">
+          <div className="co-public-request-brand">
+            <img src={APEX_BRAND_ASSETS.appLogo} alt={APP_NAME} />
+          </div>
+          <div className="co-public-request-badges">
+            <Badge tone="orange">Concrete estimate intake</Badge>
             {demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
+            <Badge tone={statusTone}>{statusLabel}</Badge>
           </div>
-          <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Request a concrete estimate without logging in.</h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-            This public request creates a lead for the office team without exposing customers, jobs, pricing, or job and crew data.
+          <h1>Request a concrete estimate</h1>
+          <p>
+            Send the office the project basics. No login is required, and the public form never exposes customers, jobs, pricing, crew, or workspace records.
           </p>
-          <div className="mt-8 space-y-3 text-sm text-slate-600">
-            <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
-              <p className="font-black text-slate-950">What happens next</p>
-              <p className="mt-2">The request becomes a new lead with source `public_request_form`, then office users can turn it into an estimate and job.</p>
-            </div>
-            <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="font-black text-slate-950">Spam protection</p>
-              <p className="mt-2">This form includes basic spam protection and never exposes workspace records back to public visitors.</p>
-            </div>
-            <div className="rounded-3xl border border-blue-100 bg-white p-4">
-              <p className="font-black text-slate-950">Photos</p>
-              <p className="mt-2">Public photo attachments are intentionally left for a later pass so the public form stays simple and safe.</p>
-            </div>
-          </div>
-          <Button type="button" variant="ghost" className="mt-6" onClick={onBackToLogin}>Back to login</Button>
-        </Card>
-        <Card className="min-w-0 p-5 sm:p-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white">
-              <Icon name="quote" className="h-5 w-5" />
+
+          <div className="co-public-request-steps" aria-label="Request process">
+            <div>
+              <span>01</span>
+              <strong>Project basics</strong>
+              <p>Name, contact info, address, type, and notes.</p>
             </div>
             <div>
-              <p className="text-sm font-black text-slate-950">Project request</p>
-              <p className="text-sm text-slate-500">Collect the job details the office needs to start the lead.</p>
+              <span>02</span>
+              <strong>Office review</strong>
+              <p>The request arrives as a lead for the Apex HQ team.</p>
+            </div>
+            <div>
+              <span>03</span>
+              <strong>Follow-up</strong>
+              <p>The office uses your preferred contact method.</p>
             </div>
           </div>
+
+          <div className="co-public-request-guardrails">
+            <div>
+              <Icon name="lock" />
+              <span>Workspace records stay private</span>
+            </div>
+            <div>
+              <Icon name="check" />
+              <span>Spam guardrails stay on</span>
+            </div>
+            <div>
+              <Icon name="inbox" />
+              <span>Request routes to office follow-up</span>
+            </div>
+          </div>
+
+          <Button type="button" variant="ghost" className="co-public-request-back" onClick={onBackToLogin}>Back to login</Button>
+        </section>
+
+        <Card className="co-public-request-form-card">
+          <div className="co-public-request-form-head">
+            <div className="co-public-request-form-icon">
+              <Icon name="quote" />
+            </div>
+            <div className="min-w-0">
+              <p>Project Request</p>
+              <span>Collect the details needed to start office follow-up.</span>
+            </div>
+          </div>
+
           {checkingStatus ? (
             <div className="mt-6">
               <StateCard title="Checking request form" description="Confirming whether the public estimate request flow is enabled for this workspace." tone="blue" />
@@ -2123,7 +2158,7 @@ function PublicEstimateRequestPage({
               <StateCard title="Workspace setup required" description="Public requests stay off until the office workspace has an initial admin and lead owner." tone="amber" />
             </div>
           ) : (
-            <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
+            <form className="co-public-request-form" onSubmit={onSubmit}>
               <div className="sr-only">
                 <label htmlFor="public-request-company-website">Company website</label>
                 <input
@@ -2135,25 +2170,38 @@ function PublicEstimateRequestPage({
                   onChange={(event) => setDraft((current) => ({ ...current, honeypot: event.target.value }))}
                 />
               </div>
-              <InputField label="Name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Jordan Martinez" disabled={loading} />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="503-555-0123" disabled={loading} />
-                <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="name@example.com" disabled={loading} />
+
+              <div className="co-public-request-fieldset">
+                <p>Contact</p>
+                <InputField label="Name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Jordan Martinez" disabled={loading} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="503-555-0123" disabled={loading} />
+                  <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="name@example.com" disabled={loading} />
+                </div>
               </div>
-              <InputField label="Project address" value={draft.projectAddress} onChange={(event) => setDraft((current) => ({ ...current, projectAddress: event.target.value }))} placeholder="843 Creekside Ave NE, Salem, OR" disabled={loading} />
-              <SelectField label="Project type" value={draft.projectType} onChange={(event) => setDraft((current) => ({ ...current, projectType: event.target.value }))} disabled={loading}>
-                {["Driveway replacement", "Patio", "Sidewalk repair", "ADA ramp", "Slab", "Retaining wall", "Other"].map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <TextAreaField label="Project details" value={draft.projectDetails} onChange={(event) => setDraft((current) => ({ ...current, projectDetails: event.target.value }))} placeholder="Tell us what needs to be poured, repaired, or replaced." disabled={loading} />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField label="Preferred contact method" value={draft.preferredContactMethod} onChange={(event) => setDraft((current) => ({ ...current, preferredContactMethod: event.target.value }))} disabled={loading}>
-                  {["Phone", "Text", "Email"].map((option) => <option key={option}>{option}</option>)}
+
+              <div className="co-public-request-fieldset">
+                <p>Project</p>
+                <InputField label="Project address" value={draft.projectAddress} onChange={(event) => setDraft((current) => ({ ...current, projectAddress: event.target.value }))} placeholder="843 Creekside Ave NE, Salem, OR" disabled={loading} />
+                <SelectField label="Project type" value={draft.projectType} onChange={(event) => setDraft((current) => ({ ...current, projectType: event.target.value }))} disabled={loading}>
+                  {["Driveway replacement", "Patio", "Sidewalk repair", "ADA ramp", "Slab", "Retaining wall", "Other"].map((option) => <option key={option}>{option}</option>)}
                 </SelectField>
-                <InputField label="Preferred contact time" value={draft.preferredContactTime} onChange={(event) => setDraft((current) => ({ ...current, preferredContactTime: event.target.value }))} placeholder="Weekday afternoons" disabled={loading} />
+                <TextAreaField label="Project details" value={draft.projectDetails} onChange={(event) => setDraft((current) => ({ ...current, projectDetails: event.target.value }))} placeholder="Tell us what needs to be poured, repaired, or replaced." disabled={loading} />
               </div>
+
+              <div className="co-public-request-fieldset">
+                <p>Follow-up</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SelectField label="Preferred contact method" value={draft.preferredContactMethod} onChange={(event) => setDraft((current) => ({ ...current, preferredContactMethod: event.target.value }))} disabled={loading}>
+                    {["Phone", "Text", "Email"].map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
+                  <InputField label="Preferred contact time" value={draft.preferredContactTime} onChange={(event) => setDraft((current) => ({ ...current, preferredContactTime: event.target.value }))} placeholder="Weekday afternoons" disabled={loading} />
+                </div>
+              </div>
+
               {error ? <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
               {successMessage ? <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
-              <Button type="submit" size="lg" disabled={loading || disabled}>
+              <Button type="submit" size="lg" className="co-public-request-submit" disabled={loading || disabled}>
                 {loading ? "Sending request..." : "Request estimate"}
               </Button>
             </form>

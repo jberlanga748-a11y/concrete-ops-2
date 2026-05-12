@@ -676,6 +676,297 @@ textarea {
     }
   }
 
+  .co-public-request-screen {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    overflow-x: clip;
+    background:
+      linear-gradient(120deg, rgba(7, 17, 31, 0.92), rgba(7, 17, 31, 0.68) 46%, rgba(248, 250, 252, 0.98) 46.2%),
+      url("/brand/apex-login-logo.png") left center / cover no-repeat,
+      linear-gradient(180deg, #07111f, #eef3f8);
+    padding: clamp(1rem, 2.6vw, 2rem);
+  }
+
+  .co-public-request-shell {
+    display: grid;
+    width: min(74rem, 100%);
+    min-width: 0;
+    align-items: start;
+    grid-template-columns: minmax(0, 0.92fr) minmax(25rem, 1.08fr);
+    gap: 1rem;
+  }
+
+  .co-public-request-hero,
+  .co-public-request-form-card {
+    min-width: 0;
+    border-radius: 1rem !important;
+    box-shadow: 0 28px 68px -46px rgba(7, 17, 31, 0.78);
+  }
+
+  .co-public-request-hero {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 247, 237, 0.14);
+    background:
+      linear-gradient(180deg, rgba(7, 17, 31, 0.2), rgba(7, 17, 31, 0.92)),
+      linear-gradient(135deg, rgba(249, 115, 22, 0.16), transparent 34%),
+      #07111f;
+    color: #f8fafc;
+    padding: clamp(1.25rem, 3vw, 2.15rem);
+  }
+
+  .co-public-request-hero::before {
+    position: absolute;
+    inset: 0;
+    content: "";
+    background: url("/brand/apex-app-mark.png") right 1.5rem top 1.5rem / min(16rem, 48%) auto no-repeat;
+    opacity: 0.1;
+    pointer-events: none;
+  }
+
+  .co-public-request-brand,
+  .co-public-request-badges,
+  .co-public-request-steps,
+  .co-public-request-guardrails,
+  .co-public-request-back {
+    position: relative;
+    z-index: 1;
+  }
+
+  .co-public-request-brand {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .co-public-request-brand img {
+    display: block;
+    width: min(13rem, 78%);
+    height: auto;
+    object-fit: contain;
+  }
+
+  .co-public-request-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 1.25rem;
+  }
+
+  .co-public-request-hero h1 {
+    position: relative;
+    z-index: 1;
+    margin-top: 1.1rem;
+    max-width: 28rem;
+    color: #ffffff;
+    font-size: clamp(2.25rem, 4vw, 4.4rem);
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 0.94;
+  }
+
+  .co-public-request-hero > p {
+    position: relative;
+    z-index: 1;
+    max-width: 34rem;
+    margin-top: 1rem;
+    color: rgba(226, 232, 240, 0.88);
+    font-size: 1rem;
+    font-weight: 760;
+    line-height: 1.58;
+  }
+
+  .co-public-request-steps {
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 1.5rem;
+  }
+
+  .co-public-request-steps div,
+  .co-public-request-guardrails div {
+    min-width: 0;
+    border: 1px solid rgba(255, 247, 237, 0.12);
+    border-radius: 0.8rem;
+    background: rgba(15, 23, 42, 0.66);
+    padding: 0.82rem;
+  }
+
+  .co-public-request-steps span {
+    display: block;
+    color: #fb923c;
+    font-size: 0.7rem;
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-public-request-steps strong {
+    display: block;
+    margin-top: 0.35rem;
+    color: #f8fafc;
+    font-size: 0.94rem;
+    font-weight: 950;
+    line-height: 1.2;
+  }
+
+  .co-public-request-steps p {
+    margin-top: 0.35rem;
+    color: rgba(203, 213, 225, 0.86);
+    font-size: 0.84rem;
+    font-weight: 720;
+    line-height: 1.4;
+  }
+
+  .co-public-request-guardrails {
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 1rem;
+  }
+
+  .co-public-request-guardrails div {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.72rem 0.82rem;
+  }
+
+  .co-public-request-guardrails svg {
+    height: 1rem;
+    width: 1rem;
+    flex-shrink: 0;
+    color: #fb923c;
+  }
+
+  .co-public-request-guardrails span {
+    min-width: 0;
+    color: rgba(248, 250, 252, 0.9);
+    font-size: 0.84rem;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .co-public-request-back {
+    margin-top: 1rem;
+    color: #fed7aa !important;
+  }
+
+  .co-public-request-form-card {
+    border-color: rgba(203, 213, 225, 0.92) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    padding: clamp(1.1rem, 2.2vw, 1.75rem) !important;
+  }
+
+  .co-public-request-form-head {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+    padding-bottom: 1rem;
+  }
+
+  .co-public-request-form-icon {
+    display: grid;
+    height: 3.1rem;
+    width: 3.1rem;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 0.85rem;
+    background: linear-gradient(135deg, var(--color-brand-orange-strong), var(--color-brand-orange));
+    color: #ffffff;
+    box-shadow: 0 18px 34px -26px rgba(249, 115, 22, 0.82);
+  }
+
+  .co-public-request-form-icon svg {
+    height: 1.15rem;
+    width: 1.15rem;
+  }
+
+  .co-public-request-form-head p {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 950;
+    line-height: 1.1;
+  }
+
+  .co-public-request-form-head span {
+    display: block;
+    margin-top: 0.2rem;
+    color: #64748b;
+    font-size: 0.88rem;
+    font-weight: 750;
+    line-height: 1.35;
+  }
+
+  .co-public-request-form {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+  }
+
+  .co-public-request-fieldset {
+    display: grid;
+    gap: 0.72rem;
+    min-width: 0;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.95rem;
+    background: #f8fafc;
+    padding: 0.9rem;
+  }
+
+  .co-public-request-fieldset > p {
+    color: var(--color-brand-orange-dark);
+    font-size: 0.74rem;
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-public-request-submit {
+    min-height: 3.1rem;
+    width: 100%;
+    border-radius: 0.9rem !important;
+  }
+
+  @media (max-width: 1023px) {
+    .co-public-request-screen {
+      align-items: start;
+      background:
+        linear-gradient(180deg, rgba(7, 17, 31, 0.96), rgba(15, 23, 42, 0.84) 23rem, #eef3f8 23.05rem),
+        url("/brand/apex-login-logo.png") center top / auto 24rem no-repeat,
+        #eef3f8;
+    }
+
+    .co-public-request-shell {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .co-public-request-hero h1 {
+      font-size: clamp(2.05rem, 9vw, 3.25rem);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .co-public-request-screen {
+      padding: 0.85rem;
+    }
+
+    .co-public-request-hero,
+    .co-public-request-form-card {
+      border-radius: 0.9rem !important;
+    }
+
+    .co-public-request-brand img {
+      width: min(10rem, 82%);
+    }
+
+    .co-public-request-form-head {
+      align-items: flex-start;
+    }
+  }
+
   .co-app-shell {
     background:
       radial-gradient(circle at top right, rgba(219, 234, 254, 0.46), transparent 31rem),
