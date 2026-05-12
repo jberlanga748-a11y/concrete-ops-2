@@ -13324,7 +13324,411 @@ function UserDetailPanel({ user, draft, setDraft, onSaveUser, busy, canManage, n
   );
 }
 
-function EmployeesPage({
+function userRoleTone(role) {
+  if (role === "Owner") return "violet";
+  if (["Administrator", "Operations Manager"].includes(role)) return "blue";
+  if (role === "Estimator") return "amber";
+  if (role === "Foreman") return "green";
+  return "slate";
+}
+
+function userAccessGroup(user) {
+  if (["Owner", "Administrator", "Operations Manager", "Estimator"].includes(user?.role)) return "Office";
+  if (user?.role === "Foreman") return "Field Lead";
+  return "Field Crew";
+}
+
+function EmployeesTablePolished({ rows, selectedId, onSelect }) {
+  return (
+    <>
+      <div className="co-employees-mobile-list grid gap-3 p-3 md:hidden">
+        {rows.map((entry) => {
+          const selected = entry.id === selectedId;
+
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => onSelect(entry.id)}
+              className={`co-employees-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-black text-slate-950">{entry.name || "Unnamed user"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{entry.email || "Email pending"} / {entry.phone || "Phone not set"}</p>
+                </div>
+                <UserStatusBadge status={entry.status} />
+              </div>
+              <div className="co-employees-mobile-metrics">
+                <span>Role <strong>{entry.role || "Employee"}</strong></span>
+                <span>Access <strong>{userAccessGroup(entry)}</strong></span>
+                <span>Login <strong>{entry.lastLoginAt ? formatDateTime(entry.lastLoginAt) : "Never"}</strong></span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="co-employees-list-scroll hidden min-w-0 overflow-auto md:block">
+        <table className="co-employees-command-table w-full min-w-[900px] text-left">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Role</th>
+              <th>Access</th>
+              <th>Phone</th>
+              <th>Status</th>
+              <th>Last Login</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((entry) => {
+              const selected = entry.id === selectedId;
+
+              return (
+                <tr key={entry.id} onClick={() => onSelect(entry.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+                  <td>
+                    <p className="font-black text-slate-950">{entry.name || "Unnamed user"}</p>
+                    <p className="text-xs font-bold text-slate-500">{entry.email || "Email pending"}</p>
+                  </td>
+                  <td><Badge tone={userRoleTone(entry.role)}>{entry.role || "Employee"}</Badge></td>
+                  <td className="font-bold text-slate-700">{userAccessGroup(entry)}</td>
+                  <td className="font-bold text-slate-700">{entry.phone || "Not set"}</td>
+                  <td><UserStatusBadge status={entry.status} /></td>
+                  <td className="font-bold text-slate-700">{entry.lastLoginAt ? formatDateTime(entry.lastLoginAt) : "Never"}</td>
+                  <td>
+                    <button type="button" className="co-employees-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(entry.id); }} aria-label={`Open employee ${entry.name || entry.id}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
+  if (!user) {
+    return (
+      <div className="co-employees-right-rail space-y-4">
+        <Card className="co-employees-rail-card p-4">
+          <SectionHeader title="Access Console" description="Select a user to review role, status, and login readiness." />
+          <div className="co-employees-empty-rail">
+            <span><Icon name="users" /></span>
+            <strong>No employee selected</strong>
+            <p>Use this console to keep office roles and field roles clear without exposing admin access to crew users.</p>
+          </div>
+          {canManage ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>New User</Button> : null}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-employees-right-rail space-y-4">
+      <Card className="co-employees-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected user</p>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{user.name || "Unnamed user"}</h3>
+            <p className="mt-1 break-words text-xs font-black text-slate-500">{user.email || "Email pending"} / {user.phone || "Phone not set"}</p>
+          </div>
+          <UserStatusBadge status={user.status} />
+        </div>
+
+        <div className="co-employees-selected-metrics">
+          <div>
+            <span>Role</span>
+            <strong>{user.role || "Employee"}</strong>
+          </div>
+          <div>
+            <span>Access</span>
+            <strong>{userAccessGroup(user)}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{user.status === "active" ? "Active" : "Inactive"}</strong>
+          </div>
+          <div>
+            <span>Last Login</span>
+            <strong>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</strong>
+          </div>
+        </div>
+
+        <div className="co-employees-note-panel">
+          <span>Role boundary</span>
+          <p>{["Foreman", "Employee"].includes(user.role) ? "Field roles stay limited to field-safe modules and assigned job context." : "Office roles can access operational tools according to the existing permission map."}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onOpenTool("details")}>{canManage ? "Edit User" : "Review"}</Button>
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("create")}>New User</Button> : null}
+        </div>
+      </Card>
+
+      <Card className="co-employees-rail-card p-4">
+        <SectionHeader title="Login Readiness" description="Keep employee records usable for assignments and field workflows." />
+        <div className="co-employees-readiness-list">
+          <span data-state={user.name ? "ready" : "needs"}>Name <strong>{user.name ? "Set" : "Needed"}</strong></span>
+          <span data-state={user.email ? "ready" : "needs"}>Email <strong>{user.email ? "Set" : "Needed"}</strong></span>
+          <span data-state={user.role ? "ready" : "needs"}>Role <strong>{user.role || "Needed"}</strong></span>
+          <span data-state={user.status === "active" ? "ready" : "needs"}>Status <strong>{user.status === "active" ? "Active" : "Inactive"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, provisionedNotice }) {
+  return (
+    <Card className="co-employees-form-card p-4">
+      <SectionHeader title="Create User" description="Create a real login for office, foreman, or employee access." />
+      {provisionedNotice ? (
+        <div className="co-employees-temp-password mb-4">
+          <span>Temporary password ready</span>
+          <strong>{provisionedNotice.email}</strong>
+          <code>{provisionedNotice.temporaryPassword}</code>
+        </div>
+      ) : null}
+      <form className="co-employees-form-grid" onSubmit={onCreateUser}>
+        <InputField label="Full name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+        <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} />
+        <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} />
+        <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>
+          {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+        </SelectField>
+        <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </SelectField>
+        <InputField label="Password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to generate a temporary password" />
+        <div className="md:col-span-2">
+          <Button type="submit" disabled={disabled}>
+            <Icon name="plus" />
+            Add user
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canManage, notFound }) {
+  if (notFound) {
+    return (
+      <Card className="co-employees-form-card p-4">
+        <StateCard title="User not found" description="Choose another user from the list or create a new login." tone="red" />
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card className="co-employees-form-card p-4">
+        <StateCard title="No user selected" description="Choose a user from the board to edit role, status, or login details." tone="slate" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-employees-form-card p-4">
+      <SectionHeader title={`Edit ${user.name || "User"}`} description={`${user.id} / ${user.email || "Email pending"}`} action={<UserStatusBadge status={user.status} />} />
+      <TimestampMeta createdAt={user.createdAt} updatedAt={user.updatedAt} />
+      <div className="co-employees-form-grid mt-3">
+        <InputField label="Full name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} disabled={!canManage || busy} />
+        <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} disabled={!canManage || busy} />
+        <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} disabled={!canManage || busy} />
+        <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))} disabled={!canManage || busy}>
+          {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+        </SelectField>
+        <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))} disabled={!canManage || busy}>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </SelectField>
+        <InputField label="Reset password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to keep the current password" disabled={!canManage || busy} />
+      </div>
+      <div className="co-employees-note-panel">
+        <span>Last login</span>
+        <p>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button onClick={onSaveUser} disabled={!canManage || busy}>Save user</Button>
+      </div>
+    </Card>
+  );
+}
+
+function EmployeesPagePolished({
+  users,
+  filter,
+  setFilter,
+  statusFilter,
+  setStatusFilter,
+  search,
+  setSearch,
+  selectedUserId,
+  onSelectUser,
+  selectedUser,
+  userDraft,
+  setUserDraft,
+  createDraft,
+  setCreateDraft,
+  onCreateUser,
+  onSaveUser,
+  busy,
+  errorMessage,
+  permissions,
+  provisionedNotice,
+}) {
+  const canView = permissions.users.canView;
+  const canManage = permissions.users.canManage;
+  const [showTools, setShowTools] = useState(false);
+  const [toolTab, setToolTab] = useState("details");
+  const toolsRef = useRef(null);
+  const listState = useMemo(() => deriveUserListState(users, {
+    query: search,
+    role: filter,
+    status: statusFilter,
+  }), [filter, search, statusFilter, users]);
+  const visibleRows = listState.filteredUsers;
+  const notFound = Boolean(selectedUserId) && !selectedUser;
+  const activeUsers = users.filter((entry) => entry.status === "active");
+  const fieldUsers = visibleRows.filter((entry) => ["Foreman", "Employee"].includes(entry.role));
+  const officeUsers = visibleRows.filter((entry) => ["Owner", "Administrator", "Operations Manager", "Estimator"].includes(entry.role));
+  const employeeKpis = [
+    { label: "Visible Users", value: visibleRows.length, helper: "Matching current filters", icon: "users", tone: "blue" },
+    { label: "Active", value: activeUsers.length, helper: "Can sign in now", icon: "check", tone: "green", actionLabel: "Active", onAction: () => setStatusFilter("active") },
+    { label: "Field Crew", value: fieldUsers.length, helper: "Foremen and employees", icon: "hardhat", tone: "amber" },
+    { label: "Office Roles", value: officeUsers.length, helper: "Admin and office access", icon: "settings", tone: "blue" },
+    { label: "Inactive", value: users.filter((entry) => entry.status === "inactive").length, helper: "Disabled logins", icon: "lock", tone: "slate", actionLabel: "Inactive", onAction: () => setStatusFilter("inactive") },
+  ];
+
+  function clearFilters() {
+    setFilter("All roles");
+    setStatusFilter("All statuses");
+    setSearch("");
+  }
+
+  function openTools(nextTab = "details") {
+    setToolTab(nextTab);
+    setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  if (!canView) {
+    return (
+      <div className="co-office-page co-employees-page">
+        <PageHeader eyebrow="Office" title="Employees" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Employee access unavailable" description="Only office roles can manage workspace accounts." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="co-office-page co-employees-page">
+      <PageHeader
+        eyebrow="Office"
+        title="Employees"
+        description="Create and manage office, foreman, and employee logins so assignments stay usable and role boundaries stay clean."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setFilter("All roles")}>{visibleRows.length} visible</Button>
+            {canManage ? <Button type="button" onClick={() => openTools("create")}>New User</Button> : null}
+          </div>
+        }
+      />
+
+      <div className="co-employees-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {employeeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-employees-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <Card className="co-employees-main-board overflow-hidden">
+          <div className="co-employees-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Workspace Access Board</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan roles, status, contact info, and login activity while keeping field roles separate from office/admin access.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Foreman")}>Foremen</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Employee")}>Employees</Button>
+                {canManage ? <Button type="button" size="sm" onClick={() => openTools("create")}>New User</Button> : null}
+              </div>
+            </div>
+          </div>
+          <FilterBar filters={["All roles", ...USER_ROLE_OPTIONS]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, email, phone, role..." />
+          <details className="co-employees-advanced-filters border-b border-slate-200 bg-white">
+            <summary>
+              <span>Status filter</span>
+              <span>{statusFilter}</span>
+            </summary>
+            <div className="co-office-filter-grid co-employees-filter-grid grid gap-3 p-3 md:grid-cols-3">
+              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option>All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </SelectField>
+            </div>
+          </details>
+          {busy && visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="Loading users" description="Pulling employee and office accounts for this workspace." /></div>
+          ) : errorMessage && visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title="Users unavailable" description={errorMessage} tone="red" /></div>
+          ) : visibleRows.length === 0 ? (
+            <div className="p-5"><StateCard title={users.length === 0 ? "No users yet" : "No users match these filters"} description={users.length === 0 ? "Create the first office, foreman, or employee login to power assignments." : "Clear a role, status, or search filter to find another account."} /></div>
+          ) : (
+            <EmployeesTablePolished rows={visibleRows} selectedId={selectedUserId} onSelect={onSelectUser} />
+          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} user{visibleRows.length === 1 ? "" : "s"} / {activeUsers.length} active login{activeUsers.length === 1 ? "" : "s"}</p>
+            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          </div>
+        </Card>
+
+        <EmployeesCommandRailPolished user={selectedUser} canManage={canManage} busy={busy} onOpenTool={openTools} />
+      </div>
+
+      <details
+        ref={toolsRef}
+        className="co-employees-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
+        open={showTools}
+        onToggle={(event) => setShowTools(event.currentTarget.open)}
+      >
+        <summary>
+          <span>
+            <strong>User Tools</strong>
+            <em>Create logins and review role assignments without changing the existing permission model.</em>
+          </span>
+          <span>Open tools</span>
+        </summary>
+        <div className="co-employees-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+          {canManage ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />New User</button> : null}
+          <button type="button" className={toolTab === "details" ? "is-active" : ""} onClick={() => setToolTab("details")}><Icon name="users" />Details</button>
+        </div>
+        <div className="co-employees-tools-panel mt-3">
+          {toolTab === "create" ? (
+            <UserCreatePanelPolished draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} />
+          ) : (
+            <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} />
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function EmployeesPage(props) {
+  return <EmployeesPagePolished {...props} />;
+}
+
+function EmployeesPageLegacy({
   users,
   filter,
   setFilter,
