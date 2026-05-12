@@ -2482,22 +2482,24 @@ function KpiCard({ item }) {
   );
 }
 
-function LeadsTable({ rows, selectedId, onSelect }) {
+function LeadsTable({ rows, selectedId, onSelect, maxRows = null }) {
+  const displayRows = maxRows ? rows.slice(0, maxRows) : rows;
   return (
     <>
       <div className="space-y-3 md:hidden">
-        {rows.map((row) => {
+        {displayRows.map((row) => {
           const selected = row.id === selectedId;
+          const contactLine = [leadContactPhone(row), leadContactEmail(row)].filter(Boolean).join(" / ");
           return (
             <button
               key={row.id}
               type="button"
               onClick={() => onSelect(row.id)}
-              className={`co-mobile-record-card co-office-list-card w-full rounded-[28px] border p-4 text-left transition ${selected ? "is-selected border-blue-200 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/60"}`}
+              className={`co-leads-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-lg font-black text-slate-950">{row.customer}</p>
+                  <p className="break-words text-lg font-black text-slate-950">{row.customer || "Unnamed lead"}</p>
                   <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
                 </div>
                 <div className="shrink-0">
@@ -2507,19 +2509,19 @@ function LeadsTable({ rows, selectedId, onSelect }) {
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Project</p>
-                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.project}</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.project || "No project yet"}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Next step</p>
-                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.nextStep}</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.nextStep || "Add next step"}</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Owner</p>
-                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{row.owner}</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Source</p>
+                  <p className="mt-1 break-words text-sm font-bold text-slate-700">{leadSourceLabel(row.source || "Call-in")}</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Value</p>
-                  <p className="mt-1 break-words text-sm font-black text-slate-950">{currency(row.value)}</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Follow-up</p>
+                  <p className="mt-1 break-words text-sm font-black text-slate-950">{formatLeadFollowUpDate(row.followUpDueAt)}</p>
                 </div>
               </div>
               <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
@@ -2528,43 +2530,63 @@ function LeadsTable({ rows, selectedId, onSelect }) {
                 <LeadMissingInfoBadge lead={row} />
                 {selected ? <Badge tone="blue">Selected</Badge> : null}
               </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <span className="co-leads-row-action justify-center">
+                  <Icon name="document" />
+                  Review
+                </span>
+                <span className="co-leads-row-action justify-center">
+                  <Icon name="arrowUpRight" />
+                  Open
+                </span>
+              </div>
             </button>
           );
         })}
       </div>
       <div className="hidden md:block">
         <div className="table-shell">
-          <table className="w-full min-w-[1080px] text-left">
-        <thead className="border-b border-blue-100 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
+          <table className="co-leads-command-table w-full min-w-[760px] text-left">
+        <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500">
           <tr>
-            <th className="px-4 py-3">Lead</th>
-            <th className="px-4 py-3">Project</th>
+            <th className="px-4 py-3">Customer / Company</th>
+            <th className="px-4 py-3">Project Type</th>
+            <th className="px-4 py-3">City</th>
+            <th className="px-4 py-3">Source</th>
             <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Fit score</th>
-            <th className="px-4 py-3">Missing info</th>
-            <th className="px-4 py-3">Priority</th>
-            <th className="px-4 py-3">Value</th>
-            <th className="px-4 py-3">Owner</th>
-            <th className="px-4 py-3">Next step</th>
+            <th className="px-4 py-3">Next Step</th>
+            <th className="px-4 py-3">Follow-Up</th>
+            <th className="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-blue-50">
-          {rows.map((row) => {
+        <tbody className="divide-y divide-slate-100">
+          {displayRows.map((row) => {
             const selected = row.id === selectedId;
+            const contactLine = [leadContactPhone(row), leadContactEmail(row)].filter(Boolean).join(" / ");
             return (
-              <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-blue-50/60 ${selected ? "bg-blue-50/80" : ""}`}>
+              <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{row.customer}</p>
                   <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
                 </td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project}</td>
-                <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
-                <td className="px-4 py-3"><LeadScoreBadge lead={row} /></td>
-                <td className="px-4 py-3"><LeadMissingInfoBadge lead={row} /></td>
-                <td className="px-4 py-3"><Badge tone={row.priority === "High" ? "amber" : row.priority === "Low" ? "slate" : "blue"}>{row.priority}</Badge></td>
-                <td className="px-4 py-3 text-sm font-black text-slate-950">{currency(row.value)}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.owner}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-500">{row.nextStep}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-700">{row.project || "No project yet"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-600">{row.city || "No city"}</td>
+                <td className="px-4 py-3 text-sm font-bold text-slate-600">{leadSourceLabel(row.source || "Call-in")}</td>
+                <td className="px-4 py-3"><StatusBadge status={row.status || "New"} /></td>
+                <td className="max-w-[260px] px-4 py-3 text-sm font-bold text-slate-600">
+                  <span className="line-clamp-2">{row.nextStep || "Add next step"}</span>
+                </td>
+                <td className="px-4 py-3 text-sm font-black text-slate-950">{formatLeadFollowUpDate(row.followUpDueAt)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-end gap-2">
+                    <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(row.id); }} aria-label={`Review ${row.customer || "lead"}`}>
+                      <Icon name="document" />
+                    </button>
+                    <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(row.id); }} aria-label={`Open ${row.customer || "lead"}`}>
+                      <Icon name="arrowUpRight" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             );
           })}
@@ -8002,6 +8024,42 @@ function leadSourceLabel(source) {
   return source === "public_request_form" ? "Public request form" : source;
 }
 
+function leadContactPhone(lead = {}) {
+  return lead.phone || lead.contactPhone || lead.customerPhone || lead.primaryPhone || "";
+}
+
+function leadContactEmail(lead = {}) {
+  return lead.email || lead.contactEmail || lead.customerEmail || lead.primaryEmail || "";
+}
+
+function formatLeadFollowUpDate(value) {
+  if (!value) return "Not set";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function isLeadFollowUpDue(lead = {}, today = todayDateInputValue()) {
+  if (!lead.followUpDueAt) return false;
+  return String(lead.followUpDueAt).slice(0, 10) <= today;
+}
+
+function isLeadWaitingOnResponse(lead = {}) {
+  const status = String(lead.status || "").toLowerCase();
+  const nextStep = String(lead.nextStep || "").toLowerCase();
+  return status.includes("waiting") || nextStep.includes("waiting") || nextStep.includes("response");
+}
+
+function isLeadReadyForEstimate(lead = {}) {
+  const status = String(lead.status || "").toLowerCase();
+  const nextStep = String(lead.nextStep || "").toLowerCase();
+  return status.includes("site visit") || status.includes("estimate") || nextStep.includes("estimate") || nextStep.includes("proposal");
+}
+
 function leadHasScore(lead = {}) {
   return Boolean(lead.scoredAt || lead.scoreSource || lead.fitLabel);
 }
@@ -8922,6 +8980,193 @@ function LeadSourcesPanel({
   );
 }
 
+function LeadCommandRail({
+  lead,
+  onFieldChange,
+  onCreateJob,
+  onCreateEstimateFromLead = () => {},
+  onScoreLead = () => {},
+  onCheckMissingInfo = () => {},
+  onGenerateLeadAssistant = () => {},
+  onConvertToCustomer = () => {},
+  onArchive,
+  onRestore,
+  onDelete,
+  users = [],
+  customers = [],
+  contactHistory = [],
+  contactHistoryPermissions,
+  onCreateContactHistory,
+  onUpdateContactHistory,
+  onArchiveContactHistory,
+  onRestoreContactHistory,
+  disabled,
+  saveState,
+  canManage = true,
+  canCreateEstimate = false,
+  leadAssistantState = null,
+}) {
+  if (!lead) {
+    return (
+      <div className="co-leads-right-rail space-y-4">
+        <Card className="co-leads-rail-card p-4">
+          <SectionHeader title="Selected lead summary" description="Choose a lead from the inbox to review actions, missing info, and next steps." />
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No lead selected.</div>
+        </Card>
+      </div>
+    );
+  }
+
+  const phone = leadContactPhone(lead);
+  const email = leadContactEmail(lead);
+  const missingItems = Array.isArray(lead.missingInfoItems) ? lead.missingInfoItems : [];
+  const assistant = leadAssistantState?.leadId === lead.id ? leadAssistantState : null;
+  const readinessRows = [
+    { label: "Contact info confirmed", ok: Boolean(phone || email) },
+    { label: "Job address confirmed", ok: Boolean(lead.city || lead.address || lead.projectAddress) },
+    { label: "Scope description noted", ok: Boolean(lead.project || lead.scopeSummary || lead.notes) },
+    { label: "Next step assigned", ok: Boolean(lead.nextStep) },
+    { label: "Follow-up scheduled", ok: Boolean(lead.followUpDueAt) },
+  ];
+  const recentHistory = contactHistoryTimeline(contactHistory, "lead", lead.id).slice(0, 5);
+
+  return (
+    <div className="co-leads-right-rail space-y-4">
+      <Card className="co-leads-rail-card p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Lead Summary</p>
+            <h3 className="mt-2 break-words text-xl font-black text-slate-950">{lead.customer || "Unnamed lead"}</h3>
+            <p className="mt-1 break-words text-xs font-bold text-slate-500">{[lead.project, lead.city, leadSourceLabel(lead.source || "Call-in")].filter(Boolean).join(" / ")}</p>
+          </div>
+          <StatusBadge status={isLeadFollowUpDue(lead) ? "Follow-Up Due" : lead.status || "New"} />
+        </div>
+        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
+          {phone ? <p><span className="text-slate-400">Phone:</span> {phone}</p> : null}
+          {email ? <p><span className="text-slate-400">Email:</span> {email}</p> : null}
+          <p><span className="text-slate-400">Owner:</span> {lead.owner || "Unassigned"}</p>
+          <p><span className="text-slate-400">Value:</span> {currency(lead.value)}</p>
+          <p><span className="text-slate-400">Next follow-up:</span> {formatLeadFollowUpDate(lead.followUpDueAt)}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || !canCreateEstimate}>Create Estimate</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onCreateJob} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Create Job</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onConvertToCustomer} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>Convert</Button>
+          {lead.archivedAt ? (
+            <Button type="button" size="sm" variant="secondary" onClick={onRestore} disabled={disabled || !canManage}>Restore</Button>
+          ) : (
+            <Button type="button" size="sm" variant="secondary" onClick={onArchive} disabled={disabled || !canManage}>Archive</Button>
+          )}
+        </div>
+        {lead.archivedAt ? <Button type="button" size="sm" variant="danger" className="mt-2 w-full" onClick={onDelete} disabled={disabled || !canManage}>Delete Permanently</Button> : null}
+        <SaveStateText saveState={saveState} />
+      </Card>
+
+      <Card className="co-leads-rail-card p-4">
+        <SectionHeader title="Missing info / readiness" description="Keep the lead ready for estimating and follow-up." action={<LeadMissingInfoBadge lead={lead} />} />
+        <div className="space-y-2">
+          {readinessRows.map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+              <span className="text-sm font-bold text-slate-700">{row.label}</span>
+              <Badge tone={row.ok ? "green" : "amber"}>{row.ok ? "OK" : "Needs"}</Badge>
+            </div>
+          ))}
+        </div>
+        {missingItems.length > 0 ? (
+          <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Missing items</p>
+            <ul className="mt-2 space-y-1 text-sm font-bold leading-5 text-slate-700">
+              {missingItems.slice(0, 4).map((item) => <li key={item.key || item.label}>- {item.label || item.reason}</li>)}
+            </ul>
+          </div>
+        ) : null}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => onCheckMissingInfo(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>{leadHasMissingInfoCheck(lead) ? "Re-check" : "Check Info"}</Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onScoreLead(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage}>{leadHasScore(lead) ? "Re-score" : "Score"}</Button>
+        </div>
+      </Card>
+
+      <Card className="co-leads-rail-card p-4">
+        <SectionHeader title="Lead edit" description="Fast fields for status, owner, follow-up, and next step." />
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <SelectField label="Status" value={lead.status || "New"} onChange={(event) => onFieldChange("status", event.target.value)} disabled={!canManage || disabled}>
+              <option>New</option>
+              <option>Contacted</option>
+              <option>Site Visit</option>
+              <option>Estimate Sent</option>
+              <option>Approved</option>
+            </SelectField>
+            <SelectField label="Priority" value={lead.priority || "Normal"} onChange={(event) => onFieldChange("priority", event.target.value)} disabled={!canManage || disabled}>
+              <option>Low</option>
+              <option>Normal</option>
+              <option>High</option>
+            </SelectField>
+          </div>
+          <SelectField label="Owner" value={lead.ownerId || ""} onChange={(event) => onFieldChange("ownerId", event.target.value)} disabled={!canManage || disabled}>
+            <option value="">Unassigned</option>
+            {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </SelectField>
+          <InputField label="Follow-up due" type="date" value={lead.followUpDueAt || ""} onChange={(event) => onFieldChange("followUpDueAt", event.target.value)} disabled={!canManage || disabled} />
+          <InputField label="Next step" value={lead.nextStep || ""} onChange={(event) => onFieldChange("nextStep", event.target.value)} disabled={!canManage || disabled} />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <InputField label="City" value={lead.city || ""} onChange={(event) => onFieldChange("city", event.target.value)} disabled={!canManage || disabled} />
+            <InputField label="Value" type="number" value={lead.value || ""} onChange={(event) => onFieldChange("value", Number(event.target.value))} disabled={!canManage || disabled} />
+          </div>
+          <SelectField label="Linked customer" value={lead.customerId || ""} onChange={(event) => onFieldChange("customerId", event.target.value)} disabled={!canManage || disabled}>
+            <option value="">Create or match automatically</option>
+            {customers.filter((customer) => !customer.archivedAt).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+          </SelectField>
+          <TextAreaField label="Notes" value={lead.notes || ""} onChange={(event) => onFieldChange("notes", event.target.value)} disabled={!canManage || disabled} className="field-input min-h-24 resize-y" />
+        </div>
+      </Card>
+
+      <Card className="co-leads-rail-card p-4">
+        <SectionHeader title="AI lead assistant" description="Draft-only support for next steps and outreach copy." action={<Badge tone="blue">Beta</Badge>} />
+        <Button type="button" className="w-full" onClick={() => onGenerateLeadAssistant(lead)} disabled={disabled || Boolean(lead.archivedAt) || !canManage || Boolean(assistant?.loading)}>
+          {assistant?.loading ? "Generating..." : assistant?.result?.ok ? "Regenerate Drafts" : "Generate Drafts"}
+        </Button>
+        {assistant?.error ? <p className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{assistant.error}</p> : null}
+        {assistant?.result?.ok ? (
+          <div className="mt-3 space-y-3 text-sm font-bold leading-5 text-slate-700">
+            <p><span className="text-slate-400">Summary:</span> {assistant.result.leadSummary || "Review the lead before follow-up."}</p>
+            <p><span className="text-slate-400">Next step:</span> {assistant.result.recommendedNextStep || "Choose the next office action."}</p>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="co-leads-rail-card p-4">
+        <SectionHeader title="Recent contact history" description="Latest outreach tied to this lead." action={<Badge tone="slate">{recentHistory.length}</Badge>} />
+        {recentHistory.length > 0 ? (
+          <div className="space-y-2">
+            {recentHistory.map((item) => (
+              <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-sm font-black text-slate-950">{item.title || item.method || "Contact logged"}</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{item.description || item.notes || formatDateTime(item.createdAt)}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-bold text-slate-500">No contact history yet.</p>
+        )}
+        <div className="co-leads-contact-editor mt-3">
+          <ContactHistoryPanel
+            entityType="lead"
+            entity={lead}
+            records={contactHistory}
+            permissions={contactHistoryPermissions}
+            disabled={disabled}
+            onCreate={onCreateContactHistory}
+            onUpdate={onUpdateContactHistory}
+            onArchive={onArchiveContactHistory}
+            onRestore={onRestoreContactHistory}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function LeadsPage({
   user,
   companyName,
@@ -8983,10 +9228,11 @@ function LeadsPage({
   const leadInboxState = useMemo(() => deriveLeadInboxState(leads), [leads]);
   const today = todayDateInputValue();
   const leadKpis = [
-    { label: "Visible Leads", value: rows.length, helper: "Current office view", icon: "inbox" },
-    { label: "New Leads", value: rows.filter((lead) => lead.status === "New").length, helper: "Needs first contact", icon: "users" },
-    { label: "Follow-Ups Due", value: rows.filter((lead) => lead.followUpDueAt && String(lead.followUpDueAt).slice(0, 10) <= today).length, helper: "Due today or overdue", icon: "clock" },
-    { label: "High Priority", value: rows.filter((lead) => lead.priority === "High").length, helper: "Top sales attention", icon: "alert" },
+    { label: "New Leads", value: rows.filter((lead) => lead.status === "New").length, helper: "Uncontacted new leads", icon: "users", tone: "blue", actionLabel: "View new leads", onAction: () => setFilter("New") },
+    { label: "Follow-Ups Due", value: rows.filter((lead) => isLeadFollowUpDue(lead, today)).length, helper: "Need your follow-up today", icon: "clipboard", tone: "orange", actionLabel: "View follow-up queue", onAction: () => setDueFilter("Due today") },
+    { label: "Overdue", value: rows.filter((lead) => lead.followUpDueAt && String(lead.followUpDueAt).slice(0, 10) < today).length, helper: "Past due follow-ups", icon: "alert", tone: "red", actionLabel: "View overdue", onAction: () => setDueFilter("Overdue") },
+    { label: "Waiting on Response", value: rows.filter(isLeadWaitingOnResponse).length, helper: "Customer has not replied", icon: "clock", tone: "amber", actionLabel: "View waiting", onAction: () => setFilter("All") },
+    { label: "Ready for Estimate", value: rows.filter(isLeadReadyForEstimate).length, helper: "Ready to build estimate", icon: "check", tone: "green", actionLabel: "View ready leads", onAction: () => setScoreFilter("All scores") },
   ];
 
   function handleStartLeadFromSource(source) {
@@ -9014,61 +9260,46 @@ function LeadsPage({
 
   return (
     <div className="co-office-page co-leads-page">
-      <PageHeader eyebrow="Office" title="Leads" description="Track new opportunities, keep ownership clear, and move the next steps forward." actions={<Badge tone="blue">{rows.length} records</Badge>} />
-      <ModuleKpiStrip items={leadKpis} />
-      <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
+      <PageHeader
+        eyebrow={companyName || "Office Sales"}
+        title={<span>Leads <span className="text-orange-500">☆</span></span>}
+        description="Track new leads, follow-ups, estimates, missing info, and next actions from one contractor command view."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setDueFilter("Due today")}>Open Follow-Up Queue</Button>
+            {permissions?.leads?.canManage ? <Button type="button" onClick={() => setFilter("New")}>New Lead</Button> : null}
+          </div>
+        }
+      />
+      <div className="co-leads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-5 lg:px-8">
+        {leadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
-      <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <FollowUpQueuePanel
-          leads={leads}
-          customers={customers}
-          estimates={estimates}
-          leadSources={leadSources}
-          contactHistory={contactHistory}
-          permissions={permissions}
-          companyName={companyName}
-          user={user}
-          disabled={busy}
-          onOpenLead={onSelectLead}
-          onOpenCustomer={onSelectCustomer}
-          onOpenEstimate={onOpenEstimate}
-          onOpenLeads={() => setActive?.("leads")}
-          onCreateContactHistory={onCreateContactHistory}
-        />
-      </div>
-      <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <DailySourceCheckPanel
-          sources={leadSources}
-          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
-          onMarkSourceChecked={onMarkLeadSourceChecked}
-          onStartLeadFromSource={handleStartLeadFromSource}
-          disabled={busy}
-        />
-      </div>
-      <div className="px-5 pb-4 sm:px-6 lg:px-8">
-        <LeadSourcesPanel
-          sources={leadSources}
-          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
-          onCreateSource={onCreateLeadSource}
-          onUpdateSource={onUpdateLeadSource}
-          onArchiveSource={onArchiveLeadSource}
-          onRestoreSource={onRestoreLeadSource}
-          disabled={busy}
-        />
-      </div>
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
-        <Card className="overflow-hidden">
-          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search customer, project, city..." />
-          <div className="co-office-filter-grid grid gap-3 border-b border-blue-100 bg-blue-50/40 p-3 md:grid-cols-5">
+
+      <div className="co-leads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-6">
+        <Card className="co-leads-main-board overflow-hidden">
+          <div className="co-leads-board-header border-b border-slate-200 bg-white p-4">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Lead Inbox / Review Queue</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter active leads, select a record, and work the next action from the right rail.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All leads</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setDueFilter("Due today")}>Due today</Button>
+                {permissions?.estimates?.canManage && selectedLead ? <Button type="button" size="sm" onClick={() => onCreateEstimateFromLead(selectedLead)}>Create Estimate</Button> : null}
+              </div>
+            </div>
+          </div>
+          <FilterBar filters={["All", "New", "Contacted", "Site Visit", "Estimate Sent", "Approved", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, phone, email, or notes..." />
+          <div className="co-office-filter-grid co-leads-filter-grid grid gap-3 border-b border-slate-200 bg-slate-50/70 p-3 md:grid-cols-5">
             <SelectField label="Owner" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option>All owners</option>
               {Array.from(new Set(users.map((user) => user.name))).sort().map((name) => <option key={name}>{name}</option>)}
             </SelectField>
-                <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
-                  <option>All sources</option>
-                  {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
-                </SelectField>
+            <SelectField label="Lead source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+              <option>All sources</option>
+              {LEAD_SOURCE_OPTIONS.map((source) => <option key={source} value={source}>{source === "public_request_form" ? "Public request form" : source}</option>)}
+            </SelectField>
             <SelectField label="Follow-up due" value={dueFilter} onChange={(event) => setDueFilter(event.target.value)}>
               <option>All due dates</option>
               <option>Overdue</option>
@@ -9086,11 +9317,83 @@ function LeadsPage({
             </SelectField>
           </div>
           <LeadsTable rows={rows} selectedId={selectedLeadId} onSelect={onSelectLead} />
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+            <p className="text-sm font-bold text-slate-600">Showing {Math.min(rows.length, rows.length)} of {leads.filter((lead) => !lead.archivedAt).length} leads</p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>Clear filters</Button>
+            </div>
+          </div>
         </Card>
-        <div className="min-w-0 space-y-4">
-          <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
-          <LeadDetailPanel lead={selectedLead} onFieldChange={onLeadFieldChange} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onGenerateLeadAssistant={onGenerateLeadAssistant} leadAssistantState={leadAssistantState} onCreateJob={onCreateJobFromLead} onCreateEstimateFromLead={onCreateEstimateFromLead} onConvertToCustomer={onConvertLeadToCustomer} onArchive={onArchiveLead} onRestore={onRestoreLead} onDelete={onDeleteLead} onSelectCustomer={onSelectCustomer} related={relatedLeadRecords} users={users} customers={customers} contactHistory={contactHistory} contactHistoryPermissions={permissions.contactHistory} onCreateContactHistory={onCreateContactHistory} onUpdateContactHistory={onUpdateContactHistory} onArchiveContactHistory={onArchiveContactHistory} onRestoreContactHistory={onRestoreContactHistory} disabled={busy} saveState={leadSaveState} canManage={permissions.leads.canManage} canCreateEstimate={permissions?.estimates?.canManage} />
-        </div>
+
+        <LeadCommandRail
+          lead={selectedLead}
+          onFieldChange={onLeadFieldChange}
+          onScoreLead={onScoreLead}
+          onCheckMissingInfo={onCheckMissingInfo}
+          onGenerateLeadAssistant={onGenerateLeadAssistant}
+          leadAssistantState={leadAssistantState}
+          onCreateJob={onCreateJobFromLead}
+          onCreateEstimateFromLead={onCreateEstimateFromLead}
+          onConvertToCustomer={onConvertLeadToCustomer}
+          onArchive={onArchiveLead}
+          onRestore={onRestoreLead}
+          onDelete={onDeleteLead}
+          users={users}
+          customers={customers}
+          contactHistory={contactHistory}
+          contactHistoryPermissions={permissions.contactHistory}
+          onCreateContactHistory={onCreateContactHistory}
+          onUpdateContactHistory={onUpdateContactHistory}
+          onArchiveContactHistory={onArchiveContactHistory}
+          onRestoreContactHistory={onRestoreContactHistory}
+          disabled={busy}
+          saveState={leadSaveState}
+          canManage={permissions.leads.canManage}
+          canCreateEstimate={permissions?.estimates?.canManage}
+        />
+      </div>
+
+      <div className="co-leads-followup-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-4 px-5 pb-4 sm:px-6 lg:px-8">
+        <FollowUpQueuePanel
+          leads={leads}
+          customers={customers}
+          estimates={estimates}
+          leadSources={leadSources}
+          contactHistory={contactHistory}
+          permissions={permissions}
+          companyName={companyName}
+          user={user}
+          disabled={busy}
+          onOpenLead={onSelectLead}
+          onOpenCustomer={onSelectCustomer}
+          onOpenEstimate={onOpenEstimate}
+          onOpenLeads={() => setActive?.("leads")}
+          onCreateContactHistory={onCreateContactHistory}
+        />
+      </div>
+
+      <div className="co-leads-secondary-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-4 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:px-8">
+        <LeadIntakeCard draft={leadDraft} setDraft={setLeadDraft} onCreateLead={onCreateLead} disabled={busy} canManage={permissions.leads.canManage} customers={customers} users={users} />
+        <LeadInboxReviewQueue inboxState={leadInboxState} onSelectLead={onSelectLead} onScoreLead={onScoreLead} onCheckMissingInfo={onCheckMissingInfo} onCreateEstimateFromLead={onCreateEstimateFromLead} canManage={permissions?.leads?.canManage} canCreateEstimate={permissions?.estimates?.canManage} disabled={busy} />
+      </div>
+
+      <div className="co-leads-source-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-4 px-5 pb-4 sm:px-6 lg:px-8">
+        <DailySourceCheckPanel
+          sources={leadSources}
+          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
+          onMarkSourceChecked={onMarkLeadSourceChecked}
+          onStartLeadFromSource={handleStartLeadFromSource}
+          disabled={busy}
+        />
+        <LeadSourcesPanel
+          sources={leadSources}
+          canManage={permissions?.leads?.canManageSources ?? permissions?.leads?.canManage}
+          onCreateSource={onCreateLeadSource}
+          onUpdateSource={onUpdateLeadSource}
+          onArchiveSource={onArchiveLeadSource}
+          onRestoreSource={onRestoreLeadSource}
+          disabled={busy}
+        />
       </div>
     </div>
   );
