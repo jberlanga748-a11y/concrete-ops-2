@@ -15303,6 +15303,385 @@ function defaultTakeoffSectionLabel(index) {
   return `Section ${index + 1}`;
 }
 
+function CalculatorModeTabsPolished({ calculatorMode, setCalculatorMode }) {
+  return (
+    <div className="co-toolbox-category-tabs">
+      {CALCULATOR_MODE_OPTIONS.map((option) => (
+        <button key={option.id} type="button" className={calculatorMode === option.id ? "is-active" : ""} onClick={() => setCalculatorMode(option.id)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CalculatorTypeTabsPolished({ calculatorType, setCalculatorType }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-4">
+      {CALCULATOR_TYPES.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => setCalculatorType(option.id)}
+          className={`min-h-[2.75rem] rounded-xl border px-3 py-2 text-sm font-black transition ${calculatorType === option.id ? "border-orange-300 bg-orange-600 text-white shadow-sm shadow-orange-600/20" : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50"}`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CalculatorInputPanelPolished({
+  calculatorMode,
+  calculatorType,
+  setCalculatorType,
+  activeFields,
+  activeDraft,
+  sectionForm,
+  takeoffSections,
+  editingSectionId,
+  updateSectionForm,
+  updateField,
+  wastePreset,
+  setWastePreset,
+  customWastePercent,
+  setCustomWastePercent,
+  addOrUpdateSection,
+  resetSectionBuilder,
+  resetCalculator,
+  copyResult,
+  resultCopied,
+  result,
+  setSavePanelOpen,
+  setSaveMessage,
+}) {
+  const sectionReady = calculateConcreteResult(calculatorType, activeDraft, 0).status === "ready";
+
+  return (
+    <Card className="co-toolbox-main-board overflow-hidden">
+      <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">{calculatorMode === "multi_section" ? "Takeoff Builder" : "Concrete Calculator"}</h2>
+            <p className="mt-1 text-sm font-bold leading-5 text-slate-600">{calculatorMode === "multi_section" ? "Build the pour one section at a time, then total the takeoff with waste." : "Enter the pour dimensions, review the live yield, copy it, or save it to an allowed job."}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="secondary" onClick={resetCalculator}>{calculatorMode === "multi_section" ? "Reset takeoff" : "Reset"}</Button>
+            <Button type="button" size="sm" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>Save to Job</Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-slate-200 bg-white p-4">
+        <SectionHeader title={calculatorMode === "multi_section" ? "Section Type" : "Pour Shape"} description={calculatorMode === "multi_section" ? "Choose the shape for the section you are adding or editing." : "Choose the concrete shape for this calculation."} />
+        <CalculatorTypeTabsPolished calculatorType={calculatorType} setCalculatorType={setCalculatorType} />
+      </div>
+
+      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)]">
+        <div className="min-w-0">
+          <SectionHeader title={calculatorMode === "multi_section" ? (editingSectionId ? "Edit Section" : "Add Section") : "Dimensions"} description="Fields stay explicit about feet and inches so field users do not need to guess units." />
+          {calculatorMode === "multi_section" ? (
+            <div className="mb-4 grid gap-3 md:grid-cols-2">
+              <InputField label="Section label" placeholder={`e.g. ${defaultTakeoffSectionLabel(takeoffSections.length)}`} value={sectionForm.label} onChange={(event) => updateSectionForm("label", event.target.value)} />
+              <TextAreaField label="Section note" value={sectionForm.notes} onChange={(event) => updateSectionForm("notes", event.target.value)} placeholder="Optional note for this section." />
+            </div>
+          ) : null}
+          <div className="grid gap-3 md:grid-cols-2">
+            {activeFields.map((field) => (
+              <InputField
+                key={field.key}
+                label={field.label}
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                placeholder={field.placeholder}
+                value={activeDraft[field.key] ?? ""}
+                onChange={(event) => updateField(field.key, event.target.value)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4">
+          <SectionHeader title="Waste Factor" description="Keep the buffer visible before copying or saving." />
+          <div className="grid gap-3">
+            <SelectField label="Waste factor" value={wastePreset} onChange={(event) => setWastePreset(event.target.value)}>
+              {WASTE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectField>
+            {wastePreset === "custom" ? (
+              <InputField
+                label="Custom waste (%)"
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                placeholder="12"
+                value={customWastePercent}
+                onChange={(event) => setCustomWastePercent(event.target.value)}
+              />
+            ) : null}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {calculatorMode === "multi_section" ? (
+              <Button type="button" onClick={addOrUpdateSection} disabled={!sectionReady}>
+                {editingSectionId ? "Save section" : "Add section"}
+              </Button>
+            ) : null}
+            {calculatorMode === "multi_section" && editingSectionId ? (
+              <Button type="button" variant="secondary" onClick={() => resetSectionBuilder()}>Cancel edit</Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={copyResult} disabled={result.status !== "ready"}>
+              {resultCopied ? "Copied" : calculatorMode === "multi_section" ? "Copy takeoff" : "Copy result"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function CalculatorResultRailPolished({ result, calculatorMode, takeoffSections }) {
+  const ready = result.status === "ready";
+  return (
+    <div className="co-toolbox-right-rail space-y-4">
+      <Card className="co-toolbox-rail-card overflow-hidden">
+        <div className="bg-slate-950 p-5 text-white">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-200">Live Result</p>
+          {ready ? (
+            <>
+              <p className="mt-3 text-4xl font-black tracking-tight">{formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "")}</p>
+              <p className="text-base font-black text-slate-200">yd^3 with waste</p>
+              <p className="mt-3 text-sm font-bold leading-6 text-slate-300">{result.summary || "Ready to copy or save internally."}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-3 text-2xl font-black tracking-tight">Waiting on dimensions</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-300">
+                {result.status === "invalid" ? "Use zero or positive numbers only." : calculatorMode === "multi_section" ? "Add one valid section to see the takeoff total." : "Enter the pour dimensions to calculate volume."}
+              </p>
+            </>
+          )}
+        </div>
+        <div className="co-toolbox-selected-metrics p-4">
+          <div><span>Base</span><strong>{ready ? formatCubicYards(result.baseCubicYards) : "--"}</strong></div>
+          <div><span>With waste</span><strong>{ready ? formatCubicYards(result.cubicYardsWithWaste) : "--"}</strong></div>
+          <div><span>Cubic feet</span><strong>{ready ? formatCubicFeet(result.baseCubicFeet) : "--"}</strong></div>
+          <div><span>Sections</span><strong>{calculatorMode === "multi_section" ? (ready ? result.sectionCount : takeoffSections.length) : "Single"}</strong></div>
+        </div>
+      </Card>
+
+      <Card className="co-toolbox-rail-card p-4">
+        <SectionHeader title="Calculation Check" description="The page stays blank instead of showing misleading totals until inputs are valid." />
+        <div className="co-toolbox-readiness-list">
+          <span data-state={result.status === "invalid" ? "needs" : "ready"}>Values <strong>{result.status === "invalid" ? "Fix" : "Safe"}</strong></span>
+          <span data-state={ready ? "ready" : "needs"}>Dimensions <strong>{ready ? "Complete" : "Needed"}</strong></span>
+          <span data-state={ready ? "ready" : "needs"}>Copy text <strong>{ready ? "Ready" : "Pending"}</strong></span>
+          <span data-state={ready ? "ready" : "needs"}>Job save <strong>{ready ? "Available" : "Pending"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function CalculatorSavePanelPolished({ savePanelOpen, allowedJobs, saveDraft, setSaveDraft, handleSaveResult, busy, setSavePanelOpen, saveMessage }) {
+  if (!savePanelOpen && !saveMessage) return null;
+
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      {savePanelOpen ? (
+        allowedJobs.length === 0 ? (
+          <StateCard title="No available job to save this calculation" description="Assigned or visible jobs will appear here when there is somewhere safe to store the result." tone="slate" />
+        ) : (
+          <div className="grid gap-3">
+            <SectionHeader title="Save to Job" description="This creates an internal-only company record. Customers do not see it." />
+            <SelectField label="Job" value={saveDraft.jobId} onChange={(event) => setSaveDraft((current) => ({ ...current, jobId: event.target.value }))}>
+              {allowedJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+            </SelectField>
+            <TextAreaField label="Internal note" value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional internal note for the crew or office." />
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={handleSaveResult} disabled={busy || !saveDraft.jobId}>Save</Button>
+              <Button type="button" variant="secondary" onClick={() => setSavePanelOpen(false)} disabled={busy}>Cancel</Button>
+            </div>
+          </div>
+        )
+      ) : null}
+      {saveMessage ? <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{saveMessage}</div> : null}
+    </Card>
+  );
+}
+
+function CalculatorTakeoffSectionsPolished({ calculatorMode, takeoffSections, editSection, duplicateSection, removeSection }) {
+  if (calculatorMode !== "multi_section") return null;
+
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title="Takeoff Sections" description="Each section keeps its own dimensions so the full takeoff can be copied or saved to the job." />
+      {takeoffSections.length === 0 ? (
+        <StateCard title="No sections added yet" description="Add one or more panels, runs, or pours to build a running total." tone="slate" />
+      ) : (
+        <div className="grid gap-3">
+          {takeoffSections.map((section, index) => (
+            <div key={section.id} className="rounded-[0.9rem] border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-600">{calculatorTypeLabel(section.calculatorType)} / {formatCubicYards(section.cubicYards)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => editSection(section)}>Edit</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => duplicateSection(section)}>Duplicate</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => removeSection(section.id)}>Remove</Button>
+                </div>
+              </div>
+              {section.notes ? <p className="mt-3 text-sm font-bold leading-6 text-slate-600">{section.notes}</p> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CalculatorSummaryPanelPolished({ result, calculatorMode }) {
+  return (
+    <Card className="co-toolbox-form-card p-4">
+      <SectionHeader title="Calculation Summary" description={result.status === "ready" ? "Copy this into a text or note for quick field coordination." : "The summary will appear once enough dimensions are entered."} />
+      {result.status === "ready" ? (
+        <div className="co-toolbox-note-panel">
+          <span>Summary</span>
+          <p>{result.summary}</p>
+          <p>Base: {formatCubicYards(result.baseCubicYards)}</p>
+          <p>With {result.wastePercent}% waste: {formatCubicYards(result.cubicYardsWithWaste)}</p>
+          {calculatorMode === "multi_section" && Array.isArray(result.sections) && result.sections.length > 0 ? (
+            <div className="mt-3 grid gap-2">
+              {result.sections.map((section, index) => (
+                <div key={section.id || `${section.label}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-600">{formatCubicYards(section.cubicYards)} / {formatCubicFeet(section.cubicFeet)}</p>
+                  {section.notes ? <p className="mt-1 text-sm font-bold leading-6 text-slate-600">{section.notes}</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <StateCard
+          title={result.status === "invalid" ? "Dimensions need a quick fix" : "No calculation yet"}
+          description={result.status === "invalid" ? "Update the negative value above and the result card will recalculate." : calculatorMode === "multi_section" ? "Add at least one valid section so the page can total the takeoff without ever falling back to NaN." : "Missing inputs stay blank on purpose so the page never falls back to NaN or misleading totals."}
+          tone={result.status === "invalid" ? "red" : "slate"}
+        />
+      )}
+    </Card>
+  );
+}
+
+function CalculatorPagePolished({
+  calculatorMode,
+  setCalculatorMode,
+  calculatorType,
+  setCalculatorType,
+  activeDraft,
+  activeFields,
+  sectionForm,
+  takeoffSections,
+  editingSectionId,
+  updateSectionForm,
+  updateField,
+  wastePreset,
+  setWastePreset,
+  customWastePercent,
+  setCustomWastePercent,
+  activeWastePercent,
+  result,
+  calculatorKpis,
+  addOrUpdateSection,
+  resetSectionBuilder,
+  resetCalculator,
+  copyResult,
+  resultCopied,
+  savePanelOpen,
+  setSavePanelOpen,
+  saveMessage,
+  setSaveMessage,
+  allowedJobs,
+  saveDraft,
+  setSaveDraft,
+  handleSaveResult,
+  busy,
+  editSection,
+  duplicateSection,
+  removeSection,
+}) {
+  return (
+    <div className="co-office-page co-toolbox-page co-calculator-page">
+      <PageHeader
+        eyebrow="Field Tools"
+        title="Concrete Calculator"
+        description="Calculate concrete yield, build multi-section takeoffs, copy field-ready totals, and save internal results to allowed jobs."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={copyResult} disabled={result.status !== "ready"}>{resultCopied ? "Copied" : "Copy Result"}</Button>
+            <Button type="button" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>Save to Job</Button>
+          </div>
+        }
+      />
+
+      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
+        {calculatorKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6">
+        <Card className="p-3">
+          <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Calculation workflow</p>
+              <p className="mt-1 text-sm font-bold text-slate-600">Switch between a quick single pour and a multi-section takeoff without changing the calculator math.</p>
+            </div>
+            <CalculatorModeTabsPolished calculatorMode={calculatorMode} setCalculatorMode={setCalculatorMode} />
+          </div>
+        </Card>
+      </div>
+
+      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div className="min-w-0 space-y-3">
+          <CalculatorInputPanelPolished
+            calculatorMode={calculatorMode}
+            calculatorType={calculatorType}
+            setCalculatorType={setCalculatorType}
+            activeFields={activeFields}
+            activeDraft={activeDraft}
+            sectionForm={sectionForm}
+            takeoffSections={takeoffSections}
+            editingSectionId={editingSectionId}
+            updateSectionForm={updateSectionForm}
+            updateField={updateField}
+            wastePreset={wastePreset}
+            setWastePreset={setWastePreset}
+            customWastePercent={customWastePercent}
+            setCustomWastePercent={setCustomWastePercent}
+            activeWastePercent={activeWastePercent}
+            addOrUpdateSection={addOrUpdateSection}
+            resetSectionBuilder={resetSectionBuilder}
+            resetCalculator={resetCalculator}
+            copyResult={copyResult}
+            resultCopied={resultCopied}
+            result={result}
+            setSavePanelOpen={setSavePanelOpen}
+            setSaveMessage={setSaveMessage}
+          />
+          <CalculatorSavePanelPolished savePanelOpen={savePanelOpen} allowedJobs={allowedJobs} saveDraft={saveDraft} setSaveDraft={setSaveDraft} handleSaveResult={handleSaveResult} busy={busy} setSavePanelOpen={setSavePanelOpen} saveMessage={saveMessage} />
+          <CalculatorTakeoffSectionsPolished calculatorMode={calculatorMode} takeoffSections={takeoffSections} editSection={editSection} duplicateSection={duplicateSection} removeSection={removeSection} />
+          <CalculatorSummaryPanelPolished result={result} calculatorMode={calculatorMode} />
+        </div>
+
+        <CalculatorResultRailPolished result={result} calculatorMode={calculatorMode} takeoffSections={takeoffSections} />
+      </div>
+    </div>
+  );
+}
+
 function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
   const [calculatorMode, setCalculatorMode] = useState("single");
   const [calculatorType, setCalculatorType] = useState("slab");
@@ -15329,11 +15708,12 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
     [activeWastePercent, takeoffSections],
   );
   const result = calculatorMode === "multi_section" ? takeoffResult : singleResult;
+  const enteredDimensionCount = activeFields.filter((field) => String(activeDraft[field.key] ?? "").trim() !== "").length;
   const calculatorKpis = [
-    { label: "Mode", value: calculatorMode === "multi_section" ? "Takeoff" : "Single", helper: "Current calculation workflow", icon: "calculator" },
-    { label: "Type", value: calculatorTypeLabel(calculatorType), helper: "Active concrete shape", icon: "layers" },
-    { label: "Waste", value: `${activeWastePercent || 0}%`, helper: "Concrete waste factor", icon: "refresh" },
-    { label: "Result", value: result.status === "ready" ? formatCubicYards(result.cubicYardsWithWaste) : "Enter dims", helper: result.status === "ready" ? "With waste included" : "Waiting on valid dimensions", icon: "check" },
+    { label: "Sections", value: calculatorMode === "multi_section" ? takeoffSections.length : 1, helper: calculatorMode === "multi_section" ? "Takeoff sections added" : "Single calculation mode", icon: "calculator", tone: "blue" },
+    { label: "Inputs", value: enteredDimensionCount, helper: `${activeFields.length} dimensions needed`, icon: "layers", tone: enteredDimensionCount === activeFields.length ? "green" : "slate" },
+    { label: "Waste %", value: Number(activeWastePercent || 0), helper: "Concrete waste factor", icon: "refresh", tone: Number(activeWastePercent || 0) > 0 ? "amber" : "slate" },
+    { label: "Ready", value: result.status === "ready" ? 1 : 0, helper: result.status === "ready" ? "Can copy or save" : "Waiting on valid dimensions", icon: "check", tone: result.status === "ready" ? "green" : "slate" },
   ];
 
   useEffect(() => {
@@ -15509,6 +15889,46 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult }) {
       }));
     }
   }
+
+  return (
+    <CalculatorPagePolished
+      calculatorMode={calculatorMode}
+      setCalculatorMode={setCalculatorMode}
+      calculatorType={calculatorType}
+      setCalculatorType={setCalculatorType}
+      activeDraft={activeDraft}
+      activeFields={activeFields}
+      sectionForm={sectionForm}
+      takeoffSections={takeoffSections}
+      editingSectionId={editingSectionId}
+      updateSectionForm={updateSectionForm}
+      updateField={updateField}
+      wastePreset={wastePreset}
+      setWastePreset={setWastePreset}
+      customWastePercent={customWastePercent}
+      setCustomWastePercent={setCustomWastePercent}
+      activeWastePercent={activeWastePercent}
+      result={result}
+      calculatorKpis={calculatorKpis}
+      addOrUpdateSection={addOrUpdateSection}
+      resetSectionBuilder={resetSectionBuilder}
+      resetCalculator={resetCalculator}
+      copyResult={copyResult}
+      resultCopied={resultCopied}
+      savePanelOpen={savePanelOpen}
+      setSavePanelOpen={setSavePanelOpen}
+      saveMessage={saveMessage}
+      setSaveMessage={setSaveMessage}
+      allowedJobs={allowedJobs}
+      saveDraft={saveDraft}
+      setSaveDraft={setSaveDraft}
+      handleSaveResult={handleSaveResult}
+      busy={busy}
+      editSection={editSection}
+      duplicateSection={duplicateSection}
+      removeSection={removeSection}
+    />
+  );
 
   return (
     <div>
