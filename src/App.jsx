@@ -15809,6 +15809,8 @@ function EmployeesPagePolished({
   const visibleRows = listState.filteredUsers;
   const notFound = Boolean(selectedUserId) && !selectedUser;
   const activeUsers = users.filter((entry) => entry.status === "active");
+  const allFieldUsers = users.filter((entry) => ["Foreman", "Employee"].includes(entry.role));
+  const readinessGapUsers = users.filter((entry) => !entry.name || !entry.email || !entry.role || !entry.status);
   const fieldUsers = visibleRows.filter((entry) => ["Foreman", "Employee"].includes(entry.role));
   const officeUsers = visibleRows.filter((entry) => ["Owner", "Administrator", "Operations Manager", "Estimator"].includes(entry.role));
   const employeeKpis = [
@@ -15830,6 +15832,55 @@ function EmployeesPagePolished({
     setShowTools(true);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
+
+  function openPriorityUser(matchUser, options = {}) {
+    const targetUser = visibleRows.find(matchUser) || users.find(matchUser);
+    if (options.roleFilter) setFilter(options.roleFilter);
+    if (options.statusFilter) setStatusFilter(options.statusFilter);
+    if (options.search !== undefined) setSearch(options.search);
+    if (targetUser?.id) onSelectUser(targetUser.id);
+    if (options.toolTab) openTools(options.toolTab);
+  }
+
+  const firstFieldUser = allFieldUsers[0] || null;
+  const employeePriorityCards = [
+    {
+      label: "Active logins",
+      value: activeUsers.length,
+      helper: activeUsers.length ? "Users who can sign in and work from the current permission map." : "No active workspace logins are available.",
+      icon: "check",
+      tone: activeUsers.length ? "green" : "amber",
+      actionLabel: activeUsers.length ? "Review" : "Needs setup",
+      onAction: () => openPriorityUser((entry) => entry.status === "active", { statusFilter: activeUsers.length ? "active" : "All statuses", roleFilter: "All roles", search: "", toolTab: activeUsers.length ? "details" : "" }),
+    },
+    {
+      label: "Field roles",
+      value: allFieldUsers.length,
+      helper: allFieldUsers.length ? "Foreman and employee access stays separated from office/admin tools." : "No field crew accounts have been created yet.",
+      icon: "hardhat",
+      tone: allFieldUsers.length ? "orange" : "slate",
+      actionLabel: allFieldUsers.length ? "Review field" : "None",
+      onAction: () => openPriorityUser((entry) => ["Foreman", "Employee"].includes(entry.role), { roleFilter: firstFieldUser?.role || "All roles", statusFilter: "All statuses", search: "", toolTab: firstFieldUser ? "details" : "" }),
+    },
+    {
+      label: "Needs readiness",
+      value: readinessGapUsers.length,
+      helper: readinessGapUsers.length ? "Some accounts are missing name, email, role, or status details." : "Core user records have their required setup fields.",
+      icon: "alert",
+      tone: readinessGapUsers.length ? "amber" : "green",
+      actionLabel: readinessGapUsers.length ? "Fix" : "Ready",
+      onAction: () => openPriorityUser((entry) => readinessGapUsers.some((candidate) => candidate.id === entry.id), { roleFilter: "All roles", statusFilter: "All statuses", search: "", toolTab: readinessGapUsers.length ? "details" : "" }),
+    },
+    {
+      label: "New user",
+      value: canManage ? "Ready" : "Locked",
+      helper: canManage ? "Create office, foreman, or employee access from the existing workflow." : "This role can review employees but cannot create logins.",
+      icon: "plus",
+      tone: canManage ? "blue" : "slate",
+      actionLabel: canManage ? "Create" : "View only",
+      onAction: () => canManage ? openTools("create") : openPriorityUser((entry) => entry.id === selectedUser?.id),
+    },
+  ];
 
   if (!canView) {
     return (
@@ -15858,6 +15909,20 @@ function EmployeesPagePolished({
 
       <div className="co-employees-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {employeeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {employeePriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-employees-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
