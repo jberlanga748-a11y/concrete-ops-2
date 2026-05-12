@@ -8530,6 +8530,53 @@ function PpeChecklistPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openPriorityPpe(matchItem, options = {}) {
+    const targetItem = filteredPpeItems.find(matchItem) || activePpeItems.find(matchItem);
+    if (options.requirementFilter) setRequirementFilter(options.requirementFilter);
+    if (options.search !== undefined) setSearch(options.search);
+    if (targetItem?.id) setSelectedPpeId(targetItem.id);
+    openTools(options.tool || (canManage ? "ppe" : (canAcknowledge ? "ack" : "policy")));
+  }
+
+  const ppePriorityCards = [
+    {
+      label: "Required gear",
+      value: requiredCount,
+      helper: requiredCount ? "Default protection is ready to review before the crew starts." : "No PPE items are marked required by default.",
+      icon: "hardhat",
+      tone: requiredCount ? "orange" : "slate",
+      actionLabel: "Review required",
+      onAction: () => openPriorityPpe((item) => item.requiredByDefault, { requirementFilter: "Required", tool: canManage ? "ppe" : (canAcknowledge ? "ack" : "policy") }),
+    },
+    {
+      label: "Crew acknowledgment",
+      value: acknowledgmentState.hasAcknowledged ? "Done" : "Open",
+      helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew PPE expectations still need acknowledgment.",
+      icon: "check",
+      tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
+      actionLabel: canAcknowledge ? "Acknowledge" : "View status",
+      onAction: () => openTools(canAcknowledge ? "ack" : "policy"),
+    },
+    {
+      label: "Safety watch",
+      value: openIncidents,
+      helper: openIncidents ? "Open visible safety concerns are tied into the PPE workflow." : "No open visible incidents in this safety scope.",
+      icon: "alert",
+      tone: openIncidents ? "amber" : "green",
+      actionLabel: openIncidents ? "Open watch" : "All clear",
+      onAction: () => openTools(canSubmitIncidents || canReview ? "incident" : "policy"),
+    },
+    {
+      label: canManage ? "PPE setup" : "PPE guidance",
+      value: canManage ? "Ready" : ppePolicies.length,
+      helper: canManage ? "Manage equipment requirements without changing field permissions." : "Field-safe guidance stays available without admin controls.",
+      icon: canManage ? "settings" : "clipboard",
+      tone: canManage ? "blue" : "green",
+      actionLabel: canManage ? "Manage" : "Guidance",
+      onAction: () => openTools(canManage ? "ppe" : "policy"),
+    },
+  ];
+
   return (
     <div className={`co-office-page co-toolbox-page co-ppe-page ${canManage ? "" : "co-field-tool-page"}`}>
       <PageHeader
@@ -8546,6 +8593,20 @@ function PpeChecklistPagePolished({
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {ppeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+        {ppePriorityCards.map((card) => (
+          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+            <span className="min-w-0">
+              <span className="co-toolbox-priority-value">{card.value}</span>
+              <span className="co-toolbox-priority-label">{card.label}</span>
+              <span className="co-toolbox-priority-helper">{card.helper}</span>
+            </span>
+            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
+          </button>
+        ))}
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
