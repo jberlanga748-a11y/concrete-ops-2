@@ -4685,10 +4685,10 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
 
   if (activeEntry) {
     const activeActions = (
-      <div className={compactMobile ? "mt-3 flex flex-wrap gap-1.5 md:mt-4 md:gap-2" : "mt-4 flex flex-wrap gap-2"}>
-        {activeEntry.status === "active" ? <Button size={compactMobile ? "sm" : "md"} onClick={() => onStartBreak(activeEntry.id)} disabled={disabled}>Start break</Button> : null}
-        {activeEntry.status === "on_break" ? <Button size={compactMobile ? "sm" : "md"} onClick={() => onEndBreak(activeEntry.id)} disabled={disabled}>End break</Button> : null}
-        <Button size={compactMobile ? "sm" : "md"} variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={disabled}>Clock out</Button>
+      <div className={compactMobile ? "co-time-active-actions mt-3 flex flex-wrap gap-2 md:mt-4" : "co-time-active-actions mt-4 flex flex-wrap gap-2"}>
+        {activeEntry.status === "active" ? <Button className="co-time-clock-secondary flex-1" size="lg" onClick={() => onStartBreak(activeEntry.id)} disabled={disabled}>Start break</Button> : null}
+        {activeEntry.status === "on_break" ? <Button className="co-time-clock-secondary flex-1" size="lg" onClick={() => onEndBreak(activeEntry.id)} disabled={disabled}>End break</Button> : null}
+        <Button className="co-time-clock-secondary flex-1" size="lg" variant="secondary" onClick={() => onClockOut(activeEntry.id)} disabled={disabled}>Clock out</Button>
       </div>
     );
 
@@ -4744,7 +4744,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
                 <p className="mt-1 break-words text-sm font-black text-slate-950">{selectedWorkSummary}</p>
                 <p className="mt-1 text-xs font-bold text-slate-500">{workCategoryLabel(workCategory)}</p>
               </div>
-              <Button type="submit" size="sm" disabled={disabled || !canSubmitClockIn}>
+              <Button type="submit" size="lg" className="co-time-clock-primary w-full" disabled={disabled || !canSubmitClockIn}>
                 <Icon name="clock" />
                 Clock in
               </Button>
@@ -4761,7 +4761,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
           ) : (
             <form className="grid gap-3" onSubmit={handleClockInSubmit}>
               {clockInFields}
-              <Button type="submit" disabled={disabled || !canSubmitClockIn}>
+              <Button type="submit" size="lg" className="co-time-clock-primary w-full" disabled={disabled || !canSubmitClockIn}>
                 <Icon name="clock" />
                 Clock in
               </Button>
@@ -4783,7 +4783,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
           onSubmit={handleClockInSubmit}
         >
           {clockInFields}
-          <Button type="submit" size={compactMobile ? "sm" : "md"} disabled={disabled || !canSubmitClockIn}>
+          <Button type="submit" size="lg" className="co-time-clock-primary w-full" disabled={disabled || !canSubmitClockIn}>
             <Icon name="clock" />
             Clock in
           </Button>
