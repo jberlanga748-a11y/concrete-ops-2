@@ -10156,6 +10156,10 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
       <div className="co-jobs-mobile-list grid gap-3 p-3 md:hidden">
         {visibleRows.map((job) => {
           const selected = job.id === selectedId;
+          const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
+          const missingCrew = jobMissingCrew(job);
+          const missingStart = jobMissingStart(job);
+          const startupNeedsReview = jobStartupNeedsReview(job);
           return (
             <button
               key={job.id}
@@ -10191,11 +10195,16 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
                   <p className="mt-1 break-words text-sm font-bold text-slate-700">{jobNextStep(job)}</p>
                 </div>
               </div>
+              <div className="co-jobs-mobile-readiness">
+                <span data-state={missingCrew ? "needs" : "ready"}>Crew <strong>{missingCrew ? "Needs" : "OK"}</strong></span>
+                <span data-state={missingStart ? "needs" : "ready"}>Start <strong>{missingStart ? "Needs" : "OK"}</strong></span>
+                <span data-state={startupNeedsReview ? "needs" : "ready"}>Startup <strong>{startupNeedsReview ? "Review" : "OK"}</strong></span>
+              </div>
               <div className="mt-4 flex min-w-0 items-center gap-3">
                 <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-orange-600" style={{ width: `${Number(job.progress || 0)}%` }} />
+                  <div className="h-full rounded-full bg-orange-600" style={{ width: `${progressValue}%` }} />
                 </div>
-                <span className="shrink-0 text-xs font-black text-slate-500">{Number(job.progress || 0)}%</span>
+                <span className="shrink-0 text-xs font-black text-slate-500">{progressValue}%</span>
                 {selected ? <Badge tone="blue">Selected</Badge> : null}
               </div>
             </button>
@@ -10220,6 +10229,7 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
             <tbody>
               {visibleRows.map((job) => {
                 const selected = job.id === selectedId;
+                const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
                 return (
                   <tr key={job.id} onClick={() => onSelect(job.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
                     <td>
@@ -10229,7 +10239,7 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
                     <td><StatusBadge status={jobStatusLabel(job.status || job.stage)} /></td>
                     <td className="font-bold text-slate-700">{jobBoardScheduleLabel(job)}</td>
                     <td><StartupStatusBadge status={job.startupStatus || "Not Started"} /></td>
-                    <td>
+                    <td className="co-jobs-crew-cell">
                       <p className="font-bold text-slate-700">{jobDisplayForeman(job)}</p>
                       <p className="text-xs font-bold text-slate-500">{jobCrewCount(job)} assigned/needed</p>
                     </td>
@@ -10237,17 +10247,17 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8 }) {
                     <td>
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-100">
-                          <div className="h-full rounded-full bg-orange-600" style={{ width: `${Number(job.progress || 0)}%` }} />
+                          <div className="h-full rounded-full bg-orange-600" style={{ width: `${progressValue}%` }} />
                         </div>
-                        <span className="text-xs font-black text-slate-500">{Number(job.progress || 0)}%</span>
+                        <span className="text-xs font-black text-slate-500">{progressValue}%</span>
                       </div>
                     </td>
                     <td>
-                      <div className="flex justify-end gap-2">
-                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Review ${jobTitle(job)}`}>
+                      <div className="flex justify-end gap-1">
+                        <button type="button" className="co-jobs-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Review ${jobTitle(job)}`}>
                           <Icon name="briefcase" />
                         </button>
-                        <button type="button" className="co-leads-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Open ${jobTitle(job)}`}>
+                        <button type="button" className="co-jobs-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Open ${jobTitle(job)}`}>
                           <Icon name="arrowUpRight" />
                         </button>
                       </div>
@@ -10290,6 +10300,10 @@ function JobCommandRailPolished({
   const canPrint = canManageAll || job.canManageField || permissions?.jobs?.canViewMoney;
   const canArchive = canManageAll;
   const startupWarnings = getStartupCriticalWarnings(normalizeStartupChecklist(job.startupChecklist));
+  const progressValue = Math.max(0, Math.min(100, Number(job.progress || 0)));
+  const missingCrew = jobMissingCrew(job);
+  const missingStart = jobMissingStart(job);
+  const startupNeedsReview = jobStartupNeedsReview(job);
 
   return (
     <div className="co-jobs-right-rail space-y-4">
@@ -10302,12 +10316,36 @@ function JobCommandRailPolished({
           </div>
           <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
         </div>
-        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
-          <p><span className="text-slate-400">Schedule:</span> {jobBoardScheduleLabel(job)}</p>
-          <p><span className="text-slate-400">Foreman:</span> {jobDisplayForeman(job)}</p>
-          <p><span className="text-slate-400">Crew:</span> {jobCrewCount(job)} assigned/needed</p>
-          <p><span className="text-slate-400">Next step:</span> {jobNextStep(job)}</p>
-          <p><span className="text-slate-400">Startup blockers:</span> {startupWarnings.length}</p>
+        <div className="co-jobs-selected-metrics">
+          <div>
+            <span>Schedule</span>
+            <strong>{jobBoardScheduleLabel(job)}</strong>
+          </div>
+          <div>
+            <span>Foreman</span>
+            <strong>{jobDisplayForeman(job)}</strong>
+          </div>
+          <div>
+            <span>Crew</span>
+            <strong>{jobCrewCount(job)} assigned/needed</strong>
+          </div>
+          <div>
+            <span>Startup blockers</span>
+            <strong>{startupWarnings.length}</strong>
+          </div>
+        </div>
+        <div className="co-jobs-progress-panel">
+          <div className="flex items-center justify-between gap-3">
+            <span>Progress</span>
+            <strong>{progressValue}%</strong>
+          </div>
+          <div><span style={{ width: `${progressValue}%` }} /></div>
+          <p>{jobNextStep(job)}</p>
+        </div>
+        <div className="co-jobs-release-pills">
+          <span data-state={missingCrew ? "needs" : "ready"}>Crew <strong>{missingCrew ? "Needs" : "OK"}</strong></span>
+          <span data-state={missingStart ? "needs" : "ready"}>Start <strong>{missingStart ? "Needs" : "OK"}</strong></span>
+          <span data-state={startupNeedsReview ? "needs" : "ready"}>Startup <strong>{startupNeedsReview ? "Review" : "OK"}</strong></span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button type="button" size="sm" onClick={() => onOpenTool("details")}>Edit Job</Button>
