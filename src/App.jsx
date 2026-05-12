@@ -9653,44 +9653,45 @@ function ReportsPagePolished({
     window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
-  const reportPriorityCards = [
-    {
-      label: "Review submitted",
-      value: submittedCount,
-      helper: submittedCount ? "Submitted reports waiting for office review." : "No submitted reports waiting right now.",
-      icon: "clipboard",
-      tone: submittedCount ? "amber" : "green",
-      actionLabel: submittedCount ? "Open review" : "View reviewed",
-      onAction: () => openPriorityReport(dailyReportNeedsReview, submittedCount ? "Submitted" : "Reviewed"),
-    },
-    {
-      label: "Finish field drafts",
-      value: needsActionCount,
-      helper: needsActionCount ? "Draft or reopened reports need field completion." : "No draft or reopened reports in this view.",
-      icon: "document",
-      tone: needsActionCount ? "orange" : "slate",
-      actionLabel: needsActionCount ? "Open draft" : "All clear",
-      onAction: () => openPriorityReport(dailyReportNeedsAction, "Draft"),
-    },
-    {
-      label: "Complete basics",
-      value: missingBasicsCount,
-      helper: "Checks work performed, crew summary, and weather fields.",
-      icon: "alert",
-      tone: missingBasicsCount ? "amber" : "green",
-      actionLabel: missingBasicsCount ? "Find gaps" : "Ready",
-      onAction: () => openPriorityReport((report) => !report.workPerformed || !report.crewSummary || !report.weather, "All"),
-    },
-    {
-      label: "Start today's report",
-      value: canCreate ? 1 : 0,
-      helper: canCreate ? "Open the real daily report form for a visible job." : "Creation is not enabled for this role.",
-      icon: "plus",
-      tone: canCreate ? "blue" : "slate",
-      actionLabel: canCreate ? "Start report" : "Read only",
-      onAction: () => (canCreate ? openReportTool("create") : openReportTool("details")),
-    },
-  ];
+  const reviewPriorityCard = {
+    label: "Review submitted",
+    value: submittedCount,
+    helper: submittedCount ? "Submitted reports waiting for office review." : "No submitted reports waiting right now.",
+    icon: "clipboard",
+    tone: submittedCount ? "amber" : "green",
+    actionLabel: submittedCount ? "Open review" : "View reviewed",
+    onAction: () => openPriorityReport(dailyReportNeedsReview, submittedCount ? "Submitted" : "Reviewed"),
+  };
+  const draftsPriorityCard = {
+    label: "Finish field drafts",
+    value: needsActionCount,
+    helper: needsActionCount ? "Draft or reopened reports need field completion." : "No draft or reopened reports in this view.",
+    icon: "document",
+    tone: needsActionCount ? "orange" : "slate",
+    actionLabel: needsActionCount ? "Open draft" : "All clear",
+    onAction: () => openPriorityReport(dailyReportNeedsAction, "Draft"),
+  };
+  const basicsPriorityCard = {
+    label: "Complete basics",
+    value: missingBasicsCount,
+    helper: "Checks work performed, crew summary, and weather fields.",
+    icon: "alert",
+    tone: missingBasicsCount ? "amber" : "green",
+    actionLabel: missingBasicsCount ? "Find gaps" : "Ready",
+    onAction: () => openPriorityReport((report) => !report.workPerformed || !report.crewSummary || !report.weather, "All"),
+  };
+  const startPriorityCard = {
+    label: "Start today's report",
+    value: canCreate ? 1 : 0,
+    helper: canCreate ? "Open the real daily report form for a visible job." : "Creation is not enabled for this role.",
+    icon: "plus",
+    tone: canCreate ? "blue" : "slate",
+    actionLabel: canCreate ? "Start report" : "Read only",
+    onAction: () => (canCreate ? openReportTool("create") : openReportTool("details")),
+  };
+  const reportPriorityCards = visibleRows.length === 0 && canCreate
+    ? [startPriorityCard, reviewPriorityCard, draftsPriorityCard, basicsPriorityCard]
+    : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard, startPriorityCard];
 
   return (
     <div className="co-office-page co-reports-page">
