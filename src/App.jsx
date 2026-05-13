@@ -14020,7 +14020,7 @@ function LeadsPage({
     <div className="co-office-page co-leads-page">
       <PageHeader
         eyebrow={companyName || "Office Sales"}
-        title={<span>Leads <span className="text-orange-500">☆</span></span>}
+        title="Leads"
         description="Track new leads, follow-ups, estimates, missing info, and next actions from one contractor command view."
         actions={
           <div className="flex flex-wrap gap-2">
