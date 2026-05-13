@@ -14646,7 +14646,7 @@ function JobsPagePolished({
     <div className="co-office-page co-jobs-page">
       <PageHeader
         eyebrow={pageEyebrow}
-        title={<span>{pageTitle} <span className="text-orange-500">{"\u2606"}</span></span>}
+        title={pageTitle}
         description={`Manage active jobs, startup readiness, crews, schedules, and field visibility from one ${roleLabel} command view.`}
         actions={
           <div className="flex flex-wrap gap-2">
