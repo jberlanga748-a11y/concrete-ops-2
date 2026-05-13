@@ -5,6 +5,7 @@ import {
   changedOpportunityFields,
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
+  OPPORTUNITY_SEARCH_PROFILE_STARTERS,
   validateFoundOpportunityPayload,
   validateOpportunitySearchProfilePayload,
 } from "./opportunityScout.js";
@@ -41,6 +42,14 @@ test("search profile validation requires a name and rejects negative radius", ()
     "Search profile name is required.",
     "Service radius must be zero or higher.",
   ]);
+});
+
+test("search profile starters are safe editable daily scout presets", () => {
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.length >= 4, true);
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.every((starter) => starter.id && starter.label && starter.name), true);
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.every((starter) => Array.isArray(starter.trades) && starter.trades.length > 0), true);
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "public-bid-scan"), true);
+  assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "relationship-follow-up"), true);
 });
 
 test("found opportunities normalize scores, dates, risks, and contact fields", () => {

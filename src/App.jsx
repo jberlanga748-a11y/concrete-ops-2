@@ -146,6 +146,7 @@ import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } f
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
+import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
 import { deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
@@ -17996,6 +17997,23 @@ function CopilotPagePolished({
     setProfileDraft((current) => ({ ...current, [field]: value }));
   }
 
+  function applyProfileStarter(starter) {
+    if (!starter) return;
+    setProfileDraft((current) => ({
+      ...current,
+      name: starter.name || current.name,
+      trades: (starter.trades || []).join(", "),
+      serviceAreas: (starter.serviceAreas || []).join(", "),
+      radiusMiles: String(starter.radiusMiles || current.radiusMiles || "40"),
+      sourceTypes: (starter.sourceTypes || []).join(", "),
+      keywords: (starter.keywords || []).join(", "),
+      excludedKeywords: (starter.excludedKeywords || []).join(", "),
+      cadence: starter.cadence || current.cadence || "daily",
+      status: "active",
+      notes: starter.notes || current.notes,
+    }));
+  }
+
   function updateFoundDraft(field, value) {
     setFoundDraft((current) => ({ ...current, [field]: value }));
   }
@@ -18351,6 +18369,14 @@ function CopilotPagePolished({
                     <p>Saved criteria for the daily job-finding routine.</p>
                   </div>
                   <Badge tone={opportunityScout.stats.profilesDue ? "orange" : "green"}>{opportunityScout.stats.activeProfiles} active</Badge>
+                </div>
+                <div className="co-ai-profile-starters" aria-label="Search profile starters">
+                  {OPPORTUNITY_SEARCH_PROFILE_STARTERS.map((starter) => (
+                    <button key={starter.id} type="button" className="co-ai-profile-starter co-focus-ring" onClick={() => applyProfileStarter(starter)} disabled={!canManageOpportunityScout || busy}>
+                      <strong>{starter.label}</strong>
+                      <span>{starter.description}</span>
+                    </button>
+                  ))}
                 </div>
                 <form className="co-ai-scout-form" onSubmit={submitProfileDraft}>
                   <div className="co-ai-scout-form-grid">
