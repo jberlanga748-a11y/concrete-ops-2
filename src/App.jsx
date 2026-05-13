@@ -10187,7 +10187,7 @@ function ReportsPagePolished({
     <div className="co-office-page co-reports-page">
       <PageHeader
         eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"}
-        title={<span>Daily Reports <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Daily Reports"
         description={isFieldReportWorkspace ? "Start today's report, finish field drafts, and keep job progress easy for the office to review." : "Capture field progress, crew notes, weather, concrete activity, and review status from one daily report board."}
         actions={
           <div className="flex flex-wrap gap-2">
