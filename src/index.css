@@ -6174,11 +6174,36 @@ textarea {
   line-height: 1.4;
 }
 
-.co-time-clock-hero form {
+.co-time-clock-form {
   display: grid;
-  grid-template-columns: minmax(10rem, 0.85fr) minmax(14rem, 1fr) minmax(18rem, 1.35fr) minmax(12rem, 0.75fr);
-  align-items: end;
+  grid-template-columns: minmax(14rem, 0.95fr) minmax(20rem, 1.45fr) minmax(13rem, 0.85fr);
+  align-items: stretch;
   gap: 0.78rem;
+}
+
+.co-time-clock-fields {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(10rem, 0.85fr) minmax(14rem, 1fr);
+  gap: 0.78rem;
+}
+
+.co-time-clock-fields > .field-label:last-child {
+  grid-column: 1 / -1;
+}
+
+.co-time-clock-target {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  border-color: rgba(249, 115, 22, 0.26) !important;
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.92), rgba(239, 246, 255, 0.74)),
+    #ffffff !important;
+}
+
+.co-time-clock-target p {
+  min-width: 0;
 }
 
 .co-time-clock-hero .field-label,
@@ -6218,8 +6243,10 @@ textarea {
 }
 
 .co-time-clock-hero .co-time-clock-primary {
-  min-height: 5.25rem;
-  font-size: 1.16rem !important;
+  height: 100%;
+  min-height: 5.75rem;
+  font-size: 1.18rem !important;
+  white-space: normal;
 }
 
 .co-time-clock-hero .co-time-clock-primary svg {
@@ -6595,12 +6622,12 @@ textarea {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  .co-time-clock-hero form {
+  .co-time-clock-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .co-time-clock-hero form > :nth-last-child(2),
-  .co-time-clock-hero form > :last-child {
+  .co-time-clock-fields,
+  .co-time-clock-cta {
     grid-column: 1 / -1;
   }
 
@@ -6693,22 +6720,27 @@ textarea {
     padding: 0.9rem !important;
   }
 
-  .co-time-clock-hero form {
+  .co-time-clock-form {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.7rem;
   }
 
-  .co-time-clock-hero form > :nth-last-child(2),
-  .co-time-clock-hero form > :last-child {
+  .co-time-clock-fields,
+  .co-time-clock-cta {
     grid-column: auto;
   }
 
-  .co-time-clock-hero form > :nth-last-child(2) {
-    order: 4;
+  .co-time-clock-target {
+    order: 1;
   }
 
-  .co-time-clock-hero form > :last-child {
+  .co-time-clock-cta {
+    order: 2;
+  }
+
+  .co-time-clock-fields {
     order: 3;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .co-time-clock-hero textarea.field-input {
@@ -6737,6 +6769,11 @@ textarea {
   .co-time-clock-primary {
     min-height: 4.5rem;
     font-size: 1.08rem !important;
+  }
+
+  .co-time-clock-hero .co-time-clock-primary {
+    height: auto;
+    min-height: 5rem;
   }
 
 .co-time-tools-drawer > summary {
