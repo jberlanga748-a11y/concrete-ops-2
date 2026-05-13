@@ -27,6 +27,9 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
     "work-lead-followups",
   ]);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "check-sources").value, 2);
+  assert.equal(state.dailyRunSteps.find((step) => step.id === "check-sources").targetId, "scout-search-briefs");
+  assert.equal(state.qualityChecks.find((check) => check.id === "qa-source-checks").value, 2);
+  assert.equal(state.qualityChecks.find((check) => check.id === "qa-source-checks").tone, "red");
   assert.deepEqual(state.sourceQueue.map((source) => source.sourceId), ["LS-1", "LS-2"]);
   assert.match(state.searchBriefs[0].query, /commercial concrete/i);
   assert.equal(state.sourceQueue.some((source) => source.name === "Other company source"), false);
@@ -44,6 +47,7 @@ test("opportunity scout does not invent opportunities when no lead sources exist
   assert.deepEqual(state.searchBriefs, []);
   assert.equal(state.guardrails.externalSearch, false);
   assert.equal(state.guardrails.autoCreateLeads, false);
+  assert.equal(state.qualityChecks.find((check) => check.id === "qa-found-review").tone, "green");
 });
 
 test("opportunity scout prioritizes open lead follow-ups and missing info", () => {
@@ -79,6 +83,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
       { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, riskFlags: ["prevailing wage"] },
       { id: "FO-2", companyId: "COMPANY-A", title: "Skipped job", status: "skipped", fitScore: 95 },
       { id: "FO-3", companyId: "COMPANY-B", title: "Other company work", status: "new" },
+      { id: "FO-4", companyId: "COMPANY-A", title: "No bid date job", status: "new", fitScore: 70 },
     ],
   }, { today: TODAY });
 
@@ -86,11 +91,13 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.activeProfiles, 1);
   assert.equal(state.stats.totalProfiles, 2);
   assert.equal(state.stats.profilesDue, 1);
-  assert.equal(state.stats.openFoundOpportunities, 1);
+  assert.equal(state.stats.openFoundOpportunities, 2);
   assert.equal(state.stats.dueBidOpportunities, 1);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "review-found-work").tone, "red");
-  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1"]);
+  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4"]);
+  assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 3);
+  assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").targetId, "scout-found-opportunities");
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);
   assert.equal(state.searchBriefs.some((brief) => brief.profileId === "OSP-1"), true);
 });

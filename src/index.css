@@ -14689,6 +14689,7 @@ textarea {
 }
 
 .co-ai-boundary-list,
+.co-ai-scout-quality-list,
 .co-ai-snapshot-grid {
   display: grid;
   gap: 0.5rem;
@@ -14696,6 +14697,7 @@ textarea {
 
 .co-ai-boundary-row,
 .co-ai-action-row,
+.co-ai-scout-quality-row,
 .co-ai-snapshot-grid > div {
   border: 1px solid var(--co-ai-border);
   border-radius: 0.85rem;
@@ -14703,7 +14705,8 @@ textarea {
 }
 
 .co-ai-boundary-row,
-.co-ai-action-row {
+.co-ai-action-row,
+.co-ai-scout-quality-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -14713,12 +14716,75 @@ textarea {
 
 .co-ai-boundary-row span,
 .co-ai-action-row span,
+.co-ai-scout-quality-row em,
+.co-ai-scout-quality-row small,
 .co-ai-snapshot-grid span,
 .co-ai-snapshot-grid em {
   color: #64748b;
   font-size: 0.75rem;
   font-style: normal;
   font-weight: 800;
+}
+
+.co-ai-scout-quality-row {
+  --co-ai-tone: #64748b;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.co-ai-scout-quality-row[data-tone="red"] {
+  --co-ai-tone: #ef4444;
+}
+
+.co-ai-scout-quality-row[data-tone="amber"],
+.co-ai-scout-quality-row[data-tone="orange"] {
+  --co-ai-tone: #f97316;
+}
+
+.co-ai-scout-quality-row[data-tone="green"] {
+  --co-ai-tone: #16a34a;
+}
+
+.co-ai-scout-quality-row[data-tone="blue"] {
+  --co-ai-tone: #2563eb;
+}
+
+.co-ai-scout-quality-row:hover {
+  border-color: color-mix(in srgb, var(--co-ai-tone) 40%, white);
+  background: color-mix(in srgb, var(--co-ai-tone) 6%, white);
+  transform: translateY(-1px);
+}
+
+.co-ai-scout-quality-row span {
+  display: grid;
+  min-width: 0;
+  gap: 0.14rem;
+}
+
+.co-ai-scout-quality-row strong {
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.co-ai-scout-quality-row b {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 2rem;
+  height: 2rem;
+  border-radius: 0.68rem;
+  background: color-mix(in srgb, var(--co-ai-tone) 12%, white);
+  color: var(--co-ai-tone);
+  font-size: 0.95rem;
+  font-weight: 950;
+}
+
+.co-ai-scout-quality-row small {
+  flex: 0 0 auto;
+  color: var(--co-ai-tone);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .co-ai-boundary-row strong,

@@ -17967,6 +17967,22 @@ function CopilotPagePolished({
     if (moduleId) setActive?.(moduleId);
   }
 
+  function jumpToScoutTarget(targetId, moduleId = "copilot") {
+    if (moduleId && moduleId !== "copilot") {
+      openModule(moduleId);
+      return;
+    }
+
+    const target = targetId && typeof document !== "undefined" ? document.getElementById(targetId) : null;
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.focus?.({ preventScroll: true });
+      return;
+    }
+
+    openModule(moduleId || "copilot");
+  }
+
   function openLead(lead) {
     if (lead?.id) onSelectLead?.(lead.id);
     openModule("leads");
@@ -18359,7 +18375,7 @@ function CopilotPagePolished({
                 <div className="co-ai-scout-runbook">
                   <span>Today&apos;s scout run</span>
                   {opportunityScout.dailyRunSteps.map((step) => (
-                    <button key={step.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={step.tone} onClick={() => openModule(step.moduleId)}>
+                    <button key={step.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={step.tone} onClick={() => jumpToScoutTarget(step.targetId, step.moduleId)}>
                       <em>{step.value}</em>
                       <strong>{step.label}</strong>
                       <p>{step.helper}</p>
@@ -18369,7 +18385,7 @@ function CopilotPagePolished({
                 </div>
               </div>
 
-              <div className="co-ai-scout-briefs">
+              <div id="scout-search-briefs" className="co-ai-scout-briefs" tabIndex={-1}>
                 <SectionHeader title="Search Briefs" description="Use these saved-source prompts to check real portals, relationships, and bid pages." />
                 {opportunityScout.searchBriefs.length ? (
                   <div className="co-ai-scout-brief-list">
@@ -18404,7 +18420,7 @@ function CopilotPagePolished({
             </div>
 
             <div className="co-ai-scout-ops-grid">
-              <div className="co-ai-scout-panel">
+              <div id="scout-search-profiles" className="co-ai-scout-panel" tabIndex={-1}>
                 <div className="co-ai-scout-panel-head">
                   <div>
                     <h3>Search Profiles</h3>
@@ -18516,7 +18532,7 @@ function CopilotPagePolished({
                 </div>
               </div>
 
-              <div className="co-ai-scout-panel">
+              <div id="scout-found-opportunities" className="co-ai-scout-panel" tabIndex={-1}>
                 <div className="co-ai-scout-panel-head">
                   <div>
                     <h3>Found Opportunities</h3>
@@ -18660,7 +18676,7 @@ function CopilotPagePolished({
 
             <div className="co-ai-scout-actions">
               {opportunityScout.actionPlan.map((action) => (
-                <button key={action.id} type="button" className="co-ai-scout-action co-focus-ring" data-tone={action.tone} onClick={() => openModule(action.moduleId)}>
+                <button key={action.id} type="button" className="co-ai-scout-action co-focus-ring" data-tone={action.tone} onClick={() => jumpToScoutTarget(action.targetId, action.moduleId)}>
                   <span>{action.label}</span>
                   <em>{action.helper}</em>
                 </button>
@@ -18744,6 +18760,22 @@ function CopilotPagePolished({
                 <span>Workflows</span>
                 <strong>Existing routes</strong>
               </div>
+            </div>
+          </Card>
+
+          <Card className="co-ai-rail-card">
+            <SectionHeader title="Daily Scout QA" description="Before found work becomes leads, these checks keep the office run clean." />
+            <div className="co-ai-scout-quality-list">
+              {opportunityScout.qualityChecks.map((check) => (
+                <button key={check.id} type="button" className="co-ai-scout-quality-row co-focus-ring" data-tone={check.tone} onClick={() => jumpToScoutTarget(check.targetId, check.moduleId)}>
+                  <span>
+                    <strong>{check.label}</strong>
+                    <em>{check.helper}</em>
+                  </span>
+                  <b>{check.value}</b>
+                  <small>{check.actionLabel}</small>
+                </button>
+              ))}
             </div>
           </Card>
 

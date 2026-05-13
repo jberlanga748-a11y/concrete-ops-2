@@ -448,6 +448,7 @@ function buildDailyScoutRunSteps({
       tone: overdueChecks ? "red" : dueProfileCount ? "orange" : "green",
       actionLabel: dueProfileCount ? "Review profiles" : "Profiles current",
       moduleId: "copilot",
+      targetId: "scout-search-profiles",
     },
     {
       id: "check-sources",
@@ -456,7 +457,8 @@ function buildDailyScoutRunSteps({
       helper: sourceChecksNeeded ? `${sourceChecksNeeded} source check${sourceChecksNeeded === 1 ? "" : "s"} due today.` : "Lead sources are not due.",
       tone: Number(dailyCheck?.stats?.overdue || 0) ? "red" : sourceChecksNeeded ? "orange" : "green",
       actionLabel: "Open sources",
-      moduleId: "leads",
+      moduleId: "copilot",
+      targetId: "scout-search-briefs",
     },
     {
       id: "review-found-work",
@@ -466,6 +468,7 @@ function buildDailyScoutRunSteps({
       tone: dueBidOpportunities.length ? "red" : foundCount ? "orange" : "slate",
       actionLabel: "Review found work",
       moduleId: "copilot",
+      targetId: "scout-found-opportunities",
     },
     {
       id: "work-lead-followups",
@@ -475,6 +478,65 @@ function buildDailyScoutRunSteps({
       tone: dueLeads.length ? "orange" : missingInfoLeads.length ? "amber" : "green",
       actionLabel: "Open leads",
       moduleId: "leads",
+      targetId: "",
+    },
+  ];
+}
+
+function buildDailyScoutQualityChecks({
+  dueProfiles = [],
+  dailyCheck = {},
+  foundOpportunityQueue = [],
+  dueBidOpportunities = [],
+} = {}) {
+  const sourceChecksNeeded = Number(dailyCheck?.stats?.checksNeeded || 0);
+  const sourceOverdue = Number(dailyCheck?.stats?.overdue || 0);
+  const missingBidDates = foundOpportunityQueue.filter((opportunity) => !opportunity.bidDueAt).length;
+  const unassignedFoundWork = foundOpportunityQueue.filter((opportunity) => (
+    !opportunity.assignedEstimatorId
+      && ["new", "reviewing", "bidding", "watching"].includes(normalizeStatus(opportunity.status || "new"))
+  )).length;
+
+  return [
+    {
+      id: "qa-profile-run",
+      label: "Profiles to run",
+      value: dueProfiles.length,
+      helper: dueProfiles.length ? "Saved search profiles need office review today." : "Search profiles are current.",
+      tone: dueProfiles.some((profile) => profile.tone === "red") ? "red" : dueProfiles.length ? "orange" : "green",
+      actionLabel: dueProfiles.length ? "Open profiles" : "Current",
+      moduleId: "copilot",
+      targetId: "scout-search-profiles",
+    },
+    {
+      id: "qa-source-checks",
+      label: "Sources to check",
+      value: sourceChecksNeeded,
+      helper: sourceChecksNeeded ? "Lead sources need a manual check before the scout is clear." : "No lead source checks are due.",
+      tone: sourceOverdue ? "red" : sourceChecksNeeded ? "orange" : "green",
+      actionLabel: sourceChecksNeeded ? "Open briefs" : "Clear",
+      moduleId: "copilot",
+      targetId: "scout-search-briefs",
+    },
+    {
+      id: "qa-found-review",
+      label: "Found work review",
+      value: foundOpportunityQueue.length,
+      helper: foundOpportunityQueue.length ? `${dueBidOpportunities.length} due now before lead conversion.` : "No found work is waiting.",
+      tone: dueBidOpportunities.length ? "red" : foundOpportunityQueue.length ? "orange" : "green",
+      actionLabel: foundOpportunityQueue.length ? "Review found work" : "Clear",
+      moduleId: "copilot",
+      targetId: "scout-found-opportunities",
+    },
+    {
+      id: "qa-opportunity-quality",
+      label: "Opportunity quality",
+      value: missingBidDates + unassignedFoundWork,
+      helper: missingBidDates || unassignedFoundWork ? `${missingBidDates} missing bid dates / ${unassignedFoundWork} unassigned.` : "Found work has core review fields.",
+      tone: missingBidDates ? "amber" : unassignedFoundWork ? "orange" : "green",
+      actionLabel: missingBidDates || unassignedFoundWork ? "Clean up" : "Clean",
+      moduleId: "copilot",
+      targetId: "scout-found-opportunities",
     },
   ];
 }
@@ -590,6 +652,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
         : `${dailyCheck.stats.overdue + dueProfiles.filter((profile) => profile.tone === "red").length} overdue / ${dailyCheck.stats.dueToday + dueProfiles.filter((profile) => profile.tone !== "red" && profile.needsRun).length} due today.`,
       tone: readiness.tone,
       moduleId: "copilot",
+      targetId: scoutTargetCount === 0 ? "scout-search-profiles" : "scout-search-briefs",
     },
     {
       id: "found-work",
@@ -597,6 +660,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       helper: `${foundOpportunityQueue.length} open found / ${biddingOpportunities.length} bidding / ${dueBidOpportunities.length} due now.`,
       tone: foundOpportunityQueue.length ? "orange" : "slate",
       moduleId: "copilot",
+      targetId: "scout-found-opportunities",
     },
     {
       id: "review-leads",
@@ -604,6 +668,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       helper: `${highFitLeads.length} strong or good fit / ${dueLeads.length} due follow-up.`,
       tone: highFitLeads.length || dueLeads.length ? "orange" : "slate",
       moduleId: "leads",
+      targetId: "",
     },
     {
       id: "missing-info",
@@ -611,6 +676,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       helper: `${missingInfoLeads.length} lead${missingInfoLeads.length === 1 ? "" : "s"} need cleaner qualification.`,
       tone: missingInfoLeads.length ? "amber" : "slate",
       moduleId: "leads",
+      targetId: "",
     },
   ];
   const dailyRunSteps = buildDailyScoutRunSteps({
@@ -622,11 +688,18 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     dueLeads,
     missingInfoLeads,
   });
+  const qualityChecks = buildDailyScoutQualityChecks({
+    dueProfiles,
+    dailyCheck,
+    foundOpportunityQueue,
+    dueBidOpportunities,
+  });
 
   return {
     today,
     readiness,
     dailyRunSteps,
+    qualityChecks,
     profileQueue: profileQueue.slice(0, 6),
     foundOpportunityQueue: foundOpportunityQueue.slice(0, 8),
     sourceQueue,
