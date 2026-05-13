@@ -231,3 +231,198 @@ export async function generateOpportunityAssistantReview({
     clearTimeout(timeout);
   }
 }
+
+function searchPlanDefaults(configured = true) {
+  return {
+    ok: true,
+    configured,
+    searchSummary: "",
+    prioritySources: [],
+    searchQueries: [],
+    qualificationChecklist: [],
+    riskFilters: [],
+    nextOfficeStep: "",
+  };
+}
+
+export function notConfiguredOpportunitySearchPlanResponse() {
+  return {
+    ...searchPlanDefaults(false),
+    message: "Opportunity Scout AI is not configured. Set OPENAI_API_KEY on the server to enable review-only search plans.",
+  };
+}
+
+export function unavailableOpportunitySearchPlanResponse(message = "Opportunity Scout AI search planning is temporarily unavailable. Try again later.") {
+  return {
+    ...searchPlanDefaults(true),
+    ok: false,
+    message,
+  };
+}
+
+export function sanitizeOpportunitySearchPlanResponse(payload = {}) {
+  return {
+    ...searchPlanDefaults(true),
+    searchSummary: text(payload.searchSummary, 900),
+    prioritySources: arrayText(payload.prioritySources),
+    searchQueries: arrayText(payload.searchQueries),
+    qualificationChecklist: arrayText(payload.qualificationChecklist),
+    riskFilters: arrayText(payload.riskFilters),
+    nextOfficeStep: text(payload.nextOfficeStep, 800),
+  };
+}
+
+export function buildOpportunitySearchPlanContext({
+  searchProfile = {},
+  leadSources = [],
+  companySettings = {},
+} = {}) {
+  return {
+    searchProfile: {
+      id: text(searchProfile.id, 80),
+      name: text(searchProfile.name, 220),
+      trades: arrayText(searchProfile.trades),
+      serviceAreas: arrayText(searchProfile.serviceAreas),
+      sourceTypes: arrayText(searchProfile.sourceTypes),
+      keywords: arrayText(searchProfile.keywords),
+      excludedKeywords: arrayText(searchProfile.excludedKeywords),
+      cadence: text(searchProfile.cadence, 80),
+      notes: text(searchProfile.notes, 1200),
+      lastRunAt: text(searchProfile.lastRunAt, 100),
+      nextRunAt: text(searchProfile.nextRunAt, 100),
+    },
+    leadSources: (Array.isArray(leadSources) ? leadSources : []).slice(0, 8).map((source) => ({
+      name: text(source.name, 220),
+      type: text(source.type, 140),
+      url: text(source.url, 400),
+      serviceArea: text(source.serviceArea, 260),
+      tradeFocus: text(source.tradeFocus, 260),
+      notes: text(source.notes, 700),
+      checkCadence: text(source.checkCadence, 80),
+      nextCheckAt: text(source.nextCheckAt, 100),
+    })),
+    company: {
+      name: text(companySettings.companyName, 180),
+      serviceArea: text(companySettings.serviceArea, 260),
+      licenseText: text(companySettings.licenseText, 220),
+      website: text(companySettings.website, 220),
+    },
+  };
+}
+
+export const OPPORTUNITY_SEARCH_PLAN_RESPONSE_SCHEMA = {
+  name: "opportunity_scout_search_plan",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      searchSummary: { type: "string" },
+      prioritySources: {
+        type: "array",
+        items: { type: "string" },
+      },
+      searchQueries: {
+        type: "array",
+        items: { type: "string" },
+      },
+      qualificationChecklist: {
+        type: "array",
+        items: { type: "string" },
+      },
+      riskFilters: {
+        type: "array",
+        items: { type: "string" },
+      },
+      nextOfficeStep: { type: "string" },
+    },
+    required: [
+      "searchSummary",
+      "prioritySources",
+      "searchQueries",
+      "qualificationChecklist",
+      "riskFilters",
+      "nextOfficeStep",
+    ],
+  },
+};
+
+export function buildOpportunitySearchPlanOpenAiRequest(context, model = OPPORTUNITY_ASSISTANT_DEFAULT_MODEL) {
+  return {
+    model,
+    temperature: 0.2,
+    response_format: {
+      type: "json_schema",
+      json_schema: OPPORTUNITY_SEARCH_PLAN_RESPONSE_SCHEMA,
+    },
+    messages: [
+      {
+        role: "system",
+        content: [
+          "You are an office-only Opportunity Scout planning assistant for Apex HQ.",
+          "Generate a review-only daily search plan for a contractor office based on saved sources and search profile settings.",
+          "Do not browse the web, do not create leads, do not contact customers, do not bid work, and do not promise price or schedule.",
+          "Keep the output practical for a human office manager to run manually.",
+          "Return only JSON matching the provided schema.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          instruction: "Build a safe daily search plan for this profile: priority sources, exact search queries, qualification checklist, risk filters, and the next office step. Do not change data.",
+          context,
+        }),
+      },
+    ],
+  };
+}
+
+export function parseOpenAiOpportunitySearchPlanPayload(payload = {}) {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new Error("OpenAI response did not include opportunity search plan JSON.");
+  }
+  return JSON.parse(content);
+}
+
+export async function generateOpportunitySearchPlan({
+  context,
+  apiKey,
+  fetchImpl = globalThis.fetch,
+  endpoint = OPPORTUNITY_ASSISTANT_OPENAI_URL,
+  model = OPPORTUNITY_ASSISTANT_DEFAULT_MODEL,
+  timeoutMs = 20000,
+} = {}) {
+  if (!text(apiKey, 200)) {
+    return notConfiguredOpportunitySearchPlanResponse();
+  }
+  if (typeof fetchImpl !== "function") {
+    return unavailableOpportunitySearchPlanResponse("Opportunity Scout AI cannot run because fetch is unavailable.");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildOpportunitySearchPlanOpenAiRequest(context, model)),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return unavailableOpportunitySearchPlanResponse("Opportunity Scout AI could not generate a search plan right now.");
+    }
+
+    const payload = await response.json();
+    return sanitizeOpportunitySearchPlanResponse(parseOpenAiOpportunitySearchPlanPayload(payload));
+  } catch {
+    return unavailableOpportunitySearchPlanResponse("Opportunity Scout AI could not read the search plan response. Try again.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}

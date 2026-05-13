@@ -167,6 +167,10 @@ export function updateOpportunitySearchProfile(token, id, payload) {
   return request(`/api/opportunity-scout/search-profiles/${id}`, { method: "PATCH", token, body: payload });
 }
 
+export function planOpportunitySearchWithAi(token, id) {
+  return request(`/api/ai/opportunity-scout/search-profiles/${id}/search-plan`, { method: "POST", token });
+}
+
 export function createFoundOpportunity(token, payload) {
   return request("/api/opportunity-scout/found-opportunities", { method: "POST", token, body: payload });
 }

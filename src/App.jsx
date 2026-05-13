@@ -63,6 +63,7 @@ import {
   login,
   logout,
   markLeadSourceChecked,
+  planOpportunitySearchWithAi,
   resetWorkspace,
   reviewDailyReport,
   reviewToolChecklist,
@@ -17919,6 +17920,7 @@ function CopilotPagePolished({
   onSelectReport,
   onCreateOpportunitySearchProfile,
   onUpdateOpportunitySearchProfile,
+  onPlanOpportunitySearchWithAi,
   onCreateFoundOpportunity,
   onUpdateFoundOpportunity,
   onConvertFoundOpportunityToLead,
@@ -17933,6 +17935,7 @@ function CopilotPagePolished({
   const today = new Date().toISOString().slice(0, 10);
   const [profileDraft, setProfileDraft] = useState(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
   const [foundDraft, setFoundDraft] = useState(INITIAL_FOUND_OPPORTUNITY_FORM);
+  const [profileAiPlans, setProfileAiPlans] = useState({});
   const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
   const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage ?? permissions?.leads?.canManage);
@@ -18063,6 +18066,24 @@ function CopilotPagePolished({
   function setProfileStatus(profile, status) {
     if (!canManageOpportunityScout || !profile?.profileId) return;
     onUpdateOpportunitySearchProfile?.(profile.profileId, { status });
+  }
+
+  async function planProfileSearchWithAi(profile) {
+    if (!canManageOpportunityScout || !profile?.profileId) return;
+    setProfileAiPlans((current) => ({
+      ...current,
+      [profile.profileId]: { status: "loading", result: null, message: "" },
+    }));
+
+    const result = await onPlanOpportunitySearchWithAi?.(profile.profileId);
+    setProfileAiPlans((current) => ({
+      ...current,
+      [profile.profileId]: {
+        status: result?.ok === false ? "error" : "ready",
+        result,
+        message: result?.message || "",
+      },
+    }));
   }
 
   function setOpportunityStatus(opportunity, status) {
@@ -18437,7 +18458,10 @@ function CopilotPagePolished({
                   </div>
                 </form>
                 <div className="co-ai-scout-record-list">
-                  {opportunityScout.profileQueue.length ? opportunityScout.profileQueue.map((profile) => (
+                  {opportunityScout.profileQueue.length ? opportunityScout.profileQueue.map((profile) => {
+                    const aiPlan = profileAiPlans[profile.profileId];
+                    const aiPlanResult = aiPlan?.result || {};
+                    return (
                     <div key={profile.id} className="co-ai-scout-record" data-tone={profile.tone}>
                       <div className="min-w-0">
                         <div className="co-ai-scout-record-title">
@@ -18448,13 +18472,45 @@ function CopilotPagePolished({
                         <code>{profile.query}</code>
                       </div>
                       <div className="co-ai-scout-record-actions">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => planProfileSearchWithAi(profile)} disabled={!canManageOpportunityScout || busy || aiPlan?.status === "loading"}>
+                          {aiPlan?.status === "loading" ? "Planning..." : "AI Plan"}
+                        </Button>
                         <Button type="button" size="sm" variant="secondary" onClick={() => markProfileReviewed(profile)} disabled={!canManageOpportunityScout || busy}>Mark Reviewed</Button>
                         <Button type="button" size="sm" variant="ghost" onClick={() => setProfileStatus(profile, profile.status === "paused" ? "active" : "paused")} disabled={!canManageOpportunityScout || busy}>
                           {profile.status === "paused" ? "Activate" : "Pause"}
                         </Button>
                       </div>
+                      {aiPlan?.status === "ready" ? (
+                        <div className="co-ai-scout-review" data-state={aiPlanResult.configured === false ? "not-configured" : "ready"}>
+                          <div>
+                            <span>AI Search Plan</span>
+                            <strong>{aiPlanResult.configured === false ? "Server AI needed" : "Daily plan ready"}</strong>
+                            <p>{aiPlanResult.configured === false ? "Apex HQ AI is not enabled on this server yet. The profile can still be run manually from the search brief." : (aiPlanResult.nextOfficeStep || aiPlanResult.searchSummary || "Use this plan to run the profile manually and save real matches.")}</p>
+                          </div>
+                          {aiPlanResult.configured === false ? null : (
+                            <div className="co-ai-scout-review-grid">
+                              {aiPlanResult.searchQueries?.slice(0, 3).map((item) => (
+                                <small key={item}><b>Search</b>{item}</small>
+                              ))}
+                              {aiPlanResult.prioritySources?.slice(0, 2).map((item) => (
+                                <small key={item}><b>Source</b>{item}</small>
+                              ))}
+                              {aiPlanResult.qualificationChecklist?.slice(0, 2).map((item) => (
+                                <small key={item}><b>Check</b>{item}</small>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : aiPlan?.status === "error" ? (
+                        <div className="co-ai-scout-review" data-state="error">
+                          <span>AI Search Plan</span>
+                          <strong>Plan unavailable</strong>
+                          <p>{aiPlan.message || "Apex HQ could not generate a search plan right now."}</p>
+                        </div>
+                      ) : null}
                     </div>
-                  )) : (
+                    );
+                  }) : (
                     <StateCard title="No search profiles yet" description="Create the first search profile so the office has a repeatable job-finding routine." tone="slate" />
                   )}
                 </div>
@@ -28244,6 +28300,22 @@ export default function App() {
     }
   }
 
+  async function handlePlanOpportunitySearchWithAi(profileId) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await planOpportunitySearchWithAi(sessionToken, profileId);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateFoundOpportunity(payload) {
     if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
     setBusy(true);
@@ -29904,6 +29976,7 @@ export default function App() {
                 onMarkLeadSourceChecked={handleMarkLeadSourceChecked}
                 onCreateOpportunitySearchProfile={handleCreateOpportunitySearchProfile}
                 onUpdateOpportunitySearchProfile={handleUpdateOpportunitySearchProfile}
+                onPlanOpportunitySearchWithAi={handlePlanOpportunitySearchWithAi}
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}
                 onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
                 onConvertFoundOpportunityToLead={handleConvertFoundOpportunityToLead}

@@ -73,7 +73,9 @@ import {
 } from "../shared/leadAiAssistant.js";
 import {
   buildOpportunityAssistantContext,
+  buildOpportunitySearchPlanContext,
   generateOpportunityAssistantReview,
+  generateOpportunitySearchPlan,
 } from "../shared/opportunityScoutAi.js";
 import {
   contactHistoryPayloadToRecord,
@@ -7822,6 +7824,23 @@ app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(
   });
 
   res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/ai/opportunity-scout/search-profiles/:id/search-plan", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const state = await readDb();
+  const searchProfile = findCompanyScopedRecord(state.opportunitySearchProfiles || [], req.params.id, req.auth.user, state, "Search profile");
+
+  const result = await generateOpportunitySearchPlan({
+    context: buildOpportunitySearchPlanContext({
+      searchProfile,
+      leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+      companySettings: companySettingsForState(state, req.auth.user),
+    }),
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  return res.json(result);
 }));
 
 app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(async (req, res) => {
