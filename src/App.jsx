@@ -15231,7 +15231,7 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
     <div className="co-office-page co-imports-page">
       <PageHeader
         eyebrow="Office"
-        title={<span>Imported Drafts <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Imported Drafts"
         description="Import job draft packages, review customer match and missing details, then create a real Apex HQ job when the office is ready."
         actions={
           <div className="flex flex-wrap gap-2">
