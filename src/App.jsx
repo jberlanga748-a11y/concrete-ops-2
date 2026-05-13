@@ -23873,6 +23873,89 @@ function DeliveryTicketsCommandRailPolished({
   );
 }
 
+function DeliveryTicketsFieldOperatorPanel({
+  ticket,
+  filteredRows,
+  visibleJobs,
+  missingPhotoCount,
+  missingReportCount,
+  incompleteBasicsCount,
+  canCreate,
+  canEditSelected,
+  onOpenTool,
+  onJumpToBoard,
+}) {
+  const hasTicket = Boolean(ticket);
+  const summaryItems = [
+    { label: "Tickets", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
+    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+    { label: "Need photo", value: missingPhotoCount, tone: missingPhotoCount ? "amber" : "green" },
+    { label: "Need report", value: missingReportCount, tone: missingReportCount ? "amber" : "green" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-field-operator-panel co-delivery-field-panel overflow-hidden">
+        <div className="co-field-operator-shell">
+          <div className="co-field-operator-copy min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge tone="orange">Field Delivery Ticket</Badge>
+              <Badge tone={canCreate ? "green" : "slate"}>{canCreate ? "Create ready" : "Read only"}</Badge>
+              {hasTicket ? <Badge tone={ticket.ticketUploadId ? "green" : "amber"}>{ticket.ticketUploadId ? "Photo linked" : "Photo optional"}</Badge> : <Badge tone="slate">Select ticket</Badge>}
+              {incompleteBasicsCount ? <Badge tone="amber">{incompleteBasicsCount} basics gap{incompleteBasicsCount === 1 ? "" : "s"}</Badge> : <Badge tone="green">Basics clear</Badge>}
+            </div>
+            <h2>{hasTicket ? deliveryTicketTitle(ticket) : "Delivery ticket ready"}</h2>
+            <p>
+              {hasTicket
+                ? `${ticket.job?.title || "Assigned job"} / ${ticket.supplier || "Supplier pending"} / ${deliveryTicketYardsLabel(ticket)}`
+                : canCreate
+                  ? "Record truck, ticket, supplier, and delivered yards for an assigned job without exposing pricing or billing."
+                  : "Review assigned ticket records and linked evidence without office-only controls."}
+            </p>
+            <div className="co-field-operator-address">
+              <Icon name="clipboard" />
+              <span>{hasTicket ? `${ticket.truckNumber || "Truck open"} / ${formatDateTime(deliveryTicketPrimaryTime(ticket))}` : `${visibleJobs.length} assigned job${visibleJobs.length === 1 ? "" : "s"}`}</span>
+            </div>
+          </div>
+
+          <div className="co-field-operator-actions">
+            {canCreate ? (
+              <Button type="button" onClick={() => onOpenTool("create")}>
+                <Icon name="plus" />
+                New Ticket
+              </Button>
+            ) : (
+              <Button type="button" onClick={onJumpToBoard}>
+                <Icon name="layers" />
+                View Tickets
+              </Button>
+            )}
+            <Button type="button" variant="secondary" onClick={onJumpToBoard}>
+              <Icon name="layers" />
+              View Board
+            </Button>
+            {hasTicket ? (
+              <Button type="button" variant="secondary" onClick={() => onOpenTool("details")}>
+                <Icon name="clipboard" />
+                {canEditSelected ? "Edit Ticket" : "Details"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="co-field-operator-strip">
+          {summaryItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function DeliveryTicketCreatePanelPolished({
   canCreate,
   visibleJobs,
@@ -24073,6 +24156,7 @@ function DeliveryTicketsPagePolished({
   const [showTools, setShowTools] = useState(false);
   const [activeTool, setActiveTool] = useState("details");
   const toolsRef = useRef(null);
+  const boardRef = useRef(null);
 
   const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
   const ticketRows = Array.isArray(deliveryTickets) ? deliveryTickets : [];
@@ -24191,6 +24275,10 @@ function DeliveryTicketsPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function jumpToBoard() {
+    window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityTicket(matchTicket, options = {}) {
     const targetTicket = filteredRows.find(matchTicket) || ticketRows.find(matchTicket);
     if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
@@ -24281,6 +24369,21 @@ function DeliveryTicketsPagePolished({
         }
       />
 
+      {!canManageAll ? (
+        <DeliveryTicketsFieldOperatorPanel
+          ticket={selectedTicket}
+          filteredRows={filteredRows}
+          visibleJobs={visibleJobs}
+          missingPhotoCount={missingPhotoCount}
+          missingReportCount={missingReportCount}
+          incompleteBasicsCount={incompleteBasicsCount}
+          canCreate={canCreate}
+          canEditSelected={canEditSelected}
+          onOpenTool={openTool}
+          onJumpToBoard={jumpToBoard}
+        />
+      ) : null}
+
       <div className="co-delivery-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {ticketKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
@@ -24300,57 +24403,59 @@ function DeliveryTicketsPagePolished({
       </div>
 
       <div className="co-delivery-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card className="co-delivery-main-board overflow-hidden">
-          <div className="co-delivery-board-header border-b border-slate-200 bg-white p-4">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Delivery Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track tickets, loads, suppliers, truck timing, linked reports, and photo evidence in one operational lane.</p>
+        <div ref={boardRef}>
+          <Card className="co-delivery-main-board overflow-hidden">
+            <div className="co-delivery-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Delivery Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track tickets, loads, suppliers, truck timing, linked reports, and photo evidence in one operational lane.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Active")}>Active</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Archived")}>Archive</Button>
+                  {canCreate ? <Button type="button" size="sm" onClick={() => openTool("create")}>New Ticket</Button> : null}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Active")}>Active</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Archived")}>Archive</Button>
-                {canCreate ? <Button type="button" size="sm" onClick={() => openTool("create")}>New Ticket</Button> : null}
+            </div>
+            <FilterBar filters={["Active", "Archived", "All"]} active={archiveFilter} setActive={setArchiveFilter} search={search} setSearch={setSearch} placeholder="Search supplier, ticket, truck, mix notes, or job..." />
+            <details className="co-delivery-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[jobFilter !== "All jobs" ? jobFilter : "", supplierFilter !== "All suppliers" ? supplierFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", dateFilter !== "All dates" ? dateFilter : ""].filter(Boolean).length || "Job, supplier, creator"}</span>
+              </summary>
+              <div className="co-office-filter-grid co-delivery-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Supplier" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)}>
+                  {listState.supplierOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
+                  {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                  {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
               </div>
+            </details>
+            {filteredRows.length === 0 ? (
+              <div className="p-5">
+                <StateCard
+                  title={visibleJobs.length === 0 && !canManageAll ? "No assigned job yet" : "No delivery tickets match these filters"}
+                  description={visibleJobs.length === 0 && !canManageAll ? "Contact office if you should be able to record or view deliveries for this job." : "Clear a filter or create a new ticket for a visible job."}
+                  tone="slate"
+                />
+              </div>
+            ) : (
+              <DeliveryTicketsTablePolished rows={filteredRows} selectedId={selectedTicket?.id} onSelect={setSelectedTicketId} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} ticket{filteredRows.length === 1 ? "" : "s"}</p>
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
             </div>
-          </div>
-          <FilterBar filters={["Active", "Archived", "All"]} active={archiveFilter} setActive={setArchiveFilter} search={search} setSearch={setSearch} placeholder="Search supplier, ticket, truck, mix notes, or job..." />
-          <details className="co-delivery-advanced-filters border-b border-slate-200 bg-white">
-            <summary>
-              <span>Advanced filters</span>
-              <span>{[jobFilter !== "All jobs" ? jobFilter : "", supplierFilter !== "All suppliers" ? supplierFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", dateFilter !== "All dates" ? dateFilter : ""].filter(Boolean).length || "Job, supplier, creator"}</span>
-            </summary>
-            <div className="co-office-filter-grid co-delivery-filter-grid grid gap-3 p-3 md:grid-cols-4">
-              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <SelectField label="Supplier" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)}>
-                {listState.supplierOptions.map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
-                {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-                {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-            </div>
-          </details>
-          {filteredRows.length === 0 ? (
-            <div className="p-5">
-              <StateCard
-                title={visibleJobs.length === 0 && !canManageAll ? "No assigned job yet" : "No delivery tickets match these filters"}
-                description={visibleJobs.length === 0 && !canManageAll ? "Contact office if you should be able to record or view deliveries for this job." : "Clear a filter or create a new ticket for a visible job."}
-                tone="slate"
-              />
-            </div>
-          ) : (
-            <DeliveryTicketsTablePolished rows={filteredRows} selectedId={selectedTicket?.id} onSelect={setSelectedTicketId} />
-          )}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} ticket{filteredRows.length === 1 ? "" : "s"}</p>
-            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
         <DeliveryTicketsCommandRailPolished
           ticket={selectedTicket}

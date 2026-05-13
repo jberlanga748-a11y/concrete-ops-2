@@ -8112,6 +8112,10 @@ textarea {
   .co-uploads-field-panel .co-field-operator-strip {
     display: none;
   }
+
+  .co-delivery-field-panel .co-field-operator-strip {
+    display: none;
+  }
 }
 
 .co-reports-page {
