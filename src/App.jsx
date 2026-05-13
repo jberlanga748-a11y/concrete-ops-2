@@ -6352,7 +6352,7 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
   }
 
   return (
-    <div className={`flex items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 text-sm font-bold text-slate-500 ${className}`}>
+    <div className={`flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-500 ${className}`}>
       {status === "loading" ? "Loading preview..." : "Preview unavailable"}
     </div>
   );
@@ -6360,7 +6360,7 @@ function AuthenticatedUploadPreview({ upload, token, className = "h-64 w-full ro
 
 function UploadListCard({ upload, selected, onSelect }) {
   return (
-    <button type="button" onClick={() => onSelect(upload.id)} className={`co-mobile-record-card w-full min-w-0 max-w-full rounded-2xl border p-4 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/70" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+    <button type="button" onClick={() => onSelect(upload.id)} className={`co-mobile-record-card w-full min-w-0 max-w-full rounded-2xl border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/50"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
@@ -6382,7 +6382,7 @@ function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false,
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
+    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-orange-200" : "border-slate-200"}`}>
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
@@ -6390,13 +6390,13 @@ function UploadMobileAccordionCard({ title, summary, badge, defaultOpen = false,
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-orange-600 text-white" : "bg-orange-50 text-orange-700"}`}>
             {isOpen ? "Hide" : "Show"}
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
         </span>
       </button>
-      {isOpen ? <div className="border-t border-blue-100 p-2.5">
+      {isOpen ? <div className="border-t border-slate-200 p-2.5">
         {children}
       </div> : null}
     </div>
@@ -6407,15 +6407,15 @@ function UploadMobileFieldGroup({ title, summary, defaultOpen = false, children 
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-slate-200 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
-      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
+      {isOpen ? <div className="grid gap-3 border-t border-slate-200 p-3">
         {children}
       </div> : null}
     </div>
@@ -6473,7 +6473,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
           <AuthenticatedUploadPreview upload={upload} token={token} className="h-52 w-full max-w-full rounded-2xl object-cover" />
         </UploadMobileAccordionCard>
         <UploadMobileAccordionCard title="Job / report link" summary={uploadJobLabel(upload)}>
-          <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Job:</span> {uploadJobLabel(upload)}</p>
             <p><span className="font-black text-slate-950">Customer:</span> {uploadCustomerLabel(upload)}</p>
             <p><span className="font-black text-slate-950">Uploader:</span> {uploadUploaderLabel(upload)}</p>
@@ -6484,7 +6484,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
           <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={!canManage || disabled} />
         </UploadMobileAccordionCard>
         <UploadMobileAccordionCard title="Timestamp / GPS metadata" summary={gpsStatusLabel(upload)}>
-          <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Taken at:</span> {formatDateTime(upload.takenAt)}</p>
             <p><span className="font-black text-slate-950">Uploaded at:</span> {formatDateTime(upload.uploadedAt)}</p>
             <p><span className="font-black text-slate-950">Location status:</span> {gpsStatusLabel(upload)}</p>
@@ -6500,7 +6500,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
           </div>
         </UploadMobileAccordionCard>
         <UploadMobileAccordionCard title="File metadata" summary={formatFileSize(upload.fileSize)}>
-          <div className="grid gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">File name:</span> {upload.fileName || "Unknown"}</p>
             <p><span className="font-black text-slate-950">File type:</span> {upload.fileType || "Unknown"}</p>
             <p><span className="font-black text-slate-950">File size:</span> {formatFileSize(upload.fileSize)}</p>
@@ -6522,13 +6522,13 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
       <div className="grid gap-4">
         <AuthenticatedUploadPreview upload={upload} token={token} className="h-52 w-full max-w-full rounded-2xl object-cover sm:h-64" />
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+          <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Uploaded by:</span> {uploadUploaderLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Taken at:</span> {formatDateTime(upload.takenAt)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Uploaded at:</span> {formatDateTime(upload.uploadedAt)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {upload.fileType || "Unknown"}</p>
           </div>
-          <div className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-slate-600">
+          <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <p><span className="font-black text-slate-950">Job:</span> {uploadJobLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Customer:</span> {uploadCustomerLabel(upload)}</p>
             <p className="mt-1"><span className="font-black text-slate-950">Location status:</span> {gpsStatusLabel(upload)}</p>
@@ -6612,7 +6612,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
       <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
 
-      <UploadMobileAccordionCard title="Upload photo" summary={uploadSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
+      <UploadMobileAccordionCard title="Upload Photo Evidence" summary={uploadSummary} badge={<Badge tone="orange">New</Badge>} defaultOpen>
         <form className="co-uploads-create-mobile-form grid gap-3" onSubmit={onSubmit} noValidate>
           <div className="co-uploads-create-target">
             <span>Evidence target</span>
@@ -6650,7 +6650,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           </UploadMobileFieldGroup>
           <UploadMobileFieldGroup title="Timestamp / GPS" summary={gpsStatusLabel(draft)}>
             <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-600">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
               <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
               {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
               {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} / accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
@@ -6659,7 +6659,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           </UploadMobileFieldGroup>
           <UploadMobileFieldGroup title="Extra details" summary={draft.fileName ? formatFileSize(draft.fileSize) : "File details pending"}>
             {draft.fileName ? (
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                 <p><span className="font-black text-slate-950">Selected photo:</span> {draft.fileName}</p>
                 <p className="mt-1"><span className="font-black text-slate-950">File type:</span> {draft.fileType || "Unknown"}</p>
                 <p className="mt-1"><span className="font-black text-slate-950">File size:</span> {formatFileSize(draft.fileSize)}</p>
@@ -6980,7 +6980,7 @@ function UploadsFieldOperatorPanel({
   const hasSelectedUpload = Boolean(upload);
   const summaryItems = [
     { label: "Evidence", value: visibleRows.length, tone: visibleRows.length ? "orange" : "slate" },
-    { label: "Assigned jobs", value: allowedJobs.length, tone: allowedJobs.length ? "blue" : "slate" },
+    { label: "Assigned jobs", value: allowedJobs.length, tone: allowedJobs.length ? "orange" : "slate" },
     { label: "Missing GPS", value: missingGpsCount, tone: missingGpsCount ? "amber" : "green" },
     { label: "Caption gaps", value: missingNotesCount, tone: missingNotesCount ? "amber" : "green" },
   ];
@@ -7062,6 +7062,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const [activeTool, setActiveTool] = useState("upload");
   const toolsRef = useRef(null);
   const boardRef = useRef(null);
+  const isFieldUploadWorkspace = !permissions.uploads.canManageAll;
   const safeUploads = Array.isArray(uploads) ? uploads : [];
   const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
   const listState = useMemo(() => deriveUploadListState(safeUploads), [safeUploads]);
@@ -7087,7 +7088,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     return currentTime > latestTime ? upload : latestUpload;
   }, visibleRows[0] || null);
   const uploadKpis = [
-    { label: "Uploads", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "blue", actionLabel: "View active", onAction: () => setFilter("Active only") },
+    { label: "Uploads", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "orange", actionLabel: "View active", onAction: () => setFilter("Active only") },
     { label: "Photos", value: imageCount, helper: "Image evidence in view", icon: "document", tone: "orange" },
     { label: "GPS Captured", value: gpsCount, helper: "Location metadata present", icon: "check", tone: gpsCount ? "green" : "slate", actionLabel: "View GPS", onAction: () => setGpsFilter("Has GPS") },
     { label: "Missing GPS", value: missingGpsCount, helper: "Still valid if denied", icon: "alert", tone: missingGpsCount ? "amber" : "slate", actionLabel: "Review missing", onAction: () => setGpsFilter("Missing GPS") },
@@ -7250,6 +7251,11 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function selectTool(toolId = "details") {
+    setActiveTool(toolId);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function jumpToBoard() {
     window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
@@ -7295,7 +7301,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     value: latestVisibleUpload ? 1 : 0,
     helper: latestVisibleUpload ? `${uploadJobLabel(latestVisibleUpload)} / ${uploadUploaderLabel(latestVisibleUpload)}` : "No visible upload selected yet.",
     icon: "arrowUpRight",
-    tone: latestVisibleUpload ? "blue" : "slate",
+    tone: latestVisibleUpload ? "orange" : "slate",
     actionLabel: latestVisibleUpload ? "Open latest" : "No evidence",
     onAction: () => openPriorityUpload((upload) => upload.id === latestVisibleUpload?.id, { gpsFilter: "All locations" }),
   };
@@ -7304,11 +7310,13 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     value: canCreate ? 1 : 0,
     helper: canCreate ? "Capture job-linked photo evidence with optional GPS." : "Upload access is not enabled for this role.",
     icon: "upload",
-    tone: canCreate ? "blue" : "slate",
+    tone: canCreate ? "orange" : "slate",
     actionLabel: canCreate ? "Start upload" : "Read only",
     onAction: () => openTool(canCreate ? "upload" : "details"),
   };
-  const uploadPriorityCards = visibleRows.length === 0 && canCreate
+  const uploadPriorityCards = isFieldUploadWorkspace
+    ? [uploadPhotoPriorityCard, missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard]
+    : visibleRows.length === 0 && canCreate
     ? [uploadPhotoPriorityCard, missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard]
     : [missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard, uploadPhotoPriorityCard];
   const uploadsEmptyTitle = safeUploads.length === 0 ? "No uploads yet" : "No uploads match these filters";
@@ -7317,7 +7325,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     : "Clear filters or adjust the search to bring existing photo evidence back into view.";
 
   return (
-    <div className="co-office-page co-uploads-page">
+    <div className="co-office-page co-uploads-page" data-field-workspace={isFieldUploadWorkspace ? "true" : undefined}>
       <PageHeader
         eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"}
         title="Photo Evidence"
@@ -7349,7 +7357,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
 
       <div className="co-uploads-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
         {uploadPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-uploads-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+          <button key={card.label} type="button" className="co-uploads-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === uploadPhotoPriorityCard && canCreate ? "true" : undefined} onClick={card.onAction}>
             <span className="co-uploads-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
             <span className="min-w-0">
               <span className="co-uploads-priority-value">{card.value}</span>
@@ -7446,7 +7454,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
         </summary>
         <div className="co-uploads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
           {toolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => setActiveTool(tab.id)}>
+            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => selectTool(tab.id)}>
               {tab.label}
               <span>{tab.count}</span>
             </button>
