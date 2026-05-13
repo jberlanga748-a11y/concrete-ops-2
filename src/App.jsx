@@ -5762,7 +5762,7 @@ function DailyReportStatusBadge({ status }) {
   const tone = status === "reviewed"
     ? "green"
     : status === "submitted"
-      ? "blue"
+      ? "orange"
       : status === "reopened"
         ? "amber"
         : status === "archived"
@@ -5776,7 +5776,7 @@ function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = f
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
+    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-orange-200" : "border-slate-200"}`}>
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
@@ -5784,13 +5784,13 @@ function DailyReportMobileAccordionCard({ title, summary, badge, defaultOpen = f
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {badge}
-          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}>
+          <span className={`co-mobile-toggle-pill inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${isOpen ? "is-active bg-orange-600 text-white" : "bg-orange-50 text-orange-700"}`}>
             {isOpen ? "Hide" : "Show"}
             <span aria-hidden="true">{isOpen ? "^" : "v"}</span>
           </span>
         </span>
       </button>
-      {isOpen ? <div className="border-t border-blue-100 p-2.5">
+      {isOpen ? <div className="border-t border-slate-200 p-2.5">
         {children}
       </div> : null}
     </div>
@@ -5801,15 +5801,15 @@ function DailyReportMobileFieldGroup({ title, summary, defaultOpen = false, chil
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
+    <div className="co-mobile-field-group rounded-2xl border border-slate-200 bg-white">
       <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
         </span>
-        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700">{isOpen ? "Hide ^" : "Show v"}</span>
+        <span className="co-mobile-toggle-pill shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-black text-orange-700">{isOpen ? "Hide ^" : "Show v"}</span>
       </button>
-      {isOpen ? <div className="grid gap-3 border-t border-blue-100 p-3">
+      {isOpen ? <div className="grid gap-3 border-t border-slate-200 p-3">
         {children}
       </div> : null}
     </div>
@@ -5818,7 +5818,7 @@ function DailyReportMobileFieldGroup({ title, summary, defaultOpen = false, chil
 
 function DailyReportMobileCard({ report, selected, onSelect }) {
   return (
-    <button type="button" onClick={() => onSelect(report.id)} className={`co-mobile-record-card w-full rounded-2xl border p-3 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/80" : "border-blue-100 bg-white hover:bg-blue-50/50"}`}>
+    <button type="button" onClick={() => onSelect(report.id)} className={`co-mobile-record-card w-full rounded-2xl border p-3 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/80" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/50"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words text-sm font-black text-slate-950">{jobTitle(report.job)}</p>
@@ -5994,7 +5994,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
 
   return (
     <>
-      <DailyReportMobileAccordionCard title="Daily Report" summary={createSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
+      <DailyReportMobileAccordionCard title="Start Field Report" summary={createSummary} badge={<Badge tone="orange">New</Badge>} defaultOpen>
         <form className="co-reports-create-mobile-form grid gap-3" onSubmit={onCreate}>
           <div className="co-reports-create-target">
             <span>Report target</span>
@@ -6016,7 +6016,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           <div className="co-reports-create-action-stack co-reports-create-action-stack-mobile">
             <Button type="submit" className="co-reports-create-cta" disabled={disabled}>
               <Icon name="plus" />
-              Start daily report
+              Start report now
             </Button>
             <p>Creates the real daily report draft for the selected job and date.</p>
           </div>
@@ -6028,7 +6028,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           </DailyReportMobileFieldGroup>
           <DailyReportMobileFieldGroup title="Concrete / materials" summary={draft.concretePoured ? `${draft.yardsPoured || 0} yards poured` : "No concrete marked yet"}>
             <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3">
               <span>Concrete poured</span>
               <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
             </label>
@@ -6075,7 +6075,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
               <TextAreaField label="Work performed" value={draft.workPerformed} onChange={(event) => setDraft((current) => ({ ...current, workPerformed: event.target.value }))} placeholder="Prep, pour, formwork, cleanup..." className="field-input min-h-16 resize-y" />
             </div>
             <InputField label="Weather" value={draft.weather} onChange={(event) => setDraft((current) => ({ ...current, weather: event.target.value }))} />
-            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+            <label className="field-label min-h-[60px] justify-center rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3">
               <span>Concrete poured</span>
               <input type="checkbox" checked={Boolean(draft.concretePoured)} onChange={(event) => setDraft((current) => ({ ...current, concretePoured: event.target.checked, yardsPoured: event.target.checked ? current.yardsPoured : 0 }))} />
             </label>
@@ -6084,7 +6084,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           <div className="co-reports-create-action-stack">
             <Button type="submit" className="co-reports-create-cta" disabled={disabled}>
               <Icon name="plus" />
-              Start daily report
+              Start report now
             </Button>
             <p>Opens the real daily report record with the job, date, and field notes you enter here.</p>
             <div className="co-reports-create-checks">
@@ -6137,11 +6137,11 @@ function DailyReportDetailPanel({
   if (!report) {
     return (
       <Card className="overflow-hidden">
-        <div className="border-b border-blue-100 bg-white p-5">
+        <div className="border-b border-slate-200 bg-white p-5">
           <SectionHeader title="Report details" description="Select a report to review, print, or update field documentation." />
         </div>
         <div className="p-5">
-          <div className="rounded-3xl border border-dashed border-blue-200 bg-blue-50/50 p-6">
+          <div className="rounded-3xl border border-dashed border-orange-200 bg-orange-50/50 p-6">
             <p className="text-sm font-black text-slate-950">No report selected</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">Choose a report from the log, or start a draft above for today's job.</p>
             <div className="mt-4 grid gap-2 text-xs font-bold text-slate-500 sm:grid-cols-3">
@@ -10242,7 +10242,7 @@ function ReportsPagePolished({
   const concreteCount = visibleRows.filter((report) => report.concretePoured).length;
   const missingBasicsCount = visibleRows.filter((report) => !report.workPerformed || !report.crewSummary || !report.weather).length;
   const reportKpis = [
-    { label: "Reports", value: visibleRows.length, helper: "Matching current filters", icon: "document", tone: "blue", actionLabel: "View reports", onAction: () => setFilter("All") },
+    { label: "Reports", value: visibleRows.length, helper: "Matching current filters", icon: "document", tone: "orange", actionLabel: "View reports", onAction: () => setFilter("All") },
     { label: "Submitted", value: submittedCount, helper: "Waiting office review", icon: "clipboard", tone: submittedCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setFilter("Submitted") },
     { label: "Reviewed", value: reviewedCount, helper: "Closed for field review", icon: "check", tone: "green", actionLabel: "View reviewed", onAction: () => setFilter("Reviewed") },
     { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened reports", icon: "alert", tone: needsActionCount ? "amber" : "slate", actionLabel: "Open drafts", onAction: () => setFilter("Draft") },
@@ -10265,6 +10265,11 @@ function ReportsPagePolished({
   function openReportTool(toolId = "details") {
     setActiveReportTool(toolId);
     setShowReportTools(true);
+    window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function selectReportTool(toolId = "details") {
+    setActiveReportTool(toolId);
     window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -10311,7 +10316,7 @@ function ReportsPagePolished({
     : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard, startPriorityCard];
 
   return (
-    <div className="co-office-page co-reports-page">
+    <div className="co-office-page co-reports-page" data-field-workspace={isFieldReportWorkspace ? "true" : undefined}>
       <PageHeader
         eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"}
         title="Daily Reports"
@@ -10333,7 +10338,7 @@ function ReportsPagePolished({
       {canView ? (
         <div className="co-reports-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
           {reportPriorityCards.map((card) => (
-            <button key={card.label} type="button" className="co-reports-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+            <button key={card.label} type="button" className="co-reports-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === startPriorityCard && canCreate ? "true" : undefined} onClick={card.onAction}>
               <span className="co-reports-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
               <span className="min-w-0">
                 <span className="co-reports-priority-value">{card.value}</span>
@@ -10439,7 +10444,7 @@ function ReportsPagePolished({
         </summary>
         <div className="co-reports-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
           {reportToolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeReportTool === tab.id ? "is-active" : ""} onClick={() => setActiveReportTool(tab.id)}>
+            <button key={tab.id} type="button" className={activeReportTool === tab.id ? "is-active" : ""} onClick={() => selectReportTool(tab.id)}>
               {tab.label}
               <span>{tab.count}</span>
             </button>
