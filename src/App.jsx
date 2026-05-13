@@ -17444,7 +17444,7 @@ function CopilotPagePolished({
 
   const aiKpis = [
     {
-      label: "Lead AI Queue",
+      label: "Apex AI Leads",
       value: newLeads.length + highPriorityLeads.length,
       helper: `${newLeads.length} new / ${highPriorityLeads.length} high priority`,
       icon: "spark",
@@ -17471,7 +17471,7 @@ function CopilotPagePolished({
       onAction: () => openModule("jobs"),
     },
     {
-      label: "Pipeline Assist",
+      label: "AI Pipeline Assist",
       value: Math.round(pipelineValue / 1000),
       helper: `${currency(pipelineValue)} open pipeline`,
       icon: "quote",
@@ -17483,16 +17483,16 @@ function CopilotPagePolished({
 
   const workflowCards = [
     {
-      title: "Lead AI assistant",
-      helper: "Open the lead command board and use the saved-field assistant from the selected lead panel.",
+      title: "Apex Lead Assistant",
+      helper: "Open the lead command board and use Apex HQ AI from the selected lead panel.",
       icon: "spark",
       badge: `${newLeads.length + highPriorityLeads.length} ready`,
       tone: "orange",
-      actionLabel: "Open lead AI",
+      actionLabel: "Open assistant",
       onAction: () => openModule("leads"),
     },
     {
-      title: "Manual outreach drafts",
+      title: "Office Drafts",
       helper: "Use the follow-up queue to copy email, SMS, call, and voicemail drafts. Apex HQ does not auto-send.",
       icon: "document",
       badge: `${dueQueueItems.length + blockedQueueItems.length} queued`,
@@ -17501,7 +17501,7 @@ function CopilotPagePolished({
       onAction: () => openModule("leads"),
     },
     {
-      title: "Job startup decisions",
+      title: "Startup Readiness",
       helper: "Review planned jobs, crew assignment gaps, and startup readiness before field work slips.",
       icon: "briefcase",
       badge: `${startupWatchJobs.length} watching`,
@@ -17510,7 +17510,7 @@ function CopilotPagePolished({
       onAction: () => openModule("jobs"),
     },
     {
-      title: "Command review",
+      title: "Command Center Review",
       helper: "Jump to the operational command center for one owner view of follow-ups, jobs, reports, and blockers.",
       icon: "grid",
       badge: "Operator",
@@ -17592,13 +17592,14 @@ function CopilotPagePolished({
   return (
     <div className="co-office-page co-ai-office-page">
       <PageHeader
-        eyebrow="System"
+        eyebrow="Apex HQ AI"
         title="AI Office"
-        description="Office-only Apex HQ AI command space for lead review, manual outreach drafts, startup signals, and operator next actions."
+        description="Office-only Apex HQ AI command space for lead review, outreach drafts, startup signals, and operator next actions."
         actions={
           <div className="flex flex-wrap gap-2">
             <Badge tone="green">Field roles blocked</Badge>
             <Badge tone="amber">No auto-send</Badge>
+            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Open Lead Assistant</Button>
             <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Open Command Center</Button>
           </div>
         }
@@ -17614,7 +17615,7 @@ function CopilotPagePolished({
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2>AI Office Command Board</h2>
+                  <h2>Apex HQ AI Action Board</h2>
                   <p>Use AI where Apex HQ already has real saved context: leads, follow-ups, job readiness, and operator review.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -17641,8 +17642,8 @@ function CopilotPagePolished({
 
           <Card className="co-ai-main-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
-              <div className="min-w-0">
-                <h2>Operator Focus</h2>
+                <div className="min-w-0">
+                <h2>AI Office Focus Queue</h2>
                 <p>Highest-signal records and queues to open next. Every row routes to an existing Apex HQ workflow.</p>
               </div>
             </div>
@@ -17659,7 +17660,7 @@ function CopilotPagePolished({
                 </button>
               )) : (
                 <div className="p-4">
-                  <StateCard title="AI Office is clear" description="New leads, blocked queue items, approved leads, and startup-watch jobs will appear here when they need office review." tone="slate" />
+                  <StateCard title="Apex HQ AI is clear" description="New leads, blocked queue items, approved leads, and startup-watch jobs will appear here when they need office review." tone="slate" />
                 </div>
               )}
             </div>
