@@ -24692,6 +24692,94 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, permission
   );
 }
 
+function ToolChecklistFieldOperatorPanel({ checklist, selectedItems, filteredRows, visibleJobs, permissions, busy, onOpenTool, onSubmitChecklist, onJumpToBoard }) {
+  const status = String(checklist?.status || "").toLowerCase();
+  const missingCount = Number(checklist?.missingItemCount || 0);
+  const damagedCount = Number(checklist?.damagedItemCount || 0);
+  const openIssueCount = missingCount + damagedCount;
+  const canContribute = Boolean(permissions.toolChecklist.canContribute && checklist);
+  const canSubmit = Boolean(
+    permissions.toolChecklist.canManageJob
+      && checklist
+      && !["submitted", "reviewed", "archived"].includes(status)
+  );
+  const summaryItems = [
+    { label: "Loadouts", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
+    { label: "Selected items", value: checklist ? selectedItems.length : "-", tone: selectedItems.length ? "blue" : "slate" },
+    { label: "Open issues", value: checklist ? openIssueCount : "-", tone: openIssueCount ? "amber" : "green" },
+    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-field-operator-panel co-tool-checklist-field-panel overflow-hidden">
+        <div className="co-field-operator-shell">
+          <div className="co-field-operator-copy min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge tone="orange">Field Tool Loadout</Badge>
+              {checklist ? <Badge tone={toolChecklistStatusTone(checklist.status)}>{toolChecklistStatusLabel(checklist.status)}</Badge> : null}
+              {openIssueCount ? <Badge tone="amber">{openIssueCount} open issue{openIssueCount === 1 ? "" : "s"}</Badge> : <Badge tone="green">No open issues</Badge>}
+            </div>
+            <h2>{checklist ? checklist.title || "Untitled tool checklist" : "No tool loadout selected"}</h2>
+            <p>
+              {checklist
+                ? `${toolChecklistJobLabel(checklist)} / ${toolChecklistCustomerLabel(checklist)}`
+                : visibleJobs.length
+                  ? "Select an assigned loadout, add missing tools, and keep the job checklist ready for the office."
+                  : "When a job tool checklist is assigned, the loadout and field actions will show here."}
+            </p>
+            <div className="co-field-operator-address">
+              <Icon name="clipboard" />
+              <span>{checklist ? `${selectedItems.length} item${selectedItems.length === 1 ? "" : "s"} listed / ${toolChecklistForemanLabel(checklist)}` : `${filteredRows.length} visible loadout${filteredRows.length === 1 ? "" : "s"}`}</span>
+            </div>
+          </div>
+
+          <div className="co-field-operator-actions">
+            {checklist ? (
+              <Button type="button" onClick={() => onOpenTool("items")}>
+                <Icon name="layers" />
+                Open Items
+              </Button>
+            ) : (
+              <Button type="button" onClick={onJumpToBoard}>
+                <Icon name="clipboard" />
+                View Board
+              </Button>
+            )}
+            {canContribute ? (
+              <Button type="button" variant="secondary" onClick={() => onOpenTool("add")}>
+                <Icon name="plus" />
+                Add Item
+              </Button>
+            ) : null}
+            {permissions.toolChecklist.canManageJob && checklist ? (
+              <Button type="button" variant="secondary" onClick={() => onSubmitChecklist(checklist.id)} disabled={busy || !canSubmit}>
+                <Icon name="check" />
+                Submit
+              </Button>
+            ) : null}
+            {permissions.toolChecklist.canManage ? (
+              <Button type="button" variant="secondary" onClick={() => onOpenTool("create")}>
+                <Icon name="plus" />
+                New Loadout
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="co-field-operator-strip">
+          {summaryItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function ToolChecklistCreatePanelPolished({ canCreate, visibleJobs, checklistDraft, setChecklistDraft, singleJobId, busy, onCreateChecklist }) {
   if (!canCreate) {
     return (
@@ -24989,6 +25077,19 @@ function ToolChecklistPagePolished({
       : isFieldToolChecklist
         ? [selectedPriorityCard, createPriorityCard, issuePriorityCard, reviewPriorityCard]
     : [issuePriorityCard, reviewPriorityCard, selectedPriorityCard, createPriorityCard];
+  const fieldHeaderActions = (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="secondary" onClick={jumpToBoard}>{filteredRows.length} visible</Button>
+      {selectedChecklist ? <Button type="button" onClick={() => openTools("items")}>Open Items</Button> : null}
+      {canAddItems ? <Button type="button" variant="secondary" onClick={() => openTools("add")}>Add Item</Button> : null}
+    </div>
+  );
+  const officeHeaderActions = (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="secondary" onClick={jumpToBoard}>{filteredRows.length} visible</Button>
+      {canCreateChecklist ? <Button type="button" onClick={() => openTools("create")}>Create Checklist</Button> : null}
+    </div>
+  );
 
   return (
     <div className={`co-office-page co-toolbox-page co-tool-checklist-page ${permissions.toolChecklist.canManageAll ? "" : "co-field-tool-page"}`}>
@@ -24996,13 +25097,22 @@ function ToolChecklistPagePolished({
         eyebrow={permissions.toolChecklist.canManageAll ? "Office Tools" : "Field Tools"}
         title="Tool Checklist"
         description={permissions.toolChecklist.canManageAll ? "Manage job tool loadouts, review submissions, and keep field issues visible to the office." : "Keep assigned job tools organized, flag missing or damaged items, and submit the checklist without office-only data."}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={jumpToBoard}>{filteredRows.length} visible</Button>
-            {canCreateChecklist ? <Button type="button" onClick={() => openTools("create")}>Create Checklist</Button> : null}
-          </div>
-        }
+        actions={isFieldToolChecklist ? fieldHeaderActions : officeHeaderActions}
       />
+
+      {isFieldToolChecklist ? (
+        <ToolChecklistFieldOperatorPanel
+          checklist={selectedChecklist}
+          selectedItems={selectedItems}
+          filteredRows={filteredRows}
+          visibleJobs={visibleJobs}
+          permissions={permissions}
+          busy={busy}
+          onOpenTool={openTools}
+          onSubmitChecklist={onSubmitChecklist}
+          onJumpToBoard={jumpToBoard}
+        />
+      ) : null}
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {toolChecklistKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
