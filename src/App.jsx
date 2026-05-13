@@ -24668,7 +24668,7 @@ function DeliveryTicketsTablePolished({ rows, selectedId, onSelect }) {
                   <td>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge tone={ticket.ticketUploadId ? "green" : "slate"}>{ticket.ticketUploadId ? "Photo" : "No photo"}</Badge>
-                      <Badge tone={ticket.reportId ? "blue" : "slate"}>{ticket.reportId ? "Report" : "No report"}</Badge>
+                      <Badge tone={ticket.reportId ? "orange" : "slate"}>{ticket.reportId ? "Report" : "No report"}</Badge>
                     </div>
                   </td>
                   <td>
@@ -25030,7 +25030,7 @@ function DeliveryTicketDetailPanelPolished({
         <SectionHeader
           title={deliveryTicketTitle(ticket)}
           description={`${ticket.job?.title || "Assigned job"} / ${ticket.createdByName || "Creator pending"} / ${formatDateTime(ticket.createdAt)}`}
-          action={ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{deliveryTicketYardsLabel(ticket)}</Badge>}
+          action={ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="orange">{deliveryTicketYardsLabel(ticket)}</Badge>}
         />
         <div className="co-delivery-readonly-grid">
           <div><span>Supplier</span><strong>{ticket.supplier || "Not provided"}</strong></div>
@@ -25065,7 +25065,7 @@ function DeliveryTicketDetailPanelPolished({
       <SectionHeader
         title={`Edit ${deliveryTicketTitle(ticket)}`}
         description="Update the real ticket record, linked report, photo evidence, truck timing, mix notes, and yardage."
-        action={ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="blue">{deliveryTicketYardsLabel(ticket)}</Badge>}
+        action={ticket.archivedAt ? <StatusBadge status="Archived" /> : <Badge tone="orange">{deliveryTicketYardsLabel(ticket)}</Badge>}
       />
       <div className="co-delivery-form-grid">
         <SelectField label="Job" value={detailDraft.jobId} onChange={(event) => setDetailDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
@@ -25151,6 +25151,7 @@ function DeliveryTicketsPagePolished({
   const createJobId = createDraft.jobId || singleJobId;
   const canCreate = permissions.deliveryTickets.canCreate || permissions.deliveryTickets.canManageAll;
   const canManageAll = permissions.deliveryTickets.canManageAll;
+  const isFieldDeliveryWorkspace = !canManageAll;
   const canEditSelected = Boolean(selectedTicket) && (canManageAll || (permissions.deliveryTickets.canEditOwn && selectedTicket.createdBy === user?.id && !selectedTicket.archivedAt));
   const scopedUploads = (Array.isArray(uploads) ? uploads : []).filter((upload) => !upload.archivedAt);
   const scopedReports = (Array.isArray(dailyReports) ? dailyReports : []).filter((report) => !report.archivedAt);
@@ -25170,10 +25171,10 @@ function DeliveryTicketsPagePolished({
     return currentTime > latestTime ? ticket : latest;
   }, filteredRows[0] || null);
   const ticketKpis = [
-    { label: "Visible Tickets", value: filteredRows.length, helper: "Current delivery board", icon: "clipboard", tone: "blue", actionLabel: "View active", onAction: () => setArchiveFilter("Active") },
+    { label: "Visible Tickets", value: filteredRows.length, helper: "Current delivery board", icon: "clipboard", tone: "orange", actionLabel: "View active", onAction: () => setArchiveFilter("Active") },
     { label: "Missing Photo", value: missingPhotoCount, helper: "Ticket image not linked", icon: "alert", tone: missingPhotoCount ? "amber" : "green" },
     { label: "Yards Logged", value: yardsLogged, helper: "Delivered yards in view", icon: "database", tone: yardsLogged ? "green" : "slate" },
-    { label: "Linked Reports", value: linkedReports, helper: "Connected to daily reports", icon: "document", tone: linkedReports ? "blue" : "slate" },
+    { label: "Linked Reports", value: linkedReports, helper: "Connected to daily reports", icon: "document", tone: linkedReports ? "orange" : "slate" },
     { label: "Archived", value: archivedCount, helper: "Archived in this view", icon: "box", tone: archivedCount ? "slate" : "green", actionLabel: "View archive", onAction: () => setArchiveFilter("Archived") },
   ];
   const toolTabs = [
@@ -25249,6 +25250,11 @@ function DeliveryTicketsPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function selectTool(toolId = "details") {
+    setActiveTool(toolId);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function jumpToBoard() {
     window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
@@ -25301,7 +25307,7 @@ function DeliveryTicketsPagePolished({
     value: latestTicket ? 1 : 0,
     helper: latestTicket ? `${latestTicket.job?.title || "Assigned job"} / ${latestTicket.supplier || "Supplier pending"}` : "No visible delivery ticket selected.",
     icon: "arrowUpRight",
-    tone: latestTicket ? "blue" : "slate",
+    tone: latestTicket ? "orange" : "slate",
     actionLabel: latestTicket ? "Open latest" : "No ticket",
     onAction: () => openPriorityTicket((ticket) => ticket.id === latestTicket?.id, { archiveFilter: "Active" }),
   };
@@ -25310,11 +25316,13 @@ function DeliveryTicketsPagePolished({
     value: canCreate ? 1 : 0,
     helper: canCreate ? "Record a truck ticket for a visible job and link report/photo evidence." : "Ticket creation is not enabled for this role.",
     icon: "plus",
-    tone: canCreate ? "blue" : "slate",
+    tone: canCreate ? "orange" : "slate",
     actionLabel: canCreate ? "Start ticket" : "Read only",
     onAction: () => openTool(canCreate ? "create" : "details"),
   };
-  const deliveryPriorityCards = filteredRows.length === 0 && canCreate
+  const deliveryPriorityCards = isFieldDeliveryWorkspace && canCreate
+    ? [createTicketPriorityCard, missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard]
+    : filteredRows.length === 0 && canCreate
     ? [createTicketPriorityCard, missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard]
     : [missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard, latestPriorityCard];
 
@@ -25330,7 +25338,7 @@ function DeliveryTicketsPagePolished({
   }
 
   return (
-    <div className="co-office-page co-delivery-page">
+    <div className="co-office-page co-delivery-page" data-field-workspace={isFieldDeliveryWorkspace ? "true" : undefined}>
       <PageHeader
         eyebrow={canManageAll ? "Field Ops" : "Field Workspace"}
         title="Delivery Tickets"
@@ -25364,7 +25372,7 @@ function DeliveryTicketsPagePolished({
 
       <div className="co-delivery-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
         {deliveryPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-delivery-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+          <button key={card.label} type="button" className="co-delivery-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === createTicketPriorityCard && canCreate ? "true" : undefined} onClick={card.onAction}>
             <span className="co-delivery-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
             <span className="min-w-0">
               <span className="co-delivery-priority-value">{card.value}</span>
@@ -25460,7 +25468,7 @@ function DeliveryTicketsPagePolished({
         </summary>
         <div className="co-delivery-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
           {toolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => setActiveTool(tab.id)}>
+            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => selectTool(tab.id)}>
               {tab.label}
               <span>{tab.count}</span>
             </button>
