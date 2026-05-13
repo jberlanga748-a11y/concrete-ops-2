@@ -20802,6 +20802,7 @@ function PrePourPagePolished({
     && permissions.prePour.canComplete
     && !selectedChecklist.archivedAt
     && ["draft", "reopened"].includes(selectedChecklist.status);
+  const isFieldPrePourWorkspace = !permissions.prePour.canManageAll;
   const noFieldJob = !permissions.prePour.canManageAll && visibleJobs.length === 0;
   const createJob = visibleJobs.find((job) => job.id === createDraft.jobId) || null;
   const needsReviewCount = filteredRows.filter((checklist) => checklist.status === "completed").length;
@@ -20809,7 +20810,7 @@ function PrePourPagePolished({
   const openItemCount = filteredRows.reduce((sum, checklist) => sum + Number(checklist.incompleteItemCount || 0), 0);
   const needsActionCount = filteredRows.filter((checklist) => ["draft", "reopened"].includes(checklist.status)).length;
   const prePourKpis = [
-    { label: "Checklists", value: filteredRows.length, helper: "Matching current filters", icon: "clipboard", tone: "blue", actionLabel: "View all", onAction: () => setStatusFilter("All") },
+    { label: "Checklists", value: filteredRows.length, helper: "Matching current filters", icon: "clipboard", tone: "orange", actionLabel: "View all", onAction: () => setStatusFilter("All") },
     { label: "Needs Review", value: needsReviewCount, helper: "Completed by field", icon: "alert", tone: needsReviewCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setStatusFilter("Completed") },
     { label: "Ready", value: readyCount, helper: "Cleared for placement", icon: "check", tone: "green", actionLabel: "View ready", onAction: () => setStatusFilter("Reviewed") },
     { label: "Open Items", value: openItemCount, helper: "Incomplete readiness checks", icon: "document", tone: openItemCount ? "amber" : "slate" },
@@ -20823,6 +20824,11 @@ function PrePourPagePolished({
   function openTool(toolId = "work") {
     setActiveTool(toolId);
     setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function selectTool(toolId = "work") {
+    setActiveTool(toolId);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -20847,43 +20853,52 @@ function PrePourPagePolished({
     setSearch("");
   }
 
-  const prePourPriorityCards = [
-    {
-      label: "Review completed",
-      value: needsReviewCount,
-      helper: needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed pre-pour checklists waiting.",
-      icon: "clipboard",
-      tone: needsReviewCount ? "orange" : "green",
-      actionLabel: needsReviewCount ? "Open review" : "View board",
-      onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active" }),
-    },
-    {
-      label: "Clear open items",
-      value: openItemCount,
-      helper: openItemCount ? "Readiness items still need a field status." : "Visible checklist items are clear.",
-      icon: "alert",
-      tone: openItemCount ? "amber" : "green",
-      actionLabel: openItemCount ? "Open items" : "Ready",
-      onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active" }),
-    },
-    {
-      label: "Ready for pour",
-      value: readyCount,
-      helper: readyCount ? "Reviewed checklists are cleared for placement." : "No reviewed pre-pour checklists in view.",
-      icon: "check",
-      tone: readyCount ? "green" : "slate",
-      actionLabel: readyCount ? "View ready" : "No ready",
-      onAction: () => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active" }),
-    },
-    {
-      label: "Start checklist",
-      value: canCreateChecklist ? 1 : 0,
-      helper: canCreateChecklist ? "Create the real pre-pour readiness checklist for a visible job." : "Checklist creation is not enabled for this role.",
-      icon: "plus",
-      tone: canCreateChecklist ? "blue" : "slate",
-      actionLabel: canCreateChecklist ? "Start now" : "Read only",
-      onAction: () => openTool(canCreateChecklist ? "create" : "work"),
-    },
+  const reviewCompletedPriorityCard = {
+    label: "Review completed",
+    value: needsReviewCount,
+    helper: needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed pre-pour checklists waiting.",
+    icon: "clipboard",
+    tone: needsReviewCount ? "orange" : "green",
+    actionLabel: needsReviewCount ? "Open review" : "View board",
+    onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active" }),
+  };
+  const clearOpenItemsPriorityCard = {
+    label: "Clear open items",
+    value: openItemCount,
+    helper: openItemCount ? "Readiness items still need a field status." : "Visible checklist items are clear.",
+    icon: "alert",
+    tone: openItemCount ? "amber" : "green",
+    actionLabel: openItemCount ? "Open items" : "Ready",
+    onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active" }),
+  };
+  const readyForPourPriorityCard = {
+    label: "Ready for pour",
+    value: readyCount,
+    helper: readyCount ? "Reviewed checklists are cleared for placement." : "No reviewed pre-pour checklists in view.",
+    icon: "check",
+    tone: readyCount ? "green" : "slate",
+    actionLabel: readyCount ? "View ready" : "No ready",
+    onAction: () => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active" }),
+  };
+  const startChecklistPriorityCard = {
+    label: "Start checklist",
+    value: canCreateChecklist ? 1 : 0,
+    helper: canCreateChecklist ? "Create the real pre-pour readiness checklist for a visible job." : "Checklist creation is not enabled for this role.",
+    icon: "plus",
+    tone: canCreateChecklist ? "orange" : "slate",
+    actionLabel: canCreateChecklist ? "Start now" : "Read only",
+    onAction: () => openTool(canCreateChecklist ? "create" : "work"),
+  };
+  const prePourPriorityCards = isFieldPrePourWorkspace && canCreateChecklist ? [
+    startChecklistPriorityCard,
+    clearOpenItemsPriorityCard,
+    readyForPourPriorityCard,
+    reviewCompletedPriorityCard,
+  ] : [
+    reviewCompletedPriorityCard,
+    clearOpenItemsPriorityCard,
+    readyForPourPriorityCard,
+    startChecklistPriorityCard,
   ];
 
   if (!permissions.prePour.canView) {
@@ -20898,7 +20913,7 @@ function PrePourPagePolished({
   }
 
   return (
-    <div className="co-office-page co-prepour-page">
+    <div className="co-office-page co-prepour-page" data-field-workspace={isFieldPrePourWorkspace ? "true" : undefined}>
       <PageHeader
         eyebrow={permissions.prePour.canManageAll ? "Field Ops" : "Field Workspace"}
         title="Pre-Pour Board"
@@ -20932,7 +20947,7 @@ function PrePourPagePolished({
 
       <div className="co-prepour-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
         {prePourPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-prepour-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+          <button key={card.label} type="button" className="co-prepour-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === startChecklistPriorityCard && canCreateChecklist ? "true" : undefined} onClick={card.onAction}>
             <span className="co-prepour-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
             <span className="min-w-0">
               <span className="co-prepour-priority-value">{card.value}</span>
@@ -21039,7 +21054,7 @@ function PrePourPagePolished({
         </summary>
         <div className="co-prepour-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
           {toolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => setActiveTool(tab.id)}>
+            <button key={tab.id} type="button" className={activeTool === tab.id ? "is-active" : ""} onClick={() => selectTool(tab.id)}>
               {tab.label}
               <span>{tab.count}</span>
             </button>
