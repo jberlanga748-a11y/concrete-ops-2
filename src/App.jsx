@@ -7586,44 +7586,47 @@ function SafetyIncidentsPagePolished({
 
   const severeIncident = visibleIncidents.find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()))
     || (allIncidents || []).find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()));
-  const incidentPriorityCards = [
-    {
-      label: "Open response",
-      value: visibleOpen,
-      helper: visibleOpen ? "Unresolved safety items need the next office or field action." : "Visible incidents are reviewed or closed.",
-      icon: "clock",
-      tone: visibleOpen ? "amber" : "green",
-      actionLabel: visibleOpen ? "Open response" : "View board",
-      onAction: () => openPriorityIncident((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || "").toLowerCase()), { statusFilter: "All", archiveFilter: "Active only" }),
-    },
-    {
-      label: "High severity",
-      value: highSeverity,
-      helper: highSeverity ? "Critical or high severity incidents should stay easy to inspect." : "No high severity incidents in the visible scope.",
-      icon: "alert",
-      tone: highSeverity ? "red" : "green",
-      actionLabel: highSeverity ? "Open severe" : "All clear",
-      onAction: () => openPriorityIncident((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()), { severityFilter: severeIncident ? String(severeIncident.severity || "critical").toLowerCase() : "critical", archiveFilter: "Active only" }),
-    },
-    {
-      label: "Needs review",
-      value: reviewNeeded,
-      helper: reviewNeeded ? "Open reports are ready for documentation or office follow-up." : "No open report is waiting in the current view.",
-      icon: "document",
-      tone: reviewNeeded ? "orange" : "green",
-      actionLabel: canReview ? "Review" : "View open",
-      onAction: () => openPriorityIncident((incident) => String(incident.status || "").toLowerCase() === "open", { statusFilter: reviewNeeded ? "open" : "All", archiveFilter: "Active only" }),
-    },
-    {
-      label: "Submit incident",
-      value: canSubmitIncidents ? "Ready" : "Locked",
-      helper: canSubmitIncidents ? "Start a field-safe concern, hazard, near miss, or injury report." : "This role can review visible safety records only.",
-      icon: "plus",
-      tone: canSubmitIncidents ? "blue" : "slate",
-      actionLabel: canSubmitIncidents ? "Start report" : "Read only",
-      onAction: () => openTools(canSubmitIncidents ? "submit" : "detail"),
-    },
-  ];
+  const openResponsePriorityCard = {
+    label: "Open response",
+    value: visibleOpen,
+    helper: visibleOpen ? "Unresolved safety items need the next office or field action." : "Visible incidents are reviewed or closed.",
+    icon: "clock",
+    tone: visibleOpen ? "amber" : "green",
+    actionLabel: visibleOpen ? "Open response" : "View board",
+    onAction: () => openPriorityIncident((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || "").toLowerCase()), { statusFilter: "All", archiveFilter: "Active only" }),
+  };
+  const highSeverityPriorityCard = {
+    label: "High severity",
+    value: highSeverity,
+    helper: highSeverity ? "Critical or high severity incidents should stay easy to inspect." : "No high severity incidents in the visible scope.",
+    icon: "alert",
+    tone: highSeverity ? "red" : "green",
+    actionLabel: highSeverity ? "Open severe" : "All clear",
+    onAction: () => openPriorityIncident((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()), { severityFilter: severeIncident ? String(severeIncident.severity || "critical").toLowerCase() : "critical", archiveFilter: "Active only" }),
+  };
+  const needsReviewPriorityCard = {
+    label: "Needs review",
+    value: reviewNeeded,
+    helper: reviewNeeded ? "Open reports are ready for documentation or office follow-up." : "No open report is waiting in the current view.",
+    icon: "document",
+    tone: reviewNeeded ? "orange" : "green",
+    actionLabel: canReview ? "Review" : "View open",
+    onAction: () => openPriorityIncident((incident) => String(incident.status || "").toLowerCase() === "open", { statusFilter: reviewNeeded ? "open" : "All", archiveFilter: "Active only" }),
+  };
+  const submitIncidentPriorityCard = {
+    label: "Submit incident",
+    value: canSubmitIncidents ? "Ready" : "Locked",
+    helper: canSubmitIncidents ? "Start a field-safe concern, hazard, near miss, or injury report." : "This role can review visible safety records only.",
+    icon: "plus",
+    tone: canSubmitIncidents ? "blue" : "slate",
+    actionLabel: canSubmitIncidents ? "Start report" : "Read only",
+    onAction: () => openTools(canSubmitIncidents ? "submit" : "detail"),
+  };
+  const incidentPriorityCards = visibleIncidents.length === 0 && canSubmitIncidents
+    ? [submitIncidentPriorityCard, openResponsePriorityCard, highSeverityPriorityCard, needsReviewPriorityCard]
+    : highSeverity
+      ? [highSeverityPriorityCard, openResponsePriorityCard, needsReviewPriorityCard, submitIncidentPriorityCard]
+      : [openResponsePriorityCard, highSeverityPriorityCard, needsReviewPriorityCard, submitIncidentPriorityCard];
 
   return (
     <div className="co-office-page co-incidents-page">
