@@ -8957,23 +8957,18 @@ textarea {
   }
 
   .co-reports-kpi-grid {
-    display: flex !important;
-    grid-template-columns: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.72rem !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     padding-bottom: 0.65rem !important;
-    scroll-padding-inline: 1rem;
-    scroll-snap-type: x proximity;
   }
 
   .co-reports-kpi-grid .co-command-kpi {
-    flex: 0 0 10.8rem;
-    min-height: 5.85rem !important;
+    min-height: 5.45rem !important;
     padding: 0.68rem !important;
-    scroll-snap-align: start;
   }
 
   .co-reports-kpi-grid .co-command-kpi-body {
