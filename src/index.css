@@ -15476,6 +15476,71 @@ textarea {
   }
 }
 
+@media (max-width: 767px) {
+  .co-field-kpi-grid,
+  .co-incidents-kpi-grid,
+  .co-toolbox-kpi-grid,
+  .co-prepour-kpi-grid,
+  .co-uploads-kpi-grid,
+  .co-delivery-kpi-grid,
+  .co-change-orders-kpi-grid,
+  .co-imports-kpi-grid,
+  .co-employees-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.72rem !important;
+    overflow: visible !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-bottom: 0.65rem !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-field-kpi-grid .co-command-kpi,
+  .co-incidents-kpi-grid .co-command-kpi,
+  .co-toolbox-kpi-grid .co-command-kpi,
+  .co-prepour-kpi-grid .co-command-kpi,
+  .co-uploads-kpi-grid .co-command-kpi,
+  .co-delivery-kpi-grid .co-command-kpi,
+  .co-change-orders-kpi-grid .co-command-kpi,
+  .co-imports-kpi-grid .co-command-kpi,
+  .co-employees-kpi-grid .co-command-kpi {
+    min-height: 5.45rem !important;
+    height: auto;
+    padding: 0.68rem !important;
+    scroll-snap-align: none !important;
+  }
+
+  .co-incidents-priority-grid,
+  .co-toolbox-talks-page .co-toolbox-priority-grid,
+  .co-ppe-page .co-toolbox-priority-grid,
+  .co-tool-checklist-page .co-toolbox-priority-grid,
+  .co-prepour-priority-grid,
+  .co-uploads-priority-grid,
+  .co-delivery-priority-grid,
+  .co-change-orders-page .co-toolbox-priority-grid,
+  .co-imports-page .co-toolbox-priority-grid,
+  .co-employees-page .co-toolbox-priority-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.72rem !important;
+    overflow: visible !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-bottom: 0.65rem !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-incidents-priority-card,
+  .co-toolbox-priority-card,
+  .co-prepour-priority-card,
+  .co-uploads-priority-card,
+  .co-delivery-priority-card {
+    min-height: 0 !important;
+    scroll-snap-align: none !important;
+  }
+}
+
 .scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;
