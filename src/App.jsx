@@ -21378,7 +21378,7 @@ function PostPourPagePolished({
     <div className="co-office-page co-prepour-page co-postpour-page">
       <PageHeader
         eyebrow={permissions.postPour.canManageAll ? "Field Ops" : "Field Workspace"}
-        title={<span>Post-Pour Board <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Post-Pour Board"
         description={permissions.postPour.canManageAll ? "Track finish, cleanup, closeout readiness, field completion, and office review after placement." : "Confirm finish, cleanup, and closeout readiness after the concrete is placed, without exposing office-only pricing or payroll data."}
         actions={
           <div className="flex flex-wrap gap-2">
