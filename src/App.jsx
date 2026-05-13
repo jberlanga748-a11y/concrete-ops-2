@@ -7193,7 +7193,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     <div className="co-office-page co-uploads-page">
       <PageHeader
         eyebrow={permissions.uploads.canManageAll ? "Field Ops" : "Field Workspace"}
-        title={<span>Photo Evidence <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Photo Evidence"
         description="Job-linked photo evidence with timestamp metadata, optional GPS capture, and field-safe upload workflows."
         actions={
           <div className="flex flex-wrap gap-2">
