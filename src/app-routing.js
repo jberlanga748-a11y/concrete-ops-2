@@ -19,9 +19,13 @@ export const MODULE_PATHS = {
   postPour: "/postPour",
   toolChecklist: "/toolChecklist",
   calculator: "/calculator",
-  copilot: "/copilot",
+  copilot: "/ai-office",
   design: "/design",
   settings: "/settings",
+};
+
+const LEGACY_MODULE_PATHS = {
+  "/copilot": "copilot",
 };
 
 export function normalizePathname(pathname = "/") {
@@ -77,9 +81,10 @@ export function parseAppPath(pathname) {
     return { active: "jobDraftImports", leadId: "", jobId: "", customerId: "", reportId: "", importedDraftId: decodeURIComponent(segments[1]) };
   }
 
+  const legacyMatch = LEGACY_MODULE_PATHS[normalized];
   const exactMatch = Object.entries(MODULE_PATHS).find(([, path]) => path === normalized);
   return {
-    active: exactMatch?.[0] || "dashboard",
+    active: legacyMatch || exactMatch?.[0] || "dashboard",
     leadId: "",
     jobId: "",
     customerId: "",

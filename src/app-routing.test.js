@@ -159,3 +159,23 @@ test("estimates module route resolves directly", () => {
     importedDraftId: "",
   });
 });
+
+test("AI Office route resolves directly while legacy copilot links still work", () => {
+  assert.equal(getModulePath("copilot"), "/ai-office");
+  assert.deepEqual(parseAppPath("/ai-office"), {
+    active: "copilot",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+  assert.deepEqual(parseAppPath("/copilot"), {
+    active: "copilot",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
