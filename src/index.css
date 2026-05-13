@@ -5983,7 +5983,7 @@ textarea {
 
 @media (max-width: 767px) {
   .co-field-kpi-grid {
-    display: flex !important;
+    display: none !important;
     grid-template-columns: none !important;
     gap: 0.72rem !important;
     overflow-x: auto;

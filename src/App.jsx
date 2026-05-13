@@ -3984,8 +3984,8 @@ function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge, disab
   );
 }
 
-function FieldNextJobCard({ job, onSelect, setActive, permissions, activeEntry }) {
-  const title = job && isTomorrowSchedule(job) ? "Tomorrow's job" : "Next assigned job";
+function FieldNextJobCard({ job, titleOverride = "", descriptionOverride = "", onSelect, setActive, permissions, activeEntry }) {
+  const title = titleOverride || (job && isTomorrowSchedule(job) ? "Tomorrow's job" : "Next assigned job");
   const mapUrl = directionsUrl(job?.address);
   const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
   const canRoute = typeof setActive === "function";
@@ -3994,7 +3994,7 @@ function FieldNextJobCard({ job, onSelect, setActive, permissions, activeEntry }
     <Card className="co-field-next-job-card p-5">
       <SectionHeader
         title={title}
-        description="Primary field assignment with the fastest safe actions for this role."
+        description={descriptionOverride || "Primary field assignment with the fastest safe actions for this role."}
         action={job ? <Badge tone="blue">Field-safe</Badge> : null}
       />
       {job ? (
@@ -4501,6 +4501,11 @@ function FieldWorkspacePagePolished({
   const assignedDescription = isForeman ? "Jobs you are currently responsible for in the field." : "Only your assigned jobs appear here. Contact office if something looks wrong.";
   const emptyAssignedTitle = isForeman ? "No assigned jobs yet" : "No assigned jobs yet";
   const emptyAssignedDescription = isForeman ? "Contact office if this is wrong or if a scheduled job is missing from your workspace." : "Contact office if you expected a job to be assigned to you today.";
+  const priorityJob = workspace.nextAssignedJob || focusJob || workspace.assignedJobs[0] || null;
+  const priorityJobTitle = workspace.nextAssignedJob ? "" : priorityJob ? "Current field job" : "";
+  const priorityJobDescription = workspace.nextAssignedJob
+    ? "Primary field assignment with the fastest safe actions for this role."
+    : "Current field-safe job with schedule, address, directions, and quick actions.";
 
   return (
     <div className="co-office-page co-jobs-page co-field-workspace-page">
@@ -4517,7 +4522,6 @@ function FieldWorkspacePagePolished({
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
-          <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
             <ActiveTimeCard
               activeEntry={timeWorkspace.activeEntry}
@@ -4530,8 +4534,17 @@ function FieldWorkspacePagePolished({
               disabled={busy}
               description={isForeman ? "Clock your own assigned or field-visible work without exposing payroll or pricing data." : undefined}
             />
-            <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} setActive={setActive} permissions={permissions} activeEntry={timeWorkspace.activeEntry} />
+            <FieldNextJobCard
+              job={priorityJob}
+              titleOverride={priorityJobTitle}
+              descriptionOverride={priorityJobDescription}
+              onSelect={onSelectJob}
+              setActive={setActive}
+              permissions={permissions}
+              activeEntry={timeWorkspace.activeEntry}
+            />
           </div>
+          <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="space-y-3">
