@@ -19226,7 +19226,7 @@ function SettingsPagePolished({
     <div className="co-office-page co-settings-page">
       <PageHeader
         eyebrow={demoMode ? "Demo Admin" : "Admin Console"}
-        title={<span>Settings <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Settings"
         description={demoMode ? "Manage demo access, workspace details, setup readiness, and field tools from one operator setup console." : "Manage workspace details, setup readiness, admin access, and field tools from one operator setup console."}
         actions={(
           <div className="flex flex-wrap gap-2">
