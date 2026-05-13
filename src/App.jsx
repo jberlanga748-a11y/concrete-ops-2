@@ -9192,11 +9192,6 @@ function PpeChecklistPagePolished({
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">PPE Readiness Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan required gear, task-specific protection, crew acknowledgment status, and safety guidance before work starts.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setRequirementFilter("Required")}>Required</Button>
-                {canSubmitIncidents ? <Button type="button" size="sm" variant="secondary" onClick={() => openTools("incident")}>Report Concern</Button> : null}
-                {canManage ? <Button type="button" size="sm" onClick={() => { if (selectedItem) setSelectedPpeId(selectedItem.id); openTools("ppe"); }}>Manage PPE</Button> : null}
-              </div>
             </div>
           </div>
           <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
