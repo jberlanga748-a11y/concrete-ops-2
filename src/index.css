@@ -8100,6 +8100,10 @@ textarea {
   .co-calculator-field-panel .co-field-operator-strip {
     display: none;
   }
+
+  .co-prepour-field-panel .co-field-operator-strip {
+    display: none;
+  }
 }
 
 .co-reports-page {

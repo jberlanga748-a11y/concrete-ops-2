@@ -19605,6 +19605,95 @@ function PrePourCommandRailPolished({
   );
 }
 
+function PrePourFieldOperatorPanel({
+  checklist,
+  checklistSummary,
+  filteredRows,
+  visibleJobs,
+  canCreateChecklist,
+  canCompleteChecklist,
+  busy,
+  onOpenTool,
+  onCompleteChecklist,
+  onJumpToBoard,
+}) {
+  const incompleteCount = Number(checklistSummary?.incompleteCount || 0);
+  const completedCount = Number(checklistSummary?.completedCount || 0);
+  const totalCount = Number(checklistSummary?.totalCount || 0);
+  const canComplete = Boolean(canCompleteChecklist && checklist && incompleteCount === 0);
+  const statusLabel = checklist ? prePourChecklistStatusLabel(checklist.status) : "Not selected";
+  const summaryItems = [
+    { label: "Checklists", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
+    { label: "Open items", value: checklist ? incompleteCount : "-", tone: incompleteCount ? "amber" : "green" },
+    { label: "Checked", value: checklist ? `${completedCount}/${totalCount}` : "-", tone: checklist && incompleteCount === 0 ? "green" : "blue" },
+    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-field-operator-panel co-prepour-field-panel overflow-hidden">
+        <div className="co-field-operator-shell">
+          <div className="co-field-operator-copy min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge tone="orange">Field Pre-Pour</Badge>
+              <Badge tone={checklist && incompleteCount === 0 ? "green" : "amber"}>{statusLabel}</Badge>
+              {checklist ? (
+                incompleteCount ? <Badge tone="amber">{incompleteCount} open item{incompleteCount === 1 ? "" : "s"}</Badge> : <Badge tone="green">Ready to complete</Badge>
+              ) : <Badge tone="slate">Select checklist</Badge>}
+            </div>
+            <h2>{checklist ? checklist.job?.title || "Pre-pour checklist" : "Pre-pour checklist ready"}</h2>
+            <p>
+              {checklist
+                ? incompleteCount
+                  ? `Clear ${incompleteCount} readiness item${incompleteCount === 1 ? "" : "s"} before the pour is marked complete.`
+                  : "Readiness is clear. Complete the checklist or add a note before office review."
+                : visibleJobs.length
+                  ? "Open an assigned checklist, clear readiness items, and keep the pour moving without office-only data."
+                  : "Assigned pre-pour checklists will appear here when the office attaches a job to your field workspace."}
+            </p>
+            <div className="co-field-operator-address">
+              <Icon name="clipboard" />
+              <span>{checklist ? `${checklist.job?.customer || "Assigned site"} / ${prePourChecklistOwner(checklist)}` : `${filteredRows.length} visible checklist${filteredRows.length === 1 ? "" : "s"}`}</span>
+            </div>
+          </div>
+
+          <div className="co-field-operator-actions">
+            <Button type="button" onClick={onJumpToBoard}>
+              <Icon name="layers" />
+              {checklist ? "Open Items" : "View Board"}
+            </Button>
+            {canCreateChecklist ? (
+              <Button type="button" variant="secondary" onClick={() => onOpenTool("create")}>
+                <Icon name="plus" />
+                Start Checklist
+              </Button>
+            ) : null}
+            {canCompleteChecklist && checklist ? (
+              <Button type="button" variant="secondary" onClick={() => onCompleteChecklist(checklist.id)} disabled={busy || !canComplete}>
+                <Icon name="check" />
+                Complete
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => onOpenTool("work")}>
+              <Icon name="clipboard" />
+              Notes
+            </Button>
+          </div>
+        </div>
+
+        <div className="co-field-operator-strip">
+          {summaryItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function PrePourPagePolished({
   jobs,
   prePourChecklists,
@@ -19630,6 +19719,7 @@ function PrePourPagePolished({
   const [showTools, setShowTools] = useState(false);
   const [activeTool, setActiveTool] = useState("create");
   const toolsRef = useRef(null);
+  const boardRef = useRef(null);
 
   const visibleJobs = useMemo(
     () => (Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : []),
@@ -19719,6 +19809,10 @@ function PrePourPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function jumpToBoard() {
+    window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityChecklist(matchChecklist, options = {}) {
     const targetChecklist = filteredRows.find(matchChecklist) || checklistRows.find(matchChecklist);
     if (options.statusFilter) setStatusFilter(options.statusFilter);
@@ -19800,6 +19894,21 @@ function PrePourPagePolished({
         }
       />
 
+      {!permissions.prePour.canManageAll ? (
+        <PrePourFieldOperatorPanel
+          checklist={selectedChecklist}
+          checklistSummary={checklistSummary}
+          filteredRows={filteredRows}
+          visibleJobs={visibleJobs}
+          canCreateChecklist={canCreateChecklist}
+          canCompleteChecklist={canCompleteChecklist}
+          busy={busy}
+          onOpenTool={openTool}
+          onCompleteChecklist={onCompleteChecklist}
+          onJumpToBoard={jumpToBoard}
+        />
+      ) : null}
+
       <div className="co-prepour-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {prePourKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
@@ -19820,54 +19929,56 @@ function PrePourPagePolished({
 
       <div className="co-prepour-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-prepour-left-stack min-w-0 space-y-3">
-          <Card className="co-prepour-main-board overflow-hidden">
-            <div className="co-prepour-board-header border-b border-slate-200 bg-white p-4">
-              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Pre-Pour Readiness Board</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a checklist, clear readiness items, and move field completion into office review.</p>
+          <div ref={boardRef}>
+            <Card className="co-prepour-main-board overflow-hidden">
+              <div className="co-prepour-board-header border-b border-slate-200 bg-white p-4">
+                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Pre-Pour Readiness Board</h2>
+                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a checklist, clear readiness items, and move field completion into office review.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Completed")}>Needs review</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Reviewed")}>Ready</Button>
+                    {canCreateChecklist ? <Button type="button" size="sm" onClick={() => openTool("create")}>Start Checklist</Button> : null}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Completed")}>Needs review</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Reviewed")}>Ready</Button>
-                  {canCreateChecklist ? <Button type="button" size="sm" onClick={() => openTool("create")}>Start Checklist</Button> : null}
+              </div>
+              <FilterBar filters={["All", "Draft", "Completed", "Reviewed", "Reopened", "Archived"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search job, foreman, notes, or checklist items..." />
+              <details className="co-prepour-advanced-filters border-b border-slate-200 bg-white">
+                <summary>
+                  <span>Advanced filters</span>
+                  <span>{[jobFilter !== "All jobs" ? jobFilter : "", foremanFilter !== "All foremen" ? foremanFilter : "", dateFilter !== "All dates" ? dateFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Job, foreman, date"}</span>
+                </summary>
+                <div className="co-office-filter-grid co-prepour-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                  <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                    {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                    {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                    {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                    {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
                 </div>
+              </details>
+              {filteredRows.length === 0 ? (
+                <div className="p-5">
+                  <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
+                </div>
+              ) : (
+                <PrePourChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} />
+              )}
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+                <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} readiness checklist{filteredRows.length === 1 ? "" : "s"}</p>
+                <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
               </div>
-            </div>
-            <FilterBar filters={["All", "Draft", "Completed", "Reviewed", "Reopened", "Archived"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search job, foreman, notes, or checklist items..." />
-            <details className="co-prepour-advanced-filters border-b border-slate-200 bg-white">
-              <summary>
-                <span>Advanced filters</span>
-                <span>{[jobFilter !== "All jobs" ? jobFilter : "", foremanFilter !== "All foremen" ? foremanFilter : "", dateFilter !== "All dates" ? dateFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Job, foreman, date"}</span>
-              </summary>
-              <div className="co-office-filter-grid co-prepour-filter-grid grid gap-3 p-3 md:grid-cols-4">
-                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                  {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-                <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
-                  {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-                  {listState.dateOptions.map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-                <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
-                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-              </div>
-            </details>
-            {filteredRows.length === 0 ? (
-              <div className="p-5">
-                <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
-              </div>
-            ) : (
-              <PrePourChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} />
-            )}
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-              <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} readiness checklist{filteredRows.length === 1 ? "" : "s"}</p>
-              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-            </div>
-          </Card>
+            </Card>
+          </div>
 
           <Card className="co-prepour-main-board overflow-hidden">
             <PrePourReadinessItemsPolished
