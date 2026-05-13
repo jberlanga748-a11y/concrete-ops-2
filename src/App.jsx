@@ -3855,8 +3855,12 @@ function FieldDetailDisclosure({ title, summary, children, defaultOpen = false }
   );
 }
 
-function FieldWorkspaceDisclosure({ title, description, badge, children }) {
-  const [isOpen, setIsOpen] = useState(false);
+function FieldWorkspaceDisclosure({ title, description, badge, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (defaultOpen) setIsOpen(true);
+  }, [defaultOpen]);
 
   return (
     <div className="co-mobile-accordion panel-sheen w-full min-w-0 max-w-full rounded-3xl border border-blue-100 bg-white/95 shadow-panel">
@@ -3884,7 +3888,7 @@ function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
     <button
       type="button"
       onClick={() => onSelect(job.id)}
-      className={`co-mobile-record-card w-full rounded-3xl border p-4 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
+      className={`co-mobile-record-card co-field-job-summary-card w-full rounded-3xl border p-4 text-left transition ${selected ? "is-selected border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -3908,6 +3912,7 @@ function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
         {note ? <Badge tone="blue">{note}</Badge> : null}
         <Badge tone="slate">{crewCount} crew</Badge>
         {job.siteContact ? <Badge tone="violet">Site contact ready</Badge> : null}
+        <span className="co-field-open-pill">Open details</span>
       </div>
     </button>
   );
@@ -3979,20 +3984,21 @@ function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge, disab
   );
 }
 
-function FieldNextJobCard({ job, onSelect }) {
+function FieldNextJobCard({ job, onSelect, setActive, permissions, activeEntry }) {
   const title = job && isTomorrowSchedule(job) ? "Tomorrow's job" : "Next assigned job";
   const mapUrl = directionsUrl(job?.address);
   const crewCount = Array.isArray(job?.crewAssignments) ? job.crewAssignments.length : 0;
+  const canRoute = typeof setActive === "function";
 
   return (
-    <Card className="p-5">
+    <Card className="co-field-next-job-card p-5">
       <SectionHeader
         title={title}
-        description="This is the next scheduled assigned job visible on your phone."
+        description="Primary field assignment with the fastest safe actions for this role."
         action={job ? <Badge tone="blue">Field-safe</Badge> : null}
       />
       {job ? (
-        <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-4">
+        <div className="co-field-next-job-highlight rounded-3xl border border-blue-100 bg-blue-50/50 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="break-words text-xl font-black text-slate-950">{jobTitle(job)}</p>
@@ -4045,7 +4051,25 @@ function FieldNextJobCard({ job, onSelect }) {
               </div>
             </FieldDetailDisclosure>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="co-field-next-job-actions mt-4 flex flex-wrap gap-2">
+            {permissions?.time?.canView && canRoute ? (
+              <Button type="button" size="sm" onClick={() => setActive("time")}>
+                <Icon name="clock" />
+                {activeEntry ? "Open time" : "Clock in"}
+              </Button>
+            ) : null}
+            {permissions?.reports?.canView && canRoute ? (
+              <Button type="button" size="sm" variant="secondary" onClick={() => setActive("reports")}>
+                <Icon name="document" />
+                Daily report
+              </Button>
+            ) : null}
+            {permissions?.uploads?.canView && canRoute ? (
+              <Button type="button" size="sm" variant="secondary" onClick={() => setActive("uploads")}>
+                <Icon name="upload" />
+                Photos
+              </Button>
+            ) : null}
             <Button type="button" size="sm" onClick={() => onSelect(job.id)}>
               View job details
             </Button>
@@ -4399,7 +4423,6 @@ function FieldWorkspacePagePolished({
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
           <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
-          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
             <ActiveTimeCard
               activeEntry={timeWorkspace.activeEntry}
@@ -4412,9 +4435,10 @@ function FieldWorkspacePagePolished({
               disabled={busy}
               description={isForeman ? "Clock your own assigned or field-visible work without exposing payroll or pricing data." : undefined}
             />
-            <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} />
+            <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} setActive={setActive} permissions={permissions} activeEntry={timeWorkspace.activeEntry} />
           </div>
-          <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`}>
+          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
+          <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="space-y-3">
                 {workspace.assignedJobs.map((job) => (
