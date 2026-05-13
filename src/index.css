@@ -13654,6 +13654,20 @@ textarea {
   letter-spacing: 0;
 }
 
+.co-ai-header-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.5rem;
+}
+
+.co-ai-header-badges,
+.co-ai-header-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .co-ai-kpi-grid .co-command-kpi {
   min-height: 5.75rem;
 }
@@ -13936,6 +13950,21 @@ textarea {
 }
 
 @media (max-width: 767px) {
+  .co-ai-office-page {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem);
+  }
+
+  .co-ai-header-actions,
+  .co-ai-header-badges,
+  .co-ai-header-buttons {
+    justify-items: start;
+    justify-content: flex-start;
+  }
+
+  .co-ai-header-buttons > button {
+    flex: 1 1 9rem;
+  }
+
   .co-ai-kpi-grid {
     display: flex !important;
     grid-template-columns: none !important;

@@ -970,6 +970,19 @@ function currency(value) {
   }).format(Number(value) || 0);
 }
 
+function compactCurrency(value) {
+  const amount = Number(value) || 0;
+  const absAmount = Math.abs(amount);
+  if (absAmount >= 1000000) {
+    const compact = Math.round((amount / 1000000) * 10) / 10;
+    return `$${compact}M`;
+  }
+  if (absAmount >= 1000) {
+    return `$${Math.round(amount / 1000)}k`;
+  }
+  return currency(amount);
+}
+
 function formatDateTime(value) {
   if (!value) return "Not recorded";
   const parsed = new Date(value);
@@ -11508,6 +11521,7 @@ function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports 
 function CommandCenterKpiCard({ item }) {
   const tone = item.tone || "orange";
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
+  const displayValue = item.displayValue ?? value;
 
   return (
     <div className="co-command-kpi border p-3" data-tone={tone}>
@@ -11516,7 +11530,7 @@ function CommandCenterKpiCard({ item }) {
           <Icon name={item.icon} className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className={`co-command-kpi-value ${value > 0 ? "" : "is-empty"}`}>{value}</p>
+          <p className={`co-command-kpi-value ${value > 0 ? "" : "is-empty"}`}>{displayValue}</p>
           <p className="mt-0.5 break-words text-sm font-black leading-tight text-slate-950">{item.label}</p>
           <p className="mt-0.5 break-words text-xs font-bold leading-[1.35] text-slate-700">{item.helper}</p>
         </div>
@@ -17859,9 +17873,9 @@ function CopilotPagePolished({
 
   const aiKpis = [
     {
-      label: "Apex AI Leads",
+      label: "AI Lead Review",
       value: newLeads.length + highPriorityLeads.length,
-      helper: `${newLeads.length} new / ${highPriorityLeads.length} high priority`,
+      helper: `${newLeads.length} new / ${highPriorityLeads.length} high-priority leads`,
       icon: "spark",
       tone: newLeads.length || highPriorityLeads.length ? "orange" : "slate",
       actionLabel: "Open leads",
@@ -17886,9 +17900,10 @@ function CopilotPagePolished({
       onAction: () => openModule("jobs"),
     },
     {
-      label: "AI Pipeline Assist",
-      value: Math.round(pipelineValue / 1000),
-      helper: `${currency(pipelineValue)} open pipeline`,
+      label: "Pipeline Signals",
+      value: pipelineValue,
+      displayValue: compactCurrency(pipelineValue),
+      helper: `${currency(pipelineValue)} open pipeline value`,
       icon: "quote",
       tone: pipelineValue > 0 ? "blue" : "slate",
       actionLabel: "Review pipeline",
@@ -18011,11 +18026,15 @@ function CopilotPagePolished({
         title="AI Office"
         description="Office-only Apex HQ AI command space for lead review, outreach drafts, startup signals, and operator next actions."
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Badge tone="green">Field roles blocked</Badge>
-            <Badge tone="amber">No auto-send</Badge>
-            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Open Lead Assistant</Button>
-            <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Open Command Center</Button>
+          <div className="co-ai-header-actions">
+            <div className="co-ai-header-badges">
+              <Badge tone="green">Field roles blocked</Badge>
+              <Badge tone="amber">No auto-send</Badge>
+            </div>
+            <div className="co-ai-header-buttons">
+              <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Open Lead Assistant</Button>
+              <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Open Command Center</Button>
+            </div>
           </div>
         }
       />
