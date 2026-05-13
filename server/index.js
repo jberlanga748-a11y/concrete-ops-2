@@ -53,6 +53,13 @@ import {
   validateLeadSourcePayload,
 } from "../shared/leadSources.js";
 import {
+  changedOpportunityFields,
+  normalizeFoundOpportunityPayload,
+  normalizeOpportunitySearchProfilePayload,
+  validateFoundOpportunityPayload,
+  validateOpportunitySearchProfilePayload,
+} from "../shared/opportunityScout.js";
+import {
   leadScoreResultToFields,
   scoreLeadRuleBased,
 } from "../shared/leadScoring.js";
@@ -1066,6 +1073,8 @@ function buildDemoScope(state) {
   const auditEvents = Array.isArray(state?.auditEvents) ? state.auditEvents : [];
   const leadStatusHistory = Array.isArray(state?.leadStatusHistory) ? state.leadStatusHistory : [];
   const contactHistory = Array.isArray(state?.contactHistory) ? state.contactHistory : [];
+  const opportunitySearchProfiles = Array.isArray(state?.opportunitySearchProfiles) ? state.opportunitySearchProfiles : [];
+  const foundOpportunities = Array.isArray(state?.foundOpportunities) ? state.foundOpportunities : [];
 
   const userIds = new Set(
     users
@@ -1247,6 +1256,20 @@ function buildDemoScope(state) {
         || (entry?.entityType === "estimate" && hasDemoReference(entry?.entityId, estimateIds)))
       .map((entry) => String(entry.id)),
   );
+  const opportunitySearchProfileIds = new Set(
+    opportunitySearchProfiles
+      .filter((entry) => isDemoId(entry?.id) || hasDemoReference(entry?.createdBy, userIds))
+      .map((entry) => String(entry.id)),
+  );
+  const foundOpportunityIds = new Set(
+    foundOpportunities
+      .filter((entry) => isDemoId(entry?.id)
+        || hasDemoReference(entry?.searchProfileId, opportunitySearchProfileIds)
+        || hasDemoReference(entry?.assignedEstimatorId, userIds)
+        || hasDemoReference(entry?.createdBy, userIds)
+        || hasDemoReference(entry?.convertedLeadId, leadIds))
+      .map((entry) => String(entry.id)),
+  );
   const auditEventIds = new Set(
     auditEvents
       .filter((entry) => isDemoId(entry?.id)
@@ -1268,7 +1291,9 @@ function buildDemoScope(state) {
         || hasDemoReference(entry?.entityId, postPourChecklistIds)
         || hasDemoReference(entry?.entityId, postPourChecklistItemIds)
         || hasDemoReference(entry?.entityId, changeOrderRequestIds)
-        || hasDemoReference(entry?.entityId, deliveryTicketIds))
+        || hasDemoReference(entry?.entityId, deliveryTicketIds)
+        || hasDemoReference(entry?.entityId, opportunitySearchProfileIds)
+        || hasDemoReference(entry?.entityId, foundOpportunityIds))
       .map((entry) => String(entry.id)),
   );
 
@@ -1277,6 +1302,8 @@ function buildDemoScope(state) {
     customerIds,
     leadIds,
     leadSourceIds: new Set(),
+    opportunitySearchProfileIds,
+    foundOpportunityIds,
     leadStatusHistoryIds,
     contactHistoryIds,
     jobIds,
@@ -1315,6 +1342,10 @@ function filterDemoRecordsForUser(state, user, records, entityType) {
       return entries.filter((entry) => scope.leadIds.has(String(entry?.id || "")));
     case "leadSources":
       return entries.filter((entry) => scope.leadSourceIds.has(String(entry?.id || "")));
+    case "opportunitySearchProfiles":
+      return entries.filter((entry) => scope.opportunitySearchProfileIds.has(String(entry?.id || "")));
+    case "foundOpportunities":
+      return entries.filter((entry) => scope.foundOpportunityIds.has(String(entry?.id || "")));
     case "leadStatusHistory":
       return entries.filter((entry) => scope.leadStatusHistoryIds.has(String(entry?.id || "")));
     case "contactHistory":
@@ -3222,6 +3253,16 @@ function visibleLeadSourcesForUser(state, user) {
   return filterVisibleRecordsForUser(state, user, state.leadSources || [], "leadSources");
 }
 
+function visibleOpportunitySearchProfilesForUser(state, user) {
+  if (!canViewLeads(user)) return [];
+  return filterVisibleRecordsForUser(state, user, state.opportunitySearchProfiles || [], "opportunitySearchProfiles");
+}
+
+function visibleFoundOpportunitiesForUser(state, user) {
+  if (!canViewLeads(user)) return [];
+  return filterVisibleRecordsForUser(state, user, state.foundOpportunities || [], "foundOpportunities");
+}
+
 function visibleLeadStatusHistoryForUser(state, user) {
   if (!canViewLeads(user)) return [];
   return filterVisibleRecordsForUser(state, user, state.leadStatusHistory, "leadStatusHistory");
@@ -4677,6 +4718,8 @@ function sanitizeBootstrap(state, user) {
   const customers = visibleCustomersForUser(state, user);
   const leads = visibleLeadsForUser(state, user);
   const leadSources = visibleLeadSourcesForUser(state, user);
+  const opportunitySearchProfiles = visibleOpportunitySearchProfilesForUser(state, user);
+  const foundOpportunities = visibleFoundOpportunitiesForUser(state, user);
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
@@ -4712,6 +4755,8 @@ function sanitizeBootstrap(state, user) {
     customers,
     leads,
     leadSources,
+    opportunitySearchProfiles,
+    foundOpportunities,
     leadStatusHistory,
     contactHistory,
     estimates,
@@ -4741,6 +4786,10 @@ function sanitizeBootstrap(state, user) {
       users: userPermissions,
       customers: customerPermissions,
       leads: leadPermissions,
+      opportunityScout: {
+        canView: canViewLeads(user),
+        canManage: canManageLeads(user),
+      },
       contactHistory: contactHistoryPermissionsForUser(user),
       estimates: {
         canView: canViewEstimates(user),
@@ -7633,6 +7682,184 @@ app.post("/api/lead-sources/:id/check", requireAuth, asyncRoute(async (req, res)
       detail: `${leadSource.name} was manually checked. Next check: ${leadSource.nextCheckAt || "not scheduled"}.`,
       actor: req.auth.user,
       changedFields: ["lastCheckedAt", "nextCheckAt", "notes", "updatedAt"],
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+function validateOpportunityScoutLinks(draft, opportunity, user) {
+  if (opportunity.searchProfileId) {
+    findCompanyScopedRecord(draft.opportunitySearchProfiles || [], opportunity.searchProfileId, user, draft, "Search profile");
+  }
+  if (opportunity.leadSourceId) {
+    findCompanyScopedRecord(draft.leadSources || [], opportunity.leadSourceId, user, draft, "Lead source");
+  }
+  if (opportunity.convertedLeadId) {
+    findCompanyScopedRecord(draft.leads || [], opportunity.convertedLeadId, user, draft, "Lead");
+  }
+  if (opportunity.assignedEstimatorId) {
+    const assignedUser = findCompanyScopedRecord(draft.users || [], opportunity.assignedEstimatorId, user, draft, "Assigned estimator");
+    if (!canManageLeads(assignedUser)) {
+      throw new ApiError(400, "Assigned estimator must be an office user who can manage leads.");
+    }
+  }
+}
+
+app.get("/api/opportunity-scout", requireAuth, asyncRoute(async (req, res) => {
+  assertCanViewLeads(req.auth.user);
+  const state = await readDb();
+  res.json({
+    searchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
+    foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/opportunity-scout/search-profiles", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const errors = validateOpportunitySearchProfilePayload(req.body || {});
+  if (errors.length > 0) {
+    throw new ApiError(400, errors.join(" "));
+  }
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.opportunitySearchProfiles ||= [];
+    const profile = normalizeOpportunitySearchProfilePayload(req.body || {}, {
+      id: makeId("OSP"),
+      changedAt,
+      createdBy: req.auth.user.id,
+    });
+    assignCompanyIdForCreate(profile, req.auth.user, draft);
+    draft.opportunitySearchProfiles.unshift(profile);
+    appendActivity(draft, "Opportunity search profile added", `${req.auth.user.name} added ${profile.name}.`);
+    appendAuditEvent(draft, {
+      entityType: "opportunitySearchProfile",
+      entityId: profile.id,
+      action: "created",
+      summary: "Opportunity search profile added",
+      detail: profile.name,
+      actor: req.auth.user,
+      changedFields: ["name", "trades", "serviceAreas", "cadence", "status"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.opportunitySearchProfiles ||= [];
+    const profile = findCompanyScopedRecord(draft.opportunitySearchProfiles, id, req.auth.user, draft, "Search profile");
+    const errors = validateOpportunitySearchProfilePayload(req.body || {}, { existing: profile });
+    if (errors.length > 0) {
+      throw new ApiError(400, errors.join(" "));
+    }
+    const previous = { ...profile };
+    const normalized = normalizeOpportunitySearchProfilePayload(req.body || {}, {
+      existing: profile,
+      changedAt,
+      createdBy: profile.createdBy || req.auth.user.id,
+    });
+    Object.assign(profile, normalized, {
+      id: profile.id,
+      companyId: profile.companyId,
+      createdBy: profile.createdBy || normalized.createdBy,
+      createdAt: profile.createdAt || normalized.createdAt,
+      updatedAt: changedAt,
+    });
+    appendActivity(draft, "Opportunity search profile updated", `${req.auth.user.name} updated ${profile.name}.`);
+    appendAuditEvent(draft, {
+      entityType: "opportunitySearchProfile",
+      entityId: profile.id,
+      action: "updated",
+      summary: "Opportunity search profile updated",
+      detail: profile.name,
+      actor: req.auth.user,
+      changedFields: changedOpportunityFields(previous, profile, ["name", "trades", "serviceAreas", "radiusMiles", "sourceTypes", "keywords", "excludedKeywords", "cadence", "status", "notes", "lastRunAt", "nextRunAt"]),
+    });
+    return draft;
+  });
+
+  res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const errors = validateFoundOpportunityPayload(req.body || {});
+  if (errors.length > 0) {
+    throw new ApiError(400, errors.join(" "));
+  }
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.foundOpportunities ||= [];
+    const opportunity = normalizeFoundOpportunityPayload(req.body || {}, {
+      id: makeId("FO"),
+      changedAt,
+      createdBy: req.auth.user.id,
+    });
+    assignCompanyIdForCreate(opportunity, req.auth.user, draft);
+    validateOpportunityScoutLinks(draft, opportunity, req.auth.user);
+    draft.foundOpportunities.unshift(opportunity);
+    appendActivity(draft, "Opportunity found", `${req.auth.user.name} added ${opportunity.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "foundOpportunity",
+      entityId: opportunity.id,
+      action: "created",
+      summary: "Opportunity found",
+      detail: opportunity.title,
+      actor: req.auth.user,
+      changedFields: ["title", "status", "fitScore", "bidDueAt", "assignedEstimatorId"],
+    });
+    return draft;
+  });
+
+  res.status(201).json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const { id } = req.params;
+  const changedAt = new Date().toISOString();
+
+  const nextState = await updateDb((draft) => {
+    draft.foundOpportunities ||= [];
+    const opportunity = findCompanyScopedRecord(draft.foundOpportunities, id, req.auth.user, draft, "Opportunity");
+    const errors = validateFoundOpportunityPayload(req.body || {}, { existing: opportunity });
+    if (errors.length > 0) {
+      throw new ApiError(400, errors.join(" "));
+    }
+    const previous = { ...opportunity };
+    const normalized = normalizeFoundOpportunityPayload(req.body || {}, {
+      existing: opportunity,
+      changedAt,
+      createdBy: opportunity.createdBy || req.auth.user.id,
+    });
+    validateOpportunityScoutLinks(draft, normalized, req.auth.user);
+    Object.assign(opportunity, normalized, {
+      id: opportunity.id,
+      companyId: opportunity.companyId,
+      createdBy: opportunity.createdBy || normalized.createdBy,
+      createdAt: opportunity.createdAt || normalized.createdAt,
+      updatedAt: changedAt,
+    });
+    appendActivity(draft, "Opportunity updated", `${req.auth.user.name} updated ${opportunity.title}.`);
+    appendAuditEvent(draft, {
+      entityType: "foundOpportunity",
+      entityId: opportunity.id,
+      action: "updated",
+      summary: "Opportunity updated",
+      detail: opportunity.title,
+      actor: req.auth.user,
+      changedFields: changedOpportunityFields(previous, opportunity, ["title", "status", "fitScore", "urgencyScore", "distanceScore", "tradeMatchScore", "bidDueAt", "jobWalkAt", "assignedEstimatorId", "reasonToBid", "reasonToSkip", "riskFlags", "missingInfoItems", "convertedLeadId"]),
     });
     return draft;
   });

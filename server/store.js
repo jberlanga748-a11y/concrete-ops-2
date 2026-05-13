@@ -620,6 +620,8 @@ export function createEmptyState() {
     customers: [],
     leads: [],
     leadSources: [],
+    opportunitySearchProfiles: [],
+    foundOpportunities: [],
     leadStatusHistory: [],
     contactHistory: [],
     jobs: [],
@@ -1790,6 +1792,8 @@ export function createSeedState() {
     customers,
     leads,
     leadSources: [],
+    opportunitySearchProfiles: [],
+    foundOpportunities: [],
     leadStatusHistory,
     contactHistory: [],
     jobs,
@@ -5086,6 +5090,83 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 44,
+      description: "Add Opportunity Scout search profiles and found opportunities.",
+      up(database) {
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS opportunity_search_profiles (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            company_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            trades TEXT NOT NULL,
+            service_areas TEXT NOT NULL,
+            radius_miles INTEGER NOT NULL,
+            source_types TEXT NOT NULL,
+            keywords TEXT NOT NULL,
+            excluded_keywords TEXT NOT NULL,
+            cadence TEXT NOT NULL,
+            status TEXT NOT NULL,
+            notes TEXT NOT NULL,
+            last_run_at TEXT NOT NULL,
+            next_run_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT
+          );
+
+          CREATE TABLE IF NOT EXISTS found_opportunities (
+            id TEXT PRIMARY KEY,
+            sort_index INTEGER NOT NULL,
+            company_id TEXT NOT NULL,
+            search_profile_id TEXT NOT NULL,
+            lead_source_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            agency TEXT NOT NULL,
+            source_name TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            city TEXT NOT NULL,
+            state TEXT NOT NULL,
+            trade TEXT NOT NULL,
+            project_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            fit_score INTEGER NOT NULL,
+            urgency_score INTEGER NOT NULL,
+            distance_score INTEGER NOT NULL,
+            trade_match_score INTEGER NOT NULL,
+            bid_due_at TEXT NOT NULL,
+            job_walk_at TEXT NOT NULL,
+            estimated_value INTEGER NOT NULL,
+            contact_name TEXT NOT NULL,
+            contact_email TEXT NOT NULL,
+            contact_phone TEXT NOT NULL,
+            scope_summary TEXT NOT NULL,
+            plan_url TEXT NOT NULL,
+            reason_to_bid TEXT NOT NULL,
+            reason_to_skip TEXT NOT NULL,
+            risk_flags TEXT NOT NULL,
+            missing_info_items TEXT NOT NULL,
+            assigned_estimator_id TEXT NOT NULL,
+            notes TEXT NOT NULL,
+            converted_lead_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            archived_at TEXT
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_opportunity_search_profiles_company_id ON opportunity_search_profiles(company_id);
+          CREATE INDEX IF NOT EXISTS idx_opportunity_search_profiles_status ON opportunity_search_profiles(status);
+          CREATE INDEX IF NOT EXISTS idx_found_opportunities_company_id ON found_opportunities(company_id);
+          CREATE INDEX IF NOT EXISTS idx_found_opportunities_status ON found_opportunities(status);
+          CREATE INDEX IF NOT EXISTS idx_found_opportunities_bid_due_at ON found_opportunities(bid_due_at);
+          CREATE INDEX IF NOT EXISTS idx_found_opportunities_search_profile_id ON found_opportunities(search_profile_id);
+          CREATE INDEX IF NOT EXISTS idx_found_opportunities_lead_source_id ON found_opportunities(lead_source_id);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5152,6 +5233,16 @@ function writeStateToDb(state) {
   const insertLeadSource = database.prepare(`
     INSERT INTO lead_sources (id, sort_index, company_id, name, type, url, city, state, service_area, trade_focus, notes, status, check_cadence, last_checked_at, next_check_at, created_at, updated_at, archived_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertOpportunitySearchProfile = database.prepare(`
+    INSERT INTO opportunity_search_profiles (id, sort_index, company_id, name, trades, service_areas, radius_miles, source_types, keywords, excluded_keywords, cadence, status, notes, last_run_at, next_run_at, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertFoundOpportunity = database.prepare(`
+    INSERT INTO found_opportunities (id, sort_index, company_id, search_profile_id, lead_source_id, title, agency, source_name, source_url, city, state, trade, project_type, status, fit_score, urgency_score, distance_score, trade_match_score, bid_due_at, job_walk_at, estimated_value, contact_name, contact_email, contact_phone, scope_summary, plan_url, reason_to_bid, reason_to_skip, risk_flags, missing_info_items, assigned_estimator_id, notes, converted_lead_id, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadStatusHistory = database.prepare(`
@@ -5309,6 +5400,8 @@ function writeStateToDb(state) {
       DELETE FROM customers;
       DELETE FROM contact_history;
       DELETE FROM lead_status_history;
+      DELETE FROM found_opportunities;
+      DELETE FROM opportunity_search_profiles;
       DELETE FROM lead_sources;
       DELETE FROM leads;
       DELETE FROM job_assignments;
@@ -5457,6 +5550,72 @@ function writeStateToDb(state) {
         source.createdAt || isoNow(),
         source.updatedAt || source.createdAt || isoNow(),
         source.archivedAt || null,
+      );
+    });
+
+    (state.opportunitySearchProfiles || []).forEach((profile, index) => {
+      insertOpportunitySearchProfile.run(
+        profile.id,
+        index,
+        normalizeCompanyId(profile.companyId),
+        profile.name || "",
+        JSON.stringify(Array.isArray(profile.trades) ? profile.trades : []),
+        JSON.stringify(Array.isArray(profile.serviceAreas) ? profile.serviceAreas : []),
+        Number(profile.radiusMiles || 0),
+        JSON.stringify(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []),
+        JSON.stringify(Array.isArray(profile.keywords) ? profile.keywords : []),
+        JSON.stringify(Array.isArray(profile.excludedKeywords) ? profile.excludedKeywords : []),
+        profile.cadence || "daily",
+        profile.status || "active",
+        profile.notes || "",
+        profile.lastRunAt || "",
+        profile.nextRunAt || "",
+        profile.createdBy || "",
+        profile.createdAt || isoNow(),
+        profile.updatedAt || profile.createdAt || isoNow(),
+        profile.archivedAt || null,
+      );
+    });
+
+    (state.foundOpportunities || []).forEach((opportunity, index) => {
+      insertFoundOpportunity.run(
+        opportunity.id,
+        index,
+        normalizeCompanyId(opportunity.companyId),
+        opportunity.searchProfileId || "",
+        opportunity.leadSourceId || "",
+        opportunity.title || "",
+        opportunity.agency || "",
+        opportunity.sourceName || "",
+        opportunity.sourceUrl || "",
+        opportunity.city || "",
+        opportunity.state || "",
+        opportunity.trade || "",
+        opportunity.projectType || "",
+        opportunity.status || "new",
+        Number(opportunity.fitScore || 0),
+        Number(opportunity.urgencyScore || 0),
+        Number(opportunity.distanceScore || 0),
+        Number(opportunity.tradeMatchScore || 0),
+        opportunity.bidDueAt || "",
+        opportunity.jobWalkAt || "",
+        Number(opportunity.estimatedValue || 0),
+        opportunity.contactName || "",
+        opportunity.contactEmail || "",
+        opportunity.contactPhone || "",
+        opportunity.scopeSummary || "",
+        opportunity.planUrl || "",
+        opportunity.reasonToBid || "",
+        opportunity.reasonToSkip || "",
+        JSON.stringify(Array.isArray(opportunity.riskFlags) ? opportunity.riskFlags : []),
+        JSON.stringify(Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems : []),
+        opportunity.assignedEstimatorId || "",
+        opportunity.notes || "",
+        opportunity.convertedLeadId || "",
+        opportunity.createdBy || "",
+        opportunity.createdAt || isoNow(),
+        opportunity.updatedAt || opportunity.createdAt || isoNow(),
+        opportunity.archivedAt || null,
       );
     });
 
@@ -6130,6 +6289,43 @@ function readTableState() {
     ORDER BY sort_index ASC
   `).all().map((source) => withDefaultCompanyId(source));
 
+  const opportunitySearchProfiles = database.prepare(`
+    SELECT id, company_id AS companyId, name, trades, service_areas AS serviceAreas, radius_miles AS radiusMiles, source_types AS sourceTypes,
+           keywords, excluded_keywords AS excludedKeywords, cadence, status, notes, last_run_at AS lastRunAt, next_run_at AS nextRunAt,
+           created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM opportunity_search_profiles
+    ORDER BY sort_index ASC
+  `).all().map((profile) => ({
+    ...withDefaultCompanyId(profile),
+    trades: parseJsonValue(profile.trades, []),
+    serviceAreas: parseJsonValue(profile.serviceAreas, []),
+    radiusMiles: Number(profile.radiusMiles || 0),
+    sourceTypes: parseJsonValue(profile.sourceTypes, []),
+    keywords: parseJsonValue(profile.keywords, []),
+    excludedKeywords: parseJsonValue(profile.excludedKeywords, []),
+  }));
+
+  const foundOpportunities = database.prepare(`
+    SELECT id, company_id AS companyId, search_profile_id AS searchProfileId, lead_source_id AS leadSourceId, title, agency, source_name AS sourceName,
+           source_url AS sourceUrl, city, state, trade, project_type AS projectType, status, fit_score AS fitScore, urgency_score AS urgencyScore,
+           distance_score AS distanceScore, trade_match_score AS tradeMatchScore, bid_due_at AS bidDueAt, job_walk_at AS jobWalkAt,
+           estimated_value AS estimatedValue, contact_name AS contactName, contact_email AS contactEmail, contact_phone AS contactPhone,
+           scope_summary AS scopeSummary, plan_url AS planUrl, reason_to_bid AS reasonToBid, reason_to_skip AS reasonToSkip,
+           risk_flags AS riskFlags, missing_info_items AS missingInfoItems, assigned_estimator_id AS assignedEstimatorId, notes,
+           converted_lead_id AS convertedLeadId, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    FROM found_opportunities
+    ORDER BY sort_index ASC
+  `).all().map((opportunity) => ({
+    ...withDefaultCompanyId(opportunity),
+    fitScore: Number(opportunity.fitScore || 0),
+    urgencyScore: Number(opportunity.urgencyScore || 0),
+    distanceScore: Number(opportunity.distanceScore || 0),
+    tradeMatchScore: Number(opportunity.tradeMatchScore || 0),
+    estimatedValue: Number(opportunity.estimatedValue || 0),
+    riskFlags: parseJsonValue(opportunity.riskFlags, []),
+    missingInfoItems: parseJsonValue(opportunity.missingInfoItems, []),
+  }));
+
   const leadStatusHistory = database.prepare(`
     SELECT id, company_id AS companyId, lead_id AS leadId, from_status AS fromStatus, to_status AS toStatus, note, actor_user_id AS actorUserId, actor_name AS actorName, created_at AS createdAt
     FROM lead_status_history
@@ -6381,6 +6577,8 @@ function readTableState() {
     customers,
     leads,
     leadSources,
+    opportunitySearchProfiles,
+    foundOpportunities,
     leadStatusHistory,
     contactHistory,
     jobs: derivedAssignmentState.jobs,
