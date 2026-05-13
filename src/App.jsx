@@ -24563,7 +24563,7 @@ function DeliveryTicketsPagePolished({
     <div className="co-office-page co-delivery-page">
       <PageHeader
         eyebrow={canManageAll ? "Field Ops" : "Field Workspace"}
-        title={<span>Delivery Tickets <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Delivery Tickets"
         description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."}
         actions={
           <div className="flex flex-wrap gap-2">
