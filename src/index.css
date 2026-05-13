@@ -5889,10 +5889,49 @@ textarea {
 
 .co-field-workspace-page {
   min-width: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 250, 252, 0.68)),
+    radial-gradient(circle at top right, rgba(255, 237, 213, 0.36), transparent 31rem);
 }
 
 .co-field-workspace-page .co-page-header {
   box-shadow: inset 0 -1px 0 rgba(203, 213, 225, 0.88);
+}
+
+.co-field-workspace-page .co-page-header h1 {
+  font-size: clamp(1.62rem, 2vw, 2.2rem) !important;
+  line-height: 1.03 !important;
+}
+
+.co-field-workspace-page .co-page-header p:not(:first-child) {
+  max-width: 58rem !important;
+  color: #475569 !important;
+  font-weight: 850 !important;
+}
+
+.co-field-workspace-page .border-blue-100 {
+  border-color: rgba(254, 215, 170, 0.86) !important;
+}
+
+.co-field-workspace-page .border-blue-200,
+.co-field-workspace-page .border-blue-300 {
+  border-color: rgba(253, 186, 116, 0.92) !important;
+}
+
+.co-field-workspace-page .bg-blue-50,
+.co-field-workspace-page .bg-blue-50\/50,
+.co-field-workspace-page .bg-blue-50\/80 {
+  background-color: rgba(255, 247, 237, 0.76) !important;
+}
+
+.co-field-workspace-page .text-blue-700,
+.co-field-workspace-page .text-blue-800,
+.co-field-workspace-page .hover\:text-blue-900:hover {
+  color: var(--color-brand-orange-dark) !important;
+}
+
+.co-field-workspace-page .ring-blue-100 {
+  --tw-ring-color: rgba(254, 215, 170, 0.9) !important;
 }
 
 .co-field-kpi-grid {
@@ -5927,6 +5966,11 @@ textarea {
   border-top-color: rgba(249, 115, 22, 0.86) !important;
   background: #ffffff !important;
   box-shadow: 0 20px 52px -38px rgba(7, 17, 31, 0.58);
+}
+
+.co-field-workspace-page .co-field-operator-panel {
+  border-left-color: rgba(249, 115, 22, 0.34) !important;
+  box-shadow: 0 24px 58px -40px rgba(7, 17, 31, 0.62);
 }
 
 .co-field-operator-shell {
@@ -6013,6 +6057,11 @@ textarea {
   box-shadow: 0 16px 28px -22px rgba(194, 65, 12, 0.78);
 }
 
+.co-field-workspace-page .co-field-operator-actions > .btn:first-child,
+.co-field-workspace-page .co-field-operator-actions > button:first-child {
+  min-height: 3.35rem;
+}
+
 .co-field-operator-link {
   display: inline-flex;
   align-items: center;
@@ -6092,7 +6141,7 @@ textarea {
 }
 
 .co-field-operator-strip [data-tone="blue"] strong {
-  color: #1459d9;
+  color: #0f172a;
 }
 
 .co-field-action-dock {
@@ -6106,6 +6155,13 @@ textarea {
 .co-field-next-job-highlight {
   background:
     linear-gradient(135deg, rgba(255, 247, 237, 0.9), rgba(239, 246, 255, 0.72)),
+    #ffffff !important;
+}
+
+.co-field-workspace-page .co-field-next-job-highlight {
+  border-color: rgba(249, 115, 22, 0.22) !important;
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(248, 250, 252, 0.82)),
     #ffffff !important;
 }
 
@@ -6241,8 +6297,8 @@ textarea {
 }
 
 .co-field-action-card[data-tone="blue"] > span {
-  background: #eff6ff;
-  color: #1459d9;
+  background: #fff7ed;
+  color: var(--color-brand-orange-dark);
 }
 
 .co-field-action-card[data-tone="green"] > span {

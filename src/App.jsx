@@ -4031,7 +4031,7 @@ function FieldJobSummaryCard({ job, selected, onSelect, note = "" }) {
       </div>
       <p className="mt-4 text-sm leading-6 text-slate-600">{job.scopeSummary || "Scope summary pending."}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {note ? <Badge tone="blue">{note}</Badge> : null}
+        {note ? <Badge tone="orange">{note}</Badge> : null}
         <Badge tone="slate">{crewCount} crew</Badge>
         {job.siteContact ? <Badge tone="violet">Site contact ready</Badge> : null}
         <span className="co-field-open-pill">Open details</span>
@@ -4117,7 +4117,7 @@ function FieldNextJobCard({ job, titleOverride = "", descriptionOverride = "", o
       <SectionHeader
         title={title}
         description={descriptionOverride || "Primary field assignment with the fastest safe actions for this role."}
-        action={job ? <Badge tone="blue">Field-safe</Badge> : null}
+        action={job ? <Badge tone="orange">Field-safe</Badge> : null}
       />
       {job ? (
         <div className="co-field-next-job-highlight rounded-3xl border border-blue-100 bg-blue-50/50 p-4">
@@ -4557,7 +4557,9 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
 
   if (actions.length === 0) return null;
 
-  const mobilePrimaryActionIds = new Set(["time", "reports", "uploads", "calculator"]);
+  const mobilePrimaryActionIds = new Set(role === "foreman"
+    ? ["time", "reports", "uploads", "toolChecklist", "ppe", "calculator"]
+    : ["time", "uploads", "ppe", "toolChecklist", "calculator"]);
   const mobilePrimaryActions = actions.filter((action) => mobilePrimaryActionIds.has(action.id));
   const mobileSecondaryActions = actions.filter((action) => !mobilePrimaryActionIds.has(action.id));
   const renderFieldAction = (action) => (
@@ -4633,9 +4635,9 @@ function FieldWorkspacePagePolished({
     <div className="co-office-page co-jobs-page co-field-workspace-page">
       <PageHeader
         eyebrow="Field Workspace"
-        title={isForeman ? "My Crew" : "My Job"}
+        title={isForeman ? "My Jobs" : "My Job"}
         description={isForeman ? "Run today's assigned work, crew time, field notes, checklists, photos, tickets, and job-safe tools from one operator view." : "Open your assigned work, clock in, review field notes, and use job-safe tools without office-only data."}
-        actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>}
+        actions={<Badge tone="orange">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>}
       />
       <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
         <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
