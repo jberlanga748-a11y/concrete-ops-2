@@ -10,10 +10,10 @@ export const MODULE_PATHS = {
   customers: "/customers",
   employees: "/employees",
   estimates: "/estimates",
-  jobDraftImports: "/job-draft-imports",
+  jobDraftImports: "/imported-drafts",
   changeOrders: "/change-orders",
   incidents: "/incidents",
-  toolbox: "/toolbox",
+  toolbox: "/toolbox-talks",
   ppe: "/ppe",
   prePour: "/pre-pour",
   postPour: "/post-pour",
@@ -26,6 +26,8 @@ export const MODULE_PATHS = {
 
 const LEGACY_MODULE_PATHS = {
   "/copilot": "copilot",
+  "/job-draft-imports": "jobDraftImports",
+  "/toolbox": "toolbox",
   "/deliveryTickets": "deliveryTickets",
   "/changeOrders": "changeOrders",
   "/prePour": "prePour",
@@ -59,7 +61,7 @@ export function buildReportPath(id) {
 }
 
 export function buildImportedJobDraftPath(id) {
-  return `/job-draft-imports/${encodeURIComponent(id)}`;
+  return `/imported-drafts/${encodeURIComponent(id)}`;
 }
 
 export function parseAppPath(pathname) {
@@ -82,7 +84,7 @@ export function parseAppPath(pathname) {
     return { active: "reports", leadId: "", jobId: "", customerId: "", reportId: decodeURIComponent(segments[1]), importedDraftId: "" };
   }
 
-  if (segments[0] === "job-draft-imports" && segments[1]) {
+  if ((segments[0] === "imported-drafts" || segments[0] === "job-draft-imports") && segments[1]) {
     return { active: "jobDraftImports", leadId: "", jobId: "", customerId: "", reportId: "", importedDraftId: decodeURIComponent(segments[1]) };
   }
 

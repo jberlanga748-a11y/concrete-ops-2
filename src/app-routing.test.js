@@ -64,9 +64,9 @@ test("report routes build and parse durable detail paths", () => {
 });
 
 test("imported job draft routes build and parse durable detail paths", () => {
-  assert.equal(getModulePath("jobDraftImports"), "/job-draft-imports");
-  assert.equal(buildImportedJobDraftPath("IJD-1001"), "/job-draft-imports/IJD-1001");
-  assert.deepEqual(parseAppPath("/job-draft-imports/IJD-1001"), {
+  assert.equal(getModulePath("jobDraftImports"), "/imported-drafts");
+  assert.equal(buildImportedJobDraftPath("IJD-1001"), "/imported-drafts/IJD-1001");
+  assert.deepEqual(parseAppPath("/imported-drafts/IJD-1001"), {
     active: "jobDraftImports",
     leadId: "",
     jobId: "",
@@ -74,6 +74,8 @@ test("imported job draft routes build and parse durable detail paths", () => {
     reportId: "",
     importedDraftId: "IJD-1001",
   });
+  assert.equal(parseAppPath("/job-draft-imports/IJD-1001").importedDraftId, "IJD-1001");
+  assert.equal(parseAppPath("/job-draft-imports").active, "jobDraftImports");
 });
 
 test("employees module route resolves directly instead of falling back to dashboard", () => {
@@ -163,6 +165,19 @@ test("tool checklist module route resolves with a readable path and legacy alias
     importedDraftId: "",
   });
   assert.equal(parseAppPath("/toolChecklist").active, "toolChecklist");
+});
+
+test("toolbox talks route resolves with a readable path and legacy alias", () => {
+  assert.equal(getModulePath("toolbox"), "/toolbox-talks");
+  assert.deepEqual(parseAppPath("/toolbox-talks"), {
+    active: "toolbox",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+  assert.equal(parseAppPath("/toolbox").active, "toolbox");
 });
 
 test("estimates module route resolves directly", () => {

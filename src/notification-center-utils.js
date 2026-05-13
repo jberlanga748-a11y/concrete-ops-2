@@ -464,7 +464,7 @@ function buildJobDraftNotifications(source = {}, options = {}) {
           recordType: "jobDraftImport",
           recordId: draft.id,
           moduleId: "jobDraftImports",
-          openPath: draft.id ? `/job-draft-imports/${encodeURIComponent(draft.id)}` : "/job-draft-imports",
+          openPath: draft.id ? `/imported-drafts/${encodeURIComponent(draft.id)}` : "/imported-drafts",
           actionLabel: "Open Imported Draft",
         };
       }
@@ -483,7 +483,7 @@ function buildJobDraftNotifications(source = {}, options = {}) {
           recordType: "jobDraftImport",
           recordId: draft.id,
           moduleId: "jobDraftImports",
-          openPath: draft.id ? `/job-draft-imports/${encodeURIComponent(draft.id)}` : "/job-draft-imports",
+          openPath: draft.id ? `/imported-drafts/${encodeURIComponent(draft.id)}` : "/imported-drafts",
           actionLabel: "Open Imported Draft",
         };
       }

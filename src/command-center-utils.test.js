@@ -95,8 +95,8 @@ test("command center exposes route-safe records for office actions", () => {
     jobs: [{ id: "J/42", title: "Accessible ramp", status: "scheduled", startupStatus: "Needs Review" }],
   });
 
-  assert.equal(result.importedDraftsNeedingReview[0].actionPath, "/job-draft-imports/IJD%2F42");
-  assert.equal(result.importedDraftsNeedingCustomerMatch[0].actionPath, "/job-draft-imports/IJD%2F42");
+  assert.equal(result.importedDraftsNeedingReview[0].actionPath, "/imported-drafts/IJD%2F42");
+  assert.equal(result.importedDraftsNeedingCustomerMatch[0].actionPath, "/imported-drafts/IJD%2F42");
   assert.equal(result.jobsNeedingStartupReview[0].actionPath, "/jobs/J%2F42");
 });
 

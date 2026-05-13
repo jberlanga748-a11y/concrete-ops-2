@@ -33,7 +33,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     .filter((draft) => !draft.createdJobId && REVIEW_DRAFT_STATUSES.has(normalizeStatus(draft.importStatus || draft.status)))
     .map((draft) => ({
       ...draft,
-      actionPath: draft.id ? `/job-draft-imports/${encodeURIComponent(draft.id)}` : "/job-draft-imports",
+      actionPath: draft.id ? `/imported-drafts/${encodeURIComponent(draft.id)}` : "/imported-drafts",
     }));
   const importedDraftsNeedingCustomerMatch = importedDraftsNeedingReview.filter((draft) => (
     CUSTOMER_MATCH_REVIEW_STATUSES.has(normalizeStatus(draft.customerMatchStatus))
