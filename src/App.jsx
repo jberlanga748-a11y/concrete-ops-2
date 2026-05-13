@@ -18302,6 +18302,17 @@ function CopilotPagePolished({
                     <span>Checks due</span>
                   </div>
                 </div>
+                <div className="co-ai-scout-runbook">
+                  <span>Today&apos;s scout run</span>
+                  {opportunityScout.dailyRunSteps.map((step) => (
+                    <button key={step.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={step.tone} onClick={() => openModule(step.moduleId)}>
+                      <em>{step.value}</em>
+                      <strong>{step.label}</strong>
+                      <p>{step.helper}</p>
+                      <small>{step.actionLabel}</small>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="co-ai-scout-briefs">

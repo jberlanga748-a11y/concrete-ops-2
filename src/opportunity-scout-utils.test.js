@@ -20,6 +20,13 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.readiness.label, "Scout checks due");
   assert.equal(state.stats.activeSources, 2);
   assert.equal(state.stats.checksNeeded, 2);
+  assert.deepEqual(state.dailyRunSteps.map((step) => step.id), [
+    "run-profiles",
+    "check-sources",
+    "review-found-work",
+    "work-lead-followups",
+  ]);
+  assert.equal(state.dailyRunSteps.find((step) => step.id === "check-sources").value, 2);
   assert.deepEqual(state.sourceQueue.map((source) => source.sourceId), ["LS-1", "LS-2"]);
   assert.match(state.searchBriefs[0].query, /commercial concrete/i);
   assert.equal(state.sourceQueue.some((source) => source.name === "Other company source"), false);
@@ -81,6 +88,8 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.profilesDue, 1);
   assert.equal(state.stats.openFoundOpportunities, 1);
   assert.equal(state.stats.dueBidOpportunities, 1);
+  assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);
+  assert.equal(state.dailyRunSteps.find((step) => step.id === "review-found-work").tone, "red");
   assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1"]);
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);
   assert.equal(state.searchBriefs.some((brief) => brief.profileId === "OSP-1"), true);

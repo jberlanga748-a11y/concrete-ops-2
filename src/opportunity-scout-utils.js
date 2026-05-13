@@ -424,6 +424,61 @@ function buildLeadQueue(leads = [], today = dateKey(new Date())) {
     .sort((left, right) => left.priority - right.priority || Number(right.fitScore || 0) - Number(left.fitScore || 0));
 }
 
+function buildDailyScoutRunSteps({
+  dueProfiles = [],
+  dailyCheck = {},
+  foundOpportunityQueue = [],
+  dueBidOpportunities = [],
+  highFitOpportunities = [],
+  dueLeads = [],
+  missingInfoLeads = [],
+} = {}) {
+  const sourceChecksNeeded = Number(dailyCheck?.stats?.checksNeeded || 0);
+  const overdueChecks = Number(dailyCheck?.stats?.overdue || 0) + dueProfiles.filter((profile) => profile.tone === "red").length;
+  const dueProfileCount = dueProfiles.length;
+  const foundCount = foundOpportunityQueue.length;
+  const leadCount = dueLeads.length + missingInfoLeads.length;
+
+  return [
+    {
+      id: "run-profiles",
+      label: "Run scout profiles",
+      value: dueProfileCount,
+      helper: dueProfileCount ? `${dueProfileCount} saved profile${dueProfileCount === 1 ? "" : "s"} need review.` : "Saved profiles are current.",
+      tone: overdueChecks ? "red" : dueProfileCount ? "orange" : "green",
+      actionLabel: dueProfileCount ? "Review profiles" : "Profiles current",
+      moduleId: "copilot",
+    },
+    {
+      id: "check-sources",
+      label: "Check lead sources",
+      value: sourceChecksNeeded,
+      helper: sourceChecksNeeded ? `${sourceChecksNeeded} source check${sourceChecksNeeded === 1 ? "" : "s"} due today.` : "Lead sources are not due.",
+      tone: Number(dailyCheck?.stats?.overdue || 0) ? "red" : sourceChecksNeeded ? "orange" : "green",
+      actionLabel: "Open sources",
+      moduleId: "leads",
+    },
+    {
+      id: "review-found-work",
+      label: "Review found work",
+      value: foundCount,
+      helper: foundCount ? `${dueBidOpportunities.length} due now / ${highFitOpportunities.length} high-fit.` : "No saved found work waiting.",
+      tone: dueBidOpportunities.length ? "red" : foundCount ? "orange" : "slate",
+      actionLabel: "Review found work",
+      moduleId: "copilot",
+    },
+    {
+      id: "work-lead-followups",
+      label: "Work lead follow-ups",
+      value: leadCount,
+      helper: leadCount ? `${dueLeads.length} due / ${missingInfoLeads.length} missing info.` : "No urgent lead cleanup.",
+      tone: dueLeads.length ? "orange" : missingInfoLeads.length ? "amber" : "green",
+      actionLabel: "Open leads",
+      moduleId: "leads",
+    },
+  ];
+}
+
 export function deriveOpportunityScoutState(source = {}, options = {}) {
   const today = dateKey(options.today || new Date());
   const companyId = text(options.companyId || source.currentCompanyId || source.companyId);
@@ -558,10 +613,20 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       moduleId: "leads",
     },
   ];
+  const dailyRunSteps = buildDailyScoutRunSteps({
+    dueProfiles,
+    dailyCheck,
+    foundOpportunityQueue,
+    dueBidOpportunities,
+    highFitOpportunities,
+    dueLeads,
+    missingInfoLeads,
+  });
 
   return {
     today,
     readiness,
+    dailyRunSteps,
     profileQueue: profileQueue.slice(0, 6),
     foundOpportunityQueue: foundOpportunityQueue.slice(0, 8),
     sourceQueue,
