@@ -5869,13 +5869,13 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           </DailyReportMobileFieldGroup>
           <Button type="submit" disabled={disabled}>
             <Icon name="plus" />
-            Start draft
+            Start daily report
           </Button>
         </form>
       </DailyReportMobileAccordionCard>
       <Card className="hidden overflow-hidden md:block">
         <div className="border-b border-blue-100 bg-white p-4">
-          <SectionHeader title="Start daily report" description="Capture crew, work, weather, and pour details while the day is fresh." />
+          <SectionHeader title="Start today's field report" description="Capture crew, work, weather, and pour details while the day is fresh." />
         </div>
         <form className="grid gap-3 p-4" onSubmit={onCreate}>
           <div className="grid gap-3 md:grid-cols-2">
@@ -5897,7 +5897,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
           {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
           <Button type="submit" disabled={disabled}>
             <Icon name="plus" />
-            Start draft
+            Start daily report
           </Button>
         </form>
       </Card>
@@ -9754,6 +9754,7 @@ function ReportsPagePolished({
 }) {
   const canView = permissions.reports.canView;
   const canCreate = permissions.reports.canCreate;
+  const isFieldReportWorkspace = canCreate && !permissions.reports.canManageAll;
   const [showReportTools, setShowReportTools] = useState(false);
   const [activeReportTool, setActiveReportTool] = useState("create");
   const reportToolsRef = useRef(null);
@@ -9829,15 +9830,17 @@ function ReportsPagePolished({
     onAction: () => openPriorityReport((report) => !report.workPerformed || !report.crewSummary || !report.weather, "All"),
   };
   const startPriorityCard = {
-    label: "Start today's report",
+    label: isFieldReportWorkspace ? "Start field report" : "Start today's report",
     value: canCreate ? 1 : 0,
     helper: canCreate ? "Open the real daily report form for a visible job." : "Creation is not enabled for this role.",
     icon: "plus",
-    tone: canCreate ? "blue" : "slate",
+    tone: canCreate ? "orange" : "slate",
     actionLabel: canCreate ? "Start report" : "Read only",
     onAction: () => (canCreate ? openReportTool("create") : openReportTool("details")),
   };
-  const reportPriorityCards = visibleRows.length === 0 && canCreate
+  const reportPriorityCards = isFieldReportWorkspace
+    ? [startPriorityCard, draftsPriorityCard, basicsPriorityCard, reviewPriorityCard]
+    : visibleRows.length === 0 && canCreate
     ? [startPriorityCard, reviewPriorityCard, draftsPriorityCard, basicsPriorityCard]
     : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard, startPriorityCard];
 
@@ -9846,7 +9849,7 @@ function ReportsPagePolished({
       <PageHeader
         eyebrow={permissions.reports.canManageAll ? "Field Ops" : "Field Workspace"}
         title={<span>Daily Reports <span className="text-orange-500">{"\u2606"}</span></span>}
-        description="Capture field progress, crew notes, weather, concrete activity, and review status from one daily report board."
+        description={isFieldReportWorkspace ? "Start today's report, finish field drafts, and keep job progress easy for the office to review." : "Capture field progress, crew notes, weather, concrete activity, and review status from one daily report board."}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => openReportTool("details")}>{canView ? visibleRows.length : 0} visible reports</Button>
@@ -9889,9 +9892,10 @@ function ReportsPagePolished({
                       <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter reports, select a field day, and keep status, crew, time, and concrete notes in the right rail.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {isFieldReportWorkspace && canCreate ? <Button type="button" size="sm" onClick={() => openReportTool("create")}>Start Report</Button> : null}
                       <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All reports</Button>
                       <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Submitted")}>Review queue</Button>
-                      {canCreate ? <Button type="button" size="sm" onClick={() => openReportTool("create")}>Start Report</Button> : null}
+                      {!isFieldReportWorkspace && canCreate ? <Button type="button" size="sm" onClick={() => openReportTool("create")}>Start Report</Button> : null}
                     </div>
                   </div>
                 </div>
