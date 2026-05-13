@@ -3935,6 +3935,13 @@ function getFieldMobileNavItems(visibleNavItems) {
 function FieldMobileQuickNav({ items, active, onOpen }) {
   if (!items.length) return null;
 
+  function handleOpen(itemId) {
+    onOpen(itemId);
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 0);
+  }
+
   return (
     <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Mobile navigation">
       <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -3944,7 +3951,7 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
             <button
               key={item.id}
               type="button"
-              onClick={() => onOpen(item.id)}
+              onClick={() => handleOpen(item.id)}
               aria-current={isActive ? "page" : undefined}
               className={`co-mobile-bottom-nav-button flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isActive ? "is-active border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
             >
@@ -4643,7 +4650,6 @@ function FieldWorkspacePagePolished({
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
-          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
             <ActiveTimeCard
               activeEntry={timeWorkspace.activeEntry}
@@ -4666,6 +4672,7 @@ function FieldWorkspacePagePolished({
               activeEntry={timeWorkspace.activeEntry}
             />
           </div>
+          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
