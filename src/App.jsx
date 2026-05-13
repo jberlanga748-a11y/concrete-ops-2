@@ -24146,52 +24146,114 @@ function DeliveryTicketCreatePanelPolished({
     );
   }
 
+  const selectedJob = visibleJobs.find((job) => job.id === createDraft.jobId);
+  const selectedReport = createReportOptions.find((report) => report.id === createDraft.reportId);
+  const selectedUpload = createUploadOptions.find((upload) => upload.id === createDraft.ticketUploadId);
+  const deliveryTargetLabel = selectedJob ? jobTitle(selectedJob) : "Select job";
+  const supplierLabel = createDraft.supplier || "Supplier pending";
+  const ticketLabel = createDraft.ticketNumber || "Ticket number pending";
+  const concreteLabel = createDraft.yardsDelivered ? `${createDraft.yardsDelivered} yd${Number(createDraft.yardsDelivered) === 1 ? "" : "s"}` : "Yards pending";
+  const basicsReadyCount = [createDraft.jobId, createDraft.supplier, createDraft.ticketNumber].filter(Boolean).length;
+  const linksReadyCount = [createDraft.reportId, createDraft.ticketUploadId].filter(Boolean).length;
+
   return (
-    <Card className="co-delivery-form-card p-4">
-      <SectionHeader title="New Delivery Ticket" description="Record truck, ticket, mix, and linked evidence without adding pricing or billing data." />
-      <div className="co-delivery-form-grid">
-        <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
-          <option value="">Select a job</option>
-          {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
-        </SelectField>
-        <InputField label="Supplier" value={createDraft.supplier} onChange={(event) => setCreateDraft((current) => ({ ...current, supplier: event.target.value }))} placeholder="Knife River, Cadman, etc." />
-        <InputField label="Truck number" value={createDraft.truckNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
-        <InputField label="Ticket number" value={createDraft.ticketNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
-        <InputField label="Yards delivered" type="number" min="0" step="0.1" value={createDraft.yardsDelivered} onChange={(event) => setCreateDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
-        <InputField label="PSI" type="number" min="0" step="1" value={createDraft.psi} onChange={(event) => setCreateDraft((current) => ({ ...current, psi: event.target.value }))} />
-        <InputField label="Arrival time" type="datetime-local" value={createDraft.arrivalTime} onChange={(event) => setCreateDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
-        <InputField label="Discharge time" type="datetime-local" value={createDraft.dischargeTime} onChange={(event) => setCreateDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
-        <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
-        <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
-          <option value="">No linked report</option>
-          {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} / ${report.reportDate || "No date"}`}</option>)}
-        </SelectField>
-        <div className="md:col-span-2">
-          <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
-            <option value="">No linked upload</option>
-            {createUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
-          </SelectField>
-        </div>
-        <div className="md:col-span-2">
-          <TextAreaField label="Mix notes" value={createDraft.mixNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, mixNotes: event.target.value }))} placeholder="Mix design, pump notes, temperature, additives, or placement details." />
-        </div>
-        <div className="md:col-span-2">
-          <TextAreaField label="Notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Any additional field notes for this delivery ticket." />
-        </div>
+    <Card className="co-delivery-form-card co-delivery-create-card overflow-hidden">
+      <div className="co-delivery-create-header border-b border-slate-200 bg-white p-4">
+        <SectionHeader title="New Delivery Ticket" description="Record truck, ticket, mix, and linked evidence without adding pricing or billing data." />
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button
-          type="button"
-          onClick={async () => {
-            const saved = await onCreateTicket(createDraft);
-            if (saved) {
-              setCreateDraft({ ...INITIAL_DELIVERY_TICKET_FORM, jobId: singleJobId });
-            }
-          }}
-          disabled={busy || !createDraft.jobId}
-        >
-          Save delivery ticket
-        </Button>
+      <div className="co-delivery-create-shell p-4">
+        <div className="co-delivery-create-target">
+          <span>Ticket target</span>
+          <strong>{deliveryTargetLabel}</strong>
+          <p>{supplierLabel} / {ticketLabel}</p>
+          <div className="co-delivery-create-target-meta">
+            <span>{basicsReadyCount}/3 basics</span>
+            <span>{concreteLabel}</span>
+            <span>{linksReadyCount ? `${linksReadyCount} link${linksReadyCount === 1 ? "" : "s"}` : "Links optional"}</span>
+          </div>
+        </div>
+
+        <div className="co-delivery-create-sections">
+          <div className="co-delivery-create-section">
+            <span>Job and ticket</span>
+            <div className="co-delivery-form-grid">
+              <SelectField label="Job" value={createDraft.jobId} onChange={(event) => setCreateDraft((current) => ({ ...current, jobId: event.target.value, reportId: "", ticketUploadId: "" }))}>
+                <option value="">Select a job</option>
+                {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+              </SelectField>
+              <InputField label="Supplier" value={createDraft.supplier} onChange={(event) => setCreateDraft((current) => ({ ...current, supplier: event.target.value }))} placeholder="Knife River, Cadman, etc." />
+              <InputField label="Truck number" value={createDraft.truckNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, truckNumber: event.target.value }))} />
+              <InputField label="Ticket number" value={createDraft.ticketNumber} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketNumber: event.target.value }))} />
+            </div>
+          </div>
+
+          <div className="co-delivery-create-section">
+            <span>Concrete and timing</span>
+            <div className="co-delivery-form-grid">
+              <InputField label="Yards delivered" type="number" min="0" step="0.1" value={createDraft.yardsDelivered} onChange={(event) => setCreateDraft((current) => ({ ...current, yardsDelivered: event.target.value }))} />
+              <InputField label="PSI" type="number" min="0" step="1" value={createDraft.psi} onChange={(event) => setCreateDraft((current) => ({ ...current, psi: event.target.value }))} />
+              <InputField label="Arrival time" type="datetime-local" value={createDraft.arrivalTime} onChange={(event) => setCreateDraft((current) => ({ ...current, arrivalTime: event.target.value }))} />
+              <InputField label="Discharge time" type="datetime-local" value={createDraft.dischargeTime} onChange={(event) => setCreateDraft((current) => ({ ...current, dischargeTime: event.target.value }))} />
+              <InputField label="Slump" type="number" min="0" step="0.1" value={createDraft.slump} onChange={(event) => setCreateDraft((current) => ({ ...current, slump: event.target.value }))} />
+            </div>
+          </div>
+
+          <div className="co-delivery-create-section">
+            <span>Evidence links</span>
+            <div className="co-delivery-link-grid">
+              <SelectField label="Daily report link" value={createDraft.reportId} onChange={(event) => setCreateDraft((current) => ({ ...current, reportId: event.target.value }))}>
+                <option value="">No linked report</option>
+                {createReportOptions.map((report) => <option key={report.id} value={report.id}>{`${report.job?.title || "Job"} / ${report.reportDate || "No date"}`}</option>)}
+              </SelectField>
+              <SelectField label="Ticket photo/upload" value={createDraft.ticketUploadId} onChange={(event) => setCreateDraft((current) => ({ ...current, ticketUploadId: event.target.value }))}>
+                <option value="">No linked upload</option>
+                {createUploadOptions.map((upload) => <option key={upload.id} value={upload.id}>{upload.caption || upload.fileName}</option>)}
+              </SelectField>
+              <div className="co-delivery-link-summary">
+                <span>Report</span>
+                <strong>{selectedReport ? `${selectedReport.reportDate || "Report"} linked` : "Optional"}</strong>
+              </div>
+              <div className="co-delivery-link-summary">
+                <span>Photo</span>
+                <strong>{selectedUpload ? "Linked" : "Optional"}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="co-delivery-create-section">
+            <span>Notes</span>
+            <div className="co-delivery-form-grid">
+              <div className="md:col-span-2">
+                <TextAreaField label="Mix notes" value={createDraft.mixNotes} onChange={(event) => setCreateDraft((current) => ({ ...current, mixNotes: event.target.value }))} placeholder="Mix design, pump notes, temperature, additives, or placement details." />
+              </div>
+              <div className="md:col-span-2">
+                <TextAreaField label="Notes" value={createDraft.notes} onChange={(event) => setCreateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Any additional field notes for this delivery ticket." />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="co-delivery-create-action-stack">
+          <Button
+            type="button"
+            className="co-delivery-save-cta"
+            onClick={async () => {
+              const saved = await onCreateTicket(createDraft);
+              if (saved) {
+                setCreateDraft({ ...INITIAL_DELIVERY_TICKET_FORM, jobId: singleJobId });
+              }
+            }}
+            disabled={busy || !createDraft.jobId}
+          >
+            Save delivery ticket
+          </Button>
+          <p>Saves the real delivery ticket for the selected job with truck, mix, timing, report, and photo links.</p>
+          <div className="co-delivery-create-checks">
+            <span data-state={createDraft.jobId ? "ready" : "needs"}>Job</span>
+            <span data-state={createDraft.supplier || createDraft.ticketNumber ? "ready" : "needs"}>Ticket</span>
+            <span data-state={createDraft.yardsDelivered ? "ready" : "needs"}>Yards</span>
+          </div>
+        </div>
       </div>
     </Card>
   );
