@@ -17934,6 +17934,7 @@ function CopilotPagePolished({
   const [profileDraft, setProfileDraft] = useState(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
   const [foundDraft, setFoundDraft] = useState(INITIAL_FOUND_OPPORTUNITY_FORM);
   const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
+  const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage ?? permissions?.leads?.canManage);
   const leadSourceOptions = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && String(source.status || "active").toLowerCase() !== "inactive");
   const profileOptions = normalizeObjectArray(opportunitySearchProfiles).filter((profile) => !profile.archivedAt && String(profile.status || "active").toLowerCase() !== "archived");
@@ -17981,6 +17982,20 @@ function CopilotPagePolished({
   function openReport(report) {
     if (report?.id) onSelectReport?.(report.id);
     openModule("reports");
+  }
+
+  async function copyScoutQuery(brief) {
+    const query = brief?.query || "";
+    if (!query) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(query);
+        setCopiedScoutBriefId(brief.id);
+        window.setTimeout(() => setCopiedScoutBriefId((current) => (current === brief.id ? "" : current)), 1800);
+      }
+    } catch {
+      setCopiedScoutBriefId("");
+    }
   }
 
   function nextProfileRunAt(cadence) {
@@ -18351,7 +18366,13 @@ function CopilotPagePolished({
                             </div>
                           ) : null}
                         </div>
-                        <Badge tone={brief.tone}>{brief.url ? "URL saved" : "Manual"}</Badge>
+                        <div className="co-ai-scout-brief-actions">
+                          <Badge tone={brief.tone}>{brief.url ? "URL saved" : "Manual"}</Badge>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => copyScoutQuery(brief)}>
+                            {copiedScoutBriefId === brief.id ? "Copied" : "Copy Search"}
+                          </Button>
+                          {brief.url ? <a className="co-ai-scout-link" href={brief.url} target="_blank" rel="noreferrer">Open Source</a> : null}
+                        </div>
                       </div>
                     ))}
                   </div>

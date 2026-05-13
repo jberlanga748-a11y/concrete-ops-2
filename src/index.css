@@ -14099,6 +14099,15 @@ textarea {
   border-left-width: 3px;
 }
 
+.co-ai-scout-brief-actions {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: 9rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.38rem;
+}
+
 .co-ai-scout-brief span {
   display: block;
   color: var(--co-ai-scout-tone);
@@ -14817,6 +14826,11 @@ textarea {
 
   .co-ai-scout-brief {
     flex-direction: column;
+  }
+
+  .co-ai-scout-brief-actions {
+    max-width: none;
+    justify-content: flex-start;
   }
 
   .co-ai-scout-panel {
