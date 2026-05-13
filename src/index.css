@@ -6573,14 +6573,24 @@ textarea {
   display: grid;
   min-width: 0;
   align-content: center;
+  min-height: 6.7rem;
   border-color: rgba(249, 115, 22, 0.26) !important;
   background:
-    linear-gradient(135deg, rgba(255, 247, 237, 0.92), rgba(239, 246, 255, 0.74)),
+    linear-gradient(135deg, rgba(255, 247, 237, 0.96), rgba(255, 255, 255, 0.84)),
     #ffffff !important;
+  box-shadow: inset 4px 0 0 rgba(249, 115, 22, 0.92);
 }
 
 .co-time-clock-target p {
   min-width: 0;
+}
+
+.co-time-active-target {
+  border-color: rgba(249, 115, 22, 0.25) !important;
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.95), rgba(255, 255, 255, 0.86)),
+    #ffffff !important;
+  box-shadow: inset 4px 0 0 rgba(249, 115, 22, 0.9);
 }
 
 .co-time-clock-hero .field-label,
@@ -6621,14 +6631,14 @@ textarea {
 
 .co-time-clock-hero .co-time-clock-primary {
   height: 100%;
-  min-height: 6.15rem;
-  font-size: 1.24rem !important;
+  min-height: 7.4rem;
+  font-size: 1.34rem !important;
   white-space: normal;
 }
 
 .co-time-clock-hero .co-time-clock-primary svg {
-  height: 1.35rem;
-  width: 1.35rem;
+  height: 1.5rem;
+  width: 1.5rem;
 }
 
 .co-time-active-actions {
@@ -7104,6 +7114,8 @@ textarea {
 
   .co-time-clock-target {
     order: 1;
+    min-height: 6.95rem;
+    padding: 1rem !important;
   }
 
   .co-time-clock-cta {
@@ -7145,7 +7157,13 @@ textarea {
 
   .co-time-clock-hero .co-time-clock-primary {
     height: auto;
-    min-height: 5.45rem;
+    min-height: 6.4rem;
+    font-size: 1.25rem !important;
+  }
+
+  .co-time-clock-hero .co-time-clock-primary svg {
+    height: 1.42rem;
+    width: 1.42rem;
   }
 
 .co-time-tools-drawer > summary {

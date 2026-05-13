@@ -4969,6 +4969,9 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
   const [notes, setNotes] = useState("");
   const selectedJob = safeAvailableJobs.find((job) => job.id === jobId);
   const selectedWorkSummary = workCategory === "job" ? (selectedJob ? jobTitle(selectedJob) : "Select an assigned job") : workCategoryLabel(workCategory);
+  const selectedWorkSubline = workCategory === "job"
+    ? (selectedJob?.address || selectedJob?.customer || "Assigned job")
+    : "Non-job work category";
   const canSubmitClockIn = safeAllowedCategories.length > 0 && !(workCategory === "job" && !jobId);
 
   useEffect(() => {
@@ -5021,7 +5024,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
       return (
         <>
           <TimeMobileAccordionCard title="Active clock" summary={activeEntry.status === "on_break" ? "You are currently on break." : "You are clocked in."} badge={<TimeStatusBadge status={activeEntry.status} />} defaultOpen>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+            <div className="co-time-active-target rounded-2xl border p-3">
               <p className="break-words text-sm font-black text-slate-950">{activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)}</p>
               <p className="mt-1 text-xs font-bold text-slate-500">{activeEntry.clockInAt ? `Started ${formatDateTime(activeEntry.clockInAt)}` : "Time entry active"}</p>
             </div>
@@ -5064,10 +5067,10 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
             <StateCard title="Clock-in not available" description="This role is not set up for self time tracking right now." tone="slate" />
           ) : (
             <form className="grid gap-3" onSubmit={handleClockInSubmit}>
-              <div className="co-time-clock-target rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+              <div className="co-time-clock-target rounded-2xl border p-3">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clocking into</p>
                 <p className="mt-1 break-words text-sm font-black text-slate-950">{selectedWorkSummary}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{workCategoryLabel(workCategory)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{selectedWorkSubline}</p>
               </div>
               <Button type="submit" size="lg" className="co-time-clock-primary co-time-clock-cta w-full" disabled={disabled || !canSubmitClockIn}>
                 <Icon name="clock" />
@@ -5087,10 +5090,10 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
             <StateCard title="Clock-in not available" description="This role is not set up for self time tracking right now." tone="slate" />
           ) : (
             <form className="co-time-clock-form" onSubmit={handleClockInSubmit}>
-              <div className="co-time-clock-target rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+              <div className="co-time-clock-target rounded-2xl border p-3">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clocking into</p>
                 <p className="mt-1 break-words text-sm font-black text-slate-950">{selectedWorkSummary}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{workCategoryLabel(workCategory)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{selectedWorkSubline}</p>
               </div>
               <div className="co-time-clock-fields">
                 {clockInFields}
@@ -5116,10 +5119,10 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
           className={compactMobile ? "co-time-clock-form grid gap-2.5 md:gap-3" : "co-time-clock-form"}
           onSubmit={handleClockInSubmit}
         >
-          <div className="co-time-clock-target rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+          <div className="co-time-clock-target rounded-2xl border p-3">
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Clocking into</p>
             <p className="mt-1 break-words text-sm font-black text-slate-950">{selectedWorkSummary}</p>
-            <p className="mt-1 text-xs font-bold text-slate-500">{workCategoryLabel(workCategory)}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">{selectedWorkSubline}</p>
           </div>
           <div className="co-time-clock-fields">
             {clockInFields}
