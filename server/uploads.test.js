@@ -194,14 +194,14 @@ test("uploads respect job-scoped field permissions, GPS-optional metadata, and p
     const foremanUser = createUserRecord({
       id: "U-UPL-FOREMAN",
       email: "upload-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Upload Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-UPL-EMPLOYEE",
       email: "upload-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Upload Employee",
       role: "Employee",
     });
@@ -210,8 +210,8 @@ test("uploads respect job-scoped field permissions, GPS-optional metadata, and p
     configureFieldVisibleJob(fixture.sqliteFile);
 
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(officeLogin.token);
 
@@ -235,13 +235,13 @@ test("uploads respect job-scoped field permissions, GPS-optional metadata, and p
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: foremanUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanHeaders = authHeaders(foremanLogin.token);
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: employeeUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
 
@@ -365,8 +365,8 @@ test("uploads reject unsafe types and oversized payloads", async () => {
 
   try {
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(officeLogin.token);
 
@@ -404,8 +404,8 @@ test("missing demo upload files return a placeholder while missing real upload f
 
   try {
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(officeLogin.token);
 

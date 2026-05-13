@@ -1,4 +1,4 @@
-# Concrete Ops Pilot Setup Checklist
+﻿# Apex HQ Pilot Setup Checklist
 
 Use this checklist to set up a simple 10-day contractor pilot without turning the pilot into a custom build.
 
@@ -87,7 +87,7 @@ Ask the contractor to test these actions during normal work:
 
 ## End-of-Pilot Review Questions
 
-- [ ] Did Concrete Ops save time or reduce back-and-forth?
+- [ ] Did Apex HQ save time or reduce back-and-forth?
 - [ ] Which workflow was most valuable?
 - [ ] Which workflow felt unnecessary?
 - [ ] Did the office trust the field data coming in?

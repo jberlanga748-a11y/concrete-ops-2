@@ -392,7 +392,7 @@ function websiteLeadIntakeActor(companyId = "") {
 }
 
 function configuredJobDraftImportToken() {
-  return String(process.env.CONCRETE_OPS_IMPORT_TOKEN || "").trim();
+  return String(process.env.APEX_HQ_IMPORT_TOKEN || process.env.CONCRETE_OPS_IMPORT_TOKEN || "").trim();
 }
 
 function bearerTokenFromRequest(req) {
@@ -883,11 +883,13 @@ function normalizeCalculatorResultType(value) {
 function sanitizeCalculatorResultForUser(result, state, user) {
   if (!result || result.visibility !== "internal") return null;
   const job = result.jobId ? state.jobs.find((entry) => entry.id === result.jobId) || null : null;
+  if (job && normalizeCompanyId(result.companyId) !== normalizeCompanyId(job.companyId)) return null;
   if (!job || !canViewJob(job, user)) return null;
   const createdByUser = findUserById(state, result.createdBy);
 
   return {
     id: result.id,
+    companyId: normalizeCompanyId(result.companyId),
     jobId: result.jobId,
     createdBy: result.createdBy,
     createdByName: createdByUser?.name || result.createdBy,
@@ -908,7 +910,9 @@ function sanitizeCalculatorResultForUser(result, state, user) {
 
 function calculatorResultsForJob(state, job, user) {
   return (state.calculatorResults || [])
-    .filter((result) => result.jobId === job.id && !result.archivedAt)
+    .filter((result) => result.jobId === job.id
+      && !result.archivedAt
+      && normalizeCompanyId(result.companyId) === normalizeCompanyId(job.companyId))
     .map((result) => sanitizeCalculatorResultForUser(result, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
@@ -916,7 +920,7 @@ function calculatorResultsForJob(state, job, user) {
 
 function visibleCalculatorResultsForUser(state, user) {
   if (!user || !canUseCalculator(user)) return [];
-  return filterDemoRecordsForUser(state, user, (state.calculatorResults || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.calculatorResults || [])
     .map((result) => sanitizeCalculatorResultForUser(result, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime()), "calculatorResults");
@@ -930,10 +934,22 @@ function findRequiredRecord(records, id, resourceName) {
   return record;
 }
 
-function companySettingsForState(state = null) {
-  return {
+function companySettingsForState(state = null, user = null) {
+  const defaultSettings = {
     ...DEFAULT_COMPANY_SETTINGS,
     ...(state?.companySettings || {}),
+  };
+  if (!user) return defaultSettings;
+
+  const companies = normalizeCompanies(state?.companies || [], defaultSettings);
+  const currentCompanyId = currentCompanyIdForUser(user, {
+    ...(state || {}),
+    companies,
+    companySettings: defaultSettings,
+  });
+  return {
+    ...defaultSettings,
+    ...((state?.companySettingsByCompanyId || {})[currentCompanyId] || {}),
   };
 }
 
@@ -1495,12 +1511,13 @@ function visibleSafetyPoliciesForUser(state, user) {
   if (!user || !canViewSafety(user)) return [];
   const includeArchived = canManageSafety(user);
 
-  return (state.safetyPolicies || [])
+  return companyScopedRecordsForUser(state, user, state.safetyPolicies || [])
     .filter((policy) => includeArchived || !policy.archivedAt)
     .map((policy) => {
       const createdByUser = findUserById(state, policy.createdBy);
       return {
         id: policy.id,
+        companyId: normalizeCompanyId(policy.companyId),
         title: policy.title,
         body: policy.body || "",
         category: policy.category || "",
@@ -1520,12 +1537,13 @@ function visiblePpeItemsForUser(state, user) {
   if (!user || !canViewSafety(user)) return [];
   const includeArchived = canManageSafety(user);
 
-  return (state.ppeItems || [])
+  return companyScopedRecordsForUser(state, user, state.ppeItems || [])
     .filter((item) => includeArchived || !item.archivedAt)
     .map((item) => {
       const createdByUser = findUserById(state, item.createdBy);
       return {
         id: item.id,
+        companyId: normalizeCompanyId(item.companyId),
         label: item.label,
         description: item.description || "",
         requiredByDefault: Boolean(item.requiredByDefault),
@@ -1556,7 +1574,7 @@ function canViewSafetyAcknowledgment(user, acknowledgmentJob, acknowledgmentUser
 function visibleSafetyAcknowledgmentsForUser(state, user) {
   if (!user || !canViewSafety(user)) return [];
 
-  return filterDemoRecordsForUser(state, user, (state.safetyAcknowledgments || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.safetyAcknowledgments || [])
     .map((acknowledgment) => {
       const job = acknowledgment.jobId ? state.jobs.find((entry) => entry.id === acknowledgment.jobId) || null : null;
       if (!canViewSafetyAcknowledgment(user, job, acknowledgment.userId)) return null;
@@ -1564,6 +1582,7 @@ function visibleSafetyAcknowledgmentsForUser(state, user) {
       const policy = acknowledgment.policyId ? state.safetyPolicies.find((entry) => entry.id === acknowledgment.policyId) || null : null;
       return {
         id: acknowledgment.id,
+        companyId: normalizeCompanyId(acknowledgment.companyId),
         userId: acknowledgment.userId,
         userName: ackUser?.name || acknowledgment.userId,
         userRole: ackUser?.role || "",
@@ -1600,6 +1619,7 @@ function sanitizeSafetyIncidentForUser(incident, state, user) {
   const reviewedByUser = findUserById(state, incident.reviewedBy);
   return {
     id: incident.id,
+    companyId: normalizeCompanyId(incident.companyId),
     jobId: incident.jobId || "",
     submittedBy: incident.submittedBy,
     submittedByName: submittedByUser?.name || incident.submittedBy,
@@ -1624,7 +1644,7 @@ function sanitizeSafetyIncidentForUser(incident, state, user) {
 function visibleSafetyIncidentsForUser(state, user) {
   if (!user || !canViewSafety(user)) return [];
 
-  return filterDemoRecordsForUser(state, user, (state.safetyIncidents || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.safetyIncidents || [])
     .map((incident) => sanitizeSafetyIncidentForUser(incident, state, user))
     .filter(Boolean)
     .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime()), "safetyIncidents");
@@ -1706,6 +1726,10 @@ function findToolChecklist(state, checklistId) {
   return findRequiredRecord(state.toolChecklists || [], checklistId, "Tool checklist");
 }
 
+function findCompanyScopedToolChecklist(state, checklistId, user) {
+  return findCompanyScopedRecord(state.toolChecklists || [], checklistId, user, state, "Tool checklist");
+}
+
 function findToolChecklistItem(state, itemId) {
   return findRequiredRecord(state.toolChecklistItems || [], itemId, "Tool checklist item");
 }
@@ -1750,6 +1774,7 @@ function sanitizeToolChecklistForUser(checklist, state, user, settings = company
 
   return {
     id: checklist.id,
+    companyId: normalizeCompanyId(checklist.companyId),
     jobId: checklist.jobId || "",
     title: checklist.title,
     status: optionalEnum(checklist.status, TOOL_CHECKLIST_STATUSES, "Checklist status", "draft"),
@@ -1776,10 +1801,10 @@ function sanitizeToolChecklistForUser(checklist, state, user, settings = company
 
 function visibleToolChecklistsForUser(state, user) {
   if (!user) return [];
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, user);
   if (!canUseToolChecklist(user, settings) && !canViewAllToolChecklists(user)) return [];
 
-  return filterDemoRecordsForUser(state, user, (state.toolChecklists || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.toolChecklists || [])
     .map((checklist) => sanitizeToolChecklistForUser(checklist, state, user, settings))
     .filter(Boolean)
     .sort((left, right) => {
@@ -1847,6 +1872,7 @@ function sanitizePrePourChecklistForUser(checklist, state, user, context = null)
 
   const sanitizedChecklist = {
     id: checklist.id,
+    companyId: normalizeCompanyId(checklist.companyId),
     jobId: checklist.jobId,
     status: optionalPrePourChecklistStatus(checklist.status, "draft"),
     statusLabel: prePourChecklistStatusLabel(checklist.status),
@@ -1885,7 +1911,7 @@ function sanitizePrePourChecklistForUser(checklist, state, user, context = null)
 function visiblePrePourChecklistsForUser(state, user, context = null) {
   if (!user || !canViewPrePour(user)) return [];
   const hydrationContext = context || getHydrationContext(state, user);
-  return filterDemoRecordsForUser(state, user, (state.prePourChecklists || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.prePourChecklists || [])
     .map((checklist) => sanitizePrePourChecklistForUser(checklist, state, user, hydrationContext))
     .filter(Boolean)
     .sort((left, right) => {
@@ -1987,6 +2013,7 @@ function sanitizePostPourChecklistForUser(checklist, state, user, context = null
 
   const sanitizedChecklist = {
     id: checklist.id,
+    companyId: normalizeCompanyId(checklist.companyId),
     jobId: checklist.jobId,
     status: optionalPostPourChecklistStatus(checklist.status, "draft"),
     statusLabel: postPourChecklistStatusLabel(checklist.status),
@@ -2025,7 +2052,7 @@ function sanitizePostPourChecklistForUser(checklist, state, user, context = null
 function visiblePostPourChecklistsForUser(state, user, context = null) {
   if (!user || !canViewPostPour(user)) return [];
   const hydrationContext = context || getHydrationContext(state, user);
-  return filterDemoRecordsForUser(state, user, (state.postPourChecklists || [])
+  return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.postPourChecklists || [])
     .map((checklist) => sanitizePostPourChecklistForUser(checklist, state, user, hydrationContext))
     .filter(Boolean)
     .sort((left, right) => {
@@ -3501,12 +3528,24 @@ function findSafetyPolicy(state, policyId) {
   return findRequiredRecord(state.safetyPolicies || [], policyId, "Safety policy");
 }
 
+function findCompanyScopedSafetyPolicy(state, policyId, user) {
+  return findCompanyScopedRecord(state.safetyPolicies || [], policyId, user, state, "Safety policy");
+}
+
 function findPpeItem(state, itemId) {
   return findRequiredRecord(state.ppeItems || [], itemId, "PPE item");
 }
 
+function findCompanyScopedPpeItem(state, itemId, user) {
+  return findCompanyScopedRecord(state.ppeItems || [], itemId, user, state, "PPE item");
+}
+
 function findSafetyIncident(state, incidentId) {
   return findRequiredRecord(state.safetyIncidents || [], incidentId, "Safety incident");
+}
+
+function findCompanyScopedSafetyIncident(state, incidentId, user) {
+  return findCompanyScopedRecord(state.safetyIncidents || [], incidentId, user, state, "Safety incident");
 }
 
 function canLinkSafetyRecordToJob(user, job) {
@@ -3819,6 +3858,10 @@ function findPrePourChecklist(state, checklistId) {
   return findRequiredRecord(state.prePourChecklists || [], checklistId, "Pre-pour checklist");
 }
 
+function findCompanyScopedPrePourChecklist(state, checklistId, user) {
+  return findCompanyScopedRecord(state.prePourChecklists || [], checklistId, user, state, "Pre-pour checklist");
+}
+
 function findPrePourChecklistItem(state, itemId) {
   return findRequiredRecord(state.prePourChecklistItems || [], itemId, "Pre-pour checklist item");
 }
@@ -3877,6 +3920,10 @@ function createPrePourChecklistShape(payload, user, changedAt) {
 
 function findPostPourChecklist(state, checklistId) {
   return findRequiredRecord(state.postPourChecklists || [], checklistId, "Post-pour checklist");
+}
+
+function findCompanyScopedPostPourChecklist(state, checklistId, user) {
+  return findCompanyScopedRecord(state.postPourChecklists || [], checklistId, user, state, "Post-pour checklist");
 }
 
 function findPostPourChecklistItem(state, itemId) {
@@ -4620,7 +4667,7 @@ function sanitizeBootstrap(state, user) {
   const customerPermissions = customerPermissionsForUser(state, user);
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, user);
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
@@ -5358,7 +5405,10 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    draft.companySettings = companySettingsForState(draft);
+    const currentCompanyId = currentCompanyIdForRequestUser(draft, req.auth.user);
+    draft.currentCompanyId = currentCompanyId;
+    draft.companySettingsByCompanyId ||= {};
+    draft.companySettings = companySettingsForState(draft, req.auth.user);
     const previousToolChecklistEnabled = draft.companySettings.toolChecklistEnabled;
     const brandingChanges = [];
     const brandingChangedFields = [];
@@ -5558,6 +5608,7 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       });
     }
 
+    draft.companySettingsByCompanyId[currentCompanyId] = draft.companySettings;
     return draft;
   });
 
@@ -5718,7 +5769,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
     throw new ApiError(400, "Add a customer email before sending this estimate.");
   }
 
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   const companyName = settings.companyName || "Apex HQ Workspace";
   const emailSubject = buildEstimateEmailSubject({ estimate });
   const emailText = buildEstimateAttachmentEmailBody({
@@ -6041,9 +6092,13 @@ app.post("/api/pre-pour-checklists", requireAuth, asyncRoute(async (req, res) =>
       throw new ApiError(403, "You do not have permission to create a pre-pour checklist for that job.");
     }
 
+    newChecklist.companyId = normalizeCompanyId(job.companyId);
     const title = normalizeJobRecord(job).title;
     draft.prePourChecklists.unshift(newChecklist);
     const defaultItems = createDefaultPrePourChecklistItems(newChecklist.id, req.auth.user.id, changedAt);
+    defaultItems.forEach((item) => {
+      item.companyId = newChecklist.companyId;
+    });
     draft.prePourChecklistItems.unshift(...defaultItems);
     appendActivity(draft, "Pre-pour checklist created", `${req.auth.user.name} created a pre-pour checklist for ${title}.`);
     appendAuditEvent(draft, {
@@ -6069,7 +6124,7 @@ app.patch("/api/pre-pour-checklists/:id", requireAuth, asyncRoute(async (req, re
 
   const nextState = await updateDb((draft) => {
     draft.prePourChecklists ||= [];
-    const checklist = findPrePourChecklist(draft, id);
+    const checklist = findCompanyScopedPrePourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canEditPrePourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to edit this pre-pour checklist.");
@@ -6101,7 +6156,7 @@ app.patch("/api/pre-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute(
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPrePourChecklist(draft, id);
+    const checklist = findCompanyScopedPrePourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canViewPrePourChecklistDetails(req.auth.user, checklist, job)) {
       throw new ApiError(403, "You do not have permission to access this pre-pour checklist.");
@@ -6154,7 +6209,7 @@ app.post("/api/pre-pour-checklists/:id/complete", requireAuth, asyncRoute(async 
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPrePourChecklist(draft, id);
+    const checklist = findCompanyScopedPrePourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canCompletePrePourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to complete this pre-pour checklist.");
@@ -6189,7 +6244,7 @@ app.post("/api/pre-pour-checklists/:id/review", requireAuth, asyncRoute(async (r
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPrePourChecklist(draft, id);
+    const checklist = findCompanyScopedPrePourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reviewed";
     checklist.reviewedBy = req.auth.user.id;
@@ -6217,7 +6272,7 @@ app.post("/api/pre-pour-checklists/:id/reopen", requireAuth, asyncRoute(async (r
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPrePourChecklist(draft, id);
+    const checklist = findCompanyScopedPrePourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reopened";
     checklist.reopenedBy = req.auth.user.id;
@@ -6245,7 +6300,7 @@ app.post("/api/pre-pour-checklists/:id/archive", requireAuth, asyncRoute(async (
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPrePourChecklist(draft, id);
+    const checklist = findCompanyScopedPrePourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "archived";
     checklist.archivedAt = changedAt;
@@ -6302,9 +6357,13 @@ app.post("/api/post-pour-checklists", requireAuth, asyncRoute(async (req, res) =
       throw new ApiError(403, "You do not have permission to create a post-pour checklist for that job.");
     }
 
+    newChecklist.companyId = normalizeCompanyId(job.companyId);
     const title = normalizeJobRecord(job).title;
     draft.postPourChecklists.unshift(newChecklist);
     const defaultItems = createDefaultPostPourChecklistItems(newChecklist.id, req.auth.user.id, changedAt);
+    defaultItems.forEach((item) => {
+      item.companyId = newChecklist.companyId;
+    });
     draft.postPourChecklistItems.unshift(...defaultItems);
     appendActivity(draft, "Post-pour checklist created", `${req.auth.user.name} created a post-pour checklist for ${title}.`);
     appendAuditEvent(draft, {
@@ -6330,7 +6389,7 @@ app.patch("/api/post-pour-checklists/:id", requireAuth, asyncRoute(async (req, r
 
   const nextState = await updateDb((draft) => {
     draft.postPourChecklists ||= [];
-    const checklist = findPostPourChecklist(draft, id);
+    const checklist = findCompanyScopedPostPourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canEditPostPourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to edit this post-pour checklist.");
@@ -6362,7 +6421,7 @@ app.patch("/api/post-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPostPourChecklist(draft, id);
+    const checklist = findCompanyScopedPostPourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canViewPostPourChecklistDetails(req.auth.user, checklist, job)) {
       throw new ApiError(403, "You do not have permission to access this post-pour checklist.");
@@ -6415,7 +6474,7 @@ app.post("/api/post-pour-checklists/:id/complete", requireAuth, asyncRoute(async
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPostPourChecklist(draft, id);
+    const checklist = findCompanyScopedPostPourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     if (!canCompletePostPourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to complete this post-pour checklist.");
@@ -6450,7 +6509,7 @@ app.post("/api/post-pour-checklists/:id/review", requireAuth, asyncRoute(async (
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPostPourChecklist(draft, id);
+    const checklist = findCompanyScopedPostPourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reviewed";
     checklist.reviewedBy = req.auth.user.id;
@@ -6478,7 +6537,7 @@ app.post("/api/post-pour-checklists/:id/reopen", requireAuth, asyncRoute(async (
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPostPourChecklist(draft, id);
+    const checklist = findCompanyScopedPostPourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "reopened";
     checklist.reopenedBy = req.auth.user.id;
@@ -6506,7 +6565,7 @@ app.post("/api/post-pour-checklists/:id/archive", requireAuth, asyncRoute(async 
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    const checklist = findPostPourChecklist(draft, id);
+    const checklist = findCompanyScopedPostPourChecklist(draft, id, req.auth.user);
     const job = findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     checklist.status = "archived";
     checklist.archivedAt = changedAt;
@@ -6692,7 +6751,7 @@ app.post("/api/delivery-tickets/:id/archive", requireAuth, asyncRoute(async (req
 
 app.get("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanViewToolChecklist(req.auth.user, settings);
   res.json({
     toolChecklists: visibleToolChecklistsForUser(state, req.auth.user),
@@ -6702,13 +6761,13 @@ app.get("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanManageToolChecklist(req.auth.user, settings);
   const payload = req.body || {};
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    draft.companySettings = companySettingsForState(draft);
+    draft.companySettings = companySettingsForState(draft, req.auth.user);
     draft.toolChecklists ||= [];
     draft.toolChecklistItems ||= [];
     const checklist = createToolChecklistShape(payload, req.auth.user, changedAt);
@@ -6722,6 +6781,7 @@ app.post("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
     if (!checklist.assignedForemanId && job.assignedForemanId) {
       checklist.assignedForemanId = job.assignedForemanId;
     }
+    checklist.companyId = normalizeCompanyId(job.companyId);
     draft.toolChecklists.unshift(checklist);
     appendActivity(draft, "Tool checklist created", `${req.auth.user.name} created ${checklist.title} for ${normalizeJobRecord(job).title}.`);
     appendAuditEvent(draft, {
@@ -6741,14 +6801,14 @@ app.post("/api/tool-checklists", requireAuth, asyncRoute(async (req, res) => {
 
 app.patch("/api/tool-checklists/:id", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   const payload = req.body || {};
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    draft.companySettings = companySettingsForState(draft);
+    draft.companySettings = companySettingsForState(draft, req.auth.user);
     draft.toolChecklists ||= [];
-    const checklist = findToolChecklist(draft, req.params.id);
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
     const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (canViewAllToolChecklists(req.auth.user)) {
       // full access
@@ -6799,21 +6859,22 @@ app.patch("/api/tool-checklists/:id", requireAuth, asyncRoute(async (req, res) =
 
 app.post("/api/tool-checklists/:id/items", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanContributeToolChecklist(req.auth.user, settings);
   const payload = req.body || {};
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    draft.companySettings = companySettingsForState(draft);
+    draft.companySettings = companySettingsForState(draft, req.auth.user);
     draft.toolChecklists ||= [];
     draft.toolChecklistItems ||= [];
-    const checklist = findToolChecklist(draft, req.params.id);
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
     const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job || !canViewJob(job, req.auth.user)) {
       throw new ApiError(403, "You do not have permission to add items to that checklist.");
     }
     const item = createToolChecklistItemShape(payload, req.auth.user, checklist.id, changedAt);
+    item.companyId = normalizeCompanyId(checklist.companyId);
     if (isEmployee(req.auth.user) && !new Set(["needed", "loaded", "on_site", "missing", "damaged", "not_needed"]).has(item.status)) {
       throw new ApiError(403, "Employees cannot create checklist items with that status.");
     }
@@ -6837,16 +6898,16 @@ app.post("/api/tool-checklists/:id/items", requireAuth, asyncRoute(async (req, r
 
 app.patch("/api/tool-checklists/:id/items/:itemId", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanContributeToolChecklist(req.auth.user, settings);
   const payload = req.body || {};
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    draft.companySettings = companySettingsForState(draft);
+    draft.companySettings = companySettingsForState(draft, req.auth.user);
     draft.toolChecklists ||= [];
     draft.toolChecklistItems ||= [];
-    const checklist = findToolChecklist(draft, req.params.id);
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
     const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job || !canViewJob(job, req.auth.user)) {
       throw new ApiError(403, "You do not have permission to update that checklist item.");
@@ -6932,14 +6993,14 @@ app.patch("/api/tool-checklists/:id/items/:itemId", requireAuth, asyncRoute(asyn
 
 app.post("/api/tool-checklists/:id/submit", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanManageJobToolChecklist(req.auth.user, settings);
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
-    draft.companySettings = companySettingsForState(draft);
+    draft.companySettings = companySettingsForState(draft, req.auth.user);
     draft.toolChecklists ||= [];
-    const checklist = findToolChecklist(draft, req.params.id);
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
     const job = checklist.jobId ? findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job") : null;
     if (!job || !canViewJob(job, req.auth.user)) {
       throw new ApiError(403, "You do not have permission to submit that checklist.");
@@ -6966,14 +7027,14 @@ app.post("/api/tool-checklists/:id/submit", requireAuth, asyncRoute(async (req, 
 
 app.post("/api/tool-checklists/:id/review", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanReviewToolChecklists(req.auth.user);
   assertCanViewToolChecklist(req.auth.user, settings);
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     draft.toolChecklists ||= [];
-    const checklist = findToolChecklist(draft, req.params.id);
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
     if (checklist.jobId) {
       findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     }
@@ -6999,7 +7060,7 @@ app.post("/api/tool-checklists/:id/review", requireAuth, asyncRoute(async (req, 
 
 app.post("/api/tool-checklists/:id/archive", requireAuth, asyncRoute(async (req, res) => {
   const state = await readDb();
-  const settings = companySettingsForState(state);
+  const settings = companySettingsForState(state, req.auth.user);
   assertCanViewToolChecklist(req.auth.user, settings);
   if (!canViewAllToolChecklists(req.auth.user)) {
     throw new ApiError(403, "You do not have permission to archive tool checklists.");
@@ -7008,7 +7069,7 @@ app.post("/api/tool-checklists/:id/archive", requireAuth, asyncRoute(async (req,
 
   const nextState = await updateDb((draft) => {
     draft.toolChecklists ||= [];
-    const checklist = findToolChecklist(draft, req.params.id);
+    const checklist = findCompanyScopedToolChecklist(draft, req.params.id, req.auth.user);
     if (checklist.jobId) {
       findCompanyScopedRecord(draft.jobs, checklist.jobId, req.auth.user, draft, "Job");
     }
@@ -7058,6 +7119,7 @@ app.post("/api/safety/policies", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.safetyPolicies ||= [];
     const policy = createSafetyPolicyShape(req.body || {}, req.auth.user, changedAt);
+    assignCompanyIdForCreate(policy, req.auth.user, draft);
     draft.safetyPolicies.unshift(policy);
     appendActivity(draft, "Safety policy created", `${req.auth.user.name} published ${policy.title}.`);
     appendAuditEvent(draft, {
@@ -7080,7 +7142,7 @@ app.patch("/api/safety/policies/:id", requireAuth, asyncRoute(async (req, res) =
   const payload = req.body || {};
   const nextState = await updateDb((draft) => {
     draft.safetyPolicies ||= [];
-    const policy = findSafetyPolicy(draft, req.params.id);
+    const policy = findCompanyScopedSafetyPolicy(draft, req.params.id, req.auth.user);
     const changedFields = [];
     const nextTitle = payload.title == null ? policy.title : requiredString(payload.title, "Policy title");
     const nextBody = payload.body == null ? policy.body : requiredString(payload.body, "Policy body");
@@ -7121,7 +7183,7 @@ app.post("/api/safety/policies/:id/archive", requireAuth, asyncRoute(async (req,
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
     draft.safetyPolicies ||= [];
-    const policy = findSafetyPolicy(draft, req.params.id);
+    const policy = findCompanyScopedSafetyPolicy(draft, req.params.id, req.auth.user);
     policy.status = "archived";
     policy.archivedAt = changedAt;
     policy.updatedAt = changedAt;
@@ -7147,6 +7209,7 @@ app.post("/api/safety/ppe-items", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     draft.ppeItems ||= [];
     const item = createPpeItemShape(req.body || {}, req.auth.user, changedAt);
+    assignCompanyIdForCreate(item, req.auth.user, draft);
     draft.ppeItems.unshift(item);
     appendActivity(draft, "PPE item created", `${req.auth.user.name} added ${item.label}.`);
     appendAuditEvent(draft, {
@@ -7169,7 +7232,7 @@ app.patch("/api/safety/ppe-items/:id", requireAuth, asyncRoute(async (req, res) 
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
     draft.ppeItems ||= [];
-    const item = findPpeItem(draft, req.params.id);
+    const item = findCompanyScopedPpeItem(draft, req.params.id, req.auth.user);
     const changedFields = [];
     const nextLabel = payload.label == null ? item.label : requiredString(payload.label, "PPE label");
     const nextDescription = payload.description == null ? item.description : optionalString(payload.description, "");
@@ -7210,7 +7273,7 @@ app.post("/api/safety/ppe-items/:id/archive", requireAuth, asyncRoute(async (req
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
     draft.ppeItems ||= [];
-    const item = findPpeItem(draft, req.params.id);
+    const item = findCompanyScopedPpeItem(draft, req.params.id, req.auth.user);
     item.status = "archived";
     item.archivedAt = changedAt;
     item.updatedAt = changedAt;
@@ -7245,10 +7308,17 @@ app.post("/api/safety/acknowledgments", requireAuth, asyncRoute(async (req, res)
       }
     }
     if (acknowledgment.policyId) {
-      const policy = findSafetyPolicy(draft, acknowledgment.policyId);
+      const policy = findCompanyScopedSafetyPolicy(draft, acknowledgment.policyId, req.auth.user);
       if (policy.archivedAt) {
         throw new ApiError(409, "Archived safety policies cannot be acknowledged.");
       }
+      acknowledgment.companyId = normalizeCompanyId(policy.companyId);
+    }
+    if (job) {
+      acknowledgment.companyId = normalizeCompanyId(job.companyId);
+    }
+    if (!acknowledgment.companyId) {
+      assignCompanyIdForCreate(acknowledgment, req.auth.user, draft);
     }
 
     draft.safetyAcknowledgments.unshift(acknowledgment);
@@ -7280,6 +7350,9 @@ app.post("/api/safety/incidents", requireAuth, asyncRoute(async (req, res) => {
       if (!canLinkSafetyRecordToJob(req.auth.user, job)) {
         throw new ApiError(403, "You do not have permission to submit an incident for that job.");
       }
+      incident.companyId = normalizeCompanyId(job.companyId);
+    } else {
+      assignCompanyIdForCreate(incident, req.auth.user, draft);
     }
     draft.safetyIncidents.unshift(incident);
     appendActivity(draft, "Safety concern submitted", `${req.auth.user.name} submitted ${incident.title}.`);
@@ -7302,7 +7375,7 @@ app.post("/api/safety/incidents/:id/review", requireAuth, asyncRoute(async (req,
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
     draft.safetyIncidents ||= [];
-    const incident = findSafetyIncident(draft, req.params.id);
+    const incident = findCompanyScopedSafetyIncident(draft, req.params.id, req.auth.user);
     if (incident.jobId) {
       findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
     }
@@ -7331,7 +7404,7 @@ app.post("/api/safety/incidents/:id/resolve", requireAuth, asyncRoute(async (req
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
     draft.safetyIncidents ||= [];
-    const incident = findSafetyIncident(draft, req.params.id);
+    const incident = findCompanyScopedSafetyIncident(draft, req.params.id, req.auth.user);
     if (incident.jobId) {
       findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
     }
@@ -7361,7 +7434,7 @@ app.post("/api/safety/incidents/:id/archive", requireAuth, asyncRoute(async (req
   const changedAt = new Date().toISOString();
   const nextState = await updateDb((draft) => {
     draft.safetyIncidents ||= [];
-    const incident = findSafetyIncident(draft, req.params.id);
+    const incident = findCompanyScopedSafetyIncident(draft, req.params.id, req.auth.user);
     if (incident.jobId) {
       findCompanyScopedRecord(draft.jobs, incident.jobId, req.auth.user, draft, "Job");
     }
@@ -9580,7 +9653,7 @@ app.post("/api/ai/leads/:id/assist", requireAuth, asyncRoute(async (req, res) =>
     context: buildLeadAssistantContext({
       lead,
       leadSources: visibleLeadSourcesForUser(state, req.auth.user),
-      companySettings: companySettingsForState(state),
+      companySettings: companySettingsForState(state, req.auth.user),
     }),
     apiKey: process.env.OPENAI_API_KEY,
   });

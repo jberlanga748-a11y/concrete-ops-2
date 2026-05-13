@@ -133,6 +133,7 @@ import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calcula
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
+import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
@@ -167,7 +168,7 @@ const APEX_BRAND_ASSETS = {
   appIcon: "/brand/apex-app-icon.png",
   splash: "/brand/apex-splash.png",
 };
-const SESSION_TOKEN_KEY = "concrete-ops/session-token";
+const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "public_request_form"];
@@ -13427,7 +13428,7 @@ function DailySourceCheckPanel({
               <InputField label="Checked date" type="date" value={checkDraft.checkedAt} onChange={(event) => updateCheckedAt(event.target.value, source)} disabled={disabled} />
               <InputField label="Next check date" type="date" value={checkDraft.nextCheckAt} onChange={(event) => setCheckDraft((current) => ({ ...current, nextCheckAt: event.target.value }))} disabled={disabled} />
             </div>
-            <TextAreaField label="Check note / result" value={checkDraft.checkNote} onChange={(event) => setCheckDraft((current) => ({ ...current, checkNote: event.target.value }))} disabled={disabled} placeholder="Example: no concrete bids found today; check again next week." />
+            <TextAreaField label="Check note / result" value={checkDraft.checkNote} onChange={(event) => setCheckDraft((current) => ({ ...current, checkNote: event.target.value }))} disabled={disabled} placeholder="Example: no matching bids found today; check again next week." />
             <p className="mt-2 text-xs font-bold text-slate-500">Manual and as-needed cadences leave the next check blank unless you set one.</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <Button type="submit" size="sm" disabled={disabled}>Save Check</Button>
@@ -13440,6 +13441,7 @@ function DailySourceCheckPanel({
   }
 
   function SourceCard({ source, tone = "blue", helper }) {
+    const scoutBrief = buildOpportunityScoutSourceBrief(source);
     return (
       <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -13451,6 +13453,17 @@ function DailySourceCheckPanel({
             <p className="mt-1 break-words text-xs font-bold text-slate-500">{[source.type, leadSourceLocation(source), source.checkCadence || "Manual"].filter(Boolean).join(" / ")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">Last checked: {source.lastCheckedAt || "Not set"} / Next check: {source.nextCheckAt || "Not scheduled"}</p>
           </div>
+        </div>
+        <div className="co-source-check-brief" data-tone={tone}>
+          <div className="co-source-check-brief-head">
+            <span>Scout brief</span>
+            <code>{scoutBrief.query}</code>
+            <p>{scoutBrief.headline}</p>
+          </div>
+          <div className="co-source-check-brief-list">
+            {scoutBrief.checkFor.map((item) => <em key={item}>{item}</em>)}
+          </div>
+          <p className="co-source-check-brief-result">{scoutBrief.resultPrompt}</p>
         </div>
         <SourceActions source={source} />
       </div>
@@ -13675,6 +13688,21 @@ function LeadSourcesPanel({
             description="Name is required. URL is optional because relationship sources may not have one."
           />
           <div className="mt-4 space-y-3">
+            <div className="co-lead-source-starter-grid">
+              {LEAD_SOURCE_STARTERS.map((starter) => (
+                <button
+                  key={starter.id}
+                  type="button"
+                  className="co-lead-source-starter co-focus-ring"
+                  onClick={() => applyStarter(starter.id)}
+                  disabled={!canManage || disabled}
+                >
+                  <span>{starter.group || "Starter"}</span>
+                  <strong>{starter.label}</strong>
+                  <em>{starter.description || starter.source?.notes || "Use this as an editable source starter."}</em>
+                </button>
+              ))}
+            </div>
             <SelectField label="Starter template" value="" onChange={(event) => applyStarter(event.target.value)} disabled={!canManage || disabled}>
               <option value="">Choose starter...</option>
               {LEAD_SOURCE_STARTERS.map((starter) => <option key={starter.id} value={starter.id}>{starter.label}</option>)}
@@ -17819,7 +17847,11 @@ function CopilotPage(props) {
 
 function CopilotPagePolished({
   stats = {},
+  companySettings = {},
+  currentCompanyId = "",
   leads = [],
+  leadSources = [],
+  contactHistory = [],
   jobs = [],
   queueItems = [],
   jobDraftImports = [],
@@ -17838,6 +17870,14 @@ function CopilotPagePolished({
   const liveDrafts = normalizeObjectArray(jobDraftImports).filter((draft) => !draft.archivedAt);
   const visibleReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
   const visibleUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt);
+  const today = new Date().toISOString().slice(0, 10);
+  const opportunityScout = useMemo(() => deriveOpportunityScoutState({
+    companySettings,
+    currentCompanyId,
+    leadSources,
+    leads,
+    contactHistory,
+  }, { today }), [companySettings, contactHistory, currentCompanyId, leadSources, leads, today]);
 
   const newLeads = liveLeads.filter((lead) => lead.status === "New");
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High");
@@ -17876,6 +17916,15 @@ function CopilotPagePolished({
 
   const aiKpis = [
     {
+      label: "Opportunity Scout",
+      value: opportunityScout.stats.checksNeeded,
+      helper: `${opportunityScout.stats.activeSources} active sources / ${opportunityScout.stats.dueLeads} lead follow-ups`,
+      icon: "spark",
+      tone: opportunityScout.readiness.tone,
+      actionLabel: "Open sources",
+      onAction: () => openModule("leads"),
+    },
+    {
       label: "AI Lead Review",
       value: newLeads.length + highPriorityLeads.length,
       helper: `${newLeads.length} new / ${highPriorityLeads.length} high-priority leads`,
@@ -17902,19 +17951,18 @@ function CopilotPagePolished({
       actionLabel: "Open jobs",
       onAction: () => openModule("jobs"),
     },
-    {
-      label: "Pipeline Signals",
-      value: pipelineValue,
-      displayValue: compactCurrency(pipelineValue),
-      helper: `${currency(pipelineValue)} open pipeline value`,
-      icon: "quote",
-      tone: pipelineValue > 0 ? "blue" : "slate",
-      actionLabel: "Review pipeline",
-      onAction: () => openModule("leads"),
-    },
   ];
 
   const workflowCards = [
+    {
+      title: "Opportunity Scout",
+      helper: "Use lead sources, daily check dates, and active lead signals to decide where the office should look for work today.",
+      icon: "spark",
+      badge: opportunityScout.readiness.label,
+      tone: opportunityScout.readiness.tone,
+      actionLabel: "Open scout",
+      onAction: () => openModule("leads"),
+    },
     {
       title: "Apex Lead Assistant",
       helper: "Open the lead command board and use Apex HQ AI from the selected lead panel.",
@@ -17964,6 +18012,16 @@ function CopilotPagePolished({
       actionLabel: "Open dashboard",
       onAction: () => openModule("dashboard"),
     })),
+    ...opportunityScout.sourceQueue.slice(0, 2).map((source) => ({
+      id: `source-${source.id}`,
+      eyebrow: source.statusLabel,
+      title: source.name,
+      description: source.recommendedAction,
+      tone: source.tone,
+      icon: "spark",
+      actionLabel: "Open sources",
+      onAction: () => openModule("leads"),
+    })),
     ...newLeads.slice(0, 2).map((lead) => ({
       id: `lead-${lead.id}`,
       eyebrow: "New lead",
@@ -18008,6 +18066,8 @@ function CopilotPagePolished({
 
   const reportPreview = visibleReports.find((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus));
   const nextActions = [
+    opportunityScout.stats.activeSources === 0 ? { label: "Add lead sources", action: () => openModule("leads"), tone: "amber" } : null,
+    opportunityScout.stats.checksNeeded ? { label: "Run source checks", action: () => openModule("leads"), tone: opportunityScout.readiness.tone } : null,
     blockedQueueItems.length ? { label: "Clear blocked queue items", action: () => openModule("dashboard"), tone: "red" } : null,
     newLeads.length ? { label: "Assign first responses", action: () => openModule("leads"), tone: "orange" } : null,
     startupWatchJobs.length ? { label: "Review startup readiness", action: () => openModule("jobs"), tone: "amber" } : null,
@@ -18016,9 +18076,11 @@ function CopilotPagePolished({
   ].filter(Boolean);
 
   const snapshotRows = [
+    { label: "Lead Sources", value: opportunityScout.stats.activeSources, helper: `${opportunityScout.stats.checksNeeded} checks due` },
     { label: "Leads", value: liveLeads.length, helper: `${approvedLeads.length} approved` },
     { label: "Jobs", value: liveJobs.length, helper: `${stats.activeJobs || 0} active` },
     { label: "Reports", value: visibleReports.length, helper: `${reportsNeedingReview} review` },
+    { label: "Pipeline", value: compactCurrency(pipelineValue), helper: "Open value" },
     { label: "Uploads", value: visibleUploads.length, helper: "Photo evidence" },
   ];
 
@@ -18048,6 +18110,79 @@ function CopilotPagePolished({
 
       <div className="co-ai-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="min-w-0 space-y-3">
+          <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2>Daily Opportunity Scout</h2>
+                  <p>Office-ready job finding board built from lead sources, source check dates, and real lead follow-up signals.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={opportunityScout.readiness.tone}>{opportunityScout.readiness.label}</Badge>
+                  <Button type="button" size="sm" onClick={() => openModule("leads")}>Open Lead Sources</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="co-ai-scout-grid">
+              <div className="co-ai-scout-status" data-tone={opportunityScout.readiness.tone}>
+                <span>Daily Job Finder</span>
+                <strong>{opportunityScout.readiness.nextAction}</strong>
+                <p>{opportunityScout.readiness.summary}</p>
+                <div className="co-ai-scout-metrics">
+                  <div>
+                    <em>{opportunityScout.stats.activeSources}</em>
+                    <span>Active sources</span>
+                  </div>
+                  <div>
+                    <em>{opportunityScout.stats.checksNeeded}</em>
+                    <span>Checks due</span>
+                  </div>
+                  <div>
+                    <em>{opportunityScout.stats.highFitLeads}</em>
+                    <span>Good matches</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="co-ai-scout-briefs">
+                <SectionHeader title="Search Briefs" description="Use these saved-source prompts to check real portals, relationships, and bid pages." />
+                {opportunityScout.searchBriefs.length ? (
+                  <div className="co-ai-scout-brief-list">
+                    {opportunityScout.searchBriefs.map((brief) => (
+                      <div key={brief.id} className="co-ai-scout-brief" data-tone={brief.tone}>
+                        <div className="min-w-0">
+                          <span>{brief.type}</span>
+                          <strong>{brief.title}</strong>
+                          <code>{brief.query}</code>
+                          <em>{brief.location}</em>
+                          <p>{brief.helper}</p>
+                          {brief.checkFor?.length ? (
+                            <div className="co-ai-scout-checks">
+                              {brief.checkFor.map((item) => <small key={item}>{item}</small>)}
+                            </div>
+                          ) : null}
+                        </div>
+                        <Badge tone={brief.tone}>{brief.url ? "URL saved" : "Manual"}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <StateCard title="No lead sources yet" description="Add at least one active lead source before the scout can build a daily search brief." tone="slate" />
+                )}
+              </div>
+            </div>
+
+            <div className="co-ai-scout-actions">
+              {opportunityScout.actionPlan.map((action) => (
+                <button key={action.id} type="button" className="co-ai-scout-action co-focus-ring" data-tone={action.tone} onClick={() => openModule(action.moduleId)}>
+                  <span>{action.label}</span>
+                  <em>{action.helper}</em>
+                </button>
+              ))}
+            </div>
+          </Card>
+
           <Card className="co-ai-main-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -29099,6 +29234,7 @@ export default function App() {
                 sessionToken={sessionToken}
                 user={appState.user}
                 companySettings={appState.companySettings}
+                currentCompanyId={appState.currentCompanyId}
                 companyName={workspaceCompanyName}
                 companyProfile={workspacePrintProfile}
                 emailSendingConfigured={Boolean(appState.email?.estimateSendingConfigured)}

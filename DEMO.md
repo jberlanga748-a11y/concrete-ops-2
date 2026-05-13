@@ -1,20 +1,20 @@
-# Concrete Ops Demo
+﻿# Apex HQ Demo
 
 Demo URL:
-- [https://concrete-ops-demo.fly.dev/](https://concrete-ops-demo.fly.dev/)
+- [https://app.apexhq.online/](https://app.apexhq.online/)
 
 Demo logins:
-- Admin: `demo.admin@concreteops.app`
-- Foreman: `demo.foreman@concreteops.app`
-- Employee: `demo.employee@concreteops.app`
-- Password: shared privately for the demo deployment. If the deployment explicitly uses the shared demo password, it is `demo12345` and is demo-only.
+- Admin: `demo.admin@apexhq.app`
+- Foreman: `demo.foreman@apexhq.app`
+- Employee: `demo.employee@apexhq.app`
+- Password: shared privately for the demo deployment. If the deployment explicitly uses the shared demo password, it is `apexdemo123` and is demo-only.
 
 Public estimate request:
-- Public estimate request form: [https://concrete-ops-demo.fly.dev/request-estimate](https://concrete-ops-demo.fly.dev/request-estimate)
+- Public estimate request form: [https://app.apexhq.online/request-estimate](https://app.apexhq.online/request-estimate)
 
 ## Main sales message
 
-Concrete Ops helps contractors manage the full workflow from lead to job completion.
+Apex HQ helps contractors manage the full workflow from lead to job completion.
 
 - Office sees the business.
 - Foreman sees field execution.
@@ -94,7 +94,7 @@ Use this simple story when showing contractors:
 
 ## What to show
 
-Show how Concrete Ops replaces scattered texts, paper notes, missing photos, and multiple apps with one contractor operations system.
+Show how Apex HQ replaces scattered texts, paper notes, missing photos, and multiple apps with one contractor operations system.
 
 Best modules to show in order:
 
@@ -126,15 +126,15 @@ Best modules to show in order:
 
 - Demo data is fake and intentionally separated from real contractor records.
 - The demo deployment should use a separate Fly app and separate SQLite volume.
-- Recommended demo app: `concrete-ops-demo`
-- Recommended real app: `concrete-ops-2`
+- Recommended demo app: `apex-hq-demo`
+- Recommended real app: Apex HQ production
 - Demo reset should only be used when `DEMO_MODE=true`.
 - Public estimate requests can be disabled with `PUBLIC_ESTIMATE_REQUEST_ENABLED=false`.
 - On an existing database, demo backfill should be additive only: demo users and demo-prefixed records may be added, but real users and real contractor records must not be overwritten.
 
 ## Recommended contractor pitch
 
-Concrete Ops is built for contractors who need one place to manage leads, customers, estimates, jobs, crews, time, daily reports, job photos, safety, tools, checklists, change orders, and delivery tickets.
+Apex HQ is built for contractors who need one place to manage leads, customers, estimates, jobs, crews, time, daily reports, job photos, safety, tools, checklists, change orders, and delivery tickets.
 
 The office gets the full business view.
 Foremen get job and crew execution.

@@ -160,7 +160,7 @@ test("office roles can create, update, archive, and restore jobs with audit even
     const foremanUser = createUserRecord({
       id: "U-FOREMAN-JOBS",
       email: "foreman-jobs@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Field Foreman",
       role: "Foreman",
     });
@@ -168,8 +168,8 @@ test("office roles can create, update, archive, and restore jobs with audit even
     insertUsers(fixture.sqliteFile, [foremanUser]);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(opsLogin.token);
 
@@ -245,14 +245,14 @@ test("foremen see assigned and future field-visible jobs and can only submit lim
     const foremanUser = createUserRecord({
       id: "U-FOREMAN-JOBS-VIEW",
       email: "foreman-view@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Foreman View",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-EMPLOYEE-JOBS-VIEW",
       email: "employee-view@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Field Employee",
       role: "Employee",
     });
@@ -262,7 +262,7 @@ test("foremen see assigned and future field-visible jobs and can only submit lim
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "foreman-view@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const headers = authHeaders(foremanLogin.token);
     const jobsState = await assertOk(fixture.baseUrl, "/api/jobs", { headers });
@@ -308,14 +308,14 @@ test("employees only see assigned jobs and cannot create, edit, or archive jobs"
     const foremanUser = createUserRecord({
       id: "U-FOREMAN-JOBS-EMP",
       email: "foreman-emp@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Foreman Assign",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-EMPLOYEE-JOBS-EMP",
       email: "employee-emp@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Employee Assign",
       role: "Employee",
     });
@@ -325,7 +325,7 @@ test("employees only see assigned jobs and cannot create, edit, or archive jobs"
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee-emp@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const headers = authHeaders(employeeLogin.token);
     const jobsState = await assertOk(fixture.baseUrl, "/api/jobs", { headers });
@@ -368,8 +368,8 @@ test("manual jobs can initialize and persist startup checklist readiness", async
 
   try {
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(opsLogin.token);
 

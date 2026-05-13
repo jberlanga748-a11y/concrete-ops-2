@@ -18,13 +18,13 @@ Create a clean customer-specific workspace that:
 ## Do Not Use These Existing Apps
 
 Do not deploy a customer pilot into:
-- `concrete-ops-demo`
-- `concrete-ops-2`
+- the Apex HQ demo app
+- the Apex HQ production app
 - any internal testing Fly app you already use
 
 Do not reuse these existing volumes:
-- `concrete_ops_demo_data`
-- `concrete_ops_data`
+- the Apex HQ demo data volume
+- the Apex HQ production data volume
 - any internal testing volume with existing records
 
 Each pilot must have:
@@ -35,13 +35,13 @@ Each pilot must have:
 ## Recommended Naming
 
 Example customer slug:
-- `acme-concrete`
+- `acme-contracting`
 
 Recommended app name:
-- `concrete-ops-acme-pilot`
+- `apex-hq-acme-pilot`
 
 Recommended volume name:
-- `concrete_ops_acme_pilot_data`
+- `apex_hq_acme_pilot_data`
 
 Recommended config file:
 - `fly.customer-acme.toml`
@@ -51,7 +51,7 @@ Recommended config file:
 Create a dedicated Fly app for the customer pilot.
 
 ```bash
-fly apps create concrete-ops-acme-pilot
+fly apps create apex-hq-acme-pilot
 ```
 
 If you prefer, you can also create the app during a no-deploy launch flow, but the important rule is the same:
@@ -70,12 +70,12 @@ Current repo default:
 Example:
 
 ```bash
-fly volumes create concrete_ops_acme_pilot_data --size 1 --region sjc --app concrete-ops-acme-pilot
+fly volumes create apex_hq_acme_pilot_data --size 1 --region sjc --app apex-hq-acme-pilot
 ```
 
 Important:
-- do not attach the pilot app to `concrete_ops_demo_data`
-- do not attach the pilot app to `concrete_ops_data`
+- do not attach the pilot app to the Apex HQ demo data volume
+- do not attach the pilot app to the Apex HQ production data volume
 - do not reuse an internal testing volume
 
 ## 3. Create a Customer-Specific Fly Config
@@ -91,7 +91,7 @@ cp fly.toml fly.customer-acme.toml
 Update these values in `fly.customer-acme.toml`:
 
 ```toml
-app = "concrete-ops-acme-pilot"
+app = "apex-hq-acme-pilot"
 primary_region = "sjc"
 
 [build]
@@ -127,7 +127,7 @@ primary_region = "sjc"
     X-Forwarded-Proto = "https"
 
 [[mounts]]
-  source = "concrete_ops_acme_pilot_data"
+  source = "apex_hq_acme_pilot_data"
   destination = "/app/data"
   initial_size = "1gb"
 ```
@@ -158,7 +158,7 @@ fly deploy --config fly.customer-acme.toml
 After deploy, verify the app is healthy:
 
 ```bash
-curl https://concrete-ops-acme-pilot.fly.dev/api/ready
+curl https://apex-hq-acme-pilot.fly.dev/api/ready
 ```
 
 Expected result:
@@ -170,7 +170,7 @@ Expected result:
 Before creating the first admin, check setup status:
 
 ```bash
-curl https://concrete-ops-acme-pilot.fly.dev/api/setup/status
+curl https://apex-hq-acme-pilot.fly.dev/api/setup/status
 ```
 
 On a clean pilot workspace, you want the important fields to look like this:
@@ -205,7 +205,7 @@ Preferred approach:
 - create the first admin interactively
 
 Example pilot URL:
-- `https://concrete-ops-acme-pilot.fly.dev/`
+- `https://apex-hq-acme-pilot.fly.dev/`
 
 The login/setup screen should show a first-admin setup flow when:
 - `needsSetup = true`
@@ -220,7 +220,7 @@ Recommended role:
 After saving the first admin, verify setup status again:
 
 ```bash
-curl https://concrete-ops-acme-pilot.fly.dev/api/setup/status
+curl https://apex-hq-acme-pilot.fly.dev/api/setup/status
 ```
 
 Expected result now:
@@ -305,8 +305,8 @@ After the pilot users are added, verify:
 ## 10. What Not To Do
 
 Do not:
-- deploy a customer pilot into `concrete-ops-demo`
-- deploy a customer pilot into `concrete-ops-2`
+- deploy a customer pilot into the Apex HQ demo app
+- deploy a customer pilot into the Apex HQ production app
 - reuse the demo volume
 - reuse the production volume
 - reuse an internal testing volume
@@ -355,12 +355,12 @@ Do not send:
 ## 13. Quick Command Summary
 
 ```bash
-fly apps create concrete-ops-acme-pilot
-fly volumes create concrete_ops_acme_pilot_data --size 1 --region sjc --app concrete-ops-acme-pilot
+fly apps create apex-hq-acme-pilot
+fly volumes create apex_hq_acme_pilot_data --size 1 --region sjc --app apex-hq-acme-pilot
 cp fly.toml fly.customer-acme.toml
 fly deploy --config fly.customer-acme.toml
-curl https://concrete-ops-acme-pilot.fly.dev/api/ready
-curl https://concrete-ops-acme-pilot.fly.dev/api/setup/status
+curl https://apex-hq-acme-pilot.fly.dev/api/ready
+curl https://apex-hq-acme-pilot.fly.dev/api/setup/status
 ```
 
 ## Final Rule

@@ -125,28 +125,28 @@ test("change order requests stay field-safe while office manages review", async 
     const foremanUser = createUserRecord({
       id: "U-COR-FOREMAN",
       email: "cor-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Crew Foreman",
       role: "Foreman",
     });
     const otherForemanUser = createUserRecord({
       id: "U-COR-FOREMAN-OTHER",
       email: "cor-other-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Other Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-COR-EMPLOYEE",
       email: "cor-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Field Employee",
       role: "Employee",
     });
 
     insertUsers(fixture.sqliteFile, [foremanUser, otherForemanUser, employeeUser]);
 
-    const opsLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const opsLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
     const officeHeaders = authHeaders(opsLogin.token);
 
     await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
@@ -160,9 +160,9 @@ test("change order requests stay field-safe while office manages review", async 
       body: JSON.stringify({ userId: otherForemanUser.id, roleOnJob: "foreman" }),
     });
 
-    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "concrete123" });
-    const otherForemanLogin = await login(fixture.baseUrl, { email: otherForemanUser.email, password: "concrete123" });
-    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "concrete123" });
+    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "apexdemo123" });
+    const otherForemanLogin = await login(fixture.baseUrl, { email: otherForemanUser.email, password: "apexdemo123" });
+    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "apexdemo123" });
     const foremanHeaders = authHeaders(foremanLogin.token);
     const otherForemanHeaders = authHeaders(otherForemanLogin.token);
     const employeeHeaders = authHeaders(employeeLogin.token);

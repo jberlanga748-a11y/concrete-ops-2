@@ -201,7 +201,7 @@ function insertOtherCompanyLeadData(sqliteFile) {
   }
 }
 
-function enableOperatorAccess(sqliteFile, email = "ops@lastyard.test") {
+function enableOperatorAccess(sqliteFile, email = "demo.ops@apexhq.app") {
   const database = new DatabaseSync(sqliteFile);
   try {
     database.prepare(`
@@ -262,6 +262,13 @@ function moveRecordsToOtherCompany(sqliteFile, recordIds = {}) {
       ["delivery_tickets", recordIds.deliveryTicketId],
       ["change_order_requests", recordIds.changeOrderRequestId],
       ["time_entries", recordIds.timeEntryId],
+      ["safety_policies", recordIds.safetyPolicyId],
+      ["ppe_items", recordIds.ppeItemId],
+      ["safety_incidents", recordIds.safetyIncidentId],
+      ["pre_pour_checklists", recordIds.prePourChecklistId],
+      ["post_pour_checklists", recordIds.postPourChecklistId],
+      ["tool_checklists", recordIds.toolChecklistId],
+      ["calculator_results", recordIds.calculatorResultId],
     ];
 
     for (const [tableName, id] of updates) {
@@ -281,8 +288,15 @@ function findById(records, id, label) {
 }
 
 function findByName(records, name, label) {
-  const record = (records || []).find((item) => item.name === name || item.customer === name || item.title === name);
+  const record = (records || []).find((item) => item.name === name || item.customer === name || item.title === name || item.label === name || item.summary === name);
   assert.ok(record, `${label} named ${name} should be present in bootstrap payload.`);
+  return record;
+}
+
+function findAddedRecord(beforeRecords, afterRecords, label) {
+  const beforeIds = new Set((beforeRecords || []).map((record) => record.id));
+  const record = (afterRecords || []).find((item) => !beforeIds.has(item.id));
+  assert.ok(record, `${label} should be present in the updated payload.`);
   return record;
 }
 
@@ -304,8 +318,8 @@ test("bootstrap scopes existing users to the default company and hides future ot
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -345,8 +359,8 @@ test("operator user can switch companies without leaking selected company access
     enableOperatorAccess(fixture.sqliteFile);
 
     const operatorLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
 
     const operatorBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
@@ -386,6 +400,63 @@ test("operator user can switch companies without leaking selected company access
   }
 });
 
+test("operator company settings remain scoped to the selected company", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    enableOperatorAccess(fixture.sqliteFile);
+
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = operatorLogin.token;
+
+    const defaultBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(token),
+    });
+    const defaultCompanyName = defaultBootstrap.companySettings.companyName;
+
+    const switched = await postJson(fixture.baseUrl, "/api/companies/select", token, {
+      companyId: "COMPANY-LYF",
+    });
+    assert.equal(switched.currentCompanyId, "COMPANY-LYF");
+
+    const lyfSettings = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({
+        companyName: "Live Your Future HQ",
+        businessEmail: "office@liveyourfuture.test",
+        serviceArea: "Albany and surrounding exterior trades",
+        toolChecklistEnabled: false,
+      }),
+    });
+    assert.equal(lyfSettings.currentCompanyId, "COMPANY-LYF");
+    assert.equal(lyfSettings.companySettings.companyName, "Live Your Future HQ");
+    assert.equal(lyfSettings.companySettings.toolChecklistEnabled, false);
+
+    const backToDefault = await postJson(fixture.baseUrl, "/api/companies/select", token, {
+      companyId: DEFAULT_COMPANY_ID,
+    });
+    assert.equal(backToDefault.currentCompanyId, DEFAULT_COMPANY_ID);
+    assert.equal(backToDefault.companySettings.companyName, defaultCompanyName);
+    assert.notEqual(backToDefault.companySettings.companyName, "Live Your Future HQ");
+    assert.equal(backToDefault.companySettings.toolChecklistEnabled, true);
+
+    const backToLyf = await postJson(fixture.baseUrl, "/api/companies/select", token, {
+      companyId: "COMPANY-LYF",
+    });
+    assert.equal(backToLyf.currentCompanyId, "COMPANY-LYF");
+    assert.equal(backToLyf.companySettings.companyName, "Live Your Future HQ");
+    assert.equal(backToLyf.companySettings.businessEmail, "office@liveyourfuture.test");
+    assert.equal(backToLyf.companySettings.toolChecklistEnabled, false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("field roles cannot switch companies even if the flag is present", async () => {
   const fixture = await startServer();
 
@@ -394,7 +465,7 @@ test("field roles cannot switch companies even if the flag is present", async ()
     insertUserRecord(fixture.sqliteFile, createUserRecord({
       id: "U-FIELD-OPERATOR-FLAG",
       email: "field-operator-flag@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Flagged Foreman",
       role: "Foreman",
       operatorAccess: true,
@@ -402,7 +473,7 @@ test("field roles cannot switch companies even if the flag is present", async ()
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "field-operator-flag@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
 
     const foremanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
@@ -424,8 +495,8 @@ test("create routes stamp records with the current default company", async () =>
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
 
     const customerPayload = await postJson(fixture.baseUrl, "/api/customers", ownerLogin.token, {
@@ -480,8 +551,8 @@ test("ID-based mutations cannot touch records moved to another company", async (
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const token = ownerLogin.token;
 
@@ -554,13 +625,124 @@ test("ID-based mutations cannot touch records moved to another company", async (
   }
 });
 
+test("field workflow records stay scoped after being assigned to another company", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = ownerLogin.token;
+    const headers = authHeaders(token);
+    const initial = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+
+    const policyPayload = await postJson(fixture.baseUrl, "/api/safety/policies", token, {
+      title: "Other Company Harness Rule",
+      body: "Other company rule that must stay hidden from this workspace.",
+      category: "Fall protection",
+    });
+    const policy = findByName(policyPayload.safetyPolicies, "Other Company Harness Rule", "Safety policy");
+
+    const ppePayload = await postJson(fixture.baseUrl, "/api/safety/ppe-items", token, {
+      label: "Other Company Respirator",
+      description: "Other company PPE item.",
+      requiredByDefault: true,
+    });
+    const ppeItem = findByName(ppePayload.ppeItems, "Other Company Respirator", "PPE item");
+
+    const incidentPayload = await postJson(fixture.baseUrl, "/api/safety/incidents", token, {
+      jobId: "J-2201",
+      title: "Other Company Near Miss",
+      description: "Other company safety incident.",
+      type: "near_miss",
+      severity: "medium",
+    });
+    const incident = findByName(incidentPayload.safetyIncidents, "Other Company Near Miss", "Safety incident");
+
+    const toolPayload = await postJson(fixture.baseUrl, "/api/tool-checklists", token, {
+      jobId: "J-2201",
+      title: "Other Company Tool Loadout",
+    });
+    const toolChecklist = findByName(toolPayload.toolChecklists, "Other Company Tool Loadout", "Tool checklist");
+
+    const prePourPayload = await postJson(fixture.baseUrl, "/api/pre-pour-checklists", token, {
+      jobId: "J-2201",
+      notes: "Other company pre-pour setup.",
+    });
+    const prePourChecklist = findAddedRecord(initial.prePourChecklists, prePourPayload.prePourChecklists, "Pre-pour checklist");
+
+    const postPourPayload = await postJson(fixture.baseUrl, "/api/post-pour-checklists", token, {
+      jobId: "J-2201",
+      notes: "Other company post-pour setup.",
+    });
+    const postPourChecklist = findAddedRecord(initial.postPourChecklists, postPourPayload.postPourChecklists, "Post-pour checklist");
+
+    const calculatorPayload = await postJson(fixture.baseUrl, "/api/calculator-results", token, {
+      jobId: "J-2201",
+      calculatorType: "slab",
+      inputsJson: { length: 20, width: 12, thicknessInches: 4 },
+      wastePercent: 10,
+      cubicFeet: 80,
+      cubicYards: 2.96,
+      cubicYardsWithWaste: 3.26,
+      summary: "Other Company Slab Calculation",
+      notes: "Other company internal calculator result.",
+    });
+    const calculatorResult = findByName(calculatorPayload.calculatorResults, "Other Company Slab Calculation", "Calculator result");
+
+    moveRecordsToOtherCompany(fixture.sqliteFile, {
+      safetyPolicyId: policy.id,
+      ppeItemId: ppeItem.id,
+      safetyIncidentId: incident.id,
+      toolChecklistId: toolChecklist.id,
+      prePourChecklistId: prePourChecklist.id,
+      postPourChecklistId: postPourChecklist.id,
+      calculatorResultId: calculatorResult.id,
+    });
+
+    const scoped = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    assert.equal(scoped.safetyPolicies.some((record) => record.id === policy.id), false);
+    assert.equal(scoped.ppeItems.some((record) => record.id === ppeItem.id), false);
+    assert.equal(scoped.safetyIncidents.some((record) => record.id === incident.id), false);
+    assert.equal(scoped.toolChecklists.some((record) => record.id === toolChecklist.id), false);
+    assert.equal(scoped.prePourChecklists.some((record) => record.id === prePourChecklist.id), false);
+    assert.equal(scoped.postPourChecklists.some((record) => record.id === postPourChecklist.id), false);
+    assert.equal(scoped.calculatorResults.some((record) => record.id === calculatorResult.id), false);
+
+    await assertStatus(fixture.baseUrl, `/api/safety/policies/${policy.id}`, token, 404, {
+      method: "PATCH",
+      body: { title: "Cross-company safety edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/safety/ppe-items/${ppeItem.id}`, token, 404, {
+      method: "PATCH",
+      body: { label: "Cross-company PPE edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/safety/incidents/${incident.id}/review`, token, 404);
+    await assertStatus(fixture.baseUrl, `/api/tool-checklists/${toolChecklist.id}`, token, 404, {
+      method: "PATCH",
+      body: { title: "Cross-company checklist edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/pre-pour-checklists/${prePourChecklist.id}`, token, 404, {
+      method: "PATCH",
+      body: { notes: "Cross-company pre-pour edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/post-pour-checklists/${postPourChecklist.id}`, token, 404, {
+      method: "PATCH",
+      body: { notes: "Cross-company post-pour edit" },
+    });
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("cross-company links are blocked on default-company mutations", async () => {
   const fixture = await startServer();
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const token = ownerLogin.token;
 

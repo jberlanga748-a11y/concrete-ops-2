@@ -2,8 +2,8 @@ export const RELEASE_SAFETY_TARGETS = {
   repo: "jberlanga748-a11y/concrete-ops-2",
   localFolder: "C:\\Users\\jberl\\Documents\\Codex\\concrete-ops-2-clean",
   flyApp: "concrete-ops-2",
-  liveApp: "https://concrete-ops-2.fly.dev/",
-  healthCheck: "https://concrete-ops-2.fly.dev/api/ready",
+  liveApp: "https://app.apexhq.online/",
+  healthCheck: "https://app.apexhq.online/api/ready",
 };
 
 const broadStageCommand = "git add" + " .";
@@ -125,7 +125,7 @@ export const RELEASE_STORAGE_WARNINGS = [
   "Use fly volumes list to find the correct volume ID.",
   "Extend storage only by volume ID.",
   "Stop and start the machine after extending storage if Fly requires it.",
-  "Never delete the concrete_ops_data volume.",
+  "Never delete the production data volume.",
 ];
 
 export function getReleaseSafetySections() {

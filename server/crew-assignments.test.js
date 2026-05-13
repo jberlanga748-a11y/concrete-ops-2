@@ -208,21 +208,21 @@ test("office roles can assign foremen and multiple crew members with audit cover
     const foremanUser = createUserRecord({
       id: "U-CREW-FOREMAN",
       email: "crew-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Crew Foreman",
       role: "Foreman",
     });
     const employeeOne = createUserRecord({
       id: "U-CREW-EMP-1",
       email: "crew-emp-1@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Crew Employee One",
       role: "Employee",
     });
     const employeeTwo = createUserRecord({
       id: "U-CREW-EMP-2",
       email: "crew-emp-2@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Crew Employee Two",
       role: "Employee",
     });
@@ -231,8 +231,8 @@ test("office roles can assign foremen and multiple crew members with audit cover
     configureCrewPlanning(fixture.sqliteFile);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(opsLogin.token);
 
@@ -307,21 +307,21 @@ test("field roles see only crew data appropriate to their assigned work and cann
     const foremanUser = createUserRecord({
       id: "U-CREW-VIEW-FOREMAN",
       email: "crew-view-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "View Foreman",
       role: "Foreman",
     });
     const employeeOne = createUserRecord({
       id: "U-CREW-VIEW-EMP-1",
       email: "crew-view-emp-1@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Assigned Employee",
       role: "Employee",
     });
     const employeeTwo = createUserRecord({
       id: "U-CREW-VIEW-EMP-2",
       email: "crew-view-emp-2@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Other Employee",
       role: "Employee",
     });
@@ -330,8 +330,8 @@ test("field roles see only crew data appropriate to their assigned work and cann
     configureCrewPlanning(fixture.sqliteFile);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(opsLogin.token);
 
@@ -371,7 +371,7 @@ test("field roles see only crew data appropriate to their assigned work and cann
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "crew-view-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanJobs = await assertOk(fixture.baseUrl, "/api/jobs", {
       headers: authHeaders(foremanLogin.token),
@@ -397,7 +397,7 @@ test("field roles see only crew data appropriate to their assigned work and cann
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "crew-view-emp-1@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeJobs = await assertOk(fixture.baseUrl, "/api/jobs", {
@@ -461,21 +461,21 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
     const employeeOne = createUserRecord({
       id: "U-CREW-LEGACY-EMP-1",
       email: "crew-legacy-emp-1@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Legacy Crew Employee",
       role: "Employee",
     });
     const employeeTwo = createUserRecord({
       id: "U-CREW-LEGACY-EMP-2",
       email: "crew-legacy-emp-2@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Second Crew Employee",
       role: "Employee",
     });
     const foremanUser = createUserRecord({
       id: "U-CREW-LEGACY-FOREMAN",
       email: "crew-legacy-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Legacy Foreman",
       role: "Foreman",
     });
@@ -484,8 +484,8 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
     seedLegacyCrewAliasConflict(fixture.sqliteFile, employeeOne.id);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(opsLogin.token);
 
@@ -547,7 +547,7 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
 
     const foremanLoginForView = await login(fixture.baseUrl, {
       email: foremanUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanJobsView = await assertOk(fixture.baseUrl, "/api/jobs", {
       headers: authHeaders(foremanLoginForView.token),
@@ -557,7 +557,7 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
 
     const employeeLoginForView = await login(fixture.baseUrl, {
       email: employeeOne.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeJobsView = await assertOk(fixture.baseUrl, "/api/jobs", {
       headers: authHeaders(employeeLoginForView.token),
@@ -598,7 +598,7 @@ test("legacy assignment aliases do not duplicate persisted rows and stay managea
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: foremanUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanDeniedAssignment = await requestJson(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
       method: "POST",

@@ -121,8 +121,8 @@ test("customer lifecycle creates audit events for owner-managed records", async 
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -196,21 +196,21 @@ test("customer permissions allow administrators and block employees from managem
       createUserRecord({
         id: "U-ADMIN-CUSTOMERS",
         email: "admin@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Admin User",
         role: "Administrator",
       }),
       createUserRecord({
         id: "U-ESTIMATOR-CUSTOMERS",
         email: "estimator@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Estimator User",
         role: "Estimator",
       }),
       createUserRecord({
         id: "U-EMPLOYEE-CUSTOMERS",
         email: "employee@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Employee User",
         role: "Employee",
       }),
@@ -218,7 +218,7 @@ test("customer permissions allow administrators and block employees from managem
 
     const adminLogin = await login(fixture.baseUrl, {
       email: "admin@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const adminBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(adminLogin.token),
@@ -228,7 +228,7 @@ test("customer permissions allow administrators and block employees from managem
 
     const estimatorLogin = await login(fixture.baseUrl, {
       email: "estimator@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const estimatorHeaders = authHeaders(estimatorLogin.token);
     const estimatorBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: estimatorHeaders });
@@ -239,7 +239,7 @@ test("customer permissions allow administrators and block employees from managem
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: employeeHeaders });

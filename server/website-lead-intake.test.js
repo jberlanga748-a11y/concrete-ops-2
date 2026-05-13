@@ -216,7 +216,7 @@ const validWebsitePackage = {
 };
 
 test("website lead intake rejects missing and invalid tokens", async () => {
-  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: "website-token" });
+  const fixture = await startServer({ APEX_HQ_IMPORT_TOKEN: "website-token" });
 
   try {
     const missingToken = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
@@ -293,8 +293,8 @@ test("website lead intake creates only a lead in the target company and strips s
       users: tableCount(fixture.sqliteFile, "users"),
     };
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
 
     const imported = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
@@ -404,8 +404,8 @@ test("website lead intake duplicate checks are scoped to the target company", as
     assert.deepEqual(new Set(matchingLeads.map((lead) => lead.companyId)), new Set([DEFAULT_COMPANY_ID, "COMPANY-LYF"]));
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const ownerBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(ownerLogin.token),
@@ -462,13 +462,13 @@ test("website leads stay hidden from field roles and outside-company users", asy
     insertUser(fixture.sqliteFile, createUserRecord({
       id: "U-WEB-INTAKE-EMPLOYEE",
       email: "website-intake-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Website Intake Employee",
       role: "Employee",
     }));
     const employeeLogin = await login(fixture.baseUrl, {
       email: "website-intake-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(employeeLogin.token),

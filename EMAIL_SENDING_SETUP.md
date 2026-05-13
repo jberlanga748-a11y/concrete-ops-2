@@ -1,10 +1,10 @@
-# Concrete Ops Email Sending Setup
+﻿# Apex HQ Email Sending Setup
 
-Concrete Ops has a staged real email sending workflow for Estimates. The feature is safe to leave off until a workspace is ready for customer-facing email.
+Apex HQ has a staged real email sending workflow for Estimates. The feature is safe to leave off until a workspace is ready for customer-facing email.
 
 ## What Send Estimate Does
 
-When configured, office users can open an estimate and click **Send estimate**. Concrete Ops sends a professional customer email directly from the app using the configured email provider.
+When configured, office users can open an estimate and click **Send estimate**. Apex HQ sends a professional customer email directly from the app using the configured email provider.
 
 The email uses the short customer-facing estimate message. It does not include internal notes, office-only notes, payroll, profit, or margin information.
 
@@ -16,7 +16,7 @@ Set these in the target Fly app environment when email sending is ready:
 
 ```text
 EMAIL_PROVIDER=resend
-EMAIL_FROM=Concrete Ops <estimates@yourdomain.com>
+EMAIL_FROM=Apex HQ <estimates@yourdomain.com>
 EMAIL_API_KEY=your-provider-api-key
 ```
 
@@ -90,7 +90,7 @@ Use the demo app first. Do not enable email sending on Last Yard until demo has 
 
 Do not enable email sending on Last Yard until it has been tested on demo first.
 
-1. Confirm Jacob wants real estimate emails sent from Concrete Ops.
+1. Confirm Jacob wants real estimate emails sent from Apex HQ.
 2. Confirm the sender email and reply-to email.
 3. Verify the sender domain with the email provider.
 4. Send a test estimate to John first from demo.

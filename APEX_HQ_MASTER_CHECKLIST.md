@@ -1,14 +1,14 @@
-# CONCRETE_OPS_MASTER_CHECKLIST
+﻿# APEX_HQ_MASTER_CHECKLIST
 
 ## Current Priority
-Concrete Ops is in first-pilot mode. The current priority is helping Last Yard complete the first real workflow, fixing only blockers, and preparing a demo video after demo pages show meaningful content.
+Apex HQ is in first-pilot mode. The current priority is helping Last Yard complete the first real workflow, fixing only blockers, and preparing a demo video after demo pages show meaningful content.
 
 ## 1. Apps / Environments
-- [x] Internal/testing app: [concrete-ops-2.fly.dev](https://concrete-ops-2.fly.dev/)
-- [x] Demo app: [concrete-ops-demo.fly.dev](https://concrete-ops-demo.fly.dev/)
-- [x] Last Yard pilot app: [concrete-ops-lastyard.fly.dev](https://concrete-ops-lastyard.fly.dev/)
+- [x] Internal/testing app: [app.apexhq.online](https://app.apexhq.online/)
+- [x] Demo app: [apex-hq-demo.fly.dev](https://app.apexhq.online/)
+- [x] Last Yard pilot app: Apex HQ Last Yard pilot
 - [x] Demo app uses separate Fly app and separate volume.
-- [x] Last Yard pilot uses separate Fly app `concrete-ops-lastyard` and volume `concrete_ops_lastyard_data`.
+- [x] Last Yard pilot uses a separate Fly app and volume.
 - [x] Last Yard deploy config is local-only: `fly.lastyard.toml`.
 - [x] Last Yard pilot must keep `SEED_DEMO_DATA=false`.
 - [x] Demo mode must stay on for demo only.
@@ -156,7 +156,7 @@ Concrete Ops is in first-pilot mode. The current priority is helping Last Yard c
 - [ ] PWA / app store packaging
 
 ## 9. Last Yard Day-One Checklist
-- [x] Pilot app exists: [concrete-ops-lastyard.fly.dev](https://concrete-ops-lastyard.fly.dev/)
+- [x] Pilot app exists.
 - [x] Demo mode must be off.
 - [x] `SEED_DEMO_DATA=false`.
 - [x] Separate Fly app and separate volume are in place.
@@ -173,10 +173,10 @@ Concrete Ops is in first-pilot mode. The current priority is helping Last Yard c
 ## 10. Demo Video Readiness Checklist
 - [x] Demo app is isolated from internal and pilot data.
 - [x] Demo logins exist:
-  - Admin: `demo.admin@concreteops.app`
-  - Foreman: `demo.foreman@concreteops.app`
-  - Employee: `demo.employee@concreteops.app`
-  - Password: `demo12345`
+  - Admin: `demo.admin@apexhq.app`
+  - Foreman: `demo.foreman@apexhq.app`
+  - Employee: `demo.employee@apexhq.app`
+  - Password: `apexdemo123`
 - [~] Dashboard shows meaningful demo content.
 - [~] Leads show meaningful demo content.
 - [~] Jobs show meaningful demo content.

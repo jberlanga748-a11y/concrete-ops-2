@@ -612,6 +612,9 @@ export function createEmptyState() {
     companies: [buildDefaultCompany(DEFAULT_COMPANY_SETTINGS)],
     currentCompanyId: DEFAULT_COMPANY_ID,
     companySettings: { ...DEFAULT_COMPANY_SETTINGS },
+    companySettingsByCompanyId: {
+      [DEFAULT_COMPANY_ID]: { ...DEFAULT_COMPANY_SETTINGS },
+    },
     users: [],
     sessions: [],
     customers: [],
@@ -1779,6 +1782,9 @@ export function createSeedState() {
     companies: [buildDefaultCompany(includeDemoRecords ? demoCompanySettings : DEFAULT_COMPANY_SETTINGS, seededAt.toISOString())],
     currentCompanyId: DEFAULT_COMPANY_ID,
     companySettings: includeDemoRecords ? demoCompanySettings : { ...DEFAULT_COMPANY_SETTINGS },
+    companySettingsByCompanyId: {
+      [DEFAULT_COMPANY_ID]: includeDemoRecords ? demoCompanySettings : { ...DEFAULT_COMPANY_SETTINGS },
+    },
     users,
     sessions: [],
     customers,
@@ -1818,8 +1824,19 @@ function ensureDemoUsersInState(state, changedAt = isoNow()) {
   let usersUpdated = 0;
   let changed = false;
   const users = Array.isArray(state.users) ? state.users : [];
+  const demoLoginUsers = [
+    {
+      id: "DEMO-U-OPS",
+      email: DEMO_CREDENTIALS.email,
+      password: DEMO_CREDENTIALS.password,
+      name: DEMO_CREDENTIALS.name,
+      role: DEMO_CREDENTIALS.role,
+      phone: "503-555-0103",
+    },
+    ...DEMO_USERS,
+  ];
 
-  for (const demoUser of DEMO_USERS) {
+  for (const demoUser of demoLoginUsers) {
     const email = demoUser.email.toLowerCase();
     const existingUser = users.find((user) => String(user.email || "").toLowerCase() === email);
 
@@ -1915,8 +1932,19 @@ function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
   let usersUpdated = 0;
   const actualUserIdsByEmail = new Map();
   const usedIds = new Set(existingUsers.map((user) => user.id));
+  const demoLoginUsers = [
+    {
+      id: "DEMO-U-OPS",
+      email: DEMO_CREDENTIALS.email,
+      password: DEMO_CREDENTIALS.password,
+      name: DEMO_CREDENTIALS.name,
+      role: DEMO_CREDENTIALS.role,
+      phone: "503-555-0103",
+    },
+    ...DEMO_USERS,
+  ];
 
-  for (const demoUser of DEMO_USERS) {
+  for (const demoUser of demoLoginUsers) {
     const email = demoUser.email.toLowerCase();
     const existingUser = existingUsers.find((user) => String(user.email || "").toLowerCase() === email);
     const nextHash = passwordHash(demoUser.password);
@@ -2450,38 +2478,21 @@ function ensureDefaultSafetyContentInDatabase(database, state, changedAt = isoNo
 
 function ensureDemoCompanySettingsInDatabase(database, companySettings, changedAt = isoNow()) {
   const normalized = normalizeCompanySettings(companySettings);
-  const pairs = [
-    ["companyName", normalized.companyName || ""],
-    ["logoInitials", normalized.logoInitials || ""],
-    ["accentColor", normalized.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor],
-    ["businessPhone", normalized.businessPhone || ""],
-    ["businessEmail", normalized.businessEmail || ""],
-    ["website", normalized.website || ""],
-    ["businessAddress", normalized.businessAddress || ""],
-    ["serviceArea", normalized.serviceArea || ""],
-    ["licenseText", normalized.licenseText || ""],
-    ["printPacketFooter", normalized.printPacketFooter || ""],
-    ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
-    ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
-    ["managedSetupStatus", normalized.managedSetupStatus || "Not Started"],
-    ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],
-    ["managedSetupNotes", normalized.managedSetupNotes || ""],
-    ["managedSetupUpdatedAt", normalized.managedSetupUpdatedAt || ""],
-  ];
+  const pairs = companySettingsPairs(normalized);
   const selectSetting = database.prepare(`
     SELECT value
     FROM company_settings
-    WHERE key = ?
+    WHERE company_id = ? AND key = ?
   `);
   const upsertSetting = database.prepare(`
-    INSERT INTO company_settings (key, value, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    INSERT INTO company_settings (company_id, key, value, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(company_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
   `);
   let changed = 0;
 
   for (const [key, value] of pairs) {
-    const existing = selectSetting.get(key);
+    const existing = selectSetting.get(DEFAULT_COMPANY_ID, key);
     const existingValue = typeof existing?.value === "string" ? existing.value.trim() : "";
     if (existing && existingValue) {
       continue;
@@ -2489,7 +2500,7 @@ function ensureDemoCompanySettingsInDatabase(database, companySettings, changedA
     if (!existing && value === "") {
       continue;
     }
-    upsertSetting.run(key, value, changedAt);
+    upsertSetting.run(DEFAULT_COMPANY_ID, key, value, changedAt);
     changed += 1;
   }
 
@@ -3268,6 +3279,51 @@ function normalizeCompanySettings(settings = {}) {
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
     ...managedSetup,
   };
+}
+
+function companySettingsPairs(settings = {}) {
+  const normalized = normalizeCompanySettings(settings);
+  return [
+    ["companyName", normalized.companyName || ""],
+    ["logoInitials", normalized.logoInitials || ""],
+    ["accentColor", normalized.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor],
+    ["businessPhone", normalized.businessPhone || ""],
+    ["businessEmail", normalized.businessEmail || ""],
+    ["website", normalized.website || ""],
+    ["businessAddress", normalized.businessAddress || ""],
+    ["serviceArea", normalized.serviceArea || ""],
+    ["licenseText", normalized.licenseText || ""],
+    ["printPacketFooter", normalized.printPacketFooter || ""],
+    ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
+    ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
+    ["managedSetupStatus", normalized.managedSetupStatus || "Not Started"],
+    ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],
+    ["managedSetupNotes", normalized.managedSetupNotes || ""],
+    ["managedSetupUpdatedAt", normalized.managedSetupUpdatedAt || ""],
+  ];
+}
+
+function normalizeCompanySettingsByCompanyId(settingsByCompanyId = {}) {
+  const normalized = {};
+  for (const [companyId, settings] of Object.entries(settingsByCompanyId || {})) {
+    normalized[normalizeCompanyId(companyId)] = normalizeCompanySettings(settings);
+  }
+  return normalized;
+}
+
+function companySettingsByCompanyIdForState(state = {}) {
+  const settingsByCompanyId = normalizeCompanySettingsByCompanyId(state.companySettingsByCompanyId || {});
+  const settingsCompanyId = normalizeCompanyId(state.currentCompanyId);
+
+  if (state.companySettings) {
+    settingsByCompanyId[settingsCompanyId] = normalizeCompanySettings(state.companySettings);
+  }
+
+  if (!settingsByCompanyId[DEFAULT_COMPANY_ID]) {
+    settingsByCompanyId[DEFAULT_COMPANY_ID] = normalizeCompanySettings(DEFAULT_COMPANY_SETTINGS);
+  }
+
+  return settingsByCompanyId;
 }
 
 function createDatabaseConnection() {
@@ -4976,6 +5032,60 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 42,
+      description: "Add company scope to field safety and checklist records.",
+      up(database) {
+        const defaultCompanyId = sqliteStringLiteral(DEFAULT_COMPANY_ID);
+        const tables = [
+          "safety_policies",
+          "ppe_items",
+          "safety_acknowledgments",
+          "safety_incidents",
+          "pre_pour_checklists",
+          "pre_pour_checklist_items",
+          "post_pour_checklists",
+          "post_pour_checklist_items",
+          "tool_checklists",
+          "tool_checklist_items",
+          "calculator_results",
+        ];
+
+        for (const tableName of tables) {
+          if (!columnExists(database, tableName, "company_id")) {
+            database.exec(`ALTER TABLE ${tableName} ADD COLUMN company_id TEXT NOT NULL DEFAULT '${defaultCompanyId}';`);
+          }
+          database.exec(`CREATE INDEX IF NOT EXISTS idx_${tableName}_company_id ON ${tableName}(company_id);`);
+        }
+      },
+    },
+    {
+      version: 43,
+      description: "Scope company settings by workspace.",
+      up(database) {
+        const defaultCompanyId = sqliteStringLiteral(DEFAULT_COMPANY_ID);
+        const sourceCompanyId = columnExists(database, "company_settings", "company_id")
+          ? `COALESCE(NULLIF(company_id, ''), '${defaultCompanyId}')`
+          : `'${defaultCompanyId}'`;
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS company_settings_v43 (
+            company_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (company_id, key)
+          );
+
+          INSERT OR REPLACE INTO company_settings_v43 (company_id, key, value, updated_at)
+          SELECT ${sourceCompanyId}, key, value, updated_at
+          FROM company_settings;
+
+          DROP TABLE company_settings;
+          ALTER TABLE company_settings_v43 RENAME TO company_settings;
+          CREATE INDEX IF NOT EXISTS idx_company_settings_company_id ON company_settings(company_id);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5020,8 +5130,8 @@ function writeStateToDb(state) {
   `);
 
   const insertCompanySetting = database.prepare(`
-    INSERT INTO company_settings (key, value, updated_at)
-    VALUES (?, ?, ?)
+    INSERT INTO company_settings (company_id, key, value, updated_at)
+    VALUES (?, ?, ?, ?)
   `);
 
   const insertSession = database.prepare(`
@@ -5089,23 +5199,23 @@ function writeStateToDb(state) {
   `);
 
   const insertSafetyPolicy = database.prepare(`
-    INSERT INTO safety_policies (id, sort_index, title, body, category, status, created_by, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO safety_policies (id, sort_index, company_id, title, body, category, status, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertPpeItem = database.prepare(`
-    INSERT INTO ppe_items (id, sort_index, label, description, required_by_default, status, created_by, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ppe_items (id, sort_index, company_id, label, description, required_by_default, status, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertSafetyAcknowledgment = database.prepare(`
-    INSERT INTO safety_acknowledgments (id, sort_index, user_id, job_id, policy_id, acknowledged_at, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO safety_acknowledgments (id, sort_index, company_id, user_id, job_id, policy_id, acknowledged_at, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertSafetyIncident = database.prepare(`
-    INSERT INTO safety_incidents (id, sort_index, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO safety_incidents (id, sort_index, company_id, job_id, submitted_by, type, severity, status, title, description, immediate_action, created_at, updated_at, reviewed_by, reviewed_at, resolved_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertChangeOrderRequest = database.prepare(`
@@ -5119,38 +5229,38 @@ function writeStateToDb(state) {
   `);
 
     const insertPrePourChecklist = database.prepare(`
-      INSERT INTO pre_pour_checklists (id, sort_index, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pre_pour_checklists (id, sort_index, company_id, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertPrePourChecklistItem = database.prepare(`
-      INSERT INTO pre_pour_checklist_items (id, sort_index, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pre_pour_checklist_items (id, sort_index, company_id, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertPostPourChecklist = database.prepare(`
-      INSERT INTO post_pour_checklists (id, sort_index, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO post_pour_checklists (id, sort_index, company_id, job_id, status, created_by, completed_by, reviewed_by, reopened_by, notes, created_at, updated_at, completed_at, reviewed_at, reopened_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertPostPourChecklistItem = database.prepare(`
-      INSERT INTO post_pour_checklist_items (id, sort_index, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO post_pour_checklist_items (id, sort_index, company_id, checklist_id, key, label, status, notes, checked_by, checked_at, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertToolChecklist = database.prepare(`
-      INSERT INTO tool_checklists (id, sort_index, job_id, title, status, created_by, assigned_foreman_id, submitted_by, reviewed_by, notes, created_at, updated_at, submitted_at, reviewed_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tool_checklists (id, sort_index, company_id, job_id, title, status, created_by, assigned_foreman_id, submitted_by, reviewed_by, notes, created_at, updated_at, submitted_at, reviewed_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
   const insertToolChecklistItem = database.prepare(`
-    INSERT INTO tool_checklist_items (id, sort_index, checklist_id, name, category, quantity, status, added_by, notes, missing_notes, damaged_notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tool_checklist_items (id, sort_index, company_id, checklist_id, name, category, quantity, status, added_by, notes, missing_notes, damaged_notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCalculatorResult = database.prepare(`
-    INSERT INTO calculator_results (id, sort_index, job_id, created_by, calculator_type, inputs_json, waste_percent, cubic_feet, cubic_yards, cubic_yards_with_waste, summary, visibility, notes, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO calculator_results (id, sort_index, company_id, job_id, created_by, calculator_type, inputs_json, waste_percent, cubic_feet, cubic_yards, cubic_yards_with_waste, summary, visibility, notes, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertTimeEntry = database.prepare(`
@@ -5188,7 +5298,8 @@ function writeStateToDb(state) {
       const persistedAssignments = dedupeAssignmentsById(
         (derivedAssignmentState.jobAssignments || []).filter((assignment) => !assignment.syntheticFromJobAlias),
       );
-      const normalizedCompanySettings = normalizeCompanySettings(state.companySettings);
+      const companySettingsByCompanyId = companySettingsByCompanyIdForState(state);
+      const normalizedCompanySettings = companySettingsByCompanyId[DEFAULT_COMPANY_ID] || normalizeCompanySettings(state.companySettings);
       const companies = normalizeCompanies(state.companies, normalizedCompanySettings);
       database.exec(`
       DELETE FROM companies;
@@ -5224,22 +5335,11 @@ function writeStateToDb(state) {
       DELETE FROM audit_events;
     `);
 
-    insertCompanySetting.run("companyName", normalizedCompanySettings.companyName || "", isoNow());
-    insertCompanySetting.run("logoInitials", normalizedCompanySettings.logoInitials || "", isoNow());
-    insertCompanySetting.run("accentColor", normalizedCompanySettings.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor, isoNow());
-    insertCompanySetting.run("businessPhone", normalizedCompanySettings.businessPhone || "", isoNow());
-    insertCompanySetting.run("businessEmail", normalizedCompanySettings.businessEmail || "", isoNow());
-    insertCompanySetting.run("website", normalizedCompanySettings.website || "", isoNow());
-    insertCompanySetting.run("businessAddress", normalizedCompanySettings.businessAddress || "", isoNow());
-    insertCompanySetting.run("serviceArea", normalizedCompanySettings.serviceArea || "", isoNow());
-    insertCompanySetting.run("licenseText", normalizedCompanySettings.licenseText || "", isoNow());
-    insertCompanySetting.run("printPacketFooter", normalizedCompanySettings.printPacketFooter || "", isoNow());
-    insertCompanySetting.run("printPacketDisclaimer", normalizedCompanySettings.printPacketDisclaimer || "", isoNow());
-    insertCompanySetting.run("toolChecklistEnabled", normalizedCompanySettings.toolChecklistEnabled ? "true" : "false", isoNow());
-    insertCompanySetting.run("managedSetupStatus", normalizedCompanySettings.managedSetupStatus || "Not Started", isoNow());
-    insertCompanySetting.run("managedSetupChecklist", JSON.stringify(normalizedCompanySettings.managedSetupChecklist || []), isoNow());
-    insertCompanySetting.run("managedSetupNotes", normalizedCompanySettings.managedSetupNotes || "", isoNow());
-    insertCompanySetting.run("managedSetupUpdatedAt", normalizedCompanySettings.managedSetupUpdatedAt || "", isoNow());
+    for (const [companyId, settings] of Object.entries(companySettingsByCompanyId)) {
+      for (const [key, value] of companySettingsPairs(settings)) {
+        insertCompanySetting.run(normalizeCompanyId(companyId), key, value, isoNow());
+      }
+    }
 
     companies.forEach((company) => {
       insertCompany.run(
@@ -5579,10 +5679,26 @@ function writeStateToDb(state) {
       );
     });
 
+    const companyIdByJobId = new Map((state.jobs || []).map((job) => [job.id, normalizeCompanyId(job.companyId)]));
+    const companyIdBySafetyPolicyId = new Map((state.safetyPolicies || []).map((policy) => [policy.id, normalizeCompanyId(policy.companyId)]));
+    const companyIdByPrePourChecklistId = new Map((state.prePourChecklists || []).map((checklist) => [
+      checklist.id,
+      normalizeCompanyId(checklist.companyId || companyIdByJobId.get(checklist.jobId)),
+    ]));
+    const companyIdByPostPourChecklistId = new Map((state.postPourChecklists || []).map((checklist) => [
+      checklist.id,
+      normalizeCompanyId(checklist.companyId || companyIdByJobId.get(checklist.jobId)),
+    ]));
+    const companyIdByToolChecklistId = new Map((state.toolChecklists || []).map((checklist) => [
+      checklist.id,
+      normalizeCompanyId(checklist.companyId || companyIdByJobId.get(checklist.jobId)),
+    ]));
+
     (state.safetyPolicies || []).forEach((policy, index) => {
       insertSafetyPolicy.run(
         policy.id,
         index,
+        normalizeCompanyId(policy.companyId),
         policy.title,
         policy.body || "",
         policy.category || "",
@@ -5598,6 +5714,7 @@ function writeStateToDb(state) {
       insertPpeItem.run(
         item.id,
         index,
+        normalizeCompanyId(item.companyId),
         item.label,
         item.description || "",
         item.requiredByDefault ? 1 : 0,
@@ -5613,6 +5730,11 @@ function writeStateToDb(state) {
       insertSafetyAcknowledgment.run(
         acknowledgment.id,
         index,
+        normalizeCompanyId(
+          acknowledgment.companyId
+            || companyIdByJobId.get(acknowledgment.jobId)
+            || companyIdBySafetyPolicyId.get(acknowledgment.policyId),
+        ),
         acknowledgment.userId,
         acknowledgment.jobId || null,
         acknowledgment.policyId || null,
@@ -5626,6 +5748,7 @@ function writeStateToDb(state) {
         insertSafetyIncident.run(
         incident.id,
         index,
+        normalizeCompanyId(incident.companyId || companyIdByJobId.get(incident.jobId)),
         incident.jobId || null,
         incident.submittedBy,
         incident.type || "concern",
@@ -5668,6 +5791,7 @@ function writeStateToDb(state) {
         insertPrePourChecklist.run(
           checklist.id,
           checklist.sortIndex ?? index,
+          normalizeCompanyId(checklist.companyId || companyIdByJobId.get(checklist.jobId)),
           checklist.jobId,
           checklist.status,
           checklist.createdBy,
@@ -5688,6 +5812,7 @@ function writeStateToDb(state) {
         insertPrePourChecklistItem.run(
           item.id,
           item.sortIndex ?? index,
+          normalizeCompanyId(item.companyId || companyIdByPrePourChecklistId.get(item.checklistId)),
           item.checklistId,
           item.key,
           item.label,
@@ -5705,6 +5830,7 @@ function writeStateToDb(state) {
         insertPostPourChecklist.run(
           checklist.id,
           checklist.sortIndex ?? index,
+          normalizeCompanyId(checklist.companyId || companyIdByJobId.get(checklist.jobId)),
           checklist.jobId,
           checklist.status,
           checklist.createdBy,
@@ -5725,6 +5851,7 @@ function writeStateToDb(state) {
         insertPostPourChecklistItem.run(
           item.id,
           item.sortIndex ?? index,
+          normalizeCompanyId(item.companyId || companyIdByPostPourChecklistId.get(item.checklistId)),
           item.checklistId,
           item.key,
           item.label,
@@ -5742,6 +5869,7 @@ function writeStateToDb(state) {
         insertToolChecklist.run(
         checklist.id,
         index,
+        normalizeCompanyId(checklist.companyId || companyIdByJobId.get(checklist.jobId)),
         checklist.jobId || null,
         checklist.title,
         checklist.status || "draft",
@@ -5762,6 +5890,7 @@ function writeStateToDb(state) {
       insertToolChecklistItem.run(
         item.id,
         index,
+        normalizeCompanyId(item.companyId || companyIdByToolChecklistId.get(item.checklistId)),
         item.checklistId,
         item.name,
         item.category || "other",
@@ -5781,6 +5910,7 @@ function writeStateToDb(state) {
       insertCalculatorResult.run(
         result.id,
         index,
+        normalizeCompanyId(result.companyId || companyIdByJobId.get(result.jobId)),
         result.jobId,
         result.createdBy,
         result.calculatorType,
@@ -5938,16 +6068,18 @@ function readTableState() {
   const database = createDatabaseConnection();
 
   const companySettingsRows = database.prepare(`
-    SELECT key, value
+    SELECT company_id AS companyId, key, value
     FROM company_settings
-    ORDER BY key
+    ORDER BY company_id, key
   `).all();
-  const companySettings = normalizeCompanySettings(
-    Object.fromEntries(companySettingsRows.map((row) => [
-      row.key,
-      row.key === "toolChecklistEnabled" ? row.value === "true" : row.value,
-    ])),
-  );
+  const companySettingsByCompanyId = {};
+  for (const row of companySettingsRows) {
+    const companyId = normalizeCompanyId(row.companyId);
+    companySettingsByCompanyId[companyId] ||= {};
+    companySettingsByCompanyId[companyId][row.key] = row.key === "toolChecklistEnabled" ? row.value === "true" : row.value;
+  }
+  const normalizedCompanySettingsByCompanyId = normalizeCompanySettingsByCompanyId(companySettingsByCompanyId);
+  const companySettings = normalizedCompanySettingsByCompanyId[DEFAULT_COMPANY_ID] || normalizeCompanySettings(DEFAULT_COMPANY_SETTINGS);
   const companies = normalizeCompanies(database.prepare(`
     SELECT id, workspace_id AS workspaceId, name, status, created_at AS createdAt, updated_at AS updatedAt
     FROM companies
@@ -6086,32 +6218,32 @@ function readTableState() {
     `).all();
 
   const safetyPolicies = database.prepare(`
-      SELECT id, title, body, category, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+      SELECT id, company_id AS companyId, title, body, category, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM safety_policies
       ORDER BY sort_index ASC
-  `).all();
+  `).all().map((policy) => withDefaultCompanyId(policy));
 
   const ppeItems = database.prepare(`
-    SELECT id, label, description, required_by_default AS requiredByDefault, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
+    SELECT id, company_id AS companyId, label, description, required_by_default AS requiredByDefault, status, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM ppe_items
     ORDER BY sort_index ASC
   `).all().map((item) => ({
-    ...item,
+    ...withDefaultCompanyId(item),
     requiredByDefault: Boolean(item.requiredByDefault),
   }));
 
   const safetyAcknowledgments = database.prepare(`
-    SELECT id, user_id AS userId, job_id AS jobId, policy_id AS policyId, acknowledged_at AS acknowledgedAt, notes, created_at AS createdAt
+    SELECT id, company_id AS companyId, user_id AS userId, job_id AS jobId, policy_id AS policyId, acknowledged_at AS acknowledgedAt, notes, created_at AS createdAt
     FROM safety_acknowledgments
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((entry) => withDefaultCompanyId(entry));
 
   const safetyIncidents = database.prepare(`
-      SELECT id, job_id AS jobId, submitted_by AS submittedBy, type, severity, status, title, description, immediate_action AS immediateAction,
+      SELECT id, company_id AS companyId, job_id AS jobId, submitted_by AS submittedBy, type, severity, status, title, description, immediate_action AS immediateAction,
              created_at AS createdAt, updated_at AS updatedAt, reviewed_by AS reviewedBy, reviewed_at AS reviewedAt, resolved_at AS resolvedAt, archived_at AS archivedAt
       FROM safety_incidents
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((incident) => withDefaultCompanyId(incident));
 
     const changeOrderRequests = database.prepare(`
       SELECT id, company_id AS companyId, job_id AS jobId, customer_id AS customerId, requested_by AS requestedBy, reason, scope_description AS scopeDescription,
@@ -6131,59 +6263,59 @@ function readTableState() {
     `).all().map((ticket) => withDefaultCompanyId(ticket));
 
     const prePourChecklists = database.prepare(`
-      SELECT id, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
+      SELECT id, company_id AS companyId, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
              reopened_by AS reopenedBy, notes, created_at AS createdAt, updated_at AS updatedAt, completed_at AS completedAt,
              reviewed_at AS reviewedAt, reopened_at AS reopenedAt, archived_at AS archivedAt
       FROM pre_pour_checklists
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((checklist) => withDefaultCompanyId(checklist));
 
     const prePourChecklistItems = database.prepare(`
-      SELECT id, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy, checked_at AS checkedAt,
+      SELECT id, company_id AS companyId, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy, checked_at AS checkedAt,
              created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM pre_pour_checklist_items
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((item) => withDefaultCompanyId(item));
 
     const postPourChecklists = database.prepare(`
-      SELECT id, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
+      SELECT id, company_id AS companyId, job_id AS jobId, status, created_by AS createdBy, completed_by AS completedBy, reviewed_by AS reviewedBy,
              reopened_by AS reopenedBy, notes, created_at AS createdAt, updated_at AS updatedAt, completed_at AS completedAt,
              reviewed_at AS reviewedAt, reopened_at AS reopenedAt, archived_at AS archivedAt
       FROM post_pour_checklists
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((checklist) => withDefaultCompanyId(checklist));
 
     const postPourChecklistItems = database.prepare(`
-      SELECT id, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy, checked_at AS checkedAt,
+      SELECT id, company_id AS companyId, checklist_id AS checklistId, key, label, status, notes, checked_by AS checkedBy, checked_at AS checkedAt,
              created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
       FROM post_pour_checklist_items
       ORDER BY sort_index ASC
-    `).all();
+    `).all().map((item) => withDefaultCompanyId(item));
 
     const toolChecklists = database.prepare(`
-      SELECT id, job_id AS jobId, title, status, created_by AS createdBy, assigned_foreman_id AS assignedForemanId,
+      SELECT id, company_id AS companyId, job_id AS jobId, title, status, created_by AS createdBy, assigned_foreman_id AS assignedForemanId,
            submitted_by AS submittedBy, reviewed_by AS reviewedBy, notes, created_at AS createdAt, updated_at AS updatedAt,
            submitted_at AS submittedAt, reviewed_at AS reviewedAt, archived_at AS archivedAt
     FROM tool_checklists
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((checklist) => withDefaultCompanyId(checklist));
 
   const toolChecklistItems = database.prepare(`
-    SELECT id, checklist_id AS checklistId, name, category, quantity, status, added_by AS addedBy, notes,
+    SELECT id, company_id AS companyId, checklist_id AS checklistId, name, category, quantity, status, added_by AS addedBy, notes,
            missing_notes AS missingNotes, damaged_notes AS damagedNotes, created_at AS createdAt, updated_at AS updatedAt,
            archived_at AS archivedAt
     FROM tool_checklist_items
     ORDER BY sort_index ASC
-  `).all();
+  `).all().map((item) => withDefaultCompanyId(item));
 
   const calculatorResults = database.prepare(`
-    SELECT id, job_id AS jobId, created_by AS createdBy, calculator_type AS calculatorType, inputs_json AS inputsJson,
+    SELECT id, company_id AS companyId, job_id AS jobId, created_by AS createdBy, calculator_type AS calculatorType, inputs_json AS inputsJson,
            waste_percent AS wastePercent, cubic_feet AS cubicFeet, cubic_yards AS cubicYards, cubic_yards_with_waste AS cubicYardsWithWaste,
            summary, visibility, notes, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM calculator_results
     ORDER BY sort_index ASC
   `).all().map((result) => ({
-    ...result,
+    ...withDefaultCompanyId(result),
     inputsJson: JSON.parse(result.inputsJson || "{}"),
   }));
 
@@ -6243,6 +6375,7 @@ function readTableState() {
     companies,
     currentCompanyId: companies[0]?.id || DEFAULT_COMPANY_ID,
     companySettings,
+    companySettingsByCompanyId: normalizedCompanySettingsByCompanyId,
     users,
     sessions,
     customers,

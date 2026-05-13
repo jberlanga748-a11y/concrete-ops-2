@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
-const DEFAULT_BASE_URL = "https://concrete-ops-demo.fly.dev/";
+const DEFAULT_BASE_URL = "https://app.apexhq.online/";
 const DEFAULT_OUTPUT_ROOT = path.resolve(process.cwd(), "ui-audit", "demo-desktop");
 const DEFAULT_TIMEOUT_MS = 90_000;
 const PAGE_NAVIGATION_TIMEOUT_MS = 45_000;
@@ -21,7 +21,7 @@ const VIEWPORTS = {
   "1920x1080": { width: 1920, height: 1080 },
 };
 
-const DEMO_PASSWORD = "demo12345";
+const DEMO_PASSWORD = "apexdemo123";
 
 const ROLE_CONFIGS = {
   admin: {
@@ -84,7 +84,7 @@ Optional flags:
   --roles=admin,foreman,employee
   --viewports=1440x900,1920x1080
   --pages=dashboard,pre-pour,post-pour
-  --base-url=https://concrete-ops-demo.fly.dev/
+  --base-url=https://app.apexhq.online/
   --output-dir=ui-audit/demo-desktop
   --headed
   --help

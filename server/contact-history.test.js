@@ -179,8 +179,8 @@ test("contact history supports manual lead and customer outreach tracking", asyn
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
     const before = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
@@ -296,8 +296,8 @@ test("contact history is field-denied and company scoped", async () => {
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
     const userState = await assertOk(fixture.baseUrl, "/api/users", {

@@ -224,8 +224,8 @@ test("integration job draft import creates a draft only and keeps sensitive fiel
     assert.ok(imported.payload.warnings.includes(CITY_STATE_WARNING));
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(ownerLogin.token),
@@ -267,8 +267,8 @@ test("integration job draft import returns a safe duplicate response without cre
     assert.equal(duplicateImport.payload.openPath, `/job-draft-imports/${firstImport.payload.importedDraftId}`);
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(ownerLogin.token),
@@ -307,15 +307,15 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
     const employeeUser = createUserRecord({
       id: "U-JOB-DRAFT-EMPLOYEE",
       email: "job-draft-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Field Employee",
       role: "Employee",
     });
     insertUsers(fixture.sqliteFile, [employeeUser]);
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -392,7 +392,7 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "job-draft-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(employeeLogin.token),
@@ -414,8 +414,8 @@ test("imported draft customer match uses existing customer when creating a job",
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -464,8 +464,8 @@ test("review-required customer matches block job creation until office confirms"
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -538,8 +538,8 @@ test("imported draft job creation blocks similar existing jobs unless confirmed"
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -586,8 +586,8 @@ test("missing city/state with address imports as Needs Review and requires confi
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 

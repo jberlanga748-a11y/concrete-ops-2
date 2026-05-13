@@ -1,14 +1,14 @@
-# Concrete Ops 10-Day Founding Pilot
+﻿# Apex HQ 10-Day Founding Pilot
 
 ## 1. Goal Of The Pilot
 
 The goal is to prove one real job workflow from the office to the field and back.
 
-We are not trying to set up every possible feature on day one. We want to see whether Concrete Ops helps your team manage one real job with less back-and-forth, better field documentation, and clearer job records.
+We are not trying to set up every possible feature on day one. We want to see whether Apex HQ helps your team manage one real job with less back-and-forth, better field documentation, and clearer job records.
 
-## 2. What Concrete Ops Helps Manage
+## 2. What Apex HQ Helps Manage
 
-Concrete Ops helps concrete contractors organize:
+Apex HQ helps concrete contractors organize:
 
 - Leads
 - Estimates
@@ -116,7 +116,7 @@ After a few days, John will ask:
 At the end of the 10-day pilot, we want honest answers:
 
 - What must improve before paying for this?
-- Would you use Concrete Ops on the next real job?
+- Would you use Apex HQ on the next real job?
 - Would you recommend it to another concrete contractor?
 
-The pilot is successful if Concrete Ops makes real job communication, field documentation, and closeout records easier for your team.
+The pilot is successful if Apex HQ makes real job communication, field documentation, and closeout records easier for your team.

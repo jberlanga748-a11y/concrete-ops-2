@@ -130,28 +130,28 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
     const foremanUser = createUserRecord({
       id: "U-TC-FOREMAN",
       email: "tool-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Tool Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-TC-EMPLOYEE",
       email: "tool-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Tool Employee",
       role: "Employee",
     });
     const unrelatedEmployee = createUserRecord({
       id: "U-TC-OTHER",
       email: "tool-other@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Other Tool Employee",
       role: "Employee",
     });
 
     insertUsers(fixture.sqliteFile, [foremanUser, employeeUser, unrelatedEmployee]);
 
-    const opsLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const opsLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
     const officeHeaders = authHeaders(opsLogin.token);
 
     await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
@@ -170,9 +170,9 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
       body: JSON.stringify({ userId: unrelatedEmployee.id, roleOnJob: "crew" }),
     });
 
-    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "concrete123" });
-    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "concrete123" });
-    const otherLogin = await login(fixture.baseUrl, { email: unrelatedEmployee.email, password: "concrete123" });
+    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "apexdemo123" });
+    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "apexdemo123" });
+    const otherLogin = await login(fixture.baseUrl, { email: unrelatedEmployee.email, password: "apexdemo123" });
     const foremanHeaders = authHeaders(foremanLogin.token);
     const employeeHeaders = authHeaders(employeeLogin.token);
     const otherHeaders = authHeaders(otherLogin.token);

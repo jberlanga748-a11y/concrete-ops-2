@@ -108,8 +108,8 @@ async function runProductionSetupBootstrapTest() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: "ops@lastyard.test",
-        password: "concrete123",
+        email: "demo.ops@apexhq.app",
+        password: "apexdemo123",
       }),
     });
     if (demoLoginResponse.status !== 401) {
@@ -193,8 +193,8 @@ async function run() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: "ops@lastyard.test",
-        password: "concrete123",
+        email: "demo.ops@apexhq.app",
+        password: "apexdemo123",
       }),
     });
 

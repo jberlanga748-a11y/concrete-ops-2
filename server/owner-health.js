@@ -157,7 +157,7 @@ export function ownerHealthAiStatus(env = process.env) {
 }
 
 export function ownerHealthWebsiteIntakeStatus(env = process.env) {
-  const configured = Boolean(String(env.CONCRETE_OPS_IMPORT_TOKEN || "").trim());
+  const configured = Boolean(String(env.APEX_HQ_IMPORT_TOKEN || env.CONCRETE_OPS_IMPORT_TOKEN || "").trim());
   return {
     status: configured ? "configured" : "not_configured",
     configured,

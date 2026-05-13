@@ -1,6 +1,6 @@
-# Website Lead Intake
+﻿# Website Lead Intake
 
-Concrete Ops website lead intake is a server-to-server integration for contractor websites that need to create leads in the correct company/workspace.
+Apex HQ website lead intake is a server-to-server integration for contractor websites that need to create leads in the correct company/workspace.
 
 ## Endpoint
 
@@ -8,17 +8,17 @@ Concrete Ops website lead intake is a server-to-server integration for contracto
 
 Authentication:
 
-- Requires `Authorization: Bearer <CONCRETE_OPS_IMPORT_TOKEN>`.
+- Requires `Authorization: Bearer <APEX_HQ_IMPORT_TOKEN>`.
 - The token must only be used from a trusted website backend or serverless route.
 - Never expose the integration token in public frontend JavaScript, form markup, analytics tags, or browser requests.
 
 Correct future flow:
 
-`Website form frontend -> website backend/serverless route -> Concrete Ops 2 website lead intake API`
+`Website form frontend -> website backend/serverless route -> Apex HQ website lead intake API`
 
 Incorrect flow:
 
-`Website frontend JavaScript -> Concrete Ops 2 with the integration token`
+`Website frontend JavaScript -> Apex HQ with the integration token`
 
 ## Package Format
 
@@ -72,7 +72,7 @@ Incorrect flow:
 
 ## Behavior
 
-- `targetCompanyId` is required and must match an existing Concrete Ops company/workspace.
+- `targetCompanyId` is required and must match an existing Apex HQ company/workspace.
 - Created leads are scoped to `targetCompanyId`.
 - The endpoint creates a lead only. It does not create customers, jobs, estimates, users, emails, SMS messages, AI drafts, or customer portal records.
 - Duplicate checks are scoped to the target company. A duplicate in one company does not block the same submission from being imported into another company.
@@ -81,7 +81,7 @@ Incorrect flow:
 
 ## Notes For Website Implementations
 
-- Keep validation and spam controls on the website backend before forwarding to Concrete Ops.
+- Keep validation and spam controls on the website backend before forwarding to Apex HQ.
 - Use a stable `sourceSubmissionId` when the website platform provides one.
 - Pass the intended `targetCompanyId` explicitly for each contractor website.
 - Store consent fields as lead context only for now. Email/SMS sending and compliance workflows are separate future phases.

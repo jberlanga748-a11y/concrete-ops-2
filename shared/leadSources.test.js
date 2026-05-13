@@ -7,6 +7,7 @@ import {
   createLeadSourceDraftFromStarter,
   deriveDailySourceCheckState,
   deriveLeadSourceListState,
+  LEAD_SOURCE_STARTERS,
   normalizeLeadSourcePayload,
   normalizeLeadSourceUrl,
   validateLeadSourcePayload,
@@ -46,12 +47,21 @@ test("lead source payload normalizes options, casing, and timestamps", () => {
   assert.equal(normalized.updatedAt, "2026-05-11T12:00:00.000Z");
 });
 
-test("lead source starters are generic editable drafts", () => {
-  const draft = createLeadSourceDraftFromStarter("plan-room");
-  assert.equal(draft.name, "Plan room");
+test("lead source starters are generic editable opportunity scout drafts", () => {
+  const draft = createLeadSourceDraftFromStarter("regional-plan-rooms");
+  assert.equal(draft.name, "Regional plan rooms");
   assert.equal(draft.type, "Plan room");
   assert.equal(draft.url, "");
   assert.match(draft.notes, /Add the plan room link/i);
+});
+
+test("lead source starters cover public, commercial, relationship, inbound, research, and market channels", () => {
+  const groups = new Set(LEAD_SOURCE_STARTERS.map((starter) => starter.group));
+
+  assert.equal(LEAD_SOURCE_STARTERS.length >= 10, true);
+  assert.deepEqual([...groups].sort(), ["Commercial", "Inbound", "Market", "Public work", "Relationships", "Research"]);
+  assert.equal(LEAD_SOURCE_STARTERS.some((starter) => starter.id === "private-job-network"), true);
+  assert.equal(LEAD_SOURCE_STARTERS.every((starter) => starter.description && starter.source?.notes), true);
 });
 
 test("lead source list state filters inactive rows and tracks due checks", () => {

@@ -254,5 +254,5 @@ test("small display helpers map labels, tones, and local storage keys", () => {
   assert.equal(notificationSeverityTone("warning"), "amber");
   assert.equal(notificationSeverityTone("info"), "blue");
   assert.equal(notificationActionLabel({ moduleId: "estimates" }), "Open Estimates");
-  assert.equal(buildNotificationStateStorageKey({ companyId: "COMPANY-A", userId: "U-1" }), "concrete-ops/notification-center/COMPANY-A/U-1");
+  assert.equal(buildNotificationStateStorageKey({ companyId: "COMPANY-A", userId: "U-1" }), "apex-hq/notification-center/COMPANY-A/U-1");
 });

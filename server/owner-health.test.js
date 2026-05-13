@@ -152,7 +152,7 @@ test("owner health requires authentication and blocks field users", async () => 
     const fieldUser = createUserRecord({
       id: "U-OWNER-HEALTH-FIELD",
       email: "owner-health-field@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Owner Health Field",
       role: "Employee",
     });
@@ -160,7 +160,7 @@ test("owner health requires authentication and blocks field users", async () => 
 
     const fieldLogin = await login(fixture.baseUrl, {
       email: fieldUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const fieldResponse = await requestJson(fixture.baseUrl, "/api/owner-health", {
       headers: authHeaders(fieldLogin.token),
@@ -176,13 +176,13 @@ test("owner health returns safe configured status without exposing secret values
   const fakeImportToken = "owner-health-import-token";
   const fixture = await startServer({
     OPENAI_API_KEY: fakeOpenAiKey,
-    CONCRETE_OPS_IMPORT_TOKEN: fakeImportToken,
+    APEX_HQ_IMPORT_TOKEN: fakeImportToken,
   });
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const beforeCounts = tableCounts(fixture.sqliteFile);
     const payload = await assertOk(fixture.baseUrl, "/api/owner-health", {
@@ -219,8 +219,8 @@ test("owner health reports AI and website intake not configured when env vars ar
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const payload = await assertOk(fixture.baseUrl, "/api/owner-health", {
       headers: authHeaders(ownerLogin.token),
@@ -257,4 +257,3 @@ test("storage health handles unavailable statfs safely", async () => {
     await fs.rm(tempDataDir, { recursive: true, force: true });
   }
 });
-

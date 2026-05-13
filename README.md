@@ -1,6 +1,6 @@
-# Concrete Ops
+﻿# Apex HQ
 
-Concrete Ops is a full-stack operations workspace for a concrete contractor. It includes:
+Apex HQ is a full-stack operations workspace for a concrete contractor. It includes:
 
 - A React + Vite frontend
 - An Express API
@@ -9,8 +9,8 @@ Concrete Ops is a full-stack operations workspace for a concrete contractor. It 
 
 ## Demo Login
 
-- Email: `ops@lastyard.test`
-- Password: `concrete123`
+- Email: `demo.ops@apexhq.app`
+- Password: `apexdemo123`
 
 The demo account is available by default in development. In production, demo data is disabled by default and the first admin can be created through the setup screen or environment bootstrap variables.
 
@@ -46,8 +46,8 @@ The app can also run as a single container because the Node server already serve
 ### Build and run
 
 ```bash
-docker build -t concrete-ops .
-docker run --rm -p 4000:4000 -v "$(pwd)/data:/app/data" concrete-ops
+docker build -t apex-hq-local .
+docker run --rm -p 4000:4000 -v "$(pwd)/data:/app/data" apex-hq-local
 ```
 
 ### Compose
@@ -60,20 +60,20 @@ The SQLite database stays persistent by mounting `./data` into `/app/data` in th
 
 ## Fly.io deployment
 
-The repo now includes a [fly.toml](C:/Users/jberl/Documents/Codex/2026-04-25-import-react-usememo-usestate-from-react/fly.toml) wired for the existing Dockerfile, SQLite volume storage, and readiness checks.
+The repo includes a [fly.toml](fly.toml) wired for the existing Dockerfile, SQLite volume storage, and readiness checks.
 
 Successful production deploy:
 
-- Production URL: [https://concrete-ops-2.fly.dev/](https://concrete-ops-2.fly.dev/)
-- Fly app: `concrete-ops-2`
+- Production URL: [https://app.apexhq.online/](https://app.apexhq.online/)
+- Fly app: use the configured production app in `fly.toml`
 - Active region: `sjc`
-- Mounted volume: `concrete_ops_data`
+- Mounted volume: the configured production data volume
 - SQLite path: `/app/data/app-data.sqlite`
 - Readiness endpoint: `GET /api/ready`
 
 Important notes:
 
-- `fly.toml` currently uses `app = "concrete-ops-2"` as a starting point; change that if the name is unavailable in your Fly account
+- `fly.toml` contains the current Fly app identifier; keep it unchanged unless an infrastructure rename is planned
 - Fly's older `sea` examples are deprecated for this app; the config now uses `sjc`
 - production deploys set `SEED_DEMO_DATA=false`
 - runtime SQLite data is mounted at `/app/data`
@@ -83,7 +83,7 @@ Typical first deploy flow:
 
 ```bash
 fly launch --no-deploy
-fly volumes create concrete_ops_data --size 1 --region sjc
+fly volumes create apex_hq_prod_data --size 1 --region sjc
 fly secrets set BOOTSTRAP_ADMIN_EMAIL=admin@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-now
 fly deploy
 ```

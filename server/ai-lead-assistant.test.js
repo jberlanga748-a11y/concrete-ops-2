@@ -119,8 +119,8 @@ test("AI lead assistant route returns configured false safely when OpenAI is not
 
   try {
     const loginResult = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(loginResult.token);
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
@@ -149,15 +149,15 @@ test("AI lead assistant route keeps field roles blocked", async () => {
       createUserRecord({
         id: "U-EMPLOYEE-AI-LEADS",
         email: "employee-ai@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Employee AI User",
         role: "Employee",
       }),
     ]);
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const ownerBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(ownerLogin.token),
@@ -166,7 +166,7 @@ test("AI lead assistant route keeps field roles blocked", async () => {
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee-ai@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const denied = await requestJson(fixture.baseUrl, `/api/ai/leads/${lead.id}/assist`, {
       method: "POST",

@@ -121,8 +121,8 @@ test("lead workflow supports assignment, status history, customer linking, archi
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
     const before = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
@@ -355,35 +355,35 @@ test("lead permissions keep office access while hiding lead data from employees 
       createUserRecord({
         id: "U-ADMIN-LEADS",
         email: "admin@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Admin User",
         role: "Administrator",
       }),
       createUserRecord({
         id: "U-OPS-LEADS",
         email: "ops-manager@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Ops Manager",
         role: "Operations Manager",
       }),
       createUserRecord({
         id: "U-ESTIMATOR-LEADS",
         email: "estimator@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Estimator User",
         role: "Estimator",
       }),
       createUserRecord({
         id: "U-EMPLOYEE-LEADS",
         email: "employee@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Employee User",
         role: "Employee",
       }),
       createUserRecord({
         id: "U-FOREMAN-LEADS",
         email: "foreman@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Foreman User",
         role: "Foreman",
       }),
@@ -391,7 +391,7 @@ test("lead permissions keep office access while hiding lead data from employees 
 
     const adminLogin = await login(fixture.baseUrl, {
       email: "admin@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const adminBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(adminLogin.token),
@@ -400,7 +400,7 @@ test("lead permissions keep office access while hiding lead data from employees 
 
     const opsManagerLogin = await login(fixture.baseUrl, {
       email: "ops-manager@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const opsHeaders = authHeaders(opsManagerLogin.token);
     const opsBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: opsHeaders });
@@ -434,7 +434,7 @@ test("lead permissions keep office access while hiding lead data from employees 
 
     const estimatorLogin = await login(fixture.baseUrl, {
       email: "estimator@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const estimatorHeaders = authHeaders(estimatorLogin.token);
     const estimatorBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: estimatorHeaders });
@@ -446,7 +446,7 @@ test("lead permissions keep office access while hiding lead data from employees 
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: employeeHeaders });
@@ -557,7 +557,7 @@ test("lead permissions keep office access while hiding lead data from employees 
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(foremanLogin.token),

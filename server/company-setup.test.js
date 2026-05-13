@@ -133,22 +133,22 @@ test("office users can save managed company setup in company settings", async ()
       createUserRecord({
         id: "U-SETUP-FOREMAN",
         email: "setup-foreman@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Setup Foreman",
         role: "Foreman",
       }),
       createUserRecord({
         id: "U-SETUP-EMPLOYEE",
         email: "setup-employee@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Setup Employee",
         role: "Employee",
       }),
     ]);
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
 
@@ -204,7 +204,7 @@ test("field users cannot view or update managed company setup", async () => {
     const fieldUser = createUserRecord({
       id: "U-SETUP-FIELD",
       email: "setup-field@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Setup Field",
       role: "Employee",
     });
@@ -212,7 +212,7 @@ test("field users cannot view or update managed company setup", async () => {
 
     const fieldLogin = await login(fixture.baseUrl, {
       email: fieldUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const fieldHeaders = authHeaders(fieldLogin.token);
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: fieldHeaders });

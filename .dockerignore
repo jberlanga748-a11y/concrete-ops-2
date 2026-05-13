@@ -3,6 +3,11 @@ dist
 data
 .git
 .gitignore
+.agents
+.playwright-cli
+output
+ui-audit
+APEX_HQ_MASTER_ROADMAP.md
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

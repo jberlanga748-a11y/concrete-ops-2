@@ -161,21 +161,21 @@ test("job visibility is role-scoped and field roles receive redacted job payload
     const ownerUser = createUserRecord({
       id: "U-OWNER-ROLES",
       email: "owner@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Owner User",
       role: "Owner",
     });
     const foremanUser = createUserRecord({
       id: "U-FOREMAN-ROLES",
       email: "foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Foreman User",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-EMPLOYEE-ROLES",
       email: "employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Employee User",
       role: "Employee",
     });
@@ -185,7 +185,7 @@ test("job visibility is role-scoped and field roles receive redacted job payload
 
     const ownerLogin = await login(fixture.baseUrl, {
       email: "owner@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const ownerJobs = await assertOk(fixture.baseUrl, "/api/jobs", {
       headers: authHeaders(ownerLogin.token),
@@ -195,7 +195,7 @@ test("job visibility is role-scoped and field roles receive redacted job payload
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanHeaders = authHeaders(foremanLogin.token);
     const foremanJobs = await assertOk(fixture.baseUrl, "/api/jobs", {
@@ -215,7 +215,7 @@ test("job visibility is role-scoped and field roles receive redacted job payload
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeJobs = await assertOk(fixture.baseUrl, "/api/jobs", {

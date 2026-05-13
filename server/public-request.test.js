@@ -142,7 +142,7 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     const employeeUser = createUserRecord({
       id: "U-PUBLIC-EMPLOYEE",
       email: "public-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Public Field Employee",
       role: "Employee",
     });
@@ -156,8 +156,8 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     assert.equal(submission.ok, true);
 
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${officeLogin.token}` },
@@ -177,7 +177,7 @@ test("public estimate request creates a lead, links a customer, and keeps field 
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "public-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${employeeLogin.token}` },
@@ -205,8 +205,8 @@ test("public estimate request honeypot and rate limit block spam without exposin
     assert.equal(honeypotAttempt.response.status, 202);
 
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${officeLogin.token}` },

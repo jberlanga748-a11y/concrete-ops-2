@@ -494,7 +494,7 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
 
     const adminLogin = await login(fixture.baseUrl, {
       email: "demo.admin@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const adminBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${adminLogin.token}` },
@@ -536,7 +536,7 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "demo.foreman@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const foremanBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${foremanLogin.token}` },
@@ -550,7 +550,7 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "demo.employee@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${employeeLogin.token}` },
@@ -627,7 +627,7 @@ test("restarting the demo app does not keep growing seeded demo records", async 
   try {
     const adminLogin = await login(firstServer.baseUrl, {
       email: "demo.admin@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(firstServer.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${adminLogin.token}` },
@@ -650,7 +650,7 @@ test("restarting the demo app does not keep growing seeded demo records", async 
   try {
     const adminLogin = await login(secondServer.baseUrl, {
       email: "demo.admin@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(secondServer.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${adminLogin.token}` },
@@ -696,7 +696,7 @@ test("demo bootstrap deduplicates duplicate pre-pour and post-pour checklist ite
   try {
     const adminLogin = await login(firstServer.baseUrl, {
       email: "demo.admin@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(firstServer.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${adminLogin.token}` },
@@ -720,7 +720,7 @@ test("demo bootstrap deduplicates duplicate pre-pour and post-pour checklist ite
   try {
     const adminLogin = await login(secondServer.baseUrl, {
       email: "demo.admin@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(secondServer.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${adminLogin.token}` },
@@ -740,8 +740,8 @@ test("existing database backfills missing demo users when demo mode is enabled",
 
   try {
     const officeLogin = await login(firstServer.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     assert.ok(officeLogin.token);
   } finally {
@@ -806,20 +806,21 @@ test("existing database backfills missing demo users when demo mode is enabled",
     assert.ok(realUserSession.token);
 
     for (const email of [
+      "demo.ops@apexhq.app",
       "demo.admin@apexhq.app",
       "demo.foreman@apexhq.app",
       "demo.employee@apexhq.app",
     ]) {
       const session = await login(secondServer.baseUrl, {
         email,
-        password: "demo12345",
+        password: "apexdemo123",
       });
       assert.ok(session.token, `${email} should be able to log in after demo backfill.`);
     }
 
     const officeLogin = await login(secondServer.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     assert.ok(officeLogin.token);
 
@@ -843,9 +844,10 @@ test("existing database backfills missing demo users when demo mode is enabled",
     const demoUsers = afterDatabase.prepare(`
       SELECT id, email, name, role
       FROM users
-      WHERE email IN (?, ?, ?)
+      WHERE email IN (?, ?, ?, ?)
       ORDER BY email
     `).all(
+      "demo.ops@apexhq.app",
       "demo.admin@apexhq.app",
       "demo.employee@apexhq.app",
       "demo.foreman@apexhq.app",
@@ -858,8 +860,9 @@ test("existing database backfills missing demo users when demo mode is enabled",
     assert.equal(afterRealForeman.name, beforeRealForeman.name);
     assert.equal(afterRealForeman.role, beforeRealForeman.role);
     assert.equal(afterRealForeman.password_hash, beforeRealForeman.password_hash);
-    assert.equal(demoUsers.length, 3);
-    assert.equal(demoUsers.every((user) => user.id.startsWith("DEMO-U-")), true);
+    assert.equal(demoUsers.length, 4);
+    assert.ok(demoUsers.some((user) => user.email === "demo.ops@apexhq.app"));
+    assert.equal(demoUsers.filter((user) => user.email !== "demo.ops@apexhq.app").every((user) => user.id.startsWith("DEMO-U-")), true);
 
     await fs.rm(tempDataDir, { recursive: true, force: true });
   }
@@ -871,8 +874,8 @@ test("demo users only see the clean demo story even when an existing database co
 
   try {
     await login(firstServer.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
   } finally {
     await firstServer.stop();
@@ -904,7 +907,7 @@ test("demo users only see the clean demo story even when an existing database co
   try {
     const demoAdminLogin = await login(demoServer.baseUrl, {
       email: "demo.admin@apexhq.app",
-      password: "demo12345",
+      password: "apexdemo123",
     });
     const demoBootstrap = await assertOk(demoServer.baseUrl, "/api/bootstrap", {
       headers: { Authorization: `Bearer ${demoAdminLogin.token}` },
@@ -950,8 +953,8 @@ test("demo mode resets only demo-user passwords in an existing database", async 
 
   try {
     await login(firstServer.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
   } finally {
     await firstServer.stop();
@@ -1001,22 +1004,17 @@ test("demo mode resets only demo-user passwords in an existing database", async 
 
   try {
     for (const email of [
+      "demo.ops@apexhq.app",
       "demo.admin@apexhq.app",
       "demo.foreman@apexhq.app",
       "demo.employee@apexhq.app",
     ]) {
       const session = await login(secondServer.baseUrl, {
         email,
-        password: "demo12345",
+        password: "apexdemo123",
       });
       assert.ok(session.token, `${email} should accept the demo password after backfill.`);
     }
-
-    const officeLogin = await login(secondServer.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
-    });
-    assert.ok(officeLogin.token);
   } finally {
     await secondServer.stop();
     await fs.rm(tempDataDir, { recursive: true, force: true });

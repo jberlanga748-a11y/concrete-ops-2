@@ -189,31 +189,31 @@ test("office and estimator users can manage estimates while field roles are bloc
     const estimatorUser = createUserRecord({
       id: "U-EST-ESTIMATOR",
       email: "estimate-estimator@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Estimator Sam",
       role: "Estimator",
     });
     const foremanUser = createUserRecord({
       id: "U-EST-FOREMAN",
       email: "estimate-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Field Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-EST-EMPLOYEE",
       email: "estimate-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Field Employee",
       role: "Employee",
     });
 
     insertUsers(fixture.sqliteFile, [estimatorUser, foremanUser, employeeUser]);
 
-    const officeLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
-    const estimatorLogin = await login(fixture.baseUrl, { email: estimatorUser.email, password: "concrete123" });
-    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "concrete123" });
-    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "concrete123" });
+    const officeLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
+    const estimatorLogin = await login(fixture.baseUrl, { email: estimatorUser.email, password: "apexdemo123" });
+    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "apexdemo123" });
+    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "apexdemo123" });
     const officeHeaders = authHeaders(officeLogin.token);
     const estimatorHeaders = authHeaders(estimatorLogin.token);
     const foremanHeaders = authHeaders(foremanLogin.token);
@@ -332,7 +332,7 @@ test("configured estimate email sends before marking estimate sent", async () =>
   });
 
   try {
-    const officeLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const officeLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
     const officeHeaders = authHeaders(officeLogin.token);
     const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${officeLogin.token}` } });
     assert.equal(officeBootstrap.email.estimateSendingConfigured, true);
@@ -412,7 +412,7 @@ test("failed estimate email send does not mark estimate sent", async () => {
   });
 
   try {
-    const officeLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const officeLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
     const officeHeaders = authHeaders(officeLogin.token);
     const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: { Authorization: `Bearer ${officeLogin.token}` } });
     const createdState = await assertOk(fixture.baseUrl, "/api/estimates", {

@@ -132,14 +132,14 @@ test("daily reports respect foreman workflow, office review, employee restrictio
     const foremanUser = createUserRecord({
       id: "U-REPORT-FOREMAN",
       email: "reports-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Report Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-REPORT-EMPLOYEE",
       email: "reports-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Report Employee",
       role: "Employee",
     });
@@ -147,8 +147,8 @@ test("daily reports respect foreman workflow, office review, employee restrictio
     insertUsers(fixture.sqliteFile, [foremanUser, employeeUser]);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(opsLogin.token);
 
@@ -172,13 +172,13 @@ test("daily reports respect foreman workflow, office review, employee restrictio
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: foremanUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanHeaders = authHeaders(foremanLogin.token);
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: employeeUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
 

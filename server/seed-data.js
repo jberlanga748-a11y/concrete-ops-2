@@ -1,8 +1,8 @@
 export const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
 
 export const DEMO_CREDENTIALS = {
-  email: "ops@lastyard.test",
-  password: "concrete123",
+  email: "demo.ops@apexhq.app",
+  password: "apexdemo123",
   name: "Jordan Berl",
   role: "Operations Manager",
 };
@@ -11,7 +11,7 @@ export const DEMO_USERS = [
   {
     id: "DEMO-U-ADMIN",
     email: "demo.admin@apexhq.app",
-    password: "demo12345",
+    password: "apexdemo123",
     name: "Demo Admin",
     role: "Administrator",
     phone: "503-555-0100",
@@ -19,7 +19,7 @@ export const DEMO_USERS = [
   {
     id: "DEMO-U-FOREMAN",
     email: "demo.foreman@apexhq.app",
-    password: "demo12345",
+    password: "apexdemo123",
     name: "Demo Foreman",
     role: "Foreman",
     phone: "503-555-0101",
@@ -27,7 +27,7 @@ export const DEMO_USERS = [
   {
     id: "DEMO-U-EMPLOYEE",
     email: "demo.employee@apexhq.app",
-    password: "demo12345",
+    password: "apexdemo123",
     name: "Demo Employee",
     role: "Employee",
     phone: "503-555-0102",

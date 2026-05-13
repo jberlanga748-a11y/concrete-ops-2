@@ -178,7 +178,7 @@ export function canViewNotificationCenter(permissions = {}) {
 }
 
 export function buildNotificationStateStorageKey({ companyId = "", userId = "" } = {}) {
-  return `concrete-ops/notification-center/${text(companyId) || "default-company"}/${text(userId) || "default-user"}`;
+  return `apex-hq/notification-center/${text(companyId) || "default-company"}/${text(userId) || "default-user"}`;
 }
 
 export function normalizeNotificationState(state = {}) {

@@ -133,14 +133,14 @@ test("owner and admin can create role-based users and inactive users cannot log 
       createUserRecord({
         id: "U-OWNER-USERS",
         email: "owner-users@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Owner Users",
         role: "Owner",
       }),
       createUserRecord({
         id: "U-ADMIN-USERS",
         email: "admin-users@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Admin Users",
         role: "Administrator",
       }),
@@ -148,7 +148,7 @@ test("owner and admin can create role-based users and inactive users cannot log 
 
     const ownerLogin = await login(fixture.baseUrl, {
       email: "owner-users@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
 
     const createForeman = await assertOk(fixture.baseUrl, "/api/users", {
@@ -170,7 +170,7 @@ test("owner and admin can create role-based users and inactive users cannot log 
 
     const adminLogin = await login(fixture.baseUrl, {
       email: "admin-users@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
 
     const createEmployee = await assertOk(fixture.baseUrl, "/api/users", {
@@ -232,28 +232,28 @@ test("employee, foreman, and estimator cannot access user management while opera
       createUserRecord({
         id: "U-OPS-USERS",
         email: "ops-users@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Ops Users",
         role: "Operations Manager",
       }),
       createUserRecord({
         id: "U-EST-USERS",
         email: "est-users@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Estimator Users",
         role: "Estimator",
       }),
       createUserRecord({
         id: "U-FOREMAN-USERS",
         email: "foreman-users@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Foreman Users",
         role: "Foreman",
       }),
       createUserRecord({
         id: "U-EMP-USERS",
         email: "employee-users@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Employee Users",
         role: "Employee",
       }),
@@ -261,7 +261,7 @@ test("employee, foreman, and estimator cannot access user management while opera
 
     const opsLogin = await login(fixture.baseUrl, {
       email: "ops-users@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const opsBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(opsLogin.token),
@@ -273,9 +273,9 @@ test("employee, foreman, and estimator cannot access user management while opera
     assert.ok(Array.isArray(opsUsers.users));
 
     for (const credentials of [
-      { email: "est-users@lastyard.test", password: "concrete123" },
-      { email: "foreman-users@lastyard.test", password: "concrete123" },
-      { email: "employee-users@lastyard.test", password: "concrete123" },
+      { email: "est-users@lastyard.test", password: "apexdemo123" },
+      { email: "foreman-users@lastyard.test", password: "apexdemo123" },
+      { email: "employee-users@lastyard.test", password: "apexdemo123" },
     ]) {
       const session = await login(fixture.baseUrl, credentials);
       const denied = await requestJson(fixture.baseUrl, "/api/users", {

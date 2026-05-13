@@ -212,14 +212,14 @@ test("calculator results save to allowed jobs with internal-only visibility", as
     const foremanUser = createUserRecord({
       id: "U-CALC-FOREMAN",
       email: "calc-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Calc Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-CALC-EMPLOYEE",
       email: "calc-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Calc Employee",
       role: "Employee",
     });
@@ -228,18 +228,18 @@ test("calculator results save to allowed jobs with internal-only visibility", as
     configureJobVisibility(fixture.sqliteFile, { foremanId: foremanUser.id, employeeId: employeeUser.id });
 
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(officeLogin.token);
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: foremanUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeLogin = await login(fixture.baseUrl, {
       email: employeeUser.email,
-      password: "concrete123",
+      password: "apexdemo123",
     });
 
     const foremanHeaders = authHeaders(foremanLogin.token);

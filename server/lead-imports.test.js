@@ -177,8 +177,8 @@ test("integration lead import creates only a lead and strips sensitive fields", 
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const before = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(ownerLogin.token),
@@ -249,8 +249,8 @@ test("integration lead import returns duplicate without creating a second lead",
     assert.equal(duplicateImport.payload.openPath, `/leads/${firstImport.payload.leadId}`);
 
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(ownerLogin.token),
@@ -267,8 +267,8 @@ test("integration lead import creates review lead for possible duplicates", asyn
 
   try {
     const ownerLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const headers = authHeaders(ownerLogin.token);
     await assertOk(fixture.baseUrl, "/api/leads", {
@@ -351,14 +351,14 @@ test("integration lead import rejects invalid packages and keeps field roles blo
       createUserRecord({
         id: "U-LEAD-IMPORT-EMPLOYEE",
         email: "lead-import-employee@lastyard.test",
-        password: "concrete123",
+        password: "apexdemo123",
         name: "Lead Import Employee",
         role: "Employee",
       }),
     ]);
     const employeeLogin = await login(fixture.baseUrl, {
       email: "lead-import-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(employeeLogin.token),

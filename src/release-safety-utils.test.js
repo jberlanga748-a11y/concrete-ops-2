@@ -21,8 +21,8 @@ test("release safety targets point to the correct Apex HQ app", () => {
   assert.equal(RELEASE_SAFETY_TARGETS.repo, "jberlanga748-a11y/concrete-ops-2");
   assert.equal(RELEASE_SAFETY_TARGETS.localFolder, "C:\\Users\\jberl\\Documents\\Codex\\concrete-ops-2-clean");
   assert.equal(RELEASE_SAFETY_TARGETS.flyApp, "concrete-ops-2");
-  assert.equal(RELEASE_SAFETY_TARGETS.liveApp, "https://concrete-ops-2.fly.dev/");
-  assert.equal(RELEASE_SAFETY_TARGETS.healthCheck, "https://concrete-ops-2.fly.dev/api/ready");
+  assert.equal(RELEASE_SAFETY_TARGETS.liveApp, "https://app.apexhq.online/");
+  assert.equal(RELEASE_SAFETY_TARGETS.healthCheck, "https://app.apexhq.online/api/ready");
 });
 
 test("pre and post deploy checklists include folder, repo, build, diff, and health checks", () => {
@@ -47,7 +47,7 @@ test("safe command groups include deploy, health, machine, and volume references
   assert.match(commands, /git status --short/);
   assert.match(commands, /git branch --show-current/);
   assert.match(commands, /fly deploy -a concrete-ops-2/);
-  assert.match(commands, /Invoke-RestMethod https:\/\/concrete-ops-2\.fly\.dev\/api\/ready/);
+  assert.match(commands, /Invoke-RestMethod https:\/\/app\.apexhq\.online\/api\/ready/);
   assert.match(commands, /fly machine list -a concrete-ops-2/);
   assert.match(commands, /fly volumes list -a concrete-ops-2/);
   assert.match(commands, /fly volumes extend VOLUME_ID --size 20 -a concrete-ops-2/);
@@ -65,12 +65,12 @@ test("dangerous warnings include broad staging, risky push, secrets, wrong folde
   assert.match(warnings, /unrelated modified files/i);
 });
 
-test("storage warnings mention volume IDs and protect concrete_ops_data", () => {
+test("storage warnings mention volume IDs and protect production data", () => {
   const storageWarnings = RELEASE_STORAGE_WARNINGS.join("\n");
 
   assert.match(storageWarnings, /Owner Health Status/i);
   assert.match(storageWarnings, /volume ID/i);
-  assert.match(storageWarnings, /Never delete the concrete_ops_data volume/i);
+  assert.match(storageWarnings, /Never delete the production data volume/i);
 });
 
 test("command blocks do not contain secrets, placeholders for secret pasting, or destructive volume deletes", () => {

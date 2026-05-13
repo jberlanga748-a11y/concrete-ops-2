@@ -132,28 +132,28 @@ test("safety permissions keep office management while scoping field visibility",
     const foremanUser = createUserRecord({
       id: "U-SAFE-FOREMAN",
       email: "safe-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Safe Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-SAFE-EMPLOYEE",
       email: "safe-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Safe Employee",
       role: "Employee",
     });
     const otherEmployee = createUserRecord({
       id: "U-SAFE-OTHER",
       email: "safe-other@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Other Employee",
       role: "Employee",
     });
 
     insertUsers(fixture.sqliteFile, [foremanUser, employeeUser, otherEmployee]);
 
-    const opsLogin = await login(fixture.baseUrl, { email: "ops@lastyard.test", password: "concrete123" });
+    const opsLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
     const officeHeaders = authHeaders(opsLogin.token);
 
     const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
@@ -176,8 +176,8 @@ test("safety permissions keep office management while scoping field visibility",
       body: JSON.stringify({ userId: otherEmployee.id, roleOnJob: "crew" }),
     });
 
-    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "concrete123" });
-    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "concrete123" });
+    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "apexdemo123" });
+    const employeeLogin = await login(fixture.baseUrl, { email: employeeUser.email, password: "apexdemo123" });
     const foremanHeaders = authHeaders(foremanLogin.token);
     const employeeHeaders = authHeaders(employeeLogin.token);
 

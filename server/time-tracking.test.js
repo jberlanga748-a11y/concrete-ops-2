@@ -147,21 +147,21 @@ test("employees and foremen can track field time with proper visibility and brea
     const foremanUser = createUserRecord({
       id: "U-TIME-FOREMAN",
       email: "time-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Time Foreman",
       role: "Foreman",
     });
     const employeeUser = createUserRecord({
       id: "U-TIME-EMPLOYEE",
       email: "time-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Time Employee",
       role: "Employee",
     });
     const secondEmployee = createUserRecord({
       id: "U-TIME-EMPLOYEE-2",
       email: "time-employee-2@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Other Employee",
       role: "Employee",
     });
@@ -170,8 +170,8 @@ test("employees and foremen can track field time with proper visibility and brea
     configureJobs(fixture.sqliteFile);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(opsLogin.token);
 
@@ -210,7 +210,7 @@ test("employees and foremen can track field time with proper visibility and brea
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "time-employee@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
 
@@ -299,7 +299,7 @@ test("employees and foremen can track field time with proper visibility and brea
 
     const secondEmployeeLogin = await login(fixture.baseUrl, {
       email: "time-employee-2@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const secondEmployeeTime = await assertOk(fixture.baseUrl, "/api/time-entries", {
       headers: authHeaders(secondEmployeeLogin.token),
@@ -308,7 +308,7 @@ test("employees and foremen can track field time with proper visibility and brea
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "time-foreman@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const foremanHeaders = authHeaders(foremanLogin.token);
     const foremanOwnClock = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
@@ -359,35 +359,35 @@ test("estimators, operations, administrators, and owners get the expected role-s
     const ownerUser = createUserRecord({
       id: "U-TIME-OWNER",
       email: "time-owner@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Time Owner",
       role: "Owner",
     });
     const adminUser = createUserRecord({
       id: "U-TIME-ADMIN",
       email: "time-admin@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Time Admin",
       role: "Administrator",
     });
     const opsUser = createUserRecord({
       id: "U-TIME-OPS",
-      email: "time-ops@lastyard.test",
-      password: "concrete123",
+      email: "time-demo.ops@apexhq.app",
+      password: "apexdemo123",
       name: "Time Ops",
       role: "Operations Manager",
     });
     const estimatorUser = createUserRecord({
       id: "U-TIME-EST",
       email: "time-estimator@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Time Estimator",
       role: "Estimator",
     });
     const employeeUser = createUserRecord({
       id: "U-TIME-EMPLOYEE-OFFICE",
       email: "time-employee-office@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
       name: "Time Employee Office",
       role: "Employee",
     });
@@ -396,8 +396,8 @@ test("estimators, operations, administrators, and owners get the expected role-s
     configureJobs(fixture.sqliteFile);
 
     const officeLogin = await login(fixture.baseUrl, {
-      email: "ops@lastyard.test",
-      password: "concrete123",
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const officeHeaders = authHeaders(officeLogin.token);
     await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
@@ -411,7 +411,7 @@ test("estimators, operations, administrators, and owners get the expected role-s
 
     const estimatorLogin = await login(fixture.baseUrl, {
       email: "time-estimator@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const estimatorHeaders = authHeaders(estimatorLogin.token);
     const estimatorClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
@@ -446,8 +446,8 @@ test("estimators, operations, administrators, and owners get the expected role-s
     assert.equal(estimatorAllTimeDenied.response.status, 403);
 
     const opsLogin = await login(fixture.baseUrl, {
-      email: "time-ops@lastyard.test",
-      password: "concrete123",
+      email: "time-demo.ops@apexhq.app",
+      password: "apexdemo123",
     });
     const opsHeaders = authHeaders(opsLogin.token);
     const opsClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
@@ -477,7 +477,7 @@ test("estimators, operations, administrators, and owners get the expected role-s
 
     const adminLogin = await login(fixture.baseUrl, {
       email: "time-admin@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const adminHeaders = authHeaders(adminLogin.token);
     const adminClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
@@ -497,7 +497,7 @@ test("estimators, operations, administrators, and owners get the expected role-s
 
     const employeeLogin = await login(fixture.baseUrl, {
       email: "time-employee-office@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const employeeHeaders = authHeaders(employeeLogin.token);
     const employeeClockIn = await assertOk(fixture.baseUrl, "/api/time-entries/clock-in", {
@@ -530,7 +530,7 @@ test("estimators, operations, administrators, and owners get the expected role-s
 
     const ownerLogin = await login(fixture.baseUrl, {
       email: "time-owner@lastyard.test",
-      password: "concrete123",
+      password: "apexdemo123",
     });
     const ownerHeaders = authHeaders(ownerLogin.token);
     const ownerClockDenied = await requestJson(fixture.baseUrl, "/api/time-entries/clock-in", {
