@@ -12327,7 +12327,6 @@ function DashboardPagePolished({
     ]
   ), [permissions?.reports?.canView, permissions?.time?.canView, permissions?.toolChecklist?.canUse, permissions?.uploads?.canView]);
   const pipelineValue = Number(stats.pipelineValue || 0);
-  const pipelineKValue = Math.round(pipelineValue / 1000);
   const visibleLeadRowCap = 2;
   const visibleJobRowCap = 2;
   const visibleJobRows = liveJobsPreview.slice(0, visibleJobRowCap);
@@ -12338,7 +12337,7 @@ function DashboardPagePolished({
   const startupNeedsAttention = Number(stats.startupReviewJobs || 0) + Number(stats.startupMissingCrewStart || 0);
   const dashboardKpis = [
     { label: "New Leads", value: Number(stats.newLeads || 0), helper: `${stats.highPriorityLeads || 0} high priority`, icon: "inbox", tone: "blue", actionLabel: "View new", onAction: () => { setLeadFilter("New"); focusDashboardRef(leadPipelineRef); } },
-    { label: "Pipeline $K", value: pipelineKValue, helper: `${currency(pipelineValue)} open / ${liveLeadCount} live`, icon: "quote", tone: "orange", actionLabel: "Review pipeline", onAction: () => { setLeadFilter("All"); focusDashboardRef(leadPipelineRef); } },
+    { label: "Open Pipeline", value: pipelineValue, displayValue: compactCurrency(pipelineValue), helper: `${currency(pipelineValue)} open / ${liveLeadCount} live`, icon: "quote", tone: "orange", actionLabel: "Review pipeline", onAction: () => { setLeadFilter("All"); focusDashboardRef(leadPipelineRef); } },
     { label: "Active Jobs", value: Number(stats.activeJobs || 0), helper: `${stats.scheduledJobs || 0} scheduled next`, icon: "briefcase", tone: "green", actionLabel: "View jobs", onAction: () => focusDashboardRef(jobsRef) },
     { label: "Reports Due", value: Number(stats.reportsDue || 0), helper: `${openQueueCount} queue item${openQueueCount === 1 ? "" : "s"} open`, icon: "document", tone: Number(stats.reportsDue || 0) ? "amber" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Review queue", onAction: () => (permissions?.reports?.canView ? setActive("reports") : openDashboardTools(queueRef)) },
     { label: "Startup Watch", value: startupNeedsAttention, helper: `${stats.startupReadyJobs || 0} ready for field`, icon: "alert", tone: startupNeedsAttention ? "amber" : "green", actionLabel: "Review jobs", onAction: () => focusDashboardRef(jobsRef) },
