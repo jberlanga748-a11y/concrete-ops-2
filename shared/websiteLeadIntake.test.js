@@ -63,7 +63,7 @@ test("website lead intake validates package type and target company", () => {
   assert.match(missingCompany.errors.join(" "), /targetCompanyId/i);
 });
 
-test("website lead intake builds a safe Concrete Ops lead without storing secrets", () => {
+test("website lead intake builds a safe Apex HQ lead without storing secrets", () => {
   const result = createWebsiteLeadFromPackage({
     ...validWebsitePackage,
     apiKey: "do-not-save",

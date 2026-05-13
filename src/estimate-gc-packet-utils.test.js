@@ -78,7 +78,7 @@ test("GC Lite content stores as an internal structured block without changing to
   assert.equal(estimate.customerNotes, baseEstimate.customerNotes);
   assert.equal(getEstimateVisibleInternalNotes(estimate), "Visible office note.");
   assert.equal(deriveEstimateGcPacketLite(estimate).proposalSummary, "Commercial concrete scope for GC review.");
-  assert.match(serializeEstimateGcPacketLite(deriveEstimateGcPacketLite(estimate)), /Concrete Ops GC Packet Lite/);
+  assert.match(serializeEstimateGcPacketLite(deriveEstimateGcPacketLite(estimate)), /Apex HQ GC Packet Lite/);
 });
 
 test("GC Lite block is hidden from visible internal notes and removable from raw notes", () => {
@@ -96,9 +96,9 @@ test("GC Lite merge preserves SOV backup and sent snapshot history", () => {
     ...baseEstimate,
     internalNotes: [
       "Visible office note.",
-      "[Concrete Ops Estimate Backup]",
+      "[Apex HQ Estimate Backup]",
       JSON.stringify({ sovRows: [{ section: "Mobilization", amount: "1000" }], takeoffRows: [], notes: "Backup note." }),
-      "[/Concrete Ops Estimate Backup]",
+      "[/Apex HQ Estimate Backup]",
     ].join("\n"),
   };
   const withSnapshot = addEstimateSentSnapshot(withBackup, {

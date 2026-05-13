@@ -17,7 +17,7 @@ function allCommandText() {
   return getReleaseSafetyCommandGroups().map((group) => group.text).join("\n");
 }
 
-test("release safety targets point to the correct Concrete Ops app", () => {
+test("release safety targets point to the correct Apex HQ app", () => {
   assert.equal(RELEASE_SAFETY_TARGETS.repo, "jberlanga748-a11y/concrete-ops-2");
   assert.equal(RELEASE_SAFETY_TARGETS.localFolder, "C:\\Users\\jberl\\Documents\\Codex\\concrete-ops-2-clean");
   assert.equal(RELEASE_SAFETY_TARGETS.flyApp, "concrete-ops-2");
@@ -29,7 +29,7 @@ test("pre and post deploy checklists include folder, repo, build, diff, and heal
   const preDeploy = RELEASE_SAFETY_CHECKLISTS.preDeploy.join("\n");
   const postDeploy = RELEASE_SAFETY_CHECKLISTS.postDeploy.join("\n");
 
-  assert.match(preDeploy, /correct Concrete Ops 2 folder/i);
+  assert.match(preDeploy, /correct Apex HQ project folder/i);
   assert.match(preDeploy, /Git remote is jberlanga748-a11y\/concrete-ops-2/i);
   assert.match(preDeploy, /npm\.cmd run build/i);
   assert.match(preDeploy, /git diff --check/i);

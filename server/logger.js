@@ -21,7 +21,7 @@ function writeLog(level, message, meta = {}) {
     timestamp: new Date().toISOString(),
     level,
     message,
-    service: "concrete-ops-api",
+    service: "apex-hq-api",
     ...meta,
   };
 

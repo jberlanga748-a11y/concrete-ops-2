@@ -19,7 +19,7 @@ class AppErrorBoundary extends React.Component {
         <div className="flex min-h-screen items-center justify-center bg-[#F8FBFF] p-6 text-slate-950">
           <div className="w-full max-w-lg rounded-3xl border border-red-100 bg-white p-6 shadow-xl shadow-slate-900/5">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-red-700">Startup Error</p>
-            <h1 className="mt-2 text-2xl font-black text-slate-950">Concrete Ops could not render.</h1>
+            <h1 className="mt-2 text-2xl font-black text-slate-950">Apex HQ could not render.</h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               The frontend hit a runtime error before the workspace became visible.
             </p>

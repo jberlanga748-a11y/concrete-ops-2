@@ -115,9 +115,9 @@ test("visible internal notes hide sent history while preserving estimate backup"
     ...baseEstimate,
     internalNotes: [
       "Visible note.",
-      "[Concrete Ops Estimate Backup]",
+      "[Apex HQ Estimate Backup]",
       JSON.stringify({ sovRows: [{ section: "Base", amount: "1000" }], takeoffRows: [], notes: "Backup only." }),
-      "[/Concrete Ops Estimate Backup]",
+      "[/Apex HQ Estimate Backup]",
     ].join("\n"),
   };
   const withSnapshot = addEstimateSentSnapshot(withBackup, {

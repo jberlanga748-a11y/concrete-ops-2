@@ -208,10 +208,9 @@ export function buildOwnerHealthWarnings(payload = {}) {
       id: "website-intake-not-configured",
       severity: "info",
       title: "Website intake is not configured",
-      message: "Website forms need the server-side import token before they can send leads into Concrete Ops.",
+      message: "Website forms need the server-side import token before they can send leads into Apex HQ.",
     });
   }
 
   return warnings;
 }
-

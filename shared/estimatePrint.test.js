@@ -5,9 +5,9 @@ import { deriveEstimatePrintModel } from "./estimatePrint.js";
 
 function gcPacketLiteBlock(fields = {}) {
   return [
-    "[Concrete Ops GC Packet Lite]",
+    "[Apex HQ GC Packet Lite]",
     JSON.stringify(fields),
-    "[/Concrete Ops GC Packet Lite]",
+    "[/Apex HQ GC Packet Lite]",
   ].join("\n");
 }
 
@@ -54,12 +54,12 @@ test("estimate print model includes safe GC Lite sections and excludes office-on
         gcReviewNotes: "Office-only GC strategy.",
         internalPacketNotes: "Missing internal packet item.",
       }),
-      "[Concrete Ops Estimate Backup]",
+      "[Apex HQ Estimate Backup]",
       JSON.stringify({ notes: "Private SOV backup" }),
-      "[/Concrete Ops Estimate Backup]",
-      "[Concrete Ops Sent Proposal History]",
+      "[/Apex HQ Estimate Backup]",
+      "[Apex HQ Sent Proposal History]",
       JSON.stringify([{ snapshotId: "snap-private", notes: "Private sent history" }]),
-      "[/Concrete Ops Sent Proposal History]",
+      "[/Apex HQ Sent Proposal History]",
     ].join("\n"),
   });
 
@@ -80,7 +80,7 @@ test("estimate print model includes safe GC Lite sections and excludes office-on
   assert.doesNotMatch(printedText, /Missing internal packet item/);
   assert.doesNotMatch(printedText, /Private SOV backup/);
   assert.doesNotMatch(printedText, /Private sent history/);
-  assert.doesNotMatch(printedText, /Concrete Ops GC Packet Lite/);
+  assert.doesNotMatch(printedText, /Apex HQ GC Packet Lite/);
 });
 
 test("estimate print presets can hide GC Lite sections without changing totals", () => {
@@ -112,16 +112,16 @@ test("internal review packet can include SOV, takeoff, and internal notes only w
       gcReviewNotes: "Office-only GC review note.",
       internalPacketNotes: "Internal packet assembly note.",
     }),
-    "[Concrete Ops Estimate Backup]",
+    "[Apex HQ Estimate Backup]",
     JSON.stringify({
       sovRows: [{ section: "Mobilization", description: "Mobilize crew", quantity: "1", unit: "LS", amount: "$1,000", notes: "Office SOV note" }],
       takeoffRows: [{ item: "4 inch sidewalk", quantity: "500", unit: "SF", source: "A1.1", estimatorNote: "Field verify." }],
       notes: "Backup quantity note.",
     }),
-    "[/Concrete Ops Estimate Backup]",
-    "[Concrete Ops Sent Proposal History]",
+    "[/Apex HQ Estimate Backup]",
+    "[Apex HQ Sent Proposal History]",
     JSON.stringify([{ snapshotId: "snap-private", notes: "Private sent history" }]),
-    "[/Concrete Ops Sent Proposal History]",
+    "[/Apex HQ Sent Proposal History]",
   ].join("\n");
 
   const customerFacing = deriveEstimatePrintModel({ internalNotes }, {
@@ -148,7 +148,7 @@ test("internal review packet can include SOV, takeoff, and internal notes only w
   assert.match(printedText, /Internal packet assembly note/);
   assert.match(printedText, /Backup quantity note/);
   assert.doesNotMatch(printedText, /Private sent history/);
-  assert.doesNotMatch(printedText, /Concrete Ops Sent Proposal History/);
+  assert.doesNotMatch(printedText, /Apex HQ Sent Proposal History/);
 });
 
 test("estimate print model parses alternates and add-ons with conservative selected totals", () => {

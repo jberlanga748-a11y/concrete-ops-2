@@ -38,14 +38,14 @@ test("lead assistant context only includes safe lead, source, score, missing inf
       missingInfoItems: [{ label: "Project address", severity: "recommended", reason: "Confirm site." }],
     },
     leadSources: [{ name: "Oregon public bids", type: "public bid portal", url: "https://example.test/private", notes: "Public portal only." }],
-    companySettings: { companyName: "Concrete Ops", businessEmail: "office@example.test", serviceArea: "Willamette Valley" },
+    companySettings: { companyName: "Apex HQ", businessEmail: "office@example.test", serviceArea: "Willamette Valley" },
   });
 
   assert.equal(context.lead.customer, "Benton County");
   assert.equal(context.leadScore.fitLabel, "Strong Fit");
   assert.equal(context.missingInfo.items[0].label, "Project address");
   assert.equal(context.leadSource.name, "Oregon public bids");
-  assert.equal(context.company.name, "Concrete Ops");
+  assert.equal(context.company.name, "Apex HQ");
   assert.equal(Object.hasOwn(context, "customers"), false);
   assert.equal(Object.hasOwn(context, "jobs"), false);
 });

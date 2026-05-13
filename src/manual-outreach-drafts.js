@@ -65,7 +65,7 @@ export function buildManualOutreachDrafts(record = {}, options = {}) {
   const nextDate = dateOnly(record.nextFollowUpDate || record.followUpDueAt);
   const lastContact = record.lastContactedAt
     ? `Last contact: ${dateOnly(record.lastContactedAt) || record.lastContactedAt}${record.lastContactMethod ? ` by ${record.lastContactMethod}` : ""}${record.outcome ? ` (${record.outcome})` : ""}.`
-    : "No prior contact is logged in Concrete Ops.";
+    : "No prior contact is logged in Apex HQ.";
   const nextStep = compactSentence(firstNonEmpty(record.nextStep, record.missingInfoNextStep, record.reason, "confirm the next step"));
   const riskOrInfo = compactSentence(firstNonEmpty(record.fitReason, record.missingInfoStatus, record.notesPreview));
   const followUpLine = nextDate ? `I had this marked for follow-up on ${nextDate}.` : "I wanted to check in and keep the next step moving.";
@@ -89,7 +89,7 @@ export function buildManualOutreachDrafts(record = {}, options = {}) {
     `Quick context: ${lastContact}`,
     `Talking points: ask whether they have questions, confirm what they need next, and avoid promising pricing, scope, schedule, or approval without office review.`,
     `Next-step reminder: ${nextStep}.`,
-    "After the call: log the outcome in Concrete Ops contact history.",
+    "After the call: log the outcome in Apex HQ contact history.",
     riskOrInfo ? `Office context: ${riskOrInfo}.` : "",
   ].filter(Boolean).join("\n");
 
@@ -106,7 +106,7 @@ export function buildManualOutreachDrafts(record = {}, options = {}) {
     smsBody: smsBody.slice(0, 320),
     callScript,
     voicemailScript,
-    manualOnlyNotice: "Manual copy only — Concrete Ops does not send this message.",
+    manualOnlyNotice: "Manual copy only — Apex HQ does not send this message.",
   };
 }
 
@@ -132,40 +132,40 @@ export function buildManualOutreachContactPayload(queueItem = {}, action = "log-
       outcome: "Sent",
       subject: drafts.emailSubject || "Manual email follow-up",
       messageDraft: drafts.emailBody || "",
-      notes: "Manual email draft copied/sent outside Concrete Ops. Concrete Ops did not send this email.",
+      notes: "Manual email draft copied/sent outside Apex HQ. Apex HQ did not send this email.",
     },
     "mark-text-sent": {
       method: "Text",
       outcome: "Sent",
       subject: "Manual text follow-up",
       messageDraft: drafts.smsBody || "",
-      notes: "Manual text draft copied/sent outside Concrete Ops. Concrete Ops did not send this text.",
+      notes: "Manual text draft copied/sent outside Apex HQ. Apex HQ did not send this text.",
     },
     "log-call": {
       method: "Call",
       outcome: "Follow-Up Needed",
       subject: "Manual call attempt logged from Follow-Up Queue",
       messageDraft: drafts.callScript || "",
-      notes: "Manual call attempt logged from Follow-Up Queue. Concrete Ops did not place this call.",
+      notes: "Manual call attempt logged from Follow-Up Queue. Apex HQ did not place this call.",
     },
     "mark-waiting": {
       method: "Other",
       outcome: "Waiting on Response",
       subject: "Waiting on customer response",
-      notes: "Marked waiting on response from the manual draft/copy workflow. No message was sent from Concrete Ops.",
+      notes: "Marked waiting on response from the manual draft/copy workflow. No message was sent from Apex HQ.",
     },
     "follow-up-tomorrow": {
       method: "Other",
       outcome: "Follow-Up Needed",
       subject: "Manual follow-up scheduled",
-      notes: "Follow-up moved to tomorrow from the manual draft/copy workflow. No message was sent from Concrete Ops.",
+      notes: "Follow-up moved to tomorrow from the manual draft/copy workflow. No message was sent from Apex HQ.",
       nextFollowUpDate: addDays(today, 1),
     },
     "follow-up-two-days": {
       method: "Other",
       outcome: "Follow-Up Needed",
       subject: "Manual follow-up scheduled",
-      notes: "Follow-up moved out two days from the manual draft/copy workflow. No message was sent from Concrete Ops.",
+      notes: "Follow-up moved out two days from the manual draft/copy workflow. No message was sent from Apex HQ.",
       nextFollowUpDate: addDays(today, 2),
     },
   };

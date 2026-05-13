@@ -25,7 +25,7 @@ const DEMO_PASSWORD = "demo12345";
 
 const ROLE_CONFIGS = {
   admin: {
-    email: "demo.admin@concreteops.app",
+    email: "demo.admin@apexhq.app",
     label: "admin",
     pages: [
       { slug: "dashboard", path: "/", heading: /dashboard|daily workspace/i },
@@ -47,7 +47,7 @@ const ROLE_CONFIGS = {
     ],
   },
   foreman: {
-    email: "demo.foreman@concreteops.app",
+    email: "demo.foreman@apexhq.app",
     label: "foreman",
     pages: [
       { slug: "dashboard", path: "/", heading: /dashboard|foreman workspace/i },
@@ -62,7 +62,7 @@ const ROLE_CONFIGS = {
     ],
   },
   employee: {
-    email: "demo.employee@concreteops.app",
+    email: "demo.employee@apexhq.app",
     label: "employee",
     pages: [
       { slug: "workspace", path: "/", heading: /dashboard|employee workspace/i },
@@ -75,7 +75,7 @@ const ROLE_CONFIGS = {
 };
 
 function printHelp() {
-  console.log(`Concrete Ops demo desktop UI audit
+  console.log(`Apex HQ demo desktop UI audit
 
 Usage:
   npm run audit:demo-desktop

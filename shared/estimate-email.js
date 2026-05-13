@@ -61,7 +61,7 @@ export function estimateCustomerEmail(estimate = {}) {
   ).trim();
 }
 
-export function buildEstimateCustomerMessage({ companyName = "Concrete Ops Workspace", companyProfile = {}, estimate } = {}) {
+export function buildEstimateCustomerMessage({ companyName = "Apex HQ Workspace", companyProfile = {}, estimate } = {}) {
   if (!estimate) return "";
   const customerName = estimateCustomerName(estimate) || "there";
   const projectName = estimateProjectName(estimate) || estimate?.title || "your project";
@@ -97,7 +97,7 @@ export function buildEstimateCustomerMessage({ companyName = "Concrete Ops Works
   ].join("\n").trim();
 }
 
-export function buildEstimateAttachmentEmailBody({ companyName = "Concrete Ops Workspace", estimate } = {}) {
+export function buildEstimateAttachmentEmailBody({ companyName = "Apex HQ Workspace", estimate } = {}) {
   if (!estimate) return "";
   const customerName = estimateCustomerName(estimate) || "there";
   const projectName = estimateProjectName(estimate) || estimate?.title || "your project";

@@ -11,7 +11,7 @@ const forcePushText = "force" + " push";
 
 export const RELEASE_SAFETY_CHECKLISTS = {
   preDeploy: [
-    "Confirm the terminal is in the correct Concrete Ops 2 folder.",
+    "Confirm the terminal is in the correct Apex HQ project folder.",
     "Confirm the Git remote is jberlanga748-a11y/concrete-ops-2.",
     "Confirm the branch is main or the expected working branch.",
     "Confirm no unrelated files are modified before continuing.",
@@ -25,7 +25,7 @@ export const RELEASE_SAFETY_CHECKLISTS = {
   postDeploy: [
     "Confirm the Fly deploy succeeded.",
     "Confirm /api/ready returns ok true, status ready, and database ok.",
-    "Open the live Concrete Ops 2 app.",
+    "Open the live Apex HQ app.",
     "Open Settings -> Owner Health Status.",
     "Confirm app, database, and storage health are clean.",
     "If permissions were touched, confirm field roles remain restricted.",

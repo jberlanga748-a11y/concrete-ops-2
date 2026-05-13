@@ -19,7 +19,7 @@ import {
 
 const repoRoot = process.cwd();
 
-test("design tokens expose the Concrete Ops visual foundation", () => {
+test("design tokens expose the Apex HQ visual foundation", () => {
   assert.equal(DESIGN_COLORS.brand.orange, "#F97316");
   assert.equal(DESIGN_COLORS.shell.dark, "#07111F");
   assert.equal(DESIGN_COLORS.workspace.page, "#F8FAFC");
@@ -95,5 +95,5 @@ test("tokens and css avoid secrets, private data, routes, and PWA regressions", 
 
   assert.doesNotMatch(files, forbiddenPattern);
   assert.match(files, /manifest\.webmanifest/);
-  assert.match(files, /Concrete Ops 2/);
+  assert.match(files, /Apex HQ/);
 });

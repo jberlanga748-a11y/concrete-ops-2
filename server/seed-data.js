@@ -1,4 +1,4 @@
-export const DEMO_COMPANY_NAME = "Concrete Ops Demo Company";
+export const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
 
 export const DEMO_CREDENTIALS = {
   email: "ops@lastyard.test",
@@ -10,7 +10,7 @@ export const DEMO_CREDENTIALS = {
 export const DEMO_USERS = [
   {
     id: "DEMO-U-ADMIN",
-    email: "demo.admin@concreteops.app",
+    email: "demo.admin@apexhq.app",
     password: "demo12345",
     name: "Demo Admin",
     role: "Administrator",
@@ -18,7 +18,7 @@ export const DEMO_USERS = [
   },
   {
     id: "DEMO-U-FOREMAN",
-    email: "demo.foreman@concreteops.app",
+    email: "demo.foreman@apexhq.app",
     password: "demo12345",
     name: "Demo Foreman",
     role: "Foreman",
@@ -26,7 +26,7 @@ export const DEMO_USERS = [
   },
   {
     id: "DEMO-U-EMPLOYEE",
-    email: "demo.employee@concreteops.app",
+    email: "demo.employee@apexhq.app",
     password: "demo12345",
     name: "Demo Employee",
     role: "Employee",

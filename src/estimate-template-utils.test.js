@@ -111,7 +111,7 @@ test("template-created estimates still print customer-facing content without int
   }, "small-commercial-slab");
 
   const packet = deriveEstimatePrintPacket({
-    companyName: "Concrete Ops Demo",
+    companyName: "Apex HQ Demo",
     estimate: draft,
   });
   const html = buildPrintDocumentHtml(packet);

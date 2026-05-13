@@ -58,7 +58,7 @@ test("visibleRecordsForCompany hides future other-company records", () => {
 });
 
 test("currentCompanyIdForUser falls back safely when a user has no company id", () => {
-  assert.equal(currentCompanyIdForUser({}, { companySettings: { companyName: "Concrete Ops" } }), DEFAULT_COMPANY_ID);
+  assert.equal(currentCompanyIdForUser({}, { companySettings: { companyName: "Apex HQ" } }), DEFAULT_COMPANY_ID);
 });
 
 test("operator company access is explicit and can select an accessible company", () => {

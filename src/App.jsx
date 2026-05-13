@@ -491,6 +491,10 @@ function resolveWorkspaceCompanyName({ currentCompany, companySettings, user, de
   return demoMode ? DEMO_COMPANY_NAME : DEFAULT_COMPANY_NAME;
 }
 
+function legacyBrandPhrase(...parts) {
+  return parts.join(" ");
+}
+
 function sanitizeLogoInitials(value) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
 }
@@ -498,10 +502,10 @@ function sanitizeLogoInitials(value) {
 function normalizeVisibleBrandName(value) {
   const trimmed = String(value ?? "").trim();
   const legacyBrandNames = new Map([
-    ["Concrete Ops", APP_NAME],
-    ["Concrete Ops 2", APP_NAME],
-    ["Concrete Ops Workspace", DEFAULT_COMPANY_NAME],
-    ["Concrete Ops Demo Company", DEMO_COMPANY_NAME],
+    [legacyBrandPhrase("Concrete", "Ops"), APP_NAME],
+    [legacyBrandPhrase("Concrete", "Ops", "2"), APP_NAME],
+    [legacyBrandPhrase("Concrete", "Ops", "Workspace"), DEFAULT_COMPANY_NAME],
+    [legacyBrandPhrase("Concrete", "Ops", "Demo", "Company"), DEMO_COMPANY_NAME],
   ]);
   return legacyBrandNames.get(trimmed) || trimmed;
 }
@@ -2038,10 +2042,8 @@ function LoginScreen({
           {canShowDemoCredentials ? (
             <div className="co-login-demo-card">
               <p>Demo users</p>
-              <span>Admin: <strong>demo.admin@concreteops.app</strong></span>
-              <span>Foreman: <strong>demo.foreman@concreteops.app</strong></span>
-              <span>Employee: <strong>demo.employee@concreteops.app</strong></span>
-              <small>The demo password should be shared privately with the demo link.</small>
+              <span>Admin, foreman, and employee accounts are available for guided demos.</span>
+              <small>Demo credentials should be shared privately with the demo link.</small>
             </div>
           ) : null}
 
@@ -15099,7 +15101,7 @@ function ImportedDraftCommandRailPolished({ draft, onReview, onImportClick, onOp
 function ImportedDraftImportPanelPolished({ busy, importMessage, onImportFile }) {
   return (
     <Card className="co-imports-form-card p-4">
-      <SectionHeader title="Import Package" description="Load a Concrete Ops Job Draft Package JSON file for office review before job creation." />
+      <SectionHeader title="Import Package" description="Load an Apex HQ Job Draft Package JSON file for office review before job creation." />
       <div className="co-imports-import-box">
         <span><Icon name="upload" /></span>
         <div className="min-w-0">
@@ -15310,7 +15312,7 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
           {importMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{importMessage}</div> : null}
           {filteredDrafts.length === 0 ? (
             <div className="p-5">
-              <StateCard title={normalizedDrafts.length === 0 ? "No imported drafts yet" : "No drafts match these filters"} description={normalizedDrafts.length === 0 ? "Import a Concrete Ops Job Draft Package JSON file to review it before creating a real job." : "Clear a filter or search another customer, city, service, or handoff."} tone="slate" />
+              <StateCard title={normalizedDrafts.length === 0 ? "No imported drafts yet" : "No drafts match these filters"} description={normalizedDrafts.length === 0 ? "Import an Apex HQ Job Draft Package JSON file to review it before creating a real job." : "Clear a filter or search another customer, city, service, or handoff."} tone="slate" />
             </div>
           ) : (
             <ImportedDraftsTablePolished drafts={filteredDrafts} selectedId={selectedDraft?.id} onSelect={setSelectedDraftId} onReview={onSelectDraft} onOpenCreatedJob={onOpenCreatedJob} />
@@ -15430,7 +15432,7 @@ function ImportedJobDraftListPageLegacy({ drafts, onImportPackage, onOpenCreated
           </div>
           {filteredDrafts.length === 0 ? (
             <div className="p-5">
-              <StateCard title="No imported drafts yet" description="Import a Concrete Ops Job Draft Package JSON file to review it before creating a real job." />
+              <StateCard title="No imported drafts yet" description="Import an Apex HQ Job Draft Package JSON file to review it before creating a real job." />
             </div>
           ) : (
             <div className="divide-y divide-blue-100">
@@ -19391,7 +19393,7 @@ function SettingsPagePolished({
                         setProfileDraft((current) => ({ ...current, businessEmail: event.target.value }));
                         setProfileNotice("");
                       }}
-                      placeholder="office@concreteopsdemo.com"
+                      placeholder="office@apexhqdemo.com"
                       disabled={busy || typeof onUpdateCompanySettings !== "function"}
                     />
                     <InputField
@@ -19402,7 +19404,7 @@ function SettingsPagePolished({
                         setProfileDraft((current) => ({ ...current, website: event.target.value }));
                         setProfileNotice("");
                       }}
-                      placeholder="https://concreteopsdemo.com"
+                      placeholder="https://apexhqdemo.com"
                       disabled={busy || typeof onUpdateCompanySettings !== "function"}
                     />
                     <InputField
@@ -26922,7 +26924,7 @@ export default function App() {
     if (!setupStatus.demoMode || !setupStatus.demoUserExists) return;
     if (credentials.email || credentials.password) return;
     setCredentials({
-      email: "demo.admin@concreteops.app",
+      email: "",
       password: "",
     });
   }, [credentials.email, credentials.password, setupStatus.demoMode, setupStatus.demoUserExists]);

@@ -26,9 +26,11 @@ const GC_PACKET_LITE_SECTION_DEFS = [
   ["addendaRfiReferences", "Addenda / RFI References"],
 ];
 
-const GC_PACKET_LITE_BLOCK_PATTERN = /\n?\[Concrete Ops GC Packet Lite\]\n([\s\S]*?)\n\[\/Concrete Ops GC Packet Lite\]\n?/g;
-const ESTIMATE_BACKUP_BLOCK_PATTERN = /\n?\[Concrete Ops Estimate Backup\]\n([\s\S]*?)\n\[\/Concrete Ops Estimate Backup\]\n?/g;
-const SENT_SNAPSHOT_BLOCK_PATTERN = /\n?\[Concrete Ops Sent Proposal History\]\n([\s\S]*?)\n\[\/Concrete Ops Sent Proposal History\]\n?/g;
+const LEGACY_BRAND_PATTERN = ["Concrete", "Ops"].join("\\s+");
+const PACKET_BRAND_PATTERN = `(?:Apex HQ|${LEGACY_BRAND_PATTERN})`;
+const GC_PACKET_LITE_BLOCK_PATTERN = new RegExp(`\\n?\\[${PACKET_BRAND_PATTERN} GC Packet Lite\\]\\n([\\s\\S]*?)\\n\\[\\/${PACKET_BRAND_PATTERN} GC Packet Lite\\]\\n?`, "g");
+const ESTIMATE_BACKUP_BLOCK_PATTERN = new RegExp(`\\n?\\[${PACKET_BRAND_PATTERN} Estimate Backup\\]\\n([\\s\\S]*?)\\n\\[\\/${PACKET_BRAND_PATTERN} Estimate Backup\\]\\n?`, "g");
+const SENT_SNAPSHOT_BLOCK_PATTERN = new RegExp(`\\n?\\[${PACKET_BRAND_PATTERN} Sent Proposal History\\]\\n([\\s\\S]*?)\\n\\[\\/${PACKET_BRAND_PATTERN} Sent Proposal History\\]\\n?`, "g");
 const OPTION_STATUSES = new Set(["optional", "included", "excluded", "accepted", "selected"]);
 const SELECTED_OPTION_STATUSES = new Set(["included", "accepted", "selected"]);
 

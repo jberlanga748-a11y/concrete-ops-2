@@ -314,26 +314,26 @@ test("estimate copy helpers include customer-facing pricing content without inte
   };
   const companyProfile = {
     businessPhone: "(503) 555-0100",
-    businessEmail: "office@concreteopsdemo.com",
+    businessEmail: "office@apexhqdemo.com",
   };
 
   const estimateCopy = buildEstimateCopyText({
-    companyName: "Concrete Ops Demo Company",
+    companyName: "Apex HQ Demo Company",
     companyProfile,
     estimate,
   });
   const customerMessage = buildEstimateCustomerMessage({
-    companyName: "Concrete Ops Demo Company",
+    companyName: "Apex HQ Demo Company",
     companyProfile,
     estimate,
   });
 
-  assert.match(estimateCopy, /Concrete Ops Demo Company/);
+  assert.match(estimateCopy, /Apex HQ Demo Company/);
   assert.match(estimateCopy, /Martinez Residence/);
   assert.match(estimateCopy, /Driveway replacement estimate/);
   assert.match(estimateCopy, /Grand total:/);
   assert.match(estimateCopy, /Estimate is valid for 30 days\./);
-  assert.match(estimateCopy, /office@concreteopsdemo\.com/);
+  assert.match(estimateCopy, /office@apexhqdemo\.com/);
   assert.doesNotMatch(estimateCopy, /Office-only follow-up note\./);
 
   assert.match(customerMessage, /Hi Martinez Residence,/);
@@ -342,9 +342,9 @@ test("estimate copy helpers include customer-facing pricing content without inte
   assert.match(customerMessage, /Total estimate: \$3,910\.00/);
   assert.match(customerMessage, /Scope summary:\nReplace cracked driveway panels and pour a broom-finish apron\./);
   assert.match(customerMessage, /Notes:\nEstimate is valid for 30 days\./);
-  assert.match(customerMessage, /Concrete Ops Demo Company/);
+  assert.match(customerMessage, /Apex HQ Demo Company/);
   assert.match(customerMessage, /\(503\) 555-0100/);
-  assert.match(customerMessage, /office@concreteopsdemo\.com/);
+  assert.match(customerMessage, /office@apexhqdemo\.com/);
   assert.doesNotMatch(customerMessage, /Line items:/);
   assert.doesNotMatch(customerMessage, /Concrete placement/);
   assert.doesNotMatch(customerMessage, /Grand total:/);

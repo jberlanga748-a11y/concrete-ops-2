@@ -14,7 +14,7 @@ export function buildDefaultCompany(companySettings = {}, now = new Date().toISO
   return {
     id: DEFAULT_COMPANY_ID,
     workspaceId: DEFAULT_WORKSPACE_ID,
-    name: text(companySettings.companyName, 120) || "Concrete Ops Workspace",
+    name: text(companySettings.companyName, 120) || "Apex HQ Workspace",
     status: "active",
     createdAt: now,
     updatedAt: now,

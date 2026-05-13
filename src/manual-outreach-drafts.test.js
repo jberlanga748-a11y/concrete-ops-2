@@ -29,7 +29,7 @@ const QUEUE_ITEM = {
 test("manual outreach drafts build email, SMS, and scripts from existing queue context", () => {
   const drafts = buildManualOutreachDrafts(QUEUE_ITEM, {
     senderName: "Jordan",
-    companyName: "Concrete Ops Test",
+    companyName: "Apex HQ Test",
   });
 
   assert.equal(drafts.emailSubject, "Following up on Patio replacement");
@@ -84,7 +84,7 @@ test("manual outreach contact payloads store copy-only email, text, and call not
 
   assert.equal(email.method, "Email");
   assert.equal(email.outcome, "Sent");
-  assert.match(email.notes, /outside Concrete Ops/);
+  assert.match(email.notes, /outside Apex HQ/);
   assert.match(email.notes, /did not send this email/);
   assert.equal(email.messageDraft, drafts.emailBody);
   assert.equal(text.method, "Text");

@@ -1,5 +1,5 @@
 function backendUnavailableMessage() {
-  return "Cannot reach the Concrete Ops API. Start the app with `npm run dev` or `npm run serve`.";
+  return "Cannot reach the Apex HQ API. Start the app with `npm run dev` or `npm run serve`.";
 }
 
 async function request(path, { method = "GET", token, body } = {}) {

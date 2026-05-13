@@ -49,14 +49,14 @@ const validPackage = {
   startDateTarget: "2026-05-20",
   assignedCrewPlaceholder: "Concrete crew",
   foremanPlaceholder: "TBD",
-  draftStatus: "Ready to Create in Concrete Ops",
+  draftStatus: "Ready to Create in Apex HQ",
   opsReadinessScore: 92,
   opsReadinessLabel: "Ready",
   opsReadinessIssues: [],
   proposalAmount: 18500,
   proposalLinkOrId: "proposal-1",
   handoffStatus: "Ready for Ops Review",
-  jobDraftSummary: "Concrete Ops Job Draft: Albany Sidewalk Repair",
+  jobDraftSummary: "Apex HQ Job Draft: Albany Sidewalk Repair",
 };
 
 test("valid job draft package imports as ready when city/state are present", () => {
@@ -236,7 +236,7 @@ test("job creation mapping requires city/state unless override is explicit", () 
   assert.doesNotThrow(() => mapImportedDraftToJobPayload(needsReview, { allowMissingCityState: true }));
 });
 
-test("Concrete Ops 2 job mapping uses existing job storage shape", () => {
+test("Apex HQ job mapping uses existing job storage shape", () => {
   const draft = createImportedJobDraftFromPackage(validPackage, { id: "import-1" }).draft;
   const jobPayload = mapImportedDraftToJobPayload(draft);
   const notes = formatImportedDraftJobNotes(draft);

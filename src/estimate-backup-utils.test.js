@@ -163,7 +163,7 @@ test("backup data does not print customer-facing estimate output", () => {
   assert.doesNotMatch(html, /Private SOV/);
   assert.doesNotMatch(html, /Private takeoff/);
   assert.doesNotMatch(html, /Estimator backup only/);
-  assert.doesNotMatch(html, /Concrete Ops Estimate Backup/);
+  assert.doesNotMatch(html, /Apex HQ Estimate Backup/);
 });
 
 test("estimate template starters continue to work with backup notes", () => {

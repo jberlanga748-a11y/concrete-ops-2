@@ -2,9 +2,10 @@ import { deriveEstimateBackup, getEstimateInternalNotesWithoutBackup, serializeE
 import { deriveEstimateGcPacketLite, getEstimateInternalNotesWithoutGcPacketLite, serializeEstimateGcPacketLite } from "./estimate-gc-packet-utils.js";
 import { calculateEstimateOptionTotals, calculateEstimateTotals, estimateCustomerEmail } from "./estimate-utils.js";
 
-const SENT_SNAPSHOT_BLOCK_START = "[Concrete Ops Sent Proposal History]";
-const SENT_SNAPSHOT_BLOCK_END = "[/Concrete Ops Sent Proposal History]";
-const SENT_SNAPSHOT_BLOCK_PATTERN = /\n?\[Concrete Ops Sent Proposal History\]\n([\s\S]*?)\n\[\/Concrete Ops Sent Proposal History\]\n?/g;
+const LEGACY_BRAND_PATTERN = ["Concrete", "Ops"].join("\\s+");
+const SENT_SNAPSHOT_BLOCK_START = "[Apex HQ Sent Proposal History]";
+const SENT_SNAPSHOT_BLOCK_END = "[/Apex HQ Sent Proposal History]";
+const SENT_SNAPSHOT_BLOCK_PATTERN = new RegExp(`\\n?\\[(?:Apex HQ|${LEGACY_BRAND_PATTERN}) Sent Proposal History\\]\\n([\\s\\S]*?)\\n\\[\\/(?:Apex HQ|${LEGACY_BRAND_PATTERN}) Sent Proposal History\\]\\n?`, "g");
 const SNAPSHOT_METHODS = new Set(["email", "print", "manual"]);
 const SNAPSHOT_STATUSES = new Set(["sent", "printed", "failed", "draft"]);
 

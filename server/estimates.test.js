@@ -325,7 +325,7 @@ test("configured estimate email sends before marking estimate sent", async () =>
   const emailApi = await startMockEmailApi();
   const fixture = await startServer({
     EMAIL_PROVIDER: "resend",
-    EMAIL_FROM: "Concrete Ops <estimates@example.test>",
+    EMAIL_FROM: "Apex HQ <estimates@example.test>",
     EMAIL_REPLY_TO_DEFAULT: "office@example.test",
     EMAIL_API_KEY: "test-api-key",
     EMAIL_API_URL: emailApi.url,
@@ -360,7 +360,7 @@ test("configured estimate email sends before marking estimate sent", async () =>
     assert.equal(request.method, "POST");
     assert.equal(request.authorization, "Bearer test-api-key");
     assert.deepEqual(request.body.to, ["proposal-recipient@example.test"]);
-    assert.equal(request.body.from, "Concrete Ops <estimates@example.test>");
+    assert.equal(request.body.from, "Apex HQ <estimates@example.test>");
     assert.equal(request.body.reply_to, "office@example.test");
     assert.equal(request.body.subject, "Estimate for Driveway replacement estimate");
     assert.match(request.body.text, /Hi Martinez Residence,/);
@@ -375,7 +375,7 @@ test("configured estimate email sends before marking estimate sent", async () =>
     const pdfText = pdfBuffer.toString("latin1");
     const decodedText = extractPdfText(pdfBuffer);
     assert.match(pdfText, /%PDF-1\.3/);
-    assert.match(decodedText, /Concrete Ops Workspace/);
+    assert.match(decodedText, /Apex HQ Workspace/);
     assert.match(decodedText, /Martinez Residence/);
     assert.match(decodedText, /Driveway replacement estimate/);
     assert.match(decodedText, /Concrete placement/);
@@ -405,7 +405,7 @@ test("failed estimate email send does not mark estimate sent", async () => {
   const emailApi = await startMockEmailApi({ status: 500, payload: { message: "Provider unavailable" } });
   const fixture = await startServer({
     EMAIL_PROVIDER: "resend",
-    EMAIL_FROM: "Concrete Ops <estimates@example.test>",
+    EMAIL_FROM: "Apex HQ <estimates@example.test>",
     EMAIL_REPLY_TO_DEFAULT: "office@example.test",
     EMAIL_API_KEY: "test-api-key",
     EMAIL_API_URL: emailApi.url,

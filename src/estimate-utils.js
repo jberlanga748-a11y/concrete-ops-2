@@ -591,7 +591,7 @@ function buildEstimateBodyLines({ companyName, companyProfile = {}, estimate, in
   return lines;
 }
 
-export function buildEstimateCopyText({ companyName = "Concrete Ops Workspace", companyProfile = {}, estimate } = {}) {
+export function buildEstimateCopyText({ companyName = "Apex HQ Workspace", companyProfile = {}, estimate } = {}) {
   return buildEstimateBodyLines({ companyName, companyProfile, estimate }).join("\n").trim();
 }
 

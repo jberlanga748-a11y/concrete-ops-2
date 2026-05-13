@@ -342,19 +342,19 @@ export function buildManualFollowUpContactPayload(item = {}, action = "log-call"
       method: "Call",
       outcome: "Follow-Up Needed",
       subject: "Manual call logged from Follow-Up Queue",
-      notes: "Manual queue action only. No phone call was placed by Concrete Ops.",
+      notes: "Manual queue action only. No phone call was placed by Apex HQ.",
     },
     "log-email": {
       method: "Email",
       outcome: "Sent",
       subject: "Manual email logged from Follow-Up Queue",
-      notes: "Manual queue action only. Concrete Ops did not send this email.",
+      notes: "Manual queue action only. Apex HQ did not send this email.",
     },
     "log-text": {
       method: "Text",
       outcome: "Sent",
       subject: "Manual text logged from Follow-Up Queue",
-      notes: "Manual queue action only. Concrete Ops did not send this text.",
+      notes: "Manual queue action only. Apex HQ did not send this text.",
     },
     "follow-up-tomorrow": {
       method: "Other",

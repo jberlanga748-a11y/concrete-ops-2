@@ -2604,7 +2604,7 @@ function createDemoUploadPlaceholder(upload) {
   </defs>
   <rect width="1200" height="900" fill="url(#bg)" />
   <rect x="56" y="56" width="1088" height="788" rx="32" fill="#ffffff" stroke="#bfdbfe" stroke-width="4" />
-  <text x="96" y="150" fill="#1e3a8a" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Concrete Ops Demo Upload</text>
+  <text x="96" y="150" fill="#1e3a8a" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Apex HQ Demo Upload</text>
   <text x="96" y="215" fill="#0f172a" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700">${title}</text>
   <text x="96" y="300" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="26">This is a generated placeholder for seeded demo photo evidence.</text>
   <text x="96" y="360" fill="#334155" font-family="Arial, Helvetica, sans-serif" font-size="24">Job: ${jobId}</text>
@@ -4945,7 +4945,7 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     status: "healthy",
-    service: "concrete-ops-api",
+    service: "apex-hq-api",
     environment: serverConfig.nodeEnv,
     uptimeSeconds: Math.round((Date.now() - serverStartedAt) / 1000),
     timestamp: new Date().toISOString(),
@@ -5719,7 +5719,7 @@ app.post("/api/estimates/:id/send", requireAuth, asyncRoute(async (req, res) => 
   }
 
   const settings = companySettingsForState(state);
-  const companyName = settings.companyName || "Concrete Ops Workspace";
+  const companyName = settings.companyName || "Apex HQ Workspace";
   const emailSubject = buildEstimateEmailSubject({ estimate });
   const emailText = buildEstimateAttachmentEmailBody({
     companyName,
@@ -7675,7 +7675,7 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
       possibleDuplicate: false,
       reviewRequired: false,
       openPath: leadOpenPath(duplicateResult.lead.id),
-      message: "This Lead Finder lead already exists in Concrete Ops.",
+      message: "This Lead Finder lead already exists in Apex HQ.",
       duplicateReason: duplicateResult.reason,
       requestId: res.locals.requestId,
     });
@@ -7786,7 +7786,7 @@ app.post("/api/integrations/website-leads", asyncRoute(async (req, res) => {
       possibleDuplicate: false,
       reviewRequired: false,
       openPath: leadOpenPath(duplicateResult.lead.id),
-      message: "This website lead already exists in Concrete Ops.",
+      message: "This website lead already exists in Apex HQ.",
       duplicateReason: duplicateResult.reason,
       requestId: res.locals.requestId,
     });
@@ -7973,7 +7973,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
 
   if (currentDraft.createdJobId) {
     return res.status(409).json({
-      error: "A Concrete Ops 2 job has already been created from this imported draft.",
+      error: "An Apex HQ job has already been created from this imported draft.",
       createdJobId: currentDraft.createdJobId,
       requestId: res.locals.requestId,
     });
@@ -8036,7 +8036,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
   const nextState = await updateDb((draft) => {
     const liveDraft = normalizeImportedJobDraft(findCompanyScopedRecord(draft.jobDraftImports || [], id, req.auth.user, draft, "Imported job draft"));
     if (liveDraft.createdJobId) {
-      throw new ApiError(409, "A Concrete Ops 2 job has already been created from this imported draft.");
+      throw new ApiError(409, "An Apex HQ job has already been created from this imported draft.");
     }
 
     const resolvedCustomer = resolveImportedDraftCustomerForJob(draft, liveDraft, req.auth.user, {
@@ -9171,7 +9171,7 @@ app.post("/api/contact-history", requireAuth, asyncRoute(async (req, res) => {
       entityId: record.id,
       action: "created",
       summary: "Contact history logged",
-      detail: `${record.method} ${record.direction} contact logged for ${label}. No email or SMS was sent by Concrete Ops.`,
+      detail: `${record.method} ${record.direction} contact logged for ${label}. No email or SMS was sent by Apex HQ.`,
       actor: req.auth.user,
       changedFields: ["method", "direction", "outcome", "nextFollowUpDate", ...leadChangedFields],
     });
@@ -10450,7 +10450,7 @@ app.use((error, req, res, next) => {
 await ensureDb();
 
 app.listen(port, () => {
-  logger.info("Concrete Ops API listening", {
+  logger.info("Apex HQ API listening", {
     environment: serverConfig.nodeEnv,
     port,
     dataDir: getDataPaths().dataDir,

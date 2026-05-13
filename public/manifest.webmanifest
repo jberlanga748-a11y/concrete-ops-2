@@ -1,7 +1,7 @@
 {
-  "name": "Apex HQ | Concrete Ops",
+  "name": "Apex HQ",
   "short_name": "Apex HQ",
-  "description": "Apex HQ by Concrete Ops: contractor operations platform for leads, jobs, crews, reports, photos, checklists, and owner workflow.",
+  "description": "Apex HQ: contractor operations platform for leads, jobs, crews, reports, photos, checklists, and owner workflow.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

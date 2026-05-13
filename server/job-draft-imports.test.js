@@ -163,7 +163,7 @@ const validPackage = {
   proposalAmount: 12500,
   proposalLinkOrId: "proposal-server-1",
   handoffStatus: "Ready for Ops Review",
-  jobDraftSummary: "Concrete Ops Job Draft: Corvallis Entry Ramp",
+  jobDraftSummary: "Apex HQ Job Draft: Corvallis Entry Ramp",
 };
 
 test("integration job draft import rejects missing and invalid tokens", async () => {

@@ -50,7 +50,7 @@ test("lead import validates package type and required review fields", () => {
   assert.match(missingProject.errors.join(" "), /project title or description/i);
 });
 
-test("lead import strips sensitive fields and builds a safe Concrete Ops lead", () => {
+test("lead import strips sensitive fields and builds a safe Apex HQ lead", () => {
   const result = createLeadImportFromPackage({
     ...validPackage,
     apiKey: "do-not-save",

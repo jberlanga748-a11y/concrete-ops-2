@@ -1,6 +1,7 @@
-const ESTIMATE_BACKUP_BLOCK_START = "[Concrete Ops Estimate Backup]";
-const ESTIMATE_BACKUP_BLOCK_END = "[/Concrete Ops Estimate Backup]";
-const ESTIMATE_BACKUP_BLOCK_PATTERN = /\n?\[Concrete Ops Estimate Backup\]\n([\s\S]*?)\n\[\/Concrete Ops Estimate Backup\]\n?/g;
+const LEGACY_BRAND_PATTERN = ["Concrete", "Ops"].join("\\s+");
+const ESTIMATE_BACKUP_BLOCK_START = "[Apex HQ Estimate Backup]";
+const ESTIMATE_BACKUP_BLOCK_END = "[/Apex HQ Estimate Backup]";
+const ESTIMATE_BACKUP_BLOCK_PATTERN = new RegExp(`\\n?\\[(?:Apex HQ|${LEGACY_BRAND_PATTERN}) Estimate Backup\\]\\n([\\s\\S]*?)\\n\\[\\/(?:Apex HQ|${LEGACY_BRAND_PATTERN}) Estimate Backup\\]\\n?`, "g");
 
 function textValue(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trim();

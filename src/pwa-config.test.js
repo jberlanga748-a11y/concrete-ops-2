@@ -29,9 +29,9 @@ test("PWA manifest exists with installable Apex HQ metadata", () => {
   assert.equal(fs.existsSync(manifestPath), true);
   const manifest = readJson(manifestPath);
 
-  assert.equal(manifest.name, "Apex HQ | Concrete Ops");
+  assert.equal(manifest.name, "Apex HQ");
   assert.equal(manifest.short_name, "Apex HQ");
-  assert.match(manifest.description, /Apex HQ by Concrete Ops/i);
+  assert.match(manifest.description, /Apex HQ:/i);
   assert.match(manifest.description, /contractor operations platform/i);
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.scope, "/");
@@ -66,14 +66,14 @@ test("index html links the manifest and mobile app metadata without secrets", ()
   const html = fs.readFileSync(htmlPath, "utf8");
 
   assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest"/);
-  assert.match(html, /<meta name="application-name" content="Apex HQ \| Concrete Ops"/);
+  assert.match(html, /<meta name="application-name" content="Apex HQ"/);
   assert.match(html, /<meta name="theme-color" content="#F97316"/);
   assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="Apex HQ"/);
   assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="default"/);
   assert.match(html, /<meta name="mobile-web-app-capable" content="yes"/);
   assert.match(html, /<link rel="apple-touch-icon" href="\/icons\/icon-192\.png"/);
-  assert.match(html, /Apex HQ by Concrete Ops: contractor operations platform for leads, jobs, crews, reports, photos, checklists, and owner workflow/i);
+  assert.match(html, /Apex HQ: contractor operations platform for leads, jobs, crews, reports, photos, checklists, and owner workflow/i);
 
   assert.doesNotMatch(html, envSecretPattern);
   assert.doesNotMatch(html, credentialValuePattern);

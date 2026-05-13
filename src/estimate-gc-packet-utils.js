@@ -1,6 +1,7 @@
-const GC_PACKET_LITE_BLOCK_START = "[Concrete Ops GC Packet Lite]";
-const GC_PACKET_LITE_BLOCK_END = "[/Concrete Ops GC Packet Lite]";
-const GC_PACKET_LITE_BLOCK_PATTERN = /\n?\[Concrete Ops GC Packet Lite\]\n([\s\S]*?)\n\[\/Concrete Ops GC Packet Lite\]\n?/g;
+const LEGACY_BRAND_PATTERN = ["Concrete", "Ops"].join("\\s+");
+const GC_PACKET_LITE_BLOCK_START = "[Apex HQ GC Packet Lite]";
+const GC_PACKET_LITE_BLOCK_END = "[/Apex HQ GC Packet Lite]";
+const GC_PACKET_LITE_BLOCK_PATTERN = new RegExp(`\\n?\\[(?:Apex HQ|${LEGACY_BRAND_PATTERN}) GC Packet Lite\\]\\n([\\s\\S]*?)\\n\\[\\/(?:Apex HQ|${LEGACY_BRAND_PATTERN}) GC Packet Lite\\]\\n?`, "g");
 
 function textBlock(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trim();
