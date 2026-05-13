@@ -22642,44 +22642,45 @@ function ChangeOrdersPagePolished({
     if (options.toolTab) openTools(options.toolTab);
   }
 
-  const changeOrderPriorityCards = [
-    {
-      label: "Needs review",
-      value: requestedRows.length,
-      helper: requestedRows.length ? "Field scope changes are waiting for office triage." : "No requested change orders need first review.",
-      icon: "alert",
-      tone: requestedRows.length ? "amber" : "green",
-      actionLabel: requestedRows.length ? "Review" : "All clear",
-      onAction: () => openPriorityRequest((request) => request.status === "requested" && !request.archivedAt, { statusFilter: requestedRows.length ? "Requested" : "All", archiveFilter: "Active", search: "", toolTab: requestedRows.length ? "review" : "" }),
-    },
-    {
-      label: "In office review",
-      value: underReviewRows.length,
-      helper: underReviewRows.length ? "Requests are already being reviewed by the office." : "Nothing is currently marked under review.",
-      icon: "clock",
-      tone: underReviewRows.length ? "blue" : "slate",
-      actionLabel: underReviewRows.length ? "Open" : "None",
-      onAction: () => openPriorityRequest((request) => request.status === "under_review" && !request.archivedAt, { statusFilter: underReviewRows.length ? "Under Review" : "All", archiveFilter: "Active", search: "", toolTab: underReviewRows.length ? "review" : "" }),
-    },
-    {
-      label: "Needs details",
-      value: missingDetailRows.length,
-      helper: missingDetailRows.length ? "Job, reason, or scope context is incomplete." : "Open change requests have their core details.",
-      icon: "clipboard",
-      tone: missingDetailRows.length ? "orange" : "green",
-      actionLabel: missingDetailRows.length ? "Fix details" : "Ready",
-      onAction: () => openPriorityRequest((request) => missingDetailRows.some((entry) => entry.id === request.id), { statusFilter: "All", archiveFilter: "Active", search: "", toolTab: missingDetailRows.length ? "review" : "" }),
-    },
-    {
-      label: "New request",
-      value: canCreate ? "Ready" : "Locked",
-      helper: canCreate ? "Capture a field scope change without pricing or billing data." : "This role can review visible requests only.",
-      icon: "plus",
-      tone: canCreate ? "orange" : "slate",
-      actionLabel: canCreate ? "Create" : "View only",
-      onAction: () => canCreate ? openTools("create") : openPriorityRequest((request) => request.id === selectedRequest?.id),
-    },
-  ];
+  const needsReviewPriorityCard = {
+    label: "Needs review",
+    value: requestedRows.length,
+    helper: requestedRows.length ? "Field scope changes are waiting for office triage." : "No requested change orders need first review.",
+    icon: "alert",
+    tone: requestedRows.length ? "amber" : "green",
+    actionLabel: requestedRows.length ? "Review" : "All clear",
+    onAction: () => openPriorityRequest((request) => request.status === "requested" && !request.archivedAt, { statusFilter: requestedRows.length ? "Requested" : "All", archiveFilter: "Active", search: "", toolTab: requestedRows.length ? "review" : "" }),
+  };
+  const officeReviewPriorityCard = {
+    label: "In office review",
+    value: underReviewRows.length,
+    helper: underReviewRows.length ? "Requests are already being reviewed by the office." : "Nothing is currently marked under review.",
+    icon: "clock",
+    tone: underReviewRows.length ? "blue" : "slate",
+    actionLabel: underReviewRows.length ? "Open" : "None",
+    onAction: () => openPriorityRequest((request) => request.status === "under_review" && !request.archivedAt, { statusFilter: underReviewRows.length ? "Under Review" : "All", archiveFilter: "Active", search: "", toolTab: underReviewRows.length ? "review" : "" }),
+  };
+  const detailsPriorityCard = {
+    label: "Needs details",
+    value: missingDetailRows.length,
+    helper: missingDetailRows.length ? "Job, reason, or scope context is incomplete." : "Open change requests have their core details.",
+    icon: "clipboard",
+    tone: missingDetailRows.length ? "orange" : "green",
+    actionLabel: missingDetailRows.length ? "Fix details" : "Ready",
+    onAction: () => openPriorityRequest((request) => missingDetailRows.some((entry) => entry.id === request.id), { statusFilter: "All", archiveFilter: "Active", search: "", toolTab: missingDetailRows.length ? "review" : "" }),
+  };
+  const newRequestPriorityCard = {
+    label: "New request",
+    value: canCreate ? "Ready" : "Locked",
+    helper: canCreate ? "Capture a field scope change without pricing or billing data." : "This role can review visible requests only.",
+    icon: "plus",
+    tone: canCreate ? "orange" : "slate",
+    actionLabel: canCreate ? "Create" : "View only",
+    onAction: () => canCreate ? openTools("create") : openPriorityRequest((request) => request.id === selectedRequest?.id),
+  };
+  const changeOrderPriorityCards = filteredRows.length === 0 && canCreate
+    ? [newRequestPriorityCard, needsReviewPriorityCard, officeReviewPriorityCard, detailsPriorityCard]
+    : [needsReviewPriorityCard, officeReviewPriorityCard, detailsPriorityCard, newRequestPriorityCard];
 
   if (!permissions.changeOrders.canView) {
     return (
