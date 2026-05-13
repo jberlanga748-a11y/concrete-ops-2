@@ -17181,7 +17181,7 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
     { label: "Pour shape", value: calculatorTypeLabel(calculatorType), tone: "orange" },
     { label: "Inputs", value: `${enteredDimensionCount}/${activeFields.length}`, tone: enteredDimensionCount === activeFields.length ? "green" : "amber" },
     { label: "Live result", value: resultValue, tone: resultReady ? "green" : "slate" },
-    { label: "Job saves", value: allowedJobs.length, tone: allowedJobs.length ? "blue" : "slate" },
+    { label: "Job saves", value: allowedJobs.length, tone: allowedJobs.length ? "orange" : "slate" },
   ];
 
   return (
@@ -17191,7 +17191,7 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
           <div className="co-field-operator-copy min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <Badge tone="orange">Field Calculator</Badge>
-              <Badge tone={calculatorMode === "multi_section" ? "blue" : "slate"}>{calculatorMode === "multi_section" ? "Takeoff" : "Single pour"}</Badge>
+              <Badge tone={calculatorMode === "multi_section" ? "orange" : "slate"}>{calculatorMode === "multi_section" ? "Takeoff" : "Single pour"}</Badge>
               <Badge tone={resultReady ? "green" : "amber"}>{resultReady ? "Result ready" : "Needs dimensions"}</Badge>
             </div>
             <h2>{resultReady ? `${resultValue} yd^3 with waste` : "Concrete calculator ready"}</h2>
@@ -17331,7 +17331,7 @@ function CalculatorPagePolished({
     value: allowedJobs.length,
     helper: allowedJobs.length ? "Allowed jobs are available for internal calculation records." : "No assigned or visible job is available to save into.",
     icon: "briefcase",
-    tone: resultReady && allowedJobs.length ? "blue" : "slate",
+    tone: resultReady && allowedJobs.length ? "orange" : "slate",
     actionLabel: resultReady ? "Save" : "Finish dims",
     onAction: openSaveFromPriority,
   };
@@ -17340,7 +17340,7 @@ function CalculatorPagePolished({
     value: calculatorMode === "multi_section" ? takeoffSections.length : "Single",
     helper: calculatorMode === "multi_section" ? "Build a multi-section takeoff one pour at a time." : "Switch to multi-section when the pour has separate areas.",
     icon: "plus",
-    tone: calculatorMode === "multi_section" ? "blue" : "orange",
+    tone: "orange",
     actionLabel: calculatorMode === "multi_section" ? "Add section" : "Build takeoff",
     onAction: startTakeoffMode,
   };
@@ -17370,12 +17370,12 @@ function CalculatorPagePolished({
         eyebrow={isFieldTool ? "Field Tools" : "Tools"}
         title="Concrete Calculator"
         description="Calculate concrete yield, build multi-section takeoffs, copy field-ready totals, and save internal results to allowed jobs."
-        actions={
+        actions={isFieldTool ? null : (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={copyResult} disabled={result.status !== "ready"}>{resultCopied ? "Copied" : "Copy Result"}</Button>
             <Button type="button" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>Save to Job</Button>
           </div>
-        }
+        )}
       />
 
       {isFieldTool ? (

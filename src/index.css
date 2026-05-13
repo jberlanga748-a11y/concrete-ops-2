@@ -7867,6 +7867,18 @@ textarea {
   display: none !important;
 }
 
+.co-calculator-page.co-field-tool-page .co-page-header-actions {
+  display: none !important;
+}
+
+.co-calculator-page.co-field-tool-page .co-calculator-priority-mobile {
+  display: none !important;
+}
+
+.co-calculator-page.co-field-tool-page .co-calculator-priority-desktop .co-toolbox-priority-card[data-tone="blue"] {
+  --co-toolbox-priority-tone: #f97316;
+}
+
 .co-tool-checklist-page.co-field-tool-page .co-toolbox-kpi-grid {
   display: none !important;
 }
