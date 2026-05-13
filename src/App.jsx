@@ -6669,6 +6669,86 @@ function UploadsCommandRailPolished({
   );
 }
 
+function UploadsFieldOperatorPanel({
+  upload,
+  visibleRows,
+  allowedJobs,
+  missingGpsCount,
+  missingNotesCount,
+  canCreate,
+  onOpenTool,
+  onJumpToBoard,
+}) {
+  const hasSelectedUpload = Boolean(upload);
+  const summaryItems = [
+    { label: "Evidence", value: visibleRows.length, tone: visibleRows.length ? "orange" : "slate" },
+    { label: "Assigned jobs", value: allowedJobs.length, tone: allowedJobs.length ? "blue" : "slate" },
+    { label: "Missing GPS", value: missingGpsCount, tone: missingGpsCount ? "amber" : "green" },
+    { label: "Caption gaps", value: missingNotesCount, tone: missingNotesCount ? "amber" : "green" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-field-operator-panel co-uploads-field-panel overflow-hidden">
+        <div className="co-field-operator-shell">
+          <div className="co-field-operator-copy min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge tone="orange">Field Photo Evidence</Badge>
+              <Badge tone={canCreate ? "green" : "slate"}>{canCreate ? "Upload ready" : "Read only"}</Badge>
+              {hasSelectedUpload ? <Badge tone={upload.hasGps ? "green" : "amber"}>{gpsStatusLabel(upload)}</Badge> : <Badge tone="slate">Select evidence</Badge>}
+            </div>
+            <h2>{hasSelectedUpload ? uploadTitle(upload) : "Photo evidence ready"}</h2>
+            <p>
+              {hasSelectedUpload
+                ? `${uploadJobLabel(upload)} / ${upload.caption || upload.notes ? "Caption context added" : "Caption or note still helps the office."}`
+                : canCreate
+                  ? "Capture job-linked photos, add a quick caption, and keep timestamp or GPS context with the field record."
+                  : "Review assigned job evidence without office-only controls or company setup data."}
+            </p>
+            <div className="co-field-operator-address">
+              <Icon name="upload" />
+              <span>{hasSelectedUpload ? `${uploadJobLabel(upload)} / ${uploadUploaderLabel(upload)}` : `${allowedJobs.length} assigned job${allowedJobs.length === 1 ? "" : "s"}`}</span>
+            </div>
+          </div>
+
+          <div className="co-field-operator-actions">
+            {canCreate ? (
+              <Button type="button" onClick={() => onOpenTool("upload")}>
+                <Icon name="upload" />
+                Upload Photo
+              </Button>
+            ) : (
+              <Button type="button" onClick={onJumpToBoard}>
+                <Icon name="layers" />
+                View Evidence
+              </Button>
+            )}
+            <Button type="button" variant="secondary" onClick={onJumpToBoard}>
+              <Icon name="layers" />
+              View Board
+            </Button>
+            {hasSelectedUpload ? (
+              <Button type="button" variant="secondary" onClick={() => onOpenTool("details")}>
+                <Icon name="clipboard" />
+                Details
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="co-field-operator-strip">
+          {summaryItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
@@ -6683,6 +6763,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const [showTools, setShowTools] = useState(false);
   const [activeTool, setActiveTool] = useState("upload");
   const toolsRef = useRef(null);
+  const boardRef = useRef(null);
   const safeUploads = Array.isArray(uploads) ? uploads : [];
   const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
   const listState = useMemo(() => deriveUploadListState(safeUploads), [safeUploads]);
@@ -6871,6 +6952,10 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function jumpToBoard() {
+    window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityUpload(matchUpload, options = {}) {
     const targetUpload = visibleRows.find(matchUpload) || safeUploads.find(matchUpload);
     if (options.filter) setFilter(options.filter);
@@ -6947,6 +7032,19 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
         }
       />
 
+      {!permissions.uploads.canManageAll ? (
+        <UploadsFieldOperatorPanel
+          upload={selectedUpload}
+          visibleRows={visibleRows}
+          allowedJobs={allowedJobs}
+          missingGpsCount={missingGpsCount}
+          missingNotesCount={missingNotesCount}
+          canCreate={canCreate}
+          onOpenTool={openTool}
+          onJumpToBoard={jumpToBoard}
+        />
+      ) : null}
+
       <div className="co-uploads-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {uploadKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
@@ -6967,59 +7065,61 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
 
       <div className="co-uploads-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-uploads-left-stack min-w-0 space-y-3">
-          <Card className="co-uploads-main-board overflow-hidden">
-            <div className="co-uploads-board-header border-b border-slate-200 bg-white p-4">
-              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Evidence Board</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter photos, select evidence, and keep captions, timestamps, GPS, and job context in one review lane.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Active only")}>Active</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setGpsFilter("Has GPS")}>GPS</Button>
-                  {canCreate ? <Button type="button" size="sm" onClick={() => openTool("upload")}>Upload Photo</Button> : null}
+          <div ref={boardRef}>
+            <Card className="co-uploads-main-board overflow-hidden">
+              <div className="co-uploads-board-header border-b border-slate-200 bg-white p-4">
+                <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Evidence Board</h2>
+                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter photos, select evidence, and keep captions, timestamps, GPS, and job context in one review lane.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Active only")}>Active</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setGpsFilter("Has GPS")}>GPS</Button>
+                    {canCreate ? <Button type="button" size="sm" onClick={() => openTool("upload")}>Upload Photo</Button> : null}
+                  </div>
                 </div>
               </div>
-            </div>
-            <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
-            <details className="co-uploads-advanced-filters border-b border-slate-200 bg-white">
-              <summary>
-                <span>Advanced filters</span>
-                <span>{[jobFilter !== "All jobs" ? jobFilter : "", uploaderFilter !== "All uploaders" ? uploaderFilter : "", dateFilter !== "All dates" ? dateFilter : "", gpsFilter !== "All locations" ? gpsFilter : ""].filter(Boolean).length || "Job, uploader, GPS"}</span>
-              </summary>
-              <div className="co-office-filter-grid co-uploads-filter-grid grid gap-3 p-3 md:grid-cols-4">
-                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                  <option>All jobs</option>
-                  {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </SelectField>
-                <SelectField label="Uploader" value={uploaderFilter} onChange={(event) => setUploaderFilter(event.target.value)}>
-                  <option>All uploaders</option>
-                  {listState.uploaderOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </SelectField>
-                <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-                  <option>All dates</option>
-                  {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
-                </SelectField>
-                <SelectField label="GPS" value={gpsFilter} onChange={(event) => setGpsFilter(event.target.value)}>
-                  <option>All locations</option>
-                  <option>Has GPS</option>
-                  <option>Missing GPS</option>
-                </SelectField>
+              <FilterBar filters={["Active only", "Archived only", "All uploads"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, caption, uploader, notes..." />
+              <details className="co-uploads-advanced-filters border-b border-slate-200 bg-white">
+                <summary>
+                  <span>Advanced filters</span>
+                  <span>{[jobFilter !== "All jobs" ? jobFilter : "", uploaderFilter !== "All uploaders" ? uploaderFilter : "", dateFilter !== "All dates" ? dateFilter : "", gpsFilter !== "All locations" ? gpsFilter : ""].filter(Boolean).length || "Job, uploader, GPS"}</span>
+                </summary>
+                <div className="co-office-filter-grid co-uploads-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                  <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                    <option>All jobs</option>
+                    {listState.jobOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Uploader" value={uploaderFilter} onChange={(event) => setUploaderFilter(event.target.value)}>
+                    <option>All uploaders</option>
+                    {listState.uploaderOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectField>
+                  <SelectField label="Date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                    <option>All dates</option>
+                    {listState.dateOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </SelectField>
+                  <SelectField label="GPS" value={gpsFilter} onChange={(event) => setGpsFilter(event.target.value)}>
+                    <option>All locations</option>
+                    <option>Has GPS</option>
+                    <option>Missing GPS</option>
+                  </SelectField>
+                </div>
+              </details>
+              {successMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
+              {errorMessage && visibleRows.length === 0 ? (
+                <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
+              ) : visibleRows.length === 0 ? (
+                <div className="p-5"><StateCard title={uploadsEmptyTitle} description={uploadsEmptyDescription} tone="slate" /></div>
+              ) : (
+                <UploadsTablePolished rows={visibleRows} selectedId={selectedUpload?.id} onSelect={setSelectedUploadId} />
+              )}
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+                <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} upload{visibleRows.length === 1 ? "" : "s"}</p>
+                <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
               </div>
-            </details>
-            {successMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
-            {errorMessage && visibleRows.length === 0 ? (
-              <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
-            ) : visibleRows.length === 0 ? (
-              <div className="p-5"><StateCard title={uploadsEmptyTitle} description={uploadsEmptyDescription} tone="slate" /></div>
-            ) : (
-              <UploadsTablePolished rows={visibleRows} selectedId={selectedUpload?.id} onSelect={setSelectedUploadId} />
-            )}
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-              <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} upload{visibleRows.length === 1 ? "" : "s"}</p>
-              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
 
         <UploadsCommandRailPolished
