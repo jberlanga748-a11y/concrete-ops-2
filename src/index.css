@@ -15476,6 +15476,62 @@ textarea {
   justify-self: start;
 }
 
+.co-settings-public-link {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  border-radius: 0.82rem;
+  background: linear-gradient(180deg, #fff7ed, #ffffff);
+  padding: 0.75rem;
+}
+
+.co-settings-public-link span {
+  margin-top: 0;
+  color: #9a3412;
+  font-size: 0.68rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.co-settings-public-link code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #07111f;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.co-settings-public-link > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.co-settings-public-link-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  border-radius: 0.72rem;
+  padding: 0.48rem 0.72rem;
+  color: #c2410c;
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.co-settings-public-link-open:hover {
+  background: #ffedd5;
+}
+
+.co-settings-public-link em {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
 .co-settings-danger-card {
   border-color: rgba(248, 113, 113, 0.34) !important;
   border-left-color: rgba(220, 38, 38, 0.68) !important;

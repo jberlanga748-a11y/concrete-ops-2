@@ -179,6 +179,7 @@ const APEX_BRAND_ASSETS = {
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
+const APEX_PUBLIC_REQUEST_URL = `https://app.apexhq.online${PUBLIC_ESTIMATE_REQUEST_PATH}`;
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"];
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
 const PRINT_VIEW_ERROR_MESSAGE = "Could not open the print view. Please try again or use your browser print command.";
@@ -19777,6 +19778,7 @@ function SettingsPagePolished({
     printPacketDisclaimer: safeCompanySettings.printPacketDisclaimer || "",
   }));
   const [printPacketNotice, setPrintPacketNotice] = useState("");
+  const [publicRequestLinkNotice, setPublicRequestLinkNotice] = useState("");
 
   useEffect(() => {
     setBrandingDraft({
@@ -19886,6 +19888,19 @@ function SettingsPagePolished({
       printPacketDisclaimer: printPacketDraft.printPacketDisclaimer.trim(),
     });
     setPrintPacketNotice(saved ? "Print packet settings saved." : "Could not save print packet settings. Please try again.");
+  }
+
+  async function copyPublicRequestLink() {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(APEX_PUBLIC_REQUEST_URL);
+        setPublicRequestLinkNotice("Apex public request link copied.");
+        return;
+      }
+    } catch {
+      // Fall through to visible link guidance.
+    }
+    setPublicRequestLinkNotice("Use the visible Apex public request link.");
   }
 
   if (!canViewSettings) {
@@ -20139,6 +20154,17 @@ function SettingsPagePolished({
                       <Badge tone={publicEstimateRequestEnabled ? "green" : "slate"}>
                         {publicEstimateRequestEnabled ? "Public form enabled" : "Public form disabled"}
                       </Badge>
+                      {publicEstimateRequestEnabled ? (
+                        <div className="co-settings-public-link">
+                          <span>Apex public request link</span>
+                          <code>{APEX_PUBLIC_REQUEST_URL}</code>
+                          <div>
+                            <Button type="button" size="sm" variant="secondary" onClick={copyPublicRequestLink}>Copy Link</Button>
+                            <a className="co-settings-public-link-open co-focus-ring" href={APEX_PUBLIC_REQUEST_URL} target="_blank" rel="noreferrer">Open</a>
+                          </div>
+                          {publicRequestLinkNotice ? <em>{publicRequestLinkNotice}</em> : null}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
