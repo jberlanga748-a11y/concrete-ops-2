@@ -7491,6 +7491,10 @@ textarea {
   display: grid;
 }
 
+.co-calculator-page.co-field-tool-page .co-toolbox-kpi-grid {
+  display: none !important;
+}
+
 @media (min-width: 768px) {
   .co-calculator-priority-desktop {
     display: grid;
