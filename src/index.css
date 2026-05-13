@@ -7867,6 +7867,10 @@ textarea {
   display: none !important;
 }
 
+.co-tool-checklist-page.co-field-tool-page .co-toolbox-kpi-grid {
+  display: none !important;
+}
+
 @media (min-width: 768px) {
   .co-calculator-priority-desktop {
     display: grid;
@@ -8560,6 +8564,10 @@ textarea {
     flex: 0 0 18rem;
     min-height: 8rem;
     scroll-snap-align: start;
+  }
+
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-priority-card {
+    flex-basis: 16.75rem;
   }
 
   .co-toolbox-filter-strip {

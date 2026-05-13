@@ -26254,9 +26254,9 @@ function ToolChecklistFieldOperatorPanel({ checklist, selectedItems, filteredRow
   );
   const summaryItems = [
     { label: "Loadouts", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
-    { label: "Selected items", value: checklist ? selectedItems.length : "-", tone: selectedItems.length ? "blue" : "slate" },
+    { label: "Selected items", value: checklist ? selectedItems.length : "-", tone: selectedItems.length ? "orange" : "slate" },
     { label: "Open issues", value: checklist ? openIssueCount : "-", tone: openIssueCount ? "amber" : "green" },
-    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "orange" : "slate" },
   ];
 
   return (
@@ -26605,7 +26605,7 @@ function ToolChecklistPagePolished({
     value: selectedChecklist ? selectedItems.length : 0,
     helper: selectedChecklist ? `${selectedChecklist.title || "Tool checklist"} / ${toolChecklistJobLabel(selectedChecklist)}` : canCreateChecklist ? "Start the first job loadout, then add tools and crew notes." : "Select an assigned checklist when one is available.",
     icon: "clipboard",
-    tone: selectedChecklist ? "blue" : "slate",
+    tone: selectedChecklist ? "orange" : "slate",
     actionLabel: selectedChecklist ? "Open items" : (canCreateChecklist ? "Create" : "View board"),
     onAction: () => selectedChecklist ? openPriorityChecklist((checklist) => checklist.id === selectedChecklist?.id || checklist.id === issueChecklist?.id, { tool: "items" }) : (canCreateChecklist ? openTools("create") : jumpToBoard()),
   };
@@ -26614,7 +26614,7 @@ function ToolChecklistPagePolished({
     value: canCreateChecklist || canAddItems ? "Ready" : filteredRows.length,
     helper: canCreateChecklist ? "Start a job-level loadout for visible work." : canAddItems ? "Add missing tools or field notes to the selected checklist." : "Review assigned loadouts without office-only controls.",
     icon: canCreateChecklist || canAddItems ? "plus" : "layers",
-    tone: canCreateChecklist || canAddItems ? "blue" : "green",
+    tone: canCreateChecklist || canAddItems ? "orange" : "green",
     actionLabel: canCreateChecklist ? "Create" : (canAddItems ? "Add item" : "Review"),
     onAction: () => openTools(canCreateChecklist ? "create" : (canAddItems ? "add" : "items")),
   };
@@ -26754,7 +26754,7 @@ function ToolChecklistPagePolished({
         <summary>
           <span>
             <strong>Tool Checklist Tools</strong>
-            <em>Create job loadouts, update selected checklist notes, manage items, and submit or review without changing permissions.</em>
+            <em>{isFieldToolChecklist ? "Update selected tool items, add field notes, and submit only when your role allows it." : "Create job loadouts, update selected checklist notes, manage items, and submit or review without changing permissions."}</em>
           </span>
           <span>Open tools</span>
         </summary>
