@@ -14725,44 +14725,45 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
   }
 
   const matchReviewDraft = normalizedDrafts.find((draft) => ["Review Required", "Possible Match", "Not Checked"].includes(draft.customerMatchStatus));
-  const importsPriorityCards = [
-    {
-      label: "Needs review",
-      value: stats.needsReview,
-      helper: stats.needsReview ? "Missing info, warnings, or readiness gaps need office review." : "No imported draft is currently marked needs-review.",
-      icon: "alert",
-      tone: stats.needsReview ? "amber" : "green",
-      actionLabel: stats.needsReview ? "Review" : "All clear",
-      onAction: () => openPriorityDraft((draft) => draft.importStatus === "Needs Review", { statusFilter: stats.needsReview ? "Needs Review" : "All", review: Boolean(stats.needsReview) }),
-    },
-    {
-      label: "Ready to create",
-      value: stats.readyToCreate,
-      helper: stats.readyToCreate ? "Drafts are ready to become real jobs after final office check." : "No draft is ready for job creation yet.",
-      icon: "check",
-      tone: stats.readyToCreate ? "green" : "slate",
-      actionLabel: stats.readyToCreate ? "Open ready" : "Not ready",
-      onAction: () => openPriorityDraft((draft) => draft.importStatus === "Ready to Create Job", { statusFilter: stats.readyToCreate ? "Ready to Create Job" : "All", review: Boolean(stats.readyToCreate) }),
-    },
-    {
-      label: "Match review",
-      value: matchReviewCount,
-      helper: matchReviewCount ? "Customer matching needs a look before creating jobs." : "Customer match state is clean in the imported list.",
-      icon: "users",
-      tone: matchReviewCount ? "orange" : "green",
-      actionLabel: matchReviewCount ? "Review match" : "Matched",
-      onAction: () => openPriorityDraft((draft) => draft.id === matchReviewDraft?.id, { review: Boolean(matchReviewDraft) }),
-    },
-    {
-      label: "Import package",
-      value: permissions?.jobDraftImports?.canManage ? "Ready" : stats.total,
-      helper: permissions?.jobDraftImports?.canManage ? "Load a JSON package into the review queue." : "Review-only access keeps job creation controlled.",
-      icon: "upload",
-      tone: permissions?.jobDraftImports?.canManage ? "blue" : "slate",
-      actionLabel: permissions?.jobDraftImports?.canManage ? "Import" : "View only",
-      onAction: () => permissions?.jobDraftImports?.canManage ? openTools() : openPriorityDraft((draft) => draft.id === selectedDraft?.id),
-    },
-  ];
+  const needsReviewPriorityCard = {
+    label: "Needs review",
+    value: stats.needsReview,
+    helper: stats.needsReview ? "Missing info, warnings, or readiness gaps need office review." : "No imported draft is currently marked needs-review.",
+    icon: "alert",
+    tone: stats.needsReview ? "amber" : "green",
+    actionLabel: stats.needsReview ? "Review" : "All clear",
+    onAction: () => openPriorityDraft((draft) => draft.importStatus === "Needs Review", { statusFilter: stats.needsReview ? "Needs Review" : "All", review: Boolean(stats.needsReview) }),
+  };
+  const readyPriorityCard = {
+    label: "Ready to create",
+    value: stats.readyToCreate,
+    helper: stats.readyToCreate ? "Drafts are ready to become real jobs after final office check." : "No draft is ready for job creation yet.",
+    icon: "check",
+    tone: stats.readyToCreate ? "green" : "slate",
+    actionLabel: stats.readyToCreate ? "Open ready" : "Not ready",
+    onAction: () => openPriorityDraft((draft) => draft.importStatus === "Ready to Create Job", { statusFilter: stats.readyToCreate ? "Ready to Create Job" : "All", review: Boolean(stats.readyToCreate) }),
+  };
+  const matchPriorityCard = {
+    label: "Match review",
+    value: matchReviewCount,
+    helper: matchReviewCount ? "Customer matching needs a look before creating jobs." : "Customer match state is clean in the imported list.",
+    icon: "users",
+    tone: matchReviewCount ? "orange" : "green",
+    actionLabel: matchReviewCount ? "Review match" : "Matched",
+    onAction: () => openPriorityDraft((draft) => draft.id === matchReviewDraft?.id, { review: Boolean(matchReviewDraft) }),
+  };
+  const importPriorityCard = {
+    label: "Import package",
+    value: permissions?.jobDraftImports?.canManage ? "Ready" : stats.total,
+    helper: permissions?.jobDraftImports?.canManage ? "Load a JSON package into the review queue." : "Review-only access keeps job creation controlled.",
+    icon: "upload",
+    tone: permissions?.jobDraftImports?.canManage ? "blue" : "slate",
+    actionLabel: permissions?.jobDraftImports?.canManage ? "Import" : "View only",
+    onAction: () => permissions?.jobDraftImports?.canManage ? openTools() : openPriorityDraft((draft) => draft.id === selectedDraft?.id),
+  };
+  const importsPriorityCards = filteredDrafts.length === 0 && permissions?.jobDraftImports?.canManage
+    ? [importPriorityCard, needsReviewPriorityCard, readyPriorityCard, matchPriorityCard]
+    : [needsReviewPriorityCard, readyPriorityCard, matchPriorityCard, importPriorityCard];
 
   return (
     <div className="co-office-page co-imports-page">
