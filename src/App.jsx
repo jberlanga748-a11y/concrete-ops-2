@@ -8051,11 +8051,6 @@ function SafetyIncidentsPagePolished({
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Incident Response Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track jobsite safety items, severity, type, reporter, status, immediate action, and office follow-up.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setIncidentStatusFilter("open")}>Open</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setIncidentSeverityFilter("critical")}>Critical</Button>
-                {canSubmitIncidents ? <Button type="button" size="sm" onClick={() => openTools("submit")}>Submit Incident</Button> : null}
-              </div>
             </div>
           </div>
           <div className="co-incidents-filter-strip border-b border-slate-200 bg-white p-3">

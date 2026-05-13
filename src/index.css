@@ -7427,11 +7427,20 @@ textarea {
   }
 
   .co-incidents-priority-grid {
-    grid-template-columns: 1fr !important;
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 0.72rem !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.65rem !important;
+    scroll-padding-inline: 1rem;
+    scroll-snap-type: x proximity;
   }
 
   .co-incidents-priority-card {
-    min-height: 0;
+    flex: 0 0 18rem;
+    min-height: 8rem;
+    scroll-snap-align: start;
   }
 
   .co-incidents-filter-strip {
