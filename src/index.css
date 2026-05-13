@@ -8104,6 +8104,10 @@ textarea {
   .co-prepour-field-panel .co-field-operator-strip {
     display: none;
   }
+
+  .co-postpour-field-panel .co-field-operator-strip {
+    display: none;
+  }
 }
 
 .co-reports-page {
