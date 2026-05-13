@@ -232,6 +232,26 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.equal(updated.foundOpportunities[0].status, "watching");
     assert.equal(updated.foundOpportunities[0].urgencyScore, 70);
 
+    const converted = await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    const convertedOpportunity = converted.foundOpportunities.find((entry) => entry.id === opportunity.id);
+    const createdLead = converted.leads.find((entry) => entry.id === converted.createdLeadId);
+    assert.equal(convertedOpportunity.status, "converted_to_lead");
+    assert.equal(convertedOpportunity.convertedLeadId, converted.createdLeadId);
+    assert.equal(createdLead.source, "Opportunity Scout");
+    assert.equal(createdLead.customer, "Albany School District");
+    assert.equal(createdLead.project, "School sidewalk repair");
+    assert.equal(createdLead.priority, "High");
+    assert.match(createdLead.notes, /Source: Opportunity Scout/);
+
+    const duplicateConversion = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(duplicateConversion.response.status, 409);
+
     const scoutPayload = await assertOk(fixture.baseUrl, "/api/opportunity-scout", {
       headers: authHeaders(adminLogin.token),
     });
@@ -268,6 +288,12 @@ test("field users cannot access Opportunity Scout", async () => {
       body: JSON.stringify({ title: "Field should not create this" }),
     });
     assert.equal(createResponse.response.status, 403);
+
+    const convertResponse = await requestJson(fixture.baseUrl, "/api/opportunity-scout/found-opportunities/FO-NOPE/convert-to-lead", {
+      method: "POST",
+      headers: authHeaders(foremanLogin.token),
+    });
+    assert.equal(convertResponse.response.status, 403);
   } finally {
     await fixture.stop();
   }
@@ -316,6 +342,12 @@ test("Opportunity Scout records stay company scoped", async () => {
       body: JSON.stringify({ status: "watching" }),
     });
     assert.equal(patchResponse.response.status, 404);
+
+    const convertResponse = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers: authHeaders(otherLogin.token),
+    });
+    assert.equal(convertResponse.response.status, 404);
   } finally {
     await fixture.stop();
   }

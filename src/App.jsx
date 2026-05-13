@@ -49,6 +49,7 @@ import {
   checkLeadMissingInfo as checkLeadMissingInfoRequest,
   clockIn,
   clockOut,
+  convertFoundOpportunityToLead,
   correctTimeEntry,
   deleteJobAssignment,
   deleteJob,
@@ -175,7 +176,7 @@ const APEX_BRAND_ASSETS = {
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
-const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "public_request_form"];
+const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"];
 const UPLOAD_PREVIEW_CACHE_LIMIT = 24;
 const PRINT_VIEW_ERROR_MESSAGE = "Could not open the print view. Please try again or use your browser print command.";
 const uploadPreviewCache = new Map();
@@ -17918,6 +17919,7 @@ function CopilotPagePolished({
   onUpdateOpportunitySearchProfile,
   onCreateFoundOpportunity,
   onUpdateFoundOpportunity,
+  onConvertFoundOpportunityToLead,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
@@ -18030,6 +18032,11 @@ function CopilotPagePolished({
   function setOpportunityStatus(opportunity, status) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId) return;
     onUpdateFoundOpportunity?.(opportunity.opportunityId, { status });
+  }
+
+  function convertOpportunityToLead(opportunity) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
   }
 
   const aiKpis = [
@@ -18461,6 +18468,9 @@ function CopilotPagePolished({
                       </div>
                       <div className="co-ai-scout-record-actions">
                         {opportunity.sourceUrl ? <a className="co-ai-scout-link" href={opportunity.sourceUrl} target="_blank" rel="noreferrer">Open Source</a> : null}
+                        <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId)}>
+                          Create Lead
+                        </Button>
                         {["reviewing", "watching", "bidding", "skipped"].map((status) => (
                           <Button key={status} type="button" size="sm" variant={opportunity.status === status ? "primary" : "ghost"} onClick={() => setOpportunityStatus(opportunity, status)} disabled={!canManageOpportunityScout || busy}>
                             {status === "reviewing" ? "Review" : status === "watching" ? "Watch" : status === "bidding" ? "Bid" : "Skip"}
@@ -28151,6 +28161,26 @@ export default function App() {
     }
   }
 
+  async function handleConvertFoundOpportunityToLead(opportunityId) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await convertFoundOpportunityToLead(sessionToken, opportunityId);
+      applyBootstrap(nextState);
+      if (nextState.createdLeadId) {
+        navigateToLead(nextState.createdLeadId);
+      }
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateContactHistory(payload) {
     if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
     setBusy(true);
@@ -29743,6 +29773,7 @@ export default function App() {
                 onUpdateOpportunitySearchProfile={handleUpdateOpportunitySearchProfile}
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}
                 onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
+                onConvertFoundOpportunityToLead={handleConvertFoundOpportunityToLead}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}

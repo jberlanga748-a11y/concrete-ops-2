@@ -205,7 +205,7 @@ const LEAD_STATUSES = new Set(["New", "Contacted", "Site Visit", "Estimate Sent"
 const JOB_STATUSES = new Set(["draft", "planned", "scheduled", "in_progress", "field_complete", "completed", "billing_ready", "closed"]);
 const JOB_ASSIGNMENT_ROLES = new Set(["foreman", "crew", "operator", "finisher", "laborer", "driver", "other"]);
 const QUEUE_STATUSES = new Set(["Due today", "Ready", "This week", "Blocked"]);
-const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "public_request_form"]);
+const LEAD_SOURCES = new Set(["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"]);
 const USER_STATUSES = new Set(["active", "inactive"]);
 const USER_ROLES = new Set(["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"]);
 const TIME_ENTRY_STATUSES = new Set(["active", "on_break", "completed"]);
@@ -7707,6 +7707,35 @@ function validateOpportunityScoutLinks(draft, opportunity, user) {
   }
 }
 
+function dateOnlyFromDateTime(value) {
+  if (!value) return "";
+  const normalized = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) return normalized.slice(0, 10);
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function buildOpportunityLeadNotes(opportunity) {
+  return [
+    `Source: Opportunity Scout`,
+    `Found opportunity: ${opportunity.title}`,
+    opportunity.agency ? `Agency/source: ${opportunity.agency}` : "",
+    opportunity.sourceName ? `Saved source: ${opportunity.sourceName}` : "",
+    opportunity.trade ? `Trade: ${opportunity.trade}` : "",
+    opportunity.projectType ? `Project type: ${opportunity.projectType}` : "",
+    opportunity.bidDueAt ? `Bid due: ${dateOnlyFromDateTime(opportunity.bidDueAt) || opportunity.bidDueAt}` : "",
+    opportunity.jobWalkAt ? `Walk-through: ${dateOnlyFromDateTime(opportunity.jobWalkAt) || opportunity.jobWalkAt}` : "",
+    opportunity.sourceUrl ? `Source URL: ${opportunity.sourceUrl}` : "",
+    opportunity.planUrl ? `Plan URL: ${opportunity.planUrl}` : "",
+    opportunity.reasonToBid ? `Reason to bid: ${opportunity.reasonToBid}` : "",
+    opportunity.scopeSummary ? `Scope summary: ${opportunity.scopeSummary}` : "",
+    opportunity.riskFlags?.length ? `Risks: ${opportunity.riskFlags.join(", ")}` : "",
+    opportunity.missingInfoItems?.length ? `Missing info: ${opportunity.missingInfoItems.join(", ")}` : "",
+    opportunity.notes ? `Scout notes: ${opportunity.notes}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 app.get("/api/opportunity-scout", requireAuth, asyncRoute(async (req, res) => {
   assertCanViewLeads(req.auth.user);
   const state = await readDb();
@@ -7865,6 +7894,128 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
   });
 
   res.json(sanitizeBootstrap(nextState, req.auth.user));
+}));
+
+app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const changedAt = new Date().toISOString();
+  const followUpDueAt = new Date(changedAt).toISOString().slice(0, 10);
+  let createdLeadId = "";
+
+  const nextState = await updateDb((draft) => {
+    draft.foundOpportunities ||= [];
+    draft.leads ||= [];
+    draft.queueItems ||= [];
+    const opportunity = findCompanyScopedRecord(draft.foundOpportunities, req.params.id, req.auth.user, draft, "Opportunity");
+    if (opportunity.convertedLeadId) {
+      throw new ApiError(409, "This found opportunity has already been converted to a lead.");
+    }
+
+    const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
+    const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);
+    const leadPayload = {
+      customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title,
+      city: opportunity.city || "Location pending",
+      project: opportunity.title,
+      status: "New",
+      priority: shouldPrioritize ? "High" : "Normal",
+      value: opportunity.estimatedValue || 0,
+      ownerId: opportunity.assignedEstimatorId || req.auth.user.id,
+      source: "Opportunity Scout",
+      followUpDueAt,
+      nextStep: opportunity.bidDueAt ? "Review bid date, confirm fit, and qualify the opportunity." : "Qualify the found opportunity and confirm the next bid step.",
+      notes: buildOpportunityLeadNotes(opportunity),
+      phone: opportunity.contactPhone || "",
+      email: opportunity.contactEmail || "",
+      company: opportunity.agency || "",
+      serviceArea: opportunity.city || "",
+    };
+
+    const newLead = {
+      id: makeId("L"),
+      customerId: "",
+      customer: requiredString(leadPayload.customer, "Customer"),
+      city: requiredString(leadPayload.city, "City"),
+      project: requiredString(leadPayload.project, "Project"),
+      status: "New",
+      priority: optionalEnum(leadPayload.priority, LEAD_PRIORITIES, "Priority", "Normal"),
+      value: optionalNonNegativeNumber(leadPayload.value, "Value"),
+      owner: "",
+      ownerId: "",
+      source: "Opportunity Scout",
+      followUpDueAt,
+      age: "Just now",
+      nextStep: leadPayload.nextStep,
+      notes: leadPayload.notes || "Created from Opportunity Scout.",
+      fitScore: 0,
+      fitLabel: "",
+      fitReason: "",
+      fitRisks: [],
+      fitNextStep: "",
+      scoreSource: "",
+      scoredAt: "",
+      missingInfoStatus: "",
+      missingInfoCount: 0,
+      missingInfoItems: [],
+      missingInfoNextStep: "",
+      missingInfoCheckedAt: "",
+      createdAt: changedAt,
+      updatedAt: changedAt,
+    };
+
+    assignCompanyIdForCreate(newLead, req.auth.user, draft);
+    Object.assign(newLead, resolveLeadOwner(draft, leadPayload, req.auth.user));
+    relateLeadToCustomer(draft, newLead, req.auth.user, leadPayload);
+    draft.leads.unshift(newLead);
+    opportunity.status = "converted_to_lead";
+    opportunity.convertedLeadId = newLead.id;
+    opportunity.updatedAt = changedAt;
+    opportunity.archivedAt = null;
+    createdLeadId = newLead.id;
+
+    appendLeadStatusHistory(draft, {
+      leadId: newLead.id,
+      fromStatus: null,
+      toStatus: newLead.status,
+      actor: req.auth.user,
+      note: "Lead created from Opportunity Scout found opportunity.",
+      createdAt: changedAt,
+    });
+    draft.queueItems.unshift(assignCompanyIdForCreate({
+      id: makeId("Q"),
+      title: `Follow up ${newLead.customer}`,
+      meta: `${newLead.project} - Opportunity Scout`,
+      status: "Due today",
+      done: false,
+      createdAt: changedAt,
+      updatedAt: changedAt,
+    }, req.auth.user, draft));
+    appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`);
+    appendAuditEvent(draft, {
+      entityType: "foundOpportunity",
+      entityId: opportunity.id,
+      action: "converted",
+      summary: "Opportunity converted to lead",
+      detail: `${opportunity.title} was converted into lead ${newLead.id}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "convertedLeadId", "updatedAt"],
+    });
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: newLead.id,
+      action: "created",
+      summary: "Lead created from Opportunity Scout",
+      detail: `${newLead.customer} entered for ${newLead.project}.`,
+      actor: req.auth.user,
+      changedFields: ["status", "owner", "source", "followUpDueAt"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    createdLeadId,
+  });
 }));
 
 app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {
