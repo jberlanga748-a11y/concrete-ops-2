@@ -8169,6 +8169,23 @@ textarea {
     scroll-snap-align: start;
   }
 
+  .co-tool-checklist-page .co-toolbox-priority-grid {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 0.72rem !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.65rem !important;
+    scroll-padding-inline: 1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .co-tool-checklist-page .co-toolbox-priority-card {
+    flex: 0 0 18rem;
+    min-height: 8rem;
+    scroll-snap-align: start;
+  }
+
   .co-toolbox-filter-strip {
     grid-template-columns: minmax(0, 1fr);
   }

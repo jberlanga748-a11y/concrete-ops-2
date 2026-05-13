@@ -25935,11 +25935,6 @@ function ToolChecklistPagePolished({
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Tool Loadout Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan job checklists, missing or damaged tools, assigned foremen, and submission status from one dense operator board.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setIssueFilter("Missing or damaged")}>Issues</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Submitted")}>Submitted</Button>
-                {canAddItems ? <Button type="button" size="sm" onClick={() => openTools("add")}>Add Item</Button> : null}
-              </div>
             </div>
           </div>
           <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
