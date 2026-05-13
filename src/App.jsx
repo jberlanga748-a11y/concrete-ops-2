@@ -6472,6 +6472,13 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
   const uploadSummary = draft.fileName
     ? `${draft.fileName} / ${selectedJob ? jobTitle(selectedJob) : "job pending"}`
     : `${selectedJob ? jobTitle(selectedJob) : "select job"} and add photo`;
+  const selectedJobLabel = selectedJob ? jobTitle(selectedJob) : "Select assigned job";
+  const fileLabel = draft.fileName || "No photo selected";
+  const gpsLabel = gpsStatusLabel(draft);
+  const canUploadEvidence = Boolean(draft.jobId && draft.dataUrl) && !loading;
+  const uploadReadyCount = [draft.jobId, draft.dataUrl].filter(Boolean).length;
+  const contextCount = [draft.caption, draft.notes, draft.latitude != null && draft.longitude != null].filter(Boolean).length;
+  const uploadReadinessLabel = canUploadEvidence ? "Ready to upload" : `${2 - uploadReadyCount} required step${2 - uploadReadyCount === 1 ? "" : "s"} left`;
 
   return (
     <>
@@ -6479,25 +6486,36 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
       <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
 
       <UploadMobileAccordionCard title="Upload photo" summary={uploadSummary} badge={<Badge tone="blue">New</Badge>} defaultOpen>
-        <form className="grid gap-2.5" onSubmit={onSubmit} noValidate>
-          <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"} defaultOpen>
+        <form className="co-uploads-create-mobile-form grid gap-3" onSubmit={onSubmit} noValidate>
+          <div className="co-uploads-create-target">
+            <span>Evidence target</span>
+            <strong>{selectedJobLabel}</strong>
+            <p>{fileLabel}</p>
+            <div className="co-uploads-create-target-meta">
+              <span>{uploadReadinessLabel}</span>
+              <span>{contextCount ? `${contextCount} context item${contextCount === 1 ? "" : "s"}` : "Caption optional"}</span>
+              <span>{gpsLabel}</span>
+            </div>
+          </div>
+          <div className="co-uploads-capture-actions co-uploads-capture-actions-mobile">
+            <Button type="button" className="co-uploads-capture-primary" onClick={(event) => handleOpenPicker(event, cameraInputRef)} disabled={loading}>
+              <Icon name="upload" />
+              Take Photo
+            </Button>
+            <Button type="button" variant="secondary" className="co-uploads-capture-secondary" onClick={(event) => handleOpenPicker(event, libraryInputRef)} disabled={loading}>
+              <Icon name="document" />
+              Upload Existing
+            </Button>
+          </div>
+          <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"} defaultOpen={!draft.jobId}>
             <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
               {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
             </SelectField>
           </UploadMobileFieldGroup>
           <UploadMobileFieldGroup title="Photo / file" summary={draft.fileName || "Choose a photo"} defaultOpen>
-            <div className="grid gap-2.5">
-              <Button type="button" className="w-full" onClick={(event) => handleOpenPicker(event, cameraInputRef)} disabled={loading}>
-                <Icon name="upload" />
-                Take Photo
-              </Button>
-              <Button type="button" variant="secondary" className="w-full" onClick={(event) => handleOpenPicker(event, libraryInputRef)} disabled={loading}>
-                <Icon name="document" />
-                Upload Existing Photo
-              </Button>
-            </div>
             {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="h-40 w-full rounded-2xl object-cover" /> : null}
             {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
+            {!draft.dataUrl && !fileError ? <StateCard title="Choose photo evidence" description="Take a jobsite photo or upload an existing image before submitting evidence." tone="slate" /> : null}
           </UploadMobileFieldGroup>
           <UploadMobileFieldGroup title="Caption / notes" summary={[draft.caption, draft.notes].filter(Boolean).length ? "Notes added" : "Optional"}>
             <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
@@ -6523,11 +6541,97 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
               <StateCard title="No file selected yet" description="Choose a photo before uploading evidence." tone="slate" />
             )}
           </UploadMobileFieldGroup>
-          <Button type="submit" disabled={loading || !draft.jobId || !draft.dataUrl}>Upload evidence</Button>
+          <div className="co-uploads-create-action-stack co-uploads-create-action-stack-mobile">
+            <Button type="submit" className="co-uploads-upload-cta" disabled={loading || !draft.jobId || !draft.dataUrl}>
+              <Icon name="upload" />
+              Upload evidence
+            </Button>
+            <p>Submits the real job-linked photo record with the selected file and metadata.</p>
+          </div>
         </form>
       </UploadMobileAccordionCard>
 
-      <Card className="hidden p-5 md:block">
+      <Card className="co-uploads-create-card hidden overflow-hidden md:block">
+        <div className="co-uploads-create-header border-b border-slate-200 bg-white p-4">
+          <SectionHeader title="Upload photo evidence" description="Capture job documentation with optional location metadata. Upload still works if location is denied." />
+        </div>
+        <form className="co-uploads-create-form p-4" onSubmit={onSubmit} noValidate>
+          <div className="co-uploads-create-target">
+            <span>Evidence target</span>
+            <strong>{selectedJobLabel}</strong>
+            <p>{fileLabel}</p>
+            <div className="co-uploads-create-target-meta">
+              <span>{uploadReadinessLabel}</span>
+              <span>{contextCount ? `${contextCount} context item${contextCount === 1 ? "" : "s"}` : "Caption optional"}</span>
+              <span>{gpsLabel}</span>
+            </div>
+          </div>
+          <div className="co-uploads-create-center">
+            <div className="co-uploads-capture-card">
+              <span>Capture photo</span>
+              <div className="co-uploads-capture-actions">
+                <Button type="button" className="co-uploads-capture-primary" onClick={(event) => handleOpenPicker(event, cameraInputRef)} disabled={loading}>
+                  <Icon name="upload" />
+                  Take Photo
+                </Button>
+                <Button type="button" variant="secondary" className="co-uploads-capture-secondary" onClick={(event) => handleOpenPicker(event, libraryInputRef)} disabled={loading}>
+                  <Icon name="document" />
+                  Upload Existing
+                </Button>
+              </div>
+            </div>
+            <div className="co-uploads-create-fields">
+              <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
+                {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
+              </SelectField>
+              <InputField label="Taken at" type="datetime-local" value={draft.takenAt} onChange={(event) => setDraft((current) => ({ ...current, takenAt: event.target.value }))} />
+              <InputField label="Caption" value={draft.caption} onChange={(event) => setDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Pour finish before washout" />
+              <div className="co-uploads-create-field-wide">
+                <TextAreaField label="Notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional context for the office or report reviewer." />
+              </div>
+            </div>
+            <div className="co-uploads-create-evidence-grid">
+              <div className="co-uploads-selected-file-card">
+                <span>Selected file</span>
+                {draft.fileName ? (
+                  <>
+                    <strong>{draft.fileName}</strong>
+                    <p>{draft.fileType || "Unknown"} / {formatFileSize(draft.fileSize)}</p>
+                  </>
+                ) : (
+                  <>
+                    <strong>No file selected</strong>
+                    <p>Choose a photo before uploading evidence.</p>
+                  </>
+                )}
+              </div>
+              <div className="co-uploads-gps-card">
+                <span>GPS status</span>
+                <strong>{gpsLabel}</strong>
+                {draft.locationUnavailableReason ? <p>{draft.locationUnavailableReason}</p> : null}
+                {draft.latitude != null && draft.longitude != null ? <p>{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} / accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : <p>Location is added only when you tap capture.</p>}
+                <Button type="button" variant="secondary" size="sm" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
+              </div>
+            </div>
+            {draft.dataUrl ? <img src={draft.dataUrl} alt="Selected upload preview" className="co-uploads-selected-preview h-48 w-full rounded-2xl object-cover" /> : null}
+            {fileError ? <StateCard title="Upload file issue" description={fileError} tone="red" /> : null}
+          </div>
+          <div className="co-uploads-create-action-stack">
+            <Button type="submit" className="co-uploads-upload-cta" disabled={loading || !draft.jobId || !draft.dataUrl}>
+              <Icon name="upload" />
+              Upload evidence
+            </Button>
+            <p>Submits the real job-linked photo record with the selected file, timestamp, optional GPS, caption, and notes.</p>
+            <div className="co-uploads-create-checks">
+              <span data-state={draft.jobId ? "ready" : "needs"}>Job</span>
+              <span data-state={draft.dataUrl ? "ready" : "needs"}>Photo</span>
+              <span data-state={draft.latitude != null && draft.longitude != null ? "ready" : "needs"}>GPS</span>
+            </div>
+          </div>
+        </form>
+      </Card>
+
+      <Card className="hidden">
       <SectionHeader title="Upload photo" description="Capture field documentation with optional location metadata. Upload still works if location is denied." />
       <form className="grid gap-3" onSubmit={onSubmit} noValidate>
         <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
