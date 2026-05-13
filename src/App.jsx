@@ -23512,14 +23512,9 @@ function ChangeOrdersPagePolished({
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Change Order Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track scope-change requests, field notes, status, requester, and office review without showing pricing data.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Requested")}>Requested</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Under Review")}>Under Review</Button>
-                {canCreate ? <Button type="button" size="sm" onClick={() => openTools("create")}>New Request</Button> : null}
-              </div>
             </div>
           </div>
-          <FilterBar filters={["All", "Requested", "Under Review", "Approved for Pricing", "Rejected", "Archived"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search reason, scope, notes, requester, job..." />
+          <FilterBar filters={["All", "Requested", "Under Review", "Approved for Pricing", "Rejected"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search reason, scope, notes, requester, job..." />
           <details className="co-change-orders-advanced-filters border-b border-slate-200 bg-white">
             <summary>
               <span>Advanced filters</span>
