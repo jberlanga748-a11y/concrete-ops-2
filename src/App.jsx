@@ -70,6 +70,7 @@ import {
   reopenPostPourChecklist,
   reopenPrePourChecklist,
   resolveSafetyIncident,
+  reviewFoundOpportunityWithAi,
   reviewSafetyIncident,
   reviewPostPourChecklist,
   reviewPrePourChecklist,
@@ -17920,6 +17921,7 @@ function CopilotPagePolished({
   onCreateFoundOpportunity,
   onUpdateFoundOpportunity,
   onConvertFoundOpportunityToLead,
+  onReviewFoundOpportunityWithAi,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
@@ -17930,6 +17932,7 @@ function CopilotPagePolished({
   const today = new Date().toISOString().slice(0, 10);
   const [profileDraft, setProfileDraft] = useState(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
   const [foundDraft, setFoundDraft] = useState(INITIAL_FOUND_OPPORTUNITY_FORM);
+  const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage ?? permissions?.leads?.canManage);
   const leadSourceOptions = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && String(source.status || "active").toLowerCase() !== "inactive");
   const profileOptions = normalizeObjectArray(opportunitySearchProfiles).filter((profile) => !profile.archivedAt && String(profile.status || "active").toLowerCase() !== "archived");
@@ -18037,6 +18040,24 @@ function CopilotPagePolished({
   function convertOpportunityToLead(opportunity) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
     onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
+  }
+
+  async function reviewOpportunityWithAi(opportunity) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId) return;
+    setOpportunityAiReviews((current) => ({
+      ...current,
+      [opportunity.opportunityId]: { status: "loading", result: null, message: "" },
+    }));
+
+    const result = await onReviewFoundOpportunityWithAi?.(opportunity.opportunityId);
+    setOpportunityAiReviews((current) => ({
+      ...current,
+      [opportunity.opportunityId]: {
+        status: result?.ok === false ? "error" : "ready",
+        result,
+        message: result?.message || "",
+      },
+    }));
   }
 
   const aiKpis = [
@@ -18451,7 +18472,10 @@ function CopilotPagePolished({
                   </div>
                 </form>
                 <div className="co-ai-scout-record-list">
-                  {opportunityScout.foundOpportunityQueue.length ? opportunityScout.foundOpportunityQueue.map((opportunity) => (
+                  {opportunityScout.foundOpportunityQueue.length ? opportunityScout.foundOpportunityQueue.map((opportunity) => {
+                    const aiReview = opportunityAiReviews[opportunity.opportunityId];
+                    const aiReviewResult = aiReview?.result || {};
+                    return (
                     <div key={opportunity.id} className="co-ai-scout-record" data-tone={opportunity.tone}>
                       <div className="min-w-0">
                         <div className="co-ai-scout-record-title">
@@ -18468,6 +18492,9 @@ function CopilotPagePolished({
                       </div>
                       <div className="co-ai-scout-record-actions">
                         {opportunity.sourceUrl ? <a className="co-ai-scout-link" href={opportunity.sourceUrl} target="_blank" rel="noreferrer">Open Source</a> : null}
+                        <Button type="button" size="sm" variant="secondary" onClick={() => reviewOpportunityWithAi(opportunity)} disabled={!canManageOpportunityScout || busy || aiReview?.status === "loading"}>
+                          {aiReview?.status === "loading" ? "Reviewing..." : "AI Review"}
+                        </Button>
                         <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId)}>
                           Create Lead
                         </Button>
@@ -18477,8 +18504,40 @@ function CopilotPagePolished({
                           </Button>
                         ))}
                       </div>
+                      {aiReview?.status === "ready" ? (
+                        <div className="co-ai-scout-review" data-state={aiReviewResult.configured === false ? "not-configured" : "ready"}>
+                          <div>
+                            <span>AI Review</span>
+                            <strong>{aiReviewResult.configured === false ? "Server key needed" : (aiReviewResult.bidNoBidRecommendation || "Review ready")}</strong>
+                            <p>{aiReviewResult.configured === false ? "Apex HQ AI is not enabled on this server yet. The review action is safely disabled until office AI is configured." : (aiReviewResult.recommendedNextStep || aiReviewResult.opportunitySummary || "Review the opportunity details before creating a lead.")}</p>
+                          </div>
+                          {aiReviewResult.configured === false ? null : (
+                            <div className="co-ai-scout-review-grid">
+                              {aiReviewResult.suggestedFollowUpTiming ? (
+                                <small><b>Timing</b>{aiReviewResult.suggestedFollowUpTiming}</small>
+                              ) : null}
+                              {aiReviewResult.suggestedLeadNextStep ? (
+                                <small><b>Lead step</b>{aiReviewResult.suggestedLeadNextStep}</small>
+                              ) : null}
+                              {aiReviewResult.missingInfoQuestions?.slice(0, 2).map((item) => (
+                                <small key={item}><b>Question</b>{item}</small>
+                              ))}
+                              {aiReviewResult.riskNotes?.slice(0, 2).map((item) => (
+                                <small key={item}><b>Risk</b>{item}</small>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : aiReview?.status === "error" ? (
+                        <div className="co-ai-scout-review" data-state="error">
+                          <span>AI Review</span>
+                          <strong>Review unavailable</strong>
+                          <p>{aiReview.message || "Apex HQ could not generate a review right now."}</p>
+                        </div>
+                      ) : null}
                     </div>
-                  )) : (
+                    );
+                  }) : (
                     <StateCard title="No found opportunities yet" description="When the office finds a real job, save it here with bid date, fit, and reason to bid." tone="slate" />
                   )}
                 </div>
@@ -28181,6 +28240,22 @@ export default function App() {
     }
   }
 
+  async function handleReviewFoundOpportunityWithAi(opportunityId) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await reviewFoundOpportunityWithAi(sessionToken, opportunityId);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateContactHistory(payload) {
     if (!sessionToken || !appState.permissions.contactHistory?.canManage) return false;
     setBusy(true);
@@ -29774,6 +29849,7 @@ export default function App() {
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}
                 onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
                 onConvertFoundOpportunityToLead={handleConvertFoundOpportunityToLead}
+                onReviewFoundOpportunityWithAi={handleReviewFoundOpportunityWithAi}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}

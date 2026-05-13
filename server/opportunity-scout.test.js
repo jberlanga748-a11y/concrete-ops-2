@@ -44,6 +44,7 @@ async function startServer() {
       PORT: String(port),
       DATA_DIR: tempDataDir,
       LOG_LEVEL: "warn",
+      OPENAI_API_KEY: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -224,6 +225,14 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.equal(opportunity.fitScore, 84);
     assert.deepEqual(opportunity.riskFlags, ["prevailing wage"]);
 
+    const aiReview = await assertOk(fixture.baseUrl, `/api/ai/opportunity-scout/found-opportunities/${opportunity.id}/review`, {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(aiReview.ok, true);
+    assert.equal(aiReview.configured, false);
+    assert.match(aiReview.message, /OPENAI_API_KEY/);
+
     const updated = await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}`, {
       method: "PATCH",
       headers: authHeaders(adminLogin.token),
@@ -294,6 +303,12 @@ test("field users cannot access Opportunity Scout", async () => {
       headers: authHeaders(foremanLogin.token),
     });
     assert.equal(convertResponse.response.status, 403);
+
+    const aiReviewResponse = await requestJson(fixture.baseUrl, "/api/ai/opportunity-scout/found-opportunities/FO-NOPE/review", {
+      method: "POST",
+      headers: authHeaders(foremanLogin.token),
+    });
+    assert.equal(aiReviewResponse.response.status, 403);
   } finally {
     await fixture.stop();
   }
@@ -348,6 +363,12 @@ test("Opportunity Scout records stay company scoped", async () => {
       headers: authHeaders(otherLogin.token),
     });
     assert.equal(convertResponse.response.status, 404);
+
+    const aiReviewResponse = await requestJson(fixture.baseUrl, `/api/ai/opportunity-scout/found-opportunities/${opportunity.id}/review`, {
+      method: "POST",
+      headers: authHeaders(otherLogin.token),
+    });
+    assert.equal(aiReviewResponse.response.status, 404);
   } finally {
     await fixture.stop();
   }

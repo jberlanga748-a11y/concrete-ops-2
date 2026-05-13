@@ -72,6 +72,10 @@ import {
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
 import {
+  buildOpportunityAssistantContext,
+  generateOpportunityAssistantReview,
+} from "../shared/opportunityScoutAi.js";
+import {
   contactHistoryPayloadToRecord,
   validateContactHistoryPayload,
 } from "../shared/contactHistory.js";
@@ -8016,6 +8020,30 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
     ...sanitizeBootstrap(nextState, req.auth.user),
     createdLeadId,
   });
+}));
+
+app.post("/api/ai/opportunity-scout/found-opportunities/:id/review", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const state = await readDb();
+  const opportunity = findCompanyScopedRecord(state.foundOpportunities || [], req.params.id, req.auth.user, state, "Opportunity");
+  const searchProfile = opportunity.searchProfileId
+    ? findCompanyScopedRecord(state.opportunitySearchProfiles || [], opportunity.searchProfileId, req.auth.user, state, "Search profile")
+    : null;
+  const leadSource = opportunity.leadSourceId
+    ? findCompanyScopedRecord(state.leadSources || [], opportunity.leadSourceId, req.auth.user, state, "Lead source")
+    : null;
+
+  const result = await generateOpportunityAssistantReview({
+    context: buildOpportunityAssistantContext({
+      opportunity,
+      searchProfile,
+      leadSource,
+      companySettings: companySettingsForState(state, req.auth.user),
+    }),
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  return res.json(result);
 }));
 
 app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {

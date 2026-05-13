@@ -179,6 +179,10 @@ export function convertFoundOpportunityToLead(token, id) {
   return request(`/api/opportunity-scout/found-opportunities/${id}/convert-to-lead`, { method: "POST", token });
 }
 
+export function reviewFoundOpportunityWithAi(token, id) {
+  return request(`/api/ai/opportunity-scout/found-opportunities/${id}/review`, { method: "POST", token });
+}
+
 export function getEstimates(token) {
   return request("/api/estimates", { token });
 }
