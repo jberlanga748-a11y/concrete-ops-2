@@ -1002,12 +1002,22 @@ const INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM = {
   phone: "",
   email: "",
   projectAddress: "",
-  projectType: "Driveway replacement",
+  projectType: "Driveway / flatwork",
   projectDetails: "",
   preferredContactMethod: "Phone",
   preferredContactTime: "",
   honeypot: "",
 };
+const PUBLIC_REQUEST_PROJECT_TYPES = [
+  "Driveway / flatwork",
+  "Patio / outdoor living",
+  "Sidewalk / access repair",
+  "Fence / gate project",
+  "Deck / railing project",
+  "Siding / exterior repair",
+  "Sitework / excavation",
+  "Other",
+];
 
 function runDesignSystemChecks() {
   const failures = [];
@@ -2185,9 +2195,9 @@ function PublicEstimateRequestPagePolished({
             {demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
             <Badge tone={statusTone}>{statusLabel}</Badge>
           </div>
-          <h1>Request a project estimate</h1>
+          <h1>Start a project request</h1>
           <p>
-            Send the office the project basics. No login is required, and the public form never exposes customers, jobs, pricing, crew, or workspace records.
+            Send the office the project basics. No login is required, and the public form keeps customer, job, pricing, crew, and workspace records private.
           </p>
 
           <div className="co-public-request-steps" aria-label="Request process">
@@ -2215,7 +2225,7 @@ function PublicEstimateRequestPagePolished({
             </div>
             <div>
               <Icon name="check" />
-              <span>Spam guardrails stay on</span>
+              <span>No account needed to request work</span>
             </div>
             <div>
               <Icon name="inbox" />
@@ -2234,6 +2244,20 @@ function PublicEstimateRequestPagePolished({
             <div className="min-w-0">
               <p>Project Request</p>
               <span>Collect the details needed to start office follow-up.</span>
+            </div>
+          </div>
+          <div className="co-public-request-form-summary" aria-label="Helpful request details">
+            <div>
+              <span>Contact</span>
+              <strong>Name, phone, email</strong>
+            </div>
+            <div>
+              <span>Location</span>
+              <strong>Project address</strong>
+            </div>
+            <div>
+              <span>Scope</span>
+              <strong>Type, notes, timing</strong>
             </div>
           </div>
 
@@ -2280,9 +2304,9 @@ function PublicEstimateRequestPagePolished({
                 <p>Project</p>
                 <InputField label="Project address" value={draft.projectAddress} onChange={(event) => setDraft((current) => ({ ...current, projectAddress: event.target.value }))} placeholder="843 Creekside Ave NE, Salem, OR" disabled={loading} />
                 <SelectField label="Project type" value={draft.projectType} onChange={(event) => setDraft((current) => ({ ...current, projectType: event.target.value }))} disabled={loading}>
-                  {["Driveway replacement", "Patio", "Sidewalk repair", "ADA ramp", "Slab", "Retaining wall", "Other"].map((option) => <option key={option}>{option}</option>)}
+                  {PUBLIC_REQUEST_PROJECT_TYPES.map((option) => <option key={option}>{option}</option>)}
                 </SelectField>
-                <TextAreaField label="Project details" value={draft.projectDetails} onChange={(event) => setDraft((current) => ({ ...current, projectDetails: event.target.value }))} placeholder="Tell us what needs to be poured, repaired, or replaced." disabled={loading} />
+                <TextAreaField label="Project details" value={draft.projectDetails} onChange={(event) => setDraft((current) => ({ ...current, projectDetails: event.target.value }))} placeholder="Tell us what needs to be built, repaired, replaced, or reviewed." disabled={loading} />
               </div>
 
               <div className="co-public-request-fieldset">
