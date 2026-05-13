@@ -1096,9 +1096,9 @@ function PageHeader({ eyebrow, title, description, actions, tabs }) {
             <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-[1.85rem]">{title}</h1>
             {description ? <p className="mt-1.5 max-w-4xl text-sm font-bold leading-5 text-slate-600">{description}</p> : null}
           </div>
-          {actions ? <div className="flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
+          {actions ? <div className="co-page-header-actions flex min-w-0 max-w-full flex-wrap gap-2 lg:justify-end">{actions}</div> : null}
         </div>
-        {tabs ? <div className="mt-4 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
+        {tabs ? <div className="co-page-header-tabs mt-4 flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">{tabs}</div> : null}
       </div>
     </div>
   );
@@ -5389,7 +5389,7 @@ function TimePage({
         title={pageTitle}
         description={pageDescription}
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="co-time-header-status flex flex-wrap gap-2">
             <Badge tone={clockedInCount ? "blue" : "slate"}>{clockedInCount} clocked in</Badge>
             <Badge tone={reviewCount ? "amber" : "green"}>{reviewCount} review</Badge>
             <Badge tone="blue">{boardRows.length} entries</Badge>
@@ -12471,7 +12471,7 @@ function DashboardPagePolished({
         title="Dashboard"
         description="Daily operator console for live leads, startup readiness, job movement, task queue, and activity."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="co-dashboard-header-actions flex flex-wrap gap-2">
             {permissions?.jobs?.canManageAll ? <Button type="button" variant="secondary" onClick={() => setActive("commandCenter")}>Command Center</Button> : null}
             <Button type="button" variant="secondary" onClick={() => setActive("leads")}>Open leads</Button>
             <Button type="button" onClick={() => setActive("jobs")}>Open jobs</Button>
@@ -16002,10 +16002,10 @@ function StateExamples() {
 function DesignSystemPage() {
   return (
     <div>
-      <PageHeader eyebrow="Design System" title="Production UI standards" description="The visual system stays consistent across office and field tools." actions={<Badge tone="blue">Live spec</Badge>} />
+      <PageHeader eyebrow="Design System" title="Apex HQ UI standards" description="The orange, charcoal, and white command-center system stays consistent across office and field tools." actions={<Badge tone="blue">Live spec</Badge>} />
       <div className="grid gap-4 px-5 sm:px-6 lg:px-8">
         <Card className="p-5">
-          <SectionHeader title="Tokens" description="Calm blue and white system with practical density and restrained surfaces." />
+          <SectionHeader title="Tokens" description="Apex orange, charcoal shell, and white workspace surfaces with practical operational density." />
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             {TOKENS.colors.map(([name, value, use]) => (
               <div key={name} className="rounded-2xl border border-blue-100 p-3">
@@ -26342,22 +26342,22 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
   const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
   const previews = [
-    selectedLead ? `${selectedLead.customer} · ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
-          selectedJob ? `${jobTitle(selectedJob)} · ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
-    safeQueueItems[0] ? `${safeQueueItems[0].title} · ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
+    selectedLead ? `${selectedLead.customer} - ${selectedLead.nextStep}` : "Select a lead to see live queue context.",
+    selectedJob ? `${jobTitle(selectedJob)} - ${jobNextStep(selectedJob)}` : "Select a job to keep next steps visible.",
+    safeQueueItems[0] ? `${safeQueueItems[0].title} - ${safeQueueItems[0].status}` : "Queue items will appear here as they are added.",
   ];
 
   return (
     <div>
-      <PageHeader eyebrow="Module" title={item?.label || "Module"} description="This space keeps the same workspace structure while the dedicated workflow is being finished." actions={<Badge tone="slate">Scaffolded</Badge>} />
+      <PageHeader eyebrow="Workspace" title={item?.label || "Workspace"} description="This area keeps the Apex HQ command-board shell active while workspace access is being resolved." actions={<Badge tone="slate">Workspace</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
-          <SectionHeader title="Work queue" description="These sections already stay tied to live workspace records while the dedicated workflow is filled in." />
+          <SectionHeader title="Workspace Context" description="Live record context remains visible without exposing office-only data to the wrong role." />
           <div className="space-y-3">{previews.map((preview) => <div key={preview} className="rounded-2xl border border-blue-100 p-4 text-sm text-slate-600">{preview}</div>)}</div>
         </Card>
         <Card className="p-5">
-          <SectionHeader title="Next build step" description="A good placeholder should tell us exactly what to build next." />
-          <p className="text-sm leading-6 text-slate-600">If we keep going, this module should get its own record list, detail panel, and real status model, just like leads and jobs already do.</p>
+          <SectionHeader title="Operator Guidance" description="Use the approved navigation areas to continue work from the current workspace." />
+          <p className="text-sm leading-6 text-slate-600">Open the closest command board for the record you need, then continue with the existing saved workflow and role-safe data.</p>
         </Card>
       </div>
     </div>

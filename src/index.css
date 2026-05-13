@@ -6687,23 +6687,18 @@ textarea {
   }
 
   .co-time-kpi-grid {
-    display: flex !important;
-    grid-template-columns: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.72rem !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     padding-bottom: 0.65rem !important;
-    scroll-padding-inline: 1rem;
-    scroll-snap-type: x proximity;
   }
 
   .co-time-kpi-grid .co-command-kpi {
-    flex: 0 0 10.8rem;
-    min-height: 5.85rem !important;
+    min-height: 5.45rem !important;
     padding: 0.68rem !important;
-    scroll-snap-align: start;
   }
 
   .co-time-kpi-grid .co-command-kpi-body {
@@ -15343,24 +15338,57 @@ textarea {
     padding-bottom: 1rem;
   }
 
+  .co-dashboard-page .co-page-header-actions {
+    width: 100%;
+  }
+
+  .co-dashboard-page .co-dashboard-header-actions {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem !important;
+  }
+
+  .co-dashboard-page .co-dashboard-header-actions > button {
+    width: 100%;
+    min-height: 2.55rem;
+    justify-content: center;
+  }
+
+  .co-dashboard-page .co-dashboard-header-actions > button:last-child {
+    order: -1;
+    grid-column: 1 / -1;
+  }
+
+  .co-dashboard-page .co-page-header-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem !important;
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .co-dashboard-page .co-page-header-tabs > button {
+    width: 100%;
+    min-height: 2.35rem;
+    justify-content: center;
+    text-align: center;
+  }
+
   .co-dashboard-kpi-grid {
-    display: flex !important;
-    grid-template-columns: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.72rem !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     padding-bottom: 0.65rem !important;
-    scroll-padding-inline: 1rem;
-    scroll-snap-type: x proximity;
   }
 
   .co-dashboard-kpi-grid .co-command-kpi {
-    flex: 0 0 10.8rem;
-    min-height: 5.85rem !important;
+    min-height: 5.45rem !important;
+    height: auto;
     padding: 0.68rem !important;
-    scroll-snap-align: start;
   }
 
   .co-dashboard-kpi-grid .co-command-kpi-body {
