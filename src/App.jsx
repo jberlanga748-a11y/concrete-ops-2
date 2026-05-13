@@ -22394,7 +22394,7 @@ function EstimatesPagePolished({
     <div className="co-office-page co-estimates-page">
       <PageHeader
         eyebrow="Office Sales"
-        title={<span>Estimates <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Estimates"
         description="Build proposals, review pricing, send customer-ready packets, and move approved work into jobs."
         actions={
           <div className="flex flex-wrap gap-2">
