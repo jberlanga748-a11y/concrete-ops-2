@@ -6777,44 +6777,49 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     setGpsFilter("All locations");
   }
 
-  const uploadPriorityCards = [
-    {
-      label: "Review missing GPS",
-      value: missingGpsCount,
-      helper: missingGpsCount ? "Evidence without location metadata needs a quick look." : "Visible uploads have GPS context or no gaps.",
-      icon: "alert",
-      tone: missingGpsCount ? "amber" : "green",
-      actionLabel: missingGpsCount ? "Open missing" : "View evidence",
-      onAction: () => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }),
-    },
-    {
-      label: "Add captions",
-      value: missingNotesCount,
-      helper: missingNotesCount ? "Photos are stronger with a caption or office note." : "Visible evidence has caption context.",
-      icon: "document",
-      tone: missingNotesCount ? "orange" : "green",
-      actionLabel: missingNotesCount ? "Open gaps" : "All set",
-      onAction: () => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" }),
-    },
-    {
-      label: "Latest evidence",
-      value: latestVisibleUpload ? 1 : 0,
-      helper: latestVisibleUpload ? `${uploadJobLabel(latestVisibleUpload)} / ${uploadUploaderLabel(latestVisibleUpload)}` : "No visible upload selected yet.",
-      icon: "arrowUpRight",
-      tone: latestVisibleUpload ? "blue" : "slate",
-      actionLabel: latestVisibleUpload ? "Open latest" : "No evidence",
-      onAction: () => openPriorityUpload((upload) => upload.id === latestVisibleUpload?.id, { gpsFilter: "All locations" }),
-    },
-    {
-      label: "Upload photo",
-      value: canCreate ? 1 : 0,
-      helper: canCreate ? "Capture job-linked photo evidence with optional GPS." : "Upload access is not enabled for this role.",
-      icon: "upload",
-      tone: canCreate ? "blue" : "slate",
-      actionLabel: canCreate ? "Start upload" : "Read only",
-      onAction: () => openTool(canCreate ? "upload" : "details"),
-    },
-  ];
+  const missingGpsPriorityCard = {
+    label: "Review missing GPS",
+    value: missingGpsCount,
+    helper: missingGpsCount ? "Evidence without location metadata needs a quick look." : "Visible uploads have GPS context or no gaps.",
+    icon: "alert",
+    tone: missingGpsCount ? "amber" : "green",
+    actionLabel: missingGpsCount ? "Open missing" : "View evidence",
+    onAction: () => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }),
+  };
+  const captionsPriorityCard = {
+    label: "Add captions",
+    value: missingNotesCount,
+    helper: missingNotesCount ? "Photos are stronger with a caption or office note." : "Visible evidence has caption context.",
+    icon: "document",
+    tone: missingNotesCount ? "orange" : "green",
+    actionLabel: missingNotesCount ? "Open gaps" : "All set",
+    onAction: () => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" }),
+  };
+  const latestPriorityCard = {
+    label: "Latest evidence",
+    value: latestVisibleUpload ? 1 : 0,
+    helper: latestVisibleUpload ? `${uploadJobLabel(latestVisibleUpload)} / ${uploadUploaderLabel(latestVisibleUpload)}` : "No visible upload selected yet.",
+    icon: "arrowUpRight",
+    tone: latestVisibleUpload ? "blue" : "slate",
+    actionLabel: latestVisibleUpload ? "Open latest" : "No evidence",
+    onAction: () => openPriorityUpload((upload) => upload.id === latestVisibleUpload?.id, { gpsFilter: "All locations" }),
+  };
+  const uploadPhotoPriorityCard = {
+    label: "Upload photo",
+    value: canCreate ? 1 : 0,
+    helper: canCreate ? "Capture job-linked photo evidence with optional GPS." : "Upload access is not enabled for this role.",
+    icon: "upload",
+    tone: canCreate ? "blue" : "slate",
+    actionLabel: canCreate ? "Start upload" : "Read only",
+    onAction: () => openTool(canCreate ? "upload" : "details"),
+  };
+  const uploadPriorityCards = visibleRows.length === 0 && canCreate
+    ? [uploadPhotoPriorityCard, missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard]
+    : [missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard, uploadPhotoPriorityCard];
+  const uploadsEmptyTitle = safeUploads.length === 0 ? "No uploads yet" : "No uploads match these filters";
+  const uploadsEmptyDescription = safeUploads.length === 0
+    ? "Photo evidence will appear here after the first field upload."
+    : "Clear filters or adjust the search to bring existing photo evidence back into view.";
 
   return (
     <div className="co-office-page co-uploads-page">
@@ -6894,7 +6899,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
             {errorMessage && visibleRows.length === 0 ? (
               <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
             ) : visibleRows.length === 0 ? (
-              <div className="p-5"><StateCard title="No uploads yet" description="Photo evidence will appear here after the first field upload." tone="slate" /></div>
+              <div className="p-5"><StateCard title={uploadsEmptyTitle} description={uploadsEmptyDescription} tone="slate" /></div>
             ) : (
               <UploadsTablePolished rows={visibleRows} selectedId={selectedUpload?.id} onSelect={setSelectedUploadId} />
             )}
