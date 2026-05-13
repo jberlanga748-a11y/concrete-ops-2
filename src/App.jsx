@@ -4056,40 +4056,38 @@ function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge, disab
           const job = notice.job;
           const mapUrl = directionsUrl(job?.address);
           return (
-            <div key={notice.id} className="rounded-3xl border border-amber-100 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <div key={notice.id} className="co-field-notice-card rounded-3xl border border-amber-100 bg-white p-4">
+              <div className="co-field-notice-heading flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="break-words text-lg font-black text-slate-950">{jobTitle(job)}</p>
                   <p className="mt-1 break-words text-sm font-bold text-slate-600">{job?.customer || "Assigned site"}</p>
                 </div>
                 <Badge tone="amber">Please acknowledge</Badge>
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">When</p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{formatJobScheduleDetail(job)}</p>
+              <div className="co-field-notice-list mt-3">
+                <div>
+                  <span>When</span>
+                  <strong>{formatJobScheduleDetail(job)}</strong>
                 </div>
-                <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Where</p>
-                  <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-700">{job?.address || "Address pending"}</p>
+                <div>
+                  <span>Where</span>
+                  <strong>{job?.address || "Address pending"}</strong>
                   {mapUrl ? (
-                    <a className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={mapUrl} target="_blank" rel="noreferrer">
+                    <a className="co-field-notice-link" href={mapUrl} target="_blank" rel="noreferrer">
                       Open directions
                     </a>
                   ) : null}
                 </div>
-              </div>
-              <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                <div className="rounded-2xl border border-amber-100 bg-white p-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Foreman</p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{job?.foremanAssignment?.userName || job?.assignedForemanName || "Unassigned"}</p>
+                <div>
+                  <span>Foreman</span>
+                  <strong>{job?.foremanAssignment?.userName || job?.assignedForemanName || "Unassigned"}</strong>
                 </div>
-                <div className="rounded-2xl border border-amber-100 bg-white p-3 lg:col-span-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Field notes</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{job?.fieldNotes || "No field notes yet."}</p>
+                <div className="co-field-notice-wide">
+                  <span>Field notes</span>
+                  <strong>{job?.fieldNotes || "No field notes yet."}</strong>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="co-field-notice-actions mt-3 flex flex-wrap gap-2">
                 <Button type="button" size="sm" onClick={() => onAcknowledge(job.id)} disabled={disabled}>
                   <Icon name="check" />
                   Got it
@@ -4373,12 +4371,12 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
   const summaryItems = [
     { label: isForeman ? "Assigned jobs" : "Assigned work", value: assignedCount, tone: assignedCount ? "orange" : "slate" },
     { label: "Notices", value: noticeCount, tone: noticeCount ? "amber" : "green" },
-    { label: "Crew", value: primaryJob ? crewCount : "-", tone: crewCount ? "blue" : "slate" },
-    { label: "Field notes", value: primaryJob ? fieldNoteCount : "-", tone: fieldNoteCount ? "blue" : "slate" },
+    { label: "Crew", value: primaryJob ? crewCount : "-", tone: crewCount ? "orange" : "slate" },
+    { label: "Field notes", value: primaryJob ? fieldNoteCount : "-", tone: fieldNoteCount ? "orange" : "slate" },
   ];
 
   if (isForeman) {
-    summaryItems.push({ label: "Upcoming", value: upcomingCount, tone: upcomingCount ? "blue" : "slate" });
+    summaryItems.push({ label: "Upcoming", value: upcomingCount, tone: upcomingCount ? "orange" : "slate" });
   }
 
   return (
@@ -4636,7 +4634,7 @@ function FieldWorkspacePagePolished({
       <PageHeader
         eyebrow="Field Workspace"
         title={isForeman ? "My Jobs" : "My Job"}
-        description={isForeman ? "Run today's assigned work, crew time, field notes, checklists, photos, tickets, and job-safe tools from one operator view." : "Open your assigned work, clock in, review field notes, and use job-safe tools without office-only data."}
+        description={isForeman ? "Run assigned jobs, crew time, notes, checklists, photos, tickets, and job-safe tools from one field view." : "Open assigned work, clock in, review field notes, and use job-safe tools."}
         actions={<Badge tone="orange">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>}
       />
       <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
