@@ -554,9 +554,55 @@ textarea {
     background: rgba(15, 23, 42, 0.72);
   }
 
+  .co-login-demo-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-top: 0.55rem;
+  }
+
+  .co-login-demo-preset {
+    display: grid;
+    min-width: 0;
+    gap: 0.24rem;
+    border: 1px solid rgba(249, 115, 22, 0.32);
+    border-radius: 0.82rem;
+    background: rgba(7, 17, 31, 0.72);
+    padding: 0.7rem;
+    color: #f8fafc;
+    text-align: left;
+    box-shadow: 0 14px 28px -24px rgba(249, 115, 22, 0.72);
+    transition: border-color 150ms ease, transform 150ms ease, background 150ms ease;
+  }
+
+  .co-login-demo-preset:hover,
+  .co-login-demo-preset:focus-visible {
+    border-color: rgba(249, 115, 22, 0.78);
+    background: rgba(124, 45, 18, 0.42);
+    transform: translateY(-1px);
+  }
+
   .co-login-demo-card strong {
     color: #fdba74;
     font-weight: 950;
+  }
+
+  .co-login-demo-preset span {
+    display: block;
+    margin-top: 0;
+    overflow-wrap: anywhere;
+    color: rgba(248, 250, 252, 0.96);
+    font-size: 0.78rem;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+
+  .co-login-demo-preset small {
+    margin-top: 0;
+    color: rgba(203, 213, 225, 0.82);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.25;
   }
 
   .co-login-demo-card small {
@@ -669,6 +715,10 @@ textarea {
 
     .co-login-quick-tabs {
       align-self: stretch;
+      grid-template-columns: 1fr;
+    }
+
+    .co-login-demo-actions {
       grid-template-columns: 1fr;
     }
   }

@@ -176,6 +176,13 @@ const APEX_BRAND_ASSETS = {
   appIcon: "/brand/apex-app-icon.png",
   splash: "/brand/apex-splash.png",
 };
+const DEMO_LOGIN_PASSWORD = "apexdemo123";
+const DEMO_LOGIN_PRESETS = [
+  { role: "Owner", email: "demo.ops@apexhq.app", helper: "Full Apex HQ operator view" },
+  { role: "Admin", email: "demo.admin@apexhq.app", helper: "Office setup and command center" },
+  { role: "Foreman", email: "demo.foreman@apexhq.app", helper: "Field lead workspace" },
+  { role: "Employee", email: "demo.employee@apexhq.app", helper: "Assigned field tasks" },
+];
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
@@ -2008,6 +2015,13 @@ function LoginScreen({
   const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
+  const fillDemoCredentials = (preset) => {
+    if (!canShowDemoCredentials || !preset?.email) return;
+    setCredentials({
+      email: preset.email,
+      password: DEMO_LOGIN_PASSWORD,
+    });
+  };
   if (loading) {
     return (
       <SplashScreen
@@ -2095,8 +2109,22 @@ function LoginScreen({
           {canShowDemoCredentials ? (
             <div className="co-login-demo-card">
               <p>Demo users</p>
-              <span>Admin, foreman, and employee accounts are available for guided demos.</span>
-              <small>Demo credentials should be shared privately with the demo link.</small>
+              <span>Pick the role you want to preview. The button fills the demo login for that workspace.</span>
+              <div className="co-login-demo-actions" aria-label="Demo login presets">
+                {DEMO_LOGIN_PRESETS.map((preset) => (
+                  <button
+                    key={preset.email}
+                    type="button"
+                    className="co-login-demo-preset"
+                    onClick={() => fillDemoCredentials(preset)}
+                  >
+                    <strong>{preset.role}</strong>
+                    <span>{preset.email}</span>
+                    <small>{preset.helper}</small>
+                  </button>
+                ))}
+              </div>
+              <small>Demo access appears only when demo mode is enabled.</small>
             </div>
           ) : null}
 
