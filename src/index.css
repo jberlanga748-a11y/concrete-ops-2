@@ -10543,6 +10543,10 @@ textarea {
     display: none !important;
   }
 
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-kpi-grid {
+    display: none !important;
+  }
+
   .co-prepour-kpi-grid .co-command-kpi-body {
     align-items: flex-start !important;
     gap: 0.58rem !important;
