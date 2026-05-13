@@ -8524,7 +8524,7 @@ function ToolboxTalksPagePolished({
     : [crewReviewPriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, manageGuidancePriorityCard];
 
   return (
-    <div className="co-office-page co-toolbox-page">
+    <div className="co-office-page co-toolbox-page co-toolbox-talks-page">
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title="Toolbox Talks"
@@ -8562,10 +8562,6 @@ function ToolboxTalksPagePolished({
               <div className="min-w-0">
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Toolbox Guidance Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan safety topics, PPE reminders, current guidance, and crew acknowledgment status without office-only clutter.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {categories.slice(0, 2).map((category) => <Button key={category} type="button" size="sm" variant="secondary" onClick={() => setCategoryFilter(category)}>{category}</Button>)}
-                {canAcknowledge ? <Button type="button" size="sm" onClick={() => openTools("ack")}>Acknowledge</Button> : null}
               </div>
             </div>
           </div>
