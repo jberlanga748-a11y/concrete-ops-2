@@ -16021,44 +16021,45 @@ function EmployeesPagePolished({
   }
 
   const firstFieldUser = allFieldUsers[0] || null;
-  const employeePriorityCards = [
-    {
-      label: "Active logins",
-      value: activeUsers.length,
-      helper: activeUsers.length ? "Users who can sign in and work from the current permission map." : "No active workspace logins are available.",
-      icon: "check",
-      tone: activeUsers.length ? "green" : "amber",
-      actionLabel: activeUsers.length ? "Review" : "Needs setup",
-      onAction: () => openPriorityUser((entry) => entry.status === "active", { statusFilter: activeUsers.length ? "active" : "All statuses", roleFilter: "All roles", search: "", toolTab: activeUsers.length ? "details" : "" }),
-    },
-    {
-      label: "Field roles",
-      value: allFieldUsers.length,
-      helper: allFieldUsers.length ? "Foreman and employee access stays separated from office/admin tools." : "No field crew accounts have been created yet.",
-      icon: "hardhat",
-      tone: allFieldUsers.length ? "orange" : "slate",
-      actionLabel: allFieldUsers.length ? "Review field" : "None",
-      onAction: () => openPriorityUser((entry) => ["Foreman", "Employee"].includes(entry.role), { roleFilter: firstFieldUser?.role || "All roles", statusFilter: "All statuses", search: "", toolTab: firstFieldUser ? "details" : "" }),
-    },
-    {
-      label: "Needs readiness",
-      value: readinessGapUsers.length,
-      helper: readinessGapUsers.length ? "Some accounts are missing name, email, role, or status details." : "Core user records have their required setup fields.",
-      icon: "alert",
-      tone: readinessGapUsers.length ? "amber" : "green",
-      actionLabel: readinessGapUsers.length ? "Fix" : "Ready",
-      onAction: () => openPriorityUser((entry) => readinessGapUsers.some((candidate) => candidate.id === entry.id), { roleFilter: "All roles", statusFilter: "All statuses", search: "", toolTab: readinessGapUsers.length ? "details" : "" }),
-    },
-    {
-      label: "New user",
-      value: canManage ? "Ready" : "Locked",
-      helper: canManage ? "Create office, foreman, or employee access from the existing workflow." : "This role can review employees but cannot create logins.",
-      icon: "plus",
-      tone: canManage ? "blue" : "slate",
-      actionLabel: canManage ? "Create" : "View only",
-      onAction: () => canManage ? openTools("create") : openPriorityUser((entry) => entry.id === selectedUser?.id),
-    },
-  ];
+  const activeLoginsPriorityCard = {
+    label: "Active logins",
+    value: activeUsers.length,
+    helper: activeUsers.length ? "Users who can sign in and work from the current permission map." : "No active workspace logins are available.",
+    icon: "check",
+    tone: activeUsers.length ? "green" : "amber",
+    actionLabel: activeUsers.length ? "Review" : "Needs setup",
+    onAction: () => openPriorityUser((entry) => entry.status === "active", { statusFilter: activeUsers.length ? "active" : "All statuses", roleFilter: "All roles", search: "", toolTab: activeUsers.length ? "details" : "" }),
+  };
+  const fieldRolesPriorityCard = {
+    label: "Field roles",
+    value: allFieldUsers.length,
+    helper: allFieldUsers.length ? "Foreman and employee access stays separated from office/admin tools." : "No field crew accounts have been created yet.",
+    icon: "hardhat",
+    tone: allFieldUsers.length ? "orange" : "slate",
+    actionLabel: allFieldUsers.length ? "Review field" : "None",
+    onAction: () => openPriorityUser((entry) => ["Foreman", "Employee"].includes(entry.role), { roleFilter: firstFieldUser?.role || "All roles", statusFilter: "All statuses", search: "", toolTab: firstFieldUser ? "details" : "" }),
+  };
+  const readinessPriorityCard = {
+    label: "Needs readiness",
+    value: readinessGapUsers.length,
+    helper: readinessGapUsers.length ? "Some accounts are missing name, email, role, or status details." : "Core user records have their required setup fields.",
+    icon: "alert",
+    tone: readinessGapUsers.length ? "amber" : "green",
+    actionLabel: readinessGapUsers.length ? "Fix" : "Ready",
+    onAction: () => openPriorityUser((entry) => readinessGapUsers.some((candidate) => candidate.id === entry.id), { roleFilter: "All roles", statusFilter: "All statuses", search: "", toolTab: readinessGapUsers.length ? "details" : "" }),
+  };
+  const newUserPriorityCard = {
+    label: "New user",
+    value: canManage ? "Ready" : "Locked",
+    helper: canManage ? "Create office, foreman, or employee access from the existing workflow." : "This role can review employees but cannot create logins.",
+    icon: "plus",
+    tone: canManage ? "blue" : "slate",
+    actionLabel: canManage ? "Create" : "View only",
+    onAction: () => canManage ? openTools("create") : openPriorityUser((entry) => entry.id === selectedUser?.id),
+  };
+  const employeePriorityCards = visibleRows.length === 0 && canManage
+    ? [newUserPriorityCard, activeLoginsPriorityCard, fieldRolesPriorityCard, readinessPriorityCard]
+    : [activeLoginsPriorityCard, fieldRolesPriorityCard, readinessPriorityCard, newUserPriorityCard];
 
   if (!canView) {
     return (
