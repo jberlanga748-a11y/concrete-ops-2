@@ -8058,14 +8058,15 @@ function SafetyIncidentsPagePolished({
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState(canSubmitIncidents ? "submit" : "detail");
   const toolsRef = useRef(null);
+  const isFieldIncidentWorkspace = !canManage;
   const visibleOpen = visibleIncidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(incident.status)).length;
   const highSeverity = visibleIncidents.filter((incident) => ["high", "critical"].includes(String(incident.severity || "").toLowerCase())).length;
   const reviewNeeded = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "open").length;
   const incidentKpis = [
-    { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "blue" },
+    { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "orange" },
     { label: "Open Follow-Up", value: visibleOpen, helper: "Needs safety action", icon: "clock", tone: visibleOpen ? "amber" : "green", actionLabel: "Open", onAction: () => setIncidentStatusFilter("open") },
     { label: "High Severity", value: highSeverity, helper: "High or critical", icon: "alert", tone: highSeverity ? "red" : "green" },
-    { label: "Reviewed", value: visibleIncidents.filter((incident) => incident.status === "reviewed").length, helper: "Office reviewed", icon: "check", tone: "blue", actionLabel: "Reviewed", onAction: () => setIncidentStatusFilter("reviewed") },
+    { label: "Reviewed", value: visibleIncidents.filter((incident) => incident.status === "reviewed").length, helper: "Office reviewed", icon: "check", tone: "orange", actionLabel: "Reviewed", onAction: () => setIncidentStatusFilter("reviewed") },
     { label: "Resolved", value: visibleIncidents.filter((incident) => incident.status === "resolved").length, helper: "Closed safety loop", icon: "check", tone: "green", actionLabel: "Resolved", onAction: () => setIncidentStatusFilter("resolved") },
   ];
   const statusOptions = [
@@ -8089,6 +8090,11 @@ function SafetyIncidentsPagePolished({
   function openTools(nextTab = canSubmitIncidents ? "submit" : "detail") {
     setToolTab(nextTab);
     setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function selectTool(nextTab = "detail") {
+    setToolTab(nextTab);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -8136,18 +8142,20 @@ function SafetyIncidentsPagePolished({
     value: canSubmitIncidents ? "Ready" : "Locked",
     helper: canSubmitIncidents ? "Start a field-safe concern, hazard, near miss, or injury report." : "This role can review visible safety records only.",
     icon: "plus",
-    tone: canSubmitIncidents ? "blue" : "slate",
+    tone: canSubmitIncidents ? "orange" : "slate",
     actionLabel: canSubmitIncidents ? "Start report" : "Read only",
     onAction: () => openTools(canSubmitIncidents ? "submit" : "detail"),
   };
-  const incidentPriorityCards = visibleIncidents.length === 0 && canSubmitIncidents
+  const incidentPriorityCards = isFieldIncidentWorkspace && canSubmitIncidents
+    ? [submitIncidentPriorityCard, highSeverityPriorityCard, openResponsePriorityCard, needsReviewPriorityCard]
+    : visibleIncidents.length === 0 && canSubmitIncidents
     ? [submitIncidentPriorityCard, openResponsePriorityCard, highSeverityPriorityCard, needsReviewPriorityCard]
     : highSeverity
       ? [highSeverityPriorityCard, openResponsePriorityCard, needsReviewPriorityCard, submitIncidentPriorityCard]
       : [openResponsePriorityCard, highSeverityPriorityCard, needsReviewPriorityCard, submitIncidentPriorityCard];
 
   return (
-    <div className="co-office-page co-incidents-page">
+    <div className="co-office-page co-incidents-page" data-field-workspace={isFieldIncidentWorkspace ? "true" : undefined}>
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title={canManage ? "Incidents" : "Report Incident"}
@@ -8166,7 +8174,7 @@ function SafetyIncidentsPagePolished({
 
       <div className="co-incidents-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
         {incidentPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-incidents-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+          <button key={card.label} type="button" className="co-incidents-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === submitIncidentPriorityCard && canSubmitIncidents ? "true" : undefined} onClick={card.onAction}>
             <span className="co-incidents-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
             <span className="min-w-0">
               <span className="co-incidents-priority-value">{card.value}</span>
@@ -8265,8 +8273,8 @@ function SafetyIncidentsPagePolished({
           <span>Open tools</span>
         </summary>
         <div className="co-incidents-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canSubmitIncidents ? <button type="button" className={toolTab === "submit" ? "is-active" : ""} onClick={() => setToolTab("submit")}><Icon name="plus" />Submit</button> : null}
-          <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => setToolTab("detail")}><Icon name="alert" />Detail</button>
+          {canSubmitIncidents ? <button type="button" className={toolTab === "submit" ? "is-active" : ""} onClick={() => selectTool("submit")}><Icon name="plus" />Submit</button> : null}
+          <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => selectTool("detail")}><Icon name="alert" />Detail</button>
         </div>
         <div className="co-incidents-tools-panel mt-3">
           {toolTab === "submit" ? (
