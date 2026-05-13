@@ -16583,11 +16583,6 @@ function EmployeesPagePolished({
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Workspace Access Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan roles, status, contact info, and login activity while keeping field roles separate from office/admin access.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Foreman")}>Foremen</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("Employee")}>Employees</Button>
-                {canManage ? <Button type="button" size="sm" onClick={() => openTools("create")}>New User</Button> : null}
-              </div>
             </div>
           </div>
           <FilterBar filters={["All roles", ...USER_ROLE_OPTIONS]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, email, phone, role..." />
