@@ -12407,7 +12407,7 @@ function DashboardPagePolished({
       <div className="co-office-page co-dashboard-page co-dashboard-field-page">
         <PageHeader
           eyebrow="Field Workspace"
-          title={<span>Daily workspace <span className="text-orange-500">{"\u2606"}</span></span>}
+          title="Daily workspace"
           description="Open assigned jobs, reports, uploads, safety tools, and time tracking without exposing office-only data."
           actions={
             <div className="flex flex-wrap gap-2">
@@ -12468,7 +12468,7 @@ function DashboardPagePolished({
     <div className="co-office-page co-dashboard-page">
       <PageHeader
         eyebrow="Operations Command"
-        title={<span>Dashboard <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Dashboard"
         description="Daily operator console for live leads, startup readiness, job movement, task queue, and activity."
         actions={
           <div className="flex flex-wrap gap-2">
