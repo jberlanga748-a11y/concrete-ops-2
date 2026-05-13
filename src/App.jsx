@@ -20131,7 +20131,7 @@ function PrePourPagePolished({
     <div className="co-office-page co-prepour-page">
       <PageHeader
         eyebrow={permissions.prePour.canManageAll ? "Field Ops" : "Field Workspace"}
-        title={<span>Pre-Pour Board <span className="text-orange-500">{"\u2606"}</span></span>}
+        title="Pre-Pour Board"
         description={permissions.prePour.canManageAll ? "Track job readiness across pre-pour checklists, open items, field completion, and office review before placement." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."}
         actions={
           <div className="flex flex-wrap gap-2">
