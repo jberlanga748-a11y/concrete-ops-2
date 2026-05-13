@@ -5386,7 +5386,7 @@ function TimePage({
     <div className="co-office-page co-time-page">
       <PageHeader
         eyebrow={pageEyebrow}
-        title={<span>{pageTitle} <span className="text-orange-500">{"\u2606"}</span></span>}
+        title={pageTitle}
         description={pageDescription}
         actions={
           <div className="flex flex-wrap gap-2">
