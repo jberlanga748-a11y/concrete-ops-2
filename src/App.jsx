@@ -16776,6 +16776,70 @@ function CalculatorSummaryPanelPolished({ result, calculatorMode }) {
   );
 }
 
+function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFields, enteredDimensionCount, result, allowedJobs, resultCopied, onFocusInput, onCopyResult, onSaveResult, onStartTakeoff }) {
+  const resultReady = result.status === "ready";
+  const resultValue = resultReady ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open";
+  const summaryItems = [
+    { label: "Pour shape", value: calculatorTypeLabel(calculatorType), tone: "orange" },
+    { label: "Inputs", value: `${enteredDimensionCount}/${activeFields.length}`, tone: enteredDimensionCount === activeFields.length ? "green" : "amber" },
+    { label: "Live result", value: resultValue, tone: resultReady ? "green" : "slate" },
+    { label: "Job saves", value: allowedJobs.length, tone: allowedJobs.length ? "blue" : "slate" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-field-operator-panel co-calculator-field-panel overflow-hidden">
+        <div className="co-field-operator-shell">
+          <div className="co-field-operator-copy min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge tone="orange">Field Calculator</Badge>
+              <Badge tone={calculatorMode === "multi_section" ? "blue" : "slate"}>{calculatorMode === "multi_section" ? "Takeoff" : "Single pour"}</Badge>
+              <Badge tone={resultReady ? "green" : "amber"}>{resultReady ? "Result ready" : "Needs dimensions"}</Badge>
+            </div>
+            <h2>{resultReady ? `${resultValue} yd^3 with waste` : "Concrete calculator ready"}</h2>
+            <p>{resultReady ? result.summary : "Enter the pour dimensions once, then copy a field-ready total or save the internal calculation to an allowed job."}</p>
+            <div className="co-field-operator-address">
+              <Icon name="calculator" />
+              <span>{calculatorTypeLabel(calculatorType)} / {activeFields.length} required dimension{activeFields.length === 1 ? "" : "s"}</span>
+            </div>
+          </div>
+
+          <div className="co-field-operator-actions">
+            {resultReady ? (
+              <Button type="button" onClick={onCopyResult}>
+                <Icon name="clipboard" />
+                {resultCopied ? "Copied" : "Copy Result"}
+              </Button>
+            ) : (
+              <Button type="button" onClick={onFocusInput}>
+                <Icon name="calculator" />
+                Enter Dimensions
+              </Button>
+            )}
+            <Button type="button" variant="secondary" onClick={onSaveResult}>
+              <Icon name="briefcase" />
+              Save to Job
+            </Button>
+            <Button type="button" variant="secondary" onClick={onStartTakeoff}>
+              <Icon name="plus" />
+              Build Takeoff
+            </Button>
+          </div>
+        </div>
+
+        <div className="co-field-operator-strip">
+          {summaryItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function CalculatorPagePolished({
   calculatorMode,
   setCalculatorMode,
@@ -16841,6 +16905,11 @@ function CalculatorPagePolished({
     copyResult();
   }
 
+  function startTakeoffMode() {
+    setCalculatorMode("multi_section");
+    focusCalculatorInput();
+  }
+
   const dimensionsPriorityCard = {
     label: "Dimensions",
     value: `${enteredDimensionCount}/${activeFields.length}`,
@@ -16875,10 +16944,7 @@ function CalculatorPagePolished({
     icon: "plus",
     tone: calculatorMode === "multi_section" ? "blue" : "orange",
     actionLabel: calculatorMode === "multi_section" ? "Add section" : "Build takeoff",
-    onAction: () => {
-      setCalculatorMode("multi_section");
-      focusCalculatorInput();
-    },
+    onAction: startTakeoffMode,
   };
   const calculatorPriorityCards = isFieldTool
     ? [dimensionsPriorityCard, liveResultPriorityCard, takeoffModePriorityCard, saveToJobPriorityCard]
@@ -16913,6 +16979,22 @@ function CalculatorPagePolished({
           </div>
         }
       />
+
+      {isFieldTool ? (
+        <CalculatorFieldOperatorPanel
+          calculatorMode={calculatorMode}
+          calculatorType={calculatorType}
+          activeFields={activeFields}
+          enteredDimensionCount={enteredDimensionCount}
+          result={result}
+          allowedJobs={allowedJobs}
+          resultCopied={resultCopied}
+          onFocusInput={focusCalculatorInput}
+          onCopyResult={copyFromPriority}
+          onSaveResult={openSaveFromPriority}
+          onStartTakeoff={startTakeoffMode}
+        />
+      ) : null}
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {calculatorKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
