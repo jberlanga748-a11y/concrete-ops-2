@@ -3799,6 +3799,13 @@ textarea {
       letter-spacing: -0.03em;
     }
 
+    .co-command-kpi .co-command-kpi-body p:nth-child(2) {
+      font-size: 0.8rem !important;
+      line-height: 1.08 !important;
+      overflow-wrap: normal !important;
+      word-break: normal !important;
+    }
+
     .co-command-kpi-link {
       margin-top: 0.7rem;
       font-size: 0.72rem;
