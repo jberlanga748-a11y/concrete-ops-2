@@ -7923,8 +7923,21 @@ textarea {
   display: none !important;
 }
 
+.co-calculator-page.co-field-tool-page .co-calculator-priority-desktop {
+  display: none !important;
+}
+
 .co-calculator-page.co-field-tool-page .co-calculator-priority-desktop .co-toolbox-priority-card[data-tone="blue"] {
   --co-toolbox-priority-tone: #f97316;
+}
+
+.co-calculator-workflow-card {
+  border-top-color: rgba(249, 115, 22, 0.64) !important;
+  box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.52);
+}
+
+.co-calculator-field-panel .co-field-operator-actions > button:first-child {
+  min-height: 3.32rem;
 }
 
 .co-tool-checklist-page.co-field-tool-page .co-toolbox-kpi-grid {
@@ -8670,6 +8683,64 @@ textarea {
 
   .co-toolbox-selected-metrics {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-calculator-workflow-card .co-toolbox-category-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    padding-bottom: 0;
+    width: 100%;
+  }
+
+  .co-calculator-workflow-card .co-toolbox-category-tabs button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-page-header {
+    margin-bottom: 0.78rem;
+    padding: 0.95rem 1.45rem 1rem !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-page-header h1 {
+    font-size: clamp(1.72rem, 7vw, 2.08rem) !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-page-header h1 + p {
+    margin-top: 0.62rem;
+    font-size: 0.92rem;
+    line-height: 1.34;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-field-operator-shell {
+    gap: 0.72rem;
+    padding: 0.82rem;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-field-operator-copy h2 {
+    margin-top: 0.5rem;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-field-operator-address {
+    margin-top: 0.62rem;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-workflow-description {
+    display: none;
+  }
+
+  .co-calculator-page .co-toolbox-board-header .flex.flex-wrap.gap-2,
+  .co-calculator-page .co-calculator-waste-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .co-calculator-page .co-toolbox-board-header .flex.flex-wrap.gap-2 > *,
+  .co-calculator-page .co-calculator-waste-actions > * {
+    justify-content: center;
+    width: 100%;
   }
 
   .co-ppe-field-panel .co-field-operator-strip {

@@ -16949,11 +16949,16 @@ function defaultTakeoffSectionLabel(index) {
   return `Section ${index + 1}`;
 }
 
-function CalculatorModeTabsPolished({ calculatorMode, setCalculatorMode }) {
+function CalculatorModeTabsPolished({ calculatorMode, setCalculatorMode, onModeChange }) {
   return (
     <div className="co-toolbox-category-tabs">
       {CALCULATOR_MODE_OPTIONS.map((option) => (
-        <button key={option.id} type="button" className={calculatorMode === option.id ? "is-active" : ""} onClick={() => setCalculatorMode(option.id)}>
+        <button
+          key={option.id}
+          type="button"
+          className={calculatorMode === option.id ? "is-active" : ""}
+          onClick={() => (onModeChange ? onModeChange(option.id) : setCalculatorMode(option.id))}
+        >
           {option.label}
         </button>
       ))}
@@ -17069,7 +17074,7 @@ function CalculatorInputPanelPolished({
               />
             ) : null}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="co-calculator-waste-actions mt-4 flex flex-wrap gap-2">
             {calculatorMode === "multi_section" ? (
               <Button type="button" onClick={addOrUpdateSection} disabled={!sectionReady}>
                 {editingSectionId ? "Save section" : "Add section"}
@@ -17243,8 +17248,8 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
               <Badge tone={calculatorMode === "multi_section" ? "orange" : "slate"}>{calculatorMode === "multi_section" ? "Takeoff" : "Single pour"}</Badge>
               <Badge tone={resultReady ? "green" : "amber"}>{resultReady ? "Result ready" : "Needs dimensions"}</Badge>
             </div>
-            <h2>{resultReady ? `${resultValue} yd^3 with waste` : "Concrete calculator ready"}</h2>
-            <p>{resultReady ? result.summary : "Enter the pour dimensions once, then copy a field-ready total or save the internal calculation to an allowed job."}</p>
+            <h2>{resultReady ? `${resultValue} yd^3 with waste` : "Calculator ready"}</h2>
+            <p>{resultReady ? result.summary : "Enter dimensions, then copy a field-ready total or save the internal calculation to an allowed job."}</p>
             <div className="co-field-operator-address">
               <Icon name="calculator" />
               <span>{calculatorTypeLabel(calculatorType)} / {activeFields.length} required dimension{activeFields.length === 1 ? "" : "s"}</span>
@@ -17264,8 +17269,8 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
               </Button>
             )}
             <Button type="button" variant="secondary" onClick={onSaveResult}>
-              <Icon name="briefcase" />
-              Save to Job
+              <Icon name={resultReady ? "briefcase" : "layers"} />
+              {resultReady ? "Save to Job" : "Finish Dims"}
             </Button>
             <Button type="button" variant="secondary" onClick={onStartTakeoff}>
               <Icon name="plus" />
@@ -17352,8 +17357,16 @@ function CalculatorPagePolished({
     copyResult();
   }
 
+  function changeCalculatorMode(nextMode) {
+    if (!nextMode || nextMode === calculatorMode) return;
+    setCalculatorMode(nextMode);
+    window.setTimeout(() => {
+      document.querySelector(".co-calculator-page .co-toolbox-main-board")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   function startTakeoffMode() {
-    setCalculatorMode("multi_section");
+    changeCalculatorMode("multi_section");
     focusCalculatorInput();
   }
 
@@ -17417,8 +17430,8 @@ function CalculatorPagePolished({
     <div className={`co-office-page co-toolbox-page co-calculator-page ${isFieldTool ? "co-field-tool-page" : ""}`}>
       <PageHeader
         eyebrow={isFieldTool ? "Field Tools" : "Tools"}
-        title="Concrete Calculator"
-        description="Calculate concrete yield, build multi-section takeoffs, copy field-ready totals, and save internal results to allowed jobs."
+        title={isFieldTool ? "Field Calculator" : "Concrete Calculator"}
+        description={isFieldTool ? "Calculate yield, build takeoffs, copy totals, and save allowed job records." : "Calculate concrete yield, build multi-section takeoffs, copy field-ready totals, and save internal results to allowed jobs."}
         actions={isFieldTool ? null : (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={copyResult} disabled={result.status !== "ready"}>{resultCopied ? "Copied" : "Copy Result"}</Button>
@@ -17447,9 +17460,11 @@ function CalculatorPagePolished({
         {calculatorKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
-      <div className="co-toolbox-priority-grid co-calculator-priority-desktop mx-auto w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
-        {calculatorPriorityCards.map(renderCalculatorPriorityCard)}
-      </div>
+      {!isFieldTool ? (
+        <div className="co-toolbox-priority-grid co-calculator-priority-desktop mx-auto w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+          {calculatorPriorityCards.map(renderCalculatorPriorityCard)}
+        </div>
+      ) : null}
 
       <div className="co-toolbox-priority-grid co-calculator-priority-mobile mx-auto w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:px-6">
         {mobileCalculatorPriorityCards.map(renderCalculatorPriorityCard)}
@@ -17461,13 +17476,13 @@ function CalculatorPagePolished({
       </div>
 
       <div className="mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6">
-        <Card className="p-3">
+        <Card className="co-calculator-workflow-card p-3">
           <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Calculation workflow</p>
-              <p className="mt-1 text-sm font-bold text-slate-600">Switch between a quick single pour and a multi-section takeoff without changing the calculator math.</p>
+              <p className="co-calculator-workflow-description mt-1 text-sm font-bold text-slate-600">Switch between a quick single pour and a multi-section takeoff without changing the calculator math.</p>
             </div>
-            <CalculatorModeTabsPolished calculatorMode={calculatorMode} setCalculatorMode={setCalculatorMode} />
+            <CalculatorModeTabsPolished calculatorMode={calculatorMode} setCalculatorMode={setCalculatorMode} onModeChange={changeCalculatorMode} />
           </div>
         </Card>
       </div>
