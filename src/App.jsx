@@ -15873,7 +15873,7 @@ function CustomersPagePolished({
     <div className="co-office-page co-customers-page">
       <PageHeader
         eyebrow="Office"
-        title={<span>Customers <span className="text-orange-500">☆</span></span>}
+        title="Customers"
         description="Track customer relationships, contact gaps, linked leads, jobs, and follow-up history from one contractor command view."
         actions={
           <div className="flex flex-wrap gap-2">
