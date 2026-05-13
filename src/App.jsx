@@ -8105,44 +8105,45 @@ function ToolboxTalksPagePolished({
   }
 
   const latestTalk = selectedTalk || filteredPolicies[0] || visiblePolicies[0] || null;
-  const toolboxPriorityCards = [
-    {
-      label: "Crew review",
-      value: acknowledgmentState.hasAcknowledged ? "Done" : "Open",
-      helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew review needs a field-safe acknowledgment.",
-      icon: "check",
-      tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
-      actionLabel: canAcknowledge ? "Acknowledge" : "View status",
-      onAction: () => openTools(canAcknowledge ? "ack" : "ppe"),
-    },
-    {
-      label: "Current talk",
-      value: latestTalk ? 1 : 0,
-      helper: latestTalk ? `${latestTalk.title || "Untitled talk"}${latestTalk.category ? ` / ${latestTalk.category}` : ""}` : "No toolbox guidance is visible yet.",
-      icon: "clipboard",
-      tone: latestTalk ? "blue" : "slate",
-      actionLabel: latestTalk ? "Open talk" : "No talk",
-      onAction: () => openPriorityTalk((policy) => policy.id === latestTalk?.id, { tool: canAcknowledge ? "ack" : "ppe" }),
-    },
-    {
-      label: "PPE reminders",
-      value: requiredPpeCount,
-      helper: requiredPpeCount ? "Required default PPE reminders are ready for the crew." : "No required PPE reminders are marked by default.",
-      icon: "hardhat",
-      tone: requiredPpeCount ? "orange" : "slate",
-      actionLabel: "Open PPE",
-      onAction: () => openTools("ppe"),
-    },
-    {
-      label: canManage ? "Manage guidance" : "Field guidance",
-      value: canManage ? "Ready" : filteredPolicies.length,
-      helper: canManage ? "Create or edit toolbox talks without exposing office-only data." : "Field-safe toolbox talks stay scoped to this workspace.",
-      icon: canManage ? "settings" : "users",
-      tone: canManage ? "blue" : "green",
-      actionLabel: canManage ? "Manage" : "Review",
-      onAction: () => openTools(canManage ? "manage" : (canAcknowledge ? "ack" : "ppe")),
-    },
-  ];
+  const crewReviewPriorityCard = {
+    label: "Crew review",
+    value: acknowledgmentState.hasAcknowledged ? "Done" : "Open",
+    helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew review needs a field-safe acknowledgment.",
+    icon: "check",
+    tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
+    actionLabel: canAcknowledge ? "Acknowledge" : "View status",
+    onAction: () => openTools(canAcknowledge ? "ack" : "ppe"),
+  };
+  const currentTalkPriorityCard = {
+    label: "Current talk",
+    value: latestTalk ? 1 : 0,
+    helper: latestTalk ? `${latestTalk.title || "Untitled talk"}${latestTalk.category ? ` / ${latestTalk.category}` : ""}` : "No toolbox guidance is visible yet.",
+    icon: "clipboard",
+    tone: latestTalk ? "blue" : "slate",
+    actionLabel: latestTalk ? "Open talk" : "No talk",
+    onAction: () => openPriorityTalk((policy) => policy.id === latestTalk?.id, { tool: canAcknowledge ? "ack" : "ppe" }),
+  };
+  const ppeRemindersPriorityCard = {
+    label: "PPE reminders",
+    value: requiredPpeCount,
+    helper: requiredPpeCount ? "Required default PPE reminders are ready for the crew." : "No required PPE reminders are marked by default.",
+    icon: "hardhat",
+    tone: requiredPpeCount ? "orange" : "slate",
+    actionLabel: "Open PPE",
+    onAction: () => openTools("ppe"),
+  };
+  const manageGuidancePriorityCard = {
+    label: canManage ? "Manage guidance" : "Field guidance",
+    value: canManage ? "Ready" : filteredPolicies.length,
+    helper: canManage ? "Create or edit toolbox talks without exposing office-only data." : "Field-safe toolbox talks stay scoped to this workspace.",
+    icon: canManage ? "settings" : "users",
+    tone: canManage ? "blue" : "green",
+    actionLabel: canManage ? "Manage" : "Review",
+    onAction: () => openTools(canManage ? "manage" : (canAcknowledge ? "ack" : "ppe")),
+  };
+  const toolboxPriorityCards = filteredPolicies.length === 0 && canManage
+    ? [manageGuidancePriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, crewReviewPriorityCard]
+    : [crewReviewPriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, manageGuidancePriorityCard];
 
   return (
     <div className="co-office-page co-toolbox-page">
