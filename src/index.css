@@ -8309,6 +8309,16 @@ textarea {
   line-height: 1.35;
 }
 
+.co-toolbox-rail-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.co-toolbox-rail-action-grid > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .co-toolbox-empty-rail {
   display: grid;
   justify-items: start;
@@ -17042,6 +17052,10 @@ textarea {
   }
 
   .co-ppe-page.co-field-tool-page .co-toolbox-priority-grid {
+    display: none !important;
+  }
+
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-priority-grid {
     display: none !important;
   }
 }

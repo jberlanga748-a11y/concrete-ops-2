@@ -26152,7 +26152,7 @@ function toolChecklistStatusTone(status = "draft") {
   if (normalized === "reviewed") return "green";
   if (normalized === "submitted") return "amber";
   if (normalized === "archived") return "slate";
-  if (normalized === "active") return "blue";
+  if (normalized === "active") return "orange";
   return "slate";
 }
 
@@ -26305,7 +26305,7 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, permission
           <p>{checklist.notes || "No checklist notes recorded yet."}</p>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="co-toolbox-rail-action-grid mt-3">
           <Button type="button" size="sm" onClick={() => onOpenTool("items")}>Review Items</Button>
           {(permissions.toolChecklist.canManageAll || permissions.toolChecklist.canManageJob) ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("detail")}>Edit Notes</Button> : null}
           {permissions.toolChecklist.canManageJob ? <Button type="button" size="sm" variant="secondary" onClick={() => onSubmitChecklist(checklist.id)} disabled={busy || checklist.status === "submitted" || checklist.status === "reviewed" || checklist.status === "archived"}>Submit</Button> : null}
@@ -26440,6 +26440,7 @@ function ToolChecklistCreatePanelPolished({ canCreate, visibleJobs, checklistDra
         <div className="md:col-span-2">
           <Button
             type="button"
+            className="w-full sm:w-auto"
             onClick={() => {
               onCreateChecklist(checklistDraft);
               setChecklistDraft({ ...INITIAL_TOOL_CHECKLIST_FORM, jobId: singleJobId });
@@ -26565,6 +26566,7 @@ function ToolChecklistAddItemPanelPolished({ canAddItems, checklist, itemDraft, 
         <div className="md:col-span-2">
           <Button
             type="button"
+            className="w-full sm:w-auto"
             onClick={() => {
               onAddChecklistItem(checklist.id, itemDraft);
               setItemDraft(INITIAL_TOOL_CHECKLIST_ITEM_FORM);
@@ -26647,6 +26649,11 @@ function ToolChecklistPagePolished({
   function openTools(nextTab = canCreateChecklist ? "create" : "items") {
     setToolTab(nextTab);
     setShowTools(true);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function changeToolTab(nextTab) {
+    setToolTab(nextTab);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -26846,10 +26853,10 @@ function ToolChecklistPagePolished({
           <span>Open tools</span>
         </summary>
         <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canCreateChecklist ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />Create</button> : null}
-          <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => setToolTab("detail")}><Icon name="clipboard" />Detail</button>
-          <button type="button" className={toolTab === "items" ? "is-active" : ""} onClick={() => setToolTab("items")}><Icon name="layers" />Items</button>
-          {canAddItems ? <button type="button" className={toolTab === "add" ? "is-active" : ""} onClick={() => setToolTab("add")}><Icon name="plus" />Add Item</button> : null}
+          {canCreateChecklist ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => changeToolTab("create")}><Icon name="plus" />Create</button> : null}
+          <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => changeToolTab("detail")}><Icon name="clipboard" />Detail</button>
+          <button type="button" className={toolTab === "items" ? "is-active" : ""} onClick={() => changeToolTab("items")}><Icon name="layers" />Items</button>
+          {canAddItems ? <button type="button" className={toolTab === "add" ? "is-active" : ""} onClick={() => changeToolTab("add")}><Icon name="plus" />Add Item</button> : null}
         </div>
         <div className="co-toolbox-tools-panel mt-3">
           {toolTab === "create" ? (
