@@ -8092,6 +8092,10 @@ textarea {
   .co-toolbox-selected-metrics {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .co-ppe-field-panel .co-field-operator-strip {
+    display: none;
+  }
 }
 
 .co-reports-page {

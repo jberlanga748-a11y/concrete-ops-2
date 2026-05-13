@@ -8517,6 +8517,74 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
   );
 }
 
+function PpeFieldOperatorPanel({ selectedItem, filteredCount, requiredCount, acknowledgmentState, openIncidents, canAcknowledge, canSubmitIncidents, onOpenTool, onJumpToBoard }) {
+  const summaryItems = [
+    { label: "PPE items", value: filteredCount, tone: filteredCount ? "orange" : "slate" },
+    { label: "Required", value: requiredCount, tone: requiredCount ? "blue" : "slate" },
+    { label: "Acknowledged", value: acknowledgmentState.hasAcknowledged ? "Yes" : "Open", tone: acknowledgmentState.hasAcknowledged ? "green" : "amber" },
+    { label: "Safety watch", value: openIncidents, tone: openIncidents ? "amber" : "green" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-field-operator-panel co-ppe-field-panel overflow-hidden">
+        <div className="co-field-operator-shell">
+          <div className="co-field-operator-copy min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge tone="orange">Field PPE Check</Badge>
+              <Badge tone={acknowledgmentState.hasAcknowledged ? "green" : "amber"}>{acknowledgmentState.hasAcknowledged ? "Acknowledged" : "Needs acknowledgment"}</Badge>
+              {openIncidents ? <Badge tone="amber">{openIncidents} safety watch</Badge> : <Badge tone="green">Safety watch clear</Badge>}
+            </div>
+            <h2>{selectedItem ? selectedItem.label || "PPE requirement" : "PPE check ready"}</h2>
+            <p>{selectedItem?.description || "Confirm required protection, acknowledge the PPE check, and keep field concerns close without office-only controls."}</p>
+            <div className="co-field-operator-address">
+              <Icon name="hardhat" />
+              <span>{selectedItem ? `${ppeItemRequirementLabel(selectedItem)} / ${formatDateTime(ppeItemUpdatedAt(selectedItem)) || "No update date"}` : `${filteredCount} visible PPE item${filteredCount === 1 ? "" : "s"}`}</span>
+            </div>
+          </div>
+
+          <div className="co-field-operator-actions">
+            {canAcknowledge ? (
+              <Button type="button" onClick={() => onOpenTool("ack")}>
+                <Icon name="check" />
+                Acknowledge PPE
+              </Button>
+            ) : (
+              <Button type="button" onClick={onJumpToBoard}>
+                <Icon name="hardhat" />
+                View PPE
+              </Button>
+            )}
+            {canSubmitIncidents ? (
+              <Button type="button" variant="secondary" onClick={() => onOpenTool("incident")}>
+                <Icon name="alert" />
+                Report Concern
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => onOpenTool("policy")}>
+              <Icon name="clipboard" />
+              Guidance
+            </Button>
+            <Button type="button" variant="secondary" onClick={onJumpToBoard}>
+              <Icon name="arrowUpRight" />
+              View Board
+            </Button>
+          </div>
+        </div>
+
+        <div className="co-field-operator-strip">
+          {summaryItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function PpeAcknowledgePanelPolished({ canAcknowledge, allowedJobs, visiblePolicies, ackDraft, setAckDraft, acknowledgments, canManage, ackState, busy, onSubmit }) {
   if (!canAcknowledge) {
     return (
@@ -8821,6 +8889,20 @@ function PpeChecklistPagePolished({
           </div>
         }
       />
+
+      {!canManage ? (
+        <PpeFieldOperatorPanel
+          selectedItem={selectedItem}
+          filteredCount={filteredPpeItems.length}
+          requiredCount={requiredCount}
+          acknowledgmentState={acknowledgmentState}
+          openIncidents={openIncidents}
+          canAcknowledge={canAcknowledge}
+          canSubmitIncidents={canSubmitIncidents}
+          onOpenTool={openTools}
+          onJumpToBoard={jumpToBoard}
+        />
+      ) : null}
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {ppeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
