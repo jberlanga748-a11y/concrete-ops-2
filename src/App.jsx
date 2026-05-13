@@ -16643,47 +16643,48 @@ function CalculatorPagePolished({
     copyResult();
   }
 
-  const calculatorPriorityCards = [
-    {
-      label: "Dimensions",
-      value: `${enteredDimensionCount}/${activeFields.length}`,
-      helper: enteredDimensionCount === activeFields.length ? "Required fields are filled for the selected pour shape." : "Fill the missing dimensions to unlock the result.",
-      icon: "layers",
-      tone: enteredDimensionCount === activeFields.length ? "green" : "orange",
-      actionLabel: "Enter dims",
-      onAction: focusCalculatorInput,
+  const dimensionsPriorityCard = {
+    label: "Dimensions",
+    value: `${enteredDimensionCount}/${activeFields.length}`,
+    helper: enteredDimensionCount === activeFields.length ? "Required fields are filled for the selected pour shape." : "Fill the missing dimensions to unlock the result.",
+    icon: "layers",
+    tone: enteredDimensionCount === activeFields.length ? "green" : "orange",
+    actionLabel: "Enter dims",
+    onAction: focusCalculatorInput,
+  };
+  const liveResultPriorityCard = {
+    label: "Live result",
+    value: resultReady ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open",
+    helper: resultReady ? "Concrete yield with waste is ready to copy or save." : "Waiting on valid dimensions before showing a total.",
+    icon: "calculator",
+    tone: resultReady ? "green" : "slate",
+    actionLabel: resultReady ? "Copy" : "Calculate",
+    onAction: copyFromPriority,
+  };
+  const saveToJobPriorityCard = {
+    label: "Save to job",
+    value: allowedJobs.length,
+    helper: allowedJobs.length ? "Allowed jobs are available for internal calculation records." : "No assigned or visible job is available to save into.",
+    icon: "briefcase",
+    tone: resultReady && allowedJobs.length ? "blue" : "slate",
+    actionLabel: resultReady ? "Save" : "Finish dims",
+    onAction: openSaveFromPriority,
+  };
+  const takeoffModePriorityCard = {
+    label: "Takeoff mode",
+    value: calculatorMode === "multi_section" ? takeoffSections.length : "Single",
+    helper: calculatorMode === "multi_section" ? "Build a multi-section takeoff one pour at a time." : "Switch to multi-section when the pour has separate areas.",
+    icon: "plus",
+    tone: calculatorMode === "multi_section" ? "blue" : "orange",
+    actionLabel: calculatorMode === "multi_section" ? "Add section" : "Build takeoff",
+    onAction: () => {
+      setCalculatorMode("multi_section");
+      focusCalculatorInput();
     },
-    {
-      label: "Live result",
-      value: resultReady ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open",
-      helper: resultReady ? "Concrete yield with waste is ready to copy or save." : "Waiting on valid dimensions before showing a total.",
-      icon: "calculator",
-      tone: resultReady ? "green" : "slate",
-      actionLabel: resultReady ? "Copy" : "Calculate",
-      onAction: copyFromPriority,
-    },
-    {
-      label: "Save to job",
-      value: allowedJobs.length,
-      helper: allowedJobs.length ? "Allowed jobs are available for internal calculation records." : "No assigned or visible job is available to save into.",
-      icon: "briefcase",
-      tone: resultReady && allowedJobs.length ? "blue" : "slate",
-      actionLabel: resultReady ? "Save" : "Finish dims",
-      onAction: openSaveFromPriority,
-    },
-    {
-      label: "Takeoff mode",
-      value: calculatorMode === "multi_section" ? takeoffSections.length : "Single",
-      helper: calculatorMode === "multi_section" ? "Build a multi-section takeoff one pour at a time." : "Switch to multi-section when the pour has separate areas.",
-      icon: "plus",
-      tone: calculatorMode === "multi_section" ? "blue" : "orange",
-      actionLabel: calculatorMode === "multi_section" ? "Add section" : "Build takeoff",
-      onAction: () => {
-        setCalculatorMode("multi_section");
-        focusCalculatorInput();
-      },
-    },
-  ];
+  };
+  const calculatorPriorityCards = isFieldTool
+    ? [dimensionsPriorityCard, liveResultPriorityCard, takeoffModePriorityCard, saveToJobPriorityCard]
+    : [dimensionsPriorityCard, liveResultPriorityCard, saveToJobPriorityCard, takeoffModePriorityCard];
   const mobileCalculatorActionCap = 2;
   const mobileCalculatorPriorityCards = showAllMobileCalculatorActions ? calculatorPriorityCards : calculatorPriorityCards.slice(0, mobileCalculatorActionCap);
 
