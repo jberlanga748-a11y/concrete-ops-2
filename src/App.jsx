@@ -5232,6 +5232,7 @@ function TimeCommandRailPolished({
   onStartBreak,
   onEndBreak,
   busy,
+  showClockCard = true,
 }) {
   const clockedInCount = rows.filter((item) => item.status !== "completed").length;
   const reviewCount = rows.filter((item) => ["needs_correction", "pending_review"].includes(item.status)).length;
@@ -5239,7 +5240,7 @@ function TimeCommandRailPolished({
 
   return (
     <div className="co-time-right-rail space-y-4">
-      {permissions.time.canManageOwn ? (
+      {permissions.time.canManageOwn && showClockCard ? (
         <ActiveTimeCard
           activeEntry={workspace.activeEntry}
           availableJobs={workspace.availableJobs}
@@ -5367,6 +5368,22 @@ function TimePage({
         }
       />
 
+      {permissions.time.canManageOwn ? (
+        <div className="co-time-clock-hero mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+          <ActiveTimeCard
+            activeEntry={workspace.activeEntry}
+            availableJobs={workspace.availableJobs}
+            allowedCategories={workspace.allowedCategories}
+            onClockIn={onClockIn}
+            onClockOut={onClockOut}
+            onStartBreak={onStartBreak}
+            onEndBreak={onEndBreak}
+            disabled={busy}
+            description="Clock into the right job fast, add a short note when needed, and keep field time clean for the office."
+          />
+        </div>
+      ) : null}
+
       <div className="co-time-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {timeKpis.map((item) => <TimeKpiCardPolished key={item.label} item={item} />)}
       </div>
@@ -5437,6 +5454,7 @@ function TimePage({
           onStartBreak={onStartBreak}
           onEndBreak={onEndBreak}
           busy={busy}
+          showClockCard={false}
         />
       </div>
     </div>

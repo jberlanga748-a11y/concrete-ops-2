@@ -6135,6 +6135,49 @@ textarea {
   align-items: start;
 }
 
+.co-time-clock-hero > .co-card {
+  overflow: hidden;
+  border-color: rgba(203, 213, 225, 0.94) !important;
+  border-top-color: rgba(249, 115, 22, 0.9) !important;
+  border-radius: 0.9rem !important;
+  background:
+    linear-gradient(180deg, #ffffff, rgba(255, 247, 237, 0.38)),
+    #ffffff !important;
+  box-shadow: 0 22px 56px -38px rgba(7, 17, 31, 0.58);
+}
+
+.co-time-clock-hero .co-section-accent {
+  margin-bottom: 0.78rem;
+}
+
+.co-time-clock-hero .co-section-accent h2 {
+  font-size: 1.08rem;
+}
+
+.co-time-clock-hero .co-section-accent p {
+  max-width: 64rem;
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1.4;
+}
+
+.co-time-clock-hero form {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.85fr) minmax(14rem, 1fr) minmax(18rem, 1.35fr) minmax(12rem, 0.75fr);
+  align-items: end;
+  gap: 0.78rem;
+}
+
+.co-time-clock-hero .field-label,
+.co-time-clock-hero .co-field-label {
+  min-width: 0;
+}
+
+.co-time-clock-hero textarea.field-input {
+  min-height: 4.4rem !important;
+}
+
 .co-time-clock-primary,
 .co-time-clock-secondary {
   min-height: 3.65rem;
@@ -6160,6 +6203,16 @@ textarea {
 .co-time-clock-primary svg {
   height: 1.25rem;
   width: 1.25rem;
+}
+
+.co-time-clock-hero .co-time-clock-primary {
+  min-height: 5.25rem;
+  font-size: 1.16rem !important;
+}
+
+.co-time-clock-hero .co-time-clock-primary svg {
+  height: 1.35rem;
+  width: 1.35rem;
 }
 
 .co-time-active-actions {
@@ -6530,6 +6583,15 @@ textarea {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  .co-time-clock-hero form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-time-clock-hero form > :nth-last-child(2),
+  .co-time-clock-hero form > :last-child {
+    grid-column: 1 / -1;
+  }
+
   .co-time-right-rail {
     position: static !important;
     order: -1;
@@ -6608,6 +6670,37 @@ textarea {
   .co-time-command-layout {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
+  }
+
+  .co-time-clock-hero {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-time-clock-hero > .co-card {
+    padding: 0.9rem !important;
+  }
+
+  .co-time-clock-hero form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.7rem;
+  }
+
+  .co-time-clock-hero form > :nth-last-child(2),
+  .co-time-clock-hero form > :last-child {
+    grid-column: auto;
+  }
+
+  .co-time-clock-hero form > :nth-last-child(2) {
+    order: 4;
+  }
+
+  .co-time-clock-hero form > :last-child {
+    order: 3;
+  }
+
+  .co-time-clock-hero textarea.field-input {
+    min-height: 5.2rem !important;
   }
 
   .co-time-summary-strip {
