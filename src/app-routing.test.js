@@ -101,8 +101,8 @@ test("calculator module route resolves directly", () => {
 });
 
 test("pre-pour module route resolves directly", () => {
-  assert.equal(getModulePath("prePour"), "/prePour");
-  assert.deepEqual(parseAppPath("/prePour"), {
+  assert.equal(getModulePath("prePour"), "/pre-pour");
+  assert.deepEqual(parseAppPath("/pre-pour"), {
     active: "prePour",
     leadId: "",
     jobId: "",
@@ -110,11 +110,12 @@ test("pre-pour module route resolves directly", () => {
     reportId: "",
     importedDraftId: "",
   });
+  assert.equal(parseAppPath("/prePour").active, "prePour");
 });
 
 test("post-pour module route resolves directly", () => {
-  assert.equal(getModulePath("postPour"), "/postPour");
-  assert.deepEqual(parseAppPath("/postPour"), {
+  assert.equal(getModulePath("postPour"), "/post-pour");
+  assert.deepEqual(parseAppPath("/post-pour"), {
     active: "postPour",
     leadId: "",
     jobId: "",
@@ -122,11 +123,12 @@ test("post-pour module route resolves directly", () => {
     reportId: "",
     importedDraftId: "",
   });
+  assert.equal(parseAppPath("/postPour").active, "postPour");
 });
 
 test("change-orders module route resolves directly", () => {
-  assert.equal(getModulePath("changeOrders"), "/changeOrders");
-  assert.deepEqual(parseAppPath("/changeOrders"), {
+  assert.equal(getModulePath("changeOrders"), "/change-orders");
+  assert.deepEqual(parseAppPath("/change-orders"), {
     active: "changeOrders",
     leadId: "",
     jobId: "",
@@ -134,11 +136,12 @@ test("change-orders module route resolves directly", () => {
     reportId: "",
     importedDraftId: "",
   });
+  assert.equal(parseAppPath("/changeOrders").active, "changeOrders");
 });
 
 test("delivery-tickets module route resolves directly", () => {
-  assert.equal(getModulePath("deliveryTickets"), "/deliveryTickets");
-  assert.deepEqual(parseAppPath("/deliveryTickets"), {
+  assert.equal(getModulePath("deliveryTickets"), "/delivery-tickets");
+  assert.deepEqual(parseAppPath("/delivery-tickets"), {
     active: "deliveryTickets",
     leadId: "",
     jobId: "",
@@ -146,6 +149,20 @@ test("delivery-tickets module route resolves directly", () => {
     reportId: "",
     importedDraftId: "",
   });
+  assert.equal(parseAppPath("/deliveryTickets").active, "deliveryTickets");
+});
+
+test("tool checklist module route resolves with a readable path and legacy alias", () => {
+  assert.equal(getModulePath("toolChecklist"), "/tool-checklist");
+  assert.deepEqual(parseAppPath("/tool-checklist"), {
+    active: "toolChecklist",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+  assert.equal(parseAppPath("/toolChecklist").active, "toolChecklist");
 });
 
 test("estimates module route resolves directly", () => {

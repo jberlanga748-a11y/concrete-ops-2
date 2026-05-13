@@ -6,18 +6,18 @@ export const MODULE_PATHS = {
   time: "/time",
   reports: "/reports",
   uploads: "/uploads",
-  deliveryTickets: "/deliveryTickets",
+  deliveryTickets: "/delivery-tickets",
   customers: "/customers",
   employees: "/employees",
   estimates: "/estimates",
   jobDraftImports: "/job-draft-imports",
-  changeOrders: "/changeOrders",
+  changeOrders: "/change-orders",
   incidents: "/incidents",
   toolbox: "/toolbox",
   ppe: "/ppe",
-  prePour: "/prePour",
-  postPour: "/postPour",
-  toolChecklist: "/toolChecklist",
+  prePour: "/pre-pour",
+  postPour: "/post-pour",
+  toolChecklist: "/tool-checklist",
   calculator: "/calculator",
   copilot: "/ai-office",
   design: "/design",
@@ -26,6 +26,11 @@ export const MODULE_PATHS = {
 
 const LEGACY_MODULE_PATHS = {
   "/copilot": "copilot",
+  "/deliveryTickets": "deliveryTickets",
+  "/changeOrders": "changeOrders",
+  "/prePour": "prePour",
+  "/postPour": "postPour",
+  "/toolChecklist": "toolChecklist",
 };
 
 export function normalizePathname(pathname = "/") {
