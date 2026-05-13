@@ -1,6 +1,6 @@
 ---
 name: apex-ui-designer
-description: Use for Apex HQ / Concrete Ops 2 UI redesign, page polish, design-system consistency, responsive layouts, command-board pages, and one-page-at-a-time frontend UI work. Do not use for backend, API, schema, permissions, env, Fly, print/PDF, or production data changes.
+description: Use for Apex HQ frontend UI redesign, page polish, design-system consistency, responsive layouts, command-board pages, and one-page-at-a-time frontend UI work. Use Apex HQ as the product name; do not add legacy product branding to visible UI. Do not use for backend, API, schema, permissions, env, Fly, print/PDF, or production data changes.
 ---
 
 # Apex HQ UI Designer

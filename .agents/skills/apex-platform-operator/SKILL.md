@@ -1,6 +1,6 @@
 ---
 name: apex-platform-operator
-description: Use for every Apex HQ repo task: planning, audits, frontend/backend implementation, permissions, company scope, integrations, AI Office, PWA/mobile, verification, commit, push, deploy, health checks, and release safety. Use Apex HQ as the product name; treat old Concrete Ops names as technical identifiers only unless a dedicated rename is requested.
+description: Use for every Apex HQ repo task: planning, audits, frontend/backend implementation, permissions, company scope, integrations, AI Office, PWA/mobile, verification, commit, push, deploy, health checks, and release safety. Use Apex HQ as the product name; treat legacy product names as technical identifiers only unless a dedicated infrastructure rename is requested.
 ---
 
 # Apex HQ Platform Operator
@@ -10,7 +10,7 @@ Use this skill as the always-on Apex HQ coordinator. It keeps work safe, phased,
 ## Product Identity
 
 - User-facing product name: Apex HQ.
-- Do not add old product branding to visible UI, docs meant for users, page titles, PWA metadata, emails, or reports.
+- Do not add legacy product branding to visible UI, docs meant for users, page titles, PWA metadata, emails, or reports.
 - Technical identifiers may still exist until a dedicated infrastructure rename: repo, package, Fly app, env vars, storage/session keys, import package types, and tests.
 - Current repo target: `jberlanga748-a11y/concrete-ops-2`.
 - Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`.

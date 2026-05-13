@@ -1,6 +1,6 @@
 ﻿# Apex HQ
 
-Apex HQ is a full-stack operations workspace for a concrete contractor. It includes:
+Apex HQ is a full-stack contractor operations workspace. It includes:
 
 - A React + Vite frontend
 - An Express API
