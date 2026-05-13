@@ -23593,44 +23593,54 @@ function DeliveryTicketsPagePolished({
     setSearch("");
   }
 
-  const deliveryPriorityCards = [
-    {
-      label: "Need ticket photo",
-      value: missingPhotoCount,
-      helper: missingPhotoCount ? "Tickets without linked photo evidence need review." : "Visible tickets have linked photo evidence.",
-      icon: "upload",
-      tone: missingPhotoCount ? "amber" : "green",
-      actionLabel: missingPhotoCount ? "Open missing" : "View board",
-      onAction: () => openPriorityTicket((ticket) => !ticket.ticketUploadId, { archiveFilter: "Active" }),
-    },
-    {
-      label: "Link daily report",
-      value: missingReportCount,
-      helper: missingReportCount ? "Connect delivery tickets to the right daily report when available." : "Visible tickets are linked to reports.",
-      icon: "document",
-      tone: missingReportCount ? "orange" : "green",
-      actionLabel: missingReportCount ? "Open gaps" : "All linked",
-      onAction: () => openPriorityTicket((ticket) => !ticket.reportId, { archiveFilter: "Active" }),
-    },
-    {
-      label: "Complete basics",
-      value: incompleteBasicsCount,
-      helper: "Checks supplier, truck, ticket number, and delivered yardage.",
-      icon: "alert",
-      tone: incompleteBasicsCount ? "amber" : "green",
-      actionLabel: incompleteBasicsCount ? "Find gaps" : "Ready",
-      onAction: () => openPriorityTicket((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0), { archiveFilter: "Active" }),
-    },
-    {
-      label: "Latest delivery",
-      value: latestTicket ? 1 : 0,
-      helper: latestTicket ? `${latestTicket.job?.title || "Assigned job"} / ${latestTicket.supplier || "Supplier pending"}` : "No visible delivery ticket selected.",
-      icon: "arrowUpRight",
-      tone: latestTicket ? "blue" : "slate",
-      actionLabel: latestTicket ? "Open latest" : "No ticket",
-      onAction: () => openPriorityTicket((ticket) => ticket.id === latestTicket?.id, { archiveFilter: "Active" }),
-    },
-  ];
+  const missingPhotoPriorityCard = {
+    label: "Need ticket photo",
+    value: missingPhotoCount,
+    helper: missingPhotoCount ? "Tickets without linked photo evidence need review." : "Visible tickets have linked photo evidence.",
+    icon: "upload",
+    tone: missingPhotoCount ? "amber" : "green",
+    actionLabel: missingPhotoCount ? "Open missing" : "View board",
+    onAction: () => openPriorityTicket((ticket) => !ticket.ticketUploadId, { archiveFilter: "Active" }),
+  };
+  const linkedReportPriorityCard = {
+    label: "Link daily report",
+    value: missingReportCount,
+    helper: missingReportCount ? "Connect delivery tickets to the right daily report when available." : "Visible tickets are linked to reports.",
+    icon: "document",
+    tone: missingReportCount ? "orange" : "green",
+    actionLabel: missingReportCount ? "Open gaps" : "All linked",
+    onAction: () => openPriorityTicket((ticket) => !ticket.reportId, { archiveFilter: "Active" }),
+  };
+  const basicsPriorityCard = {
+    label: "Complete basics",
+    value: incompleteBasicsCount,
+    helper: "Checks supplier, truck, ticket number, and delivered yardage.",
+    icon: "alert",
+    tone: incompleteBasicsCount ? "amber" : "green",
+    actionLabel: incompleteBasicsCount ? "Find gaps" : "Ready",
+    onAction: () => openPriorityTicket((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0), { archiveFilter: "Active" }),
+  };
+  const latestPriorityCard = {
+    label: "Latest delivery",
+    value: latestTicket ? 1 : 0,
+    helper: latestTicket ? `${latestTicket.job?.title || "Assigned job"} / ${latestTicket.supplier || "Supplier pending"}` : "No visible delivery ticket selected.",
+    icon: "arrowUpRight",
+    tone: latestTicket ? "blue" : "slate",
+    actionLabel: latestTicket ? "Open latest" : "No ticket",
+    onAction: () => openPriorityTicket((ticket) => ticket.id === latestTicket?.id, { archiveFilter: "Active" }),
+  };
+  const createTicketPriorityCard = {
+    label: "New delivery ticket",
+    value: canCreate ? 1 : 0,
+    helper: canCreate ? "Record a truck ticket for a visible job and link report/photo evidence." : "Ticket creation is not enabled for this role.",
+    icon: "plus",
+    tone: canCreate ? "blue" : "slate",
+    actionLabel: canCreate ? "Start ticket" : "Read only",
+    onAction: () => openTool(canCreate ? "create" : "details"),
+  };
+  const deliveryPriorityCards = filteredRows.length === 0 && canCreate
+    ? [createTicketPriorityCard, missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard]
+    : [missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard, latestPriorityCard];
 
   if (!permissions.deliveryTickets.canView) {
     return (
