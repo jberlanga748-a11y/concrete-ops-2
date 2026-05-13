@@ -2155,19 +2155,19 @@ function PublicEstimateRequestPagePolished({
           </div>
 
           {checkingStatus ? (
-            <div className="mt-6">
+            <div className="co-public-request-status-panel mt-6">
               <StateCard title="Checking request form" description="Confirming whether the public estimate request flow is enabled for this workspace." tone="blue" />
             </div>
           ) : backendStatus === "offline" ? (
-            <div className="mt-6">
+            <div className="co-public-request-status-panel mt-6">
               <StateCard title="Workspace unavailable" description="The public estimate request form needs the Apex HQ workspace to be online." tone="red" />
             </div>
           ) : !enabled ? (
-            <div className="mt-6">
+            <div className="co-public-request-status-panel mt-6">
               <StateCard title="Public requests disabled" description="The public estimate request form is turned off for this workspace right now." tone="slate" />
             </div>
           ) : setupStatus.needsSetup ? (
-            <div className="mt-6">
+            <div className="co-public-request-status-panel mt-6">
               <StateCard title="Workspace setup required" description="Public requests stay off until the office workspace has an initial admin and lead owner." tone="amber" />
             </div>
           ) : (
@@ -3655,6 +3655,8 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
 function StateCard({ title, description, tone = "blue" }) {
   const tones = {
     blue: "border-blue-200 bg-white text-slate-600",
+    amber: "border-amber-200 bg-amber-50 text-amber-800",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-800",
     red: "border-red-200 bg-red-50 text-red-700",
     slate: "border-slate-200 bg-white text-slate-600",
   };
