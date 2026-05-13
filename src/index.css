@@ -5603,6 +5603,10 @@ textarea {
   gap: 0.78rem !important;
 }
 
+.co-field-workspace-page .co-field-kpi-grid {
+  display: none !important;
+}
+
 .co-field-kpi-grid .co-command-kpi {
   min-height: 5.25rem;
   border-radius: 0.82rem !important;
@@ -5812,6 +5816,27 @@ textarea {
 .co-field-next-job-actions .btn,
 .co-field-next-job-actions button {
   min-height: 2.35rem;
+}
+
+.co-field-workspace-page .co-field-two-up .co-time-clock-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.co-field-workspace-page .co-field-two-up .co-time-clock-fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.co-field-workspace-page .co-field-two-up .co-time-clock-target {
+  order: 1;
+}
+
+.co-field-workspace-page .co-field-two-up .co-time-clock-cta {
+  order: 2;
+  min-height: 3.85rem;
+}
+
+.co-field-workspace-page .co-field-two-up .co-time-clock-fields {
+  order: 3;
 }
 
 .co-field-job-summary-card {
