@@ -8417,7 +8417,7 @@ function ToolboxTalkCommandRailPolished({ policy, canAcknowledge, canManage, ack
           <p>{policy.body || "No guidance text recorded yet."}</p>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className={`mt-3 grid gap-2 ${canAcknowledge && canManage ? "grid-cols-2" : "grid-cols-1"}`}>
           {canAcknowledge ? <Button type="button" size="sm" onClick={() => onOpenTool("ack")}>Acknowledge</Button> : null}
           {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("manage")}>Edit Talk</Button> : null}
         </div>
@@ -8461,7 +8461,7 @@ function ToolboxAcknowledgePanelPolished({ canAcknowledge, allowedJobs, visibleP
           <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Topics covered, PPE checked, crew questions, site hazards..." />
         </div>
         <div className="md:col-span-2">
-          <Button type="submit" disabled={busy}>Acknowledge</Button>
+          <Button type="submit" className="w-full sm:w-auto" disabled={busy}>Acknowledge</Button>
         </div>
       </form>
       <div className="co-toolbox-ack-list">
@@ -8528,7 +8528,7 @@ function ToolboxPpePanelPolished({ ppeItems, canManage, selectedPpeItem, setSele
                 <strong>{item.label}</strong>
                 <em>{item.description || "No description"}</em>
               </span>
-              <Badge tone={item.requiredByDefault ? "blue" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
+              <Badge tone={item.requiredByDefault ? "orange" : "slate"}>{item.requiredByDefault ? "Required" : "As needed"}</Badge>
             </button>
           ))}
         </div>
@@ -8586,6 +8586,7 @@ function ToolboxTalksPagePolished({
   const [search, setSearch] = useState("");
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState(canAcknowledge ? "ack" : "ppe");
+  const boardRef = useRef(null);
   const toolsRef = useRef(null);
   const categories = useMemo(() => Array.from(new Set(visiblePolicies.map((policy) => policy.category).filter(Boolean))).sort(), [visiblePolicies]);
   const filteredPolicies = useMemo(() => {
@@ -8599,7 +8600,7 @@ function ToolboxTalksPagePolished({
   const selectedTalk = filteredPolicies.find((policy) => policy.id === selectedPolicy?.id) || selectedPolicy || filteredPolicies[0] || visiblePolicies[0] || null;
   const requiredPpeCount = activePpeItems.filter((item) => item.requiredByDefault).length;
   const toolboxKpis = [
-    { label: "Guidance Items", value: filteredPolicies.length, helper: "Matching current filters", icon: "clipboard", tone: "blue" },
+    { label: "Guidance Items", value: filteredPolicies.length, helper: "Matching current filters", icon: "clipboard", tone: "orange" },
     { label: "Active Talks", value: visiblePolicies.filter((policy) => !policy.archivedAt).length, helper: "Visible to field", icon: "check", tone: "green" },
     { label: "Required PPE", value: requiredPpeCount, helper: "Default PPE reminders", icon: "hardhat", tone: "amber" },
     { label: "Acknowledgments", value: acknowledgmentState.count, helper: acknowledgmentState.hasAcknowledged ? "Latest user acknowledgment" : "No user acknowledgment yet", icon: "users", tone: acknowledgmentState.hasAcknowledged ? "green" : "slate" },
@@ -8617,11 +8618,24 @@ function ToolboxTalksPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function scrollToGuidanceBoard() {
+    window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function changeToolTab(nextTab) {
+    setToolTab(nextTab);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityTalk(matchPolicy, options = {}) {
     const targetPolicy = filteredPolicies.find(matchPolicy) || visiblePolicies.find(matchPolicy);
     if (options.categoryFilter) setCategoryFilter(options.categoryFilter);
     if (options.search !== undefined) setSearch(options.search);
     if (targetPolicy?.id) setSelectedPolicyId(targetPolicy.id);
+    if (options.openTools === false) {
+      scrollToGuidanceBoard();
+      return;
+    }
     openTools(options.tool || (canAcknowledge ? "ack" : "ppe"));
   }
 
@@ -8632,6 +8646,7 @@ function ToolboxTalksPagePolished({
     helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew review needs a field-safe acknowledgment.",
     icon: "check",
     tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
+    primary: canAcknowledge && !acknowledgmentState.hasAcknowledged,
     actionLabel: canAcknowledge ? "Acknowledge" : "View status",
     onAction: () => openTools(canAcknowledge ? "ack" : "ppe"),
   };
@@ -8640,9 +8655,9 @@ function ToolboxTalksPagePolished({
     value: latestTalk ? 1 : 0,
     helper: latestTalk ? `${latestTalk.title || "Untitled talk"}${latestTalk.category ? ` / ${latestTalk.category}` : ""}` : "No toolbox guidance is visible yet.",
     icon: "clipboard",
-    tone: latestTalk ? "blue" : "slate",
-    actionLabel: latestTalk ? "Open talk" : "No talk",
-    onAction: () => openPriorityTalk((policy) => policy.id === latestTalk?.id, { tool: canAcknowledge ? "ack" : "ppe" }),
+    tone: latestTalk ? "orange" : "slate",
+    actionLabel: latestTalk ? "Open board" : "No talk",
+    onAction: () => openPriorityTalk((policy) => policy.id === latestTalk?.id, { openTools: false }),
   };
   const ppeRemindersPriorityCard = {
     label: "PPE reminders",
@@ -8658,23 +8673,25 @@ function ToolboxTalksPagePolished({
     value: canManage ? "Ready" : filteredPolicies.length,
     helper: canManage ? "Create or edit toolbox talks without exposing office-only data." : "Field-safe toolbox talks stay scoped to this workspace.",
     icon: canManage ? "settings" : "users",
-    tone: canManage ? "blue" : "green",
+    tone: canManage ? "orange" : "green",
     actionLabel: canManage ? "Manage" : "Review",
     onAction: () => openTools(canManage ? "manage" : (canAcknowledge ? "ack" : "ppe")),
   };
-  const toolboxPriorityCards = filteredPolicies.length === 0 && canManage
-    ? [manageGuidancePriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, crewReviewPriorityCard]
-    : [crewReviewPriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, manageGuidancePriorityCard];
+  const toolboxPriorityCards = canManage
+    ? (filteredPolicies.length === 0
+      ? [manageGuidancePriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, crewReviewPriorityCard]
+      : [crewReviewPriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard, manageGuidancePriorityCard])
+    : [crewReviewPriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard];
 
   return (
-    <div className="co-office-page co-toolbox-page co-toolbox-talks-page">
+    <div className={`co-office-page co-toolbox-page co-toolbox-talks-page ${canManage ? "" : "co-field-tool-page"}`}>
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title="Toolbox Talks"
         description="Review field-ready safety guidance, PPE reminders, and crew acknowledgments before work starts."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => setCategoryFilter("All categories")}>{filteredPolicies.length} visible</Button>
+            <Button type="button" variant="secondary" onClick={clearFilters}>{filteredPolicies.length} visible</Button>
             {canAcknowledge ? <Button type="button" onClick={() => openTools("ack")}>Acknowledge</Button> : null}
           </div>
         }
@@ -8686,7 +8703,7 @@ function ToolboxTalksPagePolished({
 
       <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
         {toolboxPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
+          <button key={card.label} type="button" className={`co-toolbox-priority-card co-focus-ring ${card.primary ? "is-primary" : ""}`} data-tone={card.tone} onClick={card.onAction}>
             <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
             <span className="min-w-0">
               <span className="co-toolbox-priority-value">{card.value}</span>
@@ -8699,36 +8716,38 @@ function ToolboxTalksPagePolished({
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card className="co-toolbox-main-board overflow-hidden">
-          <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Toolbox Guidance Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan safety topics, PPE reminders, current guidance, and crew acknowledgment status without office-only clutter.</p>
+        <div id="toolbox-guidance-board" ref={boardRef} className="min-w-0">
+          <Card className="co-toolbox-main-board overflow-hidden">
+            <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Toolbox Guidance Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan safety topics, PPE reminders, current guidance, and crew acknowledgment status without office-only clutter.</p>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
-            <div className="co-toolbox-category-tabs">
-              <button type="button" className={categoryFilter === "All categories" ? "is-active" : ""} onClick={() => setCategoryFilter("All categories")}>All</button>
-              {categories.map((category) => (
-                <button key={category} type="button" className={categoryFilter === category ? "is-active" : ""} onClick={() => setCategoryFilter(category)}>
-                  {category}
-                </button>
-              ))}
+            <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
+              <div className="co-toolbox-category-tabs">
+                <button type="button" className={categoryFilter === "All categories" ? "is-active" : ""} onClick={() => setCategoryFilter("All categories")}>All</button>
+                {categories.map((category) => (
+                  <button key={category} type="button" className={categoryFilter === category ? "is-active" : ""} onClick={() => setCategoryFilter(category)}>
+                    {category}
+                  </button>
+                ))}
+              </div>
+              <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search toolbox talk, category, guidance..." />
             </div>
-            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search toolbox talk, category, guidance..." />
-          </div>
-          {filteredPolicies.length === 0 ? (
-            <div className="p-5"><StateCard title={visiblePolicies.length === 0 ? "No toolbox talks yet" : "No toolbox talks match these filters"} description={visiblePolicies.length === 0 ? "Create the first safety policy or toolbox talk to start crew guidance." : "Clear the category or search another topic."} tone="slate" /></div>
-          ) : (
-            <ToolboxTalksTablePolished policies={filteredPolicies} selectedId={selectedTalk?.id} onSelect={setSelectedPolicyId} />
-          )}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {filteredPolicies.length} toolbox talk{filteredPolicies.length === 1 ? "" : "s"} / {requiredPpeCount} required PPE reminder{requiredPpeCount === 1 ? "" : "s"}</p>
-            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-          </div>
-        </Card>
+            {filteredPolicies.length === 0 ? (
+              <div className="p-5"><StateCard title={visiblePolicies.length === 0 ? "No toolbox talks yet" : "No toolbox talks match these filters"} description={visiblePolicies.length === 0 ? "Create the first safety policy or toolbox talk to start crew guidance." : "Clear the category or search another topic."} tone="slate" /></div>
+            ) : (
+              <ToolboxTalksTablePolished policies={filteredPolicies} selectedId={selectedTalk?.id} onSelect={setSelectedPolicyId} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {filteredPolicies.length} toolbox talk{filteredPolicies.length === 1 ? "" : "s"} / {requiredPpeCount} required PPE reminder{requiredPpeCount === 1 ? "" : "s"}</p>
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            </div>
+          </Card>
+        </div>
 
         <ToolboxTalkCommandRailPolished policy={selectedTalk} canAcknowledge={canAcknowledge} canManage={canManage} ackState={acknowledgmentState} ppeItems={activePpeItems} onOpenTool={openTools} />
       </div>
@@ -8747,9 +8766,9 @@ function ToolboxTalksPagePolished({
           <span>Open tools</span>
         </summary>
         <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => setToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
-          <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => setToolTab("ppe")}><Icon name="hardhat" />PPE</button>
-          {canManage ? <button type="button" className={toolTab === "manage" ? "is-active" : ""} onClick={() => setToolTab("manage")}><Icon name="settings" />Manage</button> : null}
+          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => changeToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+          <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => changeToolTab("ppe")}><Icon name="hardhat" />PPE</button>
+          {canManage ? <button type="button" className={toolTab === "manage" ? "is-active" : ""} onClick={() => changeToolTab("manage")}><Icon name="settings" />Manage</button> : null}
         </div>
         <div className="co-toolbox-tools-panel mt-3">
           {toolTab === "ack" ? (
