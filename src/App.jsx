@@ -8906,7 +8906,7 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
 function PpeFieldOperatorPanel({ selectedItem, filteredCount, requiredCount, acknowledgmentState, openIncidents, canAcknowledge, canSubmitIncidents, onOpenTool, onJumpToBoard }) {
   const summaryItems = [
     { label: "PPE items", value: filteredCount, tone: filteredCount ? "orange" : "slate" },
-    { label: "Required", value: requiredCount, tone: requiredCount ? "blue" : "slate" },
+    { label: "Required", value: requiredCount, tone: requiredCount ? "orange" : "slate" },
     { label: "Acknowledged", value: acknowledgmentState.hasAcknowledged ? "Yes" : "Open", tone: acknowledgmentState.hasAcknowledged ? "green" : "amber" },
     { label: "Safety watch", value: openIncidents, tone: openIncidents ? "amber" : "green" },
   ];
@@ -9186,7 +9186,7 @@ function PpeChecklistPagePolished({
   const mobileVisiblePpeCap = showAllMobilePpe ? filteredPpeItems.length : mobilePpePreviewCap;
   const mobileVisiblePpeCount = Math.min(filteredPpeItems.length, mobileVisiblePpeCap);
   const ppeKpis = [
-    { label: "PPE Items", value: filteredPpeItems.length, helper: "Matching current view", icon: "hardhat", tone: "blue" },
+    { label: "PPE Items", value: filteredPpeItems.length, helper: "Matching current view", icon: "hardhat", tone: "orange" },
     { label: "Required", value: requiredCount, helper: "Default crew checklist", icon: "check", tone: "green", actionLabel: "Required", onAction: () => setRequirementFilter("Required") },
     { label: "As Needed", value: optionalCount, helper: "Task-specific gear", icon: "layers", tone: "amber", actionLabel: "As needed", onAction: () => setRequirementFilter("As needed") },
     { label: "Acknowledgments", value: acknowledgmentState.count, helper: acknowledgmentState.hasAcknowledged ? "Latest user acknowledgment" : "No user acknowledgment yet", icon: "users", tone: acknowledgmentState.hasAcknowledged ? "green" : "slate" },
@@ -9252,7 +9252,7 @@ function PpeChecklistPagePolished({
     value: canManage ? "Ready" : ppePolicies.length,
     helper: canManage ? "Manage equipment requirements without changing field permissions." : "Field-safe guidance stays available without admin controls.",
     icon: canManage ? "settings" : "clipboard",
-    tone: canManage ? "blue" : "green",
+    tone: canManage ? "orange" : "green",
     actionLabel: canManage ? "Manage" : "Guidance",
     onAction: () => openTools(canManage ? "ppe" : "policy"),
   };
@@ -9371,7 +9371,7 @@ function PpeChecklistPagePolished({
         <summary>
           <span>
             <strong>PPE Tools</strong>
-            <em>Acknowledge PPE checks, manage equipment requirements, review safety guidance, and keep incident workflow available.</em>
+            <em>{canManage ? "Acknowledge PPE checks, manage equipment requirements, review safety guidance, and keep incident workflow available." : "Acknowledge PPE checks, review field-safe guidance, and report concerns without office controls."}</em>
           </span>
           <span>Open tools</span>
         </summary>
