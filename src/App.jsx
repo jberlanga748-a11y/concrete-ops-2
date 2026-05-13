@@ -4237,6 +4237,97 @@ function FieldWalkthroughCard({ role = "employee" }) {
   );
 }
 
+function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permissions, setActive, onSelectJob, activeEntry }) {
+  const isForeman = role === "foreman";
+  const primaryJob = workspace?.nextAssignedJob || focusJob || workspace?.assignedJobs?.[0] || null;
+  const noticeCount = Array.isArray(workspace?.assignmentNotices) ? workspace.assignmentNotices.length : 0;
+  const assignedCount = Array.isArray(workspace?.assignedJobs) ? workspace.assignedJobs.length : 0;
+  const upcomingCount = Array.isArray(workspace?.upcomingJobs) ? workspace.upcomingJobs.length : 0;
+  const crewCount = Array.isArray(primaryJob?.crewAssignments) ? primaryJob.crewAssignments.length : 0;
+  const fieldNoteCount = primaryJob ? [primaryJob.fieldNotes, primaryJob.materialNotes, primaryJob.equipmentNotes, primaryJob.safetyNotes].filter((value) => String(value || "").trim()).length : 0;
+  const canRoute = typeof setActive === "function";
+  const mapUrl = directionsUrl(primaryJob?.address);
+
+  const summaryItems = [
+    { label: isForeman ? "Assigned jobs" : "Assigned work", value: assignedCount, tone: assignedCount ? "orange" : "slate" },
+    { label: "Notices", value: noticeCount, tone: noticeCount ? "amber" : "green" },
+    { label: "Crew", value: primaryJob ? crewCount : "-", tone: crewCount ? "blue" : "slate" },
+    { label: "Field notes", value: primaryJob ? fieldNoteCount : "-", tone: fieldNoteCount ? "blue" : "slate" },
+  ];
+
+  if (isForeman) {
+    summaryItems.push({ label: "Upcoming", value: upcomingCount, tone: upcomingCount ? "blue" : "slate" });
+  }
+
+  return (
+    <Card className="co-field-operator-panel overflow-hidden">
+      <div className="co-field-operator-shell">
+        <div className="co-field-operator-copy min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Badge tone="orange">{isForeman ? "Foreman Jobs" : "My Job"}</Badge>
+            {primaryJob ? <StatusBadge status={jobStatusLabel(primaryJob.status || primaryJob.stage)} /> : null}
+            {noticeCount ? <Badge tone="amber">{noticeCount} new notice{noticeCount === 1 ? "" : "s"}</Badge> : null}
+          </div>
+          <h2>{primaryJob ? jobTitle(primaryJob) : isForeman ? "No assigned jobs yet" : "No assigned job yet"}</h2>
+          <p>
+            {primaryJob
+              ? `${primaryJob.customer || "Assigned site"} / ${formatJobScheduleDetail(primaryJob)}`
+              : "When office assigns work, the job, address, notes, and safe actions will show here."}
+          </p>
+          {primaryJob ? (
+            <div className="co-field-operator-address">
+              <Icon name="briefcase" />
+              <span>{primaryJob.address || "Address pending"}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="co-field-operator-actions">
+          {permissions?.time?.canView && canRoute ? (
+            <Button type="button" onClick={() => setActive("time")}>
+              <Icon name="clock" />
+              {activeEntry ? "Open Time" : "Clock In"}
+            </Button>
+          ) : null}
+          {primaryJob ? (
+            <Button type="button" variant="secondary" onClick={() => onSelectJob(primaryJob.id)}>
+              <Icon name="briefcase" />
+              View Job
+            </Button>
+          ) : null}
+          {mapUrl ? (
+            <a className="co-field-operator-link" href={mapUrl} target="_blank" rel="noreferrer">
+              Directions
+              <Icon name="arrowUpRight" />
+            </a>
+          ) : null}
+          {permissions?.reports?.canView && canRoute ? (
+            <Button type="button" variant="secondary" onClick={() => setActive("reports")}>
+              <Icon name="document" />
+              Report
+            </Button>
+          ) : null}
+          {permissions?.uploads?.canView && canRoute ? (
+            <Button type="button" variant="secondary" onClick={() => setActive("uploads")}>
+              <Icon name="upload" />
+              Photos
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="co-field-operator-strip">
+        {summaryItems.map((item) => (
+          <div key={item.label} data-tone={item.tone}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function FieldWorkspaceKpisPolished({ workspace, timeWorkspace, focusJob, role = "employee" }) {
   const assignedCount = workspace.assignedJobs.length;
   const noticeCount = workspace.assignmentNotices.length;
@@ -4419,9 +4510,13 @@ function FieldWorkspacePagePolished({
         description={isForeman ? "Run today's assigned work, crew time, field notes, checklists, photos, tickets, and job-safe tools from one operator view." : "Open your assigned work, clock in, review field notes, and use job-safe tools without office-only data."}
         actions={<Badge tone="blue">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>}
       />
+      <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+        <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
+      </div>
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
+          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
             <ActiveTimeCard
@@ -4437,7 +4532,6 @@ function FieldWorkspacePagePolished({
             />
             <FieldNextJobCard job={workspace.nextAssignedJob} onSelect={onSelectJob} setActive={setActive} permissions={permissions} activeEntry={timeWorkspace.activeEntry} />
           </div>
-          <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="space-y-3">

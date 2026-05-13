@@ -5622,6 +5622,167 @@ textarea {
   padding-right: 0.12rem;
 }
 
+.co-field-operator-panel {
+  border-color: rgba(203, 213, 225, 0.94) !important;
+  border-top-color: rgba(249, 115, 22, 0.86) !important;
+  background: #ffffff !important;
+  box-shadow: 0 20px 52px -38px rgba(7, 17, 31, 0.58);
+}
+
+.co-field-operator-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 18rem);
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.co-field-operator-copy h2 {
+  margin-top: 0.7rem;
+  color: #07111f;
+  font-size: clamp(1.25rem, 1.8vw, 1.9rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.co-field-operator-copy p {
+  margin-top: 0.45rem;
+  color: #475569;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.co-field-operator-address {
+  margin-top: 0.82rem;
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 0.86);
+  background: #f8fafc;
+  padding: 0.42rem 0.72rem;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.co-field-operator-address svg {
+  height: 0.95rem;
+  width: 0.95rem;
+  flex: 0 0 auto;
+  color: var(--color-brand-orange-dark);
+}
+
+.co-field-operator-address span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.co-field-operator-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.co-field-operator-actions .btn,
+.co-field-operator-actions button,
+.co-field-operator-link {
+  min-height: 2.65rem;
+  justify-content: center;
+}
+
+.co-field-operator-actions .btn:first-child,
+.co-field-operator-actions button:first-child {
+  grid-column: 1 / -1;
+  min-height: 3rem;
+}
+
+.co-field-operator-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  background: #ffffff;
+  padding: 0.62rem 0.85rem;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.co-field-operator-link:hover {
+  border-color: rgba(249, 115, 22, 0.44);
+  background: #fff7ed;
+  color: var(--color-brand-orange-dark);
+}
+
+.co-field-operator-link svg {
+  height: 0.95rem;
+  width: 0.95rem;
+}
+
+.co-field-operator-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  border-top: 1px solid rgba(226, 232, 240, 0.96);
+  background: #f8fafc;
+}
+
+.co-field-operator-strip > div {
+  min-width: 0;
+  border-right: 1px solid rgba(226, 232, 240, 0.96);
+  padding: 0.78rem 0.9rem;
+}
+
+.co-field-operator-strip > div:last-child {
+  border-right: 0;
+}
+
+.co-field-operator-strip span {
+  display: block;
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 950;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.co-field-operator-strip strong {
+  margin-top: 0.3rem;
+  display: block;
+  color: #07111f;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.co-field-operator-strip [data-tone="orange"] strong {
+  color: var(--color-brand-orange-dark);
+}
+
+.co-field-operator-strip [data-tone="amber"] strong {
+  color: #b45309;
+}
+
+.co-field-operator-strip [data-tone="green"] strong {
+  color: #08782e;
+}
+
+.co-field-operator-strip [data-tone="blue"] strong {
+  color: #1459d9;
+}
+
 .co-field-action-dock {
   border-top-color: rgba(249, 115, 22, 0.72) !important;
 }
@@ -5832,6 +5993,31 @@ textarea {
   .co-field-command-layout {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
+  }
+
+  .co-field-operator-shell {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.9rem;
+  }
+
+  .co-field-operator-copy h2 {
+    font-size: 1.28rem;
+  }
+
+  .co-field-operator-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-field-operator-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-field-operator-strip > div {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+  }
+
+  .co-field-operator-strip > div:nth-child(2n) {
+    border-right: 0;
   }
 
   .co-field-action-grid {
