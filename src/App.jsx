@@ -24863,8 +24863,13 @@ function ToolChecklistPagePolished({
     actionLabel: canCreateChecklist ? "Create" : (canAddItems ? "Add item" : "Review"),
     onAction: () => openTools(canCreateChecklist ? "create" : (canAddItems ? "add" : "items")),
   };
+  const isFieldToolChecklist = !permissions.toolChecklist.canManageAll;
   const toolChecklistPriorityCards = filteredRows.length === 0 && canCreateChecklist
     ? [createPriorityCard, issuePriorityCard, reviewPriorityCard, selectedPriorityCard]
+    : isFieldToolChecklist && openIssueCount
+      ? [issuePriorityCard, selectedPriorityCard, createPriorityCard, reviewPriorityCard]
+      : isFieldToolChecklist
+        ? [selectedPriorityCard, createPriorityCard, issuePriorityCard, reviewPriorityCard]
     : [issuePriorityCard, reviewPriorityCard, selectedPriorityCard, createPriorityCard];
 
   return (
