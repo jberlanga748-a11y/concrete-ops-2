@@ -2152,11 +2152,11 @@ function PublicEstimateRequestPagePolished({
             <img src={APEX_BRAND_ASSETS.appLogo} alt={APP_NAME} />
           </div>
           <div className="co-public-request-badges">
-            <Badge tone="orange">Concrete estimate intake</Badge>
+            <Badge tone="orange">Project estimate intake</Badge>
             {demoMode ? <Badge tone="amber">Demo mode</Badge> : null}
             <Badge tone={statusTone}>{statusLabel}</Badge>
           </div>
-          <h1>Request a concrete estimate</h1>
+          <h1>Request a project estimate</h1>
           <p>
             Send the office the project basics. No login is required, and the public form never exposes customers, jobs, pricing, crew, or workspace records.
           </p>
@@ -4273,7 +4273,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled }) {
           </FieldDetailDisclosure>
         </div>
       </Card>
-      <FieldWorkspaceDisclosure title="Saved calculations" description="Concrete calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
+      <FieldWorkspaceDisclosure title="Saved calculations" description="Calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
         <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Internal company calculation records for this job only." />
       </FieldWorkspaceDisclosure>
     </div>
@@ -18566,7 +18566,7 @@ function CopilotPagePolished({
                     </label>
                     <label>
                       <span>Trade</span>
-                      <input value={foundDraft.trade} onChange={(event) => updateFoundDraft("trade", event.target.value)} placeholder="Concrete" />
+                      <input value={foundDraft.trade} onChange={(event) => updateFoundDraft("trade", event.target.value)} placeholder="Concrete, fencing, decking" />
                     </label>
                     <label>
                       <span>City</span>
@@ -20078,7 +20078,7 @@ function SettingsPagePolished({
                         setProfileDraft((current) => ({ ...current, businessAddress: event.target.value }));
                         setProfileNotice("");
                       }}
-                      placeholder="1234 Concrete Way, Salem, OR 97301"
+                      placeholder="1234 Worksite Way, Salem, OR 97301"
                       disabled={busy || typeof onUpdateCompanySettings !== "function"}
                     />
                     <TextAreaField
@@ -23213,7 +23213,7 @@ function EstimatesPagePolished({
                     {createDraft.items.map((item, index) => (
                       <div key={item.id} className="co-estimates-line-card rounded-2xl border p-3">
                         <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
-                          <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Concrete, prep, cleanup, or finish work" />
+                          <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Scope, prep, cleanup, or finish work" />
                           <InputField label="Qty" value={item.quantity} onChange={(event) => updateDraftItem(setCreateDraft, index, "quantity", event.target.value)} inputMode="decimal" />
                           <InputField label="Unit" value={item.unit} onChange={(event) => updateDraftItem(setCreateDraft, index, "unit", event.target.value)} />
                           <InputField label="Unit price" value={item.unitPrice} onChange={(event) => updateDraftItem(setCreateDraft, index, "unitPrice", event.target.value)} inputMode="decimal" />
@@ -23485,7 +23485,7 @@ function EstimatesPagePolished({
                 {createDraft.items.map((item, index) => (
                   <div key={item.id} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_110px_110px_130px]">
-                      <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Concrete, prep, cleanup, or finish work" />
+                      <InputField label={`Description ${index + 1}`} value={item.description} onChange={(event) => updateDraftItem(setCreateDraft, index, "description", event.target.value)} placeholder="Scope, prep, cleanup, or finish work" />
                       <InputField label="Qty" value={item.quantity} onChange={(event) => updateDraftItem(setCreateDraft, index, "quantity", event.target.value)} inputMode="decimal" />
                       <InputField label="Unit" value={item.unit} onChange={(event) => updateDraftItem(setCreateDraft, index, "unit", event.target.value)} />
                       <InputField label="Unit price" value={item.unitPrice} onChange={(event) => updateDraftItem(setCreateDraft, index, "unitPrice", event.target.value)} inputMode="decimal" />
