@@ -36,8 +36,10 @@ import {
   createJobFromImportedDraft,
   createJob,
   importJobDraftPackage,
+  createFoundOpportunity,
   createLead,
   createLeadSource,
+  createOpportunitySearchProfile,
   createPostPourChecklist,
   createPrePourChecklist,
   createQueueItem,
@@ -92,8 +94,10 @@ import {
   updateJobAssignment,
   updateJobDraftImport,
   updateJob,
+  updateFoundOpportunity,
   updateLead,
   updateLeadSource,
+  updateOpportunitySearchProfile,
   updatePpeItem,
   updatePostPourChecklist,
   updatePostPourChecklistItem,
@@ -274,6 +278,8 @@ const EMPTY_APP_STATE = {
   customers: [],
   leads: [],
   leadSources: [],
+  opportunitySearchProfiles: [],
+  foundOpportunities: [],
   leadStatusHistory: [],
   contactHistory: [],
   estimates: [],
@@ -308,6 +314,10 @@ const EMPTY_APP_STATE = {
       canManage: false,
     },
     leads: {
+      canView: false,
+      canManage: false,
+    },
+    opportunityScout: {
       canView: false,
       canManage: false,
     },
@@ -616,6 +626,8 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
     customers: normalizeObjectArray(source.customers, fallback.customers),
     leads: normalizeObjectArray(source.leads, fallback.leads),
     leadSources: normalizeObjectArray(source.leadSources, fallback.leadSources),
+    opportunitySearchProfiles: normalizeObjectArray(source.opportunitySearchProfiles, fallback.opportunitySearchProfiles),
+    foundOpportunities: normalizeObjectArray(source.foundOpportunities, fallback.foundOpportunities),
     leadStatusHistory: normalizeObjectArray(source.leadStatusHistory, fallback.leadStatusHistory),
     contactHistory: normalizeObjectArray(source.contactHistory, fallback.contactHistory),
     estimates: normalizeEstimateArray(source.estimates, fallback.estimates),
@@ -646,6 +658,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       users: mergePermissionScope(EMPTY_APP_STATE.permissions.users, source.permissions?.users || fallback.permissions?.users),
       customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
       leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
+      opportunityScout: mergePermissionScope(EMPTY_APP_STATE.permissions.opportunityScout, source.permissions?.opportunityScout || fallback.permissions?.opportunityScout),
       contactHistory: mergePermissionScope(EMPTY_APP_STATE.permissions.contactHistory, source.permissions?.contactHistory || fallback.permissions?.contactHistory),
       estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
       jobDraftImports: mergePermissionScope(EMPTY_APP_STATE.permissions.jobDraftImports, source.permissions?.jobDraftImports || fallback.permissions?.jobDraftImports),
@@ -689,6 +702,40 @@ const INITIAL_LEAD_FORM = {
 };
 
 const INITIAL_LEAD_SOURCE_FORM = createLeadSourceDraft();
+
+const INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM = {
+  name: "",
+  trades: "",
+  serviceAreas: "",
+  radiusMiles: "40",
+  sourceTypes: "",
+  keywords: "",
+  excludedKeywords: "",
+  cadence: "daily",
+  status: "active",
+  notes: "",
+};
+
+const INITIAL_FOUND_OPPORTUNITY_FORM = {
+  searchProfileId: "",
+  leadSourceId: "",
+  title: "",
+  agency: "",
+  sourceName: "",
+  sourceUrl: "",
+  city: "",
+  state: "",
+  trade: "",
+  projectType: "",
+  status: "new",
+  fitScore: "",
+  bidDueAt: "",
+  assignedEstimatorId: "",
+  scopeSummary: "",
+  reasonToBid: "",
+  riskFlags: "",
+  missingInfoItems: "",
+};
 
 const INITIAL_JOB_FORM = {
   customerId: "",
@@ -17851,18 +17898,26 @@ function CopilotPagePolished({
   currentCompanyId = "",
   leads = [],
   leadSources = [],
+  opportunitySearchProfiles = [],
+  foundOpportunities = [],
   contactHistory = [],
   jobs = [],
   queueItems = [],
   jobDraftImports = [],
   dailyReports = [],
   uploads = [],
+  users = [],
   permissions,
+  busy = false,
   setActive,
   onSelectLead,
   onSelectJob,
   onSelectImportedDraft,
   onSelectReport,
+  onCreateOpportunitySearchProfile,
+  onUpdateOpportunitySearchProfile,
+  onCreateFoundOpportunity,
+  onUpdateFoundOpportunity,
 }) {
   const liveLeads = normalizeObjectArray(leads).filter((lead) => !lead.archivedAt);
   const liveJobs = normalizeObjectArray(jobs).filter((job) => !job.archivedAt);
@@ -17871,13 +17926,21 @@ function CopilotPagePolished({
   const visibleReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
   const visibleUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt);
   const today = new Date().toISOString().slice(0, 10);
+  const [profileDraft, setProfileDraft] = useState(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
+  const [foundDraft, setFoundDraft] = useState(INITIAL_FOUND_OPPORTUNITY_FORM);
+  const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage ?? permissions?.leads?.canManage);
+  const leadSourceOptions = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && String(source.status || "active").toLowerCase() !== "inactive");
+  const profileOptions = normalizeObjectArray(opportunitySearchProfiles).filter((profile) => !profile.archivedAt && String(profile.status || "active").toLowerCase() !== "archived");
+  const estimatorOptions = normalizeObjectArray(users).filter((user) => ["Owner", "Administrator", "Operations Manager", "Estimator"].includes(user.role) && String(user.status || "active").toLowerCase() === "active");
   const opportunityScout = useMemo(() => deriveOpportunityScoutState({
     companySettings,
     currentCompanyId,
     leadSources,
+    opportunitySearchProfiles,
+    foundOpportunities,
     leads,
     contactHistory,
-  }, { today }), [companySettings, contactHistory, currentCompanyId, leadSources, leads, today]);
+  }, { today }), [companySettings, contactHistory, currentCompanyId, foundOpportunities, leadSources, leads, opportunitySearchProfiles, today]);
 
   const newLeads = liveLeads.filter((lead) => lead.status === "New");
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High");
@@ -17914,15 +17977,70 @@ function CopilotPagePolished({
     openModule("reports");
   }
 
+  function nextProfileRunAt(cadence) {
+    const normalized = String(cadence || "daily").toLowerCase();
+    if (normalized === "manual") return "";
+    const nextDate = new Date();
+    if (normalized === "weekly") nextDate.setDate(nextDate.getDate() + 7);
+    else if (normalized === "monthly") nextDate.setMonth(nextDate.getMonth() + 1);
+    else nextDate.setDate(nextDate.getDate() + 1);
+    return nextDate.toISOString();
+  }
+
+  function updateProfileDraft(field, value) {
+    setProfileDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateFoundDraft(field, value) {
+    setFoundDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitProfileDraft(event) {
+    event.preventDefault();
+    if (!canManageOpportunityScout || !profileDraft.name.trim()) return;
+    const ok = await onCreateOpportunitySearchProfile?.(profileDraft);
+    if (ok) setProfileDraft(INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM);
+  }
+
+  async function submitFoundDraft(event) {
+    event.preventDefault();
+    if (!canManageOpportunityScout || !foundDraft.title.trim()) return;
+    const selectedSource = leadSourceOptions.find((source) => source.id === foundDraft.leadSourceId);
+    const ok = await onCreateFoundOpportunity?.({
+      ...foundDraft,
+      sourceName: foundDraft.sourceName || selectedSource?.name || "",
+      bidDueAt: foundDraft.bidDueAt ? `${foundDraft.bidDueAt}T17:00:00` : "",
+    });
+    if (ok) setFoundDraft(INITIAL_FOUND_OPPORTUNITY_FORM);
+  }
+
+  function markProfileReviewed(profile) {
+    if (!canManageOpportunityScout || !profile?.profileId) return;
+    onUpdateOpportunitySearchProfile?.(profile.profileId, {
+      lastRunAt: new Date().toISOString(),
+      nextRunAt: nextProfileRunAt(profile.cadence),
+    });
+  }
+
+  function setProfileStatus(profile, status) {
+    if (!canManageOpportunityScout || !profile?.profileId) return;
+    onUpdateOpportunitySearchProfile?.(profile.profileId, { status });
+  }
+
+  function setOpportunityStatus(opportunity, status) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId) return;
+    onUpdateFoundOpportunity?.(opportunity.opportunityId, { status });
+  }
+
   const aiKpis = [
     {
       label: "Opportunity Scout",
-      value: opportunityScout.stats.checksNeeded,
-      helper: `${opportunityScout.stats.activeSources} active sources / ${opportunityScout.stats.dueLeads} lead follow-ups`,
+      value: opportunityScout.stats.openFoundOpportunities || opportunityScout.stats.checksNeeded,
+      helper: `${opportunityScout.stats.activeProfiles} profiles / ${opportunityScout.stats.activeSources} sources / ${opportunityScout.stats.dueBidOpportunities} bids due`,
       icon: "spark",
       tone: opportunityScout.readiness.tone,
-      actionLabel: "Open sources",
-      onAction: () => openModule("leads"),
+      actionLabel: "Open scout",
+      onAction: () => openModule("copilot"),
     },
     {
       label: "AI Lead Review",
@@ -17956,12 +18074,12 @@ function CopilotPagePolished({
   const workflowCards = [
     {
       title: "Opportunity Scout",
-      helper: "Use lead sources, daily check dates, and active lead signals to decide where the office should look for work today.",
+      helper: "Use search profiles, source checks, and saved found opportunities to decide where the office should look for work today.",
       icon: "spark",
       badge: opportunityScout.readiness.label,
       tone: opportunityScout.readiness.tone,
       actionLabel: "Open scout",
-      onAction: () => openModule("leads"),
+      onAction: () => openModule("copilot"),
     },
     {
       title: "Apex Lead Assistant",
@@ -18011,6 +18129,16 @@ function CopilotPagePolished({
       icon: "alert",
       actionLabel: "Open dashboard",
       onAction: () => openModule("dashboard"),
+    })),
+    ...opportunityScout.foundOpportunityQueue.slice(0, 3).map((opportunity) => ({
+      id: `found-${opportunity.id}`,
+      eyebrow: opportunity.statusLabel,
+      title: opportunity.title,
+      description: [opportunity.agency, opportunity.trade, opportunity.bidDueAt ? `Bid due ${formatDateTime(opportunity.bidDueAt)}` : ""].filter(Boolean).join(" / "),
+      tone: opportunity.tone,
+      icon: "spark",
+      actionLabel: "Review",
+      onAction: () => openModule("copilot"),
     })),
     ...opportunityScout.sourceQueue.slice(0, 2).map((source) => ({
       id: `source-${source.id}`,
@@ -18066,8 +18194,9 @@ function CopilotPagePolished({
 
   const reportPreview = visibleReports.find((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus));
   const nextActions = [
-    opportunityScout.stats.activeSources === 0 ? { label: "Add lead sources", action: () => openModule("leads"), tone: "amber" } : null,
-    opportunityScout.stats.checksNeeded ? { label: "Run source checks", action: () => openModule("leads"), tone: opportunityScout.readiness.tone } : null,
+    opportunityScout.stats.activeProfiles === 0 && opportunityScout.stats.activeSources === 0 ? { label: "Add search profile", action: () => openModule("copilot"), tone: "amber" } : null,
+    opportunityScout.stats.openFoundOpportunities ? { label: "Review found work", action: () => openModule("copilot"), tone: opportunityScout.readiness.tone } : null,
+    opportunityScout.stats.checksNeeded ? { label: "Run scout checks", action: () => openModule("copilot"), tone: opportunityScout.readiness.tone } : null,
     blockedQueueItems.length ? { label: "Clear blocked queue items", action: () => openModule("dashboard"), tone: "red" } : null,
     newLeads.length ? { label: "Assign first responses", action: () => openModule("leads"), tone: "orange" } : null,
     startupWatchJobs.length ? { label: "Review startup readiness", action: () => openModule("jobs"), tone: "amber" } : null,
@@ -18076,7 +18205,9 @@ function CopilotPagePolished({
   ].filter(Boolean);
 
   const snapshotRows = [
-    { label: "Lead Sources", value: opportunityScout.stats.activeSources, helper: `${opportunityScout.stats.checksNeeded} checks due` },
+    { label: "Scout Profiles", value: opportunityScout.stats.activeProfiles, helper: `${opportunityScout.stats.profilesDue} due` },
+    { label: "Found Work", value: opportunityScout.stats.openFoundOpportunities, helper: `${opportunityScout.stats.biddingOpportunities} bidding` },
+    { label: "Lead Sources", value: opportunityScout.stats.activeSources, helper: `${opportunityScout.stats.dueSourceChecks + opportunityScout.stats.overdueSourceChecks} checks due` },
     { label: "Leads", value: liveLeads.length, helper: `${approvedLeads.length} approved` },
     { label: "Jobs", value: liveJobs.length, helper: `${stats.activeJobs || 0} active` },
     { label: "Reports", value: visibleReports.length, helper: `${reportsNeedingReview} review` },
@@ -18119,7 +18250,7 @@ function CopilotPagePolished({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={opportunityScout.readiness.tone}>{opportunityScout.readiness.label}</Badge>
-                  <Button type="button" size="sm" onClick={() => openModule("leads")}>Open Lead Sources</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Sources</Button>
                 </div>
               </div>
             </div>
@@ -18131,16 +18262,16 @@ function CopilotPagePolished({
                 <p>{opportunityScout.readiness.summary}</p>
                 <div className="co-ai-scout-metrics">
                   <div>
-                    <em>{opportunityScout.stats.activeSources}</em>
-                    <span>Active sources</span>
+                    <em>{opportunityScout.stats.activeProfiles}</em>
+                    <span>Scout profiles</span>
+                  </div>
+                  <div>
+                    <em>{opportunityScout.stats.openFoundOpportunities}</em>
+                    <span>Found work</span>
                   </div>
                   <div>
                     <em>{opportunityScout.stats.checksNeeded}</em>
                     <span>Checks due</span>
-                  </div>
-                  <div>
-                    <em>{opportunityScout.stats.highFitLeads}</em>
-                    <span>Good matches</span>
                   </div>
                 </div>
               </div>
@@ -18170,6 +18301,177 @@ function CopilotPagePolished({
                 ) : (
                   <StateCard title="No lead sources yet" description="Add at least one active lead source before the scout can build a daily search brief." tone="slate" />
                 )}
+              </div>
+            </div>
+
+            <div className="co-ai-scout-ops-grid">
+              <div className="co-ai-scout-panel">
+                <div className="co-ai-scout-panel-head">
+                  <div>
+                    <h3>Search Profiles</h3>
+                    <p>Saved criteria for the daily job-finding routine.</p>
+                  </div>
+                  <Badge tone={opportunityScout.stats.profilesDue ? "orange" : "green"}>{opportunityScout.stats.activeProfiles} active</Badge>
+                </div>
+                <form className="co-ai-scout-form" onSubmit={submitProfileDraft}>
+                  <div className="co-ai-scout-form-grid">
+                    <label>
+                      <span>Name</span>
+                      <input value={profileDraft.name} onChange={(event) => updateProfileDraft("name", event.target.value)} placeholder="Daily public work" required />
+                    </label>
+                    <label>
+                      <span>Trades</span>
+                      <input value={profileDraft.trades} onChange={(event) => updateProfileDraft("trades", event.target.value)} placeholder="concrete, fencing, decking" />
+                    </label>
+                    <label>
+                      <span>Service Areas</span>
+                      <input value={profileDraft.serviceAreas} onChange={(event) => updateProfileDraft("serviceAreas", event.target.value)} placeholder="Albany, Corvallis, Salem" />
+                    </label>
+                    <label>
+                      <span>Cadence</span>
+                      <select value={profileDraft.cadence} onChange={(event) => updateProfileDraft("cadence", event.target.value)}>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="manual">Manual</option>
+                      </select>
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Keywords</span>
+                      <input value={profileDraft.keywords} onChange={(event) => updateProfileDraft("keywords", event.target.value)} placeholder="sidewalk, ADA, repair, bid invite" />
+                    </label>
+                    <label>
+                      <span>Source Types</span>
+                      <input value={profileDraft.sourceTypes} onChange={(event) => updateProfileDraft("sourceTypes", event.target.value)} placeholder="plan room, city bids, GC portals" />
+                    </label>
+                  </div>
+                  <div className="co-ai-scout-form-footer">
+                    <span>Profiles guide manual research. Apex HQ does not auto-bid or auto-contact customers.</span>
+                    <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || !profileDraft.name.trim()}>Save Profile</Button>
+                  </div>
+                </form>
+                <div className="co-ai-scout-record-list">
+                  {opportunityScout.profileQueue.length ? opportunityScout.profileQueue.map((profile) => (
+                    <div key={profile.id} className="co-ai-scout-record" data-tone={profile.tone}>
+                      <div className="min-w-0">
+                        <div className="co-ai-scout-record-title">
+                          <strong>{profile.name}</strong>
+                          <Badge tone={profile.tone}>{profile.statusLabel}</Badge>
+                        </div>
+                        <p>{[profile.trades.slice(0, 3).join(", "), profile.serviceAreas.slice(0, 2).join(", "), `${profile.cadence} cadence`].filter(Boolean).join(" / ")}</p>
+                        <code>{profile.query}</code>
+                      </div>
+                      <div className="co-ai-scout-record-actions">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => markProfileReviewed(profile)} disabled={!canManageOpportunityScout || busy}>Mark Reviewed</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setProfileStatus(profile, profile.status === "paused" ? "active" : "paused")} disabled={!canManageOpportunityScout || busy}>
+                          {profile.status === "paused" ? "Activate" : "Pause"}
+                        </Button>
+                      </div>
+                    </div>
+                  )) : (
+                    <StateCard title="No search profiles yet" description="Create the first search profile so the office has a repeatable job-finding routine." tone="slate" />
+                  )}
+                </div>
+              </div>
+
+              <div className="co-ai-scout-panel">
+                <div className="co-ai-scout-panel-head">
+                  <div>
+                    <h3>Found Opportunities</h3>
+                    <p>Save real jobs here before converting anything to a lead or estimate workflow.</p>
+                  </div>
+                  <Badge tone={opportunityScout.stats.openFoundOpportunities ? "orange" : "slate"}>{opportunityScout.stats.openFoundOpportunities} open</Badge>
+                </div>
+                <form className="co-ai-scout-form" onSubmit={submitFoundDraft}>
+                  <div className="co-ai-scout-form-grid">
+                    <label className="md:col-span-2">
+                      <span>Opportunity</span>
+                      <input value={foundDraft.title} onChange={(event) => updateFoundDraft("title", event.target.value)} placeholder="School sidewalk repair" required />
+                    </label>
+                    <label>
+                      <span>Agency / Source</span>
+                      <input value={foundDraft.agency} onChange={(event) => updateFoundDraft("agency", event.target.value)} placeholder="City, GC, school district" />
+                    </label>
+                    <label>
+                      <span>Profile</span>
+                      <select value={foundDraft.searchProfileId} onChange={(event) => updateFoundDraft("searchProfileId", event.target.value)}>
+                        <option value="">No profile</option>
+                        {profileOptions.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Lead Source</span>
+                      <select value={foundDraft.leadSourceId} onChange={(event) => updateFoundDraft("leadSourceId", event.target.value)}>
+                        <option value="">No source</option>
+                        {leadSourceOptions.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Trade</span>
+                      <input value={foundDraft.trade} onChange={(event) => updateFoundDraft("trade", event.target.value)} placeholder="Concrete" />
+                    </label>
+                    <label>
+                      <span>City</span>
+                      <input value={foundDraft.city} onChange={(event) => updateFoundDraft("city", event.target.value)} placeholder="Albany" />
+                    </label>
+                    <label>
+                      <span>State</span>
+                      <input value={foundDraft.state} onChange={(event) => updateFoundDraft("state", event.target.value)} placeholder="OR" />
+                    </label>
+                    <label>
+                      <span>Fit Score</span>
+                      <input type="number" min="0" max="100" value={foundDraft.fitScore} onChange={(event) => updateFoundDraft("fitScore", event.target.value)} placeholder="80" />
+                    </label>
+                    <label>
+                      <span>Bid Due</span>
+                      <input type="date" value={foundDraft.bidDueAt} onChange={(event) => updateFoundDraft("bidDueAt", event.target.value)} />
+                    </label>
+                    <label>
+                      <span>Estimator</span>
+                      <select value={foundDraft.assignedEstimatorId} onChange={(event) => updateFoundDraft("assignedEstimatorId", event.target.value)}>
+                        <option value="">Unassigned</option>
+                        {estimatorOptions.map((user) => <option key={user.id} value={user.id}>{user.name || user.email}</option>)}
+                      </select>
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Reason To Bid</span>
+                      <textarea value={foundDraft.reasonToBid} onChange={(event) => updateFoundDraft("reasonToBid", event.target.value)} placeholder="Why this looks like a good fit." rows={3} />
+                    </label>
+                  </div>
+                  <div className="co-ai-scout-form-footer">
+                    <span>Manual review only. No customer messages or pricing changes happen here.</span>
+                    <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || !foundDraft.title.trim()}>Save Opportunity</Button>
+                  </div>
+                </form>
+                <div className="co-ai-scout-record-list">
+                  {opportunityScout.foundOpportunityQueue.length ? opportunityScout.foundOpportunityQueue.map((opportunity) => (
+                    <div key={opportunity.id} className="co-ai-scout-record" data-tone={opportunity.tone}>
+                      <div className="min-w-0">
+                        <div className="co-ai-scout-record-title">
+                          <strong>{opportunity.title}</strong>
+                          <Badge tone={opportunity.tone}>{opportunity.statusLabel}</Badge>
+                        </div>
+                        <p>{[opportunity.agency, opportunity.trade, opportunity.location, opportunity.bidDueAt ? `Bid due ${formatDateTime(opportunity.bidDueAt)}` : ""].filter(Boolean).join(" / ")}</p>
+                        {opportunity.reasonToBid ? <em>{opportunity.reasonToBid}</em> : null}
+                        {opportunity.riskFlags.length || opportunity.missingInfoItems.length ? (
+                          <div className="co-ai-scout-checks">
+                            {[...opportunity.riskFlags, ...opportunity.missingInfoItems].slice(0, 3).map((item) => <small key={item}>{item}</small>)}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="co-ai-scout-record-actions">
+                        {opportunity.sourceUrl ? <a className="co-ai-scout-link" href={opportunity.sourceUrl} target="_blank" rel="noreferrer">Open Source</a> : null}
+                        {["reviewing", "watching", "bidding", "skipped"].map((status) => (
+                          <Button key={status} type="button" size="sm" variant={opportunity.status === status ? "primary" : "ghost"} onClick={() => setOpportunityStatus(opportunity, status)} disabled={!canManageOpportunityScout || busy}>
+                            {status === "reviewing" ? "Review" : status === "watching" ? "Watch" : status === "bidding" ? "Bid" : "Skip"}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )) : (
+                    <StateCard title="No found opportunities yet" description="When the office finds a real job, save it here with bid date, fit, and reason to bid." tone="slate" />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -26946,6 +27248,8 @@ export default function App() {
         permissions: normalizedNextState.permissions,
         leads: kind === "lead" && !shouldReplaceRecord ? current.leads : normalizedNextState.leads,
         leadSources: normalizedNextState.leadSources,
+        opportunitySearchProfiles: normalizedNextState.opportunitySearchProfiles,
+        foundOpportunities: normalizedNextState.foundOpportunities,
         leadStatusHistory: normalizedNextState.leadStatusHistory,
         contactHistory: normalizedNextState.contactHistory,
         jobDraftImports: normalizedNextState.jobDraftImports,
@@ -27767,6 +28071,74 @@ export default function App() {
     setBusy(true);
     try {
       const nextState = await markLeadSourceChecked(sessionToken, sourceId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateOpportunitySearchProfile(payload) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await createOpportunitySearchProfile(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateOpportunitySearchProfile(profileId, payload) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateOpportunitySearchProfile(sessionToken, profileId, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateFoundOpportunity(payload) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await createFoundOpportunity(sessionToken, payload);
+      applyBootstrap(nextState);
+      setErrorMessage("");
+      return true;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateFoundOpportunity(opportunityId, payload) {
+    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    setBusy(true);
+    try {
+      const nextState = await updateFoundOpportunity(sessionToken, opportunityId, payload);
       applyBootstrap(nextState);
       setErrorMessage("");
       return true;
@@ -29243,6 +29615,8 @@ export default function App() {
                 customers={appState.customers}
                 leads={appState.leads}
                 leadSources={appState.leadSources}
+                opportunitySearchProfiles={appState.opportunitySearchProfiles}
+                foundOpportunities={appState.foundOpportunities}
                 contactHistory={appState.contactHistory}
                 estimates={appState.estimates}
                 jobDraftImports={appState.jobDraftImports}
@@ -29365,6 +29739,10 @@ export default function App() {
                 onArchiveLeadSource={handleArchiveLeadSource}
                 onRestoreLeadSource={handleRestoreLeadSource}
                 onMarkLeadSourceChecked={handleMarkLeadSourceChecked}
+                onCreateOpportunitySearchProfile={handleCreateOpportunitySearchProfile}
+                onUpdateOpportunitySearchProfile={handleUpdateOpportunitySearchProfile}
+                onCreateFoundOpportunity={handleCreateFoundOpportunity}
+                onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
                 onCreateContactHistory={handleCreateContactHistory}
                 onUpdateContactHistory={handleUpdateContactHistory}
                 onArchiveContactHistory={handleArchiveContactHistory}

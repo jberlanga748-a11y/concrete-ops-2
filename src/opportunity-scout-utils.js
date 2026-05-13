@@ -104,6 +104,153 @@ function sourceUrgency(source = {}) {
   };
 }
 
+function statusLabel(value, fallback = "New") {
+  const normalized = collapseSpaces(value || fallback).replace(/[_-]/g, " ");
+  if (!normalized) return fallback;
+  return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function statusTone(value) {
+  const normalized = normalizeStatus(value);
+  if (["archived", "skipped"].includes(normalized)) return "slate";
+  if (["converted to lead", "converted"].includes(normalized)) return "green";
+  if (["bidding", "reviewing", "new"].includes(normalized)) return "orange";
+  if (["watching"].includes(normalized)) return "blue";
+  if (["paused"].includes(normalized)) return "amber";
+  if (["active"].includes(normalized)) return "green";
+  return "slate";
+}
+
+function dateBucket(value, today = dateKey(new Date())) {
+  const due = dateKey(value);
+  if (!due) return "none";
+  if (due < today) return "overdue";
+  if (due === today) return "today";
+  return "future";
+}
+
+function dateSortValue(value) {
+  return dateKey(value) || "9999-99-99";
+}
+
+function isActiveSearchProfile(profile = {}) {
+  return !isArchived(profile) && normalizeStatus(profile.status || "active") === "active";
+}
+
+function profileNeedsRun(profile = {}, today = dateKey(new Date())) {
+  if (!isActiveSearchProfile(profile)) return false;
+  if (normalizeStatus(profile.cadence) === "manual") return false;
+  if (!profile.lastRunAt) return true;
+  const nextRun = dateKey(profile.nextRunAt);
+  return Boolean(nextRun && nextRun <= today);
+}
+
+function isOpenFoundOpportunity(opportunity = {}) {
+  if (isArchived(opportunity)) return false;
+  return !["skipped", "converted to lead", "converted", "archived"].includes(normalizeStatus(opportunity.status || "new"));
+}
+
+function opportunityPriority(opportunity = {}, today = dateKey(new Date())) {
+  const status = normalizeStatus(opportunity.status || "new");
+  const bidBucket = dateBucket(opportunity.bidDueAt, today);
+  if (bidBucket === "overdue") return 1;
+  if (bidBucket === "today") return 2;
+  if (status === "bidding") return 3;
+  if (status === "reviewing" || status === "new") return 4;
+  if (Number(opportunity.fitScore || 0) >= 75) return 5;
+  return 9;
+}
+
+function buildOpportunityScoutProfileBrief(profile = {}, companySettings = {}) {
+  const areas = uniqueTexts([
+    ...(Array.isArray(profile.serviceAreas) ? profile.serviceAreas : []),
+    companySettings.serviceArea,
+  ]);
+  const trades = uniqueTexts(Array.isArray(profile.trades) ? profile.trades : []);
+  const keywords = uniqueTexts(Array.isArray(profile.keywords) ? profile.keywords : []);
+  const sourceTypes = uniqueTexts(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []);
+  const area = areas[0] || "local";
+  const trade = trades[0] || "contractor";
+  const sourceType = sourceTypes[0] || "public bid portals";
+  const keyword = keywords[0] || "project opportunities";
+
+  return {
+    query: uniqueTexts([area, trade, sourceType, keyword, "RFP bid invite"]).join(" "),
+    headline: "Run this saved profile manually across the approved sources, then save only real found opportunities for review.",
+    checkFor: [
+      "Bid due date, walk-through, addenda, and plan access",
+      "Trade fit, service area, required forms, and decision path",
+      "Reason to bid, reason to skip, risks, and missing info",
+    ],
+    resultPrompt: "Save real matches as found opportunities; mark the profile reviewed when today's search is complete.",
+    addLeadPrompt: "Do not create leads until the office confirms the opportunity is real and qualified.",
+  };
+}
+
+function buildSearchProfileQueue(profile = {}, companySettings = {}, today = dateKey(new Date())) {
+  const brief = buildOpportunityScoutProfileBrief(profile, companySettings);
+  const needsRun = profileNeedsRun(profile, today);
+  const runBucket = dateBucket(profile.nextRunAt, today);
+  const tone = statusTone(profile.status || "active");
+  return {
+    id: profile.id || profile.name,
+    profileId: profile.id || "",
+    name: profile.name || "Unnamed profile",
+    status: profile.status || "active",
+    statusLabel: needsRun ? (runBucket === "overdue" ? "Search overdue" : "Search due") : statusLabel(profile.status || "active"),
+    cadence: profile.cadence || "daily",
+    trades: Array.isArray(profile.trades) ? profile.trades : [],
+    serviceAreas: Array.isArray(profile.serviceAreas) ? profile.serviceAreas : [],
+    sourceTypes: Array.isArray(profile.sourceTypes) ? profile.sourceTypes : [],
+    keywords: Array.isArray(profile.keywords) ? profile.keywords : [],
+    nextRunAt: profile.nextRunAt || "",
+    lastRunAt: profile.lastRunAt || "",
+    query: brief.query,
+    recommendedAction: brief.headline,
+    checkFor: brief.checkFor,
+    resultPrompt: brief.resultPrompt,
+    addLeadPrompt: brief.addLeadPrompt,
+    needsRun,
+    tone: needsRun ? (runBucket === "overdue" ? "red" : "orange") : tone,
+    priority: needsRun ? (runBucket === "overdue" ? 1 : 2) : normalizeStatus(profile.status) === "active" ? 5 : 8,
+  };
+}
+
+function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date())) {
+  const bidBucket = dateBucket(opportunity.bidDueAt, today);
+  const priority = opportunityPriority(opportunity, today);
+  const fitScore = Number(opportunity.fitScore || 0);
+  const tone = bidBucket === "overdue"
+    ? "red"
+    : bidBucket === "today" || ["new", "reviewing", "bidding"].includes(normalizeStatus(opportunity.status || "new"))
+      ? "orange"
+      : fitScore >= 75
+        ? "green"
+        : statusTone(opportunity.status || "new");
+
+  return {
+    id: opportunity.id || opportunity.title,
+    opportunityId: opportunity.id || "",
+    title: opportunity.title || "Untitled opportunity",
+    agency: opportunity.agency || opportunity.sourceName || "Source not recorded",
+    sourceUrl: opportunity.sourceUrl || opportunity.planUrl || "",
+    status: opportunity.status || "new",
+    statusLabel: statusLabel(opportunity.status || "new"),
+    bidDueAt: opportunity.bidDueAt || "",
+    bidBucket,
+    location: uniqueTexts([opportunity.city, opportunity.state]).join(", "),
+    trade: opportunity.trade || opportunity.projectType || "Trade not set",
+    fitScore,
+    reasonToBid: opportunity.reasonToBid || opportunity.scopeSummary || opportunity.notes || "",
+    riskFlags: Array.isArray(opportunity.riskFlags) ? opportunity.riskFlags : [],
+    missingInfoItems: Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems : [],
+    assignedEstimatorId: opportunity.assignedEstimatorId || "",
+    convertedLeadId: opportunity.convertedLeadId || "",
+    tone,
+    priority,
+  };
+}
+
 function companySearchContext(companySettings = {}) {
   return uniqueTexts([
     companySettings.serviceArea,
@@ -283,7 +430,17 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const companySettings = source.companySettings || {};
   const leadSources = asArray(source.leadSources).filter((entry) => sameCompany(entry, companyId));
   const activeSources = leadSources.filter(isActiveSource);
+  const searchProfiles = asArray(source.opportunitySearchProfiles).filter((entry) => sameCompany(entry, companyId) && !isArchived(entry));
+  const activeProfiles = searchProfiles.filter(isActiveSearchProfile);
+  const foundOpportunities = asArray(source.foundOpportunities).filter((entry) => sameCompany(entry, companyId) && !isArchived(entry));
+  const openFoundOpportunities = foundOpportunities.filter(isOpenFoundOpportunity);
   const dailyCheck = deriveDailySourceCheckState(activeSources, { today });
+  const profileQueue = searchProfiles
+    .map((entry) => buildSearchProfileQueue(entry, companySettings, today))
+    .sort((left, right) => left.priority - right.priority || dateSortValue(left.nextRunAt).localeCompare(dateSortValue(right.nextRunAt)) || left.name.localeCompare(right.name));
+  const foundOpportunityQueue = openFoundOpportunities
+    .map((entry) => buildFoundOpportunityQueue(entry, today))
+    .sort((left, right) => left.priority - right.priority || dateSortValue(left.bidDueAt).localeCompare(dateSortValue(right.bidDueAt)) || Number(right.fitScore || 0) - Number(left.fitScore || 0));
   const checkQueue = [...dailyCheck.overdueSources, ...dailyCheck.dueTodaySources].map((entry) => buildSourceQueue(entry, companySettings));
   const fallbackSources = activeSources
     .slice()
@@ -292,7 +449,21 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     .map((entry) => buildSourceQueue(entry, companySettings));
   const sourceQueue = (checkQueue.length ? checkQueue : fallbackSources)
     .sort((left, right) => left.priority - right.priority || left.name.localeCompare(right.name));
-  const searchBriefs = sourceQueue.slice(0, 5).map((entry) => ({
+  const profileBriefs = profileQueue.filter((entry) => normalizeStatus(entry.status) === "active").slice(0, 4).map((entry) => ({
+    id: `profile-brief-${entry.id}`,
+    profileId: entry.profileId,
+    title: entry.name,
+    type: "Search profile",
+    location: entry.serviceAreas.join(", ") || companySettings.serviceArea || "Service area not set",
+    query: entry.query,
+    helper: entry.recommendedAction,
+    checkFor: entry.checkFor,
+    resultPrompt: entry.resultPrompt,
+    addLeadPrompt: entry.addLeadPrompt,
+    url: "",
+    tone: entry.tone,
+  }));
+  const sourceBriefs = sourceQueue.slice(0, 5).map((entry) => ({
     id: `brief-${entry.id}`,
     sourceId: entry.sourceId,
     title: entry.name,
@@ -306,25 +477,40 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     url: entry.url,
     tone: entry.tone,
   }));
+  const searchBriefs = [...profileBriefs, ...sourceBriefs].slice(0, 6);
   const leadQueue = buildLeadQueue(asArray(source.leads).filter((entry) => sameCompany(entry, companyId)), today);
   const openLeads = asArray(source.leads).filter((entry) => sameCompany(entry, companyId)).filter(isOpenLead);
   const highFitLeads = openLeads.filter((lead) => Number(lead.fitScore || 0) >= 80 || /strong|good/i.test(lead.fitLabel || ""));
   const missingInfoLeads = openLeads.filter((lead) => Number(lead.missingInfoCount || 0) > 0 || /needs info|missing/i.test(lead.missingInfoStatus || ""));
   const dueLeads = openLeads.filter((lead) => ["overdue", "today"].includes(followUpDueBucket(lead, today)));
+  const dueProfiles = profileQueue.filter((profile) => profile.needsRun);
+  const highFitOpportunities = openFoundOpportunities.filter((opportunity) => Number(opportunity.fitScore || 0) >= 75);
+  const dueBidOpportunities = openFoundOpportunities.filter((opportunity) => ["overdue", "today"].includes(dateBucket(opportunity.bidDueAt, today)));
+  const newFoundOpportunities = openFoundOpportunities.filter((opportunity) => normalizeStatus(opportunity.status || "new") === "new");
+  const reviewingOpportunities = openFoundOpportunities.filter((opportunity) => normalizeStatus(opportunity.status || "new") === "reviewing");
+  const biddingOpportunities = openFoundOpportunities.filter((opportunity) => normalizeStatus(opportunity.status || "new") === "bidding");
 
-  const readiness = activeSources.length === 0
+  const scoutTargetCount = activeSources.length + activeProfiles.length;
+  const readiness = scoutTargetCount === 0
     ? {
         label: "Source setup needed",
         tone: "amber",
-        summary: "Add active lead sources before Apex HQ can guide daily opportunity checks.",
-        nextAction: "Add Lead Sources",
+        summary: "Add lead sources or search profiles before Apex HQ can guide daily opportunity checks.",
+        nextAction: "Add Search Profile",
       }
-    : dailyCheck.stats.checksNeeded > 0
+    : foundOpportunityQueue.length > 0
+      ? {
+          label: "Found work needs review",
+          tone: dueBidOpportunities.length ? "red" : "orange",
+          summary: `${foundOpportunityQueue.length} found opportunit${foundOpportunityQueue.length === 1 ? "y" : "ies"} need office review before anyone bids or converts work.`,
+          nextAction: "Review Found Work",
+        }
+    : dailyCheck.stats.checksNeeded > 0 || dueProfiles.length > 0
       ? {
           label: "Scout checks due",
-          tone: dailyCheck.stats.overdue > 0 ? "red" : "orange",
-          summary: `${dailyCheck.stats.checksNeeded} lead source check${dailyCheck.stats.checksNeeded === 1 ? "" : "s"} need office review.`,
-          nextAction: "Run Daily Source Check",
+          tone: dailyCheck.stats.overdue > 0 || dueProfiles.some((profile) => profile.tone === "red") ? "red" : "orange",
+          summary: `${dailyCheck.stats.checksNeeded + dueProfiles.length} source/profile check${dailyCheck.stats.checksNeeded + dueProfiles.length === 1 ? "" : "s"} need office review.`,
+          nextAction: "Run Daily Scout",
         }
       : leadQueue.length > 0
         ? {
@@ -344,11 +530,18 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     {
       id: "source-checks",
       label: readiness.nextAction,
-      helper: activeSources.length === 0
-        ? "Create or activate the sources Apex HQ should watch."
-        : `${dailyCheck.stats.overdue} overdue / ${dailyCheck.stats.dueToday} due today.`,
+      helper: scoutTargetCount === 0
+        ? "Create the profiles and sources Apex HQ should watch."
+        : `${dailyCheck.stats.overdue + dueProfiles.filter((profile) => profile.tone === "red").length} overdue / ${dailyCheck.stats.dueToday + dueProfiles.filter((profile) => profile.tone !== "red" && profile.needsRun).length} due today.`,
       tone: readiness.tone,
-      moduleId: "leads",
+      moduleId: "copilot",
+    },
+    {
+      id: "found-work",
+      label: "Review found opportunities",
+      helper: `${foundOpportunityQueue.length} open found / ${biddingOpportunities.length} bidding / ${dueBidOpportunities.length} due now.`,
+      tone: foundOpportunityQueue.length ? "orange" : "slate",
+      moduleId: "copilot",
     },
     {
       id: "review-leads",
@@ -369,6 +562,8 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   return {
     today,
     readiness,
+    profileQueue: profileQueue.slice(0, 6),
+    foundOpportunityQueue: foundOpportunityQueue.slice(0, 8),
     sourceQueue,
     searchBriefs,
     leadQueue: leadQueue.slice(0, 6),
@@ -376,9 +571,19 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     stats: {
       activeSources: activeSources.length,
       totalSources: leadSources.length,
+      activeProfiles: activeProfiles.length,
+      totalProfiles: searchProfiles.length,
+      profilesDue: dueProfiles.length,
+      foundOpportunities: foundOpportunities.length,
+      openFoundOpportunities: openFoundOpportunities.length,
+      newFoundOpportunities: newFoundOpportunities.length,
+      reviewingOpportunities: reviewingOpportunities.length,
+      biddingOpportunities: biddingOpportunities.length,
+      highFitOpportunities: highFitOpportunities.length,
+      dueBidOpportunities: dueBidOpportunities.length,
       overdueSourceChecks: dailyCheck.stats.overdue,
       dueSourceChecks: dailyCheck.stats.dueToday,
-      checksNeeded: dailyCheck.stats.checksNeeded,
+      checksNeeded: dailyCheck.stats.checksNeeded + dueProfiles.length,
       openLeads: openLeads.length,
       highFitLeads: highFitLeads.length,
       missingInfoLeads: missingInfoLeads.length,

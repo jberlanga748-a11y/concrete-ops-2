@@ -59,6 +59,33 @@ test("opportunity scout prioritizes open lead follow-ups and missing info", () =
   assert.equal(state.stats.dueLeads, 1);
 });
 
+test("opportunity scout includes saved search profiles and found opportunities", () => {
+  const state = deriveOpportunityScoutState({
+    currentCompanyId: "COMPANY-A",
+    companySettings: { serviceArea: "Albany Oregon" },
+    opportunitySearchProfiles: [
+      { id: "OSP-1", companyId: "COMPANY-A", name: "Daily bid scan", status: "active", cadence: "daily", trades: ["concrete"], serviceAreas: ["Albany"], keywords: ["sidewalk"], lastRunAt: "", nextRunAt: TODAY },
+      { id: "OSP-2", companyId: "COMPANY-A", name: "Paused scan", status: "paused", cadence: "weekly", trades: ["siding"] },
+      { id: "OSP-3", companyId: "COMPANY-B", name: "Other company scan", status: "active" },
+    ],
+    foundOpportunities: [
+      { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, riskFlags: ["prevailing wage"] },
+      { id: "FO-2", companyId: "COMPANY-A", title: "Skipped job", status: "skipped", fitScore: 95 },
+      { id: "FO-3", companyId: "COMPANY-B", title: "Other company work", status: "new" },
+    ],
+  }, { today: TODAY });
+
+  assert.equal(state.readiness.label, "Found work needs review");
+  assert.equal(state.stats.activeProfiles, 1);
+  assert.equal(state.stats.totalProfiles, 2);
+  assert.equal(state.stats.profilesDue, 1);
+  assert.equal(state.stats.openFoundOpportunities, 1);
+  assert.equal(state.stats.dueBidOpportunities, 1);
+  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1"]);
+  assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);
+  assert.equal(state.searchBriefs.some((brief) => brief.profileId === "OSP-1"), true);
+});
+
 test("opportunity scout phrases relationship sources differently from bid portals", () => {
   const referralQuery = buildOpportunityScoutSearchPhrase({
     name: "Builder partners",

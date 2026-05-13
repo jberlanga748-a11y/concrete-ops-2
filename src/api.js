@@ -155,6 +155,26 @@ export function markLeadSourceChecked(token, id, payload = {}) {
   return request(`/api/lead-sources/${id}/check`, { method: "POST", token, body: payload });
 }
 
+export function getOpportunityScout(token) {
+  return request("/api/opportunity-scout", { token });
+}
+
+export function createOpportunitySearchProfile(token, payload) {
+  return request("/api/opportunity-scout/search-profiles", { method: "POST", token, body: payload });
+}
+
+export function updateOpportunitySearchProfile(token, id, payload) {
+  return request(`/api/opportunity-scout/search-profiles/${id}`, { method: "PATCH", token, body: payload });
+}
+
+export function createFoundOpportunity(token, payload) {
+  return request("/api/opportunity-scout/found-opportunities", { method: "POST", token, body: payload });
+}
+
+export function updateFoundOpportunity(token, id, payload) {
+  return request(`/api/opportunity-scout/found-opportunities/${id}`, { method: "PATCH", token, body: payload });
+}
+
 export function getEstimates(token) {
   return request("/api/estimates", { token });
 }
