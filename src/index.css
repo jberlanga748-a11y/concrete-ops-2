@@ -17040,6 +17040,10 @@ textarea {
   .co-toolbox-talks-page.co-field-tool-page .co-toolbox-kpi-grid {
     display: none !important;
   }
+
+  .co-ppe-page.co-field-tool-page .co-toolbox-priority-grid {
+    display: none !important;
+  }
 }
 
 .scrollbar-none {

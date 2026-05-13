@@ -8794,7 +8794,7 @@ function ppeItemRequirementLabel(item) {
 
 function ppeItemStatusTone(item) {
   if (item?.archivedAt) return "slate";
-  if (item?.requiredByDefault) return "blue";
+  if (item?.requiredByDefault) return "orange";
   return "amber";
 }
 
@@ -8847,7 +8847,7 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
                     <p className="font-black text-slate-950">{item.label || "Untitled PPE item"}</p>
                     <p className="text-xs font-bold text-slate-500">{item.description || "No PPE guidance recorded yet."}</p>
                   </td>
-                  <td><Badge tone={item.requiredByDefault ? "blue" : "slate"}>{ppeItemRequirementLabel(item)}</Badge></td>
+                  <td><Badge tone={item.requiredByDefault ? "orange" : "slate"}>{ppeItemRequirementLabel(item)}</Badge></td>
                   <td><Badge tone={item.archivedAt ? "slate" : "green"}>{item.archivedAt ? "Archived" : item.statusLabel || "Active"}</Badge></td>
                   <td className="font-bold text-slate-700">{formatDateTime(ppeItemUpdatedAt(item))}</td>
                   <td>
@@ -8884,6 +8884,7 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
 
   const ppePolicies = policies.filter((policy) => String(policy.category || "").toLowerCase().includes("ppe") || `${policy.title || ""} ${policy.body || ""}`.toLowerCase().includes("ppe"));
   const openIncidents = incidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || ""))).length;
+  const actionCount = [canAcknowledge, canManage, canSubmitIncidents].filter(Boolean).length;
 
   return (
     <div className="co-toolbox-right-rail space-y-4">
@@ -8921,10 +8922,10 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
           <p>{item.description || "No PPE guidance recorded yet."}</p>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className={`mt-3 grid gap-2 ${actionCount === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
           {canAcknowledge ? <Button type="button" size="sm" onClick={() => onOpenTool("ack")}>Acknowledge</Button> : null}
           {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => { onSelectItem(item.id); onOpenTool("ppe"); }}>Edit PPE</Button> : null}
-          {canSubmitIncidents ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("incident")}>Report Concern</Button> : null}
+          {canSubmitIncidents ? <Button type="button" size="sm" className={actionCount === 3 ? "col-span-2" : ""} variant="secondary" onClick={() => onOpenTool("incident")}>Report Concern</Button> : null}
         </div>
       </Card>
 
@@ -9034,7 +9035,7 @@ function PpeAcknowledgePanelPolished({ canAcknowledge, allowedJobs, visiblePolic
           <TextAreaField label="Notes" value={ackDraft.notes} onChange={(event) => setAckDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="PPE checked, extra protection noted, crew questions, site hazards..." />
         </div>
         <div className="md:col-span-2">
-          <Button type="submit" disabled={busy}>Acknowledge PPE check</Button>
+          <Button type="submit" className="w-full sm:w-auto" disabled={busy}>Acknowledge PPE check</Button>
         </div>
       </form>
       <div className="co-toolbox-ack-list">
@@ -9250,6 +9251,11 @@ function PpeChecklistPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function changeToolTab(nextTab) {
+    setToolTab(nextTab);
+    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityPpe(matchItem, options = {}) {
     const targetItem = filteredPpeItems.find(matchItem) || activePpeItems.find(matchItem);
     if (options.requirementFilter) setRequirementFilter(options.requirementFilter);
@@ -9414,10 +9420,10 @@ function PpeChecklistPagePolished({
           <span>Open tools</span>
         </summary>
         <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => setToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
-          {canManage ? <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => { if (selectedItem) setSelectedPpeId(selectedItem.id); setToolTab("ppe"); }}><Icon name="hardhat" />PPE Setup</button> : null}
-          <button type="button" className={toolTab === "policy" ? "is-active" : ""} onClick={() => setToolTab("policy")}><Icon name="clipboard" />Guidance</button>
-          {canSubmitIncidents || canReview ? <button type="button" className={toolTab === "incident" ? "is-active" : ""} onClick={() => setToolTab("incident")}><Icon name="alert" />Safety Watch</button> : null}
+          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => changeToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+          {canManage ? <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => { if (selectedItem) setSelectedPpeId(selectedItem.id); changeToolTab("ppe"); }}><Icon name="hardhat" />PPE Setup</button> : null}
+          <button type="button" className={toolTab === "policy" ? "is-active" : ""} onClick={() => changeToolTab("policy")}><Icon name="clipboard" />Guidance</button>
+          {canSubmitIncidents || canReview ? <button type="button" className={toolTab === "incident" ? "is-active" : ""} onClick={() => changeToolTab("incident")}><Icon name="alert" />Safety Watch</button> : null}
         </div>
         <div className="co-toolbox-tools-panel mt-3">
           {toolTab === "ack" ? (
