@@ -8654,44 +8654,47 @@ function PpeChecklistPagePolished({
     openTools(options.tool || (canManage ? "ppe" : (canAcknowledge ? "ack" : "policy")));
   }
 
-  const ppePriorityCards = [
-    {
-      label: "Required gear",
-      value: requiredCount,
-      helper: requiredCount ? "Default protection is ready to review before the crew starts." : "No PPE items are marked required by default.",
-      icon: "hardhat",
-      tone: requiredCount ? "orange" : "slate",
-      actionLabel: "Review required",
-      onAction: () => openPriorityPpe((item) => item.requiredByDefault, { requirementFilter: "Required", tool: canManage ? "ppe" : (canAcknowledge ? "ack" : "policy") }),
-    },
-    {
-      label: "Crew acknowledgment",
-      value: acknowledgmentState.hasAcknowledged ? "Done" : "Open",
-      helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew PPE expectations still need acknowledgment.",
-      icon: "check",
-      tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
-      actionLabel: canAcknowledge ? "Acknowledge" : "View status",
-      onAction: () => openTools(canAcknowledge ? "ack" : "policy"),
-    },
-    {
-      label: "Safety watch",
-      value: openIncidents,
-      helper: openIncidents ? "Open visible safety concerns are tied into the PPE workflow." : "No open visible incidents in this safety scope.",
-      icon: "alert",
-      tone: openIncidents ? "amber" : "green",
-      actionLabel: openIncidents ? "Open watch" : "All clear",
-      onAction: () => openTools(canSubmitIncidents || canReview ? "incident" : "policy"),
-    },
-    {
-      label: canManage ? "PPE setup" : "PPE guidance",
-      value: canManage ? "Ready" : ppePolicies.length,
-      helper: canManage ? "Manage equipment requirements without changing field permissions." : "Field-safe guidance stays available without admin controls.",
-      icon: canManage ? "settings" : "clipboard",
-      tone: canManage ? "blue" : "green",
-      actionLabel: canManage ? "Manage" : "Guidance",
-      onAction: () => openTools(canManage ? "ppe" : "policy"),
-    },
-  ];
+  const requiredGearPriorityCard = {
+    label: "Required gear",
+    value: requiredCount,
+    helper: requiredCount ? "Default protection is ready to review before the crew starts." : "No PPE items are marked required by default.",
+    icon: "hardhat",
+    tone: requiredCount ? "orange" : "slate",
+    actionLabel: "Review required",
+    onAction: () => openPriorityPpe((item) => item.requiredByDefault, { requirementFilter: "Required", tool: canManage ? "ppe" : (canAcknowledge ? "ack" : "policy") }),
+  };
+  const crewAcknowledgmentPriorityCard = {
+    label: "Crew acknowledgment",
+    value: acknowledgmentState.hasAcknowledged ? "Done" : "Open",
+    helper: acknowledgmentState.hasAcknowledged ? `Latest acknowledgment ${formatDateTime(acknowledgmentState.latest?.acknowledgedAt)}.` : "Crew PPE expectations still need acknowledgment.",
+    icon: "check",
+    tone: acknowledgmentState.hasAcknowledged ? "green" : "amber",
+    actionLabel: canAcknowledge ? "Acknowledge" : "View status",
+    onAction: () => openTools(canAcknowledge ? "ack" : "policy"),
+  };
+  const safetyWatchPriorityCard = {
+    label: "Safety watch",
+    value: openIncidents,
+    helper: openIncidents ? "Open visible safety concerns are tied into the PPE workflow." : "No open visible incidents in this safety scope.",
+    icon: "alert",
+    tone: openIncidents ? "amber" : "green",
+    actionLabel: openIncidents ? "Open watch" : "All clear",
+    onAction: () => openTools(canSubmitIncidents || canReview ? "incident" : "policy"),
+  };
+  const ppeSetupPriorityCard = {
+    label: canManage ? "PPE setup" : "PPE guidance",
+    value: canManage ? "Ready" : ppePolicies.length,
+    helper: canManage ? "Manage equipment requirements without changing field permissions." : "Field-safe guidance stays available without admin controls.",
+    icon: canManage ? "settings" : "clipboard",
+    tone: canManage ? "blue" : "green",
+    actionLabel: canManage ? "Manage" : "Guidance",
+    onAction: () => openTools(canManage ? "ppe" : "policy"),
+  };
+  const ppePriorityCards = !canManage && canAcknowledge
+    ? [crewAcknowledgmentPriorityCard, requiredGearPriorityCard, safetyWatchPriorityCard, ppeSetupPriorityCard]
+    : filteredPpeItems.length === 0 && canManage
+      ? [ppeSetupPriorityCard, requiredGearPriorityCard, crewAcknowledgmentPriorityCard, safetyWatchPriorityCard]
+      : [requiredGearPriorityCard, crewAcknowledgmentPriorityCard, safetyWatchPriorityCard, ppeSetupPriorityCard];
 
   return (
     <div className={`co-office-page co-toolbox-page co-ppe-page ${canManage ? "" : "co-field-tool-page"}`}>
