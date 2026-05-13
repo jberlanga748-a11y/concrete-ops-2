@@ -11793,7 +11793,7 @@ function CommandCenterPage({
         <div className="flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || DEFAULT_COMPANY_NAME}</p>
-            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center <span className="align-middle text-2xl font-black text-slate-950" aria-hidden="true">&#9734;</span></h1>
+            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center</h1>
             <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
