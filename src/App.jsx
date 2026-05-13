@@ -15281,11 +15281,6 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Draft Intake Board</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Review imported packages, customer match state, readiness, service type, warnings, and job conversion status.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Needs Review")}>Needs Review</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Ready to Create Job")}>Ready</Button>
-                {permissions?.jobDraftImports?.canManage ? <Button type="button" size="sm" onClick={openTools}>Import Package</Button> : null}
-              </div>
             </div>
           </div>
           <FilterBar filters={["All", "Needs Review", "Ready to Create Job", "Job Created"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search draft, customer, city, service, handoff..." />
