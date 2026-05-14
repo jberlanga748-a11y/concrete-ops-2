@@ -10262,6 +10262,11 @@ textarea {
   display: none !important;
 }
 
+.co-postpour-page[data-field-workspace="true"] .co-prepour-kpi-grid,
+.co-postpour-page[data-field-workspace="true"] .co-prepour-priority-grid {
+  display: none !important;
+}
+
 .co-prepour-priority-grid {
   align-items: stretch;
 }
@@ -18808,6 +18813,19 @@ textarea {
   .co-prepour-page:not(.co-postpour-page) .co-prepour-kpi-grid,
   .co-prepour-page:not(.co-postpour-page) .co-prepour-priority-grid {
     display: none !important;
+  }
+
+  .co-postpour-page .co-prepour-kpi-grid,
+  .co-postpour-page .co-prepour-priority-grid {
+    display: none !important;
+  }
+
+  .co-postpour-page:not([data-field-workspace="true"]) .co-prepour-command-layout {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 3.9rem) !important;
+  }
+
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-command-layout {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 6.85rem) !important;
   }
 
   .co-toolbox-talks-page.co-field-tool-page .co-toolbox-kpi-grid {

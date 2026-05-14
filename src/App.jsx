@@ -22428,6 +22428,73 @@ function PostPourFieldOperatorPanel({
   );
 }
 
+function PostPourMobileFocusPanel({
+  checklist,
+  visibleCount,
+  openItemCount,
+  needsReviewCount,
+  reviewedCount,
+  needsActionCount,
+  canCreateChecklist,
+  onStartChecklist,
+  onOpenItems,
+  onOpenBoard,
+  onOpenReview,
+  onOpenReviewed,
+  onOpenActive,
+}) {
+  const focusTitle = checklist?.job?.title || "Post-pour closeout";
+  const focusMeta = checklist
+    ? `${checklist.job?.customer || "Assigned site"} / ${postPourChecklistOwner(checklist)}`
+    : "Select a checklist, clear closeout items, and move field completion to review.";
+  const actionItems = [
+    { label: "Open items", value: openItemCount, tone: openItemCount ? "amber" : "green", onClick: onOpenItems },
+    { label: "Needs review", value: needsReviewCount, tone: needsReviewCount ? "orange" : "slate", onClick: onOpenReview },
+    { label: "Reviewed", value: reviewedCount, tone: reviewedCount ? "green" : "slate", onClick: onOpenReviewed },
+    { label: "Active", value: needsActionCount, tone: needsActionCount ? "orange" : "green", onClick: onOpenActive },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus co-postpour-mobile-focus mx-4 mb-3 md:hidden" aria-label="Post-pour mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>Closeout Focus</span>
+        <h2>{focusTitle}</h2>
+        <p>{focusMeta}</p>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        <Button type="button" onClick={onOpenItems}>
+          <Icon name="layers" />
+          Open Items
+        </Button>
+        <Button type="button" variant="secondary" onClick={onOpenBoard}>
+          <Icon name="clipboard" />
+          View Board
+        </Button>
+        {canCreateChecklist ? (
+          <Button type="button" variant="secondary" onClick={onStartChecklist}>
+            <Icon name="plus" />
+            Start Checklist
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        <button type="button" onClick={onOpenBoard} data-tone="orange">
+          <span>Visible</span>
+          <strong>{visibleCount}</strong>
+        </button>
+        {actionItems.map((item) => (
+          <button key={item.label} type="button" onClick={item.onClick} data-tone={item.tone}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PostPourPagePolished({
   jobs,
   postPourChecklists,
@@ -22454,6 +22521,7 @@ function PostPourPagePolished({
   const [activeTool, setActiveTool] = useState("create");
   const toolsRef = useRef(null);
   const boardRef = useRef(null);
+  const itemsRef = useRef(null);
 
   const visibleJobs = useMemo(
     () => (Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : []),
@@ -22531,7 +22599,7 @@ function PostPourPagePolished({
     { label: "Needs Review", value: needsReviewCount, helper: "Completed by field", icon: "alert", tone: needsReviewCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setStatusFilter("Completed") },
     { label: "Reviewed", value: reviewedCount, helper: "Closeout accepted", icon: "check", tone: "green", actionLabel: "View reviewed", onAction: () => setStatusFilter("Reviewed") },
     { label: "Open Items", value: openItemCount, helper: "Finish or cleanup gaps", icon: "document", tone: openItemCount ? "amber" : "slate" },
-    { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened", icon: "hardhat", tone: needsActionCount ? "orange" : "slate", actionLabel: "Open active", onAction: () => setStatusFilter("Draft") },
+    { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened", icon: "hardhat", tone: needsActionCount ? "orange" : "slate", actionLabel: "Open active", onAction: () => openPriorityChecklist((checklist) => ["draft", "reopened"].includes(checklist.status), { statusFilter: "All", archiveFilter: "Active", scrollTarget: "board" }) },
   ];
   const toolTabs = [
     { id: "create", label: "Start Checklist", count: canCreateChecklist ? 1 : 0 },
@@ -22553,11 +22621,23 @@ function PostPourPagePolished({
     window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function jumpToItems() {
+    window.setTimeout(() => itemsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityChecklist(matchChecklist, options = {}) {
     const targetChecklist = filteredRows.find(matchChecklist) || checklistRows.find(matchChecklist);
     if (options.statusFilter) setStatusFilter(options.statusFilter);
     if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
     if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
+    if (options.scrollTarget === "items") {
+      jumpToItems();
+      return;
+    }
+    if (options.scrollTarget === "board") {
+      jumpToBoard();
+      return;
+    }
     openTool(options.tool || "work");
   }
 
@@ -22586,7 +22666,7 @@ function PostPourPagePolished({
     icon: "alert",
     tone: openItemCount ? "amber" : "green",
     actionLabel: openItemCount ? "Open items" : "Ready",
-    onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active" }),
+    onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active", scrollTarget: "items" }),
   };
   const reviewedCloseoutPriorityCard = {
     label: "Reviewed closeout",
@@ -22654,7 +22734,25 @@ function PostPourPagePolished({
           busy={busy}
           onOpenTool={openTool}
           onCompleteChecklist={onCompleteChecklist}
-          onJumpToBoard={jumpToBoard}
+          onJumpToBoard={selectedChecklist ? jumpToItems : jumpToBoard}
+        />
+      ) : null}
+
+      {permissions.postPour.canManageAll ? (
+        <PostPourMobileFocusPanel
+          checklist={selectedChecklist}
+          visibleCount={filteredRows.length}
+          openItemCount={openItemCount}
+          needsReviewCount={needsReviewCount}
+          reviewedCount={reviewedCount}
+          needsActionCount={needsActionCount}
+          canCreateChecklist={canCreateChecklist}
+          onStartChecklist={() => openTool("create")}
+          onOpenItems={() => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active", scrollTarget: "items" })}
+          onOpenBoard={jumpToBoard}
+          onOpenReview={() => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: "Completed", archiveFilter: "Active", scrollTarget: "board" })}
+          onOpenReviewed={() => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active", scrollTarget: "board" })}
+          onOpenActive={() => openPriorityChecklist((checklist) => ["draft", "reopened"].includes(checklist.status), { statusFilter: "All", archiveFilter: "Active", scrollTarget: "board" })}
         />
       ) : null}
 
@@ -22686,7 +22784,7 @@ function PostPourPagePolished({
                     <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Post-Pour Closeout Board</h2>
                     <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a checklist, clear finish and cleanup items, and move field completion into office review.</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="co-prepour-board-actions flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All</Button>
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Completed")}>Needs review</Button>
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Reviewed")}>Reviewed</Button>
@@ -22729,16 +22827,18 @@ function PostPourPagePolished({
             </Card>
           </div>
 
-          <Card className="co-prepour-main-board overflow-hidden">
-            <PostPourCloseoutItemsPolished
-              selectedChecklist={selectedChecklist}
-              selectedItems={selectedItems}
-              checklistSummary={checklistSummary}
-              canEditChecklist={canEditChecklist}
-              busy={busy}
-              onUpdateChecklistItem={onUpdateChecklistItem}
-            />
-          </Card>
+          <div ref={itemsRef}>
+            <Card className="co-prepour-main-board overflow-hidden">
+              <PostPourCloseoutItemsPolished
+                selectedChecklist={selectedChecklist}
+                selectedItems={selectedItems}
+                checklistSummary={checklistSummary}
+                canEditChecklist={canEditChecklist}
+                busy={busy}
+                onUpdateChecklistItem={onUpdateChecklistItem}
+              />
+            </Card>
+          </div>
         </div>
 
         <PostPourCommandRailPolished

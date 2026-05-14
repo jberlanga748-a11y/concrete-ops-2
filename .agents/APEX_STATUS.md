@@ -2,13 +2,13 @@
 
 ## Current Phase
 
-Post-Pour command page polish is next.
+Post-Pour command page polish is approved for release.
 
 ## Current State
 
 - Pre-Pour is committed, pushed, deployed, and health-checked.
-- Pre-Pour route `/prePour` was the only app page intentionally changed.
-- Latest Pre-Pour app files changed:
+- Post-Pour route `/postPour` is the current app page intentionally changed.
+- Latest Post-Pour app files changed:
   - `src/App.jsx`
   - `src/index.css`
 - Project coordination file updated:
@@ -16,21 +16,26 @@ Post-Pour command page polish is next.
 
 ## Latest Audit
 
-- Pre-Pour audit captured admin, foreman, and employee views at desktop and mobile sizes.
+- Post-Pour audit captured admin, foreman, and employee views at desktop and mobile sizes.
 - Three local visual audit passes were completed.
-- Latest audit detected no horizontal overflow, no console errors, and no visible old product branding.
-- Latest Pre-Pour screenshots:
-  - `output/playwright/prepour-before/2026-05-14T04-11-29-788Z`
-  - `output/playwright/prepour-after-1/2026-05-14T04-16-00-221Z`
-  - `output/playwright/prepour-after-2/2026-05-14T04-18-05-373Z`
-  - `output/playwright/prepour-after-3/2026-05-14T04-19-37-014Z`
-  - `output/playwright/prepour-final-audit/2026-05-14T04-21-51-991Z`
+- Latest audit detected no horizontal overflow or oversized text boxes in admin, foreman, or employee desktop/mobile screenshots.
+- Latest Post-Pour screenshots:
+  - `output/playwright/postpour-before/2026-05-14T04-45-09-886Z`
+  - `output/playwright/postpour-after-1/2026-05-14T04-49-46-959Z`
+  - `output/playwright/postpour-after-2/2026-05-14T04-51-40-467Z`
+  - `output/playwright/postpour-after-3/2026-05-14T04-52-57-602Z`
+  - `output/playwright/postpour-after-5/2026-05-14T05-04-50-266Z`
+  - `output/playwright/postpour-after-6/2026-05-14T05-06-29-298Z`
+  - `output/playwright/postpour-after-7/2026-05-14T05-06-55-560Z`
+  - `output/playwright/postpour-final-audit-1/2026-05-14T05-12-47-778Z`
+  - `output/playwright/postpour-final-audit-2/2026-05-14T05-13-14-144Z`
+  - `output/playwright/postpour-final-audit-3/2026-05-14T05-13-39-129Z`
 
 ## Verification
 
 - `npm.cmd run build` passed.
 - `npm.cmd run verify:roles` passed.
-- `npm.cmd run verify:pre-pour` passed.
+- `npm.cmd run verify:post-pour` passed.
 - `npm.cmd run verify:field-workspaces` passed.
 - `npm.cmd run verify:server` passed.
 - Focused routing/navigation/design token tests passed.
@@ -38,7 +43,7 @@ Post-Pour command page polish is next.
 
 ## Release Status
 
-- Pre-Pour released to `origin/main` and Fly app `concrete-ops-2`.
+- Post-Pour passed overseer release review after final mobile bottom-nav spacer and active-filter fixes.
 
 ## Remaining Notes
 
@@ -53,5 +58,5 @@ Post-Pour command page polish is next.
   - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJC9HA1C352GXFMJJ0P20Q5`
   - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
 - Generated screenshots should remain untracked under `output/`.
-- Latest released commit before next phase: `c35a6fa` (`Polish pre-pour command page`)
-- Next recommended phase: Post-Pour final touch-up sweep, then Safety/Incidents and Tool Checklist.
+- Latest released commit before Post-Pour release: `0241272` (`Update Apex status after pre-pour release`)
+- Next recommended phase after Post-Pour: Safety/Incidents final touch-up sweep.
