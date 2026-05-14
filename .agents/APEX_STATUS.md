@@ -2,13 +2,13 @@
 
 ## Current Phase
 
-Reports / Daily Reports UI touch-up: mobile report command focus, cleaner board hierarchy, bottom-nav-safe report drawers, and role-safe field reporting flow.
+Uploads / Photo Evidence command page polish is next.
 
 ## Current State
 
-- Reports phase is approved by Apex Overseer and ready for commit/push/deploy.
-- Reports route `/reports` is the only app page intentionally changed.
-- Current intended changed app files:
+- Reports phase is committed, pushed, deployed, and health-checked.
+- Reports route `/reports` was the only app page intentionally changed.
+- Latest Reports app files changed:
   - `src/App.jsx`
   - `src/index.css`
 - Project coordination file updated:
@@ -35,10 +35,13 @@ Reports / Daily Reports UI touch-up: mobile report command focus, cleaner board 
 
 ## Release Status
 
-- Pending commit/push/deploy.
+- Reports released to `origin/main` and Fly app `concrete-ops-2`.
 
 ## Remaining Notes
 
 - Apex Overseer approved Reports for release.
 - Generated screenshots should remain untracked under `output/`.
+- Commit: `3d51dc5` (`Polish daily reports command page`)
+- Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJ7WRQKN7072G67ZBZ0ECKY`
+- Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
 - Next recommended phase: Uploads / Photo Evidence command page polish.
