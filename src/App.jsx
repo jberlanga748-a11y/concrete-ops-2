@@ -21074,6 +21074,73 @@ function PrePourFieldOperatorPanel({
   );
 }
 
+function PrePourMobileFocusPanel({
+  checklist,
+  visibleCount,
+  openItemCount,
+  needsReviewCount,
+  readyCount,
+  needsActionCount,
+  canCreateChecklist,
+  onStartChecklist,
+  onOpenItems,
+  onOpenBoard,
+  onOpenReview,
+  onOpenReady,
+  onOpenActive,
+}) {
+  const focusTitle = checklist?.job?.title || "Pre-pour readiness";
+  const focusMeta = checklist
+    ? `${checklist.job?.customer || "Assigned site"} / ${prePourChecklistOwner(checklist)}`
+    : "Select a checklist or start the next readiness review.";
+  const actionItems = [
+    { label: "Open items", value: openItemCount, tone: openItemCount ? "amber" : "green", onClick: onOpenItems },
+    { label: "Needs review", value: needsReviewCount, tone: needsReviewCount ? "orange" : "slate", onClick: onOpenReview },
+    { label: "Ready", value: readyCount, tone: readyCount ? "green" : "slate", onClick: onOpenReady },
+    { label: "Active", value: needsActionCount, tone: needsActionCount ? "orange" : "green", onClick: onOpenActive },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus mx-4 mb-3 md:hidden" aria-label="Pre-pour mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>Readiness Focus</span>
+        <h2>{focusTitle}</h2>
+        <p>{focusMeta}</p>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        <Button type="button" onClick={onOpenItems}>
+          <Icon name="layers" />
+          Open Items
+        </Button>
+        <Button type="button" variant="secondary" onClick={onOpenBoard}>
+          <Icon name="clipboard" />
+          View Board
+        </Button>
+        {canCreateChecklist ? (
+          <Button type="button" variant="secondary" onClick={onStartChecklist}>
+            <Icon name="plus" />
+            Start Checklist
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        <button type="button" onClick={onOpenBoard} data-tone="orange">
+          <span>Visible</span>
+          <strong>{visibleCount}</strong>
+        </button>
+        {actionItems.map((item) => (
+          <button key={item.label} type="button" onClick={item.onClick} data-tone={item.tone}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PrePourPagePolished({
   jobs,
   prePourChecklists,
@@ -21100,6 +21167,7 @@ function PrePourPagePolished({
   const [activeTool, setActiveTool] = useState("create");
   const toolsRef = useRef(null);
   const boardRef = useRef(null);
+  const itemsRef = useRef(null);
 
   const visibleJobs = useMemo(
     () => (Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : []),
@@ -21197,6 +21265,10 @@ function PrePourPagePolished({
 
   function jumpToBoard() {
     window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function jumpToItems() {
+    window.setTimeout(() => itemsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   function openPriorityChecklist(matchChecklist, options = {}) {
@@ -21300,7 +21372,25 @@ function PrePourPagePolished({
           busy={busy}
           onOpenTool={openTool}
           onCompleteChecklist={onCompleteChecklist}
-          onJumpToBoard={jumpToBoard}
+          onJumpToBoard={selectedChecklist ? jumpToItems : jumpToBoard}
+        />
+      ) : null}
+
+      {permissions.prePour.canManageAll ? (
+        <PrePourMobileFocusPanel
+          checklist={selectedChecklist}
+          visibleCount={filteredRows.length}
+          openItemCount={openItemCount}
+          needsReviewCount={needsReviewCount}
+          readyCount={readyCount}
+          needsActionCount={needsActionCount}
+          canCreateChecklist={canCreateChecklist}
+          onStartChecklist={() => openTool("create")}
+          onOpenItems={jumpToItems}
+          onOpenBoard={jumpToBoard}
+          onOpenReview={() => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active" })}
+          onOpenReady={() => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active" })}
+          onOpenActive={() => openPriorityChecklist((checklist) => ["draft", "reopened"].includes(checklist.status), { statusFilter: "Draft", archiveFilter: "Active" })}
         />
       ) : null}
 
@@ -21332,7 +21422,7 @@ function PrePourPagePolished({
                     <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Pre-Pour Readiness Board</h2>
                     <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a checklist, clear readiness items, and move field completion into office review.</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="co-prepour-board-actions flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All</Button>
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Completed")}>Needs review</Button>
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Reviewed")}>Ready</Button>
@@ -21375,16 +21465,18 @@ function PrePourPagePolished({
             </Card>
           </div>
 
-          <Card className="co-prepour-main-board overflow-hidden">
-            <PrePourReadinessItemsPolished
-              selectedChecklist={selectedChecklist}
-              selectedItems={selectedItems}
-              checklistSummary={checklistSummary}
-              canEditChecklist={canEditChecklist}
-              busy={busy}
-              onUpdateChecklistItem={onUpdateChecklistItem}
-            />
-          </Card>
+          <div ref={itemsRef}>
+            <Card className="co-prepour-main-board overflow-hidden">
+              <PrePourReadinessItemsPolished
+                selectedChecklist={selectedChecklist}
+                selectedItems={selectedItems}
+                checklistSummary={checklistSummary}
+                canEditChecklist={canEditChecklist}
+                busy={busy}
+                onUpdateChecklistItem={onUpdateChecklistItem}
+              />
+            </Card>
+          </div>
         </div>
 
         <PrePourCommandRailPolished
