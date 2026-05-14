@@ -14038,6 +14038,32 @@ textarea {
   }
 }
 
+@media (min-width: 768px) and (max-width: 1199px) {
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-list-scroll {
+    display: none !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-mobile-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0.9rem !important;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-mobile-card {
+    min-height: 8.25rem;
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-mobile-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-mobile-metrics span:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 767px) {
   .co-uploads-page .co-page-header {
     padding-top: 1.15rem;
@@ -14179,8 +14205,12 @@ textarea {
     display: none !important;
   }
 
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-right-rail {
+    display: none !important;
+  }
+
   .co-uploads-page[data-field-workspace="true"] .co-uploads-mobile-list {
-    max-height: min(15rem, 32vh);
+    max-height: min(11.5rem, 25vh);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-top: 0.75rem !important;
@@ -14238,6 +14268,7 @@ textarea {
   }
 
   .co-uploads-page[data-field-workspace="true"] .co-uploads-tools-drawer {
+    margin-top: 1rem;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 3.25rem) !important;
   }
 
@@ -22132,15 +22163,16 @@ textarea {
 
   nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
     box-sizing: border-box !important;
-    flex: 0 0 4rem !important;
-    min-width: 4rem !important;
-    max-width: 4rem !important;
-    padding-left: 0.25rem !important;
-    padding-right: 0.25rem !important;
+    flex: 0 0 3.58rem !important;
+    min-width: 3.58rem !important;
+    max-width: 3.58rem !important;
+    padding-left: 0.18rem !important;
+    padding-right: 0.18rem !important;
+    font-size: 0.64rem !important;
   }
 
   nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button span:last-child {
-    max-width: 3.75rem !important;
+    max-width: 3.36rem !important;
   }
 
   .co-leads-kpi-grid,

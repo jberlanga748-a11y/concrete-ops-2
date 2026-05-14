@@ -6480,7 +6480,7 @@ function UploadListCard({ upload, selected, onSelect }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{uploadTitle(upload)}</p>
-          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} · {uploadUploaderLabel(upload)}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
         </div>
         <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
       </div>
@@ -6627,7 +6627,7 @@ function UploadDetailPanel({ upload, token, canManage, disabled, onSave, onArchi
       <Card className="hidden p-5 md:block">
       <SectionHeader
         title={uploadTitle(upload)}
-        description={`${uploadJobLabel(upload)} · ${formatFileSize(upload.fileSize)}`}
+        description={`${uploadJobLabel(upload)} / ${formatFileSize(upload.fileSize)}`}
         action={
           <div className="flex flex-wrap gap-2">
             <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
@@ -6750,7 +6750,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
               Upload Existing
             </Button>
           </div>
-          <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"} defaultOpen={!draft.jobId}>
+          <UploadMobileFieldGroup title="Job / report" summary={selectedJob ? jobTitle(selectedJob) : "Select assigned job"}>
             <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
               {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
             </SelectField>
@@ -6908,7 +6908,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
           <p><span className="font-black text-slate-950">GPS status:</span> {gpsStatusLabel(draft)}</p>
           {draft.locationUnavailableReason ? <p className="mt-1">{draft.locationUnavailableReason}</p> : null}
           <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Location is used for job documentation only when you tap Capture Location.</p>
-          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} · accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
+          {draft.latitude != null && draft.longitude != null ? <p className="mt-1">{draft.latitude.toFixed(5)}, {draft.longitude.toFixed(5)} / accuracy {Math.round(draft.locationAccuracy || 0)} m</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={handleRequestLocationClick} disabled={loading}>Capture location</Button>
