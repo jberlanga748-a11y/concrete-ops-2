@@ -16133,6 +16133,9 @@ textarea {
   --co-ai-border-strong: rgba(148, 163, 184, 0.62);
   --co-ai-soft: rgba(248, 250, 252, 0.88);
   --co-ai-shadow: 0 18px 44px -36px rgba(7, 17, 31, 0.58);
+  background:
+    radial-gradient(circle at 78% -8%, rgba(249, 115, 22, 0.08), transparent 28rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.78));
 }
 
 .co-ai-office-page .co-page-header {
@@ -16158,11 +16161,38 @@ textarea {
 }
 
 .co-ai-kpi-grid .co-command-kpi {
-  min-height: 5.75rem;
+  min-height: 5.6rem;
+  border-radius: 0.92rem !important;
+}
+
+.co-ai-kpi-grid .co-command-kpi-body {
+  align-items: center;
+  gap: 0.82rem;
+}
+
+.co-ai-kpi-grid .co-command-kpi-icon {
+  height: 2.68rem;
+  width: 2.68rem;
+}
+
+.co-ai-kpi-grid .co-command-kpi-value {
+  font-size: 1.7rem;
+}
+
+.co-ai-kpi-grid .co-command-kpi p:nth-child(2) {
+  font-size: 0.86rem !important;
+  line-height: 1.12 !important;
+}
+
+.co-ai-kpi-grid .co-command-kpi p:nth-child(3),
+.co-ai-kpi-grid .co-command-kpi-link {
+  font-size: 0.72rem !important;
+  line-height: 1.2 !important;
 }
 
 .co-ai-command-layout {
   align-items: start;
+  gap: 0.95rem !important;
 }
 
 .co-ai-main-board,
@@ -16831,10 +16861,10 @@ textarea {
 
 .co-ai-workflow-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.75rem;
   align-items: start;
-  min-height: 8.4rem;
+  min-height: 9rem;
   border: 1px solid var(--co-ai-border);
   border-left: 3px solid var(--co-ai-tone, #f97316);
   border-radius: 0.9rem;
@@ -16848,6 +16878,11 @@ textarea {
   border-color: rgba(249, 115, 22, 0.45);
   box-shadow: 0 18px 36px -32px rgba(15, 23, 42, 0.62);
   transform: translateY(-1px);
+}
+
+.co-ai-workflow-card > span:nth-child(3) {
+  grid-column: 2;
+  justify-self: start;
 }
 
 .co-ai-workflow-card[data-tone="red"],
@@ -16917,7 +16952,8 @@ textarea {
 }
 
 .co-ai-workflow-action {
-  grid-column: 2 / 4;
+  grid-column: 2;
+  align-self: end;
   color: var(--co-ai-tone);
   font-size: 0.75rem;
   font-weight: 900;
@@ -16980,11 +17016,10 @@ textarea {
 }
 
 .co-ai-right-rail {
-  position: sticky;
-  top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
-  max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 1.1rem);
-  overflow: auto;
-  padding-right: 0.12rem;
+  position: static;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .co-ai-right-rail > * + * {
@@ -17132,6 +17167,71 @@ textarea {
   background: color-mix(in srgb, var(--co-ai-tone) 6%, white);
 }
 
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .co-ai-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi {
+    min-height: 5.35rem !important;
+    padding: 0.78rem !important;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-body {
+    gap: 0.68rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-icon {
+    height: 2.3rem;
+    width: 2.3rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-icon svg {
+    height: 1.05rem;
+    width: 1.05rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-value {
+    font-size: 1.42rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.75rem !important;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi p:nth-child(3),
+  .co-ai-kpi-grid .co-command-kpi-link {
+    font-size: 0.66rem !important;
+  }
+
+  .co-ai-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-ai-right-rail {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+    gap: 0.75rem;
+    padding-right: 0;
+  }
+
+  .co-ai-right-rail > * + * {
+    margin-top: 0;
+  }
+
+  .co-ai-scout-grid {
+    grid-template-columns: minmax(18rem, 0.86fr) minmax(0, 1.14fr);
+  }
+
+  .co-ai-workflow-card {
+    min-height: 7.9rem;
+  }
+}
+
 @media (max-width: 1023px) {
   .co-ai-right-rail {
     position: static;
@@ -17158,23 +17258,48 @@ textarea {
   }
 
   .co-ai-kpi-grid {
-    display: flex !important;
-    grid-template-columns: none !important;
-    gap: 0.72rem !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    overflow: visible;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
-    padding-bottom: 0.65rem !important;
-    scroll-padding-inline: 1rem;
-    scroll-snap-type: x proximity;
+    padding-bottom: 0.55rem !important;
   }
 
   .co-ai-kpi-grid .co-command-kpi {
-    flex: 0 0 11rem;
-    min-height: 5.85rem !important;
-    padding: 0.68rem !important;
-    scroll-snap-align: start;
+    min-height: 6.05rem !important;
+    padding: 0.7rem !important;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-body {
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-icon {
+    height: 2rem;
+    width: 2rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-icon svg {
+    height: 0.98rem;
+    width: 0.98rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi-value {
+    font-size: 1.28rem;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.7rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .co-ai-kpi-grid .co-command-kpi p:nth-child(3),
+  .co-ai-kpi-grid .co-command-kpi-link {
+    font-size: 0.62rem !important;
+    line-height: 1.15 !important;
   }
 
   .co-ai-scout-grid,
@@ -17231,7 +17356,7 @@ textarea {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .co-ai-workflow-card .co-badge,
+  .co-ai-workflow-card > span:nth-child(3),
   .co-ai-workflow-action,
   .co-ai-focus-action {
     grid-column: 1 / -1;
