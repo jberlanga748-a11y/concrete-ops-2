@@ -16019,6 +16019,28 @@ textarea {
   }
 }
 
+@media (min-width: 768px) and (max-width: 1199px) {
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-list-scroll {
+    display: none !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+    padding: 0.9rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-metrics span:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 1023px) {
   .co-delivery-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -16225,7 +16247,12 @@ textarea {
   }
 
   .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-drawer {
+    margin-top: 0.9rem;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 3.25rem) !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.75rem);
   }
 
   .co-delivery-mobile-metrics,
@@ -16244,9 +16271,37 @@ textarea {
     padding: 0.85rem !important;
   }
 
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-create-header {
+    padding: 0.82rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-create-header .co-section-accent p {
+    display: none !important;
+  }
+
   .co-delivery-create-target {
     border-radius: 0.9rem;
     padding: 0.82rem;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-create-target {
+    gap: 0.34rem;
+    padding: 0.7rem;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-create-target p {
+    display: none !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-create-target-meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.28rem;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-create-target-meta span {
+    padding: 0.28rem 0.26rem;
+    font-size: 0.56rem;
+    text-align: center;
   }
 
   .co-delivery-link-grid,
@@ -22157,15 +22212,17 @@ textarea {
 }
 
 @media (max-width: 767px) {
-  nav.co-mobile-bottom-nav > div {
+  nav.co-mobile-bottom-nav > div.scrollbar-none {
     gap: 0.25rem !important;
+    justify-content: space-between;
+    overflow: visible !important;
   }
 
   nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
     box-sizing: border-box !important;
-    flex: 0 0 3.58rem !important;
-    min-width: 3.58rem !important;
-    max-width: 3.58rem !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
     padding-left: 0.18rem !important;
     padding-right: 0.18rem !important;
     font-size: 0.64rem !important;
@@ -22173,6 +22230,50 @@ textarea {
 
   nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button span:last-child {
     max-width: 3.36rem !important;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-more-panel {
+    position: absolute;
+    right: 0.7rem;
+    bottom: calc(100% + 0.55rem);
+    left: 0.7rem;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+    overflow: visible !important;
+    border: 1px solid rgba(71, 85, 105, 0.7);
+    border-radius: 1rem;
+    background:
+      radial-gradient(circle at 10% 0%, rgba(249, 115, 22, 0.18), transparent 10rem),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.98), #07111f);
+    padding: 0.58rem !important;
+    box-shadow: 0 -18px 42px -24px rgba(7, 17, 31, 0.72);
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-more-panel[hidden] {
+    display: none !important;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-more-panel button {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 2.55rem;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    border-radius: 0.72rem;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0.55rem 0.65rem;
+    color: rgba(248, 250, 252, 0.94);
+    font-size: 0.72rem;
+    font-weight: 950;
+    text-align: left;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-more-panel button:hover,
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-more-panel button:focus-visible {
+    background: rgba(249, 115, 22, 0.22);
+    color: #ffffff;
   }
 
   .co-leads-kpi-grid,

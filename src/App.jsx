@@ -3933,13 +3933,23 @@ function getFieldMobileNavItems(visibleNavItems) {
 }
 
 function FieldMobileQuickNav({ items, active, onOpen }) {
-  if (!items.length) return null;
-  const activeItem = items.find((item) => item.id === active);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const safeItems = items || [];
+  const activeItem = safeItems.find((item) => item.id === active);
   const visibleItems = activeItem
-    ? [activeItem, ...items.filter((item) => item.id !== active)]
-    : items;
+    ? [activeItem, ...safeItems.filter((item) => item.id !== active)]
+    : safeItems;
+  const primaryItems = visibleItems.slice(0, 5);
+  const overflowItems = visibleItems.slice(5);
+
+  useEffect(() => {
+    setIsMoreOpen(false);
+  }, [active, safeItems.length]);
+
+  if (!safeItems.length) return null;
 
   function handleOpen(itemId) {
+    setIsMoreOpen(false);
     onOpen(itemId);
     window.setTimeout(() => {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -3948,8 +3958,18 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
 
   return (
     <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Mobile navigation">
+      {overflowItems.length ? (
+        <div className="co-mobile-bottom-nav-more-panel" hidden={!isMoreOpen}>
+          {overflowItems.map((item) => (
+            <button key={item.id} type="button" onClick={() => handleOpen(item.id)}>
+              <Icon name={item.icon || "grid"} className="h-4 w-4" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {visibleItems.map((item) => {
+        {primaryItems.map((item) => {
           const isActive = active === item.id;
           return (
             <button
@@ -3964,6 +3984,17 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
             </button>
           );
         })}
+        {overflowItems.length ? (
+          <button
+            type="button"
+            onClick={() => setIsMoreOpen((current) => !current)}
+            aria-expanded={isMoreOpen}
+            className={`co-mobile-bottom-nav-button co-mobile-bottom-nav-more-toggle flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isMoreOpen ? "is-active border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
+          >
+            <Icon name="grid" className="h-4 w-4" />
+            <span className="mt-1 block max-w-[68px] truncate">More</span>
+          </button>
+        ) : null}
       </div>
     </nav>
   );
@@ -26618,7 +26649,6 @@ function DeliveryTicketsPagePolished({
   const listState = useMemo(() => deriveDeliveryTicketListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
   const selectedTicket = filteredRows.find((ticket) => ticket.id === selectedTicketId)
     || filteredRows[0]
-    || ticketRows.find((ticket) => ticket.id === selectedTicketId)
     || null;
   const singleJobId = listState.defaultJobId || "";
   const createJobId = createDraft.jobId || singleJobId;
@@ -26628,10 +26658,10 @@ function DeliveryTicketsPagePolished({
   const canEditSelected = Boolean(selectedTicket) && (canManageAll || (permissions.deliveryTickets.canEditOwn && selectedTicket.createdBy === user?.id && !selectedTicket.archivedAt));
   const scopedUploads = (Array.isArray(uploads) ? uploads : []).filter((upload) => !upload.archivedAt);
   const scopedReports = (Array.isArray(dailyReports) ? dailyReports : []).filter((report) => !report.archivedAt);
-  const createUploadOptions = scopedUploads.filter((upload) => !createJobId || upload.jobId === createJobId);
-  const createReportOptions = scopedReports.filter((report) => !createJobId || report.jobId === createJobId);
-  const detailUploadOptions = scopedUploads.filter((upload) => !detailDraft.jobId || upload.jobId === detailDraft.jobId);
-  const detailReportOptions = scopedReports.filter((report) => !detailDraft.jobId || report.jobId === detailDraft.jobId);
+  const createUploadOptions = scopedUploads.filter((upload) => createJobId ? upload.jobId === createJobId : canManageAll);
+  const createReportOptions = scopedReports.filter((report) => createJobId ? report.jobId === createJobId : canManageAll);
+  const detailUploadOptions = scopedUploads.filter((upload) => detailDraft.jobId ? upload.jobId === detailDraft.jobId : canManageAll);
+  const detailReportOptions = scopedReports.filter((report) => detailDraft.jobId ? report.jobId === detailDraft.jobId : canManageAll);
   const missingPhotoCount = filteredRows.filter((ticket) => !ticket.ticketUploadId).length;
   const missingReportCount = filteredRows.filter((ticket) => !ticket.reportId).length;
   const incompleteBasicsCount = filteredRows.filter((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0)).length;
@@ -26656,7 +26686,11 @@ function DeliveryTicketsPagePolished({
   ].filter(Boolean);
 
   useEffect(() => {
-    if (!selectedTicketId && filteredRows[0]?.id) {
+    if (!filteredRows.length) {
+      if (selectedTicketId) setSelectedTicketId("");
+      return;
+    }
+    if (!selectedTicketId || !filteredRows.some((ticket) => ticket.id === selectedTicketId)) {
       setSelectedTicketId(filteredRows[0].id);
     }
   }, [filteredRows, selectedTicketId]);
@@ -31226,7 +31260,7 @@ export default function App() {
   }
 
   async function handleCreateDeliveryTicket(payload) {
-    if (!sessionToken || !appState.permissions.deliveryTickets.canCreate) return false;
+    if (!sessionToken || !(appState.permissions.deliveryTickets.canCreate || appState.permissions.deliveryTickets.canManageAll)) return false;
     setBusy(true);
     try {
       const nextState = await createDeliveryTicket(sessionToken, payload);
