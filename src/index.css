@@ -12990,7 +12990,36 @@ textarea {
 }
 
 .co-change-orders-main-board .co-filter-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center !important;
   border-bottom-color: rgba(203, 213, 225, 0.96) !important;
+  padding-top: 0.52rem !important;
+  padding-bottom: 0.48rem !important;
+}
+
+.co-change-orders-main-board .co-filter-bar > div:first-child,
+.co-change-orders-main-board .co-filter-bar > div:last-child {
+  width: 100% !important;
+}
+
+.co-change-orders-main-board .co-filter-bar button,
+.co-change-orders-main-board > .flex.border-t button,
+.co-change-orders-right-rail button,
+.co-change-orders-tools-drawer summary,
+.co-change-orders-kpi-grid .co-command-kpi-link {
+  min-height: 2.25rem;
+}
+
+.co-change-orders-kpi-grid .co-command-kpi-link {
+  margin-top: 0.38rem;
+  padding: 0.22rem 0.32rem;
+}
+
+@media (min-width: 1600px) {
+  .co-change-orders-main-board .co-filter-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+  }
 }
 
 .co-change-orders-advanced-filters > summary,
@@ -13054,6 +13083,7 @@ textarea {
 }
 
 .co-change-orders-command-table {
+  min-width: 820px !important;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -13315,6 +13345,7 @@ textarea {
 
 .co-change-orders-tools-drawer {
   display: block;
+  scroll-margin-top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
 }
 
 .co-change-orders-tools-drawer > summary {
@@ -13384,6 +13415,64 @@ textarea {
 @media (min-width: 768px) {
   .co-change-orders-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1399px) {
+  .co-change-orders-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi {
+    min-height: 5.35rem;
+    padding: 0.68rem !important;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-body {
+    gap: 0.58rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-icon {
+    height: 2.25rem;
+    width: 2.25rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-icon svg {
+    height: 0.98rem;
+    width: 0.98rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi-value {
+    font-size: 1.38rem;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.78rem;
+    line-height: 1.08;
+  }
+
+  .co-change-orders-kpi-grid .co-command-kpi p:nth-child(3),
+  .co-change-orders-kpi-grid .co-command-kpi-link {
+    font-size: 0.66rem;
+    line-height: 1.18;
+  }
+
+  .co-change-orders-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-change-orders-right-rail {
+    position: static !important;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .co-change-orders-right-rail > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0 !important;
   }
 }
 
@@ -13500,6 +13589,24 @@ textarea {
   .co-change-orders-selected-metrics,
   .co-change-orders-readonly-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-change-orders-main-board .co-filter-bar > div:first-child button {
+    min-height: 2.5rem !important;
+  }
+
+  .co-change-orders-page .co-page-header button,
+  .co-change-orders-main-board > .flex.border-t button,
+  .co-change-orders-right-rail button,
+  .co-change-orders-tools-drawer summary,
+  .co-change-orders-tool-tabs button {
+    min-height: 2.5rem !important;
+  }
+
+  .co-change-orders-page .co-page-header button,
+  .co-change-orders-main-board > .flex.border-t button,
+  .co-change-orders-right-rail button {
+    border-radius: 0.75rem !important;
   }
 }
 
