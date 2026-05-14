@@ -6777,6 +6777,30 @@ textarea {
   min-height: 2.32rem;
 }
 
+.co-field-assignment-board {
+  border-left-color: rgba(249, 115, 22, 0.38) !important;
+  box-shadow: 0 18px 48px -40px rgba(120, 53, 15, 0.42);
+}
+
+.co-field-assignment-list,
+.co-field-assigned-job-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.78rem;
+}
+
+.co-field-assignment-board .co-field-notice-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border-radius: 1rem !important;
+  box-shadow: 0 18px 40px -36px rgba(120, 53, 15, 0.5);
+}
+
+.co-field-assignment-board .co-field-notice-list {
+  flex: 1;
+}
+
 @media (min-width: 760px) {
   .co-field-notice-list {
     grid-template-columns: minmax(10rem, 0.95fr) minmax(13rem, 1.25fr);
@@ -6825,6 +6849,48 @@ textarea {
 
   .co-field-notice-note {
     grid-column: auto;
+  }
+}
+
+@media (min-width: 1100px) {
+  .co-field-assignment-list,
+  .co-field-assigned-job-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-field-assignment-board .co-field-notice-list {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .co-field-assignment-board .co-field-notice-list > div {
+    border-bottom: 1px solid rgba(254, 215, 170, 0.82);
+    border-right: 0;
+  }
+
+  .co-field-assignment-board .co-field-notice-list > div:nth-child(odd) {
+    border-right: 1px solid rgba(254, 215, 170, 0.82);
+  }
+
+  .co-field-assignment-board .co-field-notice-list > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .co-field-assignment-board .co-field-notice-wide {
+    grid-column: 1 / -1;
+    border-top: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .co-field-assignment-board .co-field-notice-card .co-field-notice-wide {
+    border-bottom: 0;
+  }
+
+  .co-field-assigned-job-list .co-field-job-summary-card {
+    display: grid;
+    align-content: start;
+    min-height: 15rem;
+    border-radius: 1rem !important;
+    padding: 1rem !important;
   }
 }
 
@@ -7090,6 +7156,20 @@ textarea {
 @media (min-width: 1480px) {
   .co-field-workspace-page .co-field-two-up {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1379px) {
+  .co-field-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-field-right-rail {
+    display: none !important;
+  }
+
+  .co-field-workspace-page .co-field-two-up {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr) !important;
   }
 }
 

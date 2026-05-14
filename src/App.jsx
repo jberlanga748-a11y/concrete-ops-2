@@ -4056,13 +4056,13 @@ function FieldAssignmentNoticePanel({ notices, onSelectJob, onAcknowledge, disab
   if (visibleNotices.length === 0) return null;
 
   return (
-    <Card className="border-amber-100 bg-amber-50/70 p-5">
+    <Card className="co-field-assignment-board border-amber-100 bg-amber-50/70 p-5">
       <SectionHeader
         title={visibleNotices.length === 1 ? "New job assignment" : "New job assignments"}
         description="Review where to be, when to arrive, and field notes from the office."
         action={<Badge tone="amber">{visibleNotices.length} notice{visibleNotices.length === 1 ? "" : "s"}</Badge>}
       />
-      <div className="space-y-3">
+      <div className="co-field-assignment-list">
         {visibleNotices.map((notice) => {
           const job = notice.job;
           const mapUrl = directionsUrl(job?.address);
@@ -4738,7 +4738,7 @@ function FieldWorkspacePagePolished({
           <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
-              <div className="space-y-3">
+              <div className="co-field-assigned-job-list">
                 {workspace.assignedJobs.map((job) => (
                   <FieldJobSummaryCard key={job.id} job={job} selected={focusJob?.id === job.id} onSelect={onSelectJob} note="Assigned" />
                 ))}
@@ -4750,7 +4750,7 @@ function FieldWorkspacePagePolished({
           {isForeman ? (
             <FieldWorkspaceDisclosure title="Upcoming Planning Jobs" description="Future field-visible jobs for crew, tools, and site prep." badge={`${workspace.upcomingJobs.length} upcoming`}>
               {workspace.upcomingJobs.length > 0 ? (
-                <div className="space-y-3">
+                <div className="co-field-assigned-job-list">
                   {workspace.upcomingJobs.map((job) => (
                     <FieldJobSummaryCard key={job.id} job={job} selected={focusJob?.id === job.id} onSelect={onSelectJob} note="Upcoming" />
                   ))}
