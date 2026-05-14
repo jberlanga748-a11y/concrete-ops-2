@@ -2,13 +2,13 @@
 
 ## Current Phase
 
-Time / Clock UI touch-up: larger field-first clock actions, cleaner mobile hierarchy, role-safe time board, and bottom-nav-safe mobile layout.
+Reports / Daily Reports command page polish is next.
 
 ## Current State
 
-- Time phase is approved by Apex Overseer and ready for commit/push/deploy.
-- Time route `/time` is the only app page intentionally changed.
-- Current intended changed app files:
+- Time phase is committed, pushed, deployed, and health-checked.
+- Time route `/time` was the only app page intentionally changed.
+- Latest Time app files changed:
   - `src/App.jsx`
   - `src/index.css`
 - Project coordination file updated:
@@ -35,10 +35,13 @@ Time / Clock UI touch-up: larger field-first clock actions, cleaner mobile hiera
 
 ## Release Status
 
-- Pending commit/push/deploy.
+- Time released to `origin/main` and Fly app `concrete-ops-2`.
 
 ## Remaining Notes
 
 - Apex Overseer approved Time for release.
 - Generated screenshots should remain untracked under `output/`.
+- Commit: `93c7fea` (`Polish time clock command page`)
+- Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJ66ANWC3SHGB4HJMCNBCHG`
+- Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
 - Next recommended phase: Reports / Daily Reports command page polish.
