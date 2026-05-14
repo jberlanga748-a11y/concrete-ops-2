@@ -16865,6 +16865,84 @@ textarea {
   gap: 0.7rem;
 }
 
+.co-ai-found-review-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.62rem;
+  border: 1px solid rgba(249, 115, 22, 0.18);
+  border-radius: 0.85rem;
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.68), rgba(255, 255, 255, 0.9));
+  padding: 0.62rem;
+}
+
+.co-ai-found-review-head {
+  display: grid;
+  align-content: start;
+  gap: 0.18rem;
+  border-bottom: 1px solid rgba(251, 146, 60, 0.18);
+  padding-bottom: 0.52rem;
+}
+
+.co-ai-found-review-head span,
+.co-ai-found-review-check b,
+.co-ai-found-evidence-cell span {
+  color: #c2410c;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.co-ai-found-review-head strong {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.co-ai-found-review-head p,
+.co-ai-found-review-check small,
+.co-ai-found-evidence-cell p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.32;
+}
+
+.co-ai-found-review-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.45rem;
+}
+
+.co-ai-found-review-check {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+  border: 1px solid rgba(251, 146, 60, 0.24);
+  border-radius: 0.68rem;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 0.48rem 0.52rem;
+}
+
+.co-ai-found-review-check[data-state="ready"] {
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(240, 253, 244, 0.82);
+}
+
+.co-ai-found-review-check[data-state="ready"] b {
+  color: #15803d;
+}
+
+.co-ai-found-review-check span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
 .co-ai-scout-record-list {
   display: grid;
   gap: 0.55rem;
@@ -16956,6 +17034,36 @@ textarea {
 
 .co-ai-scout-link:hover {
   background: #fff7ed;
+}
+
+.co-ai-found-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.co-ai-found-evidence-cell {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 0.7rem;
+  background: rgba(248, 250, 252, 0.78);
+  padding: 0.5rem;
+}
+
+.co-ai-found-evidence-cell a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #ea580c;
+  font-size: 0.73rem;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.co-ai-found-evidence-cell a:hover {
+  text-decoration: underline;
 }
 
 .co-ai-scout-review {
@@ -17509,6 +17617,11 @@ textarea {
   }
 
   .co-ai-scout-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-ai-found-review-checks,
+  .co-ai-found-evidence-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

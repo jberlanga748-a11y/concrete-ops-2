@@ -245,6 +245,7 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
     location: uniqueTexts([opportunity.city, opportunity.state]).join(", "),
     trade: opportunity.trade || opportunity.projectType || "Trade not set",
     fitScore,
+    scopeSummary: opportunity.scopeSummary || "",
     reasonToBid: opportunity.reasonToBid || opportunity.scopeSummary || opportunity.notes || "",
     riskFlags: Array.isArray(opportunity.riskFlags) ? opportunity.riskFlags : [],
     missingInfoItems: Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems : [],

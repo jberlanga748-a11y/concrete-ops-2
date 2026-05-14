@@ -19177,6 +19177,33 @@ function CopilotPagePolished({
     { label: "Pipeline", value: compactCurrency(pipelineValue), helper: "Open value" },
     { label: "Uploads", value: visibleUploads.length, helper: "Photo evidence" },
   ];
+  const foundDraftReviewChecks = [
+    {
+      id: "source-proof",
+      label: "Source proof",
+      helper: "Link, lead source, or agency saved.",
+      ready: Boolean(String(foundDraft.sourceUrl || "").trim() || foundDraft.leadSourceId || String(foundDraft.agency || "").trim()),
+    },
+    {
+      id: "bid-date",
+      label: "Bid date",
+      helper: "Deadline captured before review.",
+      ready: Boolean(foundDraft.bidDueAt),
+    },
+    {
+      id: "scope-fit",
+      label: "Scope fit",
+      helper: "Scope or reason to bid is written.",
+      ready: Boolean(String(foundDraft.scopeSummary || "").trim() || String(foundDraft.reasonToBid || "").trim()),
+    },
+    {
+      id: "risk-check",
+      label: "Risks / gaps",
+      helper: "Known risks or missing info called out.",
+      ready: Boolean(String(foundDraft.riskFlags || "").trim() || String(foundDraft.missingInfoItems || "").trim()),
+    },
+  ];
+  const foundDraftReadyCount = foundDraftReviewChecks.filter((check) => check.ready).length;
 
   return (
     <div className="co-office-page co-ai-office-page">
@@ -19439,6 +19466,10 @@ function CopilotPagePolished({
                       <span>Opportunity</span>
                       <input value={foundDraft.title} onChange={(event) => updateFoundDraft("title", event.target.value)} placeholder="School sidewalk repair" required />
                     </label>
+                    <label className="md:col-span-2">
+                      <span>Source Link</span>
+                      <input value={foundDraft.sourceUrl} onChange={(event) => updateFoundDraft("sourceUrl", event.target.value)} placeholder="https://city.example/bids/sidewalk-repair" />
+                    </label>
                     <label>
                       <span>Agency / Source</span>
                       <input value={foundDraft.agency} onChange={(event) => updateFoundDraft("agency", event.target.value)} placeholder="City, GC, school district" />
@@ -19485,12 +19516,40 @@ function CopilotPagePolished({
                       </select>
                     </label>
                     <label className="md:col-span-2">
+                      <span>Scope Summary</span>
+                      <textarea value={foundDraft.scopeSummary} onChange={(event) => updateFoundDraft("scopeSummary", event.target.value)} placeholder="What the job appears to include, plan notes, walk-through notes, or bid package summary." rows={3} />
+                    </label>
+                    <label className="md:col-span-2">
                       <span>Reason To Bid</span>
                       <textarea value={foundDraft.reasonToBid} onChange={(event) => updateFoundDraft("reasonToBid", event.target.value)} placeholder="Why this looks like a good fit." rows={3} />
                     </label>
+                    <label>
+                      <span>Risk Flags</span>
+                      <textarea value={foundDraft.riskFlags} onChange={(event) => updateFoundDraft("riskFlags", event.target.value)} placeholder="Prevailing wage, tight schedule, bond, unknown access" rows={2} />
+                    </label>
+                    <label>
+                      <span>Missing Info</span>
+                      <textarea value={foundDraft.missingInfoItems} onChange={(event) => updateFoundDraft("missingInfoItems", event.target.value)} placeholder="Plans, addenda, walk date, site contact, spec section" rows={2} />
+                    </label>
+                  </div>
+                  <div className="co-ai-found-review-board">
+                    <div className="co-ai-found-review-head">
+                      <span>Capture Readiness</span>
+                      <strong>{foundDraftReadyCount}/{foundDraftReviewChecks.length} ready</strong>
+                      <p>Save the job with enough proof for office review, then use AI Review and Create Lead from the saved record.</p>
+                    </div>
+                    <div className="co-ai-found-review-checks">
+                      {foundDraftReviewChecks.map((check) => (
+                        <div key={check.id} className="co-ai-found-review-check" data-state={check.ready ? "ready" : "needed"}>
+                          <b>{check.ready ? "Ready" : "Needed"}</b>
+                          <span>{check.label}</span>
+                          <small>{check.helper}</small>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="co-ai-scout-form-footer">
-                    <span>Manual review only. No customer messages or pricing changes happen here.</span>
+                    <span>Manual review only. Save found work, run AI Review, then create a lead only after office approval.</span>
                     <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || !foundDraft.title.trim()}>Save Opportunity</Button>
                   </div>
                 </form>
@@ -19507,9 +19566,32 @@ function CopilotPagePolished({
                         </div>
                         <p>{[opportunity.agency, opportunity.trade, opportunity.location, opportunity.bidDueAt ? `Bid due ${formatDateTime(opportunity.bidDueAt)}` : ""].filter(Boolean).join(" / ")}</p>
                         {opportunity.reasonToBid ? <em>{opportunity.reasonToBid}</em> : null}
-                        {opportunity.riskFlags.length || opportunity.missingInfoItems.length ? (
-                          <div className="co-ai-scout-checks">
-                            {[...opportunity.riskFlags, ...opportunity.missingInfoItems].slice(0, 3).map((item) => <small key={item}>{item}</small>)}
+                        {opportunity.sourceUrl || opportunity.scopeSummary || opportunity.riskFlags.length || opportunity.missingInfoItems.length ? (
+                          <div className="co-ai-found-evidence-grid">
+                            {opportunity.sourceUrl ? (
+                              <div className="co-ai-found-evidence-cell">
+                                <span>Source</span>
+                                <a href={opportunity.sourceUrl} target="_blank" rel="noreferrer">Open saved source</a>
+                              </div>
+                            ) : null}
+                            {opportunity.scopeSummary ? (
+                              <div className="co-ai-found-evidence-cell">
+                                <span>Scope</span>
+                                <p>{opportunity.scopeSummary}</p>
+                              </div>
+                            ) : null}
+                            {opportunity.riskFlags.length ? (
+                              <div className="co-ai-found-evidence-cell">
+                                <span>Risks</span>
+                                <p>{opportunity.riskFlags.slice(0, 3).join(", ")}</p>
+                              </div>
+                            ) : null}
+                            {opportunity.missingInfoItems.length ? (
+                              <div className="co-ai-found-evidence-cell">
+                                <span>Missing Info</span>
+                                <p>{opportunity.missingInfoItems.slice(0, 3).join(", ")}</p>
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>

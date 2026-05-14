@@ -86,7 +86,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
       { id: "OSP-3", companyId: "COMPANY-B", name: "Other company scan", status: "active" },
     ],
     foundOpportunities: [
-      { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, riskFlags: ["prevailing wage"] },
+      { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, sourceUrl: "https://example.test/bid", scopeSummary: "Sidewalk replacement with ADA ramp repair.", riskFlags: ["prevailing wage"], missingInfoItems: ["addenda"] },
       { id: "FO-2", companyId: "COMPANY-A", title: "Skipped job", status: "skipped", fitScore: 95 },
       { id: "FO-3", companyId: "COMPANY-B", title: "Other company work", status: "new" },
       { id: "FO-4", companyId: "COMPANY-A", title: "No bid date job", status: "new", fitScore: 70 },
@@ -105,6 +105,10 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "review-found-work").tone, "red");
   assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4"]);
+  assert.equal(state.foundOpportunityQueue[0].sourceUrl, "https://example.test/bid");
+  assert.equal(state.foundOpportunityQueue[0].scopeSummary, "Sidewalk replacement with ADA ramp repair.");
+  assert.deepEqual(state.foundOpportunityQueue[0].riskFlags, ["prevailing wage"]);
+  assert.deepEqual(state.foundOpportunityQueue[0].missingInfoItems, ["addenda"]);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 3);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").targetId, "scout-found-opportunities");
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);
