@@ -5254,41 +5254,50 @@ function TimeEntriesTablePolished({ rows, selectedId, onSelect, maxRows = 8, sho
 
   return (
     <>
-      <div className="co-time-mobile-list grid gap-3 p-3 md:hidden">
-        {visibleRows.map((entry) => {
-          const selected = entry.id === selectedId;
-          const totalLabel = entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress";
+      <details className="co-time-mobile-list-drawer md:hidden">
+        <summary>
+          <span>
+            <strong>Visible entries</strong>
+            <em>{visibleRows.length} of {rows.length} entries shown</em>
+          </span>
+          <span>Open</span>
+        </summary>
+        <div className="co-time-mobile-list grid gap-3 p-3">
+          {visibleRows.map((entry) => {
+            const selected = entry.id === selectedId;
+            const totalLabel = entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress";
 
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => onSelect(entry.id)}
-              className={`co-time-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-lg font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{showUser ? `${entry.userName} / ${entry.userRole || "Field user"}` : workCategoryLabel(entry.workCategory)}</p>
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => onSelect(entry.id)}
+                className={`co-time-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-lg font-black text-slate-950">{entry.jobTitle || workCategoryLabel(entry.workCategory)}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{showUser ? `${entry.userName} / ${entry.userRole || "Field user"}` : workCategoryLabel(entry.workCategory)}</p>
+                  </div>
+                  <div className="shrink-0">
+                    <TimeStatusBadge status={entry.status} />
+                  </div>
                 </div>
-                <div className="shrink-0">
-                  <TimeStatusBadge status={entry.status} />
+                <div className="co-time-mobile-metrics">
+                  <span>Clock in <strong>{formatDateTime(entry.clockInAt)}</strong></span>
+                  <span>Clock out <strong>{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Active"}</strong></span>
+                  <span>Total <strong>{totalLabel}</strong></span>
                 </div>
-              </div>
-              <div className="co-time-mobile-metrics">
-                <span>Clock in <strong>{formatDateTime(entry.clockInAt)}</strong></span>
-                <span>Clock out <strong>{entry.clockOutAt ? formatDateTime(entry.clockOutAt) : "Active"}</strong></span>
-                <span>Total <strong>{totalLabel}</strong></span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
-                <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
-                {selected ? <Badge tone="blue">Selected</Badge> : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge tone="slate">{workCategoryLabel(entry.workCategory)}</Badge>
+                  <Badge tone="slate">Break {formatMinutes(entry.breakMinutes)}</Badge>
+                  {selected ? <Badge tone="blue">Selected</Badge> : null}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
       <div className="table-shell hidden min-w-0 overflow-x-auto md:block">
         <table className={`co-time-command-table ${showUser ? "" : "is-own-view"} w-full min-w-[820px] text-left`}>
           <thead>

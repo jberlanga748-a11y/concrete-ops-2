@@ -7160,6 +7160,66 @@ textarea {
   color: #059669;
 }
 
+.co-time-mobile-list-drawer {
+  border-top: 1px solid rgba(226, 232, 240, 0.94);
+  background: #ffffff;
+}
+
+.co-time-mobile-list-drawer > summary {
+  display: flex;
+  min-height: 1.8rem;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.24rem 0.72rem;
+}
+
+.co-time-mobile-list-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.co-time-mobile-list-drawer > summary strong,
+.co-time-mobile-list-drawer > summary em {
+  display: block;
+  min-width: 0;
+}
+
+.co-time-mobile-list-drawer > summary strong {
+  color: #07111f;
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-time-mobile-list-drawer > summary em {
+  display: none;
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.co-time-mobile-list-drawer > summary > span:last-child {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.12);
+  color: #c2410c;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+  padding: 0.32rem 0.54rem;
+}
+
+.co-time-mobile-list-drawer[open] > summary {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.94);
+}
+
 .co-time-tools-drawer {
   display: block;
   min-width: 0;
@@ -7272,7 +7332,7 @@ textarea {
 
   .co-time-right-rail {
     position: static !important;
-    order: -1;
+    order: 0;
     max-height: none !important;
     overflow: visible !important;
     padding-right: 0 !important;
@@ -7296,12 +7356,25 @@ textarea {
 
 @media (max-width: 767px) {
   .co-time-page .co-page-header {
-    padding-top: 1.15rem;
-    padding-bottom: 1rem;
+    margin-bottom: 0.65rem !important;
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.88rem !important;
+  }
+
+  .co-time-page .co-page-header h1 {
+    font-size: clamp(1.72rem, 7vw, 2rem) !important;
+  }
+
+  .co-time-page .co-page-header h1 + p {
+    display: none !important;
+  }
+
+  .co-time-header-status {
+    gap: 0.38rem !important;
   }
 
   .co-time-kpi-grid {
-    display: grid !important;
+    display: none !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.72rem !important;
     overflow: visible !important;
@@ -7311,52 +7384,72 @@ textarea {
   }
 
   .co-time-kpi-grid .co-command-kpi {
-    min-height: 5.45rem !important;
-    padding: 0.68rem !important;
+    min-height: 4.05rem !important;
+    padding: 0.5rem !important;
   }
 
   .co-time-kpi-grid .co-command-kpi-body {
     align-items: flex-start !important;
-    gap: 0.58rem !important;
+    gap: 0.46rem !important;
   }
 
   .co-time-kpi-grid .co-command-kpi-icon {
-    height: 2.2rem !important;
-    width: 2.2rem !important;
+    height: 1.74rem !important;
+    width: 1.74rem !important;
   }
 
   .co-time-kpi-grid .co-command-kpi-icon svg {
-    height: 1rem !important;
-    width: 1rem !important;
+    height: 0.82rem !important;
+    width: 0.82rem !important;
   }
 
   .co-time-kpi-grid .co-command-kpi-value {
-    font-size: 1.24rem !important;
+    font-size: 1.08rem !important;
+  }
+
+  .co-time-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.72rem !important;
+    line-height: 1.08 !important;
   }
 
   .co-time-kpi-grid .co-command-kpi-link,
   .co-time-kpi-grid .co-command-kpi p:nth-child(3) {
-    font-size: 0.68rem !important;
-    line-height: 1.18 !important;
+    font-size: 0.58rem !important;
+    line-height: 1.1 !important;
   }
 
   .co-time-command-layout {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.2rem) !important;
   }
 
   .co-time-clock-hero {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
+    padding-bottom: 0.55rem !important;
   }
 
   .co-time-clock-hero > .co-card {
-    padding: 0.9rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-time-clock-hero .co-section-accent {
+    margin-bottom: 0.55rem !important;
+  }
+
+  .co-time-clock-hero .co-section-accent h2 {
+    font-size: 0.98rem !important;
+  }
+
+  .co-time-clock-hero .co-section-accent p {
+    font-size: 0.76rem !important;
+    line-height: 1.25 !important;
   }
 
   .co-time-clock-form {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.7rem;
+    gap: 0.5rem;
   }
 
   .co-time-clock-fields,
@@ -7366,8 +7459,23 @@ textarea {
 
   .co-time-clock-target {
     order: 1;
-    min-height: 6.95rem;
-    padding: 1rem !important;
+    min-height: 5.1rem;
+    padding: 0.78rem !important;
+  }
+
+  .co-time-clock-target p:first-child {
+    font-size: 0.62rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .co-time-clock-target p:nth-child(2) {
+    font-size: 0.86rem !important;
+    line-height: 1.16 !important;
+  }
+
+  .co-time-clock-target p:nth-child(3) {
+    font-size: 0.72rem !important;
+    line-height: 1.12 !important;
   }
 
   .co-time-clock-cta {
@@ -7384,12 +7492,27 @@ textarea {
   }
 
   .co-time-summary-strip {
-    gap: 0.5rem;
-    padding: 0.7rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.38rem;
+    padding: 0.48rem;
   }
 
   .co-time-summary-strip > div {
-    padding: 0.58rem;
+    min-height: 3.15rem;
+    padding: 0.42rem 0.32rem;
+  }
+
+  .co-time-summary-strip span {
+    font-size: 0.48rem;
+    letter-spacing: 0.045em;
+  }
+
+  .co-time-summary-strip strong {
+    font-size: 0.84rem;
+  }
+
+  .co-time-summary-strip small {
+    display: none;
   }
 
   .co-time-mobile-metrics {
@@ -7409,8 +7532,8 @@ textarea {
 
   .co-time-clock-hero .co-time-clock-primary {
     height: auto;
-    min-height: 6.4rem;
-    font-size: 1.25rem !important;
+    min-height: 4.8rem;
+    font-size: 1.16rem !important;
   }
 
   .co-time-clock-hero .co-time-clock-primary svg {
@@ -7418,7 +7541,15 @@ textarea {
     width: 1.42rem;
   }
 
-.co-time-tools-drawer > summary {
+  .co-time-board-header {
+    padding: 0.85rem !important;
+  }
+
+  .co-time-board-header > div > div:last-child {
+    display: none !important;
+  }
+
+  .co-time-tools-drawer > summary {
     padding: 0.85rem !important;
   }
 }
