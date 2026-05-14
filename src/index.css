@@ -17244,6 +17244,25 @@ textarea {
 
 .co-settings-page {
   min-width: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.76));
+}
+
+.co-settings-page .co-page-header {
+  margin-bottom: 0.42rem !important;
+  padding-top: 0.62rem !important;
+  padding-bottom: 0.64rem !important;
+}
+
+.co-settings-page .co-page-header h1 {
+  font-size: clamp(1.55rem, 1.9vw, 2rem) !important;
+  line-height: 1 !important;
+}
+
+.co-settings-page .co-page-header p:not(:first-child) {
+  margin-top: 0.35rem !important;
+  max-width: 58rem !important;
+  font-size: 0.88rem !important;
+  line-height: 1.45 !important;
 }
 
 .co-settings-kpi-grid {
@@ -17305,6 +17324,7 @@ textarea {
 .co-settings-managed-board,
 .co-settings-console-card {
   border-top-color: rgba(249, 115, 22, 0.68) !important;
+  box-shadow: 0 20px 48px -38px rgba(7, 17, 31, 0.58) !important;
 }
 
 .co-settings-board-header {
@@ -17430,6 +17450,21 @@ textarea {
   border-radius: 0.82rem;
   background: #ffffff;
   padding: 0.78rem;
+  box-shadow: 0 14px 32px -32px rgba(7, 17, 31, 0.5);
+}
+
+.co-settings-category-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.2rem, 1fr)) !important;
+}
+
+.co-settings-readiness-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.25rem, 1fr)) !important;
+}
+
+.co-settings-category-card p {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none;
 }
 
 .co-settings-checklist-group,
@@ -17445,12 +17480,12 @@ textarea {
 
 .co-settings-checklist-group > summary,
 .co-settings-tools-drawer > summary {
-  display: flex;
+  display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   cursor: pointer;
   list-style: none;
   align-items: center;
-  justify-content: space-between;
   gap: 0.9rem;
   padding: 0.78rem 1rem;
   color: #07111f;
@@ -17473,6 +17508,7 @@ textarea {
 .co-settings-tools-drawer > summary em {
   display: block;
   margin-top: 0.16rem;
+  max-width: 56rem;
   color: #64748b;
   font-size: 0.72rem;
   font-style: normal;
@@ -17666,6 +17702,7 @@ textarea {
 .co-settings-rail-card {
   border-left-color: rgba(249, 115, 22, 0.62) !important;
   padding: 0.82rem !important;
+  box-shadow: 0 18px 42px -38px rgba(7, 17, 31, 0.58) !important;
 }
 
 .co-settings-rail-card h3 {
@@ -17713,6 +17750,14 @@ textarea {
   border-color: rgba(249, 115, 22, 0.38);
   background: rgba(255, 247, 237, 0.54);
   color: var(--color-brand-orange-dark);
+}
+
+.co-settings-action-row:focus-visible,
+.co-settings-checklist-group > summary:focus-visible,
+.co-settings-tools-drawer > summary:focus-visible,
+.co-settings-mobile-rail-drawer > summary:focus-visible {
+  outline: 3px solid rgba(249, 115, 22, 0.28);
+  outline-offset: 2px;
 }
 
 .co-settings-action-row svg {
@@ -17843,6 +17888,49 @@ textarea {
   border-color: rgba(248, 113, 113, 0.34) !important;
   border-left-color: rgba(220, 38, 38, 0.68) !important;
   background: #fff7f7 !important;
+}
+
+@media (min-width: 1024px) and (max-width: 1599px) {
+  .co-settings-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-settings-right-rail {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .co-settings-right-rail > * + * {
+    margin-top: 0 !important;
+  }
+
+  .co-settings-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 0.62rem !important;
+  }
+
+  .co-settings-kpi-grid .co-command-kpi {
+    min-height: 4.85rem !important;
+    height: 4.85rem !important;
+    padding: 0.64rem !important;
+  }
+
+  .co-settings-kpi-grid .co-command-kpi-body {
+    gap: 0.5rem !important;
+  }
+
+  .co-settings-kpi-grid .co-command-kpi-icon {
+    height: 2.05rem !important;
+    width: 2.05rem !important;
+  }
+
+  .co-settings-kpi-grid .co-command-kpi-value {
+    font-size: 1.18rem !important;
+  }
 }
 
 .co-settings-mobile-rail-drawer {
@@ -17994,33 +18082,24 @@ textarea {
   }
 
   .co-settings-kpi-grid {
-    display: flex !important;
-    grid-template-columns: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.72rem !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     padding-bottom: 0.65rem !important;
-    scroll-padding-inline: 1rem;
-    scroll-snap-type: x proximity;
   }
 
   .co-settings-kpi-grid .co-command-kpi {
-    flex: 0 0 10.8rem;
+    min-width: 0;
     min-height: 5.85rem !important;
+    height: auto !important;
     padding: 0.68rem !important;
-    scroll-snap-align: start;
   }
 
   .co-settings-kpi-grid .co-command-kpi-body {
     align-items: flex-start !important;
-  }
-
-  .co-settings-command-layout,
-  .co-settings-tools-drawer {
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
   }
 
   .co-settings-command-layout {
@@ -18035,6 +18114,7 @@ textarea {
 
   .co-settings-tools-drawer > summary,
   .co-settings-checklist-group > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
     padding: 0.85rem !important;
   }
 
@@ -18049,6 +18129,34 @@ textarea {
 
   .co-settings-mobile-action-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-settings-page #settings-owner-health .co-settings-tools-panel,
+  .co-settings-page #settings-owner-health .co-card,
+  .co-settings-page #settings-owner-health .grid,
+  .co-settings-page #settings-owner-health .rounded-2xl,
+  .co-settings-page #settings-owner-health pre,
+  .co-settings-page #settings-owner-health code {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .co-settings-page #settings-owner-health .grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-settings-page #settings-owner-health .flex {
+    min-width: 0;
+  }
+
+  .co-settings-page #settings-owner-health pre {
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .co-settings-page #settings-owner-health code {
+    display: inline-block;
   }
 }
 
