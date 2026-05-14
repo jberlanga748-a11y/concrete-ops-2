@@ -5990,10 +5990,15 @@ function dailyReportPrimaryNote(report) {
 
 function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, maxRows = 8 }) {
   const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
+  function handleMobileListToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open || window.innerWidth >= 768) return;
+    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
 
   return (
     <>
-      <details className="co-reports-mobile-list-drawer md:hidden">
+      <details className="co-reports-mobile-list-drawer md:hidden" onToggle={handleMobileListToggle}>
         <summary>
           <span>
             <strong>Visible reports</strong>
@@ -10958,7 +10963,13 @@ function ReportsPagePolished({
         ref={reportToolsRef}
         className="co-reports-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8"
         open={showReportTools}
-        onToggle={(event) => setShowReportTools(event.currentTarget.open)}
+        onToggle={(event) => {
+          const drawer = event.currentTarget;
+          setShowReportTools(drawer.open);
+          if (drawer.open && window.innerWidth < 768) {
+            window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+          }
+        }}
       >
         <summary>
           <span>

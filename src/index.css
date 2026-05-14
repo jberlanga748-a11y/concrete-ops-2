@@ -11163,6 +11163,23 @@ textarea {
 }
 
 @media (min-width: 768px) and (max-width: 1399px) {
+  .co-reports-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-reports-right-rail {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .co-reports-right-rail > .co-card {
+    min-width: 0;
+  }
+
   .co-reports-main-board .co-filter-bar {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
@@ -11186,6 +11203,45 @@ textarea {
   .co-reports-main-board .co-filter-bar input {
     width: 100% !important;
     min-width: 0 !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .co-reports-page[data-field-workspace="true"] .co-reports-kpi-grid {
+    display: none !important;
+  }
+
+  .co-reports-command-table {
+    min-width: 0 !important;
+  }
+
+  .co-reports-command-table th:nth-child(1) {
+    width: 31%;
+  }
+
+  .co-reports-command-table th:nth-child(2) {
+    width: 13%;
+  }
+
+  .co-reports-command-table th:nth-child(3) {
+    width: 13%;
+  }
+
+  .co-reports-command-table th:nth-child(4) {
+    width: 17%;
+  }
+
+  .co-reports-command-table th:nth-child(5),
+  .co-reports-command-table td:nth-child(5) {
+    display: none;
+  }
+
+  .co-reports-command-table th:nth-child(6) {
+    width: 16%;
+  }
+
+  .co-reports-command-table th:nth-child(7) {
+    width: 10%;
   }
 }
 
@@ -11260,6 +11316,15 @@ textarea {
     display: none !important;
   }
 
+  .co-reports-page[data-field-workspace="true"] .co-page-header .flex.flex-wrap.gap-2 {
+    width: 100%;
+  }
+
+  .co-reports-page[data-field-workspace="true"] .co-page-header .flex.flex-wrap.gap-2 > button {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
   .co-reports-mobile-focus {
     display: block;
   }
@@ -11321,7 +11386,7 @@ textarea {
   }
 
   .co-reports-tools-drawer {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+    margin-top: 0.85rem !important;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.2rem) !important;
   }
 
@@ -11348,6 +11413,11 @@ textarea {
   }
 
   .co-reports-board-header > div > div:last-child {
+    display: none !important;
+  }
+
+  .co-reports-page[data-field-workspace="true"] .co-reports-main-board .co-filter-bar > div:last-child,
+  .co-reports-page[data-field-workspace="true"] .co-reports-advanced-filters {
     display: none !important;
   }
 
