@@ -3934,6 +3934,10 @@ function getFieldMobileNavItems(visibleNavItems) {
 
 function FieldMobileQuickNav({ items, active, onOpen }) {
   if (!items.length) return null;
+  const activeItem = items.find((item) => item.id === active);
+  const visibleItems = activeItem
+    ? [activeItem, ...items.filter((item) => item.id !== active)]
+    : items;
 
   function handleOpen(itemId) {
     onOpen(itemId);
@@ -3945,7 +3949,7 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
   return (
     <nav className="co-mobile-bottom-nav mobile-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-blue-100 bg-white/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Mobile navigation">
       <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = active === item.id;
           return (
             <button
@@ -7081,6 +7085,72 @@ function UploadsFieldOperatorPanel({
   );
 }
 
+function UploadsMobileFocusPanel({
+  upload,
+  latestUpload,
+  visibleCount,
+  gpsCount,
+  missingGpsCount,
+  missingNotesCount,
+  canCreate,
+  onUpload,
+  onOpenMissingGps,
+  onOpenCaptionGap,
+  onOpenLatest,
+  onJumpToBoard,
+}) {
+  const focusUpload = upload || latestUpload;
+
+  return (
+    <div className="co-uploads-mobile-focus mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 md:hidden">
+      <div className="co-uploads-mobile-focus-card">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Badge tone="orange">Photo evidence</Badge>
+          <Badge tone={missingGpsCount ? "amber" : "green"}>{missingGpsCount ? `${missingGpsCount} GPS gap${missingGpsCount === 1 ? "" : "s"}` : "GPS ready"}</Badge>
+          <Badge tone={missingNotesCount ? "amber" : "green"}>{missingNotesCount ? `${missingNotesCount} caption gap${missingNotesCount === 1 ? "" : "s"}` : "Captions ready"}</Badge>
+        </div>
+        <h2>{focusUpload ? uploadTitle(focusUpload) : "Photo evidence board"}</h2>
+        <p>{focusUpload ? `${uploadJobLabel(focusUpload)} / ${uploadUploaderLabel(focusUpload)}` : "Capture job-linked proof, review GPS context, and keep photo evidence tied to the right job."}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {canCreate ? (
+            <Button type="button" onClick={onUpload}>
+              <Icon name="upload" />
+              Upload Photo
+            </Button>
+          ) : (
+            <Button type="button" onClick={onJumpToBoard}>
+              <Icon name="layers" />
+              View Board
+            </Button>
+          )}
+          <Button type="button" variant="secondary" onClick={onJumpToBoard}>
+            <Icon name="layers" />
+            Evidence Board
+          </Button>
+        </div>
+      </div>
+      <div className="co-uploads-mobile-focus-grid">
+        <button type="button" data-tone="orange" onClick={onJumpToBoard}>
+          <strong>{visibleCount}</strong>
+          <span>Visible evidence</span>
+        </button>
+        <button type="button" data-tone={missingGpsCount ? "amber" : "green"} onClick={onOpenMissingGps}>
+          <strong>{missingGpsCount}</strong>
+          <span>Missing GPS</span>
+        </button>
+        <button type="button" data-tone={missingNotesCount ? "amber" : "green"} onClick={onOpenCaptionGap}>
+          <strong>{missingNotesCount}</strong>
+          <span>Caption gaps</span>
+        </button>
+        <button type="button" data-tone={gpsCount ? "green" : "slate"} onClick={onOpenLatest}>
+          <strong>{gpsCount}</strong>
+          <span>GPS captured</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
@@ -7371,6 +7441,23 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
           </div>
         }
       />
+
+      {permissions.uploads.canManageAll ? (
+        <UploadsMobileFocusPanel
+          upload={selectedUpload}
+          latestUpload={latestVisibleUpload}
+          visibleCount={visibleRows.length}
+          gpsCount={gpsCount}
+          missingGpsCount={missingGpsCount}
+          missingNotesCount={missingNotesCount}
+          canCreate={canCreate}
+          onUpload={() => openTool("upload")}
+          onOpenMissingGps={() => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" })}
+          onOpenCaptionGap={() => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" })}
+          onOpenLatest={() => openPriorityUpload((upload) => upload.id === latestVisibleUpload?.id, { gpsFilter: "All locations" })}
+          onJumpToBoard={jumpToBoard}
+        />
+      ) : null}
 
       {!permissions.uploads.canManageAll ? (
         <UploadsFieldOperatorPanel
