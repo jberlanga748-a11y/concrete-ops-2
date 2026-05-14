@@ -5916,36 +5916,45 @@ function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, 
 
   return (
     <>
-      <div className="co-reports-mobile-list grid gap-3 p-3 md:hidden">
-        {visibleRows.map((report) => {
-          const selected = report.id === selectedId;
+      <details className="co-reports-mobile-list-drawer md:hidden">
+        <summary>
+          <span>
+            <strong>Visible reports</strong>
+            <em>{visibleRows.length} of {rows.length} reports shown</em>
+          </span>
+          <span>Open</span>
+        </summary>
+        <div className="co-reports-mobile-list grid gap-3 p-3">
+          {visibleRows.map((report) => {
+            const selected = report.id === selectedId;
 
-          return (
-            <button
-              key={report.id}
-              type="button"
-              onClick={() => onSelect(report.id)}
-              className={`co-reports-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-lg font-black text-slate-950">{jobTitle(report.job)}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{report.reportDate} / {report.createdByName}</p>
+            return (
+              <button
+                key={report.id}
+                type="button"
+                onClick={() => { onSelect(report.id); onOpenDetails?.(); }}
+                className={`co-reports-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-lg font-black text-slate-950">{jobTitle(report.job)}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{report.reportDate} / {report.createdByName}</p>
+                  </div>
+                  <div className="shrink-0">
+                    <DailyReportStatusBadge status={report.status} />
+                  </div>
                 </div>
-                <div className="shrink-0">
-                  <DailyReportStatusBadge status={report.status} />
+                <p className="mt-3 line-clamp-2 text-sm font-bold leading-5 text-slate-700">{dailyReportPrimaryNote(report)}</p>
+                <div className="co-reports-mobile-metrics">
+                  <span>Time <strong>{formatMinutes(report.timeSummary?.totalMinutes || 0)}</strong></span>
+                  <span>Crew <strong>{report.crewAssignments?.length || 0}</strong></span>
+                  <span>Concrete <strong>{dailyReportConcreteSummary(report)}</strong></span>
                 </div>
-              </div>
-              <p className="mt-3 line-clamp-2 text-sm font-bold leading-5 text-slate-700">{dailyReportPrimaryNote(report)}</p>
-              <div className="co-reports-mobile-metrics">
-                <span>Time <strong>{formatMinutes(report.timeSummary?.totalMinutes || 0)}</strong></span>
-                <span>Crew <strong>{report.crewAssignments?.length || 0}</strong></span>
-                <span>Concrete <strong>{dailyReportConcreteSummary(report)}</strong></span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
       <div className="table-shell hidden min-w-0 overflow-x-auto md:block">
         <table className="co-reports-command-table w-full min-w-[840px] text-left">
           <thead>
@@ -6031,7 +6040,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
               <span>{pourLabel}</span>
             </div>
           </div>
-          <DailyReportMobileFieldGroup title="Job / date" summary={createSummary} defaultOpen={!draft.jobId || !draft.reportDate}>
+          <DailyReportMobileFieldGroup title="Job / date" summary={createSummary}>
             <SelectField label="Job" value={draft.jobId} onChange={(event) => setDraft((current) => ({ ...current, jobId: event.target.value }))}>
               <option value="">Select a job</option>
               {jobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
@@ -6039,7 +6048,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
             <InputField label="Report date" type="date" value={draft.reportDate} onChange={(event) => setDraft((current) => ({ ...current, reportDate: event.target.value }))} />
           </DailyReportMobileFieldGroup>
           <div className="co-reports-create-action-stack co-reports-create-action-stack-mobile">
-            <Button type="submit" className="co-reports-create-cta" disabled={disabled}>
+            <Button type="submit" className="co-reports-create-cta" disabled={disabled || !draft.jobId || !draft.reportDate}>
               <Icon name="plus" />
               Start report now
             </Button>
@@ -10380,6 +10389,9 @@ function ReportsPagePolished({
     : visibleRows.length === 0 && canCreate
     ? [startPriorityCard, reviewPriorityCard, draftsPriorityCard, basicsPriorityCard]
     : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard, startPriorityCard];
+  const mobileFocusCards = isFieldReportWorkspace
+    ? [draftsPriorityCard, basicsPriorityCard, reviewPriorityCard]
+    : [reviewPriorityCard, draftsPriorityCard, basicsPriorityCard];
 
   return (
     <div className="co-office-page co-reports-page" data-field-workspace={isFieldReportWorkspace ? "true" : undefined}>
@@ -10394,6 +10406,31 @@ function ReportsPagePolished({
           </div>
         }
       />
+
+      {canView ? (
+        <div className="co-reports-mobile-focus mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 md:hidden">
+          <div className="co-reports-mobile-focus-card">
+            <div className="min-w-0">
+              <p>Today&apos;s report plan</p>
+              <h2>{isFieldReportWorkspace ? "Start or finish field paperwork" : "Review field paperwork"}</h2>
+              <span>{visibleRows.length} visible / {submittedCount} submitted / {needsActionCount} needs action</span>
+            </div>
+            {canCreate ? (
+              <Button type="button" onClick={() => openReportTool("create")}>Start Report</Button>
+            ) : (
+              <Button type="button" variant="secondary" onClick={() => openReportTool("details")}>Open Details</Button>
+            )}
+          </div>
+          <div className="co-reports-mobile-focus-grid">
+            {mobileFocusCards.map((card) => (
+              <button key={card.label} type="button" data-tone={card.tone} onClick={card.onAction}>
+                <strong>{card.value}</strong>
+                <span>{card.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {canView ? (
         <div className="co-reports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
@@ -10426,7 +10463,7 @@ function ReportsPagePolished({
                   <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Daily Report Board</h2>
-                      <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter reports, select a field day, and keep status, crew, time, and concrete notes in the right rail.</p>
+                      <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter reports, select a field day, and keep status, crew, time, and concrete notes ready for review.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {isFieldReportWorkspace && canCreate ? <Button type="button" size="sm" onClick={() => openReportTool("create")}>Start Report</Button> : null}
@@ -10436,7 +10473,7 @@ function ReportsPagePolished({
                     </div>
                   </div>
                 </div>
-                <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search job, creator, weather, work performed..." />
+                <FilterBar filters={["All", "Draft", "Submitted", "Reviewed", "Reopened", "Archived"]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search reports..." />
                 <details className="co-reports-advanced-filters border-b border-slate-200 bg-white">
                   <summary>
                     <span>Advanced filters</span>
@@ -10466,7 +10503,7 @@ function ReportsPagePolished({
                 ) : (
                   <DailyReportsTablePolished rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} onOpenDetails={() => openReportTool("details")} maxRows={visibleReportCap} />
                 )}
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+                <div className="co-reports-board-footer flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
                   <p className="text-sm font-bold text-slate-600">Showing {Math.min(visibleRows.length, visibleReportCap)} of {visibleRows.length} filtered reports</p>
                   <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setJobFilter("All jobs"); setCreatorFilter("All creators"); setDateFilter("All dates"); setSearch(""); }}>Clear filters</Button>
                 </div>

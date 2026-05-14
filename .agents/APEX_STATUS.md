@@ -2,13 +2,13 @@
 
 ## Current Phase
 
-Reports / Daily Reports command page polish is next.
+Reports / Daily Reports UI touch-up: mobile report command focus, cleaner board hierarchy, bottom-nav-safe report drawers, and role-safe field reporting flow.
 
 ## Current State
 
-- Time phase is committed, pushed, deployed, and health-checked.
-- Time route `/time` was the only app page intentionally changed.
-- Latest Time app files changed:
+- Reports phase is approved by Apex Overseer and ready for commit/push/deploy.
+- Reports route `/reports` is the only app page intentionally changed.
+- Current intended changed app files:
   - `src/App.jsx`
   - `src/index.css`
 - Project coordination file updated:
@@ -16,18 +16,18 @@ Reports / Daily Reports command page polish is next.
 
 ## Latest Audit
 
-- Time audit captured admin, foreman, and employee views at desktop and mobile sizes.
-- No horizontal overflow detected in the latest Time screenshot metrics.
-- Mobile closed-state drawer summaries do not overlap the bottom nav.
-- Latest Time screenshots:
-  - `output/playwright/time-final-review/2026-05-14T02-38-53-219Z`
-  - `output/playwright/time-drawer-final/2026-05-14T02-43-50-738Z`
+- Reports audit captured admin, foreman, and employee views at desktop and mobile sizes.
+- No horizontal overflow detected in the latest Reports screenshot metrics.
+- Mobile Start Report open state clears the bottom nav.
+- Latest Reports screenshots:
+  - `output/playwright/reports-final-polish/2026-05-14T03-07-24-976Z`
+  - `output/playwright/reports-overseer-fixes/2026-05-14T03-14-08-652Z`
 
 ## Verification
 
 - `npm.cmd run build` passed.
 - `npm.cmd run verify:roles` passed.
-- `npm.cmd run verify:time` passed.
+- `npm.cmd run verify:daily-reports` passed.
 - `npm.cmd run verify:field-workspaces` passed.
 - `npm.cmd run verify:server` passed.
 - Focused routing/navigation/design token tests passed.
@@ -35,13 +35,10 @@ Reports / Daily Reports command page polish is next.
 
 ## Release Status
 
-- Time released to `origin/main` and Fly app `concrete-ops-2`.
+- Pending commit/push/deploy.
 
 ## Remaining Notes
 
-- Apex Overseer approved Time for release.
+- Apex Overseer approved Reports for release.
 - Generated screenshots should remain untracked under `output/`.
-- Commit: `93c7fea` (`Polish time clock command page`)
-- Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJ66ANWC3SHGB4HJMCNBCHG`
-- Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
-- Next recommended phase: Reports / Daily Reports command page polish.
+- Next recommended phase: Uploads / Photo Evidence command page polish.
