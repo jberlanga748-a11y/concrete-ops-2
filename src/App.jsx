@@ -22862,35 +22862,50 @@ function postPourItemTone(status) {
 }
 
 function PostPourChecklistTablePolished({ rows, selectedId, onSelect }) {
+  function handleMobileListToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open || window.innerWidth >= 768) return;
+    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   return (
     <>
-      <div className="co-prepour-mobile-list grid gap-3 p-3 md:hidden">
-        {rows.map((checklist) => {
-          const selected = checklist.id === selectedId;
+      <details className="co-prepour-mobile-list-drawer co-postpour-mobile-list-drawer md:hidden" onToggle={handleMobileListToggle}>
+        <summary>
+          <span>
+            <strong>Visible closeouts</strong>
+            <em>{rows.length} checklist{rows.length === 1 ? "" : "s"} shown</em>
+          </span>
+          <span>Open</span>
+        </summary>
+        <div className="co-prepour-mobile-list grid gap-3 p-3">
+          {rows.map((checklist) => {
+            const selected = checklist.id === selectedId;
 
-          return (
-            <button
-              key={checklist.id}
-              type="button"
-              onClick={() => onSelect(checklist.id)}
-              className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned post-pour checklist"}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {postPourChecklistOwner(checklist)}</p>
+            return (
+              <button
+                key={checklist.id}
+                type="button"
+                onClick={() => onSelect(checklist.id)}
+                className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned post-pour checklist"}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {postPourChecklistOwner(checklist)}</p>
+                  </div>
+                  <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
                 </div>
-                <StatusBadge status={postPourChecklistStatusLabel(checklist.status)} />
-              </div>
-              <div className="co-prepour-mobile-metrics">
-                <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
-                <span>Status <strong>{postPourChecklistStatusLabel(checklist.status)}</strong></span>
-                <span>Updated <strong>{formatDateTime(postPourChecklistUpdated(checklist))}</strong></span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                <div className="co-prepour-mobile-metrics">
+                  <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
+                  <span>Status <strong>{postPourChecklistStatusLabel(checklist.status)}</strong></span>
+                  <span>Updated <strong>{formatDateTime(postPourChecklistUpdated(checklist))}</strong></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
       <div className="co-prepour-list-scroll hidden min-w-0 overflow-auto md:block">
         <table className="co-prepour-command-table w-full min-w-[840px] text-left">
           <thead>
@@ -22954,8 +22969,8 @@ function PostPourCloseoutItemsPolished({
     );
   }
 
-  const visibleItems = selectedItems.slice(0, 6);
-  const remainingItems = selectedItems.slice(6);
+  const visibleItems = selectedItems.slice(0, 3);
+  const remainingItems = selectedItems.slice(3);
   function renderCloseoutItem(item) {
     return (
       <div key={item.id} className="co-postpour-item-row" data-status={item.status}>
@@ -22992,8 +23007,15 @@ function PostPourCloseoutItemsPolished({
     );
   }
 
-  return (
-    <div className="co-postpour-items-panel">
+  function handleMobileItemsToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open || window.innerWidth >= 768) return;
+    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function renderItemsPanel(extraClass = "") {
+    return (
+      <div className={`co-postpour-items-panel ${extraClass}`}>
       <div className="co-postpour-items-header">
         <div>
           <h3>Closeout Items</h3>
@@ -23015,7 +23037,26 @@ function PostPourCloseoutItemsPolished({
           </details>
         ) : null}
       </div>
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="hidden md:block">
+        {renderItemsPanel()}
+      </div>
+      <details className="co-postpour-mobile-items-drawer md:hidden" onToggle={handleMobileItemsToggle}>
+        <summary>
+          <span>
+            <strong>Closeout items</strong>
+            <em>{selectedItems.length} checks / {checklistSummary.incompleteCount} open</em>
+          </span>
+          <span>Open</span>
+        </summary>
+        {renderItemsPanel("co-postpour-items-panel-mobile")}
+      </details>
+    </>
   );
 }
 
@@ -23591,7 +23632,7 @@ function PostPourPagePolished({
               ) : (
                 <PostPourChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} />
               )}
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <div className="co-postpour-board-footer flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
                 <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} closeout checklist{filteredRows.length === 1 ? "" : "s"}</p>
                 <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
               </div>
@@ -23630,7 +23671,13 @@ function PostPourPagePolished({
         ref={toolsRef}
         className="co-prepour-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
         open={showTools}
-        onToggle={(event) => setShowTools(event.currentTarget.open)}
+        onToggle={(event) => {
+          const drawer = event.currentTarget;
+          setShowTools(drawer.open);
+          if (drawer.open && window.innerWidth < 768) {
+            window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+          }
+        }}
       >
         <summary>
           <span>

@@ -12129,6 +12129,65 @@ textarea {
   font-size: 0.72rem;
 }
 
+.co-postpour-mobile-items-drawer {
+  background: #ffffff;
+}
+
+.co-postpour-mobile-items-drawer > summary {
+  display: flex;
+  min-height: 2.35rem;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.96);
+  padding: 0.42rem 0.8rem;
+}
+
+.co-postpour-mobile-items-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.co-postpour-mobile-items-drawer > summary strong,
+.co-postpour-mobile-items-drawer > summary em {
+  display: block;
+  min-width: 0;
+}
+
+.co-postpour-mobile-items-drawer > summary strong {
+  color: #07111f;
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-postpour-mobile-items-drawer > summary em {
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.co-postpour-mobile-items-drawer > summary > span:last-child {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.12);
+  color: #c2410c;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+  padding: 0.32rem 0.54rem;
+}
+
+.co-postpour-mobile-items-drawer[open] > summary {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+}
+
 .co-postpour-extra-items-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -12675,7 +12734,20 @@ textarea {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  .co-postpour-page .co-prepour-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-right-rail {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .co-postpour-page .co-prepour-right-rail {
     position: static !important;
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -12688,7 +12760,17 @@ textarea {
     min-width: 0;
   }
 
+  .co-postpour-page .co-prepour-right-rail > .co-card {
+    min-width: 0;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-main-board .co-filter-bar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.72rem !important;
+  }
+
+  .co-postpour-page .co-prepour-main-board .co-filter-bar {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 0.72rem !important;
@@ -12696,6 +12778,12 @@ textarea {
 
   .co-prepour-page:not(.co-postpour-page) .co-prepour-main-board .co-filter-bar > div:first-child,
   .co-prepour-page:not(.co-postpour-page) .co-prepour-main-board .co-filter-bar > div:last-child {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .co-postpour-page .co-prepour-main-board .co-filter-bar > div:first-child,
+  .co-postpour-page .co-prepour-main-board .co-filter-bar > div:last-child {
     width: 100% !important;
     max-width: none !important;
   }
@@ -12708,7 +12796,20 @@ textarea {
     padding-bottom: 0.12rem;
   }
 
+  .co-postpour-page .co-prepour-main-board .co-filter-bar > div:first-child {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0.45rem !important;
+    overflow-x: auto !important;
+    padding-bottom: 0.12rem;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-main-board .co-filter-bar input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .co-postpour-page .co-prepour-main-board .co-filter-bar input {
     width: 100% !important;
     min-width: 0 !important;
   }
@@ -12719,7 +12820,15 @@ textarea {
     display: none !important;
   }
 
+  .co-postpour-page[data-field-workspace="true"] .co-field-operator-strip {
+    display: none !important;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-command-table {
+    min-width: 0 !important;
+  }
+
+  .co-postpour-page .co-prepour-command-table {
     min-width: 0 !important;
   }
 
@@ -12727,7 +12836,15 @@ textarea {
     width: 33%;
   }
 
+  .co-postpour-page .co-prepour-command-table th:nth-child(1) {
+    width: 33%;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-command-table th:nth-child(2) {
+    width: 14%;
+  }
+
+  .co-postpour-page .co-prepour-command-table th:nth-child(2) {
     width: 14%;
   }
 
@@ -12735,7 +12852,15 @@ textarea {
     width: 21%;
   }
 
+  .co-postpour-page .co-prepour-command-table th:nth-child(3) {
+    width: 21%;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-command-table th:nth-child(4) {
+    width: 20%;
+  }
+
+  .co-postpour-page .co-prepour-command-table th:nth-child(4) {
     width: 20%;
   }
 
@@ -12744,7 +12869,16 @@ textarea {
     display: none;
   }
 
+  .co-postpour-page .co-prepour-command-table th:nth-child(5),
+  .co-postpour-page .co-prepour-command-table td:nth-child(5) {
+    display: none;
+  }
+
   .co-prepour-page:not(.co-postpour-page) .co-prepour-command-table th:nth-child(6) {
+    width: 12%;
+  }
+
+  .co-postpour-page .co-prepour-command-table th:nth-child(6) {
     width: 12%;
   }
 }
@@ -12794,7 +12928,16 @@ textarea {
     width: 100%;
   }
 
+  .co-postpour-page[data-field-workspace="true"] .co-page-header .flex.flex-wrap.gap-2 {
+    width: 100%;
+  }
+
   .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-page-header .flex.flex-wrap.gap-2 > button {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .co-postpour-page[data-field-workspace="true"] .co-page-header .flex.flex-wrap.gap-2 > button {
     flex: 1 1 0;
     justify-content: center;
   }
@@ -12935,9 +13078,19 @@ textarea {
     display: none !important;
   }
 
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-board-actions {
+    display: none !important;
+  }
+
   .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-prepour-main-board .co-filter-bar,
   .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-prepour-advanced-filters,
   .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-prepour-board-footer {
+    display: none !important;
+  }
+
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-main-board .co-filter-bar,
+  .co-postpour-page[data-field-workspace="true"] .co-prepour-advanced-filters,
+  .co-postpour-page[data-field-workspace="true"] .co-postpour-board-footer {
     display: none !important;
   }
 
