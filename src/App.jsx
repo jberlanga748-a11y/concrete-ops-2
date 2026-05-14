@@ -21411,10 +21411,19 @@ function SettingsPagePolished({
 }
 function PrePourMobileAccordionCard({ title, summary, badge, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const panelRef = useRef(null);
+
+  function handleToggle() {
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen && window.innerWidth < 768) {
+      window.setTimeout(() => panelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    }
+  }
 
   return (
-    <div className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
-      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+    <div ref={panelRef} className={`co-mobile-accordion rounded-2xl border bg-white/95 shadow-sm md:hidden ${isOpen ? "is-open border-blue-200" : "border-blue-100"}`}>
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={handleToggle}>
         <span className="min-w-0">
           <span className="block truncate text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block truncate text-xs font-bold text-slate-500">{summary}</span> : null}
@@ -21436,10 +21445,19 @@ function PrePourMobileAccordionCard({ title, summary, badge, defaultOpen = false
 
 function PrePourMobileFieldGroup({ title, summary, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const groupRef = useRef(null);
+
+  function handleToggle() {
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen && window.innerWidth < 768) {
+      window.setTimeout(() => groupRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    }
+  }
 
   return (
-    <div className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
-      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+    <div ref={groupRef} className="co-mobile-field-group rounded-2xl border border-blue-100 bg-white">
+      <button type="button" className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left" aria-expanded={isOpen} onClick={handleToggle}>
         <span className="min-w-0">
           <span className="block text-sm font-black text-slate-950">{title}</span>
           {summary ? <span className="mt-0.5 block text-xs font-bold text-slate-500">{summary}</span> : null}
@@ -21468,35 +21486,50 @@ function prePourItemTone(status) {
 }
 
 function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
+  function handleMobileListToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open || window.innerWidth >= 768) return;
+    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   return (
     <>
-      <div className="co-prepour-mobile-list grid gap-3 p-3 md:hidden">
-        {rows.map((checklist) => {
-          const selected = checklist.id === selectedId;
+      <details className="co-prepour-mobile-list-drawer md:hidden" onToggle={handleMobileListToggle}>
+        <summary>
+          <span>
+            <strong>Visible checklists</strong>
+            <em>{rows.length} checklist{rows.length === 1 ? "" : "s"} shown</em>
+          </span>
+          <span>Open</span>
+        </summary>
+        <div className="co-prepour-mobile-list grid gap-3 p-3">
+          {rows.map((checklist) => {
+            const selected = checklist.id === selectedId;
 
-          return (
-            <button
-              key={checklist.id}
-              type="button"
-              onClick={() => onSelect(checklist.id)}
-              className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)}</p>
+            return (
+              <button
+                key={checklist.id}
+                type="button"
+                onClick={() => onSelect(checklist.id)}
+                className={`co-prepour-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)}</p>
+                  </div>
+                  <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
                 </div>
-                <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
-              </div>
-              <div className="co-prepour-mobile-metrics">
-                <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
-                <span>Status <strong>{prePourChecklistStatusLabel(checklist.status)}</strong></span>
-                <span>Updated <strong>{formatDateTime(prePourChecklistUpdated(checklist))}</strong></span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                <div className="co-prepour-mobile-metrics">
+                  <span>Open <strong>{checklist.incompleteItemCount || 0}</strong></span>
+                  <span>Status <strong>{prePourChecklistStatusLabel(checklist.status)}</strong></span>
+                  <span>Updated <strong>{formatDateTime(prePourChecklistUpdated(checklist))}</strong></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
       <div className="co-prepour-list-scroll hidden min-w-0 overflow-auto md:block">
         <table className="co-prepour-command-table w-full min-w-[840px] text-left">
           <thead>
@@ -22190,7 +22223,7 @@ function PrePourPagePolished({
               ) : (
                 <PrePourChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} />
               )}
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <div className="co-prepour-board-footer flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
                 <p className="text-sm font-bold text-slate-600">Showing {filteredRows.length} readiness checklist{filteredRows.length === 1 ? "" : "s"}</p>
                 <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
               </div>
@@ -22230,7 +22263,13 @@ function PrePourPagePolished({
         ref={toolsRef}
         className="co-prepour-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
         open={showTools}
-        onToggle={(event) => setShowTools(event.currentTarget.open)}
+        onToggle={(event) => {
+          const drawer = event.currentTarget;
+          setShowTools(drawer.open);
+          if (drawer.open && window.innerWidth < 768) {
+            window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+          }
+        }}
       >
         <summary>
           <span>
