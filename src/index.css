@@ -9114,6 +9114,29 @@ textarea {
     width: 100%;
   }
 
+  .co-calculator-page .co-page-header-actions,
+  .co-calculator-page .co-toolbox-kpi-grid,
+  .co-calculator-page .co-calculator-priority-mobile,
+  .co-calculator-field-panel-wrap {
+    display: none !important;
+  }
+
+  .co-calculator-mobile-focus .co-prepour-mobile-focus-copy em {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 0.5rem;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 999px;
+    background: #ffffff;
+    padding: 0.34rem 0.56rem;
+    color: #475569;
+    font-size: 0.64rem;
+    font-style: normal;
+    font-weight: 950;
+    line-height: 1;
+  }
+
   .co-calculator-page.co-field-tool-page .co-page-header {
     margin-bottom: 0.78rem;
     padding: 0.95rem 1.45rem 1rem !important;

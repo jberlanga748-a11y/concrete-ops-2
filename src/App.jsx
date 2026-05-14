@@ -17816,7 +17816,7 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+    <div className="co-calculator-field-panel-wrap mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
       <Card className="co-field-operator-panel co-calculator-field-panel overflow-hidden">
         <div className="co-field-operator-shell">
           <div className="co-field-operator-copy min-w-0">
@@ -17866,6 +17866,69 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
         </div>
       </Card>
     </div>
+  );
+}
+
+function CalculatorMobileFocusPanel({
+  calculatorMode,
+  calculatorType,
+  activeFields,
+  enteredDimensionCount,
+  result,
+  allowedJobs,
+  resultCopied,
+  onFocusInput,
+  onCopyResult,
+  onSaveResult,
+  onStartTakeoff,
+}) {
+  const resultReady = result.status === "ready";
+  const resultValue = resultReady ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open";
+  const shapeLabel = calculatorTypeLabel(calculatorType);
+  const focusTitle = resultReady ? `${resultValue} yd^3 ready` : "Pour calculator ready";
+  const focusCopy = resultReady
+    ? (result.summary || "Copy the field total or save the internal calculation to an allowed job.")
+    : "Enter dimensions first, then copy a field-ready total or save the internal calculation to an allowed job.";
+  const metricItems = [
+    { label: "Shape", value: shapeLabel, tone: "orange", onClick: onFocusInput },
+    { label: "Dims", value: `${enteredDimensionCount}/${activeFields.length}`, tone: enteredDimensionCount === activeFields.length ? "green" : "amber", onClick: onFocusInput },
+    { label: "Result", value: resultValue, tone: resultReady ? "green" : "slate", onClick: resultReady ? onCopyResult : onFocusInput },
+    { label: "Jobs", value: allowedJobs.length, tone: allowedJobs.length ? "orange" : "slate", onClick: onSaveResult },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-calculator-mobile-focus mx-4 mb-3 md:hidden" aria-label="Calculator mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>Calculator Focus</span>
+        <h2>{focusTitle}</h2>
+        <p>{focusCopy}</p>
+        <em>{calculatorMode === "multi_section" ? "Multi-section takeoff" : `${shapeLabel} / ${activeFields.length} required dimension${activeFields.length === 1 ? "" : "s"}`}</em>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        <Button type="button" onClick={resultReady ? onCopyResult : onFocusInput}>
+          <Icon name={resultReady ? "clipboard" : "calculator"} />
+          {resultReady ? (resultCopied ? "Copied" : "Copy") : "Dims"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onSaveResult}>
+          <Icon name="briefcase" />
+          Save
+        </Button>
+        <Button type="button" variant="secondary" onClick={onStartTakeoff}>
+          <Icon name="plus" />
+          Takeoff
+        </Button>
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        {metricItems.map((metric) => (
+          <button key={metric.label} type="button" data-tone={metric.tone} onClick={metric.onClick}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -18015,6 +18078,20 @@ function CalculatorPagePolished({
             <Button type="button" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>Save to Job</Button>
           </div>
         )}
+      />
+
+      <CalculatorMobileFocusPanel
+        calculatorMode={calculatorMode}
+        calculatorType={calculatorType}
+        activeFields={activeFields}
+        enteredDimensionCount={enteredDimensionCount}
+        result={result}
+        allowedJobs={allowedJobs}
+        resultCopied={resultCopied}
+        onFocusInput={focusCalculatorInput}
+        onCopyResult={copyFromPriority}
+        onSaveResult={openSaveFromPriority}
+        onStartTakeoff={startTakeoffMode}
       />
 
       {isFieldTool ? (
