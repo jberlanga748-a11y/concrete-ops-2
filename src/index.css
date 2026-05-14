@@ -8132,6 +8132,19 @@ textarea {
   white-space: nowrap;
 }
 
+.co-incidents-mobile-focus .co-prepour-mobile-focus-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.36rem;
+}
+
+.co-incidents-mobile-focus .co-prepour-mobile-focus-actions button:nth-child(3) {
+  grid-column: auto;
+}
+
+.co-incidents-main-board {
+  scroll-margin-top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
+}
+
 @media (min-width: 768px) {
   .co-incidents-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -18838,6 +18851,71 @@ textarea {
 
   .co-tool-checklist-page.co-field-tool-page .co-toolbox-priority-grid {
     display: none !important;
+  }
+
+  .co-incidents-page .co-incidents-kpi-grid,
+  .co-incidents-page .co-incidents-priority-grid {
+    display: none !important;
+  }
+
+  .co-incidents-page .co-incidents-command-layout {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
+  }
+
+  .co-incidents-page .co-incidents-mobile-list {
+    padding-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+  }
+
+  .co-incidents-mobile-focus {
+    padding: 0.66rem !important;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-copy {
+    padding-left: 0.58rem;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-copy h2 {
+    font-size: 1.03rem;
+    line-height: 1.04;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-copy p {
+    font-size: 0.69rem;
+    line-height: 1.2;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-actions {
+    margin-top: 0.55rem;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-actions button {
+    min-height: 2.28rem;
+    gap: 0.26rem;
+    padding-left: 0.34rem !important;
+    padding-right: 0.34rem !important;
+    font-size: 0.64rem;
+    line-height: 1;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-actions svg {
+    height: 0.78rem;
+    width: 0.78rem;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.36rem;
+    margin-top: 0.52rem;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-metrics button {
+    min-height: 3.05rem;
+    padding: 0.42rem;
+  }
+
+  .co-incidents-mobile-focus .co-prepour-mobile-focus-metrics span {
+    font-size: 0.51rem;
+    letter-spacing: 0.04em;
   }
 }
 

@@ -8143,6 +8143,76 @@ function SafetyIncidentDetailPanelPolished({ incident, canReview, busy, onReview
   );
 }
 
+function SafetyIncidentsMobileFocusPanel({
+  incident,
+  visibleCount,
+  visibleOpen,
+  highSeverity,
+  reviewNeeded,
+  canSubmitIncidents,
+  onSubmitIncident,
+  onViewBoard,
+  onOpenResponse,
+  onOpenSevere,
+  onNeedsReview,
+  onOpenDetail,
+}) {
+  const focusTitle = incident?.title || "Incident response";
+  const focusMeta = incident
+    ? `${safetyIncidentJobLabel(incident)} / ${safetyIncidentReporterLabel(incident)}`
+    : "Submit field-safe safety items and keep response work easy to review.";
+  const metricItems = [
+    { label: "Open", value: visibleOpen, tone: visibleOpen ? "amber" : "green", onClick: onOpenResponse },
+    { label: "Severe", value: highSeverity, tone: highSeverity ? "orange" : "slate", onClick: onOpenSevere },
+    { label: "Review", value: reviewNeeded, tone: reviewNeeded ? "orange" : "slate", onClick: onNeedsReview },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus co-incidents-mobile-focus mx-4 mb-3 md:hidden" aria-label="Incidents mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>Safety Focus</span>
+        <h2>{focusTitle}</h2>
+        <p>{focusMeta}</p>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        {canSubmitIncidents ? (
+          <Button type="button" onClick={onSubmitIncident}>
+            <Icon name="plus" />
+            Submit Incident
+          </Button>
+        ) : (
+          <Button type="button" onClick={onOpenDetail}>
+            <Icon name="alert" />
+            View Details
+          </Button>
+        )}
+        <Button type="button" variant="secondary" onClick={onViewBoard}>
+          <Icon name="clipboard" />
+          View Board
+        </Button>
+        <Button type="button" variant="secondary" onClick={onOpenResponse}>
+          <Icon name="clock" />
+          Open Response
+        </Button>
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        <button type="button" onClick={onViewBoard} data-tone="orange">
+          <span>Visible</span>
+          <strong>{visibleCount}</strong>
+        </button>
+        {metricItems.map((item) => (
+          <button key={item.label} type="button" onClick={item.onClick} data-tone={item.tone}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SafetyIncidentsPagePolished({
   canManage,
   canSubmitIncidents,
@@ -8179,16 +8249,18 @@ function SafetyIncidentsPagePolished({
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState(canSubmitIncidents ? "submit" : "detail");
   const toolsRef = useRef(null);
+  const boardRef = useRef(null);
   const isFieldIncidentWorkspace = !canManage;
   const visibleOpen = visibleIncidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(incident.status)).length;
   const highSeverity = visibleIncidents.filter((incident) => ["high", "critical"].includes(String(incident.severity || "").toLowerCase())).length;
   const reviewNeeded = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "open").length;
+  const resolvedCount = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "resolved").length;
   const incidentKpis = [
     { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "orange" },
     { label: "Open Follow-Up", value: visibleOpen, helper: "Needs safety action", icon: "clock", tone: visibleOpen ? "amber" : "green", actionLabel: "Open", onAction: () => setIncidentStatusFilter("open") },
     { label: "High Severity", value: highSeverity, helper: "High or critical", icon: "alert", tone: highSeverity ? "red" : "green" },
     { label: "Reviewed", value: visibleIncidents.filter((incident) => incident.status === "reviewed").length, helper: "Office reviewed", icon: "check", tone: "orange", actionLabel: "Reviewed", onAction: () => setIncidentStatusFilter("reviewed") },
-    { label: "Resolved", value: visibleIncidents.filter((incident) => incident.status === "resolved").length, helper: "Closed safety loop", icon: "check", tone: "green", actionLabel: "Resolved", onAction: () => setIncidentStatusFilter("resolved") },
+    { label: "Resolved", value: resolvedCount, helper: "Closed safety loop", icon: "check", tone: "green", actionLabel: "Resolved", onAction: () => setIncidentStatusFilter("resolved") },
   ];
   const statusOptions = [
     { label: "All", value: "All" },
@@ -8219,6 +8291,10 @@ function SafetyIncidentsPagePolished({
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function jumpToBoard() {
+    window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function openPriorityIncident(matchIncident, options = {}) {
     const targetIncident = visibleIncidents.find(matchIncident) || (allIncidents || []).find(matchIncident);
     if (options.statusFilter) setIncidentStatusFilter(options.statusFilter);
@@ -8226,6 +8302,10 @@ function SafetyIncidentsPagePolished({
     if (options.severityFilter) setIncidentSeverityFilter(options.severityFilter);
     if (options.archiveFilter) setIncidentArchiveFilter(options.archiveFilter);
     if (targetIncident?.id) setSelectedIncidentId(targetIncident.id);
+    if (options.scrollTarget === "board") {
+      jumpToBoard();
+      return;
+    }
     openTools(options.tool || "detail");
   }
 
@@ -8280,13 +8360,28 @@ function SafetyIncidentsPagePolished({
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title={canManage ? "Incidents" : "Report Incident"}
-        description="Submit, review, and track safety concerns, hazards, near misses, injuries, and property damage without exposing office-only data."
+        description="Submit and track jobsite safety items without exposing office-only data."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setIncidentArchiveFilter("Active only")}>{visibleIncidents.length} visible</Button>
             {canSubmitIncidents ? <Button type="button" onClick={() => openTools("submit")}>Submit Incident</Button> : null}
           </div>
         }
+      />
+
+      <SafetyIncidentsMobileFocusPanel
+        incident={selectedIncident}
+        visibleCount={visibleIncidents.length}
+        visibleOpen={visibleOpen}
+        highSeverity={highSeverity}
+        reviewNeeded={reviewNeeded}
+        canSubmitIncidents={canSubmitIncidents}
+        onSubmitIncident={() => openTools("submit")}
+        onViewBoard={jumpToBoard}
+        onOpenResponse={() => openPriorityIncident((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || "").toLowerCase()), { statusFilter: "All", archiveFilter: "Active only", scrollTarget: "board" })}
+        onOpenSevere={() => openPriorityIncident((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()), { severityFilter: severeIncident ? String(severeIncident.severity || "critical").toLowerCase() : "All severities", archiveFilter: "Active only", scrollTarget: "board" })}
+        onNeedsReview={() => openPriorityIncident((incident) => String(incident.status || "").toLowerCase() === "open", { statusFilter: reviewNeeded ? "open" : "All", archiveFilter: "Active only", scrollTarget: "board" })}
+        onOpenDetail={() => openTools("detail")}
       />
 
       <div className="co-incidents-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
@@ -8308,6 +8403,7 @@ function SafetyIncidentsPagePolished({
       </div>
 
       <div className="co-incidents-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+        <div ref={boardRef} className="min-w-0">
         <Card className="co-incidents-main-board overflow-hidden">
           <div className="co-incidents-board-header border-b border-slate-200 bg-white p-4">
             <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -8376,6 +8472,7 @@ function SafetyIncidentsPagePolished({
             <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
           </div>
         </Card>
+        </div>
 
         <SafetyIncidentCommandRailPolished incident={selectedIncident} canSubmit={canSubmitIncidents} canReview={canReview} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
       </div>
