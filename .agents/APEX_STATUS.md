@@ -2,16 +2,16 @@
 
 ## Current Phase
 
-Pre-Pour command page polish is ready to release.
+Post-Pour command page polish is next.
 
 ## Current State
 
-- Delivery Tickets is committed, pushed, deployed, and health-checked.
+- Pre-Pour is committed, pushed, deployed, and health-checked.
 - Pre-Pour route `/prePour` was the only app page intentionally changed.
 - Latest Pre-Pour app files changed:
   - `src/App.jsx`
   - `src/index.css`
-- Project coordination file pending release update:
+- Project coordination file updated:
   - `.agents/APEX_STATUS.md`
 
 ## Latest Audit
@@ -38,7 +38,7 @@ Pre-Pour command page polish is ready to release.
 
 ## Release Status
 
-- Pre-Pour is ready for Apex Overseer review, commit, push, deploy, and health check.
+- Pre-Pour released to `origin/main` and Fly app `concrete-ops-2`.
 
 ## Remaining Notes
 
@@ -47,6 +47,11 @@ Pre-Pour command page polish is ready to release.
   - Fly release: `v304`
   - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJAMP1MK3GP23EXN8HFCPCE`
   - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
+- Pre-Pour release details:
+  - Commit: `c35a6fa` (`Polish pre-pour command page`)
+  - Fly release: `v305`
+  - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJC9HA1C352GXFMJJ0P20Q5`
+  - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
 - Generated screenshots should remain untracked under `output/`.
-- Latest released commit before this phase: `797ad41` (`Polish delivery tickets command page`)
-- Next recommended phase after Pre-Pour release: Post-Pour final touch-up sweep, then Safety/Incidents and Tool Checklist.
+- Latest released commit before next phase: `c35a6fa` (`Polish pre-pour command page`)
+- Next recommended phase: Post-Pour final touch-up sweep, then Safety/Incidents and Tool Checklist.
