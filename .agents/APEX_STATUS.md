@@ -2,12 +2,14 @@
 
 ## Current Phase
 
-Post-Pour command page polish is approved for release.
+Safety / Incidents command page polish is next.
 
 ## Current State
 
 - Pre-Pour is committed, pushed, deployed, and health-checked.
-- Post-Pour route `/postPour` is the current app page intentionally changed.
+- Post-Pour is committed, pushed, deployed, and health-checked.
+- Safety / Incidents route `/incidents` is next for page polish.
+- Post-Pour route `/postPour` was the only app page intentionally changed in the latest app-code phase.
 - Latest Post-Pour app files changed:
   - `src/App.jsx`
   - `src/index.css`
@@ -43,7 +45,7 @@ Post-Pour command page polish is approved for release.
 
 ## Release Status
 
-- Post-Pour passed overseer release review after final mobile bottom-nav spacer and active-filter fixes.
+- Post-Pour released to `origin/main` and Fly app `concrete-ops-2`.
 
 ## Remaining Notes
 
@@ -57,6 +59,11 @@ Post-Pour command page polish is approved for release.
   - Fly release: `v305`
   - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJC9HA1C352GXFMJJ0P20Q5`
   - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
+- Post-Pour release details:
+  - Commit: `5fbbb5b` (`Polish post-pour command page`)
+  - Fly release: `v307`
+  - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJETK17DH33XS1BYSS3GRHK`
+  - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
 - Generated screenshots should remain untracked under `output/`.
-- Latest released commit before Post-Pour release: `0241272` (`Update Apex status after pre-pour release`)
-- Next recommended phase after Post-Pour: Safety/Incidents final touch-up sweep.
+- Latest released app-code commit before next phase: `5fbbb5b` (`Polish post-pour command page`)
+- Next recommended phase: Safety/Incidents final touch-up sweep.
