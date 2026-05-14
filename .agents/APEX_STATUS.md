@@ -2,37 +2,36 @@
 
 ## Current Phase
 
-Dashboard UI touch-up: command-board density, right-rail fit, desktop/mobile audit.
+Jobs UI touch-up: office Jobs board density, field Jobs mobile/desktop polish, and field-safe job workflow clarity.
 
 ## Current State
 
 - Builder changes are uncommitted.
-- Dashboard route `/` is the only app page intentionally changed.
+- Jobs route `/jobs` is the only app page intentionally changed.
 - Current intended changed app files:
   - `src/App.jsx`
   - `src/index.css`
-- New project coordination files:
+- Project coordination file updated:
   - `.agents/APEX_STATUS.md`
-  - `.agents/skills/apex-overseer/SKILL.md`
-- Local skill added:
-  - `C:\Users\jberl\.codex\skills\apex-overseer\SKILL.md`
-- Release-safety ignore added:
-  - `.gitignore` now excludes generated `output/` screenshots and diagnostics.
 
 ## Latest Audit
 
-- Full audit passed at `1536x864`, `1440x900`, `1280x800`, `390x844`, and `430x932`.
-- Three-pass audit passed at `1536x864`, `1280x800`, and `390x844`.
-- Latest three-pass screenshots:
-  - `output/playwright/dashboard-audit-three-pass/2026-05-14T00-40-43-295Z`
+- Jobs audit captured office/admin, foreman, and employee views at desktop and mobile sizes.
+- No horizontal overflow detected in the latest Jobs screenshot metrics.
+- Latest Jobs screenshots:
+  - `output/playwright/jobs-final-audit/2026-05-14T01-34-04-896Z`
+  - `output/playwright/jobs-final-audit/manual-2026-05-14T01-40-54-225Z`
+  - `output/playwright/jobs-overseer-adjusted/2026-05-14T01-49-47-764Z`
+  - `output/playwright/jobs-mobile-nav-final/2026-05-14T01-58-42-940Z`
 
 ## Verification
 
 - `npm.cmd run build` passed.
+- `npm.cmd run build` passed during Jobs implementation.
 - `npm.cmd run verify:roles` passed.
-- `npm.cmd run verify:leads` passed.
 - `npm.cmd run verify:jobs` passed.
-- `node --test --test-concurrency=1 src\app-routing.test.js src\navigation-utils.test.js src\command-center-utils.test.js src\design-tokens.test.js` passed.
+- `npm.cmd run verify:field-workspaces` passed.
+- Focused routing/navigation/design token tests passed.
 - `git diff --check` passed with LF/CRLF warnings only.
 
 ## Release Status
@@ -43,7 +42,6 @@ Dashboard UI touch-up: command-board density, right-rail fit, desktop/mobile aud
 
 ## Remaining Notes
 
-- Dashboard is approved by automated layout checks.
-- Apex Overseer review approved the Dashboard visuals and required release-scope cleanup before commit.
+- Jobs mobile nav adjustments are back in Apex Overseer review before release.
 - Generated screenshots should remain untracked under `output/`.
-- Next page should be chosen after Dashboard release.
+- Next page should be chosen after Jobs release.

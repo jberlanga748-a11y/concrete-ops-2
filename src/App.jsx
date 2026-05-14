@@ -4647,6 +4647,15 @@ function FieldWorkspacePagePolished({
       <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
         <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
       </div>
+      <div className="co-field-mobile-focus-card mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 sm:px-6 lg:px-6">
+        <FieldWorkspaceDisclosure
+          title={focusJob ? "Selected job details" : "Selected job"}
+          description={focusJob ? (focusJob.customer || "Assigned site") : "Choose an assigned job to review field-safe details."}
+          badge={focusJob ? jobStatusLabel(focusJob.status || focusJob.stage) : "None"}
+        >
+          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
+        </FieldWorkspaceDisclosure>
+      </div>
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
@@ -4660,6 +4669,8 @@ function FieldWorkspacePagePolished({
               onStartBreak={onStartBreak}
               onEndBreak={onEndBreak}
               disabled={busy}
+              compactMobile
+              mobileDefaultOpen={false}
               description={isForeman ? "Clock your own assigned or field-visible work without exposing payroll or pricing data." : undefined}
             />
             <FieldNextJobCard
@@ -4965,7 +4976,7 @@ function TimeEntryCard({ entry, showUser = false, compact = false, compactMobile
   );
 }
 
-function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false }) {
+function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false, mobileDefaultOpen = true }) {
   const safeAllowedCategories = Array.isArray(allowedCategories) ? allowedCategories : [];
   const safeAvailableJobs = Array.isArray(availableJobs) ? availableJobs : [];
   const defaultCategory = safeAllowedCategories[0] || "job";
@@ -5028,7 +5039,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
     if (compactMobile) {
       return (
         <>
-          <TimeMobileAccordionCard title="Active clock" summary={activeEntry.status === "on_break" ? "You are currently on break." : "You are clocked in."} badge={<TimeStatusBadge status={activeEntry.status} />} defaultOpen>
+          <TimeMobileAccordionCard title="Active clock" summary={activeEntry.status === "on_break" ? "You are currently on break." : "You are clocked in."} badge={<TimeStatusBadge status={activeEntry.status} />} defaultOpen={mobileDefaultOpen}>
             <div className="co-time-active-target rounded-2xl border p-3">
               <p className="break-words text-sm font-black text-slate-950">{activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)}</p>
               <p className="mt-1 text-xs font-bold text-slate-500">{activeEntry.clockInAt ? `Started ${formatDateTime(activeEntry.clockInAt)}` : "Time entry active"}</p>
@@ -5067,7 +5078,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
   if (compactMobile) {
     return (
       <>
-        <TimeMobileAccordionCard title="Clock In" summary="Ready to clock in" badge={<Badge tone="slate">Ready</Badge>} defaultOpen>
+        <TimeMobileAccordionCard title="Clock In" summary="Ready to clock in" badge={<Badge tone="slate">Ready</Badge>} defaultOpen={mobileDefaultOpen}>
           {safeAllowedCategories.length === 0 ? (
             <StateCard title="Clock-in not available" description="This role is not set up for self time tracking right now." tone="slate" />
           ) : (
@@ -14675,10 +14686,10 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8, mobileMaxR
                 <th>Status</th>
                 <th>Schedule</th>
                 <th>Startup</th>
-                <th>Foreman / Crew</th>
+                <th>Crew</th>
                 <th>Next Step</th>
                 <th>Progress</th>
-                <th className="text-right">Actions</th>
+                <th className="text-right">Open</th>
               </tr>
             </thead>
             <tbody>

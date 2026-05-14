@@ -4249,7 +4249,7 @@ textarea {
       left: 0.15rem;
       right: 0.15rem;
       border-radius: 1.65rem 1.65rem 0 0;
-      padding: 0.75rem 0.75rem 0.55rem !important;
+      padding: 0.5rem 0.65rem 0.42rem !important;
     }
 
     .co-mobile-bottom-nav > div {
@@ -4264,9 +4264,9 @@ textarea {
 
     .co-mobile-bottom-nav-button {
       position: relative;
-      flex: 0 0 4.75rem;
-      min-width: 4.75rem !important;
-      min-height: 4.05rem;
+      flex: 0 0 4.45rem;
+      min-width: 4.45rem !important;
+      min-height: 3.42rem;
       border: 0 !important;
       background: transparent !important;
       font-size: 0.7rem !important;
@@ -4275,8 +4275,8 @@ textarea {
     }
 
     .co-mobile-bottom-nav-button svg {
-      height: 1.25rem;
-      width: 1.25rem;
+      height: 1.08rem;
+      width: 1.08rem;
     }
 
     .co-mobile-bottom-nav-button span {
@@ -5277,6 +5277,18 @@ textarea {
   padding-bottom: 1rem !important;
 }
 
+@media (min-width: 1024px) {
+  .co-jobs-command-layout {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+}
+
+@media (min-width: 1680px) {
+  .co-jobs-command-layout {
+    grid-template-columns: minmax(0, 1fr) 360px !important;
+  }
+}
+
 .co-jobs-main-board {
   border-top-color: rgba(249, 115, 22, 0.68) !important;
 }
@@ -5300,8 +5312,22 @@ textarea {
 }
 
 .co-jobs-main-board .co-filter-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center !important;
   padding-top: 0.48rem !important;
   padding-bottom: 0.42rem !important;
+}
+
+.co-jobs-main-board .co-filter-bar > div:first-child,
+.co-jobs-main-board .co-filter-bar > div:last-child {
+  width: 100% !important;
+}
+
+@media (min-width: 1600px) {
+  .co-jobs-main-board .co-filter-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+  }
 }
 
 .co-jobs-main-board .co-filter-bar button {
@@ -5427,7 +5453,7 @@ textarea {
 }
 
 .co-jobs-command-table th:nth-child(1) {
-  width: 22%;
+  width: 24%;
 }
 
 .co-jobs-command-table th:nth-child(2) {
@@ -5439,23 +5465,23 @@ textarea {
 }
 
 .co-jobs-command-table th:nth-child(4) {
-  width: 12%;
+  width: 11%;
 }
 
 .co-jobs-command-table th:nth-child(5) {
-  width: 14%;
-}
-
-.co-jobs-command-table th:nth-child(6) {
   width: 13%;
 }
 
+.co-jobs-command-table th:nth-child(6) {
+  width: 15%;
+}
+
 .co-jobs-command-table th:nth-child(7) {
-  width: 9%;
+  width: 8%;
 }
 
 .co-jobs-command-table th:nth-child(8) {
-  width: 8%;
+  width: 7%;
 }
 
 .co-jobs-icon-button {
@@ -5942,6 +5968,10 @@ textarea {
   display: none !important;
 }
 
+.co-field-mobile-focus-card {
+  display: none;
+}
+
 .co-field-kpi-grid .co-command-kpi {
   min-height: 5.25rem;
   border-radius: 0.82rem !important;
@@ -6192,6 +6222,7 @@ textarea {
 .co-field-notice-list strong {
   display: block;
   margin-top: 0.28rem;
+  overflow-wrap: anywhere;
   color: #334155;
   font-size: 0.82rem;
   font-weight: 900;
@@ -6242,7 +6273,7 @@ textarea {
 
 @media (min-width: 1180px) {
   .co-field-notice-list {
-    grid-template-columns: minmax(9rem, 0.85fr) minmax(13rem, 1.15fr) minmax(8rem, 0.72fr) minmax(14rem, 1.2fr);
+    grid-template-columns: minmax(9rem, 0.85fr) minmax(13rem, 1.15fr) minmax(8rem, 0.72fr);
   }
 
   .co-field-notice-list > div {
@@ -6255,7 +6286,9 @@ textarea {
   }
 
   .co-field-notice-wide {
-    grid-column: auto;
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(254, 215, 170, 0.82);
+    border-right: 0 !important;
   }
 
   .co-field-notice-grid {
@@ -6516,6 +6549,47 @@ textarea {
   .co-field-command-layout {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem) !important;
+  }
+
+  .co-field-mobile-focus-card {
+    display: none;
+  }
+
+  .co-field-mobile-focus-card .co-mobile-accordion {
+    border-radius: 1rem !important;
+  }
+
+  .co-field-mobile-focus-card .co-mobile-accordion > button {
+    min-height: 4.2rem;
+    align-items: center;
+    padding: 0.78rem 0.95rem !important;
+  }
+
+  .co-field-mobile-focus-card .co-mobile-accordion > button span span:first-child {
+    font-size: 0.96rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-field-mobile-focus-card .co-mobile-accordion > button span span:nth-child(2) {
+    margin-top: 0.24rem !important;
+    line-height: 1.18 !important;
+  }
+
+  .co-field-right-rail {
+    display: none !important;
+  }
+
+  .co-field-workspace-page .co-field-two-up {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-field-workspace-page .co-field-next-job-card {
+    display: none;
+  }
+
+  .co-field-workspace-page .co-field-two-up > .co-mobile-accordion:first-child {
+    display: none !important;
   }
 
   .co-field-operator-shell {
