@@ -4256,7 +4256,7 @@ textarea {
     .co-mobile-bottom-nav > div {
       display: flex !important;
       grid-template-columns: none !important;
-      gap: 0.35rem !important;
+      gap: 0.28rem !important;
       overflow-x: auto;
       overflow-y: hidden;
       scroll-padding-inline: 0.5rem;
@@ -4265,11 +4265,14 @@ textarea {
 
     .co-mobile-bottom-nav-button {
       position: relative;
-      flex: 0 0 4.45rem;
-      min-width: 4.45rem !important;
+      box-sizing: border-box !important;
+      flex: 0 0 4.12rem;
+      min-width: 4.12rem !important;
       min-height: 3.42rem;
       border: 0 !important;
       background: transparent !important;
+      padding-left: 0.35rem !important;
+      padding-right: 0.35rem !important;
       font-size: 0.7rem !important;
       color: rgba(203, 213, 225, 0.88) !important;
       scroll-snap-align: start;
@@ -4281,7 +4284,7 @@ textarea {
     }
 
     .co-mobile-bottom-nav-button span {
-      max-width: 4.45rem !important;
+      max-width: 4.08rem !important;
     }
 
     .co-mobile-bottom-nav-button.is-active {
@@ -19696,6 +19699,30 @@ textarea {
     flex-direction: column;
   }
 
+  .co-dashboard-focus-row > span:first-child,
+  .co-dashboard-queue-focus-row > span {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .co-dashboard-focus-row strong,
+  .co-dashboard-focus-row small,
+  .co-dashboard-focus-row em,
+  .co-dashboard-queue-focus-row strong,
+  .co-dashboard-queue-focus-row small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .co-dashboard-focus-progress {
+    width: 100%;
+    max-width: 9rem;
+  }
+
   .co-dashboard-queue-focus-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -20083,5 +20110,24 @@ textarea {
 
   .mobile-nav-safe {
     padding-bottom: 0.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  nav.co-mobile-bottom-nav > div {
+    gap: 0.25rem !important;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button {
+    box-sizing: border-box !important;
+    flex: 0 0 4rem !important;
+    min-width: 4rem !important;
+    max-width: 4rem !important;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+  }
+
+  nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button span:last-child {
+    max-width: 3.75rem !important;
   }
 }
