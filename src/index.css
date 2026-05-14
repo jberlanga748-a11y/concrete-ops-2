@@ -3865,12 +3865,13 @@ textarea {
 
     .co-mobile-user-button {
       display: flex;
+      min-height: 2.75rem;
       min-width: 0;
       align-items: center;
       gap: 0.55rem;
       border: 0;
       background: transparent;
-      padding: 0;
+      padding: 0.22rem 0;
       color: #fff;
       text-align: left;
     }
@@ -7037,6 +7038,121 @@ textarea {
   align-items: stretch;
 }
 
+.co-time-clock-hero .co-time-active-card {
+  padding: 1rem !important;
+}
+
+.co-time-active-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.58fr);
+  gap: 0.85rem;
+}
+
+.co-time-active-now-card,
+.co-time-active-control-card {
+  min-width: 0;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-radius: 0.86rem;
+  background: #ffffff;
+}
+
+.co-time-active-now-card {
+  padding: 0.9rem;
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.92), rgba(255, 255, 255, 0.88)),
+    #ffffff;
+  box-shadow: inset 4px 0 0 rgba(249, 115, 22, 0.92);
+}
+
+.co-time-active-now-card h3 {
+  margin-top: 0.38rem;
+  color: #07111f;
+  font-size: clamp(1.12rem, 1.8vw, 1.55rem);
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.co-time-active-now-card p:not(:first-child) {
+  margin-top: 0.32rem;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+.co-time-active-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.52rem;
+  margin-top: 0.78rem;
+}
+
+.co-time-active-metric-grid span {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.68rem;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 0.52rem;
+}
+
+.co-time-active-metric-grid strong,
+.co-time-active-metric-grid em {
+  display: block;
+  min-width: 0;
+}
+
+.co-time-active-metric-grid strong {
+  overflow: hidden;
+  color: #07111f;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.co-time-active-metric-grid em {
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.56rem;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.co-time-active-control-card {
+  display: grid;
+  align-content: center;
+  padding: 0.9rem;
+}
+
+.co-time-active-control-card p {
+  color: #c2410c;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.co-time-active-control-card strong {
+  margin-top: 0.3rem;
+  color: #07111f;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.co-time-active-control-card .co-time-active-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.co-time-active-control-card .co-time-clock-secondary {
+  min-height: 3.72rem;
+}
+
 .co-time-main-board,
 .co-time-rail-card {
   border-top-color: rgba(249, 115, 22, 0.72) !important;
@@ -7171,7 +7287,7 @@ textarea {
 }
 
 .co-time-command-table th:nth-child(2) {
-  width: 22%;
+  width: 18%;
 }
 
 .co-time-command-table th:nth-child(3),
@@ -7186,11 +7302,11 @@ textarea {
 }
 
 .co-time-command-table th:nth-child(8) {
-  width: 4%;
+  width: 8%;
 }
 
 .co-time-command-table.is-own-view th:nth-child(1) {
-  width: 28%;
+  width: 25%;
 }
 
 .co-time-command-table.is-own-view th:nth-child(2),
@@ -7205,17 +7321,24 @@ textarea {
 }
 
 .co-time-command-table.is-own-view th:nth-child(7) {
-  width: 7%;
+  width: 10%;
+}
+
+.co-time-command-table td:last-child {
+  min-width: 4.6rem;
+  white-space: nowrap;
 }
 
 .co-time-icon-button {
   display: inline-flex;
-  height: 1.5rem;
-  width: 1.5rem;
+  flex: 0 0 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  width: 2rem;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(203, 213, 225, 0.9);
-  border-radius: 0.55rem;
+  border-radius: 0.72rem;
   background: #ffffff;
   color: #334155;
   transition:
@@ -7231,8 +7354,8 @@ textarea {
 }
 
 .co-time-icon-button svg {
-  height: 0.78rem;
-  width: 0.78rem;
+  height: 0.92rem;
+  width: 0.92rem;
 }
 
 .co-time-right-rail {
@@ -7679,6 +7802,14 @@ textarea {
   .co-time-clock-hero .co-time-clock-primary svg {
     height: 1.42rem;
     width: 1.42rem;
+  }
+
+  .co-time-active-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-time-active-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .co-time-board-header {

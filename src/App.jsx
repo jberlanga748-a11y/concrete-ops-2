@@ -5027,7 +5027,7 @@ function TimeEntryCard({ entry, showUser = false, compact = false, compactMobile
   );
 }
 
-function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false, mobileDefaultOpen = true }) {
+function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClockIn, onClockOut, onStartBreak, onEndBreak, disabled, description = "Start time on one of your allowed work categories.", compactMobile = false, mobileDefaultOpen = true, heroClock = false }) {
   const safeAllowedCategories = Array.isArray(allowedCategories) ? allowedCategories : [];
   const safeAvailableJobs = Array.isArray(availableJobs) ? availableJobs : [];
   const defaultCategory = safeAllowedCategories[0] || "job";
@@ -5079,6 +5079,8 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
   );
 
   if (activeEntry) {
+    const activeStartedLabel = activeEntry.clockInAt ? formatDateTime(activeEntry.clockInAt) : "Time entry active";
+    const activeTotalLabel = activeEntry.status === "completed" ? formatMinutes(activeEntry.totalMinutes) : "In progress";
     const activeActions = (
       <div className={compactMobile ? "co-time-active-actions mt-3 flex flex-wrap gap-2 md:mt-4" : "co-time-active-actions mt-4 flex flex-wrap gap-2"}>
         {activeEntry.status === "active" ? <Button className="co-time-clock-secondary flex-1" size="lg" onClick={() => onStartBreak(activeEntry.id)} disabled={disabled}>Start break</Button> : null}
@@ -5093,7 +5095,7 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
           <TimeMobileAccordionCard title="Active clock" summary={activeEntry.status === "on_break" ? "You are currently on break." : "You are clocked in."} badge={<TimeStatusBadge status={activeEntry.status} />} defaultOpen={mobileDefaultOpen}>
             <div className="co-time-active-target rounded-2xl border p-3">
               <p className="break-words text-sm font-black text-slate-950">{activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)}</p>
-              <p className="mt-1 text-xs font-bold text-slate-500">{activeEntry.clockInAt ? `Started ${formatDateTime(activeEntry.clockInAt)}` : "Time entry active"}</p>
+              <p className="mt-1 text-xs font-bold text-slate-500">Started {activeStartedLabel}</p>
             </div>
             {activeActions}
             <div className="mt-3">
@@ -5102,10 +5104,33 @@ function ActiveTimeCard({ activeEntry, availableJobs, allowedCategories, onClock
               </TimeMobileFieldGroup>
             </div>
           </TimeMobileAccordionCard>
-          <Card className="hidden p-5 md:block">
-            <SectionHeader title="Active clock" description="Keep your current time entry accurate before heading back to the job." />
-            <TimeEntryCard entry={activeEntry} compact compactMobile={compactMobile} />
-            {activeActions}
+          <Card className={heroClock ? "co-time-active-card hidden p-5 md:block" : "hidden p-5 md:block"}>
+            <SectionHeader title="Active clock" description="Keep your current time entry accurate before heading back to the job." action={<TimeStatusBadge status={activeEntry.status} />} />
+            {heroClock ? (
+              <div className="co-time-active-hero-grid">
+                <div className="co-time-active-now-card">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Clocked into</p>
+                  <h3>{activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)}</h3>
+                  <p>{activeEntry.address || activeEntry.notes || workCategoryLabel(activeEntry.workCategory)}</p>
+                  <div className="co-time-active-metric-grid">
+                    <span><strong>{activeStartedLabel}</strong><em>Clock in</em></span>
+                    <span><strong>{activeEntry.clockOutAt ? formatDateTime(activeEntry.clockOutAt) : "Still active"}</strong><em>Clock out</em></span>
+                    <span><strong>{formatMinutes(activeEntry.breakMinutes)}</strong><em>Break</em></span>
+                    <span><strong>{activeTotalLabel}</strong><em>Total</em></span>
+                  </div>
+                </div>
+                <div className="co-time-active-control-card">
+                  <p>{activeEntry.status === "on_break" ? "Break is running" : "Time is running"}</p>
+                  <strong>{activeEntry.status === "on_break" ? "End break before returning to work." : "Start a break or clock out when the shift is done."}</strong>
+                  {activeActions}
+                </div>
+              </div>
+            ) : (
+              <>
+                <TimeEntryCard entry={activeEntry} compact compactMobile={compactMobile} />
+                {activeActions}
+              </>
+            )}
             <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
               {activeEntry.status === "on_break" ? "You are currently on break." : "You are already clocked in."}
             </p>
@@ -5613,6 +5638,7 @@ function TimePage({
             disabled={busy}
             description="Clock into the right job fast, add a short note when needed, and keep field time clean for the office."
             compactMobile
+            heroClock
           />
         </div>
       ) : null}
