@@ -6,7 +6,7 @@ Jobs UI touch-up: office Jobs board density, field Jobs mobile/desktop polish, a
 
 ## Current State
 
-- Builder changes are uncommitted.
+- Jobs phase is committed, pushed, and deployed.
 - Jobs route `/jobs` is the only app page intentionally changed.
 - Current intended changed app files:
   - `src/App.jsx`
@@ -42,6 +42,9 @@ Jobs UI touch-up: office Jobs board density, field Jobs mobile/desktop polish, a
 
 ## Remaining Notes
 
-- Jobs mobile nav adjustments are back in Apex Overseer review before release.
+- Apex Overseer approved Jobs for release.
 - Generated screenshots should remain untracked under `output/`.
-- Next page should be chosen after Jobs release.
+- Commit: `53ca9e3` (`Polish jobs field command workspace`)
+- Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJ3PVRTY4QNJ3WADD7DJ5D0`
+- Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
+- Next recommended phase: Time / Clock command page polish.
