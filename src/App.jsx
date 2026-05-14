@@ -8775,6 +8775,72 @@ function ToolboxPpePanelPolished({ ppeItems, canManage, selectedPpeItem, setSele
   );
 }
 
+function ToolboxTalksMobileFocusPanel({
+  talk,
+  visibleCount,
+  activeCount,
+  requiredPpeCount,
+  acknowledgmentState,
+  canAcknowledge,
+  canManage,
+  onAcknowledge,
+  onViewBoard,
+  onOpenPpe,
+  onManage,
+}) {
+  const focusTitle = talk?.title || "Toolbox review";
+  const focusMeta = talk
+    ? `${talk.category || "Safety"} / ${formatDateTime(toolboxPolicyUpdatedAt(talk)) || "No date"}`
+    : "Keep safety guidance, PPE reminders, and crew acknowledgment easy to reach.";
+  const metricItems = [
+    { label: "Visible", value: visibleCount, tone: visibleCount ? "orange" : "slate", onClick: onViewBoard },
+    { label: "Active", value: activeCount, tone: activeCount ? "green" : "slate", onClick: onViewBoard },
+    { label: "PPE", value: requiredPpeCount, tone: requiredPpeCount ? "orange" : "slate", onClick: onOpenPpe },
+    { label: "Ack", value: acknowledgmentState.hasAcknowledged ? "Done" : "Open", tone: acknowledgmentState.hasAcknowledged ? "green" : "amber", onClick: onAcknowledge },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus mx-4 mb-3 md:hidden" aria-label="Toolbox talks mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>Toolbox Focus</span>
+        <h2>{focusTitle}</h2>
+        <p>{focusMeta}</p>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        {canAcknowledge ? (
+          <Button type="button" onClick={onAcknowledge}>
+            <Icon name="check" />
+            Acknowledge
+          </Button>
+        ) : (
+          <Button type="button" onClick={onViewBoard}>
+            <Icon name="clipboard" />
+            View Board
+          </Button>
+        )}
+        <Button type="button" variant="secondary" onClick={onViewBoard}>
+          <Icon name="clipboard" />
+          Board
+        </Button>
+        <Button type="button" variant="secondary" onClick={canManage ? onManage : onOpenPpe}>
+          <Icon name={canManage ? "settings" : "hardhat"} />
+          {canManage ? "Manage" : "PPE"}
+        </Button>
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        {metricItems.map((item) => (
+          <button key={item.label} type="button" onClick={item.onClick} data-tone={item.tone}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ToolboxTalksPagePolished({
   canManage,
   canAcknowledge,
@@ -8906,13 +8972,27 @@ function ToolboxTalksPagePolished({
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title="Toolbox Talks"
-        description="Review field-ready safety guidance, PPE reminders, and crew acknowledgments before work starts."
+        description="Review toolbox guidance, PPE reminders, and crew acknowledgments."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={clearFilters}>{filteredPolicies.length} visible</Button>
             {canAcknowledge ? <Button type="button" onClick={() => openTools("ack")}>Acknowledge</Button> : null}
           </div>
         }
+      />
+
+      <ToolboxTalksMobileFocusPanel
+        talk={selectedTalk}
+        visibleCount={filteredPolicies.length}
+        activeCount={visiblePolicies.filter((policy) => !policy.archivedAt).length}
+        requiredPpeCount={requiredPpeCount}
+        acknowledgmentState={acknowledgmentState}
+        canAcknowledge={canAcknowledge}
+        canManage={canManage}
+        onAcknowledge={() => openTools(canAcknowledge ? "ack" : "ppe")}
+        onViewBoard={scrollToGuidanceBoard}
+        onOpenPpe={() => openTools("ppe")}
+        onManage={() => openTools("manage")}
       />
 
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
