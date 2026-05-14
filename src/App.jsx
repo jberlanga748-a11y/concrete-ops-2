@@ -12198,7 +12198,7 @@ function DashboardCommandRailPolished({
 }) {
   const activeQueueItems = normalizeObjectArray(queueItems).filter((item) => !item.archivedAt && !item.done);
   const activeJobs = normalizeObjectArray(liveJobsPreview).filter((job) => !job.archivedAt);
-  const recentActivity = normalizeObjectArray(activity).slice(0, 3);
+  const recentActivity = normalizeObjectArray(activity).slice(0, 1);
   const selectedLeadTitle = selectedLead?.customer || selectedLead?.company || "No lead selected";
 
   return (
@@ -12227,7 +12227,7 @@ function DashboardCommandRailPolished({
 
       <Card className="co-dashboard-rail-card p-4">
         <SectionHeader title="Quick Moves" description="Jump without losing the board context." />
-        <div className="grid gap-2">
+        <div className="co-dashboard-quick-moves-grid">
           {permissions?.jobs?.canManageAll ? (
             <button type="button" className="co-dashboard-action-row" onClick={() => setActive("commandCenter")}>
               <span>Command Center</span>
@@ -12278,7 +12278,7 @@ function DashboardCommandRailPolished({
       </Card>
 
       <Card className="co-dashboard-rail-card p-4">
-        <SectionHeader title="Recent Activity" description="Latest visible workspace movement." />
+        <SectionHeader title="Recent Activity" description="Latest workspace movement." />
         <div className="grid gap-2">
           {recentActivity.length ? recentActivity.map((entry, index) => (
             <div key={entry.id || `${entry.type || "activity"}-${index}`} className="co-dashboard-activity-row">
@@ -12405,7 +12405,7 @@ function DashboardCockpitPanel({
   onFocusQueue,
 }) {
   return (
-    <div className="co-dashboard-cockpit mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:px-6">
+    <div className="co-dashboard-cockpit w-full min-w-0">
       <Card className="co-dashboard-cockpit-main">
         <div className="co-dashboard-cockpit-copy">
           <p>Owner command</p>
@@ -12418,23 +12418,16 @@ function DashboardCockpitPanel({
           <DashboardCockpitMetric label="Pipeline" value={compactCurrency(pipelineValue)} helper={`${stats.newLeads || 0} new leads`} tone="blue" />
           <DashboardCockpitMetric label="Queue open" value={openQueueCount} helper="Tasks still moving" tone={openQueueCount ? "amber" : "green"} />
         </div>
-        <div className="co-dashboard-cockpit-actions">
-          {permissions?.jobs?.canManageAll ? <Button type="button" onClick={() => setActive("commandCenter")}>Open Command Center</Button> : null}
-          <Button type="button" variant="secondary" onClick={onFocusQueue}>Review Today's Queue</Button>
-          <Button type="button" variant="secondary" onClick={onFocusJobs}>Jobs at Risk</Button>
-          <Button type="button" variant="secondary" onClick={onFocusLeads}>Lead Follow-Up</Button>
+        <div className="co-dashboard-next-panel">
+          <div className="co-dashboard-next-header">
+            <span>Next moves</span>
+            <strong>Click first</strong>
+          </div>
+          <div className="co-dashboard-next-grid">
+            {dashboardPriorityCards.map((item) => <DashboardNextActionTile key={item.title} item={item} />)}
+          </div>
         </div>
       </Card>
-
-      <div className="co-dashboard-next-panel">
-        <div className="co-dashboard-next-header">
-          <span>Next moves</span>
-          <strong>Click the lane that matters first.</strong>
-        </div>
-        <div className="co-dashboard-next-grid">
-          {dashboardPriorityCards.map((item) => <DashboardNextActionTile key={item.title} item={item} />)}
-        </div>
-      </div>
     </div>
   );
 }
@@ -12560,8 +12553,10 @@ function DashboardDailyFocusBoard({
                   <strong>{item.title}</strong>
                   <small>{item.meta || "Queue context pending"}</small>
                 </span>
-                <StatusBadge status={item.done ? "Done" : item.status} />
-                <button type="button" onClick={() => onArchiveTask?.(item.id)} disabled={disabled}>Archive</button>
+                <span className="co-dashboard-queue-actions">
+                  <StatusBadge status={item.done ? "Done" : item.status} />
+                  <button type="button" onClick={() => onArchiveTask?.(item.id)} disabled={disabled}>Archive</button>
+                </span>
               </div>
             )) : (
               <StateCard title="Queue clear" description="Due, blocked, and review items appear here when they need action." tone="green" />
@@ -12867,43 +12862,41 @@ function DashboardPagePolished({
         tabs={tabs}
       />
 
-      <DashboardCockpitPanel
-        stats={stats}
-        pipelineValue={pipelineValue}
-        attentionCount={attentionCount}
-        readyCount={readyWorkCount}
-        openQueueCount={openQueueCount}
-        dashboardPriorityCards={dashboardPriorityCards}
-        permissions={permissions}
-        setActive={setActive}
-        onFocusLeads={() => focusDashboardRef(leadPipelineRef)}
-        onFocusJobs={() => focusDashboardRef(jobsRef)}
-        onFocusQueue={() => focusDashboardRef(queueRef)}
-      />
-
-      <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
-        <DashboardDailyFocusBoard
-          leadRef={leadPipelineRef}
-          jobsRef={jobsRef}
-          queueRef={queueRef}
-          visibleLeads={visibleLeads}
-          selectedLeadId={selectedLeadId}
-          onSelectLead={onSelectLead}
-          liveJobsPreview={liveJobsPreview}
-          selectedJobId={selectedJobId}
-          onSelectJob={onSelectJob}
-          activeQueueItems={activeQueueItems}
-          onToggleTask={onToggleTask}
-          onArchiveTask={onArchiveTask}
-          onOpenLeads={() => setActive("leads")}
-          onOpenJobs={() => setActive("jobs")}
-          onOpenTools={() => openDashboardTools(toolsRef)}
-          disabled={busy}
-        />
-      </div>
-
-      <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+      <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_330px] lg:px-6">
         <div className="co-dashboard-left-stack min-w-0 space-y-3">
+          <DashboardCockpitPanel
+            stats={stats}
+            pipelineValue={pipelineValue}
+            attentionCount={attentionCount}
+            readyCount={readyWorkCount}
+            openQueueCount={openQueueCount}
+            dashboardPriorityCards={dashboardPriorityCards}
+            permissions={permissions}
+            setActive={setActive}
+            onFocusLeads={() => focusDashboardRef(leadPipelineRef)}
+            onFocusJobs={() => focusDashboardRef(jobsRef)}
+            onFocusQueue={() => focusDashboardRef(queueRef)}
+          />
+
+          <DashboardDailyFocusBoard
+            leadRef={leadPipelineRef}
+            jobsRef={jobsRef}
+            queueRef={queueRef}
+            visibleLeads={visibleLeads}
+            selectedLeadId={selectedLeadId}
+            onSelectLead={onSelectLead}
+            liveJobsPreview={liveJobsPreview}
+            selectedJobId={selectedJobId}
+            onSelectJob={onSelectJob}
+            activeQueueItems={activeQueueItems}
+            onToggleTask={onToggleTask}
+            onArchiveTask={onArchiveTask}
+            onOpenLeads={() => setActive("leads")}
+            onOpenJobs={() => setActive("jobs")}
+            onOpenTools={() => openDashboardTools(toolsRef)}
+            disabled={busy}
+          />
+
           <details ref={toolsRef} className="co-dashboard-tools-drawer" open={showOfficeTools} onToggle={(event) => setShowOfficeTools(event.currentTarget.open)}>
             <summary>
               <span>
