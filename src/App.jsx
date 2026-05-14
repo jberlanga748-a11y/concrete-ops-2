@@ -14403,6 +14403,12 @@ function LeadSourcesPanel({
   const [formError, setFormError] = useState("");
   const sourceState = useMemo(() => deriveLeadSourceListState(sources, { includeInactive: showInactive, query }), [query, showInactive, sources]);
   const activeEditingSource = editingId ? sources.find((source) => source.id === editingId) : null;
+  const sourceLibraryTone = sourceState.stats.dueForCheck ? "orange" : sourceState.stats.active ? "green" : "amber";
+  const sourceLibraryCards = [
+    { label: "Active Sources", value: sourceState.stats.active, helper: "Live channels feeding Daily Source Check.", tone: sourceState.stats.active ? "green" : "amber" },
+    { label: "Due For Check", value: sourceState.stats.dueForCheck, helper: "Needs office review from Source Checks.", tone: sourceState.stats.dueForCheck ? "orange" : "slate" },
+    { label: "Inactive", value: sourceState.stats.inactive, helper: "Paused sources stay visible when requested.", tone: sourceState.stats.inactive ? "slate" : "green" },
+  ];
 
   function resetDraft() {
     setDraft(INITIAL_LEAD_SOURCE_FORM);
@@ -14447,7 +14453,7 @@ function LeadSourcesPanel({
 
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-blue-100 bg-blue-50/60 p-4">
+      <div className="co-lead-source-header border-b border-orange-100 bg-white p-4">
         <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <Badge tone="green">Lead Sources</Badge>
@@ -14456,19 +14462,26 @@ function LeadSourcesPanel({
               Track bid pages, plan rooms, referral lists, and relationship sources. This is source management only; no scraping, AI, or automatic checks run here.
             </p>
           </div>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-3 xl:min-w-[420px]">
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-lg font-black text-slate-950">{sourceState.stats.active}</p>
-              <Badge tone="green">Active</Badge>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-lg font-black text-slate-950">{sourceState.stats.inactive}</p>
-              <Badge tone="slate">Inactive</Badge>
-            </div>
-            <div className="rounded-2xl border border-blue-100 bg-white p-3">
-              <p className="text-lg font-black text-slate-950">{sourceState.stats.dueForCheck}</p>
-              <Badge tone={sourceState.stats.dueForCheck > 0 ? "amber" : "slate"}>Due</Badge>
-            </div>
+          <div className="co-lead-source-stat-grid">
+            {sourceLibraryCards.map((card) => (
+              <div key={card.label} className="co-lead-source-stat" data-tone={card.tone}>
+                <p>{card.value}</p>
+                <strong>{card.label}</strong>
+                <span>{card.helper}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="co-lead-source-command-strip" data-tone={sourceLibraryTone}>
+          <div>
+            <span>Source Library Console</span>
+            <strong>{sourceState.stats.active ? "Keep every source checkable and clean." : "Add the first source to start daily job finding."}</strong>
+            <p>Use starter templates for common contractor channels, keep URLs and cadence current, and avoid storing passwords or private portal credentials.</p>
+          </div>
+          <div className="co-lead-source-command-points">
+            <small><b>Type</b>Bid page, plan room, referral, relationship</small>
+            <small><b>Cadence</b>Daily, weekly, monthly, or manual</small>
+            <small><b>Safety</b>No secrets or private login data</small>
           </div>
         </div>
       </div>
@@ -14491,8 +14504,8 @@ function LeadSourcesPanel({
           {sourceState.sources.length > 0 ? (
             <div className="space-y-3">
               {sourceState.sources.map((source) => (
-                <div key={source.id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                  <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div key={source.id} className="co-lead-source-record" data-state={source.status === "Active" ? "active" : "inactive"}>
+                  <div className="co-lead-source-record-head">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="break-words text-sm font-black text-slate-950">{source.name || "Unnamed source"}</p>
@@ -14502,13 +14515,13 @@ function LeadSourcesPanel({
                         {[source.type, leadSourceLocation(source), source.tradeFocus].filter(Boolean).join(" / ")}
                       </p>
                       <p className="mt-2 break-words text-sm leading-6 text-slate-600">{source.notes || "No notes yet."}</p>
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-                        <span>Cadence: {source.checkCadence || "Manual"}</span>
-                        <span>Last: {source.lastCheckedAt || "Not set"}</span>
-                        <span>Next: {source.nextCheckAt || "Not set"}</span>
+                      <div className="co-lead-source-record-meta">
+                        <span><b>Cadence</b>{source.checkCadence || "Manual"}</span>
+                        <span><b>Last</b>{source.lastCheckedAt || "Not set"}</span>
+                        <span><b>Next</b>{source.nextCheckAt || "Not set"}</span>
                       </div>
                     </div>
-                    <div className="flex w-full flex-col gap-2 sm:w-auto">
+                    <div className="co-lead-source-record-actions">
                       {source.url ? (
                         <a className="inline-flex min-w-0 max-w-full items-center justify-center rounded-2xl border border-blue-100 bg-white px-3 py-2 text-center text-xs font-black leading-tight text-slate-700 transition hover:bg-blue-50" href={source.url} target="_blank" rel="noreferrer">Open source URL</a>
                       ) : null}
@@ -14525,11 +14538,30 @@ function LeadSourcesPanel({
               ))}
             </div>
           ) : (
-            <StateCard title="No lead sources yet" description="Add bid pages, plan rooms, referral lists, or other manual sources for the office to review." tone="slate" />
+            <div className="space-y-3">
+              <StateCard title="No lead sources yet" description="Add bid pages, plan rooms, referral lists, or other manual sources for the office to review." tone="slate" />
+              <div className="co-lead-source-empty-guide">
+                <div>
+                  <span>1</span>
+                  <strong>Build the run list</strong>
+                  <p>Add the public pages, plan rooms, GC invites, and relationship sources the office should check.</p>
+                </div>
+                <div>
+                  <span>2</span>
+                  <strong>Set the cadence</strong>
+                  <p>Keep daily, weekly, monthly, and manual sources separated so due checks stay obvious.</p>
+                </div>
+                <div>
+                  <span>3</span>
+                  <strong>Hand off real work</strong>
+                  <p>Source checks turn into leads only after the office confirms the opportunity is real.</p>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
-        <form onSubmit={submitSource} className="min-w-0 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+        <form onSubmit={submitSource} className="co-lead-source-editor min-w-0">
           <SectionHeader
             title={editingId ? "Edit lead source" : "Add lead source"}
             description="Name is required. URL is optional because relationship sources may not have one."
@@ -14908,6 +14940,22 @@ function LeadsPage({
     });
   }
 
+  function selectLeadTool(toolId = "intake") {
+    setActiveLeadTool(toolId);
+    if (typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      const target = document.getElementById("lead-tools-drawer");
+      if (target?.tagName === "DETAILS") {
+        target.open = true;
+      }
+      const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+      if (isMobile) {
+        const panel = target?.querySelector?.(".co-leads-tools-panel");
+        (panel || target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+
   return (
     <div className="co-office-page co-leads-page">
       <PageHeader
@@ -15040,7 +15088,7 @@ function LeadsPage({
         />
       </div>
 
-      <details id="lead-tools-drawer" className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-4 sm:px-6 lg:px-8">
+      <details id="lead-tools-drawer" className="co-leads-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8">
         <summary>
           <span>
             <strong>Lead Tools</strong>
@@ -15050,7 +15098,7 @@ function LeadsPage({
         </summary>
         <div className="co-leads-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
           {leadToolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeLeadTool === tab.id ? "is-active" : ""} onClick={() => setActiveLeadTool(tab.id)}>
+            <button key={tab.id} type="button" className={activeLeadTool === tab.id ? "is-active" : ""} onClick={() => selectLeadTool(tab.id)}>
               {tab.label}
               <span>{tab.count}</span>
             </button>
