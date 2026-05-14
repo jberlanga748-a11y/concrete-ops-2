@@ -19594,6 +19594,26 @@ function CopilotPagePolished({
                             ) : null}
                           </div>
                         ) : null}
+                        {opportunity.leadPreview ? (
+                          <div className="co-ai-lead-handoff-card" data-tone={opportunity.convertedLeadId ? "green" : opportunity.tone}>
+                            <div className="co-ai-lead-handoff-head">
+                              <span>{opportunity.convertedLeadId ? "Lead Created" : "Lead Handoff Preview"}</span>
+                              <strong>{opportunity.convertedLeadId ? "Already in Leads" : "What Create Lead will carry forward"}</strong>
+                              <p>No lead is created until the office clicks Create Lead. The existing handler opens the new lead after conversion.</p>
+                            </div>
+                            <div className="co-ai-lead-handoff-grid">
+                              <small><b>Customer</b>{opportunity.leadPreview.customer}</small>
+                              <small><b>Project</b>{opportunity.leadPreview.project}</small>
+                              <small><b>City</b>{opportunity.leadPreview.city}</small>
+                              <small><b>Priority</b>{opportunity.leadPreview.priority}</small>
+                              <small><b>Source</b>{opportunity.leadPreview.source}</small>
+                              <small><b>Follow-up</b>{opportunity.leadPreview.followUp}</small>
+                              <small><b>Owner</b>{opportunity.leadPreview.owner}</small>
+                              <small><b>Notes</b>{opportunity.leadPreview.notesIncluded.length ? opportunity.leadPreview.notesIncluded.join(", ") : "Basic opportunity details"}</small>
+                            </div>
+                            <p className="co-ai-lead-handoff-next">{opportunity.leadPreview.nextStep}</p>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="co-ai-scout-record-actions">
                         {opportunity.sourceUrl ? <a className="co-ai-scout-link" href={opportunity.sourceUrl} target="_blank" rel="noreferrer">Open Source</a> : null}
@@ -19601,7 +19621,7 @@ function CopilotPagePolished({
                           {aiReview?.status === "loading" ? "Reviewing..." : "AI Review"}
                         </Button>
                         <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId)}>
-                          Create Lead
+                          {opportunity.convertedLeadId ? "Lead Created" : "Create Lead"}
                         </Button>
                         {["reviewing", "watching", "bidding", "skipped"].map((status) => (
                           <Button key={status} type="button" size="sm" variant={opportunity.status === status ? "primary" : "ghost"} onClick={() => setOpportunityStatus(opportunity, status)} disabled={!canManageOpportunityScout || busy}>

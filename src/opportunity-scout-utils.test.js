@@ -109,6 +109,11 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.foundOpportunityQueue[0].scopeSummary, "Sidewalk replacement with ADA ramp repair.");
   assert.deepEqual(state.foundOpportunityQueue[0].riskFlags, ["prevailing wage"]);
   assert.deepEqual(state.foundOpportunityQueue[0].missingInfoItems, ["addenda"]);
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.customer, "Albany School District");
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.project, "School sidewalk repair");
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.city, "Location pending");
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.priority, "High");
+  assert.deepEqual(state.foundOpportunityQueue[0].leadPreview.notesIncluded, ["source link", "scope", "risks", "missing info"]);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 3);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").targetId, "scout-found-opportunities");
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);

@@ -17066,6 +17066,89 @@ textarea {
   text-decoration: underline;
 }
 
+.co-ai-lead-handoff-card {
+  --co-ai-handoff-tone: var(--co-ai-record-tone, #f97316);
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--co-ai-handoff-tone) 24%, rgba(203, 213, 225, 0.92));
+  border-radius: 0.78rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--co-ai-handoff-tone) 6%, white), #ffffff);
+  padding: 0.62rem;
+  box-shadow: inset 3px 0 0 var(--co-ai-handoff-tone);
+}
+
+.co-ai-lead-handoff-card[data-tone="red"] {
+  --co-ai-handoff-tone: #ef4444;
+}
+
+.co-ai-lead-handoff-card[data-tone="amber"],
+.co-ai-lead-handoff-card[data-tone="orange"] {
+  --co-ai-handoff-tone: #f97316;
+}
+
+.co-ai-lead-handoff-card[data-tone="green"] {
+  --co-ai-handoff-tone: #16a34a;
+}
+
+.co-ai-lead-handoff-card[data-tone="blue"] {
+  --co-ai-handoff-tone: #2563eb;
+}
+
+.co-ai-lead-handoff-card[data-tone="slate"] {
+  --co-ai-handoff-tone: #64748b;
+}
+
+.co-ai-lead-handoff-head {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.co-ai-lead-handoff-head span,
+.co-ai-lead-handoff-grid b {
+  color: var(--co-ai-handoff-tone);
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.co-ai-lead-handoff-head strong {
+  color: #0f172a;
+  font-size: 0.83rem;
+  font-weight: 950;
+}
+
+.co-ai-lead-handoff-head p,
+.co-ai-lead-handoff-next {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.32;
+}
+
+.co-ai-lead-handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.co-ai-lead-handoff-grid small {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 0.62rem;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.42rem;
+  color: #0f172a;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.24;
+  overflow-wrap: anywhere;
+}
+
 .co-ai-scout-review {
   display: grid;
   gap: 0.65rem;
@@ -17621,7 +17704,8 @@ textarea {
   }
 
   .co-ai-found-review-checks,
-  .co-ai-found-evidence-grid {
+  .co-ai-found-evidence-grid,
+  .co-ai-lead-handoff-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
