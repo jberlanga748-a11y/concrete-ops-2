@@ -16330,7 +16330,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
   }
 
   return (
-    <Card className="p-5">
+    <Card className="co-imports-match-card p-5">
       <SectionHeader
         title="Customer match review"
         description="Prevent duplicate customer records before this draft becomes a real job."
@@ -16381,7 +16381,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
             </option>
           ))}
         </SelectField>
-        <div className="flex flex-wrap gap-2">
+        <div className="co-imports-match-actions flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => setConfirmedCustomer(draft.matchedCustomerId)} disabled={!draft.matchedCustomerId}>Confirm Match</Button>
           <Button
             type="button"
@@ -16531,7 +16531,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
           </div>
         }
       />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:items-start lg:px-8">
+      <div className="co-import-detail-layout grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:items-start lg:px-8">
         <div className="min-w-0 space-y-4">
           {message ? <div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-bold text-green-800">{message}</div> : null}
           <Card className="p-5">
@@ -16625,7 +16625,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
             </div>
           </Card>
         </div>
-        <div className="min-w-0 space-y-4 lg:sticky lg:top-20">
+        <div className="co-import-detail-rail min-w-0 space-y-4 lg:sticky lg:top-20">
           <Card className="p-5">
             <SectionHeader title="Create job readiness" description={workflowState.nextStep} />
             <div className="mt-4 space-y-3">
