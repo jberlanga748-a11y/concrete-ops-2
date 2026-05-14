@@ -17708,7 +17708,7 @@ function CalculatorModeTabsPolished({ calculatorMode, setCalculatorMode, onModeC
 
 function CalculatorTypeTabsPolished({ calculatorType, setCalculatorType }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-4">
+    <div className="co-calculator-type-tabs grid gap-2 sm:grid-cols-4">
       {CALCULATOR_TYPES.map((option) => (
         <button
           key={option.id}
@@ -18032,6 +18032,63 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
   );
 }
 
+function CalculatorFieldResultDock({ result, calculatorMode, takeoffSections, allowedJobs }) {
+  const ready = result.status === "ready";
+  const resultValue = ready ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open";
+  const statusItems = [
+    { label: "Values", value: result.status === "invalid" ? "Fix" : "Safe", state: result.status === "invalid" ? "needs" : "ready" },
+    { label: "Dimensions", value: ready ? "Complete" : "Needed", state: ready ? "ready" : "needs" },
+    { label: "Copy text", value: ready ? "Ready" : "Pending", state: ready ? "ready" : "needs" },
+    { label: "Job save", value: ready && allowedJobs.length ? "Ready" : "Pending", state: ready && allowedJobs.length ? "ready" : "needs" },
+  ];
+  const metricItems = [
+    { label: "With waste", value: ready ? formatCubicYards(result.cubicYardsWithWaste) : "--", tone: ready ? "green" : "slate" },
+    { label: "Base yield", value: ready ? formatCubicYards(result.baseCubicYards) : "--", tone: "slate" },
+    { label: "Cubic feet", value: ready ? formatCubicFeet(result.baseCubicFeet) : "--", tone: "slate" },
+    { label: "Sections", value: calculatorMode === "multi_section" ? (ready ? result.sectionCount : takeoffSections.length) : "Single", tone: calculatorMode === "multi_section" ? "orange" : "slate" },
+  ];
+
+  return (
+    <div className="co-calculator-field-result-wrap mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-calculator-field-result-card overflow-hidden">
+        <div className="co-calculator-field-result-main">
+          <div className="co-calculator-field-result-copy min-w-0">
+            <Badge tone={ready ? "green" : result.status === "invalid" ? "red" : "amber"}>{ready ? "Ready to use" : result.status === "invalid" ? "Needs fix" : "Needs dimensions"}</Badge>
+            <h2>{ready ? `${resultValue} yd^3` : "Live result waiting"}</h2>
+            <p>
+              {ready
+                ? (result.summary || "Copy the field total or save this calculation to an allowed job.")
+                : result.status === "invalid"
+                  ? "Use zero or positive numbers only, then the field total will recalculate."
+                  : calculatorMode === "multi_section"
+                    ? "Add one valid section to total this takeoff."
+                : "Enter the pour dimensions to calculate a field-ready total."}
+            </p>
+          </div>
+        </div>
+
+        <div className="co-calculator-field-result-grid">
+          {metricItems.map((item) => (
+            <div key={item.label} data-tone={item.tone}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+
+        <div className="co-calculator-field-status-grid">
+          {statusItems.map((item) => (
+            <span key={item.label} data-state={item.state}>
+              {item.label}
+              <strong>{item.value}</strong>
+            </span>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function CalculatorMobileFocusPanel({
   calculatorMode,
   calculatorType,
@@ -18044,6 +18101,7 @@ function CalculatorMobileFocusPanel({
   onCopyResult,
   onSaveResult,
   onStartTakeoff,
+  onModeChange,
 }) {
   const resultReady = result.status === "ready";
   const resultValue = resultReady ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open";
@@ -18077,9 +18135,9 @@ function CalculatorMobileFocusPanel({
           <Icon name="briefcase" />
           Save
         </Button>
-        <Button type="button" variant="secondary" onClick={onStartTakeoff}>
-          <Icon name="plus" />
-          Takeoff
+        <Button type="button" variant="secondary" onClick={calculatorMode === "multi_section" ? () => onModeChange?.("single") : onStartTakeoff}>
+          <Icon name={calculatorMode === "multi_section" ? "calculator" : "plus"} />
+          {calculatorMode === "multi_section" ? "Single" : "Takeoff"}
         </Button>
       </div>
 
@@ -18255,6 +18313,7 @@ function CalculatorPagePolished({
         onCopyResult={copyFromPriority}
         onSaveResult={openSaveFromPriority}
         onStartTakeoff={startTakeoffMode}
+        onModeChange={changeCalculatorMode}
       />
 
       {isFieldTool ? (
@@ -18270,6 +18329,15 @@ function CalculatorPagePolished({
           onCopyResult={copyFromPriority}
           onSaveResult={openSaveFromPriority}
           onStartTakeoff={startTakeoffMode}
+        />
+      ) : null}
+
+      {isFieldTool ? (
+        <CalculatorFieldResultDock
+          result={result}
+          calculatorMode={calculatorMode}
+          takeoffSections={takeoffSections}
+          allowedJobs={allowedJobs}
         />
       ) : null}
 
@@ -18292,7 +18360,7 @@ function CalculatorPagePolished({
         ) : null}
       </div>
 
-      <div className="mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6">
+      <div className="co-calculator-workflow-wrap mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6">
         <Card className="co-calculator-workflow-card p-3">
           <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
@@ -18336,7 +18404,9 @@ function CalculatorPagePolished({
           <CalculatorSummaryPanelPolished result={result} calculatorMode={calculatorMode} />
         </div>
 
-        <CalculatorResultRailPolished result={result} calculatorMode={calculatorMode} takeoffSections={takeoffSections} />
+        {!isFieldTool ? (
+          <CalculatorResultRailPolished result={result} calculatorMode={calculatorMode} takeoffSections={takeoffSections} />
+        ) : null}
       </div>
     </div>
   );
