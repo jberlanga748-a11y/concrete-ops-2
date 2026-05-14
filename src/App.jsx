@@ -18766,6 +18766,7 @@ function CopilotPagePolished({
   onSelectReport,
   onCreateOpportunitySearchProfile,
   onUpdateOpportunitySearchProfile,
+  onMarkLeadSourceChecked,
   onPlanOpportunitySearchWithAi,
   onCreateFoundOpportunity,
   onUpdateFoundOpportunity,
@@ -18923,6 +18924,23 @@ function CopilotPagePolished({
     onUpdateOpportunitySearchProfile?.(profile.profileId, {
       lastRunAt: new Date().toISOString(),
       nextRunAt: nextProfileRunAt(profile.cadence),
+    });
+  }
+
+  function markProfileBriefReviewed(brief) {
+    if (!brief?.profileId) return;
+    const profile = opportunityScout.profileQueue.find((entry) => entry.profileId === brief.profileId);
+    markProfileReviewed(profile || { profileId: brief.profileId, cadence: "daily" });
+  }
+
+  async function markSourceBriefChecked(brief) {
+    if (!canManageOpportunityScout || !brief?.sourceId) return;
+    const source = leadSourceOptions.find((entry) => entry.id === brief.sourceId);
+    const checkedAt = todayDateInputValue();
+    await onMarkLeadSourceChecked?.(brief.sourceId, {
+      checkedAt,
+      nextCheckAt: calculateNextLeadSourceCheckDate(source?.checkCadence, checkedAt),
+      checkNote: "Daily Job Finder manual source check completed.",
     });
   }
 
@@ -19274,6 +19292,15 @@ function CopilotPagePolished({
                           <Button type="button" size="sm" variant="secondary" onClick={() => copyScoutQuery(brief)}>
                             {copiedScoutBriefId === brief.id ? "Copied" : "Copy Search"}
                           </Button>
+                          {brief.profileId ? (
+                            <Button type="button" size="sm" variant="secondary" onClick={() => markProfileBriefReviewed(brief)} disabled={!canManageOpportunityScout || busy}>
+                              Mark Reviewed
+                            </Button>
+                          ) : brief.sourceId ? (
+                            <Button type="button" size="sm" variant="secondary" onClick={() => markSourceBriefChecked(brief)} disabled={!canManageOpportunityScout || busy}>
+                              Mark Checked
+                            </Button>
+                          ) : null}
                           {brief.url ? <a className="co-ai-scout-link" href={brief.url} target="_blank" rel="noreferrer">Open Source</a> : null}
                         </div>
                       </div>

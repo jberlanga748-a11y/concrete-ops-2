@@ -2,17 +2,19 @@
 
 ## Current Phase
 
-Opportunity Scout / AI daily job finder command layer is approved for release.
+Daily Job Finder source/profile run workflow polish is approved for release.
 
 ## Current State
 
 - Latest app-code commit: `355109f` (`Polish mobile command board controls`).
-- Latest Fly release: `v324`.
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRKBS2PSD08ZYJ47YAHV04B5`.
+- Latest app-code commit: `1e9dbef` (`Add daily job finder command layer`).
+- Latest Fly release: `v325`.
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRKEC4B8ZQ2VCAVMJ4J3JCJ6`.
 - Live health check passed: `ok: true`, `status: ready`, database `ok`.
-- Working tree was clean after the v324 deploy.
-- Current local changes add a review-only Daily Job Finder layer to AI Office / Opportunity Scout.
+- Working tree was clean after the v325 deploy.
+- v325 added a review-only Daily Job Finder layer to AI Office / Opportunity Scout.
 - Epicurus approved commit/push/deploy after local audit and verification.
+- Current local changes also add direct Search Brief actions for `Mark Reviewed` and `Mark Checked` using existing handlers.
 
 ## Recent Shipped UI Phases
 
@@ -24,6 +26,12 @@ Opportunity Scout / AI daily job finder command layer is approved for release.
 
 - Local Daily Job Finder final audit: `output/playwright/ai-job-finder-final-audit/2026-05-14T14-16-35-400Z`
   - 3 passes across desktop `1536x864`, desktop `1280x800`, and mobile `390x844`.
+  - Flagged issues: 0.
+- Local Daily Job Finder run workflow audit: `output/playwright/ai-job-finder-run-workflow-final-audit/2026-05-14T14-44-09-670Z`
+  - 3 passes across desktop `1536x864`, desktop `1280x800`, and mobile `390x844`.
+  - Flagged issues: 0.
+- Live v325 Daily Job Finder smoke: `output/playwright/live-v325-ai-job-finder-smoke/2026-05-14T14-33-17-467Z`
+  - Admin desktop/mobile visible; foreman and employee blocked.
   - Flagged issues: 0.
 - Field AI Office block check:
   - Foreman redirected to `/jobs`; AI Office and Daily Job Finder not visible.

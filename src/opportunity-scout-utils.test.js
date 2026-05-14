@@ -111,6 +111,40 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.searchBriefs.some((brief) => brief.profileId === "OSP-1"), true);
 });
 
+test("opportunity scout search briefs keep both profile and source run cards visible", () => {
+  const profiles = Array.from({ length: 5 }, (_, index) => ({
+    id: `OSP-${index + 1}`,
+    companyId: "COMPANY-A",
+    name: `Profile ${index + 1}`,
+    status: "active",
+    cadence: "daily",
+    trades: ["concrete"],
+    serviceAreas: ["Albany"],
+    keywords: ["sidewalk"],
+    nextRunAt: TODAY,
+  }));
+  const sources = Array.from({ length: 4 }, (_, index) => ({
+    id: `LS-${index + 1}`,
+    companyId: "COMPANY-A",
+    name: `Source ${index + 1}`,
+    type: "City/county/school bid page",
+    status: "Active",
+    tradeFocus: "concrete bids",
+    nextCheckAt: TODAY,
+  }));
+
+  const state = deriveOpportunityScoutState({
+    currentCompanyId: "COMPANY-A",
+    companySettings: { serviceArea: "Albany Oregon" },
+    opportunitySearchProfiles: profiles,
+    leadSources: sources,
+  }, { today: TODAY });
+
+  assert.equal(state.searchBriefs.length, 6);
+  assert.equal(state.searchBriefs.some((brief) => brief.profileId), true);
+  assert.equal(state.searchBriefs.some((brief) => brief.sourceId), true);
+});
+
 test("opportunity scout phrases relationship sources differently from bid portals", () => {
   const referralQuery = buildOpportunityScoutSearchPhrase({
     name: "Builder partners",

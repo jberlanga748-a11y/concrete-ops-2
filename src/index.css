@@ -16620,7 +16620,7 @@ textarea {
 .co-ai-scout-brief-actions {
   display: flex;
   flex: 0 0 auto;
-  max-width: 9rem;
+  max-width: 11.5rem;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.38rem;
