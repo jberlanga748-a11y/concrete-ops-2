@@ -9363,6 +9363,22 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .co-toolbox-talks-page .co-toolbox-category-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    overflow: visible;
+    padding-bottom: 0;
+    width: 100%;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-category-tabs button {
+    min-width: 0;
+    width: 100%;
+    white-space: normal;
+    line-height: 1.12;
+  }
+
   .co-toolbox-tools-drawer > summary {
     padding: 0.85rem !important;
   }
