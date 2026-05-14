@@ -17193,7 +17193,8 @@ textarea {
 
 .co-ai-scout-ops-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.9rem;
   border-top: 1px solid rgba(226, 232, 240, 0.94);
   padding: 1rem;
@@ -17201,12 +17202,49 @@ textarea {
 
 .co-ai-scout-panel {
   display: grid;
+  align-content: start;
   min-width: 0;
   gap: 0.85rem;
   border: 1px solid rgba(203, 213, 225, 0.86);
   border-radius: 1rem;
   background: linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.94));
   padding: 0.9rem;
+}
+
+#scout-search-profiles {
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.72fr);
+}
+
+#scout-search-profiles .co-ai-scout-panel-head,
+#scout-search-profiles .co-ai-profile-starters {
+  grid-column: 1 / -1;
+}
+
+#scout-search-profiles .co-ai-scout-form,
+#scout-search-profiles .co-ai-scout-record-list {
+  align-self: start;
+}
+
+#scout-found-opportunities {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#scout-found-opportunities .co-ai-scout-form-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(1),
+#scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(2),
+#scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(12),
+#scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(13),
+#scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(14),
+#scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(15) {
+  grid-column: span 2;
+}
+
+#scout-found-opportunities .co-ai-scout-record-list {
+  grid-template-columns: repeat(auto-fit, minmax(25rem, 1fr));
+  align-items: start;
 }
 
 .co-ai-scout-panel-head {
@@ -18162,6 +18200,22 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
     padding-left: 0.85rem;
     padding-right: 0.85rem;
+  }
+
+  #scout-search-profiles,
+  #scout-found-opportunities,
+  #scout-found-opportunities .co-ai-scout-form-grid,
+  #scout-found-opportunities .co-ai-scout-record-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(1),
+  #scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(2),
+  #scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(12),
+  #scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(13),
+  #scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(14),
+  #scout-found-opportunities .co-ai-scout-form-grid > label:nth-child(15) {
+    grid-column: auto;
   }
 
   .co-ai-job-finder-strip {
