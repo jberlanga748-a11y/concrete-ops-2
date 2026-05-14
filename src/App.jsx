@@ -4146,7 +4146,7 @@ function FieldNextJobCard({ job, titleOverride = "", descriptionOverride = "", o
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Where</p>
               <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
               {mapUrl ? (
-                <a className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={mapUrl} target="_blank" rel="noreferrer">
+                <a className="mt-2 inline-flex min-h-[2rem] items-center text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={mapUrl} target="_blank" rel="noreferrer">
                   Open directions
                 </a>
               ) : null}
@@ -4213,25 +4213,41 @@ function FieldNextJobCard({ job, titleOverride = "", descriptionOverride = "", o
   );
 }
 
-function FieldJobFocusCard({ job, permissions, onFieldChange, disabled }) {
+function FieldJobFocusCard({ job, permissions, onFieldChange, disabled, embedded = false }) {
   if (!job) {
+    const EmptyShell = embedded ? "div" : Card;
     return (
-      <Card className="p-5">
+      <EmptyShell className={embedded ? "co-field-focus-card co-field-focus-card-embedded" : "co-field-focus-card p-5"}>
         <SectionHeader title="Field focus" description="Assigned work will appear here once the office schedules it." />
         <StateCard title="No assigned jobs yet" description="Contact office if this is wrong or if a job should already be on your phone." tone="slate" />
-      </Card>
+      </EmptyShell>
     );
   }
 
+  const FocusShell = embedded ? "div" : Card;
   const canManageField = Boolean(job.canManageField || permissions.jobs.canManageField);
   const crewAssignments = Array.isArray(job.crewAssignments) ? job.crewAssignments : [];
   const fieldNoteCount = [job.fieldNotes, job.materialNotes, job.equipmentNotes, job.safetyNotes].filter((value) => String(value || "").trim()).length;
   const checklistSummary = [job.prePourChecklist?.statusLabel || "Pre-pour pending", job.postPourChecklist?.statusLabel || "Post-pour pending"].join(" / ");
+  const snapshotItems = [
+    { label: "Schedule", value: formatJobScheduleDetail(job) },
+    { label: "Address", value: job.address || "Address pending" },
+    { label: "Crew", value: `${crewAssignments.length} assigned` },
+    { label: "Notes", value: fieldNoteCount ? `${fieldNoteCount} ready` : "No notes" },
+  ];
 
   return (
     <div className="min-w-0 space-y-4">
-      <Card className="p-5">
+      <FocusShell className={embedded ? "co-field-focus-card co-field-focus-card-embedded" : "co-field-focus-card p-5"}>
         <SectionHeader title={jobTitle(job)} description={`${job.id} - ${job.customer || "Assigned site"}`} action={<StatusBadge status={jobStatusLabel(job.status || job.stage)} />} />
+        <div className="co-field-focus-snapshot">
+          {snapshotItems.map((item) => (
+            <div key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
         <div className="space-y-3">
           <FieldDetailDisclosure title="Schedule / address / directions" summary={`${formatJobScheduleDetail(job)} - ${job.address || "Address pending"}`} defaultOpen>
             <div className="grid gap-3 md:grid-cols-2">
@@ -4239,7 +4255,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled }) {
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Address</p>
                 <p className="mt-2 break-words text-sm font-bold leading-6 text-slate-700">{job.address || "Address pending"}</p>
                 {directionsUrl(job.address) ? (
-                  <a className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={directionsUrl(job.address)} target="_blank" rel="noreferrer">
+                  <a className="mt-2 inline-flex min-h-[2rem] items-center text-xs font-black uppercase tracking-[0.14em] text-blue-700 hover:text-blue-900" href={directionsUrl(job.address)} target="_blank" rel="noreferrer">
                     Open directions
                   </a>
                 ) : null}
@@ -4334,7 +4350,7 @@ function FieldJobFocusCard({ job, permissions, onFieldChange, disabled }) {
             )}
           </FieldDetailDisclosure>
         </div>
-      </Card>
+      </FocusShell>
       <FieldWorkspaceDisclosure title="Saved calculations" description="Calculator results connected to this assigned job." badge={(job.calculatorResults || []).length ? `${job.calculatorResults.length} saved` : "None"}>
         <JobCalculationsCard calculations={job.calculatorResults} title="Saved calculations" description="Internal company calculation records for this job only." />
       </FieldWorkspaceDisclosure>
@@ -4378,6 +4394,13 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
   const fieldNoteCount = primaryJob ? [primaryJob.fieldNotes, primaryJob.materialNotes, primaryJob.equipmentNotes, primaryJob.safetyNotes].filter((value) => String(value || "").trim()).length : 0;
   const canRoute = typeof setActive === "function";
   const mapUrl = directionsUrl(primaryJob?.address);
+  const openFieldTool = (toolId) => {
+    if (!canRoute) return;
+    setActive(toolId);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    }
+  };
 
   const summaryItems = [
     { label: isForeman ? "Assigned jobs" : "Assigned work", value: assignedCount, tone: assignedCount ? "orange" : "slate" },
@@ -4415,7 +4438,7 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
 
         <div className="co-field-operator-actions">
           {permissions?.time?.canView && canRoute ? (
-            <Button type="button" onClick={() => setActive("time")}>
+            <Button type="button" onClick={() => openFieldTool("time")}>
               <Icon name="clock" />
               {activeEntry ? "Open Time" : "Clock In"}
             </Button>
@@ -4433,13 +4456,13 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
             </a>
           ) : null}
           {permissions?.reports?.canView && canRoute ? (
-            <Button type="button" variant="secondary" onClick={() => setActive("reports")}>
+            <Button type="button" variant="secondary" onClick={() => openFieldTool("reports")}>
               <Icon name="document" />
               Report
             </Button>
           ) : null}
           {permissions?.uploads?.canView && canRoute ? (
-            <Button type="button" variant="secondary" onClick={() => setActive("uploads")}>
+            <Button type="button" variant="secondary" onClick={() => openFieldTool("uploads")}>
               <Icon name="upload" />
               Photos
             </Button>
@@ -4569,10 +4592,21 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
   const mobilePrimaryActionIds = new Set(role === "foreman"
     ? ["time", "reports", "uploads", "toolChecklist", "ppe", "calculator"]
     : ["time", "uploads", "ppe", "toolChecklist", "calculator"]);
+  const desktopPrimaryActionIds = new Set(role === "foreman"
+    ? ["time", "reports", "uploads", "prePour", "postPour", "toolChecklist"]
+    : ["time", "uploads", "ppe", "toolChecklist"]);
+  const desktopPrimaryActions = actions.filter((action) => desktopPrimaryActionIds.has(action.id));
+  const desktopSecondaryActions = actions.filter((action) => !desktopPrimaryActionIds.has(action.id));
   const mobilePrimaryActions = actions.filter((action) => mobilePrimaryActionIds.has(action.id));
   const mobileSecondaryActions = actions.filter((action) => !mobilePrimaryActionIds.has(action.id));
+  const openFieldTool = (toolId) => {
+    setActive(toolId);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    }
+  };
   const renderFieldAction = (action) => (
-    <button key={action.id} type="button" className="co-field-action-card" data-tone={action.tone} onClick={() => setActive(action.id)}>
+    <button key={action.id} type="button" className="co-field-action-card" data-tone={action.tone} onClick={() => openFieldTool(action.id)}>
       <span>
         <Icon name={action.icon} />
       </span>
@@ -4591,8 +4625,21 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
         <Badge tone={focusJob ? "orange" : "slate"}>{focusJob ? jobTitle(focusJob) : "No job selected"}</Badge>
       </div>
       <div className="co-field-action-grid co-field-action-grid-desktop mt-3">
-        {actions.map(renderFieldAction)}
+        {(desktopPrimaryActions.length ? desktopPrimaryActions : actions).map(renderFieldAction)}
       </div>
+      {desktopSecondaryActions.length ? (
+        <div className="co-field-action-compact-strip">
+          <span>More field-safe tools</span>
+          <div>
+            {desktopSecondaryActions.map((action) => (
+              <button key={action.id} type="button" data-tone={action.tone} onClick={() => openFieldTool(action.id)}>
+                <Icon name={action.icon} />
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="co-field-mobile-actions mt-3">
         <div className="co-field-action-grid co-field-action-grid-mobile">
           {(mobilePrimaryActions.length ? mobilePrimaryActions : actions).map(renderFieldAction)}
@@ -4657,11 +4704,11 @@ function FieldWorkspacePagePolished({
           description={focusJob ? (focusJob.customer || "Assigned site") : "Choose an assigned job to review field-safe details."}
           badge={focusJob ? jobStatusLabel(focusJob.status || focusJob.stage) : "None"}
         >
-          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} />
+          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} embedded />
         </FieldWorkspaceDisclosure>
       </div>
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
-      <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-6">
+      <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
           <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
             <ActiveTimeCard

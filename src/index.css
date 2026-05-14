@@ -5991,6 +5991,52 @@ textarea {
   padding-right: 0.12rem;
 }
 
+.co-field-focus-card {
+  border-top-color: rgba(249, 115, 22, 0.72) !important;
+  background: #ffffff !important;
+  box-shadow: 0 20px 52px -40px rgba(7, 17, 31, 0.62);
+}
+
+.co-field-focus-card-embedded {
+  min-width: 0;
+  box-shadow: none !important;
+}
+
+.co-field-focus-snapshot {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.58rem;
+  margin: 0.85rem 0 1rem;
+}
+
+.co-field-focus-snapshot > div {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.78rem;
+  background: linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.84));
+  padding: 0.62rem 0.72rem;
+}
+
+.co-field-focus-snapshot span {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.58rem;
+  font-weight: 950;
+  line-height: 1.05;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.co-field-focus-snapshot strong {
+  display: block;
+  margin-top: 0.28rem;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.28;
+}
+
 .co-field-operator-panel {
   border-color: rgba(203, 213, 225, 0.94) !important;
   border-top-color: rgba(249, 115, 22, 0.86) !important;
@@ -6468,6 +6514,62 @@ textarea {
   color: #334155;
 }
 
+.co-field-action-compact-strip {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.78rem;
+  margin-top: 0.74rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  padding-top: 0.74rem;
+}
+
+.co-field-action-compact-strip > span {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.co-field-action-compact-strip > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.co-field-action-compact-strip button {
+  display: inline-flex;
+  min-height: 2.15rem;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0.42rem 0.68rem;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 950;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.co-field-action-compact-strip button:hover {
+  border-color: rgba(249, 115, 22, 0.42);
+  background: #fff7ed;
+  color: var(--color-brand-orange-dark);
+}
+
+.co-field-action-compact-strip svg {
+  height: 0.9rem;
+  width: 0.9rem;
+}
+
 .co-field-workspace-page .co-mobile-accordion,
 .co-field-workspace-page .co-mobile-field-group {
   border-color: rgba(203, 213, 225, 0.96) !important;
@@ -6494,6 +6596,18 @@ textarea {
 @media (min-width: 900px) {
   .co-field-action-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1479px) and (min-width: 1024px) {
+  .co-field-workspace-page .co-field-two-up {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (min-width: 1480px) {
+  .co-field-workspace-page .co-field-two-up {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
   }
 }
 
@@ -6553,11 +6667,15 @@ textarea {
   }
 
   .co-field-mobile-focus-card {
-    display: none;
+    display: block;
   }
 
   .co-field-mobile-focus-card .co-mobile-accordion {
     border-radius: 1rem !important;
+  }
+
+  .co-field-mobile-focus-card .co-mobile-accordion > div {
+    padding: 0.9rem !important;
   }
 
   .co-field-mobile-focus-card .co-mobile-accordion > button {
@@ -6578,6 +6696,24 @@ textarea {
 
   .co-field-right-rail {
     display: none !important;
+  }
+
+  .co-field-focus-card {
+    border: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .co-field-focus-snapshot {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0.55rem;
+    margin-bottom: 0.72rem;
+    gap: 0.5rem;
+  }
+
+  .co-field-focus-snapshot > div {
+    border-radius: 0.82rem;
+    padding: 0.58rem 0.68rem;
   }
 
   .co-field-workspace-page .co-field-two-up {
@@ -6651,6 +6787,10 @@ textarea {
   .co-field-mobile-actions {
     display: grid;
     gap: 0.7rem;
+  }
+
+  .co-field-action-compact-strip {
+    display: none;
   }
 
   .co-field-action-grid-mobile {
