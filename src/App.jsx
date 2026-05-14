@@ -13141,8 +13141,8 @@ function DashboardPagePolished({
       aria-label={shortcut.ariaLabel || shortcut.label}
       className={`shrink-0 rounded-2xl border px-3 py-2 text-left text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
         shortcut.id === "today"
-          ? "border-blue-700 bg-blue-700 text-white hover:bg-blue-800"
-          : "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200 hover:bg-white"
+          ? "border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
+          : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
       }`}
     >
       <span className="block whitespace-nowrap">{shortcut.label}</span>
