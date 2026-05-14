@@ -18797,6 +18797,7 @@ function CopilotPagePolished({
     leads,
     contactHistory,
   }, { today }), [companySettings, contactHistory, currentCompanyId, foundOpportunities, leadSources, leads, opportunitySearchProfiles, today]);
+  const dailyJobFinder = opportunityScout.dailyJobFinder;
 
   const newLeads = liveLeads.filter((lead) => lead.status === "New");
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High");
@@ -18978,7 +18979,7 @@ function CopilotPagePolished({
 
   const aiKpis = [
     {
-      label: "Opportunity Scout",
+      label: "Daily Job Finder",
       value: opportunityScout.stats.openFoundOpportunities || opportunityScout.stats.checksNeeded,
       helper: `${opportunityScout.stats.activeProfiles} profiles / ${opportunityScout.stats.activeSources} sources / ${opportunityScout.stats.dueBidOpportunities} bids due`,
       icon: "spark",
@@ -19017,7 +19018,7 @@ function CopilotPagePolished({
 
   const workflowCards = [
     {
-      title: "Opportunity Scout",
+      title: "Daily Job Finder",
       helper: "Use search profiles, source checks, and saved found opportunities to decide where the office should look for work today.",
       icon: "spark",
       badge: opportunityScout.readiness.label,
@@ -19189,8 +19190,8 @@ function CopilotPagePolished({
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2>Daily Opportunity Scout</h2>
-                  <p>Office-ready job finding board built from lead sources, source check dates, and real lead follow-up signals.</p>
+                  <h2>Daily Job Finder</h2>
+                  <p>Office-ready job finding board built from AI search plans, lead sources, source check dates, and real lead follow-up signals.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={opportunityScout.readiness.tone}>{opportunityScout.readiness.label}</Badge>
@@ -19199,11 +19200,30 @@ function CopilotPagePolished({
               </div>
             </div>
 
+            <div className="co-ai-job-finder-strip" data-tone={dailyJobFinder.tone}>
+              <div className="co-ai-job-finder-summary">
+                <span>{dailyJobFinder.label}</span>
+                <h3>{dailyJobFinder.headline}</h3>
+                <p>{dailyJobFinder.summary}</p>
+                <em>{dailyJobFinder.operatorMode}</em>
+              </div>
+              <div className="co-ai-job-finder-lanes">
+                {dailyJobFinder.focusLanes.map((lane) => (
+                  <button key={lane.id} type="button" className="co-ai-job-finder-lane co-focus-ring" data-tone={lane.tone} onClick={() => jumpToScoutTarget(lane.targetId, lane.moduleId)}>
+                    <em>{lane.value}</em>
+                    <strong>{lane.label}</strong>
+                    <span>{lane.helper}</span>
+                    <small>{lane.actionLabel}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="co-ai-scout-grid">
               <div className="co-ai-scout-status" data-tone={opportunityScout.readiness.tone}>
-                <span>Daily Job Finder</span>
-                <strong>{opportunityScout.readiness.nextAction}</strong>
-                <p>{opportunityScout.readiness.summary}</p>
+                <span>Operator Runbook</span>
+                <strong>Today&apos;s Scout Sequence</strong>
+                <p>{dailyJobFinder.sourceCoverage}</p>
                 <div className="co-ai-scout-metrics">
                   <div>
                     <em>{opportunityScout.stats.activeProfiles}</em>

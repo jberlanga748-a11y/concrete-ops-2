@@ -16241,6 +16241,168 @@ textarea {
   line-height: 1.45;
 }
 
+.co-ai-job-finder-strip {
+  --co-job-finder-tone: #f97316;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  margin: 1rem 1rem 0;
+  border: 1px solid color-mix(in srgb, var(--co-job-finder-tone) 28%, rgba(203, 213, 225, 0.92));
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--co-job-finder-tone) 9%, white), rgba(255, 255, 255, 0.98) 46%),
+    #ffffff;
+  padding: 0.85rem;
+  box-shadow: inset 0 3px 0 var(--co-job-finder-tone), 0 18px 38px -34px rgba(15, 23, 42, 0.55);
+}
+
+.co-ai-job-finder-strip[data-tone="red"] {
+  --co-job-finder-tone: #ef4444;
+}
+
+.co-ai-job-finder-strip[data-tone="amber"],
+.co-ai-job-finder-strip[data-tone="orange"] {
+  --co-job-finder-tone: #f97316;
+}
+
+.co-ai-job-finder-strip[data-tone="green"] {
+  --co-job-finder-tone: #16a34a;
+}
+
+.co-ai-job-finder-strip[data-tone="blue"] {
+  --co-job-finder-tone: #2563eb;
+}
+
+.co-ai-job-finder-strip[data-tone="slate"] {
+  --co-job-finder-tone: #64748b;
+}
+
+.co-ai-job-finder-summary {
+  display: grid;
+  min-width: 0;
+  gap: 0.34rem;
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.78rem;
+}
+
+.co-ai-job-finder-summary > span {
+  color: var(--co-job-finder-tone);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.co-ai-job-finder-summary h3 {
+  color: #07111f;
+  font-size: clamp(1.25rem, 2.5vw, 1.9rem);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.co-ai-job-finder-summary p {
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.co-ai-job-finder-summary em {
+  color: #9a3412;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.co-ai-job-finder-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.62rem;
+}
+
+.co-ai-job-finder-lane {
+  --co-job-finder-lane-tone: #64748b;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  align-content: start;
+  gap: 0.18rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--co-job-finder-lane-tone) 26%, rgba(226, 232, 240, 0.95));
+  border-radius: 0.86rem;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.78rem;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.co-ai-job-finder-lane:hover {
+  border-color: color-mix(in srgb, var(--co-job-finder-lane-tone) 44%, white);
+  box-shadow: 0 14px 28px -26px rgba(15, 23, 42, 0.58);
+  transform: translateY(-1px);
+}
+
+.co-ai-job-finder-lane[data-tone="red"] {
+  --co-job-finder-lane-tone: #ef4444;
+}
+
+.co-ai-job-finder-lane[data-tone="amber"],
+.co-ai-job-finder-lane[data-tone="orange"] {
+  --co-job-finder-lane-tone: #f97316;
+}
+
+.co-ai-job-finder-lane[data-tone="green"] {
+  --co-job-finder-lane-tone: #16a34a;
+}
+
+.co-ai-job-finder-lane[data-tone="blue"] {
+  --co-job-finder-lane-tone: #2563eb;
+}
+
+.co-ai-job-finder-lane[data-tone="slate"] {
+  --co-job-finder-lane-tone: #64748b;
+}
+
+.co-ai-job-finder-lane em {
+  grid-row: span 3;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--co-job-finder-lane-tone) 12%, white);
+  color: var(--co-job-finder-lane-tone);
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.co-ai-job-finder-lane strong {
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 950;
+  line-height: 1.12;
+}
+
+.co-ai-job-finder-lane span {
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.co-ai-job-finder-lane small {
+  grid-column: 2;
+  color: var(--co-job-finder-lane-tone);
+  font-size: 0.64rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .co-ai-scout-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.18fr);
@@ -17258,6 +17420,10 @@ textarea {
     overflow: visible;
     padding-right: 0;
   }
+
+  .co-ai-job-finder-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 767px) {
@@ -17327,6 +17493,19 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
     padding-left: 0.85rem;
     padding-right: 0.85rem;
+  }
+
+  .co-ai-job-finder-strip {
+    margin: 0.85rem 0.85rem 0;
+    padding: 0.72rem;
+  }
+
+  .co-ai-job-finder-lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-ai-job-finder-lane {
+    min-height: 0;
   }
 
   .co-ai-scout-form-grid {

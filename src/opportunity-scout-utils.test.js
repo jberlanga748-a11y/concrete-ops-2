@@ -20,6 +20,9 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.readiness.label, "Scout checks due");
   assert.equal(state.stats.activeSources, 2);
   assert.equal(state.stats.checksNeeded, 2);
+  assert.equal(state.dailyJobFinder.label, "Daily Job Finder");
+  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").value, 2);
+  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").targetId, "scout-search-briefs");
   assert.deepEqual(state.dailyRunSteps.map((step) => step.id), [
     "run-profiles",
     "check-sources",
@@ -47,6 +50,9 @@ test("opportunity scout does not invent opportunities when no lead sources exist
   assert.deepEqual(state.searchBriefs, []);
   assert.equal(state.guardrails.externalSearch, false);
   assert.equal(state.guardrails.autoCreateLeads, false);
+  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").targetId, "scout-search-profiles");
+  assert.match(state.dailyJobFinder.operatorMode, /office verifies/i);
+  assert.equal(state.dailyJobFinder.guardrails.some((item) => /No auto-created leads/i.test(item)), true);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-found-review").tone, "green");
 });
 
@@ -93,6 +99,9 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.profilesDue, 1);
   assert.equal(state.stats.openFoundOpportunities, 2);
   assert.equal(state.stats.dueBidOpportunities, 1);
+  assert.equal(state.dailyJobFinder.headline, "Review Found Work");
+  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").value, 2);
+  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").tone, "red");
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "review-found-work").tone, "red");
   assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4"]);

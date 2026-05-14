@@ -65,6 +65,10 @@ function uniqueTexts(values = []) {
   return result;
 }
 
+function countLabel(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function sourceSortValue(source = {}) {
   return source.nextCheckAt || source.lastCheckedAt || source.name || "";
 }
@@ -541,6 +545,86 @@ function buildDailyScoutQualityChecks({
   ];
 }
 
+function buildDailyJobFinderPlan({
+  readiness = {},
+  activeSources = [],
+  activeProfiles = [],
+  dueProfiles = [],
+  dailyCheck = {},
+  foundOpportunityQueue = [],
+  dueBidOpportunities = [],
+  highFitOpportunities = [],
+  dueLeads = [],
+  missingInfoLeads = [],
+  highFitLeads = [],
+} = {}) {
+  const sourceChecksNeeded = Number(dailyCheck?.stats?.checksNeeded || 0);
+  const sourceOverdue = Number(dailyCheck?.stats?.overdue || 0);
+  const profileOverdue = dueProfiles.filter((profile) => profile.tone === "red").length;
+  const searchChecks = dueProfiles.length + sourceChecksNeeded;
+  const leadCleanup = dueLeads.length + missingInfoLeads.length;
+  const jobFinderTargets = activeSources.length + activeProfiles.length;
+  const highValueReview = dueBidOpportunities.length + highFitOpportunities.length;
+  const tone = readiness.tone || (jobFinderTargets ? "green" : "amber");
+
+  const sourceCoverage = jobFinderTargets
+    ? `${countLabel(activeProfiles.length, "profile")} and ${countLabel(activeSources.length, "source")} feeding today's job finder.`
+    : "Add search profiles or sources so Apex HQ has a daily job-finding routine to run.";
+
+  return {
+    label: "Daily Job Finder",
+    tone,
+    headline: readiness.nextAction || "Run Daily Job Finder",
+    summary: readiness.summary || sourceCoverage,
+    sourceCoverage,
+    operatorMode: "AI plans, office verifies, Apex HQ saves only reviewed work.",
+    focusLanes: [
+      {
+        id: "find-work",
+        label: "Find Work",
+        value: searchChecks,
+        helper: searchChecks
+          ? `${countLabel(dueProfiles.length, "profile")} / ${countLabel(sourceChecksNeeded, "source check")} due.`
+          : sourceCoverage,
+        tone: sourceOverdue || profileOverdue ? "red" : searchChecks ? "orange" : jobFinderTargets ? "green" : "amber",
+        actionLabel: searchChecks ? "Run today's search" : "Review sources",
+        moduleId: "copilot",
+        targetId: jobFinderTargets ? "scout-search-briefs" : "scout-search-profiles",
+      },
+      {
+        id: "qualify-work",
+        label: "Qualify Work",
+        value: foundOpportunityQueue.length,
+        helper: foundOpportunityQueue.length
+          ? `${countLabel(dueBidOpportunities.length, "bid")} due now / ${countLabel(highFitOpportunities.length, "high-fit job")}.`
+          : "No saved opportunities are waiting for review.",
+        tone: dueBidOpportunities.length ? "red" : foundOpportunityQueue.length ? "orange" : "slate",
+        actionLabel: foundOpportunityQueue.length ? "Review found work" : "No queue",
+        moduleId: "copilot",
+        targetId: "scout-found-opportunities",
+      },
+      {
+        id: "move-work",
+        label: "Move Work",
+        value: leadCleanup,
+        helper: leadCleanup
+          ? `${countLabel(dueLeads.length, "follow-up")} / ${countLabel(missingInfoLeads.length, "missing-info lead")}.`
+          : `${countLabel(highFitLeads.length, "strong lead")} ready for normal lead workflow.`,
+        tone: dueLeads.length ? "orange" : missingInfoLeads.length ? "amber" : highFitLeads.length ? "blue" : "green",
+        actionLabel: leadCleanup || highFitLeads.length ? "Open leads" : "Leads clear",
+        moduleId: "leads",
+        targetId: "",
+      },
+    ],
+    guardrails: [
+      "Review-only search planning",
+      "No web browsing from the server yet",
+      "No auto-created leads",
+      "No customer contact without office approval",
+    ],
+  };
+}
+
 export function deriveOpportunityScoutState(source = {}, options = {}) {
   const today = dateKey(options.today || new Date());
   const companyId = text(options.companyId || source.currentCompanyId || source.companyId);
@@ -694,10 +778,24 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     foundOpportunityQueue,
     dueBidOpportunities,
   });
+  const dailyJobFinder = buildDailyJobFinderPlan({
+    readiness,
+    activeSources,
+    activeProfiles,
+    dueProfiles,
+    dailyCheck,
+    foundOpportunityQueue,
+    dueBidOpportunities,
+    highFitOpportunities,
+    dueLeads,
+    missingInfoLeads,
+    highFitLeads,
+  });
 
   return {
     today,
     readiness,
+    dailyJobFinder,
     dailyRunSteps,
     qualityChecks,
     profileQueue: profileQueue.slice(0, 6),

@@ -2,68 +2,61 @@
 
 ## Current Phase
 
-Safety / Incidents command page polish is next.
+Opportunity Scout / AI daily job finder command layer is approved for release.
 
 ## Current State
 
-- Pre-Pour is committed, pushed, deployed, and health-checked.
-- Post-Pour is committed, pushed, deployed, and health-checked.
-- Safety / Incidents route `/incidents` is next for page polish.
-- Post-Pour route `/postPour` was the only app page intentionally changed in the latest app-code phase.
-- Latest Post-Pour app files changed:
-  - `src/App.jsx`
-  - `src/index.css`
-- Project coordination file updated:
-  - `.agents/APEX_STATUS.md`
+- Latest app-code commit: `355109f` (`Polish mobile command board controls`).
+- Latest Fly release: `v324`.
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRKBS2PSD08ZYJ47YAHV04B5`.
+- Live health check passed: `ok: true`, `status: ready`, database `ok`.
+- Working tree was clean after the v324 deploy.
+- Current local changes add a review-only Daily Job Finder layer to AI Office / Opportunity Scout.
+- Epicurus approved commit/push/deploy after local audit and verification.
 
-## Latest Audit
+## Recent Shipped UI Phases
 
-- Post-Pour audit captured admin, foreman, and employee views at desktop and mobile sizes.
-- Three local visual audit passes were completed.
-- Latest audit detected no horizontal overflow or oversized text boxes in admin, foreman, or employee desktop/mobile screenshots.
-- Latest Post-Pour screenshots:
-  - `output/playwright/postpour-before/2026-05-14T04-45-09-886Z`
-  - `output/playwright/postpour-after-1/2026-05-14T04-49-46-959Z`
-  - `output/playwright/postpour-after-2/2026-05-14T04-51-40-467Z`
-  - `output/playwright/postpour-after-3/2026-05-14T04-52-57-602Z`
-  - `output/playwright/postpour-after-5/2026-05-14T05-04-50-266Z`
-  - `output/playwright/postpour-after-6/2026-05-14T05-06-29-298Z`
-  - `output/playwright/postpour-after-7/2026-05-14T05-06-55-560Z`
-  - `output/playwright/postpour-final-audit-1/2026-05-14T05-12-47-778Z`
-  - `output/playwright/postpour-final-audit-2/2026-05-14T05-13-14-144Z`
-  - `output/playwright/postpour-final-audit-3/2026-05-14T05-13-39-129Z`
+- Dashboard mobile command flow: commit `e92cdba`, Fly `v322`.
+- Toolbox Talks mobile filters: commit `9db7969`, Fly `v323`.
+- Shared mobile command-board controls: commit `355109f`, Fly `v324`.
 
-## Verification
+## Latest Audits
+
+- Local Daily Job Finder final audit: `output/playwright/ai-job-finder-final-audit/2026-05-14T14-16-35-400Z`
+  - 3 passes across desktop `1536x864`, desktop `1280x800`, and mobile `390x844`.
+  - Flagged issues: 0.
+- Field AI Office block check:
+  - Foreman redirected to `/jobs`; AI Office and Daily Job Finder not visible.
+  - Employee redirected to `/jobs`; AI Office and Daily Job Finder not visible.
+- Full local post-release sweep: `output/playwright/cross-page-sweep-after-mobile-controls/2026-05-14T13-48-26-711Z`
+  - 108 route/role/viewport checks.
+  - Flagged issues: 0.
+- Live v324 visual smoke: `output/playwright/live-v324-visual-smoke/2026-05-14T13-54-07-644Z`
+  - 20 deployed route/role/viewport screenshots.
+  - Flagged issues: 0.
+
+## Verification Snapshot
 
 - `npm.cmd run build` passed.
 - `npm.cmd run verify:roles` passed.
-- `npm.cmd run verify:post-pour` passed.
+- `npm.cmd run verify:leads` passed.
+- `npm.cmd run verify:customers` passed.
+- `npm.cmd run verify:estimates` passed.
+- `npm.cmd run verify:jobs` passed.
+- `npm.cmd run verify:safety` passed for Toolbox Talks work.
 - `npm.cmd run verify:field-workspaces` passed.
 - `npm.cmd run verify:server` passed.
-- Focused routing/navigation/design token tests passed.
+- `npm.cmd run verify:backup` passed.
+- `npm.cmd run verify:demo` passed.
+- Focused routing/navigation/design-token tests passed.
 - `git diff --check` passed with LF/CRLF warnings only.
 
-## Release Status
+## Next Recommended Phase
 
-- Post-Pour released to `origin/main` and Fly app `concrete-ops-2`.
+After this phase ships, continue Opportunity Scout toward a real daily job-finding system:
 
-## Remaining Notes
-
-- Delivery Tickets release details:
-  - Commit: `797ad41` (`Polish delivery tickets command page`)
-  - Fly release: `v304`
-  - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJAMP1MK3GP23EXN8HFCPCE`
-  - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
-- Pre-Pour release details:
-  - Commit: `c35a6fa` (`Polish pre-pour command page`)
-  - Fly release: `v305`
-  - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJC9HA1C352GXFMJJ0P20Q5`
-  - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
-- Post-Pour release details:
-  - Commit: `5fbbb5b` (`Polish post-pour command page`)
-  - Fly release: `v307`
-  - Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJETK17DH33XS1BYSS3GRHK`
-  - Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
-- Generated screenshots should remain untracked under `output/`.
-- Latest released app-code commit before next phase: `5fbbb5b` (`Polish post-pour command page`)
-- Next recommended phase: Safety/Incidents final touch-up sweep.
+- Keep it review-only first.
+- Do not auto-send messages or auto-create customer commitments.
+- Keep all AI provider keys server-side only.
+- Keep field roles blocked from leads, estimates, pricing, AI office, and admin data.
+- Preserve current lead/source/opportunity workflows while adding daily job-finding guidance.
