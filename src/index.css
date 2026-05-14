@@ -9794,6 +9794,14 @@ textarea {
   .co-tool-checklist-page .co-toolbox-filter-strip {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-tool-checklist-page.co-field-tool-page .co-toolbox-right-rail {
+    display: none !important;
+  }
 }
 
 @media (max-width: 767px) {
@@ -20973,16 +20981,44 @@ textarea {
   }
 
   .co-tool-checklist-page .co-toolbox-command-layout {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.85rem) !important;
+    margin-top: 0.85rem !important;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 
   .co-tool-checklist-page .co-toolbox-filter-strip {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.35rem) !important;
+    margin-top: 0 !important;
   }
 
   .co-tool-checklist-page .co-toolbox-mobile-list {
-    padding-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+    padding-top: 0.75rem !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-board-header {
+    padding: 0.85rem 1rem !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-board-header p {
+    display: none;
+  }
+
+  .co-tool-checklist-page.co-field-tool-page .co-page-header p:not(:first-child) {
+    display: none !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-category-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    overflow: visible;
+    padding-bottom: 0;
+    width: 100%;
+  }
+
+  .co-tool-checklist-page .co-toolbox-category-tabs button {
+    min-width: 0;
+    width: 100%;
+    white-space: normal;
+    line-height: 1.1;
   }
 
   .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-copy em,
