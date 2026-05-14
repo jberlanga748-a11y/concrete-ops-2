@@ -13668,7 +13668,23 @@ textarea {
 }
 
 .co-delivery-board-actions > button {
+  min-height: 2.25rem;
   white-space: nowrap;
+}
+
+.co-delivery-page .co-page-header button,
+.co-delivery-main-board .co-filter-bar button,
+.co-delivery-main-board > .flex.border-t button,
+.co-delivery-right-rail button,
+.co-delivery-tools-drawer summary,
+.co-delivery-tool-tabs button,
+.co-delivery-kpi-grid .co-command-kpi-link {
+  min-height: 2.25rem;
+}
+
+.co-delivery-kpi-grid .co-command-kpi-link {
+  margin-top: 0.38rem;
+  padding: 0.22rem 0.32rem;
 }
 
 .co-delivery-main-board .co-filter-bar {
@@ -14375,6 +14391,64 @@ textarea {
   }
 }
 
+@media (min-width: 1024px) and (max-width: 1399px) {
+  .co-delivery-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi {
+    min-height: 5.35rem;
+    padding: 0.68rem !important;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi-body {
+    gap: 0.58rem;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi-icon {
+    height: 2.25rem;
+    width: 2.25rem;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi-icon svg {
+    height: 0.98rem;
+    width: 0.98rem;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi-value {
+    font-size: 1.38rem;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi p:nth-child(2) {
+    font-size: 0.78rem;
+    line-height: 1.08;
+  }
+
+  .co-delivery-kpi-grid .co-command-kpi p:nth-child(3),
+  .co-delivery-kpi-grid .co-command-kpi-link {
+    font-size: 0.66rem;
+    line-height: 1.18;
+  }
+
+  .co-delivery-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-delivery-right-rail {
+    position: static !important;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .co-delivery-right-rail > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0 !important;
+  }
+}
+
 @media (max-width: 1023px) {
   .co-delivery-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -14572,6 +14646,7 @@ textarea {
     min-width: 0 !important;
     flex-shrink: 1 !important;
     justify-content: center !important;
+    min-height: 2.5rem !important;
     padding-left: 0.48rem !important;
     padding-right: 0.48rem !important;
   }
@@ -14580,6 +14655,22 @@ textarea {
     background: var(--color-brand-orange-strong) !important;
     color: #ffffff !important;
     box-shadow: 0 12px 24px -18px rgba(194, 65, 12, 0.58) !important;
+  }
+
+  .co-delivery-page .co-page-header button,
+  .co-delivery-board-actions > button,
+  .co-delivery-main-board > .flex.border-t button,
+  .co-delivery-right-rail button,
+  .co-delivery-tools-drawer summary,
+  .co-delivery-tool-tabs button {
+    min-height: 2.5rem !important;
+  }
+
+  .co-delivery-page .co-page-header button,
+  .co-delivery-board-actions > button,
+  .co-delivery-main-board > .flex.border-t button,
+  .co-delivery-right-rail button {
+    border-radius: 0.75rem !important;
   }
 }
 
