@@ -27201,6 +27201,94 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, permission
   );
 }
 
+function ToolChecklistMobileFocusPanel({
+  checklist,
+  selectedItems,
+  filteredCount,
+  visibleJobCount,
+  openIssueCount,
+  permissions,
+  busy,
+  canAddItems,
+  canCreateChecklist,
+  onOpenTool,
+  onSubmitChecklist,
+  onJumpToBoard,
+}) {
+  const status = String(checklist?.status || "").toLowerCase();
+  const canSubmit = Boolean(
+    permissions.toolChecklist.canManageJob
+      && checklist
+      && !["submitted", "reviewed", "archived"].includes(status)
+  );
+  const title = checklist?.title || "Tool loadout ready";
+  const focusMeta = checklist
+    ? `${toolChecklistJobLabel(checklist)} / ${toolChecklistForemanLabel(checklist)}`
+    : `${filteredCount} visible loadout${filteredCount === 1 ? "" : "s"}`;
+  const metricItems = [
+    { label: "Loads", value: filteredCount, tone: filteredCount ? "orange" : "slate", onClick: onJumpToBoard },
+    { label: "Items", value: checklist ? selectedItems.length : "-", tone: selectedItems.length ? "orange" : "slate", onClick: () => onOpenTool("items") },
+    { label: "Issues", value: openIssueCount, tone: openIssueCount ? "amber" : "green", onClick: () => onOpenTool("items") },
+    { label: "Jobs", value: visibleJobCount, tone: visibleJobCount ? "orange" : "slate", onClick: onJumpToBoard },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-tool-checklist-mobile-focus mx-4 mb-3 md:hidden" aria-label="Tool checklist mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>Tool Focus</span>
+        <h2>{title}</h2>
+        <p>{checklist?.notes || "Open the selected loadout, update missing or damaged tools, and keep submit actions within role limits."}</p>
+        <em>{focusMeta}</em>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        {checklist ? (
+          <Button type="button" onClick={() => onOpenTool("items")}>
+            <Icon name="layers" />
+            Items
+          </Button>
+        ) : (
+          <Button type="button" onClick={onJumpToBoard}>
+            <Icon name="clipboard" />
+            Board
+          </Button>
+        )}
+        {canAddItems ? (
+          <Button type="button" variant="secondary" onClick={() => onOpenTool("add")}>
+            <Icon name="plus" />
+            Add
+          </Button>
+        ) : canCreateChecklist ? (
+          <Button type="button" variant="secondary" onClick={() => onOpenTool("create")}>
+            <Icon name="plus" />
+            New
+          </Button>
+        ) : null}
+        {canSubmit ? (
+          <Button type="button" variant="secondary" onClick={() => onSubmitChecklist(checklist.id)} disabled={busy || !canSubmit}>
+            <Icon name="check" />
+            Submit
+          </Button>
+        ) : (
+          <Button type="button" variant="secondary" onClick={() => onOpenTool(checklist ? "detail" : "items")}>
+            <Icon name="clipboard" />
+            Details
+          </Button>
+        )}
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        {metricItems.map((metric) => (
+          <button key={metric.label} type="button" data-tone={metric.tone} onClick={metric.onClick}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ToolChecklistFieldOperatorPanel({ checklist, selectedItems, filteredRows, visibleJobs, permissions, busy, onOpenTool, onSubmitChecklist, onJumpToBoard }) {
   const status = String(checklist?.status || "").toLowerCase();
   const missingCount = Number(checklist?.missingItemCount || 0);
@@ -27220,7 +27308,7 @@ function ToolChecklistFieldOperatorPanel({ checklist, selectedItems, filteredRow
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+    <div className="co-tool-checklist-field-panel-wrap mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
       <Card className="co-field-operator-panel co-tool-checklist-field-panel overflow-hidden">
         <div className="co-field-operator-shell">
           <div className="co-field-operator-copy min-w-0">
@@ -27614,6 +27702,21 @@ function ToolChecklistPagePolished({
         title="Tool Checklist"
         description={permissions.toolChecklist.canManageAll ? "Manage job tool loadouts, review submissions, and keep field issues visible to the office." : "Keep assigned job tools organized, flag missing or damaged items, and submit the checklist without office-only data."}
         actions={isFieldToolChecklist ? fieldHeaderActions : officeHeaderActions}
+      />
+
+      <ToolChecklistMobileFocusPanel
+        checklist={selectedChecklist}
+        selectedItems={selectedItems}
+        filteredCount={filteredRows.length}
+        visibleJobCount={visibleJobs.length}
+        openIssueCount={openIssueCount}
+        permissions={permissions}
+        busy={busy}
+        canAddItems={canAddItems}
+        canCreateChecklist={canCreateChecklist}
+        onOpenTool={openTools}
+        onSubmitChecklist={onSubmitChecklist}
+        onJumpToBoard={jumpToBoard}
       />
 
       {isFieldToolChecklist ? (
