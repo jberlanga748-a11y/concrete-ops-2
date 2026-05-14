@@ -2,32 +2,34 @@
 
 ## Current Phase
 
-Uploads / Photo Evidence command page polish is next.
+Delivery Tickets command page polish is ready to release.
 
 ## Current State
 
-- Reports phase is committed, pushed, deployed, and health-checked.
-- Reports route `/reports` was the only app page intentionally changed.
-- Latest Reports app files changed:
+- Uploads / Photo Evidence is committed, pushed, deployed, and health-checked.
+- Delivery Tickets route `/deliveryTickets` was the only app page intentionally changed.
+- Latest Delivery Tickets app files changed:
   - `src/App.jsx`
   - `src/index.css`
-- Project coordination file updated:
+- Project coordination file pending release update:
   - `.agents/APEX_STATUS.md`
 
 ## Latest Audit
 
-- Reports audit captured admin, foreman, and employee views at desktop and mobile sizes.
-- No horizontal overflow detected in the latest Reports screenshot metrics.
-- Mobile Start Report open state clears the bottom nav.
-- Latest Reports screenshots:
-  - `output/playwright/reports-final-polish/2026-05-14T03-07-24-976Z`
-  - `output/playwright/reports-overseer-fixes/2026-05-14T03-14-08-652Z`
+- Delivery Tickets audit captured admin, foreman, and employee views at desktop and mobile sizes.
+- Three local visual audit passes were completed.
+- Latest audit detected no horizontal overflow, no console errors, and no visible old product branding.
+- Latest Delivery Tickets screenshots:
+  - `output/playwright/delivery-before/2026-05-14T03-49-20-738Z/route-direct`
+  - `output/playwright/delivery-after-1/2026-05-14T03-52-41-618Z`
+  - `output/playwright/delivery-after-2/2026-05-14T03-54-28-778Z`
+  - `output/playwright/delivery-after-3/2026-05-14T03-55-53-870Z`
 
 ## Verification
 
 - `npm.cmd run build` passed.
 - `npm.cmd run verify:roles` passed.
-- `npm.cmd run verify:daily-reports` passed.
+- `npm.cmd run verify:delivery-tickets` passed.
 - `npm.cmd run verify:field-workspaces` passed.
 - `npm.cmd run verify:server` passed.
 - Focused routing/navigation/design token tests passed.
@@ -35,13 +37,11 @@ Uploads / Photo Evidence command page polish is next.
 
 ## Release Status
 
-- Reports released to `origin/main` and Fly app `concrete-ops-2`.
+- Delivery Tickets is approved by Apex Overseer and ready for commit, push, deploy, and health check.
 
 ## Remaining Notes
 
-- Apex Overseer approved Reports for release.
+- Apex Overseer approved Delivery Tickets for release.
 - Generated screenshots should remain untracked under `output/`.
-- Commit: `3d51dc5` (`Polish daily reports command page`)
-- Fly image: `registry.fly.io/concrete-ops-2:deployment-01KRJ7WRQKN7072G67ZBZ0ECKY`
-- Health check passed: HTTP 200, `ok: true`, `status: ready`, database `ok`.
-- Next recommended phase: Uploads / Photo Evidence command page polish.
+- Latest released commit before this phase: `848dec8` (`Polish uploads photo evidence page`)
+- Next recommended phase after Delivery Tickets release: Pre-Pour or Post-Pour final touch-up sweep, then Safety/Incidents and Tool Checklist.

@@ -25261,6 +25261,76 @@ function DeliveryTicketsFieldOperatorPanel({
   );
 }
 
+function DeliveryTicketsMobileFocusPanel({
+  ticket,
+  latestTicket,
+  visibleCount,
+  yardsLogged,
+  missingPhotoCount,
+  missingReportCount,
+  incompleteBasicsCount,
+  canCreate,
+  onCreate,
+  onOpenBoard,
+  onOpenMissingPhoto,
+  onOpenReportGap,
+  onOpenBasicsGap,
+  onOpenLatest,
+}) {
+  const focusTicket = ticket || latestTicket;
+  const readinessItems = [
+    { label: "Need photo", value: missingPhotoCount, tone: missingPhotoCount ? "amber" : "green", onClick: onOpenMissingPhoto },
+    { label: "Report gaps", value: missingReportCount, tone: missingReportCount ? "orange" : "green", onClick: onOpenReportGap },
+    { label: "Basics gaps", value: incompleteBasicsCount, tone: incompleteBasicsCount ? "amber" : "green", onClick: onOpenBasicsGap },
+  ];
+
+  return (
+    <section className="co-delivery-mobile-focus mx-4 mb-3 md:hidden" aria-label="Delivery ticket mobile focus">
+      <div className="co-delivery-mobile-focus-copy">
+        <span>Delivery Focus</span>
+        <h2>{focusTicket ? deliveryTicketTitle(focusTicket) : "No delivery ticket selected"}</h2>
+        <p>{focusTicket ? `${focusTicket.job?.title || "Assigned job"} / ${focusTicket.supplier || "Supplier pending"} / ${deliveryTicketYardsLabel(focusTicket)}` : "Start with the board or create the next ticket for a visible job."}</p>
+      </div>
+
+      <div className="co-delivery-mobile-focus-actions">
+        {canCreate ? (
+          <Button type="button" onClick={onCreate}>
+            <Icon name="plus" />
+            New Ticket
+          </Button>
+        ) : null}
+        <Button type="button" variant={canCreate ? "secondary" : undefined} onClick={onOpenBoard}>
+          <Icon name="layers" />
+          View Board
+        </Button>
+        {focusTicket ? (
+          <Button type="button" variant="secondary" onClick={onOpenLatest}>
+            <Icon name="arrowUpRight" />
+            Open Latest
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="co-delivery-mobile-focus-metrics">
+        <button type="button" onClick={onOpenBoard} data-tone="orange">
+          <span>Visible</span>
+          <strong>{visibleCount}</strong>
+        </button>
+        <button type="button" onClick={onOpenBoard} data-tone={yardsLogged ? "green" : "slate"}>
+          <span>Yards</span>
+          <strong>{deliveryTicketYardsLabel({ yardsDelivered: yardsLogged })}</strong>
+        </button>
+        {readinessItems.map((item) => (
+          <button key={item.label} type="button" onClick={item.onClick} data-tone={item.tone}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DeliveryTicketCreatePanelPolished({
   canCreate,
   visibleJobs,
@@ -25759,6 +25829,25 @@ function DeliveryTicketsPagePolished({
         />
       ) : null}
 
+      {canManageAll ? (
+        <DeliveryTicketsMobileFocusPanel
+          ticket={selectedTicket}
+          latestTicket={latestTicket}
+          visibleCount={filteredRows.length}
+          yardsLogged={yardsLogged}
+          missingPhotoCount={missingPhotoCount}
+          missingReportCount={missingReportCount}
+          incompleteBasicsCount={incompleteBasicsCount}
+          canCreate={canCreate}
+          onCreate={() => openTool("create")}
+          onOpenBoard={jumpToBoard}
+          onOpenMissingPhoto={() => openPriorityTicket((ticket) => !ticket.ticketUploadId, { archiveFilter: "Active" })}
+          onOpenReportGap={() => openPriorityTicket((ticket) => !ticket.reportId, { archiveFilter: "Active" })}
+          onOpenBasicsGap={() => openPriorityTicket((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0), { archiveFilter: "Active" })}
+          onOpenLatest={() => openPriorityTicket((ticket) => ticket.id === latestTicket?.id, { archiveFilter: "Active" })}
+        />
+      ) : null}
+
       <div className="co-delivery-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {ticketKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
@@ -25786,7 +25875,7 @@ function DeliveryTicketsPagePolished({
                   <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Delivery Board</h2>
                   <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track tickets, loads, suppliers, truck timing, linked reports, and photo evidence in one operational lane.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="co-delivery-board-actions flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Active")}>Active</Button>
                   <Button type="button" size="sm" variant="secondary" onClick={() => setArchiveFilter("Archived")}>Archive</Button>
                   {canCreate ? <Button type="button" size="sm" onClick={() => openTool("create")}>New Ticket</Button> : null}
