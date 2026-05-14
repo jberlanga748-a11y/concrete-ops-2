@@ -14176,6 +14176,29 @@ function DailySourceCheckPanel({
   const [checkingSourceId, setCheckingSourceId] = useState("");
   const [checkDraft, setCheckDraft] = useState({ checkedAt: today, nextCheckAt: "", checkNote: "" });
   const [message, setMessage] = useState("");
+  const activeSourceCount = normalizeObjectArray(sources).filter((source) => !source.archivedAt && String(source.status || "Active").toLowerCase() === "active").length;
+  const checksToRun = checkState.stats.overdue + checkState.stats.dueToday;
+  const sourceCheckTone = checkState.stats.overdue ? "red" : checksToRun ? "orange" : "green";
+  const sourceCheckRunCards = [
+    {
+      label: "Run First",
+      value: checksToRun,
+      helper: checksToRun ? `${checkState.stats.overdue} overdue / ${checkState.stats.dueToday} due today` : "No source checks due.",
+      tone: sourceCheckTone,
+    },
+    {
+      label: "Coverage",
+      value: activeSourceCount,
+      helper: "Active manual sources feeding the job finder.",
+      tone: activeSourceCount ? "blue" : "amber",
+    },
+    {
+      label: "Recently Checked",
+      value: checkState.stats.recentlyChecked,
+      helper: "Newest source checks stay visible for audit trail.",
+      tone: checkState.stats.recentlyChecked ? "green" : "slate",
+    },
+  ];
 
   function beginCheck(source) {
     const checkedAt = todayDateInputValue();
@@ -14248,15 +14271,18 @@ function DailySourceCheckPanel({
   function SourceCard({ source, tone = "blue", helper }) {
     const scoutBrief = buildOpportunityScoutSourceBrief(source);
     return (
-      <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="co-source-check-card" data-tone={tone}>
+        <div className="co-source-check-card-head">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="break-words text-sm font-black text-slate-950">{source.name || "Unnamed source"}</p>
               <Badge tone={tone}>{helper}</Badge>
             </div>
             <p className="mt-1 break-words text-xs font-bold text-slate-500">{[source.type, leadSourceLocation(source), source.checkCadence || "Manual"].filter(Boolean).join(" / ")}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Last checked: {source.lastCheckedAt || "Not set"} / Next check: {source.nextCheckAt || "Not scheduled"}</p>
+          </div>
+          <div className="co-source-check-card-dates">
+            <span>Last <strong>{source.lastCheckedAt || "Not set"}</strong></span>
+            <span>Next <strong>{source.nextCheckAt || "Not scheduled"}</strong></span>
           </div>
         </div>
         <div className="co-source-check-brief" data-tone={tone}>
@@ -14288,7 +14314,7 @@ function DailySourceCheckPanel({
 
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-blue-100 bg-amber-50/70 p-4">
+      <div className="co-source-check-header border-b border-orange-100 bg-white p-4">
         <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <Badge tone="amber">Daily Source Check</Badge>
@@ -14297,11 +14323,27 @@ function DailySourceCheckPanel({
               Check bid pages, plan rooms, referrals, and relationship sources manually. Nothing is scraped, emailed, texted, or checked automatically.
             </p>
           </div>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-4 xl:min-w-[560px]">
-            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.overdue}</p><Badge tone={checkState.stats.overdue > 0 ? "red" : "slate"}>Overdue</Badge></div>
-            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.dueToday}</p><Badge tone={checkState.stats.dueToday > 0 ? "amber" : "slate"}>Due today</Badge></div>
-            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.upcoming}</p><Badge tone="blue">Upcoming</Badge></div>
-            <div className="rounded-2xl border border-amber-100 bg-white p-3"><p className="text-lg font-black text-slate-950">{checkState.stats.recentlyChecked}</p><Badge tone="green">Recently checked</Badge></div>
+          <div className="co-source-check-stat-grid">
+            {sourceCheckRunCards.map((card) => (
+              <div key={card.label} className="co-source-check-stat" data-tone={card.tone}>
+                <p>{card.value}</p>
+                <strong>{card.label}</strong>
+                <span>{card.helper}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="co-source-check-run-strip" data-tone={sourceCheckTone}>
+          <div>
+            <span>Today&apos;s Source Run</span>
+            <strong>{checksToRun ? "Start with overdue and due sources." : "Source checks are clear."}</strong>
+            <p>{checksToRun ? "Open each source, verify real opportunities, then mark checked or start a lead only after a human review." : "Upcoming and recent sources stay below so the office can keep the routine honest."}</p>
+          </div>
+          <div className="co-source-check-run-steps">
+            <small><b>1</b>Open source</small>
+            <small><b>2</b>Verify real work</small>
+            <small><b>3</b>Save check</small>
+            <small><b>4</b>Add lead only if real</small>
           </div>
         </div>
         {message ? <p className="mt-3 rounded-2xl border border-blue-100 bg-white px-3 py-2 text-sm font-bold text-blue-800">{message}</p> : null}
