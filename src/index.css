@@ -8948,6 +8948,16 @@ textarea {
   }
 }
 
+@media (min-width: 1024px) and (max-width: 1400px) {
+  .co-ppe-page .co-toolbox-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .co-ppe-page .co-toolbox-priority-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
 @media (max-width: 767px) {
   .co-toolbox-page .co-page-header {
     padding-top: 1.15rem;
@@ -18851,6 +18861,41 @@ textarea {
 
   .co-ppe-page.co-field-tool-page .co-toolbox-priority-grid {
     display: none !important;
+  }
+
+  .co-ppe-page .co-toolbox-kpi-grid,
+  .co-ppe-page .co-toolbox-priority-grid,
+  .co-ppe-field-panel-wrap {
+    display: none !important;
+  }
+
+  .co-ppe-page .co-toolbox-command-layout {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.85rem) !important;
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
+  }
+
+  .co-ppe-page .co-toolbox-filter-strip {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.35rem) !important;
+  }
+
+  .co-ppe-page .co-toolbox-mobile-list {
+    padding-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+  }
+
+  .co-ppe-mobile-focus .co-prepour-mobile-focus-copy em {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 0.5rem;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 999px;
+    background: #ffffff;
+    padding: 0.34rem 0.56rem;
+    color: #475569;
+    font-size: 0.64rem;
+    font-style: normal;
+    font-weight: 950;
+    line-height: 1;
   }
 
   .co-tool-checklist-page.co-field-tool-page .co-toolbox-priority-grid {

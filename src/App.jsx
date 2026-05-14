@@ -9240,6 +9240,76 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
   );
 }
 
+function PpeMobileFocusPanel({
+  item,
+  filteredCount,
+  requiredCount,
+  acknowledgmentState,
+  openIncidents,
+  canAcknowledge,
+  canSubmitIncidents,
+  canManage,
+  onAcknowledge,
+  onViewBoard,
+  onOpenIncident,
+  onOpenTools,
+}) {
+  const focusTitle = item?.label || "PPE check ready";
+  const focusMeta = item
+    ? `${ppeItemRequirementLabel(item)} / ${formatDateTime(ppeItemUpdatedAt(item)) || "No update date"}`
+    : `${filteredCount} visible PPE item${filteredCount === 1 ? "" : "s"}`;
+  const metricItems = [
+    { label: "Items", value: filteredCount, tone: filteredCount ? "orange" : "slate", onClick: onViewBoard },
+    { label: "Req", value: requiredCount, tone: requiredCount ? "orange" : "slate", onClick: onViewBoard },
+    { label: "Ack", value: acknowledgmentState.hasAcknowledged ? "Done" : "Open", tone: acknowledgmentState.hasAcknowledged ? "green" : "amber", onClick: onAcknowledge },
+    { label: "Watch", value: openIncidents, tone: openIncidents ? "amber" : "green", onClick: canSubmitIncidents ? onOpenIncident : onViewBoard },
+  ];
+
+  return (
+    <section className="co-prepour-mobile-focus co-toolbox-mobile-focus co-ppe-mobile-focus mx-4 mb-3 md:hidden" aria-label="PPE mobile focus">
+      <div className="co-prepour-mobile-focus-copy">
+        <span>PPE Focus</span>
+        <h2>{focusTitle}</h2>
+        <p>{item?.description || "Confirm required protection, acknowledge PPE expectations, and keep safety concerns one tap away."}</p>
+        <em>{focusMeta}</em>
+      </div>
+
+      <div className="co-prepour-mobile-focus-actions">
+        {canAcknowledge ? (
+          <Button type="button" onClick={onAcknowledge}>
+            <Icon name="check" />
+            Acknowledge
+          </Button>
+        ) : (
+          <Button type="button" onClick={onViewBoard}>
+            <Icon name="hardhat" />
+            View PPE
+          </Button>
+        )}
+        {canSubmitIncidents ? (
+          <Button type="button" variant="secondary" onClick={onOpenIncident}>
+            <Icon name="alert" />
+            Concern
+          </Button>
+        ) : null}
+        <Button type="button" variant="secondary" onClick={onOpenTools}>
+          <Icon name={canManage ? "settings" : "clipboard"} />
+          {canManage ? "Manage" : "Guidance"}
+        </Button>
+      </div>
+
+      <div className="co-prepour-mobile-focus-metrics">
+        {metricItems.map((metric) => (
+          <button key={metric.label} type="button" data-tone={metric.tone} onClick={metric.onClick}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PpeFieldOperatorPanel({ selectedItem, filteredCount, requiredCount, acknowledgmentState, openIncidents, canAcknowledge, canSubmitIncidents, onOpenTool, onJumpToBoard }) {
   const summaryItems = [
     { label: "PPE items", value: filteredCount, tone: filteredCount ? "orange" : "slate" },
@@ -9249,7 +9319,7 @@ function PpeFieldOperatorPanel({ selectedItem, filteredCount, requiredCount, ack
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+    <div className="co-ppe-field-panel-wrap mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
       <Card className="co-field-operator-panel co-ppe-field-panel overflow-hidden">
         <div className="co-field-operator-shell">
           <div className="co-field-operator-copy min-w-0">
@@ -9616,6 +9686,21 @@ function PpeChecklistPagePolished({
             {canAcknowledge ? <Button type="button" onClick={() => openTools("ack")}>Acknowledge PPE</Button> : null}
           </div>
         }
+      />
+
+      <PpeMobileFocusPanel
+        item={selectedItem}
+        filteredCount={filteredPpeItems.length}
+        requiredCount={requiredCount}
+        acknowledgmentState={acknowledgmentState}
+        openIncidents={openIncidents}
+        canAcknowledge={canAcknowledge}
+        canSubmitIncidents={canSubmitIncidents}
+        canManage={canManage}
+        onAcknowledge={() => openTools(canAcknowledge ? "ack" : "policy")}
+        onViewBoard={jumpToBoard}
+        onOpenIncident={() => openTools(canSubmitIncidents || canReview ? "incident" : "policy")}
+        onOpenTools={() => openTools(canManage ? "ppe" : "policy")}
       />
 
       {!canManage ? (
