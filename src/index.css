@@ -20146,4 +20146,46 @@ textarea {
   nav.co-mobile-bottom-nav .co-mobile-bottom-nav-button span:last-child {
     max-width: 3.75rem !important;
   }
+
+  .co-leads-kpi-grid,
+  .co-customers-kpi-grid,
+  .co-estimates-kpi-grid,
+  .co-jobs-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
+    overflow: visible !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    padding-bottom: 0.72rem !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-leads-kpi-grid .co-command-kpi,
+  .co-customers-kpi-grid .co-command-kpi,
+  .co-estimates-kpi-grid .co-command-kpi,
+  .co-jobs-kpi-grid .co-command-kpi {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: initial !important;
+    scroll-snap-align: none !important;
+  }
+
+  .co-filter-bar > .scrollbar-none {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem !important;
+    width: 100%;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .co-filter-bar > .scrollbar-none > button {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.12;
+  }
 }
