@@ -1512,6 +1512,8 @@ textarea {
     align-items: center;
     gap: 0.45rem;
     margin-top: 0.55rem;
+    min-height: 1.55rem;
+    padding: 0.24rem 0;
     border-radius: 999px;
     color: var(--co-command-link);
     font-size: 0.72rem;
@@ -1733,6 +1735,70 @@ textarea {
     border-spacing: 0;
   }
 
+  .co-command-leads-card .co-command-table,
+  .co-command-jobs-card .co-command-table {
+    table-layout: fixed;
+  }
+
+  .co-command-leads-card .co-command-table th:nth-child(1),
+  .co-command-leads-card .co-command-table td:nth-child(1) {
+    width: 28%;
+  }
+
+  .co-command-leads-card .co-command-table th:nth-child(2),
+  .co-command-leads-card .co-command-table td:nth-child(2) {
+    width: 12%;
+  }
+
+  .co-command-leads-card .co-command-table th:nth-child(3),
+  .co-command-leads-card .co-command-table td:nth-child(3) {
+    width: 13%;
+  }
+
+  .co-command-leads-card .co-command-table th:nth-child(4),
+  .co-command-leads-card .co-command-table td:nth-child(4) {
+    width: 28%;
+  }
+
+  .co-command-leads-card .co-command-table th:nth-child(5),
+  .co-command-leads-card .co-command-table td:nth-child(5) {
+    width: 10%;
+  }
+
+  .co-command-leads-card .co-command-table th:nth-child(6),
+  .co-command-leads-card .co-command-table td:nth-child(6) {
+    width: 9%;
+  }
+
+  .co-command-jobs-card .co-command-table th:nth-child(1),
+  .co-command-jobs-card .co-command-table td:nth-child(1) {
+    width: 28%;
+  }
+
+  .co-command-jobs-card .co-command-table th:nth-child(2),
+  .co-command-jobs-card .co-command-table td:nth-child(2) {
+    width: 12%;
+  }
+
+  .co-command-jobs-card .co-command-table th:nth-child(3),
+  .co-command-jobs-card .co-command-table td:nth-child(3) {
+    width: 14%;
+  }
+
+  .co-command-jobs-card .co-command-table th:nth-child(4),
+  .co-command-jobs-card .co-command-table td:nth-child(4),
+  .co-command-jobs-card .co-command-table th:nth-child(5),
+  .co-command-jobs-card .co-command-table td:nth-child(5),
+  .co-command-jobs-card .co-command-table th:nth-child(6),
+  .co-command-jobs-card .co-command-table td:nth-child(6) {
+    width: 9%;
+  }
+
+  .co-command-jobs-card .co-command-table th:nth-child(7),
+  .co-command-jobs-card .co-command-table td:nth-child(7) {
+    width: 19%;
+  }
+
   .co-command-table thead {
     background: linear-gradient(180deg, #FBFDFF, #F8FAFC);
   }
@@ -1823,8 +1889,14 @@ textarea {
   }
 
   .co-command-right-rail {
-    position: sticky;
-    top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
+    position: static;
+  }
+
+  @media (min-width: 1536px) {
+    .co-command-right-rail {
+      position: sticky;
+      top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
+    }
   }
 
   .co-command-alert-dot {
@@ -1859,6 +1931,166 @@ textarea {
   .co-command-card .co-section-accent p {
     color: #52647A;
     font-weight: 700;
+  }
+
+  .co-command-mobile-list {
+    display: none;
+  }
+
+  .co-command-mobile-row {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.98);
+    background: #fff;
+    padding: 0.72rem 0.75rem;
+    text-align: left;
+  }
+
+  .co-command-mobile-row:last-child {
+    border-bottom: 0;
+  }
+
+  .co-command-mobile-row-title,
+  .co-command-mobile-row-subtitle,
+  .co-command-mobile-row-meta {
+    display: block;
+    min-width: 0;
+  }
+
+  .co-command-mobile-row-title {
+    color: #07111f;
+    font-size: 0.9rem;
+    font-weight: 950;
+    line-height: 1.08;
+  }
+
+  .co-command-mobile-row-subtitle {
+    margin-top: 0.25rem;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .co-command-mobile-row-meta {
+    margin-top: 0.42rem;
+    color: #64748b;
+    font-size: 0.66rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.25;
+    text-transform: uppercase;
+  }
+
+  .co-command-mobile-row-side {
+    display: grid;
+    justify-items: end;
+    gap: 0.32rem;
+    color: #d83d00;
+    font-size: 0.68rem;
+    font-weight: 950;
+    line-height: 1.1;
+    text-align: right;
+  }
+
+  .co-command-cockpit {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.36);
+    border-radius: 0.9rem !important;
+    background:
+      radial-gradient(circle at 85% 8%, rgba(249, 115, 22, 0.36), transparent 18rem),
+      linear-gradient(135deg, #07111f 0%, #101827 56%, #18283a 100%) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 28px 70px -50px rgba(7, 17, 31, 0.9) !important;
+  }
+
+  .co-command-cockpit::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 1rem;
+    bottom: 1rem;
+    width: 4px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ff7a1a, #f4510b);
+  }
+
+  .co-command-cockpit-step {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.07);
+    padding: 0.52rem 0.62rem;
+    color: #f8fafc;
+    font-size: 0.76rem;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .co-command-cockpit-step span {
+    display: inline-flex;
+    height: 1.3rem;
+    width: 1.3rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #f4510b;
+    color: #fff7ed;
+    font-size: 0.72rem;
+    font-weight: 950;
+  }
+
+  .co-command-cockpit-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .co-command-cockpit-metrics > div {
+    min-width: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.72rem 0.68rem;
+  }
+
+  .co-command-cockpit-metrics > div:last-child {
+    border-right: 0;
+  }
+
+  .co-command-cockpit-metrics p {
+    color: #fff7ed;
+    font-size: 1.45rem;
+    font-weight: 950;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+  }
+
+  .co-command-cockpit-metrics span {
+    display: block;
+    margin-top: 0.35rem;
+    color: #cbd5e1;
+    font-size: 0.66rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+
+  .co-command-cockpit-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
   }
 
   .co-section-accent {
@@ -4524,6 +4756,143 @@ textarea {
     }
   }
 
+  @media (max-width: 640px) {
+    .co-command-page > div:first-child {
+      padding: 1.2rem 1rem 0.8rem !important;
+    }
+
+    .co-command-page > div:nth-child(2) {
+      gap: 0.75rem !important;
+      padding-left: 0.95rem !important;
+      padding-right: 0.95rem !important;
+      padding-bottom: calc(8.25rem + env(safe-area-inset-bottom)) !important;
+    }
+
+    .co-command-cockpit {
+      border-radius: 1rem !important;
+      background:
+        radial-gradient(circle at 92% 0%, rgba(249, 115, 22, 0.36), transparent 13rem),
+        linear-gradient(135deg, #07111f 0%, #101827 56%, #18283a 100%) !important;
+      padding: 1rem !important;
+    }
+
+    .co-command-cockpit h3 {
+      color: #fff7ed !important;
+      font-size: 1.22rem;
+      line-height: 1.04;
+    }
+
+    .co-command-cockpit-copy {
+      display: none;
+    }
+
+    .co-command-cockpit-step {
+      display: none;
+    }
+
+    .co-command-cockpit-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .co-command-cockpit-metrics > div {
+      padding: 0.52rem 0.58rem;
+    }
+
+    .co-command-cockpit-metrics p {
+      font-size: 1.28rem;
+    }
+
+    .co-command-cockpit-metrics span {
+      margin-top: 0.25rem;
+      font-size: 0.58rem;
+    }
+
+    .co-command-cockpit-metrics > div:nth-child(2) {
+      border-right: 0;
+    }
+
+    .co-command-cockpit-metrics > div:nth-child(1),
+    .co-command-cockpit-metrics > div:nth-child(2) {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .co-command-cockpit-actions {
+      display: none;
+    }
+
+    .co-command-kpi-grid {
+      display: flex !important;
+      gap: 0.75rem !important;
+      overflow-x: auto;
+      overflow-y: hidden;
+      margin-bottom: 11.5rem;
+      padding-bottom: 0.35rem;
+      scroll-padding-inline: 0.25rem;
+      scroll-snap-type: x proximity;
+    }
+
+    .co-command-kpi-grid .co-command-kpi {
+      flex: 0 0 66%;
+      min-height: 6.45rem;
+      padding: 0.72rem !important;
+      scroll-snap-align: start;
+    }
+
+    .co-command-kpi-grid .co-command-kpi-body {
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .co-command-kpi-grid .co-command-kpi-icon {
+      height: 2.05rem;
+      width: 2.05rem;
+    }
+
+    .co-command-kpi-grid .co-command-kpi-icon svg {
+      height: 1rem;
+      width: 1rem;
+    }
+
+    .co-command-kpi-grid .co-command-kpi-value {
+      font-size: 1.38rem;
+    }
+
+    .co-command-kpi-grid .co-command-kpi .co-command-kpi-body p:nth-child(2) {
+      font-size: 0.72rem !important;
+      line-height: 1.05 !important;
+    }
+
+    .co-command-kpi-grid .co-command-kpi .co-command-kpi-body p:nth-child(3) {
+      display: none;
+    }
+
+    .co-command-kpi-grid .co-command-kpi-link {
+      margin-top: 0.3rem;
+      min-height: 1.2rem;
+      font-size: 0.66rem;
+    }
+
+    .co-command-table-card .table-shell {
+      overflow-x: hidden;
+    }
+
+    .co-command-table-card .co-command-table {
+      display: none;
+    }
+
+    .co-command-mobile-list {
+      display: grid;
+      overflow: hidden;
+      border: 1px solid rgba(226, 232, 240, 0.98);
+      border-radius: 0.72rem;
+      background: #fff;
+    }
+
+    .co-command-right-rail {
+      display: grid !important;
+    }
+  }
+
   @media (max-width: 370px) {
     .co-mobile-user-copy {
       display: none;
@@ -4685,7 +5054,9 @@ textarea {
     }
 
     .co-command-right-rail {
-      display: none !important;
+      display: grid !important;
+      gap: 0.72rem !important;
+      min-width: 0;
     }
 
     .co-mobile-bottom-nav {

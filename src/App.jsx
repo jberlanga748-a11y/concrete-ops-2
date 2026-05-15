@@ -12143,16 +12143,16 @@ function CommandCenterTableCard({ title, description, action, children, emptyTex
 
 function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
   const rows = [
-    { label: "App Status", detail: "Checked in Owner Health", pill: "OK" },
-    { label: "Database", detail: "Checked in Owner Health", pill: "OK" },
-    { label: "Storage", detail: "Checked in Owner Health", pill: "OK" },
-    { label: "AI Configured", detail: "Server-side status only", pill: "OK" },
-    { label: "Website Intake Configured", detail: "Server-side status only", pill: "OK" },
+    { label: "App Status", detail: "Review the live health panel", pill: "Review", tone: "blue" },
+    { label: "Database", detail: "Confirm data service status", pill: "Review", tone: "blue" },
+    { label: "Backup", detail: "Check export and safety status", pill: "Review", tone: "slate" },
+    { label: "AI Office", detail: "Server-side configuration only", pill: "Review", tone: "slate" },
+    { label: "Website Intake", detail: "Review intake readiness", pill: "Review", tone: "slate" },
   ];
 
   return (
     <Card className="co-command-card p-2.5">
-      <SectionHeader title="Owner Health Status" />
+      <SectionHeader title="Owner Health Review" description="Live app, data, and intake checks stay one click away." />
       <div className="co-command-health-list">
         {rows.map((row) => (
           <div key={row.label} className="co-command-health-row co-command-rail-row">
@@ -12165,7 +12165,7 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
                 <span className="sr-only">{row.detail}</span>
               </span>
             </span>
-            <Badge tone="green">{row.pill}</Badge>
+            <Badge tone={row.tone}>{row.pill}</Badge>
           </div>
         ))}
       </div>
@@ -12177,34 +12177,56 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
   );
 }
 
-function CommandCenterMorningFlowCard({ onOpenDrafts, onOpenJobs, onOpenReports }) {
+function CommandCenterMorningFlowCard({ onOpenLeads, onOpenDrafts, onOpenJobs, onOpenReports, priorityCount = 0, overdueCount = 0, jobsNeedingReview = 0, reportsUploadsDue = 0 }) {
   const steps = [
-    "Review drafts and match customers",
-    "Create jobs and finish startup readiness",
-    "Send work to the field, then check reports, photos, tickets, and time",
+    "Clear overdue follow-ups",
+    "Unblock job startup",
+    "Review reports, photos, tickets, and time",
   ];
 
   return (
-    <Card className="overflow-hidden border-orange-200 bg-gradient-to-br from-white via-orange-50/70 to-slate-50 p-5 shadow-panel">
-      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <Card className="co-command-cockpit p-4">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)] xl:items-stretch">
         <div className="min-w-0">
-          <Badge tone="orange">Start here</Badge>
-          <h3 className="mt-3 text-lg font-black text-slate-950">Today&apos;s office command flow</h3>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-700">
-            Walk the pilot flow top to bottom: review drafts, match the customer, create the job, finish startup, then send work to the field.
+          <Badge tone="orange">Operator cockpit</Badge>
+          <h3 className="mt-2 text-2xl font-black tracking-tight text-white">Start with what can block today.</h3>
+          <p className="co-command-cockpit-copy mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-300">
+            Prioritize overdue outreach, job startup blockers, and field evidence before the office moves deeper into the day.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {steps.map((step, index) => (
-              <span key={step} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-slate-800 ring-1 ring-orange-100">
-                {index + 1}. {step}
+              <span key={step} className="co-command-cockpit-step">
+                <span>{index + 1}</span>
+                {step}
               </span>
             ))}
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" onClick={onOpenDrafts}>Review Drafts</Button>
-          <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Open Jobs</Button>
-          <Button type="button" size="sm" onClick={onOpenReports}>Reports / Photos</Button>
+        <div className="grid min-w-0 gap-2">
+          <div className="co-command-cockpit-metrics">
+            <div>
+              <p>{priorityCount}</p>
+              <span>priority items</span>
+            </div>
+            <div>
+              <p>{overdueCount}</p>
+              <span>overdue</span>
+            </div>
+            <div>
+              <p>{jobsNeedingReview}</p>
+              <span>job blockers</span>
+            </div>
+            <div>
+              <p>{reportsUploadsDue}</p>
+              <span>reports/photos</span>
+            </div>
+          </div>
+          <div className="co-command-cockpit-actions">
+            <Button type="button" size="sm" onClick={onOpenLeads}>Start Priority Work</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Open Jobs</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onOpenDrafts}>Draft Review</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onOpenReports}>Reports / Photos</Button>
+          </div>
         </div>
       </div>
     </Card>
@@ -12504,19 +12526,29 @@ function CommandCenterPage({
             <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Open Follow-Ups</Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Open Jobs</Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobDraftImports")}><Icon name="database" />Imported Drafts</Button>
+            <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Start Priority Work</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Job Board</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("settings")}><Icon name="settings" />Owner Health</Button>
           </div>
         </div>
       </div>
       <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
-        <div className="grid grid-cols-2 gap-2.5 2xl:grid-cols-4">
+        <CommandCenterMorningFlowCard
+          onOpenLeads={() => openModule("leads")}
+          onOpenDrafts={() => openModule("jobDraftImports")}
+          onOpenJobs={() => openModule("jobs")}
+          onOpenReports={() => openModule("reports")}
+          priorityCount={priorityRows.length}
+          overdueCount={commandCenter.stats.overdueFollowUps}
+          jobsNeedingReview={commandCenter.stats.jobsNeedingStartupReview + commandCenter.stats.jobsMissingCrew + commandCenter.stats.jobsMissingStartDate}
+          reportsUploadsDue={reportsUploadsDue}
+        />
+        <div className="co-command-kpi-grid grid grid-cols-2 gap-2.5 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />
           ))}
         </div>
-        <div className="grid items-start gap-2.5 xl:grid-cols-[minmax(0,1fr)_25rem]">
+        <div className="grid items-start gap-2.5 2xl:grid-cols-[minmax(0,1fr)_23rem]">
           <div className="grid min-w-0 gap-2.5">
             <CommandCenterSection
               title="Today's Priority Queue"
@@ -12548,43 +12580,60 @@ function CommandCenterPage({
               className="co-command-leads-card"
             >
               {leadCommandRows.length ? (
-                <table className="co-command-table w-full min-w-[760px] text-left">
-                  <thead>
-                    <tr>
-                      <th className="px-3 py-1">Lead / Company</th>
-                      <th className="px-3 py-1">Source</th>
-                      <th className="px-3 py-1">Last Contact</th>
-                      <th className="px-3 py-1">Next Step</th>
-                      <th className="px-3 py-1">Status</th>
-                      <th className="px-3 py-1 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leadCommandRows.map((row) => (
-                      <tr key={row.id} className="co-command-table-row align-middle">
-                        <td className="px-3 py-1">
-                          <p className="co-command-table-primary max-w-[16rem] truncate text-sm font-black">{row.title}</p>
-                          <p className="co-command-table-secondary mt-0.5 max-w-[16rem] truncate text-xs font-bold">{row.subtitle}</p>
-                        </td>
-                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.source}</td>
-                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.lastContact}</td>
-                        <td className="px-3 py-1">
-                          <p className="co-command-table-cell max-w-[18rem] truncate text-sm font-bold">{row.nextStep}</p>
-                        </td>
-                        <td className="px-3 py-1"><Badge tone={row.tone}>{row.status}</Badge></td>
-                        <td className="px-3 py-1 text-right">
-                          <button
-                            type="button"
-                            onClick={() => openModule(row.moduleId)}
-                            className="co-command-table-action co-focus-ring"
-                          >
-                            {row.actionLabel}
-                          </button>
-                        </td>
+                <>
+                  <table className="co-command-table w-full min-w-[680px] text-left">
+                    <thead>
+                      <tr>
+                        <th className="px-3 py-1">Lead / Company</th>
+                        <th className="px-3 py-1">Source</th>
+                        <th className="px-3 py-1">Last Contact</th>
+                        <th className="px-3 py-1">Next Step</th>
+                        <th className="px-3 py-1">Status</th>
+                        <th className="px-3 py-1 text-right">Action</th>
                       </tr>
+                    </thead>
+                    <tbody>
+                      {leadCommandRows.map((row) => (
+                        <tr key={row.id} className="co-command-table-row align-middle">
+                          <td className="px-3 py-1">
+                            <p className="co-command-table-primary max-w-[16rem] truncate text-sm font-black">{row.title}</p>
+                            <p className="co-command-table-secondary mt-0.5 max-w-[16rem] truncate text-xs font-bold">{row.subtitle}</p>
+                          </td>
+                          <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.source}</td>
+                          <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.lastContact}</td>
+                          <td className="px-3 py-1">
+                            <p className="co-command-table-cell max-w-[18rem] truncate text-sm font-bold">{row.nextStep}</p>
+                          </td>
+                          <td className="px-3 py-1"><Badge tone={row.tone}>{row.status}</Badge></td>
+                          <td className="px-3 py-1 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openModule(row.moduleId)}
+                              className="co-command-table-action co-focus-ring"
+                            >
+                              {row.actionLabel}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="co-command-mobile-list">
+                    {leadCommandRows.map((row) => (
+                      <button key={row.id} type="button" onClick={() => openModule(row.moduleId)} className="co-command-mobile-row co-focus-ring">
+                        <span className="min-w-0">
+                          <span className="co-command-mobile-row-title">{row.title}</span>
+                          <span className="co-command-mobile-row-subtitle">{row.subtitle}</span>
+                          <span className="co-command-mobile-row-meta">{row.source} / {row.lastContact}</span>
+                        </span>
+                        <span className="co-command-mobile-row-side">
+                          <Badge tone={row.tone}>{row.status}</Badge>
+                          <span>{row.actionLabel}</span>
+                        </span>
+                      </button>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               ) : null}
             </CommandCenterTableCard>
 
@@ -12596,44 +12645,61 @@ function CommandCenterPage({
               className="co-command-jobs-card"
             >
               {jobSnapshotRows.length ? (
-                <table className="co-command-table w-full min-w-[820px] text-left">
-                  <thead>
-                    <tr>
-                      <th className="px-3 py-1">Job</th>
-                      <th className="px-3 py-1">Phase / Status</th>
-                      <th className="px-3 py-1">Foreman / Crew</th>
-                      <th className="px-3 py-1">Startup Needs Review</th>
-                      <th className="px-3 py-1">Missing Reports</th>
-                      <th className="px-3 py-1">Missing Photos</th>
-                      <th className="px-3 py-1">Next Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobSnapshotRows.map((row) => (
-                      <tr key={row.id} className="co-command-table-row align-middle">
-                        <td className="px-3 py-1">
-                          <button type="button" onClick={() => openJob(row.id)} className="co-command-table-primary co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black hover:text-orange-700">
-                            {row.title}
-                          </button>
-                          <p className="co-command-table-secondary mt-0.5 max-w-[17rem] truncate text-xs font-bold">{row.subtitle}</p>
-                        </td>
-                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.phase}</td>
-                        <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.foreman}</td>
-                        <td className="px-3 py-1"><Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Yes" : "No"}</Badge></td>
-                        <td className="px-3 py-1"><Badge tone={row.missingReports > 0 ? "amber" : "green"}>{row.missingReports}</Badge></td>
-                        <td className="px-3 py-1"><Badge tone={row.missingPhotos > 0 ? "amber" : "green"}>{row.missingPhotos}</Badge></td>
-                        <td className="px-3 py-1">
-                          <p className="co-command-table-cell max-w-[16rem] truncate text-sm font-bold">{row.nextAction}</p>
-                        </td>
+                <>
+                  <table className="co-command-table w-full min-w-[740px] text-left">
+                    <thead>
+                      <tr>
+                        <th className="px-3 py-1">Job</th>
+                        <th className="px-3 py-1">Phase</th>
+                        <th className="px-3 py-1">Foreman</th>
+                        <th className="px-3 py-1">Startup</th>
+                        <th className="px-3 py-1">Reports</th>
+                        <th className="px-3 py-1">Photos</th>
+                        <th className="px-3 py-1">Next Action</th>
                       </tr>
+                    </thead>
+                    <tbody>
+                      {jobSnapshotRows.map((row) => (
+                        <tr key={row.id} className="co-command-table-row align-middle">
+                          <td className="px-3 py-1">
+                            <button type="button" onClick={() => openJob(row.id)} className="co-command-table-primary co-focus-ring block max-w-[17rem] truncate rounded-lg text-left text-sm font-black hover:text-orange-700">
+                              {row.title}
+                            </button>
+                            <p className="co-command-table-secondary mt-0.5 max-w-[17rem] truncate text-xs font-bold">{row.subtitle}</p>
+                          </td>
+                          <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.phase}</td>
+                          <td className="co-command-table-cell px-3 py-1 text-sm font-bold">{row.foreman}</td>
+                          <td className="px-3 py-1"><Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Yes" : "No"}</Badge></td>
+                          <td className="px-3 py-1"><Badge tone={row.missingReports > 0 ? "amber" : "green"}>{row.missingReports}</Badge></td>
+                          <td className="px-3 py-1"><Badge tone={row.missingPhotos > 0 ? "amber" : "green"}>{row.missingPhotos}</Badge></td>
+                          <td className="px-3 py-1">
+                            <p className="co-command-table-cell max-w-[16rem] truncate text-sm font-bold">{row.nextAction}</p>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="co-command-mobile-list">
+                    {jobSnapshotRows.map((row) => (
+                      <button key={row.id} type="button" onClick={() => openJob(row.id)} className="co-command-mobile-row co-focus-ring">
+                        <span className="min-w-0">
+                          <span className="co-command-mobile-row-title">{row.title}</span>
+                          <span className="co-command-mobile-row-subtitle">{row.subtitle}</span>
+                          <span className="co-command-mobile-row-meta">{row.foreman} / {row.phase}</span>
+                        </span>
+                        <span className="co-command-mobile-row-side">
+                          <Badge tone={row.startupNeedsReview ? "amber" : "green"}>{row.startupNeedsReview ? "Startup" : "Ready"}</Badge>
+                          <span>{row.nextAction}</span>
+                        </span>
+                      </button>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               ) : null}
             </CommandCenterTableCard>
           </div>
 
-          <div className="co-command-right-rail grid min-w-0 gap-1.5">
+          <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
             <CommandCenterOwnerHealthCard onOpenOwnerHealth={() => openModule("settings")} />
 
             <Card className="co-command-card p-2.5">
