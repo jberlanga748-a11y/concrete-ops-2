@@ -8027,10 +8027,8 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect }) {
           const selected = incident.id === selectedId;
 
           return (
-            <button
+            <article
               key={incident.id}
-              type="button"
-              onClick={() => onSelect(incident.id)}
               className={`co-incidents-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -8045,7 +8043,10 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect }) {
                 <span>Severity <strong>{incident.severity || "low"}</strong></span>
                 <span>Created <strong>{formatDateTime(safetyIncidentPrimaryDate(incident)) || "Not set"}</strong></span>
               </div>
-            </button>
+              <button type="button" className="co-incidents-mobile-card-action" onClick={() => onSelect(incident.id)}>
+                Open incident
+              </button>
+            </article>
           );
         })}
       </div>
@@ -10067,9 +10068,10 @@ function SafetyPage({
     setAckDraft((current) => ({ ...INITIAL_SAFETY_ACK_FORM, jobId: current.jobId }));
   }
 
-  function handleIncidentSubmit(event) {
+  async function handleIncidentSubmit(event) {
     event.preventDefault();
-    onCreateSafetyIncident(incidentDraft);
+    const created = await onCreateSafetyIncident(incidentDraft);
+    if (!created) return;
     setIncidentDraft((current) => ({
       ...INITIAL_SAFETY_INCIDENT_FORM,
       jobId: current.jobId,

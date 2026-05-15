@@ -8964,6 +8964,23 @@ textarea {
   white-space: nowrap;
 }
 
+.co-incidents-mobile-card-action {
+  display: flex;
+  width: 100%;
+  min-height: 2.3rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.72rem;
+  border: 0;
+  border-radius: 0.72rem;
+  background: var(--color-brand-orange-strong);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .co-incidents-mobile-focus .co-prepour-mobile-focus-actions {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.36rem;
@@ -22997,8 +23014,20 @@ textarea {
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 
+  .co-incidents-page .co-incidents-advanced-filters {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 2.35rem) !important;
+  }
+
+  .co-incidents-page .co-incidents-filter-grid > .field-label:nth-child(4) {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+  }
+
   .co-incidents-page .co-incidents-mobile-list {
-    padding-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+    padding-top: 0.75rem !important;
+  }
+
+  .co-incidents-page .co-incidents-tools-panel {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
   }
 
   .co-incidents-mobile-focus {
