@@ -3,6 +3,7 @@ export const MODULE_PATHS = {
   commandCenter: "/command-center",
   leads: "/leads",
   jobs: "/jobs",
+  schedule: "/schedule",
   time: "/time",
   reports: "/reports",
   uploads: "/uploads",

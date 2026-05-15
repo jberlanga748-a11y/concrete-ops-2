@@ -102,6 +102,18 @@ test("calculator module route resolves directly", () => {
   });
 });
 
+test("schedule module route resolves directly", () => {
+  assert.equal(getModulePath("schedule"), "/schedule");
+  assert.deepEqual(parseAppPath("/schedule"), {
+    active: "schedule",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("pre-pour module route resolves directly", () => {
   assert.equal(getModulePath("prePour"), "/pre-pour");
   assert.deepEqual(parseAppPath("/pre-pour"), {

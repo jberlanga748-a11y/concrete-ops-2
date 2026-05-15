@@ -223,6 +223,7 @@ const NAV_GROUPS = [
     items: [
       { id: "dashboard", label: "Dashboard", icon: "grid" },
       { id: "jobs", label: "Jobs", icon: "briefcase" },
+      { id: "schedule", label: "Schedule", icon: "calendar" },
       { id: "time", label: "Time", icon: "clock" },
       { id: "reports", label: "Reports", icon: "document" },
       { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
@@ -1107,6 +1108,7 @@ function Icon({ name, className = "h-4 w-4" }) {
   const paths = {
     grid: [<path key="1" d="M4 4h7v7H4z" />, <path key="2" d="M13 4h7v7h-7z" />, <path key="3" d="M4 13h7v7H4z" />, <path key="4" d="M13 13h7v7h-7z" />],
     briefcase: [<path key="1" d="M10 6V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1" />, <path key="2" d="M3 8h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z" />, <path key="3" d="M3 13h18" />],
+    calendar: [<path key="1" d="M8 2v4" />, <path key="2" d="M16 2v4" />, <path key="3" d="M3 9h18" />, <path key="4" d="M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />],
     clock: [<circle key="1" cx="12" cy="12" r="9" />, <path key="2" d="M12 7v5l3 2" />],
     document: [<path key="1" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />, <path key="2" d="M14 2v6h6" />, <path key="3" d="M8 13h8M8 17h6" />],
     upload: [<path key="1" d="M12 16V4" />, <path key="2" d="m7 9 5-5 5 5" />, <path key="3" d="M20 16v4H4v-4" />],
@@ -14200,6 +14202,455 @@ function DashboardTodayCoordinationPanel({ coordination, permissions, setActive,
         )}
       </div>
     </Card>
+  );
+}
+
+function scheduleDateKeyOffset(value = new Date(), offset = 0) {
+  const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  const base = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  base.setDate(base.getDate() + offset);
+  return dailyReportDateKey(base);
+}
+
+function scheduleDateLabel(dateKey = "") {
+  if (!dateKey) return "Unscheduled";
+  const parsed = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dateKey;
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(parsed);
+}
+
+function scheduleCrewLabels(job = {}, users = []) {
+  const usersById = new Map(normalizeObjectArray(users).map((user) => [user.id, user]));
+  const labels = todayWorkCrewAssignments(job)
+    .map((assignment) => assignment.userName || assignment.name || usersById.get(assignment.userId)?.name || assignment.userId || humanizeAssignmentRole(assignment.roleOnJob))
+    .filter(Boolean);
+
+  if (labels.length) return Array.from(new Set(labels));
+  return String(job.crew || "").trim() ? [String(job.crew).trim()] : [];
+}
+
+function scheduleActivityJobIdsForDate({ dateKey, dailyReports = [], uploads = [], deliveryTickets = [], timeEntries = [] } = {}) {
+  return new Set([
+    ...normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt && dailyReportRecordDate(report) === dateKey).map(dailyReportRecordJobId),
+    ...normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt && dailyReportRecordDate(upload) === dateKey).map(dailyReportRecordJobId),
+    ...normalizeObjectArray(deliveryTickets).filter((ticket) => !ticket.archivedAt && dailyReportRecordDate(ticket) === dateKey).map(dailyReportRecordJobId),
+    ...normalizeObjectArray(timeEntries).filter((entry) => !entry.archivedAt && (dailyReportRecordDate(entry) === dateKey || (entry.clockInAt && !entry.clockOutAt))).map(dailyReportRecordJobId),
+  ].filter(Boolean));
+}
+
+function scheduleWorkflowOpenCounts({ job, dateKey, prePourChecklists = [], postPourChecklists = [], toolChecklists = [], safetyIncidents = [] } = {}) {
+  const prePourOpen = [
+    job?.prePourChecklist,
+    ...todayWorkChecklistRows(prePourChecklists, job, dateKey, false),
+  ].filter(Boolean).filter(fieldChecklistNeedsAction).length;
+  const postPourOpen = [
+    job?.postPourChecklist,
+    ...todayWorkChecklistRows(postPourChecklists, job, dateKey, false),
+  ].filter(Boolean).filter(fieldChecklistNeedsAction).length;
+  const toolOpen = todayWorkChecklistRows(toolChecklists, job, dateKey).filter(fieldChecklistNeedsAction).length;
+  const incidentsOpen = normalizeObjectArray(safetyIncidents).filter((incident) => (
+    dailyReportMatchesJobDate(incident, job, dateKey)
+    && !incident.archivedAt
+    && !/(resolved|closed|reviewed)/i.test(String(incident.status || ""))
+  )).length;
+
+  return {
+    prePourOpen,
+    postPourOpen,
+    toolOpen,
+    incidentsOpen,
+    total: prePourOpen + postPourOpen + toolOpen + incidentsOpen,
+  };
+}
+
+function buildScheduleJobRow(job, context = {}) {
+  const {
+    todayKey,
+    dateKey: requestedDateKey = "",
+    users = [],
+    dailyReports = [],
+    uploads = [],
+    deliveryTickets = [],
+    prePourChecklists = [],
+    postPourChecklists = [],
+    toolChecklists = [],
+    safetyIncidents = [],
+  } = context;
+  const jobDateKey = todayWorkJobDate(job);
+  const dateKey = requestedDateKey || jobDateKey || "";
+  const report = normalizeObjectArray(dailyReports).find((item) => !item.archivedAt && dailyReportMatchesJobDate(item, job, dateKey));
+  const proofState = deriveDailyReportProofState({
+    report,
+    job,
+    operatingDate: dateKey || todayKey,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    safetyIncidents,
+  });
+  const workflowCounts = scheduleWorkflowOpenCounts({
+    job,
+    dateKey: dateKey || todayKey,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    safetyIncidents,
+  });
+  const crewLabels = scheduleCrewLabels(job, users);
+  const startupWarnings = getStartupCriticalWarnings(normalizeStartupChecklist(job.startupChecklist));
+  const dueNow = Boolean(dateKey && todayKey && dateKey <= todayKey) || normalizeJobStatus(job.status || job.stage) === "in_progress";
+  const missing = [
+    !job.scheduledStart ? "Schedule" : "",
+    crewLabels.length === 0 ? "Crew" : "",
+    dueNow && !report ? "Report" : "",
+    dueNow && proofState.photoMissing ? "Photos" : "",
+    dueNow && proofState.ticketMissing ? "Ticket" : "",
+    workflowCounts.total ? "Checklist" : "",
+    startupWarnings.length ? "Startup" : "",
+  ].filter(Boolean);
+  const severe = dueNow && missing.some((item) => ["Report", "Photos", "Crew", "Schedule"].includes(item));
+
+  return {
+    job,
+    dateKey,
+    report,
+    proofState,
+    workflowCounts,
+    crewLabels,
+    foreman: todayWorkForemanLabel(job, users),
+    startupWarnings,
+    missing,
+    hasActivity: Boolean(report?.id || proofState.photoCount || proofState.ticketCount || workflowCounts.total),
+    tone: severe ? "red" : missing.length ? "amber" : "green",
+  };
+}
+
+function deriveScheduleCoordinationState({
+  jobs = [],
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+  timeEntries = [],
+  users = [],
+  today = new Date(),
+} = {}) {
+  const todayKey = todayWorkDateKey(today);
+  const tomorrowKey = scheduleDateKeyOffset(today, 1);
+  const weekEndKey = scheduleDateKeyOffset(today, 6);
+  const safeJobs = normalizeObjectArray(jobs).filter((job) => dailyReportIsLiveJob(job));
+  const todayActivityJobIds = scheduleActivityJobIdsForDate({ dateKey: todayKey, dailyReports, uploads, deliveryTickets, timeEntries });
+  const baseContext = { todayKey, users, dailyReports, uploads, deliveryTickets, prePourChecklists, postPourChecklists, toolChecklists, safetyIncidents };
+
+  const allRows = safeJobs
+    .map((job) => buildScheduleJobRow(job, baseContext))
+    .sort((left, right) => todayWorkTimeValue(left.job) - todayWorkTimeValue(right.job));
+
+  const todayRows = safeJobs
+    .filter((job) => todayWorkJobDate(job) === todayKey || normalizeJobStatus(job.status || job.stage) === "in_progress" || todayActivityJobIds.has(job.id))
+    .map((job) => buildScheduleJobRow(job, { ...baseContext, dateKey: todayKey }))
+    .sort((left, right) => todayWorkTimeValue(left.job) - todayWorkTimeValue(right.job));
+  const tomorrowRows = safeJobs
+    .filter((job) => todayWorkJobDate(job) === tomorrowKey)
+    .map((job) => buildScheduleJobRow(job, { ...baseContext, dateKey: tomorrowKey }))
+    .sort((left, right) => todayWorkTimeValue(left.job) - todayWorkTimeValue(right.job));
+  const weekRows = allRows.filter((row) => row.dateKey && row.dateKey >= todayKey && row.dateKey <= weekEndKey);
+  const unassignedRows = allRows.filter((row) => !row.job.scheduledStart || row.crewLabels.length === 0);
+  const missingRows = allRows.filter((row) => {
+    const isDueOrActive = Boolean(row.dateKey && row.dateKey <= tomorrowKey) || normalizeJobStatus(row.job.status || row.job.stage) === "in_progress";
+    return row.missing.length > 0 && isDueOrActive;
+  });
+
+  return {
+    todayKey,
+    tomorrowKey,
+    weekEndKey,
+    todayRows,
+    tomorrowRows,
+    weekRows,
+    unassignedRows,
+    missingRows,
+    stats: {
+      today: todayRows.length,
+      tomorrow: tomorrowRows.length,
+      thisWeek: weekRows.length,
+      unassigned: unassignedRows.length,
+      missingActivity: missingRows.length,
+      activeClocks: normalizeObjectArray(timeEntries).filter((entry) => !entry.archivedAt && entry.clockInAt && !entry.clockOutAt).length,
+    },
+  };
+}
+
+function ScheduleJobCard({ row, permissions, onOpenJob, onOpenModule, onOpenReport, compact = false }) {
+  const job = row.job;
+  const missingLabel = row.missing.length ? row.missing.slice(0, 4).join(" / ") : "Ready";
+  const crewLabel = row.crewLabels.length ? row.crewLabels.slice(0, 3).join(", ") : "Crew missing";
+  const canOpenReports = Boolean(permissions?.reports?.canView);
+  const canOpenUploads = Boolean(permissions?.uploads?.canView);
+  const canOpenTickets = Boolean(permissions?.deliveryTickets?.canView);
+  const mapUrl = directionsUrl(job.address || "");
+
+  return (
+    <article className={`co-schedule-job-card ${compact ? "co-schedule-job-card-compact" : ""}`} data-tone={row.tone}>
+      <div className="co-schedule-job-main">
+        <button type="button" className="co-schedule-job-title" onClick={() => onOpenJob(row)}>
+          <span>
+            <strong>{jobTitle(job)}</strong>
+            <small>{[job.customer, job.address || job.city].filter(Boolean).join(" / ") || "Customer or location pending"}</small>
+          </span>
+          <Icon name="arrowUpRight" />
+        </button>
+        <div className="co-schedule-job-badges">
+          <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+          <Badge tone={row.missing.length ? (row.tone === "red" ? "red" : "amber") : "green"}>{missingLabel}</Badge>
+        </div>
+      </div>
+      <div className="co-schedule-job-grid">
+        <span><em>Date</em><strong>{row.dateKey ? scheduleDateLabel(row.dateKey) : "Unscheduled"}</strong></span>
+        <span><em>Time</em><strong>{formatJobScheduleDetail(job)}</strong></span>
+        <span><em>Foreman</em><strong>{row.foreman}</strong></span>
+        <span><em>Crew</em><strong>{crewLabel}</strong></span>
+        <span><em>Report</em><strong>{row.report ? reportStatusLabel(row.report.status) : row.dateKey && row.dateKey <= todayDateInputValue() ? "Missing" : "Not due"}</strong></span>
+        <span><em>Proof</em><strong>{row.proofState.photoCount} photos / {row.proofState.ticketCount} tickets</strong></span>
+      </div>
+      <div className="co-schedule-job-actions">
+        <Button type="button" size="sm" onClick={() => onOpenJob(row)}>Job</Button>
+        {canOpenReports ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenReport(row)}>{row.report ? "Report" : "Reports"}</Button> : null}
+        {canOpenUploads ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenModule("uploads")}>Photos</Button> : null}
+        {canOpenTickets ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenModule("deliveryTickets")}>Tickets</Button> : null}
+        {mapUrl ? <a className="co-schedule-map-link" href={mapUrl} target="_blank" rel="noreferrer">Map</a> : null}
+      </div>
+    </article>
+  );
+}
+
+function ScheduleSection({ title, description, rows = [], emptyTitle, emptyDescription, permissions, onOpenJob, onOpenModule, onOpenReport, compact = false, limit = 6 }) {
+  const visibleRows = normalizeObjectArray(rows).slice(0, limit);
+  return (
+    <Card className="co-schedule-section overflow-hidden">
+      <div className="co-schedule-section-header">
+        <div className="min-w-0">
+          <p>{title}</p>
+          <span>{description}</span>
+        </div>
+        <Badge tone={rows.length ? "orange" : "slate"}>{rows.length}</Badge>
+      </div>
+      <div className="co-schedule-section-list">
+        {visibleRows.length ? visibleRows.map((row) => (
+          <ScheduleJobCard
+            key={`${title}-${row.job.id}-${row.dateKey || "unscheduled"}`}
+            row={row}
+            permissions={permissions}
+            onOpenJob={onOpenJob}
+            onOpenModule={onOpenModule}
+            onOpenReport={onOpenReport}
+            compact={compact}
+          />
+        )) : (
+          <StateCard title={emptyTitle} description={emptyDescription} tone="slate" />
+        )}
+      </div>
+      {rows.length > visibleRows.length ? (
+        <div className="co-schedule-section-footer">
+          <span>Showing {visibleRows.length} of {rows.length}</span>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function SchedulePage({
+  jobs = [],
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+  timeEntries = [],
+  users = [],
+  permissions,
+  setActive,
+  onSelectJob,
+  onSelectReport,
+}) {
+  const scheduleState = useMemo(() => deriveScheduleCoordinationState({
+    jobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    safetyIncidents,
+    timeEntries,
+    users,
+  }), [dailyReports, deliveryTickets, jobs, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, users]);
+  const stats = scheduleState.stats;
+  const kpis = [
+    { label: "Today", value: stats.today, helper: "Scheduled or active", icon: "calendar", tone: stats.today ? "orange" : "slate", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
+    { label: "Tomorrow", value: stats.tomorrow, helper: "Prep before morning", icon: "clock", tone: stats.tomorrow ? "blue" : "slate", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
+    { label: "Unassigned", value: stats.unassigned, helper: "Needs date or crew", icon: "users", tone: stats.unassigned ? "amber" : "green", actionLabel: "Assign crew", onAction: () => setActive("jobs") },
+    { label: "Needs Follow-Up", value: stats.missingActivity, helper: "Missing activity or readiness", icon: "alert", tone: stats.missingActivity ? "red" : "green", actionLabel: "Review", onAction: () => setActive("jobs") },
+    { label: "Active Clocks", value: stats.activeClocks, helper: "Crew time running", icon: "clock", tone: stats.activeClocks ? "green" : "slate", actionLabel: "Open time", onAction: () => setActive("time") },
+  ];
+
+  function openModule(moduleId) {
+    if (moduleId) setActive?.(moduleId);
+  }
+
+  function openJob(row) {
+    if (row?.job?.id) onSelectJob?.(row.job.id);
+  }
+
+  function openReport(row) {
+    if (row?.report?.id && typeof onSelectReport === "function") {
+      onSelectReport(row.report.id);
+      return;
+    }
+    setActive?.("reports");
+  }
+
+  return (
+    <div className="co-office-page co-schedule-page">
+      <PageHeader
+        eyebrow="Operations"
+        title="Schedule Coordination"
+        description="Plan today and tomorrow, see crew coverage, and catch missing field activity before it turns into phone calls."
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setActive("jobs")}>Open Jobs</Button>
+            <Button type="button" onClick={() => setActive("reports")}>Review Reports</Button>
+          </div>
+        )}
+      />
+
+      <div className="co-schedule-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+        {kpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-schedule-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-6">
+        <div className="co-schedule-main-stack min-w-0">
+          <div className="co-schedule-day-grid">
+            <ScheduleSection
+              title="Today"
+              description={`${scheduleDateLabel(scheduleState.todayKey)} / field execution`}
+              rows={scheduleState.todayRows}
+              emptyTitle="No work scheduled today"
+              emptyDescription="Jobs scheduled for today or showing field activity will appear here."
+              permissions={permissions}
+              onOpenJob={openJob}
+              onOpenModule={openModule}
+              onOpenReport={openReport}
+              compact
+              limit={4}
+            />
+            <ScheduleSection
+              title="Tomorrow"
+              description={`${scheduleDateLabel(scheduleState.tomorrowKey)} / prep view`}
+              rows={scheduleState.tomorrowRows}
+              emptyTitle="No work scheduled tomorrow"
+              emptyDescription="Schedule jobs in the Jobs board when tomorrow's plan is ready."
+              permissions={permissions}
+              onOpenJob={openJob}
+              onOpenModule={openModule}
+              onOpenReport={openReport}
+              compact
+              limit={4}
+            />
+          </div>
+
+          <ScheduleSection
+            title="This Week"
+            description={`Scheduled work through ${scheduleDateLabel(scheduleState.weekEndKey)}`}
+            rows={scheduleState.weekRows}
+            emptyTitle="No scheduled work this week"
+            emptyDescription="This week will populate from existing job scheduled start dates."
+            permissions={permissions}
+            onOpenJob={openJob}
+            onOpenModule={openModule}
+            onOpenReport={openReport}
+            limit={8}
+          />
+
+          <div className="co-schedule-day-grid">
+            <ScheduleSection
+              title="Unassigned / Needs Crew"
+              description="Jobs missing a start date, foreman, or crew coverage"
+              rows={scheduleState.unassignedRows}
+              emptyTitle="Crew coverage looks clear"
+              emptyDescription="Jobs with missing dates or crew assignments will appear here."
+              permissions={permissions}
+              onOpenJob={openJob}
+              onOpenModule={openModule}
+              onOpenReport={openReport}
+              compact
+              limit={5}
+            />
+            <ScheduleSection
+              title="Missing Activity / Needs Follow-Up"
+              description="Due work missing reports, photos, startup, crew, or checklist completion"
+              rows={scheduleState.missingRows}
+              emptyTitle="No urgent activity gaps"
+              emptyDescription="Missing reports, proof, crew, or readiness issues will appear here."
+              permissions={permissions}
+              onOpenJob={openJob}
+              onOpenModule={openModule}
+              onOpenReport={openReport}
+              compact
+              limit={5}
+            />
+          </div>
+        </div>
+
+        <aside className="co-schedule-rail">
+          <Card className="co-schedule-rail-card">
+            <SectionHeader title="Planning Snapshot" description="Fast readout for owner and office coordination." />
+            <div className="co-schedule-rail-metrics">
+              <span><em>Today</em><strong>{stats.today}</strong></span>
+              <span><em>Tomorrow</em><strong>{stats.tomorrow}</strong></span>
+              <span><em>Unassigned</em><strong>{stats.unassigned}</strong></span>
+              <span><em>Needs Action</em><strong>{stats.missingActivity}</strong></span>
+            </div>
+          </Card>
+
+          <Card className="co-schedule-rail-card">
+            <SectionHeader title="Quick Moves" description="Jump into the existing workflow that owns the record." />
+            <div className="co-schedule-quick-moves">
+              <button type="button" onClick={() => setActive("jobs")}><span>Jobs board</span><Icon name="briefcase" /></button>
+              <button type="button" onClick={() => setActive("reports")}><span>Daily reports</span><Icon name="document" /></button>
+              <button type="button" onClick={() => setActive("uploads")}><span>Photo evidence</span><Icon name="upload" /></button>
+              <button type="button" onClick={() => setActive("deliveryTickets")}><span>Delivery tickets</span><Icon name="clipboard" /></button>
+            </div>
+          </Card>
+
+          <Card className="co-schedule-rail-card">
+            <SectionHeader title="Tomorrow Prep" description="Items to clear before the next crew rolls." />
+            <div className="co-schedule-prep-list">
+              {scheduleState.tomorrowRows.filter((row) => row.missing.length).slice(0, 4).map((row) => (
+                <button key={row.job.id} type="button" onClick={() => openJob(row)}>
+                  <strong>{jobTitle(row.job)}</strong>
+                  <span>{row.missing.slice(0, 3).join(" / ")}</span>
+                </button>
+              ))}
+              {scheduleState.tomorrowRows.filter((row) => row.missing.length).length === 0 ? (
+                <p>Tomorrow has no visible crew or readiness gaps.</p>
+              ) : null}
+            </div>
+          </Card>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -30466,6 +30917,9 @@ function MainContent(props) {
         setStartupFilter={props.setJobStartupFilter}
       />
     );
+  }
+  if (active === "schedule") {
+    return <SchedulePage {...props} />;
   }
   if (active === "reports") {
     return (

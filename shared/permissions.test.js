@@ -64,6 +64,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
   assert.equal(getAllowedModuleIds(owner).has("commandCenter"), true);
+  assert.equal(getAllowedModuleIds(owner).has("schedule"), true);
   assert.equal(canManageOwnTime(owner), false);
 });
 
@@ -97,6 +98,7 @@ test("operations manager can manage users and see employees module", () => {
   assert.equal(canToggleToolChecklist(operations), true);
   assert.equal(canViewAllToolChecklists(operations), true);
   assert.equal(modules.has("commandCenter"), true);
+  assert.equal(modules.has("schedule"), true);
   assert.equal(modules.has("employees"), true);
   assert.equal(modules.has("jobDraftImports"), true);
 });
@@ -121,6 +123,7 @@ test("estimator gets sales access without settings access", () => {
   assert.equal(canManageOwnTime(estimator), true);
   assert.equal(modules.has("time"), true);
   assert.equal(modules.has("commandCenter"), false);
+  assert.equal(modules.has("schedule"), false);
   assert.equal(modules.has("jobDraftImports"), false);
   assert.equal(canViewSafety(estimator), false);
   assert.equal(canViewPrePour(estimator), false);
@@ -161,6 +164,7 @@ test("foreman stays field-only with calculator and safety access", () => {
   assert.equal(canUseToolChecklist(foreman, { toolChecklistEnabled: true }), true);
   assert.equal(canUseToolChecklist(foreman, { toolChecklistEnabled: false }), false);
   assert.equal(getAllowedModuleIds(foreman, { toolChecklistEnabled: true }).has("commandCenter"), false);
+  assert.equal(getAllowedModuleIds(foreman, { toolChecklistEnabled: true }).has("schedule"), false);
 });
 
 test("employee stays field-only with no office modules", () => {
@@ -193,6 +197,7 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(canReviewSafetyIncidents(employee), false);
   assert.equal(modules.has("leads"), false);
   assert.equal(modules.has("commandCenter"), false);
+  assert.equal(modules.has("schedule"), false);
   assert.equal(modules.has("jobDraftImports"), false);
   assert.equal(modules.has("customers"), false);
   assert.equal(modules.has("settings"), false);

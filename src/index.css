@@ -24772,6 +24772,337 @@ textarea {
   justify-content: flex-start;
 }
 
+.co-schedule-page {
+  background:
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.08), transparent 22rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+}
+
+.co-schedule-kpi-grid .co-command-kpi {
+  min-height: 6.1rem;
+}
+
+.co-schedule-layout {
+  align-items: start;
+}
+
+.co-schedule-main-stack {
+  display: grid;
+  gap: 0.78rem;
+}
+
+.co-schedule-day-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.78rem;
+}
+
+.co-schedule-section {
+  border-top-color: rgba(249, 115, 22, 0.7) !important;
+  background: #ffffff !important;
+}
+
+.co-schedule-section-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.94);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  padding: 0.88rem 0.95rem;
+}
+
+.co-schedule-section-header p {
+  margin: 0;
+  color: #07111f;
+  font-size: 0.92rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  line-height: 1.12;
+  text-transform: uppercase;
+}
+
+.co-schedule-section-header span:not(.inline-flex) {
+  display: block;
+  margin-top: 0.16rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.co-schedule-section-list {
+  display: grid;
+  gap: 0.58rem;
+  padding: 0.68rem;
+}
+
+.co-schedule-section-footer {
+  border-top: 1px solid rgba(226, 232, 240, 0.94);
+  background: #f8fafc;
+  padding: 0.55rem 0.8rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.co-schedule-job-card {
+  display: grid;
+  min-width: 0;
+  gap: 0.58rem;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-left: 4px solid #f97316;
+  border-radius: 0.92rem;
+  background: #ffffff;
+  padding: 0.68rem;
+  box-shadow: 0 14px 30px -30px rgba(7, 17, 31, 0.7);
+}
+
+.co-schedule-job-card[data-tone="green"] {
+  border-left-color: #16a34a;
+}
+
+.co-schedule-job-card[data-tone="red"] {
+  border-left-color: #ef4444;
+}
+
+.co-schedule-job-card[data-tone="amber"] {
+  border-left-color: #f97316;
+}
+
+.co-schedule-job-main {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.co-schedule-job-title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+  border: 0;
+  border-radius: 0.72rem;
+  background: transparent;
+  padding: 0.2rem;
+  color: #07111f;
+  text-align: left;
+}
+
+.co-schedule-job-title:hover {
+  background: rgba(255, 247, 237, 0.72);
+  color: var(--color-brand-orange-dark);
+}
+
+.co-schedule-job-title span {
+  min-width: 0;
+}
+
+.co-schedule-job-title strong,
+.co-schedule-job-title small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.co-schedule-job-title strong {
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 950;
+  line-height: 1.16;
+}
+
+.co-schedule-job-title small {
+  margin-top: 0.18rem;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.co-schedule-job-title svg {
+  height: 0.95rem;
+  width: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.co-schedule-job-badges {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.34rem;
+  max-width: 13rem;
+}
+
+.co-schedule-job-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.co-schedule-job-card-compact .co-schedule-job-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.co-schedule-job-grid span,
+.co-schedule-rail-metrics span {
+  min-width: 0;
+  border-radius: 0.66rem;
+  background: #f8fafc;
+  padding: 0.5rem 0.55rem;
+}
+
+.co-schedule-job-grid em,
+.co-schedule-rail-metrics em {
+  display: block;
+  color: #64748b;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.co-schedule-job-grid strong,
+.co-schedule-rail-metrics strong {
+  display: block;
+  margin-top: 0.18rem;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1.16;
+}
+
+.co-schedule-job-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.co-schedule-job-actions .btn,
+.co-schedule-job-actions button {
+  min-height: 2rem;
+  padding: 0.44rem 0.62rem;
+  font-size: 0.68rem;
+}
+
+.co-schedule-map-link {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  border-radius: 0.65rem;
+  background: #ffffff;
+  padding: 0.44rem 0.62rem;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.co-schedule-map-link:hover {
+  border-color: rgba(249, 115, 22, 0.36);
+  color: var(--color-brand-orange-dark);
+}
+
+.co-schedule-rail {
+  position: sticky;
+  top: calc(var(--layout-topbar-height, 4.5rem) + 0.6rem);
+  display: grid;
+  gap: 0.7rem;
+}
+
+.co-schedule-rail-card {
+  padding: 0.78rem !important;
+  border-left-color: rgba(249, 115, 22, 0.62) !important;
+}
+
+.co-schedule-rail-card .co-section-accent {
+  margin-bottom: 0.62rem !important;
+  padding-left: 0.68rem;
+  border-left-width: 3px;
+}
+
+.co-schedule-rail-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.co-schedule-quick-moves {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.co-schedule-quick-moves button,
+.co-schedule-prep-list button {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.72rem;
+  background: #ffffff;
+  padding: 0.58rem 0.65rem;
+  color: #07111f;
+  font-size: 0.74rem;
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.co-schedule-quick-moves button:hover,
+.co-schedule-prep-list button:hover {
+  border-color: rgba(249, 115, 22, 0.34);
+  background: rgba(255, 247, 237, 0.62);
+  color: var(--color-brand-orange-dark);
+}
+
+.co-schedule-quick-moves svg {
+  height: 0.9rem;
+  width: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.co-schedule-prep-list {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.co-schedule-prep-list button {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.co-schedule-prep-list strong,
+.co-schedule-prep-list span,
+.co-schedule-prep-list p {
+  overflow-wrap: anywhere;
+}
+
+.co-schedule-prep-list span,
+.co-schedule-prep-list p {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.28;
+}
+
 @media (min-width: 1024px) and (max-width: 1399px) {
   .co-dashboard-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -24893,6 +25224,15 @@ textarea {
 }
 
 @media (max-width: 1023px) {
+  .co-schedule-layout,
+  .co-schedule-day-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-schedule-rail {
+    position: static;
+  }
+
   .co-dashboard-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
   }
@@ -24966,6 +25306,50 @@ textarea {
 }
 
 @media (max-width: 767px) {
+  .co-schedule-page .co-page-header {
+    padding-top: 1.15rem;
+    padding-bottom: 1rem;
+  }
+
+  .co-schedule-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.72rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-schedule-layout {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-schedule-job-main,
+  .co-schedule-job-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .co-schedule-job-badges {
+    justify-content: flex-start;
+    max-width: 100%;
+  }
+
+  .co-schedule-job-grid,
+  .co-schedule-job-card-compact .co-schedule-job-grid,
+  .co-schedule-rail-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-schedule-job-actions .btn,
+  .co-schedule-job-actions button,
+  .co-schedule-map-link {
+    width: 100%;
+  }
+
+  .co-schedule-map-link {
+    min-height: 2.25rem;
+  }
+
   .co-dashboard-page .co-page-header {
     padding-top: 1.15rem;
     padding-bottom: 1rem;
