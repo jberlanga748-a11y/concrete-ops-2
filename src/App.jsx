@@ -28245,7 +28245,7 @@ function toolChecklistUpdatedAt(checklist) {
   return checklist?.updatedAt || checklist?.createdAt;
 }
 
-function ToolChecklistTablePolished({ rows, selectedId, onSelect, mobileMaxRows = null }) {
+function ToolChecklistTablePolished({ rows, selectedId, onSelect, onOpenChecklist, mobileMaxRows = null }) {
   const mobileRows = mobileMaxRows ? rows.slice(0, mobileMaxRows) : rows;
 
   return (
@@ -28272,7 +28272,7 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, mobileMaxRows 
                 <div><span>Damaged</span><strong>{checklist.damagedItemCount || 0}</strong></div>
                 <div><span>Foreman</span><strong>{toolChecklistForemanLabel(checklist)}</strong></div>
               </div>
-              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => onSelect(checklist.id)}>
+              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => { onSelect(checklist.id); onOpenChecklist?.(checklist.id); }}>
                 Open checklist
               </button>
             </article>
@@ -28313,7 +28313,7 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, mobileMaxRows 
                     </div>
                   </td>
                   <td>
-                    <button type="button" className="co-toolbox-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(checklist.id); }} aria-label={`Open tool checklist ${checklist.title || checklist.id}`}>
+                    <button type="button" className="co-toolbox-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(checklist.id); onOpenChecklist?.(checklist.id); }} aria-label={`Open tool checklist ${checklist.title || checklist.id}`}>
                       <Icon name="arrowUpRight" />
                     </button>
                   </td>
@@ -28808,12 +28808,22 @@ function ToolChecklistPagePolished({
   function openTools(nextTab = "items") {
     setToolTab(nextTab);
     setShowTools(true);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 130, behavior: "smooth" }), 180);
+      }
+    }, 0);
   }
 
   function changeToolTab(nextTab) {
     setToolTab(nextTab);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 130, behavior: "smooth" }), 180);
+      }
+    }, 0);
   }
 
   function openPriorityChecklist(matchChecklist, options = {}) {
@@ -28950,100 +28960,107 @@ function ToolChecklistPagePolished({
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card id="tool-checklist-loadout-board" className="co-toolbox-main-board overflow-hidden">
-          <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Tool Loadout Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan job checklists, missing or damaged tools, assigned foremen, and submission status from one dense operator board.</p>
+        <div id="tool-checklist-loadout-board" className="co-tool-checklist-command-main min-w-0">
+          <Card className="co-toolbox-main-board overflow-hidden">
+            <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Tool Loadout Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan job checklists, missing or damaged tools, assigned foremen, and submission status from one dense operator board.</p>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
-            <div className="co-toolbox-category-tabs">
-              {statusOptions.map((option) => (
-                <button key={option} type="button" className={statusFilter === option ? "is-active" : ""} onClick={() => setStatusFilter(option)}>
-                  {option}
-                </button>
-              ))}
+            <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
+              <div className="co-toolbox-category-tabs">
+                {statusOptions.map((option) => (
+                  <button key={option} type="button" className={statusFilter === option ? "is-active" : ""} onClick={() => setStatusFilter(option)}>
+                    {option}
+                  </button>
+                ))}
+              </div>
+              <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search loadout..." />
             </div>
-            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search loadout..." />
-          </div>
-          <details className="co-incidents-advanced-filters border-b border-slate-200 bg-white">
+            <details className="co-incidents-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[jobFilter !== "All jobs" ? "Job" : "", foremanFilter !== "All foremen" ? "Foreman" : "", archiveFilter !== "Active" ? archiveFilter : "", issueFilter !== "All items" ? issueFilter : ""].filter(Boolean).length || "Job, foreman, issue"}</span>
+              </summary>
+              <div className="co-office-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
+                  {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
+                  {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+                <SelectField label="Issue focus" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
+                  {["All items", "Missing only", "Damaged only", "Missing or damaged"].map((option) => <option key={option}>{option}</option>)}
+                </SelectField>
+              </div>
+            </details>
+            {filteredRows.length === 0 ? (
+              <div className="p-5"><StateCard title={noFieldJob ? "No assigned job yet" : "No checklists match these filters"} description={noFieldJob ? "Contact office if a checklist should already be on your phone." : checklistRows.length === 0 ? "Create the first job tool checklist to start tracking loadouts." : "Clear a filter or search another job, foreman, checklist, or tool note."} tone="slate" /></div>
+            ) : (
+              <ToolChecklistTablePolished
+                rows={filteredRows}
+                selectedId={selectedChecklist?.id}
+                onSelect={setSelectedChecklistId}
+                onOpenChecklist={(id) => { setSelectedChecklistId(id); openTools("items"); }}
+                mobileMaxRows={mobileVisibleChecklistCap}
+              />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">
+                <span className="hidden md:inline">Showing {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
+                <span className="md:hidden">Showing {mobileVisibleChecklistCount} of {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {filteredRows.length > mobileChecklistPreviewCap ? (
+                  <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobileChecklists((current) => !current)}>
+                    {showAllMobileChecklists ? "Show fewer" : `Show all ${filteredRows.length}`}
+                  </Button>
+                ) : null}
+                <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+              </div>
+            </div>
+          </Card>
+          <details
+            ref={toolsRef}
+            className="co-toolbox-tools-drawer mt-3 w-full min-w-0"
+            open={showTools}
+            onToggle={(event) => setShowTools(event.currentTarget.open)}
+          >
             <summary>
-              <span>Advanced filters</span>
-              <span>{[jobFilter !== "All jobs" ? "Job" : "", foremanFilter !== "All foremen" ? "Foreman" : "", archiveFilter !== "Active" ? archiveFilter : "", issueFilter !== "All items" ? issueFilter : ""].filter(Boolean).length || "Job, foreman, issue"}</span>
+              <span>
+                <strong>Tool Checklist Tools</strong>
+                <em>{isFieldToolChecklist ? "Update selected tool items, add field notes, and submit only when your role allows it." : "Create job loadouts, update selected checklist notes, manage items, and submit or review without changing permissions."}</em>
+              </span>
+              <span>Open tools</span>
             </summary>
-            <div className="co-office-filter-grid grid gap-3 p-3 md:grid-cols-4">
-              <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
-                {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
-                {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
-              <SelectField label="Issue focus" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
-                {["All items", "Missing only", "Damaged only", "Missing or damaged"].map((option) => <option key={option}>{option}</option>)}
-              </SelectField>
+            <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+              {canCreateChecklist ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => changeToolTab("create")}><Icon name="plus" />Create</button> : null}
+              <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => changeToolTab("detail")}><Icon name="clipboard" />Detail</button>
+              <button type="button" className={toolTab === "items" ? "is-active" : ""} onClick={() => changeToolTab("items")}><Icon name="layers" />Items</button>
+              {canAddItems ? <button type="button" className={toolTab === "add" ? "is-active" : ""} onClick={() => changeToolTab("add")}><Icon name="plus" />Add Item</button> : null}
+            </div>
+            <div className="co-toolbox-tools-panel mt-3">
+              {toolTab === "create" ? (
+                <ToolChecklistCreatePanelPolished canCreate={canCreateChecklist} visibleJobs={visibleJobs} checklistDraft={checklistDraft} setChecklistDraft={setChecklistDraft} singleJobId={singleJobId} busy={busy} onCreateChecklist={onCreateChecklist} />
+              ) : toolTab === "add" ? (
+                <ToolChecklistAddItemPanelPolished canAddItems={canAddItems} checklist={selectedChecklist} itemDraft={itemDraft} setItemDraft={setItemDraft} busy={busy} onAddChecklistItem={onAddChecklistItem} />
+              ) : toolTab === "detail" ? (
+                <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
+              ) : (
+                <ToolChecklistItemsPanelPolished checklist={selectedChecklist} items={selectedItems} permissions={permissions} busy={busy} onUpdateChecklistItem={onUpdateChecklistItem} />
+              )}
             </div>
           </details>
-          {filteredRows.length === 0 ? (
-            <div className="p-5"><StateCard title={noFieldJob ? "No assigned job yet" : "No checklists match these filters"} description={noFieldJob ? "Contact office if a checklist should already be on your phone." : checklistRows.length === 0 ? "Create the first job tool checklist to start tracking loadouts." : "Clear a filter or search another job, foreman, checklist, or tool note."} tone="slate" /></div>
-          ) : (
-            <ToolChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} mobileMaxRows={mobileVisibleChecklistCap} />
-          )}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">
-              <span className="hidden md:inline">Showing {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
-              <span className="md:hidden">Showing {mobileVisibleChecklistCount} of {filteredRows.length} checklist{filteredRows.length === 1 ? "" : "s"} / {openIssueCount} open tool issue{openIssueCount === 1 ? "" : "s"}</span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {filteredRows.length > mobileChecklistPreviewCap ? (
-                <Button type="button" size="sm" variant="secondary" className="md:hidden" onClick={() => setShowAllMobileChecklists((current) => !current)}>
-                  {showAllMobileChecklists ? "Show fewer" : `Show all ${filteredRows.length}`}
-                </Button>
-              ) : null}
-              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-            </div>
-          </div>
-        </Card>
+        </div>
 
         <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
       </div>
-
-      <details
-        ref={toolsRef}
-        className="co-toolbox-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
-        open={showTools}
-        onToggle={(event) => setShowTools(event.currentTarget.open)}
-      >
-        <summary>
-          <span>
-            <strong>Tool Checklist Tools</strong>
-            <em>{isFieldToolChecklist ? "Update selected tool items, add field notes, and submit only when your role allows it." : "Create job loadouts, update selected checklist notes, manage items, and submit or review without changing permissions."}</em>
-          </span>
-          <span>Open tools</span>
-        </summary>
-        <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canCreateChecklist ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => changeToolTab("create")}><Icon name="plus" />Create</button> : null}
-          <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => changeToolTab("detail")}><Icon name="clipboard" />Detail</button>
-          <button type="button" className={toolTab === "items" ? "is-active" : ""} onClick={() => changeToolTab("items")}><Icon name="layers" />Items</button>
-          {canAddItems ? <button type="button" className={toolTab === "add" ? "is-active" : ""} onClick={() => changeToolTab("add")}><Icon name="plus" />Add Item</button> : null}
-        </div>
-        <div className="co-toolbox-tools-panel mt-3">
-          {toolTab === "create" ? (
-            <ToolChecklistCreatePanelPolished canCreate={canCreateChecklist} visibleJobs={visibleJobs} checklistDraft={checklistDraft} setChecklistDraft={setChecklistDraft} singleJobId={singleJobId} busy={busy} onCreateChecklist={onCreateChecklist} />
-          ) : toolTab === "add" ? (
-            <ToolChecklistAddItemPanelPolished canAddItems={canAddItems} checklist={selectedChecklist} itemDraft={itemDraft} setItemDraft={setItemDraft} busy={busy} onAddChecklistItem={onAddChecklistItem} />
-          ) : toolTab === "detail" ? (
-            <ToolChecklistDetailPanelPolished checklist={selectedChecklist} permissions={permissions} busy={busy} onSaveChecklist={onSaveChecklist} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
-          ) : (
-            <ToolChecklistItemsPanelPolished checklist={selectedChecklist} items={selectedItems} permissions={permissions} busy={busy} onUpdateChecklistItem={onUpdateChecklistItem} />
-          )}
-        </div>
-      </details>
     </div>
   );
 }

@@ -10451,6 +10451,35 @@ textarea {
   max-height: 23.5rem;
 }
 
+.co-tool-checklist-page .co-toolbox-command-table {
+  min-width: 720px !important;
+}
+
+.co-tool-checklist-page .co-toolbox-command-table th:nth-child(1),
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(1) {
+  width: 32%;
+}
+
+.co-tool-checklist-page .co-toolbox-command-table th:nth-child(2),
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(2) {
+  width: 24%;
+}
+
+.co-tool-checklist-page .co-toolbox-command-table th:nth-child(3),
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(3) {
+  width: 14%;
+}
+
+.co-tool-checklist-page .co-toolbox-command-table th:nth-child(4),
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(4) {
+  width: 22%;
+}
+
+.co-tool-checklist-page .co-toolbox-command-table th:nth-child(5),
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(5) {
+  width: 8%;
+}
+
 .co-toolbox-talks-page .co-toolbox-tools-drawer[open] > summary {
   border-color: rgba(249, 115, 22, 0.34);
   box-shadow: 0 18px 44px -34px rgba(194, 65, 12, 0.36);
@@ -10464,6 +10493,10 @@ textarea {
   .co-ppe-page .co-toolbox-command-layout {
     grid-template-columns: minmax(0, 1fr) 340px !important;
   }
+
+  .co-tool-checklist-page .co-toolbox-command-layout {
+    grid-template-columns: minmax(0, 1fr) 340px !important;
+  }
 }
 
 @media (min-width: 768px) {
@@ -10474,23 +10507,27 @@ textarea {
 
 @media (min-width: 1024px) and (max-width: 1535px) {
   .co-ppe-page .co-toolbox-filter-strip,
-  .co-toolbox-talks-page .co-toolbox-filter-strip {
+  .co-toolbox-talks-page .co-toolbox-filter-strip,
+  .co-tool-checklist-page .co-toolbox-filter-strip {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .co-ppe-page .co-toolbox-category-tabs,
-  .co-toolbox-talks-page .co-toolbox-category-tabs {
+  .co-toolbox-talks-page .co-toolbox-category-tabs,
+  .co-tool-checklist-page .co-toolbox-category-tabs {
     flex-wrap: wrap;
     overflow: visible;
   }
 
   .co-ppe-page .co-toolbox-category-tabs button,
-  .co-toolbox-talks-page .co-toolbox-category-tabs button {
+  .co-toolbox-talks-page .co-toolbox-category-tabs button,
+  .co-tool-checklist-page .co-toolbox-category-tabs button {
     flex: 1 1 auto;
   }
 
   .co-ppe-page .co-toolbox-search,
-  .co-toolbox-talks-page .co-toolbox-search {
+  .co-toolbox-talks-page .co-toolbox-search,
+  .co-tool-checklist-page .co-toolbox-search {
     max-width: 34rem;
   }
 }
@@ -10558,12 +10595,8 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .co-tool-checklist-page.co-field-tool-page .co-toolbox-command-layout {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .co-tool-checklist-page.co-field-tool-page .co-toolbox-right-rail {
-    display: none !important;
+  .co-tool-checklist-page .co-toolbox-command-table {
+    min-width: 760px !important;
   }
 }
 
@@ -10774,6 +10807,27 @@ textarea {
   }
 
   .co-ppe-page .co-toolbox-tools-panel .co-card {
+    box-shadow: 0 18px 42px -34px rgba(7, 17, 31, 0.48);
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-drawer[open] {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem) !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
+  .co-tool-checklist-page .co-toolbox-form-card {
+    scroll-margin-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem);
+  }
+
+  .co-tool-checklist-page .co-toolbox-form-card .md\:col-span-2:last-child,
+  .co-tool-checklist-page .co-toolbox-form-card .flex.flex-wrap.gap-2 {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .co-card {
     box-shadow: 0 18px 42px -34px rgba(7, 17, 31, 0.48);
   }
 
