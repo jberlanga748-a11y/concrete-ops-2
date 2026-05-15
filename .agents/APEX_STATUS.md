@@ -1,70 +1,77 @@
 # Apex HQ Status
 
-## Current Phase
+## Current Baseline
 
-Daily Job Finder source/profile run workflow polish is approved for release.
+- Current repo: `jberlanga748-a11y/concrete-ops-2`
+- Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
+- Branch: `main`
+- Latest shipped app commit: `e0e05f2` (`Polish command center operator layout`)
+- Latest Fly release: `v352`
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRN5BMVSDBCFGDCRBDPEJHWJ`
+- Live health check after v352: `ok: true`, `status: ready`, database `ok`
+- Current workstream setup phase: organize parallel UI, product, and safety/QA tracks.
 
-## Current State
+## Active Skills
 
-- Latest app-code commit: `355109f` (`Polish mobile command board controls`).
-- Latest app-code commit: `1e9dbef` (`Add daily job finder command layer`).
-- Latest Fly release: `v325`.
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRKEC4B8ZQ2VCAVMJ4J3JCJ6`.
-- Live health check passed: `ok: true`, `status: ready`, database `ok`.
-- Working tree was clean after the v325 deploy.
-- v325 added a review-only Daily Job Finder layer to AI Office / Opportunity Scout.
-- Epicurus approved commit/push/deploy after local audit and verification.
-- Current local changes also add direct Search Brief actions for `Mark Reviewed` and `Mark Checked` using existing handlers.
+Use these for Apex HQ work:
 
-## Recent Shipped UI Phases
+- `apex-platform-operator`
+- `apex-elite-app-builder`
+- `apex-ui-designer`
+- `apex-overseer`
+- `playwright` when screenshots/browser QA are needed
 
-- Dashboard mobile command flow: commit `e92cdba`, Fly `v322`.
-- Toolbox Talks mobile filters: commit `9db7969`, Fly `v323`.
-- Shared mobile command-board controls: commit `355109f`, Fly `v324`.
+Use Spark reviewer agents for page releases and audit gates.
 
-## Latest Audits
+## Latest Full UI Audit
 
-- Local Daily Job Finder final audit: `output/playwright/ai-job-finder-final-audit/2026-05-14T14-16-35-400Z`
-  - 3 passes across desktop `1536x864`, desktop `1280x800`, and mobile `390x844`.
-  - Flagged issues: 0.
-- Local Daily Job Finder run workflow audit: `output/playwright/ai-job-finder-run-workflow-final-audit/2026-05-14T14-44-09-670Z`
-  - 3 passes across desktop `1536x864`, desktop `1280x800`, and mobile `390x844`.
-  - Flagged issues: 0.
-- Live v325 Daily Job Finder smoke: `output/playwright/live-v325-ai-job-finder-smoke/2026-05-14T14-33-17-467Z`
-  - Admin desktop/mobile visible; foreman and employee blocked.
-  - Flagged issues: 0.
-- Field AI Office block check:
-  - Foreman redirected to `/jobs`; AI Office and Daily Job Finder not visible.
-  - Employee redirected to `/jobs`; AI Office and Daily Job Finder not visible.
-- Full local post-release sweep: `output/playwright/cross-page-sweep-after-mobile-controls/2026-05-14T13-48-26-711Z`
-  - 108 route/role/viewport checks.
-  - Flagged issues: 0.
-- Live v324 visual smoke: `output/playwright/live-v324-visual-smoke/2026-05-14T13-54-07-644Z`
-  - 20 deployed route/role/viewport screenshots.
-  - Flagged issues: 0.
+Builder screenshot/audit sweep:
 
-## Verification Snapshot
+- `output/playwright/full-ui-audit-builder-2026-05-15T06-56-43-397Z`
+- 161 route/role/viewport checks
+- 44 flags
+- Main recurring issues:
+  - mobile bottom-nav overlap on action-heavy pages
+  - 1366px desktop table/right-rail squeeze on major command boards
+  - field-safe wording review for internal `pricing` language
+  - `/design`, `/settings`, and mobile `/ai-office` need route/permission/loading inspection
 
-- `npm.cmd run build` passed.
-- `npm.cmd run verify:roles` passed.
-- `npm.cmd run verify:leads` passed.
-- `npm.cmd run verify:customers` passed.
-- `npm.cmd run verify:estimates` passed.
-- `npm.cmd run verify:jobs` passed.
-- `npm.cmd run verify:safety` passed for Toolbox Talks work.
-- `npm.cmd run verify:field-workspaces` passed.
-- `npm.cmd run verify:server` passed.
-- `npm.cmd run verify:backup` passed.
-- `npm.cmd run verify:demo` passed.
-- Focused routing/navigation/design-token tests passed.
-- `git diff --check` passed with LF/CRLF warnings only.
+Spark audit splits completed:
 
-## Next Recommended Phase
+- Office pages: `Aquinas`
+- Field/mobile pages: `Nash`
+- System/auth/app shell: `Hypatia`
 
-After this phase ships, continue Opportunity Scout toward a real daily job-finding system:
+Detailed work order lives in `.agents/APEX_UI_AUDIT_2026-05-15.md`.
 
-- Keep it review-only first.
-- Do not auto-send messages or auto-create customer commitments.
-- Keep all AI provider keys server-side only.
-- Keep field roles blocked from leads, estimates, pricing, AI office, and admin data.
-- Preserve current lead/source/opportunity workflows while adding daily job-finding guidance.
+## Parallel Workstreams
+
+Detailed operating rules live in `.agents/APEX_WORKSTREAMS.md`.
+
+Summary:
+
+- Track A: Premium UI page passes
+- Track B: Product feature phases
+- Track C: Safety, permissions, QA, release hardening
+
+Keep commits narrow. Do not mix risky backend/data changes into visual polish commits.
+
+## Next Recommended Fix Order
+
+1. System/permission alignment for `/design`, `/settings`, and `/ai-office` loading issues.
+2. Change Orders field-safe copy/permission review for internal `pricing` terminology.
+3. Global mobile bottom-nav safe-space pattern.
+4. Time page structural redesign.
+5. Pre-Pour and Post-Pour field-safe checklist pass.
+6. Jobs, Estimates, Leads, Customers command-board desktop/table/mobile passes.
+7. Uploads, Delivery Tickets, Reports mobile action-safe cleanup.
+8. Employees mobile clipping cleanup.
+9. Login semantic heading touch-up and public request visual capture.
+
+## Release Rules
+
+- Use explicit file paths when staging.
+- Never use broad `git add .`.
+- Run focused checks plus baseline checks for each phase.
+- Use Spark review before commit/push/deploy for UI pages.
+- Deploy only after verification passes and the phase touches shipped app behavior/UI.
