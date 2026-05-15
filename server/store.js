@@ -2529,7 +2529,7 @@ function ensureDemoCompanySettingsInDatabase(database, companySettings, changedA
   return changed;
 }
 
-function refreshDemoScheduleDatesInDatabase(database, demoSeed) {
+function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
   const updateLead = database.prepare(`
     UPDATE leads
     SET follow_up_due_at = ?,
@@ -2542,6 +2542,46 @@ function refreshDemoScheduleDatesInDatabase(database, demoSeed) {
     SET scheduled_start = ?,
         scheduled_end = ?,
         due = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateSafetyPolicy = database.prepare(`
+    UPDATE safety_policies
+    SET created_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updatePpeItem = database.prepare(`
+    UPDATE ppe_items
+    SET created_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateSafetyAcknowledgment = database.prepare(`
+    UPDATE safety_acknowledgments
+    SET acknowledged_at = ?,
+        created_at = ?
+    WHERE id = ?
+  `);
+  const updateSafetyIncident = database.prepare(`
+    UPDATE safety_incidents
+    SET created_at = ?,
+        updated_at = ?,
+        reviewed_at = ?,
+        resolved_at = ?
+    WHERE id = ?
+  `);
+  const updateToolChecklist = database.prepare(`
+    UPDATE tool_checklists
+    SET created_at = ?,
+        updated_at = ?,
+        submitted_at = ?,
+        reviewed_at = ?
+    WHERE id = ?
+  `);
+  const updateToolChecklistItem = database.prepare(`
+    UPDATE tool_checklist_items
+    SET created_at = ?,
         updated_at = ?
     WHERE id = ?
   `);
@@ -2564,6 +2604,70 @@ function refreshDemoScheduleDatesInDatabase(database, demoSeed) {
       job.due || "",
       job.updatedAt || isoNow(),
       job.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const policy of demoSeed.safetyPolicies || []) {
+    const createdAt = policy.createdAt || isoNow();
+    const result = updateSafetyPolicy.run(
+      createdAt,
+      policy.updatedAt || createdAt,
+      policy.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const item of demoSeed.ppeItems || []) {
+    const createdAt = item.createdAt || isoNow();
+    const result = updatePpeItem.run(
+      createdAt,
+      item.updatedAt || createdAt,
+      item.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const acknowledgment of demoSeed.safetyAcknowledgments || []) {
+    const acknowledgedAt = acknowledgment.acknowledgedAt || acknowledgment.createdAt || isoNow();
+    const result = updateSafetyAcknowledgment.run(
+      acknowledgedAt,
+      acknowledgment.createdAt || acknowledgedAt,
+      acknowledgment.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const incident of demoSeed.safetyIncidents || []) {
+    const createdAt = incident.createdAt || isoNow();
+    const result = updateSafetyIncident.run(
+      createdAt,
+      incident.updatedAt || createdAt,
+      incident.reviewedAt || null,
+      incident.resolvedAt || null,
+      incident.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const checklist of demoSeed.toolChecklists || []) {
+    const createdAt = checklist.createdAt || isoNow();
+    const result = updateToolChecklist.run(
+      createdAt,
+      checklist.updatedAt || createdAt,
+      checklist.submittedAt || null,
+      checklist.reviewedAt || null,
+      checklist.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const item of demoSeed.toolChecklistItems || []) {
+    const createdAt = item.createdAt || isoNow();
+    const result = updateToolChecklistItem.run(
+      createdAt,
+      item.updatedAt || createdAt,
+      item.id,
     );
     updated += Number(result.changes || 0);
   }
@@ -3224,7 +3328,7 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
       event.createdAt || isoNow(),
     ],
   );
-  const updated = refreshDemoScheduleDatesInDatabase(database, demoSeed);
+  const updated = refreshDemoWalkthroughDatesInDatabase(database, demoSeed);
 
   return {
     inserted,

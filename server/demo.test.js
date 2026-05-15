@@ -412,6 +412,50 @@ function readExistingIds(sqliteFile, tableName, ids) {
   }
 }
 
+const STALE_DEMO_WALKTHROUGH_TIMESTAMP = "2026-04-25T19:17:00.000Z";
+
+function ageDemoWalkthroughDates(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare("UPDATE safety_policies SET created_at = ?, updated_at = ? WHERE title = ?").run(
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      "Morning PPE check",
+    );
+    database.prepare("UPDATE ppe_items SET created_at = ?, updated_at = ? WHERE label = ?").run(
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      "Hard hat",
+    );
+    database.prepare("UPDATE safety_acknowledgments SET acknowledged_at = ?, created_at = ? WHERE id LIKE ?").run(
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      "DEMO-SA-DEMO-%",
+    );
+    database.prepare("UPDATE safety_incidents SET created_at = ?, updated_at = ?, reviewed_at = ?, resolved_at = ? WHERE id LIKE ?").run(
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      null,
+      null,
+      "DEMO-SI-DEMO-%",
+    );
+    database.prepare("UPDATE tool_checklists SET created_at = ?, updated_at = ?, submitted_at = ?, reviewed_at = ? WHERE id LIKE ?").run(
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      null,
+      null,
+      "DEMO-TC-DEMO-%",
+    );
+    database.prepare("UPDATE tool_checklist_items SET created_at = ?, updated_at = ? WHERE id LIKE ?").run(
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      "DEMO-TCI-DEMO-%",
+    );
+  } finally {
+    database.close();
+  }
+}
+
 function duplicateChecklistItems(sqliteFile, tableName, checklistId, duplicateSuffix, copies = 3) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -610,11 +654,16 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     "daily_reports",
     "uploads",
     "delivery_tickets",
+    "safety_policies",
+    "ppe_items",
+    "safety_acknowledgments",
+    "safety_incidents",
     "pre_pour_checklists",
     "pre_pour_checklist_items",
     "post_pour_checklists",
     "post_pour_checklist_items",
     "tool_checklists",
+    "tool_checklist_items",
     "activity",
     "audit_events",
   ];
@@ -641,6 +690,7 @@ test("restarting the demo app does not keep growing seeded demo records", async 
   }
 
   const firstCounts = readTableCounts(sqliteFile, countedTables);
+  ageDemoWalkthroughDates(sqliteFile);
 
   const secondServer = await startServer({
     DEMO_MODE: "true",
@@ -659,6 +709,21 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     assert.ok(bootstrap.jobs.length > 0);
     assertChecklistPayloadLooksReasonable(bootstrap.prePourChecklists);
     assertChecklistPayloadLooksReasonable(bootstrap.postPourChecklists);
+    const refreshedSafetyPolicy = bootstrap.safetyPolicies.find((policy) => policy.title === "Morning PPE check");
+    const refreshedPpeItem = bootstrap.ppeItems.find((item) => item.label === "Hard hat");
+    const refreshedAcknowledgment = bootstrap.safetyAcknowledgments.find((acknowledgment) => acknowledgment.id === "DEMO-SA-DEMO-001");
+    const refreshedIncident = bootstrap.safetyIncidents.find((incident) => incident.id === "DEMO-SI-DEMO-001");
+    const refreshedToolChecklist = bootstrap.toolChecklists.find((checklist) => checklist.id === "DEMO-TC-DEMO-001");
+    assert.ok(refreshedSafetyPolicy);
+    assert.ok(refreshedPpeItem);
+    assert.ok(refreshedAcknowledgment);
+    assert.ok(refreshedIncident);
+    assert.ok(refreshedToolChecklist);
+    assert.ok(Date.parse(refreshedSafetyPolicy.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
+    assert.ok(Date.parse(refreshedPpeItem.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
+    assert.ok(Date.parse(refreshedAcknowledgment.acknowledgedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
+    assert.ok(Date.parse(refreshedIncident.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
+    assert.ok(Date.parse(refreshedToolChecklist.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
   } finally {
     await secondServer.stop();
   }

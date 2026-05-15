@@ -179,10 +179,10 @@ const APEX_BRAND_ASSETS = {
 };
 const DEMO_LOGIN_PASSWORD = "apexdemo123";
 const DEMO_LOGIN_PRESETS = [
-  { role: "Owner", email: "demo.ops@apexhq.app", helper: "Full Apex HQ operator view" },
-  { role: "Admin", email: "demo.admin@apexhq.app", helper: "Office setup and command center" },
-  { role: "Foreman", email: "demo.foreman@apexhq.app", helper: "Field lead workspace" },
-  { role: "Employee", email: "demo.employee@apexhq.app", helper: "Assigned field tasks" },
+  { role: "Owner / Ops", email: "demo.ops@apexhq.app", helper: "Company walkthrough: dashboard, schedule, jobs, reminders." },
+  { role: "Admin", email: "demo.admin@apexhq.app", helper: "Office setup: leads, estimates, settings, users." },
+  { role: "Foreman", email: "demo.foreman@apexhq.app", helper: "Mobile field lead: today's job, crew, reports, photos." },
+  { role: "Employee", email: "demo.employee@apexhq.app", helper: "Mobile crew view: assigned work, clock, uploads, checklists." },
 ];
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
@@ -9465,7 +9465,7 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect, onOpenTalk 
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-base font-black text-slate-950">{policy.title || "Untitled toolbox talk"}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{policy.category || "Safety"} / {formatDateTime(toolboxPolicyUpdatedAt(policy)) || "No date"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{policy.category || "Safety"} / Current field guidance</p>
                 </div>
                 <Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge>
               </div>
@@ -9726,7 +9726,7 @@ function ToolboxTalksMobileFocusPanel({
 }) {
   const focusTitle = talk?.title || "Toolbox review";
   const focusMeta = talk
-    ? `${talk.category || "Safety"} / ${formatDateTime(toolboxPolicyUpdatedAt(talk)) || "No date"}`
+    ? `${talk.category || "Safety"} / Current field guidance`
     : "Keep safety guidance, PPE reminders, and crew acknowledgment easy to reach.";
   const metricItems = [
     { label: "Visible", value: visibleCount, tone: visibleCount ? "orange" : "slate", onClick: onViewBoard },
@@ -10068,7 +10068,7 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-base font-black text-slate-950">{item.label || "Untitled PPE item"}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{ppeItemRequirementLabel(item)} / {formatDateTime(ppeItemUpdatedAt(item)) || "No date"}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{ppeItemRequirementLabel(item)} / Current PPE guidance</p>
                 </div>
                 <Badge tone={ppeItemStatusTone(item)}>{ppeItemRequirementLabel(item)}</Badge>
               </div>
@@ -10212,7 +10212,7 @@ function PpeMobileFocusPanel({
 }) {
   const focusTitle = item?.label || "PPE check ready";
   const focusMeta = item
-    ? `${ppeItemRequirementLabel(item)} / ${formatDateTime(ppeItemUpdatedAt(item)) || "No update date"}`
+    ? `${ppeItemRequirementLabel(item)} / Current PPE guidance`
     : `${filteredCount} visible PPE item${filteredCount === 1 ? "" : "s"}`;
   const metricItems = [
     { label: "Items", value: filteredCount, tone: filteredCount ? "orange" : "slate", onClick: onViewBoard },
@@ -10288,7 +10288,7 @@ function PpeFieldOperatorPanel({ selectedItem, filteredCount, requiredCount, ack
             <p>{selectedItem?.description || "Confirm required protection, acknowledge the PPE check, and keep field concerns close without office-only controls."}</p>
             <div className="co-field-operator-address">
               <Icon name="hardhat" />
-              <span>{selectedItem ? `${ppeItemRequirementLabel(selectedItem)} / ${formatDateTime(ppeItemUpdatedAt(selectedItem)) || "No update date"}` : `${filteredCount} visible PPE item${filteredCount === 1 ? "" : "s"}`}</span>
+              <span>{selectedItem ? `${ppeItemRequirementLabel(selectedItem)} / Current PPE guidance` : `${filteredCount} visible PPE item${filteredCount === 1 ? "" : "s"}`}</span>
             </div>
           </div>
 

@@ -25773,6 +25773,12 @@ textarea {
     display: none !important;
   }
 
+  .co-toolbox-talks-page.co-field-tool-page .co-page-header h1 + p,
+  .co-ppe-page.co-field-tool-page .co-page-header h1 + p,
+  .co-incidents-page[data-field-workspace="true"] .co-page-header h1 + p {
+    display: none !important;
+  }
+
   .co-ppe-page.co-field-tool-page .co-toolbox-priority-grid {
     display: none !important;
   }
