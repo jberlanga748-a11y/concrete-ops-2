@@ -21902,7 +21902,7 @@ function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
               >
                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
+                    <p className="break-words text-base font-black text-slate-950">{checklist.job?.title || "Assigned Pre-Pour checklist"}</p>
                     <p className="mt-1 break-words text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)}</p>
                   </div>
                   <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
@@ -21936,7 +21936,7 @@ function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
               return (
                 <tr key={checklist.id} onClick={() => onSelect(checklist.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
                   <td>
-                    <p className="font-black text-slate-950">{checklist.job?.title || "Assigned pre-pour checklist"}</p>
+                    <p className="font-black text-slate-950">{checklist.job?.title || "Assigned Pre-Pour checklist"}</p>
                     <p className="text-xs font-bold text-slate-500">{checklist.job?.customer || "Assigned site"}</p>
                   </td>
                   <td><StatusBadge status={prePourChecklistStatusLabel(checklist.status)} /></td>
@@ -21950,7 +21950,7 @@ function PrePourChecklistTablePolished({ rows, selectedId, onSelect }) {
                   </td>
                   <td className="font-bold text-slate-700">{formatDateTime(prePourChecklistUpdated(checklist))}</td>
                   <td>
-                    <button type="button" className="co-prepour-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(checklist.id); }} aria-label={`Open pre-pour checklist ${checklist.id}`}>
+                    <button type="button" className="co-prepour-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(checklist.id); }} aria-label={`Open Pre-Pour checklist ${checklist.id}`}>
                       <Icon name="arrowUpRight" />
                     </button>
                   </td>
@@ -21975,7 +21975,7 @@ function PrePourReadinessItemsPolished({
   if (!selectedChecklist) {
     return (
       <div className="p-5">
-        <StateCard title="No checklist selected" description="Choose a pre-pour checklist from the board or start one for a visible job." tone="slate" />
+        <StateCard title="No checklist selected" description="Choose a Pre-Pour checklist from the board or start one for a visible job." tone="slate" />
       </div>
     );
   }
@@ -22062,7 +22062,7 @@ function PrePourCommandRailPolished({
     return (
       <div className="co-prepour-right-rail space-y-4">
         <Card className="co-prepour-rail-card p-4">
-          <SectionHeader title="Checklist Console" description="Select a pre-pour checklist or start a new one." />
+          <SectionHeader title="Checklist Console" description="Select a Pre-Pour checklist or start a new one." />
           <div className="co-prepour-empty-rail">
             <span><Icon name="clipboard" /></span>
             <strong>No checklist selected</strong>
@@ -22080,7 +22080,7 @@ function PrePourCommandRailPolished({
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected readiness</p>
-            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{checklist.job?.title || "Pre-pour checklist"}</h3>
+            <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{checklist.job?.title || "Pre-Pour checklist"}</h3>
             <p className="mt-1 break-words text-xs font-black text-slate-500">{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)}</p>
           </div>
           <StatusBadge status={prePourChecklistStatusLabel(checklist.status)} />
@@ -22126,7 +22126,7 @@ function PrePourCommandRailPolished({
       </Card>
 
       <Card className="co-prepour-rail-card p-4">
-        <SectionHeader title="Readiness Path" description="Pre-pour should tell the office whether the job is ready before placement." />
+        <SectionHeader title="Readiness Path" description="Pre-Pour should tell the office whether the job is ready before placement." />
         <div className="co-prepour-readiness-list">
           <span data-state={checklist.status === "reviewed" ? "ready" : "needs"}>Office review <strong>{checklist.reviewedByName || "Needed"}</strong></span>
           <span data-state={checklistSummary.incompleteCount === 0 ? "ready" : "needs"}>Checklist items <strong>{checklistSummary.incompleteCount === 0 ? "Clear" : `${checklistSummary.incompleteCount} open`}</strong></span>
@@ -22154,6 +22154,7 @@ function PrePourFieldOperatorPanel({
   const totalCount = Number(checklistSummary?.totalCount || 0);
   const canComplete = Boolean(canCompleteChecklist && checklist && incompleteCount === 0);
   const statusLabel = checklist ? prePourChecklistStatusLabel(checklist.status) : "Not selected";
+  const checklistActionLabel = checklist ? (incompleteCount ? "Open Items" : "Review Items") : "View Board";
   const summaryItems = [
     { label: "Checklists", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
     { label: "Open items", value: checklist ? incompleteCount : "-", tone: incompleteCount ? "amber" : "green" },
@@ -22173,7 +22174,7 @@ function PrePourFieldOperatorPanel({
                 incompleteCount ? <Badge tone="amber">{incompleteCount} open item{incompleteCount === 1 ? "" : "s"}</Badge> : <Badge tone="green">Ready to complete</Badge>
               ) : <Badge tone="slate">Select checklist</Badge>}
             </div>
-            <h2>{checklist ? checklist.job?.title || "Pre-pour checklist" : "Pre-pour checklist ready"}</h2>
+            <h2>{checklist ? checklist.job?.title || "Pre-Pour checklist" : "Pre-Pour checklist ready"}</h2>
             <p>
               {checklist
                 ? incompleteCount
@@ -22181,7 +22182,7 @@ function PrePourFieldOperatorPanel({
                   : "Readiness is clear. Complete the checklist or add a note before office review."
                 : visibleJobs.length
                   ? "Open an assigned checklist, clear readiness items, and keep the pour moving without office-only data."
-                  : "Assigned pre-pour checklists will appear here when the office attaches a job to your field workspace."}
+                  : "Assigned Pre-Pour checklists will appear here when the office attaches a job to your field workspace."}
             </p>
             <div className="co-field-operator-address">
               <Icon name="clipboard" />
@@ -22192,7 +22193,7 @@ function PrePourFieldOperatorPanel({
           <div className="co-field-operator-actions">
             <Button type="button" onClick={onJumpToBoard}>
               <Icon name="layers" />
-              {checklist ? "Open Items" : "View Board"}
+              {checklistActionLabel}
             </Button>
             {canCreateChecklist ? (
               <Button type="button" variant="secondary" onClick={() => onOpenTool("create")}>
@@ -22241,7 +22242,8 @@ function PrePourMobileFocusPanel({
   onOpenReady,
   onOpenActive,
 }) {
-  const focusTitle = checklist?.job?.title || "Pre-pour readiness";
+  const focusTitle = checklist?.job?.title || "Pre-Pour readiness";
+  const checklistActionLabel = openItemCount ? "Open Items" : "Review Items";
   const focusMeta = checklist
     ? `${checklist.job?.customer || "Assigned site"} / ${prePourChecklistOwner(checklist)}`
     : "Select a checklist or start the next readiness review.";
@@ -22253,7 +22255,7 @@ function PrePourMobileFocusPanel({
   ];
 
   return (
-    <section className="co-prepour-mobile-focus mx-4 mb-3 md:hidden" aria-label="Pre-pour mobile focus">
+    <section className="co-prepour-mobile-focus mx-4 mb-3 md:hidden" aria-label="Pre-Pour mobile focus">
       <div className="co-prepour-mobile-focus-copy">
         <span>Readiness Focus</span>
         <h2>{focusTitle}</h2>
@@ -22263,7 +22265,7 @@ function PrePourMobileFocusPanel({
       <div className="co-prepour-mobile-focus-actions">
         <Button type="button" onClick={onOpenItems}>
           <Icon name="layers" />
-          Open Items
+          {checklistActionLabel}
         </Button>
         <Button type="button" variant="secondary" onClick={onOpenBoard}>
           <Icon name="clipboard" />
@@ -22394,10 +22396,10 @@ function PrePourPagePolished({
   const needsActionCount = filteredRows.filter((checklist) => ["draft", "reopened"].includes(checklist.status)).length;
   const prePourKpis = [
     { label: "Checklists", value: filteredRows.length, helper: "Matching current filters", icon: "clipboard", tone: "orange", actionLabel: "View all", onAction: () => setStatusFilter("All") },
-    { label: "Needs Review", value: needsReviewCount, helper: "Completed by field", icon: "alert", tone: needsReviewCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setStatusFilter("Completed") },
-    { label: "Ready", value: readyCount, helper: "Cleared for placement", icon: "check", tone: "green", actionLabel: "View ready", onAction: () => setStatusFilter("Reviewed") },
+    { label: "Needs Review", value: needsReviewCount, helper: "Completed by field", icon: "alert", tone: needsReviewCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: "Completed", archiveFilter: "Active", scrollTarget: "board" }) },
+    { label: "Ready", value: readyCount, helper: "Cleared for placement", icon: "check", tone: "green", actionLabel: "View ready", onAction: () => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active", scrollTarget: "board" }) },
     { label: "Open Items", value: openItemCount, helper: "Incomplete readiness checks", icon: "document", tone: openItemCount ? "amber" : "slate" },
-    { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened", icon: "hardhat", tone: needsActionCount ? "orange" : "slate", actionLabel: "Open active", onAction: () => setStatusFilter("Draft") },
+    { label: "Needs Action", value: needsActionCount, helper: "Drafts or reopened", icon: "hardhat", tone: needsActionCount ? "orange" : "slate", actionLabel: "Open active", onAction: () => openPriorityChecklist((checklist) => ["draft", "reopened"].includes(checklist.status), { statusFilter: "Draft", archiveFilter: "Active", scrollTarget: "board" }) },
   ];
   const toolTabs = [
     { id: "create", label: "Start Checklist", count: canCreateChecklist ? 1 : 0 },
@@ -22428,6 +22430,14 @@ function PrePourPagePolished({
     if (options.statusFilter) setStatusFilter(options.statusFilter);
     if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
     if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
+    if (options.scrollTarget === "items") {
+      jumpToItems();
+      return;
+    }
+    if (options.scrollTarget === "board") {
+      jumpToBoard();
+      return;
+    }
     openTool(options.tool || "work");
   }
 
@@ -22443,11 +22453,11 @@ function PrePourPagePolished({
   const reviewCompletedPriorityCard = {
     label: "Review completed",
     value: needsReviewCount,
-    helper: needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed pre-pour checklists waiting.",
+    helper: needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed Pre-Pour checklists waiting.",
     icon: "clipboard",
     tone: needsReviewCount ? "orange" : "green",
     actionLabel: needsReviewCount ? "Open review" : "View board",
-    onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active" }),
+    onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active", scrollTarget: "board" }),
   };
   const clearOpenItemsPriorityCard = {
     label: "Clear open items",
@@ -22456,21 +22466,21 @@ function PrePourPagePolished({
     icon: "alert",
     tone: openItemCount ? "amber" : "green",
     actionLabel: openItemCount ? "Open items" : "Ready",
-    onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active" }),
+    onAction: () => openPriorityChecklist((checklist) => Number(checklist.incompleteItemCount || 0) > 0, { statusFilter: "All", archiveFilter: "Active", scrollTarget: openItemCount ? "items" : "board" }),
   };
   const readyForPourPriorityCard = {
     label: "Ready for pour",
     value: readyCount,
-    helper: readyCount ? "Reviewed checklists are cleared for placement." : "No reviewed pre-pour checklists in view.",
+    helper: readyCount ? "Reviewed checklists are cleared for placement." : "No reviewed Pre-Pour checklists in view.",
     icon: "check",
     tone: readyCount ? "green" : "slate",
     actionLabel: readyCount ? "View ready" : "No ready",
-    onAction: () => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active" }),
+    onAction: () => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active", scrollTarget: "board" }),
   };
   const startChecklistPriorityCard = {
     label: "Start checklist",
     value: canCreateChecklist ? 1 : 0,
-    helper: canCreateChecklist ? "Create the real pre-pour readiness checklist for a visible job." : "Checklist creation is not enabled for this role.",
+    helper: canCreateChecklist ? "Create the real Pre-Pour readiness checklist for a visible job." : "Checklist creation is not enabled for this role.",
     icon: "plus",
     tone: canCreateChecklist ? "orange" : "slate",
     actionLabel: canCreateChecklist ? "Start now" : "Read only",
@@ -22493,7 +22503,7 @@ function PrePourPagePolished({
       <div className="co-office-page co-prepour-page">
         <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description="This module is not available for this role." />
         <div className="px-5 sm:px-6 lg:px-8">
-          <StateCard title="Pre-pour access unavailable" description="Only office, foreman, or assigned field roles can open this checklist workspace." tone="slate" />
+          <StateCard title="Pre-Pour access unavailable" description="Only office, foreman, or assigned field roles can open this checklist workspace." tone="slate" />
         </div>
       </div>
     );
@@ -22504,7 +22514,7 @@ function PrePourPagePolished({
       <PageHeader
         eyebrow={permissions.prePour.canManageAll ? "Field Ops" : "Field Workspace"}
         title="Pre-Pour Board"
-        description={permissions.prePour.canManageAll ? "Track job readiness across pre-pour checklists, open items, field completion, and office review before placement." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."}
+        description={permissions.prePour.canManageAll ? "Track job readiness across Pre-Pour checklists, open items, field completion, and office review before placement." : "Confirm site readiness before the truck arrives with job-safe field details."}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setStatusFilter("All")}>{filteredRows.length} visible</Button>
@@ -22538,11 +22548,11 @@ function PrePourPagePolished({
           needsActionCount={needsActionCount}
           canCreateChecklist={canCreateChecklist}
           onStartChecklist={() => openTool("create")}
-          onOpenItems={jumpToItems}
+          onOpenItems={openItemCount ? jumpToItems : jumpToBoard}
           onOpenBoard={jumpToBoard}
-          onOpenReview={() => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active" })}
-          onOpenReady={() => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active" })}
-          onOpenActive={() => openPriorityChecklist((checklist) => ["draft", "reopened"].includes(checklist.status), { statusFilter: "Draft", archiveFilter: "Active" })}
+          onOpenReview={() => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active", scrollTarget: "board" })}
+          onOpenReady={() => openPriorityChecklist((checklist) => checklist.status === "reviewed", { statusFilter: "Reviewed", archiveFilter: "Active", scrollTarget: "board" })}
+          onOpenActive={() => openPriorityChecklist((checklist) => ["draft", "reopened"].includes(checklist.status), { statusFilter: "Draft", archiveFilter: "Active", scrollTarget: "board" })}
         />
       ) : null}
 
@@ -22605,7 +22615,7 @@ function PrePourPagePolished({
               </details>
               {filteredRows.length === 0 ? (
                 <div className="p-5">
-                  <StateCard title={noFieldJob ? "No assigned job yet" : "No pre-pour checklists match these filters"} description={noFieldJob ? "Contact office if a pre-pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
+                  <StateCard title={noFieldJob ? "No assigned job yet" : "No Pre-Pour checklists match these filters"} description={noFieldJob ? "Contact office if a Pre-Pour checklist should already be on your phone." : "Clear a filter or create a checklist for a visible job."} tone="slate" />
                 </div>
               ) : (
                 <PrePourChecklistTablePolished rows={filteredRows} selectedId={selectedChecklist?.id} onSelect={setSelectedChecklistId} />
@@ -22676,7 +22686,7 @@ function PrePourPagePolished({
         <div className="co-prepour-tools-panel mt-3">
           {activeTool === "create" ? (
             <Card className="p-5">
-              <SectionHeader title="Start checklist" description="Create a pre-pour checklist with default readiness items for a visible job." />
+              <SectionHeader title="Start checklist" description="Create a Pre-Pour checklist with default readiness items for a visible job." />
               {canCreateChecklist ? (
                 <>
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -22706,7 +22716,7 @@ function PrePourPagePolished({
                   </Button>
                 </>
               ) : (
-                <StateCard title="Create unavailable" description="This role can view assigned pre-pour checklists but cannot start new ones." tone="slate" />
+                <StateCard title="Create unavailable" description="This role can view assigned Pre-Pour checklists but cannot start new ones." tone="slate" />
               )}
             </Card>
           ) : null}
@@ -22856,7 +22866,7 @@ function PrePourPageLegacy({
 
   return (
     <div>
-      <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives, without exposing office-only pricing or payroll data."} />
+      <PageHeader eyebrow="Field Tools" title="Pre-Pour Checklist" description={permissions.prePour.canManageAll ? "Track readiness across every job, review field completion, and reopen checklists when the crew needs another pass." : "Confirm site readiness before the truck arrives with job-safe field details."} />
       <ModuleKpiStrip items={prePourKpis} />
       <div className="mx-auto grid w-full max-w-[1380px] min-w-0 gap-4 px-5 pb-24 sm:px-6 md:pb-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:px-8 xl:max-w-[1420px] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-5">
         <div className="min-w-0 space-y-4 lg:self-start">
@@ -31405,7 +31415,7 @@ export default function App() {
   }
 
   async function handleUpdatePrePourChecklistItem(checklistId, itemId, payload) {
-    if (!sessionToken || !appState.permissions.prePour.canView) return false;
+    if (!sessionToken || !appState.permissions.prePour.canManage) return false;
     setBusy(true);
     try {
       const nextState = await updatePrePourChecklistItem(sessionToken, checklistId, itemId, payload);

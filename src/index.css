@@ -12311,6 +12311,14 @@ textarea {
   white-space: nowrap;
 }
 
+.co-prepour-page:not(.co-postpour-page) .co-prepour-command-table td p {
+  display: -webkit-box;
+  line-height: 1.22;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .co-prepour-command-table tbody tr:hover td {
   background: rgba(255, 247, 237, 0.48);
 }
@@ -13441,6 +13449,7 @@ textarea {
   .co-prepour-page[data-field-workspace="true"]:not(.co-postpour-page) .co-page-header .flex.flex-wrap.gap-2 > button {
     flex: 1 1 0;
     justify-content: center;
+    min-height: 2.4rem !important;
   }
 
   .co-postpour-page[data-field-workspace="true"] .co-page-header .flex.flex-wrap.gap-2 > button {
@@ -13523,6 +13532,13 @@ textarea {
 
   .co-prepour-tools-drawer > summary {
     padding: 0.85rem !important;
+  }
+
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-tool-tabs button,
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-item-actions .co-focus-ring,
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-tools-panel button,
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-right-rail button {
+    min-height: 2.45rem !important;
   }
 
   .co-prepour-tools-panel > .co-card {
@@ -23491,6 +23507,10 @@ textarea {
 
   .co-postpour-page[data-field-workspace="true"] .co-prepour-command-layout {
     margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 6.85rem) !important;
+  }
+
+  .co-prepour-page:not(.co-postpour-page) .co-prepour-command-layout {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 
   .co-toolbox-talks-page.co-field-tool-page .co-toolbox-kpi-grid {
