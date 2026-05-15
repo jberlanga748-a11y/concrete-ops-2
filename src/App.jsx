@@ -15865,7 +15865,7 @@ function ImportedJobDraftsPage({
   if (!permissions.jobDraftImports?.canView) {
     return (
       <div className="co-office-page co-imports-page">
-        <PageHeader eyebrow="Office" title="Imported Job Drafts" description="Imported draft packages are only available to office roles that can create jobs." />
+        <PageHeader eyebrow="Office" title="Imported Drafts" description="Imported draft packages are only available to office roles that can create jobs." />
         <div className="px-5 sm:px-6 lg:px-8">
           <StateCard title="Imported drafts unavailable" description="This role cannot import or create jobs from external draft packages." tone="slate" />
         </div>
@@ -15886,6 +15886,7 @@ function ImportedJobDraftsPage({
         onOpenCreatedJob={onOpenCreatedJob}
         onSaveDraft={onSaveDraft}
         busy={busy}
+        permissions={permissions}
       />
     );
   }
@@ -15988,7 +15989,7 @@ function ImportedDraftsTablePolished({ drafts, selectedId, onSelect, onReview, o
   );
 }
 
-function ImportedDraftCommandRailPolished({ draft, onReview, onImportClick, onOpenCreatedJob }) {
+function ImportedDraftCommandRailPolished({ draft, canManage, onReview, onImportClick, onOpenCreatedJob }) {
   if (!draft) {
     return (
       <div className="co-imports-right-rail space-y-4">
@@ -15999,7 +16000,7 @@ function ImportedDraftCommandRailPolished({ draft, onReview, onImportClick, onOp
             <strong>No imported draft selected</strong>
             <p>Imported packages will show customer match, readiness, service type, and job creation status here.</p>
           </div>
-          <Button type="button" className="mt-3 w-full" onClick={onImportClick}>Import Package</Button>
+          {canManage ? <Button type="button" className="mt-3 w-full" onClick={onImportClick}>Import Package</Button> : null}
         </Card>
       </div>
     );
@@ -16063,6 +16064,63 @@ function ImportedDraftCommandRailPolished({ draft, onReview, onImportClick, onOp
   );
 }
 
+function ImportedDraftsMobileFocusPanel({
+  stats,
+  filteredCount,
+  visibleWarnings,
+  matchReviewCount,
+  canManage,
+  onImport,
+  onOpenBoard,
+  onOpenNeedsReview,
+  onOpenReady,
+  onOpenMatchReview,
+}) {
+  const focusLabel = stats.total
+    ? `${filteredCount} visible / ${visibleWarnings} warning${visibleWarnings === 1 ? "" : "s"}`
+    : "Import queue ready";
+
+  return (
+    <section className="co-imports-mobile-focus mx-4 mb-3 md:hidden" aria-label="Imported drafts mobile focus">
+      <div className="co-imports-mobile-focus-copy">
+        <span>Draft Intake</span>
+        <h2>{stats.total ? "Review before job creation" : "Ready for the first package"}</h2>
+        <p>{stats.total ? focusLabel : "Load the next Apex HQ Job Draft Package, review customer match, then create the real job when the office is ready."}</p>
+      </div>
+      <div className="co-imports-mobile-focus-actions">
+        {canManage ? (
+          <Button type="button" onClick={onImport}>
+            <Icon name="upload" />
+            Import Package
+          </Button>
+        ) : null}
+        <Button type="button" variant={canManage ? "secondary" : undefined} onClick={onOpenBoard}>
+          <Icon name="database" />
+          View Board
+        </Button>
+      </div>
+      <div className="co-imports-mobile-focus-metrics">
+        <button type="button" onClick={onOpenBoard} data-tone={stats.total ? "orange" : "slate"}>
+          <span>Drafts</span>
+          <strong>{stats.total}</strong>
+        </button>
+        <button type="button" onClick={onOpenNeedsReview} data-tone={stats.needsReview ? "amber" : "green"}>
+          <span>Needs review</span>
+          <strong>{stats.needsReview}</strong>
+        </button>
+        <button type="button" onClick={onOpenReady} data-tone={stats.readyToCreate ? "green" : "slate"}>
+          <span>Ready</span>
+          <strong>{stats.readyToCreate}</strong>
+        </button>
+        <button type="button" onClick={onOpenMatchReview} data-tone={matchReviewCount ? "amber" : "green"}>
+          <span>Match</span>
+          <strong>{matchReviewCount}</strong>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function ImportedDraftImportPanelPolished({ busy, importMessage, onImportFile }) {
   return (
     <Card className="co-imports-form-card p-4">
@@ -16098,12 +16156,13 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
   const [selectedDraftId, setSelectedDraftId] = useState("");
   const [showTools, setShowTools] = useState(false);
   const toolsRef = useRef(null);
+  const boardRef = useRef(null);
   const normalizedDrafts = useMemo(() => normalizeImportedJobDrafts(drafts), [drafts]);
   const stats = getImportedJobDraftStats(normalizedDrafts);
   const readinessLabels = useMemo(() => Array.from(new Set(normalizedDrafts.map((draft) => draft.opsReadinessLabel).filter(Boolean))).sort(), [normalizedDrafts]);
   const serviceTypes = useMemo(() => Array.from(new Set(normalizedDrafts.map((draft) => draft.serviceType).filter(Boolean))).sort(), [normalizedDrafts]);
   const filteredDrafts = useMemo(() => filterImportedJobDrafts(normalizedDrafts, { cityFilter, createdFilter, readinessFilter, serviceTypeFilter, statusFilter }).filter((draft) => importedDraftSearchMatch(draft, search)), [cityFilter, createdFilter, normalizedDrafts, readinessFilter, search, serviceTypeFilter, statusFilter]);
-  const selectedDraft = filteredDrafts.find((draft) => draft.id === selectedDraftId) || filteredDrafts[0] || normalizedDrafts.find((draft) => draft.id === selectedDraftId) || null;
+  const selectedDraft = filteredDrafts.find((draft) => draft.id === selectedDraftId) || filteredDrafts[0] || null;
   const matchReviewCount = normalizedDrafts.filter((draft) => ["Review Required", "Possible Match", "Not Checked"].includes(draft.customerMatchStatus)).length;
   const visibleWarnings = filteredDrafts.reduce((count, draft) => count + getImportedDraftWarnings(draft).length + getCustomerMatchWarnings(draft).length, 0);
   const importKpis = [
@@ -16115,7 +16174,11 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
   ];
 
   useEffect(() => {
-    if (!selectedDraftId && filteredDrafts[0]?.id) {
+    if (!filteredDrafts.length) {
+      if (selectedDraftId) setSelectedDraftId("");
+      return;
+    }
+    if (!selectedDraftId || !filteredDrafts.some((draft) => draft.id === selectedDraftId)) {
       setSelectedDraftId(filteredDrafts[0].id);
     }
   }, [filteredDrafts, selectedDraftId]);
@@ -16126,13 +16189,19 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
     setImportMessage("");
 
     try {
+      if (!permissions?.jobDraftImports?.canManage) {
+        throw new Error("Import is only available to office roles that can manage imported drafts.");
+      }
       const parsed = JSON.parse(await file.text());
       const validation = validateJobDraftImportPackage(parsed);
       if (!validation.ok) {
         throw new Error(validation.errors.join(" "));
       }
       const result = await onImportPackage(parsed);
-      setImportMessage(result?.message || "Imported Job Draft Package.");
+      if (!result) {
+        throw new Error("Import did not complete. Check your role access and try again.");
+      }
+      setImportMessage(result.message || "Imported Job Draft Package.");
     } catch (error) {
       setImportMessage(error.message || "Could not import this JSON package.");
     } finally {
@@ -16150,8 +16219,16 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
   }
 
   function openTools() {
+    if (!permissions?.jobDraftImports?.canManage) {
+      setImportMessage("Import tools are only available to office roles that can manage imported drafts.");
+      return;
+    }
     setShowTools(true);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function jumpToBoard() {
+    window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
   function openPriorityDraft(matchDraft, options = {}) {
@@ -16223,6 +16300,19 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
         }
       />
 
+      <ImportedDraftsMobileFocusPanel
+        stats={stats}
+        filteredCount={filteredDrafts.length}
+        visibleWarnings={visibleWarnings}
+        matchReviewCount={matchReviewCount}
+        canManage={Boolean(permissions?.jobDraftImports?.canManage)}
+        onImport={openTools}
+        onOpenBoard={jumpToBoard}
+        onOpenNeedsReview={() => openPriorityDraft((draft) => draft.importStatus === "Needs Review", { statusFilter: stats.needsReview ? "Needs Review" : "All" })}
+        onOpenReady={() => openPriorityDraft((draft) => draft.importStatus === "Ready to Create Job", { statusFilter: stats.readyToCreate ? "Ready to Create Job" : "All" })}
+        onOpenMatchReview={() => openPriorityDraft((draft) => draft.id === matchReviewDraft?.id)}
+      />
+
       <div className="co-imports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {importKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
@@ -16242,56 +16332,70 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
       </div>
 
       <div className="co-imports-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card className="co-imports-main-board overflow-hidden">
-          <div className="co-imports-board-header border-b border-slate-200 bg-white p-4">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Draft Intake Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Review imported packages, customer match state, readiness, service type, warnings, and job conversion status.</p>
+        <div ref={boardRef}>
+          <Card className="co-imports-main-board overflow-hidden">
+            <div className="co-imports-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Draft Intake Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Review imported packages, customer match state, readiness, service type, warnings, and job conversion status.</p>
+                </div>
               </div>
             </div>
-          </div>
-          <FilterBar filters={["All", "Needs Review", "Ready to Create Job", "Job Created"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search draft, customer, city, service, handoff..." />
-          <details className="co-imports-advanced-filters border-b border-slate-200 bg-white">
-            <summary>
-              <span>Advanced filters</span>
-              <span>{[readinessFilter !== "All" ? readinessFilter : "", serviceTypeFilter !== "All" ? serviceTypeFilter : "", createdFilter !== "All" ? createdFilter : "", cityFilter].filter(Boolean).length || "Readiness, service, city"}</span>
-            </summary>
-            <div className="co-office-filter-grid co-imports-filter-grid grid gap-3 p-3 md:grid-cols-4">
-              <SelectField label="Readiness" value={readinessFilter} onChange={(event) => setReadinessFilter(event.target.value)}>
-                <option>All</option>
-                {readinessLabels.map((label) => <option key={label}>{label}</option>)}
-              </SelectField>
-              <SelectField label="Service type" value={serviceTypeFilter} onChange={(event) => setServiceTypeFilter(event.target.value)}>
-                <option>All</option>
-                {serviceTypes.map((type) => <option key={type}>{type}</option>)}
-              </SelectField>
-              <SelectField label="Created job" value={createdFilter} onChange={(event) => setCreatedFilter(event.target.value)}>
-                <option>All</option>
-                <option>Created</option>
-                <option>Not Created</option>
-              </SelectField>
-              <InputField label="City" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} placeholder="Filter city..." />
+            <FilterBar filters={["All", "Needs Review", "Ready to Create Job", "Job Created"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search draft, customer, city, service, handoff..." />
+            <details className="co-imports-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Advanced filters</span>
+                <span>{[readinessFilter !== "All" ? readinessFilter : "", serviceTypeFilter !== "All" ? serviceTypeFilter : "", createdFilter !== "All" ? createdFilter : "", cityFilter].filter(Boolean).length || "Readiness, service, city"}</span>
+              </summary>
+              <div className="co-office-filter-grid co-imports-filter-grid grid gap-3 p-3 md:grid-cols-4">
+                <SelectField label="Readiness" value={readinessFilter} onChange={(event) => setReadinessFilter(event.target.value)}>
+                  <option>All</option>
+                  {readinessLabels.map((label) => <option key={label}>{label}</option>)}
+                </SelectField>
+                <SelectField label="Service type" value={serviceTypeFilter} onChange={(event) => setServiceTypeFilter(event.target.value)}>
+                  <option>All</option>
+                  {serviceTypes.map((type) => <option key={type}>{type}</option>)}
+                </SelectField>
+                <SelectField label="Created job" value={createdFilter} onChange={(event) => setCreatedFilter(event.target.value)}>
+                  <option>All</option>
+                  <option>Created</option>
+                  <option>Not Created</option>
+                </SelectField>
+                <InputField label="City" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} placeholder="Filter city..." />
+              </div>
+            </details>
+            {importMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{importMessage}</div> : null}
+            {filteredDrafts.length === 0 ? (
+              <div className="co-imports-empty-board p-4">
+                <div className="co-imports-empty-board-card">
+                  <span><Icon name="database" /></span>
+                  <div className="min-w-0">
+                    <strong>{normalizedDrafts.length === 0 ? "No imported drafts yet" : "No drafts match these filters"}</strong>
+                    <p>{normalizedDrafts.length === 0 ? "Import an Apex HQ Job Draft Package JSON file, review the customer match, then create the real job when the office is ready." : "Clear a filter or search another customer, city, service, or handoff."}</p>
+                    <div className="co-imports-empty-steps">
+                      <b>1. Import package</b>
+                      <b>2. Review match</b>
+                      <b>3. Create job</b>
+                    </div>
+                  </div>
+                  {permissions?.jobDraftImports?.canManage ? <Button type="button" onClick={openTools}>Import Package</Button> : null}
+                </div>
+              </div>
+            ) : (
+              <ImportedDraftsTablePolished drafts={filteredDrafts} selectedId={selectedDraft?.id} onSelect={setSelectedDraftId} onReview={onSelectDraft} onOpenCreatedJob={onOpenCreatedJob} />
+            )}
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {filteredDrafts.length} imported draft{filteredDrafts.length === 1 ? "" : "s"} / {visibleWarnings} warning{visibleWarnings === 1 ? "" : "s"}</p>
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
             </div>
-          </details>
-          {importMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{importMessage}</div> : null}
-          {filteredDrafts.length === 0 ? (
-            <div className="p-5">
-              <StateCard title={normalizedDrafts.length === 0 ? "No imported drafts yet" : "No drafts match these filters"} description={normalizedDrafts.length === 0 ? "Import an Apex HQ Job Draft Package JSON file to review it before creating a real job." : "Clear a filter or search another customer, city, service, or handoff."} tone="slate" />
-            </div>
-          ) : (
-            <ImportedDraftsTablePolished drafts={filteredDrafts} selectedId={selectedDraft?.id} onSelect={setSelectedDraftId} onReview={onSelectDraft} onOpenCreatedJob={onOpenCreatedJob} />
-          )}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {filteredDrafts.length} imported draft{filteredDrafts.length === 1 ? "" : "s"} / {visibleWarnings} warning{visibleWarnings === 1 ? "" : "s"}</p>
-            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
-        <ImportedDraftCommandRailPolished draft={selectedDraft} onReview={onSelectDraft} onImportClick={openTools} onOpenCreatedJob={onOpenCreatedJob} />
+        <ImportedDraftCommandRailPolished draft={selectedDraft} canManage={Boolean(permissions?.jobDraftImports?.canManage)} onReview={onSelectDraft} onImportClick={openTools} onOpenCreatedJob={onOpenCreatedJob} />
       </div>
 
-      <details
+      {permissions?.jobDraftImports?.canManage ? <details
         ref={toolsRef}
         className="co-imports-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
         open={showTools}
@@ -16307,7 +16411,7 @@ function ImportedJobDraftListPagePolished({ drafts, onImportPackage, onOpenCreat
         <div className="co-imports-tools-panel mt-3">
           <ImportedDraftImportPanelPolished busy={busy} importMessage={importMessage} onImportFile={handleImportFile} />
         </div>
-      </details>
+      </details> : null}
     </div>
   );
 }
@@ -16576,10 +16680,12 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
   );
 }
 
-function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJobFromDraft, onOpenCreatedJob, onSaveDraft, busy }) {
+function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJobFromDraft, onOpenCreatedJob, onSaveDraft, busy, permissions }) {
   const [draftForm, setDraftForm] = useState(() => normalizeImportedJobDraft(draft));
   const [message, setMessage] = useState("");
   const createdJob = jobs.find((job) => job.id === draftForm.createdJobId);
+  const canManageDraft = Boolean(permissions?.jobDraftImports?.canManage);
+  const canCreateJob = Boolean(permissions?.jobDraftImports?.canCreateJob);
   const warnings = getImportedDraftWarnings(draftForm);
   const customerMatchWarnings = getCustomerMatchWarnings(draftForm);
   const readyForJob = isImportedDraftReadyForJob(draftForm, { allowMissingCityState: Boolean(draftForm.city && draftForm.state) });
@@ -16631,13 +16737,29 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
 
   async function saveDraft(event) {
     event.preventDefault();
-    const result = await onSaveDraft(draftForm);
-    setMessage(result?.message || "Imported draft saved.");
+    if (!canManageDraft) {
+      setMessage("Saving imported drafts is only available to office roles that manage job draft imports.");
+      return;
+    }
+    try {
+      const result = await onSaveDraft(draftForm);
+      setMessage(result?.message || "Save did not complete. Check your role access and try again.");
+    } catch (error) {
+      setMessage(error?.message || "Could not save this imported draft. Review the package and try again.");
+    }
   }
 
   async function createJob() {
-    const result = await onCreateJobFromDraft(draftForm);
-    if (result?.message) setMessage(result.message);
+    if (!canCreateJob) {
+      setMessage("Creating jobs from imported drafts is only available to office roles with job creation access.");
+      return;
+    }
+    try {
+      const result = await onCreateJobFromDraft(draftForm);
+      setMessage(result?.message || "Job creation did not complete. Check readiness and role access, then try again.");
+    } catch (error) {
+      setMessage(error?.message || "Could not create this Apex HQ job. Review readiness and try again.");
+    }
   }
 
   async function copySummary() {
@@ -16657,9 +16779,9 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
             {draftForm.createdJobId ? (
               <Button type="button" onClick={() => onOpenCreatedJob(draftForm.createdJobId)}>Open Created Job</Button>
             ) : (
-              <Button type="button" onClick={createJob} disabled={busy}>Create Apex HQ Job</Button>
+              <Button type="button" onClick={createJob} disabled={busy || !canCreateJob}>{canCreateJob ? "Create Apex HQ Job" : "Create Restricted"}</Button>
             )}
-            <Button type="submit" disabled={busy}>Save Imported Draft</Button>
+            <Button type="submit" disabled={busy || !canManageDraft}>{canManageDraft ? "Save Imported Draft" : "Read Only"}</Button>
           </div>
         }
       />
@@ -16774,9 +16896,9 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
                 {draftForm.createdJobId ? (
                   <Button className="w-full" type="button" onClick={() => onOpenCreatedJob(draftForm.createdJobId)}>Open Created Job</Button>
                 ) : (
-                  <Button className="w-full" type="button" onClick={createJob} disabled={busy}>Create Apex HQ Job</Button>
+                  <Button className="w-full" type="button" onClick={createJob} disabled={busy || !canCreateJob}>{canCreateJob ? "Create Apex HQ Job" : "Create Restricted"}</Button>
                 )}
-                <Button className="w-full" type="submit" variant="secondary" disabled={busy}>Save Imported Draft</Button>
+                <Button className="w-full" type="submit" variant="secondary" disabled={busy || !canManageDraft}>{canManageDraft ? "Save Imported Draft" : "Read Only"}</Button>
                 <Button className="w-full" type="button" variant="ghost" onClick={copySummary}>Copy Startup Summary</Button>
               </div>
             </div>
