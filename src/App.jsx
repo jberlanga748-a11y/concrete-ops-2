@@ -26760,22 +26760,17 @@ function DeliveryTicketsFieldOperatorPanel({
                 <Icon name="plus" />
                 New Ticket
               </Button>
-            ) : (
-              <Button type="button" onClick={onJumpToBoard}>
-                <Icon name="layers" />
-                View Tickets
-              </Button>
-            )}
-            <Button type="button" variant="secondary" onClick={onJumpToBoard}>
-              <Icon name="layers" />
-              View Board
-            </Button>
+            ) : null}
             {hasTicket ? (
               <Button type="button" variant="secondary" onClick={() => onOpenTool("details")}>
                 <Icon name="clipboard" />
                 {canEditSelected ? "Edit Ticket" : "Details"}
               </Button>
             ) : null}
+            <Button type="button" variant={canCreate || hasTicket ? "secondary" : undefined} onClick={onJumpToBoard}>
+              <Icon name="layers" />
+              View Board
+            </Button>
           </div>
         </div>
 
@@ -27124,6 +27119,7 @@ function DeliveryTicketsPagePolished({
   const [showTools, setShowTools] = useState(false);
   const [activeTool, setActiveTool] = useState("details");
   const toolsRef = useRef(null);
+  const toolsPanelRef = useRef(null);
   const boardRef = useRef(null);
 
   const visibleJobs = Array.isArray(jobs) ? jobs.filter((job) => !job.archivedAt) : [];
@@ -27244,12 +27240,20 @@ function DeliveryTicketsPagePolished({
   function openTool(toolId = "details") {
     setActiveTool(toolId);
     setShowTools(true);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    scrollToDeliveryTools();
   }
 
   function selectTool(toolId = "details") {
     setActiveTool(toolId);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    scrollToDeliveryTools();
+  }
+
+  function scrollToDeliveryTools() {
+    window.setTimeout(() => {
+      const usePanelTarget = window.matchMedia?.("(max-width: 767px)")?.matches;
+      const target = usePanelTarget ? toolsPanelRef.current : toolsRef.current;
+      (target || toolsRef.current)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }, 0);
   }
 
   function jumpToBoard() {
@@ -27490,7 +27494,7 @@ function DeliveryTicketsPagePolished({
             </button>
           ))}
         </div>
-        <div className="co-delivery-tools-panel mt-3">
+        <div ref={toolsPanelRef} className="co-delivery-tools-panel mt-3">
           {activeTool === "create" ? (
             <DeliveryTicketCreatePanelPolished
               canCreate={canCreate}

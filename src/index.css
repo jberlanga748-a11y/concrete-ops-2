@@ -16976,6 +16976,52 @@ textarea {
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.15rem) !important;
   }
 
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-right-rail,
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-drawer:not([open]) {
+    display: none !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-list {
+    max-height: min(9.75rem, 18.5vh);
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-card {
+    padding: 0.82rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-card p.text-base {
+    font-size: 0.9rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-card p.text-xs {
+    margin-top: 0.28rem !important;
+    font-size: 0.67rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.28rem;
+    margin-top: 0.52rem;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-metrics span:first-child {
+    grid-column: auto !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-metrics span {
+    gap: 0.14rem;
+    padding: 0.34rem 0.28rem;
+    border-radius: 0.52rem;
+    font-size: 0.5rem;
+    line-height: 1.05;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-mobile-metrics strong {
+    font-size: 0.58rem;
+  }
+
   .co-delivery-page[data-field-workspace="true"] .co-field-operator-shell {
     gap: 0.64rem;
     padding: 0.78rem;
@@ -17019,6 +17065,28 @@ textarea {
 
   .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel {
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.75rem);
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel .co-section-accent p {
+    display: none !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel .co-delivery-form-card {
+    padding: 0.82rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel .co-delivery-form-grid {
+    gap: 0.52rem !important;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel .field-label {
+    gap: 0.36rem;
+    font-size: 0.9rem;
+  }
+
+  .co-delivery-page[data-field-workspace="true"] .co-delivery-tools-panel .field-input {
+    min-height: 2.75rem;
+    padding: 0.58rem 0.72rem !important;
   }
 
   .co-delivery-mobile-metrics,
