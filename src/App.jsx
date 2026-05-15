@@ -3882,23 +3882,32 @@ function JobCalculationsCard({ calculations, title = "Internal calculations", de
 function FieldActionGrid({ actions, onOpen }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {actions.map((action) => (
-        <button
-          key={action.title}
-          type="button"
-          onClick={() => action.moduleId ? onOpen(action.moduleId) : undefined}
-          className="rounded-3xl border border-blue-100 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
-              <Icon name={action.icon} className="h-5 w-5" />
+      {actions.map((action) => {
+        const canOpen = Boolean(action.moduleId);
+        return (
+          <button
+            key={action.title}
+            type="button"
+            onClick={() => canOpen ? onOpen(action.moduleId) : undefined}
+            disabled={!canOpen}
+            aria-disabled={!canOpen}
+            className={`rounded-3xl border border-blue-100 bg-white p-4 text-left transition ${
+              canOpen
+                ? "hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50"
+                : "cursor-not-allowed opacity-70"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${canOpen ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"}`}>
+                <Icon name={action.icon} className="h-5 w-5" />
+              </div>
+              <Badge tone={action.tone || "slate"}>{action.badge || "Ready"}</Badge>
             </div>
-            <Badge tone={action.tone || "slate"}>{action.badge || "Ready"}</Badge>
-          </div>
-          <p className="mt-4 text-base font-black text-slate-950">{action.title}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{action.description}</p>
-        </button>
-      ))}
+            <p className="mt-4 text-base font-black text-slate-950">{action.title}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{action.description}</p>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -12341,6 +12350,7 @@ function CommandCenterKpiCard({ item }) {
   const tone = item.tone || "orange";
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
   const displayValue = item.displayValue ?? value;
+  const canRunAction = typeof item.onAction === "function" && item.actionLabel !== "Unavailable" && !item.disabled;
 
   return (
     <div className="co-command-kpi border p-3" data-tone={tone}>
@@ -12355,9 +12365,9 @@ function CommandCenterKpiCard({ item }) {
         </div>
       </div>
       {item.actionLabel ? (
-        <button type="button" onClick={item.onAction} className="co-command-kpi-link co-focus-ring">
+        <button type="button" onClick={canRunAction ? item.onAction : undefined} disabled={!canRunAction} aria-disabled={!canRunAction} className={`co-command-kpi-link co-focus-ring ${canRunAction ? "" : "is-disabled"}`}>
           {item.actionLabel}
-          <span aria-hidden="true">-&gt;</span>
+          {canRunAction ? <span aria-hidden="true">-&gt;</span> : null}
         </button>
       ) : null}
     </div>
@@ -13406,6 +13416,8 @@ function DashboardPagePolished({
     return allJobs.find((job) => job.id === selectedJobId) || liveJobsPreview.find((job) => job.id === selectedJobId) || null;
   }, [jobs, liveJobsPreview, selectedJobId]);
   const canViewLeads = Boolean(permissions?.leads?.canView);
+  const fieldPrimaryModule = permissions?.reports?.canView ? "reports" : permissions?.time?.canView ? "time" : "jobs";
+  const fieldPrimaryLabel = permissions?.reports?.canView ? "Daily reports" : permissions?.time?.canView ? "Time tracking" : "My jobs";
   const normalizedQueueItems = useMemo(() => normalizeObjectArray(queueItems), [queueItems]);
   const activeQueueItems = useMemo(() => normalizedQueueItems.filter((item) => !item.archivedAt && !item.done), [normalizedQueueItems]);
   const fieldDashboardActions = useMemo(() => (
@@ -13420,7 +13432,7 @@ function DashboardPagePolished({
   ), [permissions?.reports?.canView, permissions?.time?.canView, permissions?.toolChecklist?.canUse, permissions?.uploads?.canView]);
   const pipelineValue = Number(stats.pipelineValue || 0);
   const visibleLeadRowCap = 2;
-  const visibleJobRowCap = 2;
+  const visibleJobRowCap = canViewLeads ? 2 : 4;
   const visibleJobRows = liveJobsPreview.slice(0, visibleJobRowCap);
   const openQueueCount = activeQueueItems.length;
   const dueQueueCount = activeQueueItems.filter((item) => item.status === "Due today").length;
@@ -13518,7 +13530,7 @@ function DashboardPagePolished({
           actions={
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" onClick={() => setActive("jobs")}>My jobs</Button>
-              <Button type="button" onClick={() => setActive(permissions?.reports?.canView ? "reports" : "time")}>{permissions?.reports?.canView ? "Daily reports" : "Time tracking"}</Button>
+              <Button type="button" onClick={() => setActive(fieldPrimaryModule)}>{fieldPrimaryLabel}</Button>
             </div>
           }
           tabs={tabs}
