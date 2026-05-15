@@ -1395,7 +1395,7 @@ function filterDemoRecordsForUser(state, user, records, entityType) {
 
 function visibleUsers(state, user) {
   if (!user) return [];
-  if (isOfficeManager(user) || isEstimator(user)) {
+  if (canViewUsers(user)) {
     return filterVisibleRecordsForUser(state, user, state.users, "users").map((entry) => publicUser(entry));
   }
 

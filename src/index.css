@@ -18705,6 +18705,11 @@ textarea {
   align-items: start;
 }
 
+.co-employees-board-stack {
+  display: grid;
+  gap: 0.72rem;
+}
+
 .co-employees-hero-card,
 .co-employees-priority-card {
   border-top-color: rgba(249, 115, 22, 0.72) !important;
@@ -19041,6 +19046,12 @@ textarea {
   font-weight: 950;
 }
 
+.co-employees-advanced-filters:not([open]) .co-employees-filter-grid,
+.co-employees-tools-drawer:not([open]) .co-employees-tool-tabs,
+.co-employees-tools-drawer:not([open]) .co-employees-tools-panel {
+  display: none !important;
+}
+
 .co-employees-list-scroll {
   max-height: 25rem;
 }
@@ -19134,12 +19145,14 @@ textarea {
 
 .co-employees-icon-button {
   display: inline-flex;
-  height: 1.55rem;
-  width: 1.55rem;
+  min-height: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  width: 2rem;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(203, 213, 225, 0.9);
-  border-radius: 0.55rem;
+  border-radius: 0.65rem;
   background: #ffffff;
   color: #334155;
   transition:
@@ -19155,8 +19168,8 @@ textarea {
 }
 
 .co-employees-icon-button svg {
-  height: 0.78rem;
-  width: 0.78rem;
+  height: 0.9rem;
+  width: 0.9rem;
 }
 
 .co-employees-right-rail {
@@ -19628,6 +19641,11 @@ textarea {
     padding: 0.7rem;
   }
 
+  .co-employees-filter-console > .field-input {
+    order: -1;
+    min-height: 2.5rem;
+  }
+
   .co-employees-board-header {
     padding: 0.82rem 1rem !important;
   }
@@ -19652,14 +19670,23 @@ textarea {
   }
 
   .co-employees-access-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow: visible;
+    display: flex;
+    gap: 0.44rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.14rem;
+    scroll-padding-inline: 0.25rem;
+    scroll-snap-type: x proximity;
   }
 
   .co-employees-access-tabs button {
-    width: 100%;
+    flex: 0 0 auto;
+    min-height: 2.18rem;
+    min-width: 7.25rem;
+    width: auto;
     justify-content: center;
+    padding: 0.36rem 0.52rem;
+    scroll-snap-align: start;
   }
 
   .co-employees-kpi-grid {
@@ -19707,8 +19734,7 @@ textarea {
     line-height: 1.18 !important;
   }
 
-  .co-employees-command-layout,
-  .co-employees-tools-drawer {
+  .co-employees-command-layout {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
   }
@@ -19759,7 +19785,7 @@ textarea {
   }
 
   .co-employees-advanced-filters {
-    margin-top: 2.75rem;
+    display: none;
   }
 
   .co-employees-mobile-metrics,
@@ -19770,6 +19796,16 @@ textarea {
   .co-employees-mobile-list {
     margin-top: 0.75rem;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.1rem) !important;
+  }
+
+  .co-employees-board-footer {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.1rem) !important;
+  }
+
+  .co-employees-board-footer button {
+    width: 100%;
   }
 
   .co-employees-mobile-list-toggle {

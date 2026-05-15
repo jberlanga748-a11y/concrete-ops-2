@@ -17523,7 +17523,7 @@ function EmployeesTablePolished({
   mobileExpanded = false,
   onToggleMobileRows,
 }) {
-  const mobileRows = mobileMaxRows ? rows.slice(0, mobileMaxRows) : rows;
+  const mobileRows = mobileMaxRows == null ? rows : rows.slice(0, mobileMaxRows);
 
   return (
     <>
@@ -18005,94 +18005,96 @@ function EmployeesPagePolished({
       </div>
 
       <div className="co-employees-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card className="co-employees-main-board overflow-hidden">
-          <div className="co-employees-board-header border-b border-slate-200 bg-white p-4">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Workspace Access Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan roles, status, contact info, and login activity while keeping field roles separate from office/admin access.</p>
+        <div className="co-employees-board-stack min-w-0">
+          <Card className="co-employees-main-board overflow-hidden">
+            <div className="co-employees-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Workspace Access Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan roles, status, contact info, and login activity while keeping field roles separate from office/admin access.</p>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="co-employees-filter-console">
-            <div className="co-employees-access-tabs">
-              {accessFilters.map((item) => (
-                <button key={item.label} type="button" className={item.active ? "is-active" : ""} onClick={item.action}>{item.label}</button>
-              ))}
+            <div className="co-employees-filter-console">
+              <div className="co-employees-access-tabs">
+                {accessFilters.map((item) => (
+                  <button key={item.label} type="button" className={item.active ? "is-active" : ""} onClick={item.action}>{item.label}</button>
+                ))}
+              </div>
+              <input className="field-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, phone, role..." />
             </div>
-            <input className="field-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, phone, role..." />
-          </div>
-          <details className="co-employees-advanced-filters border-b border-slate-200 bg-white">
+            <details className="co-employees-advanced-filters border-b border-slate-200 bg-white">
+              <summary>
+                <span>Role and status filters</span>
+                <span>{filter} / {statusFilter}</span>
+              </summary>
+              <div className="co-office-filter-grid co-employees-filter-grid grid gap-3 p-3 md:grid-cols-2">
+                <SelectField label="Role" value={filter} onChange={(event) => setFilter(event.target.value)}>
+                  <option>All roles</option>
+                  <option>Office roles</option>
+                  <option>Field roles</option>
+                  {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+                </SelectField>
+                <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <option>All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </SelectField>
+              </div>
+            </details>
+            {busy && visibleRows.length === 0 ? (
+              <div className="p-5"><StateCard title="Loading users" description="Pulling employee and office accounts for this workspace." /></div>
+            ) : errorMessage && visibleRows.length === 0 ? (
+              <div className="p-5"><StateCard title="Users unavailable" description={errorMessage} tone="red" /></div>
+            ) : visibleRows.length === 0 ? (
+              <div className="p-5"><StateCard title={users.length === 0 ? "No users yet" : "No users match these filters"} description={users.length === 0 ? "Create the first office, foreman, or employee login to power assignments." : "Clear a role, status, or search filter to find another account."} /></div>
+            ) : (
+              <EmployeesTablePolished
+                rows={visibleRows}
+                selectedId={selectedUserId}
+                onSelect={onSelectUser}
+                onOpenDetails={(id) => openUserTools(id, "details")}
+                canManage={canManage}
+                mobileMaxRows={showAllMobileRows ? null : 2}
+                mobileExpanded={showAllMobileRows}
+                onToggleMobileRows={() => setShowAllMobileRows((current) => !current)}
+              />
+            )}
+            <div className="co-employees-board-footer flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} user{visibleRows.length === 1 ? "" : "s"} / {activeUsers.length} active login{activeUsers.length === 1 ? "" : "s"}</p>
+              <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
+            </div>
+          </Card>
+
+          <details
+            ref={toolsRef}
+            className="co-employees-tools-drawer w-full min-w-0 pb-24 md:pb-4"
+            open={showTools}
+            onToggle={(event) => setShowTools(event.currentTarget.open)}
+          >
             <summary>
-              <span>Role and status filters</span>
-              <span>{filter} / {statusFilter}</span>
+              <span>
+                <strong>User Tools</strong>
+                <em>Create logins and review role assignments without changing the existing permission model.</em>
+              </span>
+              <span>Open tools</span>
             </summary>
-            <div className="co-office-filter-grid co-employees-filter-grid grid gap-3 p-3 md:grid-cols-2">
-              <SelectField label="Role" value={filter} onChange={(event) => setFilter(event.target.value)}>
-                <option>All roles</option>
-                <option>Office roles</option>
-                <option>Field roles</option>
-                {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
-              </SelectField>
-              <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                <option>All statuses</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </SelectField>
+            <div className="co-employees-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+              {canManage ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />New User</button> : null}
+              <button type="button" className={toolTab === "details" ? "is-active" : ""} onClick={() => setToolTab("details")}><Icon name="users" />Details</button>
+            </div>
+            <div className="co-employees-tools-panel mt-3">
+              {toolTab === "create" ? (
+                <UserCreatePanelPolished draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} roleOptions={roleOptionsForManager} onDismissProvisionNotice={onDismissProvisionNotice} />
+              ) : (
+                <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} roleOptions={editRoleOptions} currentUserIsOwner={currentUserIsOwner} />
+              )}
             </div>
           </details>
-          {busy && visibleRows.length === 0 ? (
-            <div className="p-5"><StateCard title="Loading users" description="Pulling employee and office accounts for this workspace." /></div>
-          ) : errorMessage && visibleRows.length === 0 ? (
-            <div className="p-5"><StateCard title="Users unavailable" description={errorMessage} tone="red" /></div>
-          ) : visibleRows.length === 0 ? (
-            <div className="p-5"><StateCard title={users.length === 0 ? "No users yet" : "No users match these filters"} description={users.length === 0 ? "Create the first office, foreman, or employee login to power assignments." : "Clear a role, status, or search filter to find another account."} /></div>
-          ) : (
-            <EmployeesTablePolished
-              rows={visibleRows}
-              selectedId={selectedUserId}
-              onSelect={onSelectUser}
-              onOpenDetails={(id) => openUserTools(id, "details")}
-              canManage={canManage}
-              mobileMaxRows={showAllMobileRows ? null : 2}
-              mobileExpanded={showAllMobileRows}
-              onToggleMobileRows={() => setShowAllMobileRows((current) => !current)}
-            />
-          )}
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-            <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} user{visibleRows.length === 1 ? "" : "s"} / {activeUsers.length} active login{activeUsers.length === 1 ? "" : "s"}</p>
-            <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
-          </div>
-        </Card>
+        </div>
 
         <EmployeesCommandRailPolished user={selectedUser} canManage={canManage} busy={busy} onOpenTool={openTools} />
       </div>
-
-      <details
-        ref={toolsRef}
-        className="co-employees-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
-        open={showTools}
-        onToggle={(event) => setShowTools(event.currentTarget.open)}
-      >
-        <summary>
-          <span>
-            <strong>User Tools</strong>
-            <em>Create logins and review role assignments without changing the existing permission model.</em>
-          </span>
-          <span>Open tools</span>
-        </summary>
-        <div className="co-employees-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canManage ? <button type="button" className={toolTab === "create" ? "is-active" : ""} onClick={() => setToolTab("create")}><Icon name="plus" />New User</button> : null}
-          <button type="button" className={toolTab === "details" ? "is-active" : ""} onClick={() => setToolTab("details")}><Icon name="users" />Details</button>
-        </div>
-        <div className="co-employees-tools-panel mt-3">
-          {toolTab === "create" ? (
-            <UserCreatePanelPolished draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} roleOptions={roleOptionsForManager} onDismissProvisionNotice={onDismissProvisionNotice} />
-          ) : (
-            <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} roleOptions={editRoleOptions} currentUserIsOwner={currentUserIsOwner} />
-          )}
-        </div>
-      </details>
     </div>
   );
 }
