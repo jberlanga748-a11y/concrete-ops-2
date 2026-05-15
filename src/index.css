@@ -10226,7 +10226,8 @@ textarea {
   .co-calculator-page .co-page-header-actions,
   .co-calculator-page .co-toolbox-kpi-grid,
   .co-calculator-page .co-calculator-priority-mobile,
-  .co-calculator-field-panel-wrap {
+  .co-calculator-field-panel-wrap,
+  .co-calculator-page .co-calculator-workflow-wrap {
     display: none !important;
   }
 
@@ -10295,13 +10296,19 @@ textarea {
     min-height: 2.78rem;
   }
 
-  .co-calculator-page.co-field-tool-page .co-page-header {
+  .co-calculator-page .co-page-header {
     margin-bottom: 0.78rem;
     padding: 0.95rem 1.45rem 1rem !important;
   }
 
-  .co-calculator-page.co-field-tool-page .co-page-header h1 {
+  .co-calculator-page .co-page-header h1 {
     font-size: clamp(1.72rem, 7vw, 2.08rem) !important;
+  }
+
+  .co-calculator-page .co-page-header h1 + p {
+    margin-top: 0.56rem !important;
+    font-size: 0.92rem !important;
+    line-height: 1.35 !important;
   }
 
   .co-calculator-page.co-field-tool-page .co-page-header h1 + p {
@@ -10346,13 +10353,17 @@ textarea {
     width: 100%;
   }
 
-  .co-calculator-page.co-field-tool-page .co-calculator-type-tabs {
+  .co-calculator-page .co-toolbox-main-board > .grid > .min-w-0 > .grid {
+    margin-top: 2.2rem;
+  }
+
+  .co-calculator-page .co-calculator-type-tabs {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
 
-  .co-calculator-page.co-field-tool-page .co-calculator-type-tabs button {
+  .co-calculator-page .co-calculator-type-tabs button {
     min-width: 0;
     min-height: 2.5rem;
     width: 100%;
