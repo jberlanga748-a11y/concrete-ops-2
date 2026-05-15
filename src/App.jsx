@@ -8661,7 +8661,7 @@ function toolboxPolicyStatusTone(policy) {
   return "green";
 }
 
-function ToolboxTalksTablePolished({ policies, selectedId, onSelect }) {
+function ToolboxTalksTablePolished({ policies, selectedId, onSelect, onOpenTalk }) {
   return (
     <>
       <div className="co-toolbox-mobile-list grid gap-3 p-3 md:hidden">
@@ -8681,7 +8681,7 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect }) {
                 <Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge>
               </div>
               <div className="co-toolbox-mobile-summary">{policy.body || "No guidance text recorded yet."}</div>
-              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => onSelect(policy.id)}>
+              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => { onSelect(policy.id); onOpenTalk?.(policy.id); }}>
                 Open talk
               </button>
             </article>
@@ -8713,7 +8713,7 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect }) {
                   <td><Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge></td>
                   <td className="font-bold text-slate-700">{formatDateTime(toolboxPolicyUpdatedAt(policy))}</td>
                   <td>
-                    <button type="button" className="co-toolbox-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(policy.id); }} aria-label={`Open toolbox talk ${policy.title || policy.id}`}>
+                    <button type="button" className="co-toolbox-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(policy.id); onOpenTalk?.(policy.id); }} aria-label={`Open toolbox talk ${policy.title || policy.id}`}>
                       <Icon name="arrowUpRight" />
                     </button>
                   </td>
@@ -9043,10 +9043,19 @@ function ToolboxTalksPagePolished({
     setSearch("");
   }
 
-  function openTools(nextTab = canAcknowledge ? "ack" : "ppe") {
+  function openTools(nextTab = canAcknowledge ? "ack" : "ppe", options = {}) {
+    const targetPolicyId = options.policyId || selectedTalk?.id;
+    if (nextTab === "ack" && targetPolicyId) {
+      setAckDraft((current) => ({ ...current, policyId: targetPolicyId }));
+    }
     setToolTab(nextTab);
     setShowTools(true);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 130, behavior: "smooth" }), 180);
+      }
+    }, 0);
   }
 
   function scrollToGuidanceBoard() {
@@ -9055,7 +9064,12 @@ function ToolboxTalksPagePolished({
 
   function changeToolTab(nextTab) {
     setToolTab(nextTab);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 130, behavior: "smooth" }), 180);
+      }
+    }, 0);
   }
 
   function openPriorityTalk(matchPolicy, options = {}) {
@@ -9161,7 +9175,7 @@ function ToolboxTalksPagePolished({
       </div>
 
       <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 2xl:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <div id="toolbox-guidance-board" ref={boardRef} className="min-w-0">
+        <div id="toolbox-guidance-board" ref={boardRef} className="co-toolbox-command-main min-w-0">
           <Card className="co-toolbox-main-board overflow-hidden">
             <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -9185,46 +9199,50 @@ function ToolboxTalksPagePolished({
             {filteredPolicies.length === 0 ? (
               <div className="p-5"><StateCard title={visiblePolicies.length === 0 ? "No toolbox talks yet" : "No toolbox talks match these filters"} description={visiblePolicies.length === 0 ? "Create the first safety policy or toolbox talk to start crew guidance." : "Clear the category or search another topic."} tone="slate" /></div>
             ) : (
-              <ToolboxTalksTablePolished policies={filteredPolicies} selectedId={selectedTalk?.id} onSelect={setSelectedPolicyId} />
+              <ToolboxTalksTablePolished
+                policies={filteredPolicies}
+                selectedId={selectedTalk?.id}
+                onSelect={setSelectedPolicyId}
+                onOpenTalk={(id) => { setSelectedPolicyId(id); openTools(canAcknowledge ? "ack" : "ppe", { policyId: id }); }}
+              />
             )}
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
               <p className="text-sm font-bold text-slate-600">Showing {filteredPolicies.length} toolbox talk{filteredPolicies.length === 1 ? "" : "s"} / {requiredPpeCount} required PPE reminder{requiredPpeCount === 1 ? "" : "s"}</p>
               <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
             </div>
           </Card>
+          <details
+            ref={toolsRef}
+            className="co-toolbox-tools-drawer mt-3 w-full min-w-0"
+            open={showTools}
+            onToggle={(event) => setShowTools(event.currentTarget.open)}
+          >
+            <summary>
+              <span>
+                <strong>Toolbox Tools</strong>
+                <em>Acknowledge crew review, manage guidance, and keep PPE reminders close to the talk.</em>
+              </span>
+              <span>Open tools</span>
+            </summary>
+            <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+              {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => changeToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
+              <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => changeToolTab("ppe")}><Icon name="hardhat" />PPE</button>
+              {canManage ? <button type="button" className={toolTab === "manage" ? "is-active" : ""} onClick={() => changeToolTab("manage")}><Icon name="settings" />Manage</button> : null}
+            </div>
+            <div className="co-toolbox-tools-panel mt-3">
+              {toolTab === "ack" ? (
+                <ToolboxAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
+              ) : toolTab === "manage" ? (
+                <ToolboxManagePanelPolished canManage={canManage} selectedPolicy={selectedPolicy} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onNewPolicy={() => setSelectedPolicyId("")} onArchivePolicy={onArchiveSafetyPolicy} busy={busy} />
+              ) : (
+                <ToolboxPpePanelPolished ppeItems={activePpeItems} canManage={canManage} selectedPpeItem={selectedPpeItem} setSelectedPpeId={setSelectedPpeId} ppeDraft={ppeDraft} setPpeDraft={setPpeDraft} onPpeSubmit={onPpeSubmit} onArchivePpeItem={onArchivePpeItem} busy={busy} />
+              )}
+            </div>
+          </details>
         </div>
 
         <ToolboxTalkCommandRailPolished policy={selectedTalk} canAcknowledge={canAcknowledge} canManage={canManage} ackState={acknowledgmentState} ppeItems={activePpeItems} onOpenTool={openTools} />
       </div>
-
-      <details
-        ref={toolsRef}
-        className="co-toolbox-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
-        open={showTools}
-        onToggle={(event) => setShowTools(event.currentTarget.open)}
-      >
-        <summary>
-          <span>
-            <strong>Toolbox Tools</strong>
-            <em>Acknowledge crew review, manage guidance, and keep PPE reminders close to the talk.</em>
-          </span>
-          <span>Open tools</span>
-        </summary>
-        <div className="co-toolbox-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canAcknowledge ? <button type="button" className={toolTab === "ack" ? "is-active" : ""} onClick={() => changeToolTab("ack")}><Icon name="check" />Acknowledge</button> : null}
-          <button type="button" className={toolTab === "ppe" ? "is-active" : ""} onClick={() => changeToolTab("ppe")}><Icon name="hardhat" />PPE</button>
-          {canManage ? <button type="button" className={toolTab === "manage" ? "is-active" : ""} onClick={() => changeToolTab("manage")}><Icon name="settings" />Manage</button> : null}
-        </div>
-        <div className="co-toolbox-tools-panel mt-3">
-          {toolTab === "ack" ? (
-            <ToolboxAcknowledgePanelPolished canAcknowledge={canAcknowledge} allowedJobs={allowedJobs} visiblePolicies={visiblePolicies} ackDraft={ackDraft} setAckDraft={setAckDraft} acknowledgments={safetyAcknowledgments} canManage={canManage} ackState={acknowledgmentState} busy={busy} onSubmit={onAcknowledge} />
-          ) : toolTab === "manage" ? (
-            <ToolboxManagePanelPolished canManage={canManage} selectedPolicy={selectedPolicy} policyDraft={policyDraft} setPolicyDraft={setPolicyDraft} onPolicySubmit={onPolicySubmit} onNewPolicy={() => setSelectedPolicyId("")} onArchivePolicy={onArchiveSafetyPolicy} busy={busy} />
-          ) : (
-            <ToolboxPpePanelPolished ppeItems={activePpeItems} canManage={canManage} selectedPpeItem={selectedPpeItem} setSelectedPpeId={setSelectedPpeId} ppeDraft={ppeDraft} setPpeDraft={setPpeDraft} onPpeSubmit={onPpeSubmit} onArchivePpeItem={onArchivePpeItem} busy={busy} />
-          )}
-        </div>
-      </details>
     </div>
   );
 }

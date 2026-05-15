@@ -10416,6 +10416,52 @@ textarea {
   scroll-margin-top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
 }
 
+.co-toolbox-talks-page .co-toolbox-kpi-grid {
+  gap: 0.62rem !important;
+  padding-bottom: 0.58rem !important;
+}
+
+.co-toolbox-talks-page .co-toolbox-kpi-grid .co-command-kpi {
+  min-height: 4.6rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-priority-card {
+  min-height: 5.95rem;
+  padding: 0.68rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-priority-icon {
+  height: 1.95rem;
+  width: 1.95rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-priority-value {
+  font-size: 1.14rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-priority-label {
+  font-size: 0.78rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-priority-helper {
+  font-size: 0.68rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-list-scroll {
+  max-height: 23.5rem;
+}
+
+.co-toolbox-talks-page .co-toolbox-tools-drawer[open] > summary {
+  border-color: rgba(249, 115, 22, 0.34);
+  box-shadow: 0 18px 44px -34px rgba(194, 65, 12, 0.36);
+}
+
+@media (min-width: 1024px) {
+  .co-toolbox-talks-page .co-toolbox-command-layout {
+    grid-template-columns: minmax(0, 1fr) 340px !important;
+  }
+}
+
 @media (min-width: 768px) {
   .co-toolbox-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10683,6 +10729,27 @@ textarea {
 
   .co-toolbox-selected-metrics {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-toolbox-talks-page .co-toolbox-tools-drawer[open] {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem) !important;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-tools-panel {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
+  .co-toolbox-talks-page .co-toolbox-form-card {
+    scroll-margin-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem);
+  }
+
+  .co-toolbox-talks-page .co-toolbox-form-card .md\:col-span-2:last-child,
+  .co-toolbox-talks-page .co-toolbox-form-card .flex.flex-wrap.gap-2 {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
+  .co-toolbox-talks-page .co-toolbox-tools-panel .co-card {
+    box-shadow: 0 18px 42px -34px rgba(7, 17, 31, 0.48);
   }
 
   .co-calculator-workflow-card .co-toolbox-category-tabs {
