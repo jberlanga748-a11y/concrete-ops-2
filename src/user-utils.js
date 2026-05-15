@@ -1,4 +1,6 @@
 export const USER_ROLE_OPTIONS = ["Owner", "Administrator", "Operations Manager", "Estimator", "Foreman", "Employee"];
+export const USER_OFFICE_ROLES = ["Owner", "Administrator", "Operations Manager", "Estimator"];
+export const USER_FIELD_ROLES = ["Foreman", "Employee"];
 export const USER_STATUS_OPTIONS = ["active", "inactive"];
 
 export function isActiveUser(user) {
@@ -13,7 +15,13 @@ export function filterUsers(users, {
   const normalizedQuery = String(query || "").trim().toLowerCase();
 
   return users.filter((user) => {
-    const matchesRole = role === "All roles" ? true : user.role === role;
+    const matchesRole = role === "All roles"
+      ? true
+      : role === "Office roles"
+        ? USER_OFFICE_ROLES.includes(user.role)
+        : role === "Field roles"
+          ? USER_FIELD_ROLES.includes(user.role)
+          : user.role === role;
     const matchesStatus = status === "All statuses" ? true : String(user.status || "active").toLowerCase() === status;
     const haystack = [user.name, user.email, user.phone, user.role].filter(Boolean).join(" ").toLowerCase();
     const matchesQuery = normalizedQuery ? haystack.includes(normalizedQuery) : true;

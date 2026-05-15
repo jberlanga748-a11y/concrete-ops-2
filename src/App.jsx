@@ -17289,7 +17289,14 @@ function userAccessGroup(user) {
   return "Field Crew";
 }
 
-function EmployeesTablePolished({ rows, selectedId, onSelect }) {
+function isOwnerRole(role) {
+  return String(role || "").trim().toLowerCase() === "owner";
+}
+
+const OFFICE_USER_ROLES = ["Owner", "Administrator", "Operations Manager", "Estimator"];
+const FIELD_USER_ROLES = ["Foreman", "Employee"];
+
+function EmployeesTablePolished({ rows, selectedId, onSelect, onOpenDetails, canManage }) {
   return (
     <>
       <div className="co-employees-mobile-list grid gap-3 p-3 md:hidden">
@@ -17297,10 +17304,8 @@ function EmployeesTablePolished({ rows, selectedId, onSelect }) {
           const selected = entry.id === selectedId;
 
           return (
-            <button
+            <article
               key={entry.id}
-              type="button"
-              onClick={() => onSelect(entry.id)}
               className={`co-employees-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -17315,7 +17320,17 @@ function EmployeesTablePolished({ rows, selectedId, onSelect }) {
                 <span>Access <strong>{userAccessGroup(entry)}</strong></span>
                 <span>Login <strong>{entry.lastLoginAt ? formatDateTime(entry.lastLoginAt) : "Never"}</strong></span>
               </div>
-            </button>
+              <button
+                type="button"
+                className="co-employees-mobile-card-action"
+                onClick={() => {
+                  onSelect(entry.id);
+                  onOpenDetails?.(entry.id);
+                }}
+              >
+                Tap to open {canManage ? "edit" : "details"}
+              </button>
+            </article>
           );
         })}
       </div>
@@ -17434,15 +17449,26 @@ function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
   );
 }
 
-function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, provisionedNotice }) {
+function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, provisionedNotice, roleOptions = USER_ROLE_OPTIONS, onDismissProvisionNotice }) {
   return (
     <Card className="co-employees-form-card p-4">
       <SectionHeader title="Create User" description="Create a real login for office, foreman, or employee access." />
       {provisionedNotice ? (
         <div className="co-employees-temp-password mb-4">
-          <span>Temporary password ready</span>
-          <strong>{provisionedNotice.email}</strong>
-          <code>{provisionedNotice.temporaryPassword}</code>
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <span>Temporary password ready</span>
+              <strong>{provisionedNotice.email}</strong>
+              <code>{provisionedNotice.temporaryPassword}</code>
+            </div>
+            <div className="grid gap-2 sm:flex sm:shrink-0">
+              <Button type="button" size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText?.(provisionedNotice.temporaryPassword || "")}>
+                <Icon name="clipboard" />
+                Copy
+              </Button>
+              {onDismissProvisionNotice ? <Button type="button" size="sm" variant="ghost" onClick={onDismissProvisionNotice}>Dismiss</Button> : null}
+            </div>
+          </div>
         </div>
       ) : null}
       <form className="co-employees-form-grid" onSubmit={onCreateUser}>
@@ -17450,13 +17476,13 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
         <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} />
         <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} />
         <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))}>
-          {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+          {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
         </SelectField>
         <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </SelectField>
-        <InputField label="Password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to generate a temporary password" />
+        <InputField label="Password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to generate a temporary password" />
         <div className="md:col-span-2">
           <Button type="submit" disabled={disabled}>
             <Icon name="plus" />
@@ -17468,7 +17494,7 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
   );
 }
 
-function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canManage, notFound }) {
+function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canManage, notFound, roleOptions = USER_ROLE_OPTIONS, currentUserIsOwner = false }) {
   if (notFound) {
     return (
       <Card className="co-employees-form-card p-4">
@@ -17485,29 +17511,40 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canM
     );
   }
 
+  const selectedUserIsOwner = isOwnerRole(user.role);
+  const canEditUser = canManage && (currentUserIsOwner || !selectedUserIsOwner);
+
   return (
     <Card className="co-employees-form-card p-4">
       <SectionHeader title={`Edit ${user.name || "User"}`} description={`${user.id} / ${user.email || "Email pending"}`} action={<UserStatusBadge status={user.status} />} />
-      <TimestampMeta createdAt={user.createdAt} updatedAt={user.updatedAt} />
+      {!canEditUser ? (
+        <div className="co-employees-owner-lock mb-3">
+          <span><Icon name="lock" /></span>
+          <p>Owner accounts can only be changed by an active Owner.</p>
+        </div>
+      ) : null}
+      <div className="co-employees-timestamp-meta">
+        <TimestampMeta createdAt={user.createdAt} updatedAt={user.updatedAt} />
+      </div>
       <div className="co-employees-form-grid mt-3">
-        <InputField label="Full name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} disabled={!canManage || busy} />
-        <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} disabled={!canManage || busy} />
-        <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} disabled={!canManage || busy} />
-        <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))} disabled={!canManage || busy}>
-          {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+        <InputField label="Full name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} disabled={!canEditUser || busy} />
+        <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} disabled={!canEditUser || busy} />
+        <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} disabled={!canEditUser || busy} />
+        <SelectField label="Role" value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))} disabled={!canEditUser || busy}>
+          {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
         </SelectField>
-        <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))} disabled={!canManage || busy}>
+        <SelectField label="Status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))} disabled={!canEditUser || busy}>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </SelectField>
-        <InputField label="Reset password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to keep the current password" disabled={!canManage || busy} />
+        <InputField label="Reset password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to keep the current password" disabled={!canEditUser || busy} />
       </div>
       <div className="co-employees-note-panel">
         <span>Last login</span>
         <p>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</p>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={onSaveUser} disabled={!canManage || busy}>Save user</Button>
+        <Button onClick={onSaveUser} disabled={!canEditUser || busy}>Save user</Button>
       </div>
     </Card>
   );
@@ -17534,6 +17571,8 @@ function EmployeesPagePolished({
   errorMessage,
   permissions,
   provisionedNotice,
+  user: currentUser,
+  onDismissProvisionNotice,
 }) {
   const canView = permissions.users.canView;
   const canManage = permissions.users.canManage;
@@ -17547,17 +17586,24 @@ function EmployeesPagePolished({
   }), [filter, search, statusFilter, users]);
   const visibleRows = listState.filteredUsers;
   const notFound = Boolean(selectedUserId) && !selectedUser;
+  const currentUserIsOwner = isOwnerRole(currentUser?.role);
+  const roleOptionsForManager = currentUserIsOwner ? USER_ROLE_OPTIONS : USER_ROLE_OPTIONS.filter((role) => !isOwnerRole(role));
+  const editRoleOptions = currentUserIsOwner || isOwnerRole(selectedUser?.role)
+    ? USER_ROLE_OPTIONS
+    : roleOptionsForManager;
   const activeUsers = users.filter((entry) => entry.status === "active");
-  const allFieldUsers = users.filter((entry) => ["Foreman", "Employee"].includes(entry.role));
+  const allFieldUsers = users.filter((entry) => FIELD_USER_ROLES.includes(entry.role));
   const readinessGapUsers = users.filter((entry) => !entry.name || !entry.email || !entry.role || !entry.status);
-  const fieldUsers = visibleRows.filter((entry) => ["Foreman", "Employee"].includes(entry.role));
-  const officeUsers = visibleRows.filter((entry) => ["Owner", "Administrator", "Operations Manager", "Estimator"].includes(entry.role));
+  const fieldUsers = visibleRows.filter((entry) => FIELD_USER_ROLES.includes(entry.role));
+  const officeUsers = visibleRows.filter((entry) => OFFICE_USER_ROLES.includes(entry.role));
+  const ownerUsers = users.filter((entry) => isOwnerRole(entry.role));
+  const inactiveUsers = users.filter((entry) => entry.status === "inactive");
   const employeeKpis = [
     { label: "Visible Users", value: visibleRows.length, helper: "Matching current filters", icon: "users", tone: "blue" },
     { label: "Active", value: activeUsers.length, helper: "Can sign in now", icon: "check", tone: "green", actionLabel: "Active", onAction: () => setStatusFilter("active") },
     { label: "Field Crew", value: fieldUsers.length, helper: "Foremen and employees", icon: "hardhat", tone: "amber" },
     { label: "Office Roles", value: officeUsers.length, helper: "Admin and office access", icon: "settings", tone: "blue" },
-    { label: "Inactive", value: users.filter((entry) => entry.status === "inactive").length, helper: "Disabled logins", icon: "lock", tone: "slate", actionLabel: "Inactive", onAction: () => setStatusFilter("inactive") },
+    { label: "Inactive", value: inactiveUsers.length, helper: "Disabled logins", icon: "lock", tone: "slate", actionLabel: "Inactive", onAction: () => setStatusFilter("inactive") },
   ];
 
   function clearFilters() {
@@ -17567,9 +17613,20 @@ function EmployeesPagePolished({
   }
 
   function openTools(nextTab = "details") {
+    if (nextTab !== "create") onDismissProvisionNotice?.();
     setToolTab(nextTab);
     setShowTools(true);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 120, behavior: "smooth" }), 180);
+      }
+    }, 0);
+  }
+
+  function openUserTools(userId, nextTab = "details") {
+    if (userId) onSelectUser(userId);
+    openTools(nextTab);
   }
 
   function openPriorityUser(matchUser, options = {}) {
@@ -17598,7 +17655,7 @@ function EmployeesPagePolished({
     icon: "hardhat",
     tone: allFieldUsers.length ? "orange" : "slate",
     actionLabel: allFieldUsers.length ? "Review field" : "None",
-    onAction: () => openPriorityUser((entry) => ["Foreman", "Employee"].includes(entry.role), { roleFilter: firstFieldUser?.role || "All roles", statusFilter: "All statuses", search: "", toolTab: firstFieldUser ? "details" : "" }),
+    onAction: () => openPriorityUser((entry) => FIELD_USER_ROLES.includes(entry.role), { roleFilter: firstFieldUser?.role || "All roles", statusFilter: "All statuses", search: "", toolTab: firstFieldUser ? "details" : "" }),
   };
   const readinessPriorityCard = {
     label: "Needs readiness",
@@ -17621,6 +17678,27 @@ function EmployeesPagePolished({
   const employeePriorityCards = visibleRows.length === 0 && canManage
     ? [newUserPriorityCard, activeLoginsPriorityCard, fieldRolesPriorityCard, readinessPriorityCard]
     : [activeLoginsPriorityCard, fieldRolesPriorityCard, readinessPriorityCard, newUserPriorityCard];
+  const summaryStats = [
+    { label: "Visible", value: visibleRows.length, helper: "Current view" },
+    { label: "Active", value: activeUsers.length, helper: "Can sign in" },
+    { label: "Field", value: allFieldUsers.length, helper: "Crew users" },
+    { label: "Owners", value: ownerUsers.length, helper: "Protected" },
+    { label: "Inactive", value: inactiveUsers.length, helper: "Disabled" },
+  ];
+  const accessFilters = [
+    { label: "All", action: () => { setFilter("All roles"); setStatusFilter("All statuses"); setSearch(""); }, active: filter === "All roles" && statusFilter === "All statuses" && !search },
+    { label: "Office", action: () => { setFilter("Office roles"); setStatusFilter("All statuses"); setSearch(""); }, active: filter === "Office roles" },
+    { label: "Field", action: () => { setFilter("Field roles"); setStatusFilter("All statuses"); setSearch(""); }, active: filter === "Field roles" },
+    { label: "Inactive", action: () => { setFilter("All roles"); setStatusFilter("inactive"); setSearch(""); }, active: statusFilter === "inactive" },
+    { label: "Needs setup", action: () => openPriorityUser((entry) => readinessGapUsers.some((candidate) => candidate.id === entry.id), { roleFilter: "All roles", statusFilter: "All statuses", search: "", toolTab: readinessGapUsers.length ? "details" : "" }), active: false },
+  ];
+
+  useEffect(() => {
+    if (!canView || visibleRows.length === 0) return;
+    if (!selectedUserId || !visibleRows.some((entry) => entry.id === selectedUserId)) {
+      onSelectUser(visibleRows[0].id);
+    }
+  }, [canView, onSelectUser, selectedUserId, visibleRows]);
 
   if (!canView) {
     return (
@@ -17647,22 +17725,49 @@ function EmployeesPagePolished({
         }
       />
 
-      <div className="co-employees-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
-        {employeeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-      </div>
-
-      <div className="co-toolbox-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
-        {employeePriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-toolbox-priority-card co-focus-ring" data-tone={card.tone} onClick={card.onAction}>
-            <span className="co-toolbox-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
-            <span className="min-w-0">
-              <span className="co-toolbox-priority-value">{card.value}</span>
-              <span className="co-toolbox-priority-label">{card.label}</span>
-              <span className="co-toolbox-priority-helper">{card.helper}</span>
-            </span>
-            <span className="co-toolbox-priority-action">{card.actionLabel} -&gt;</span>
-          </button>
-        ))}
+      <div className="co-employees-command-deck mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:px-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="co-employees-hero-card p-4">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-700">Access control</p>
+              <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950">Workspace user readiness</h2>
+              <p className="mt-1 max-w-3xl text-sm font-bold leading-5 text-slate-600">Owner/admin access, office roles, and field crew logins stay visible without exposing protected tools to the field.</p>
+            </div>
+            {canManage ? <Button type="button" onClick={() => openTools("create")}><Icon name="plus" />New User</Button> : <Badge tone="slate">Read only</Badge>}
+          </div>
+          <div className="co-employees-summary-grid">
+            {summaryStats.map((stat) => (
+              <button
+                key={stat.label}
+                type="button"
+                onClick={() => {
+                  if (stat.label === "Active") setStatusFilter("active");
+                  if (stat.label === "Field") setFilter("Field roles");
+                  if (stat.label === "Owners") setFilter("Owner");
+                  if (stat.label === "Inactive") setStatusFilter("inactive");
+                  if (stat.label === "Visible") clearFilters();
+                }}
+              >
+                <strong>{stat.value}</strong>
+                <span>{stat.label}</span>
+                <em>{stat.helper}</em>
+              </button>
+            ))}
+          </div>
+        </Card>
+        <Card className="co-employees-priority-card p-4">
+          <SectionHeader title="Priority Moves" description="Jump straight to the next access task." />
+          <div className="co-employees-priority-list">
+            {employeePriorityCards.map((card) => (
+              <button key={card.label} type="button" data-tone={card.tone} onClick={card.onAction}>
+                <span><Icon name={card.icon} /></span>
+                <strong>{card.label}</strong>
+                <em>{card.helper}</em>
+                <b>{card.actionLabel}</b>
+              </button>
+            ))}
+          </div>
+        </Card>
       </div>
 
       <div className="co-employees-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
@@ -17675,13 +17780,26 @@ function EmployeesPagePolished({
               </div>
             </div>
           </div>
-          <FilterBar filters={["All roles", ...USER_ROLE_OPTIONS]} active={filter} setActive={setFilter} search={search} setSearch={setSearch} placeholder="Search name, email, phone, role..." />
+          <div className="co-employees-filter-console">
+            <div className="co-employees-access-tabs">
+              {accessFilters.map((item) => (
+                <button key={item.label} type="button" className={item.active ? "is-active" : ""} onClick={item.action}>{item.label}</button>
+              ))}
+            </div>
+            <input className="field-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, phone, role..." />
+          </div>
           <details className="co-employees-advanced-filters border-b border-slate-200 bg-white">
             <summary>
-              <span>Status filter</span>
-              <span>{statusFilter}</span>
+              <span>Role and status filters</span>
+              <span>{filter} / {statusFilter}</span>
             </summary>
-            <div className="co-office-filter-grid co-employees-filter-grid grid gap-3 p-3 md:grid-cols-3">
+            <div className="co-office-filter-grid co-employees-filter-grid grid gap-3 p-3 md:grid-cols-2">
+              <SelectField label="Role" value={filter} onChange={(event) => setFilter(event.target.value)}>
+                <option>All roles</option>
+                <option>Office roles</option>
+                <option>Field roles</option>
+                {USER_ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
+              </SelectField>
               <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 <option>All statuses</option>
                 <option value="active">Active</option>
@@ -17696,7 +17814,7 @@ function EmployeesPagePolished({
           ) : visibleRows.length === 0 ? (
             <div className="p-5"><StateCard title={users.length === 0 ? "No users yet" : "No users match these filters"} description={users.length === 0 ? "Create the first office, foreman, or employee login to power assignments." : "Clear a role, status, or search filter to find another account."} /></div>
           ) : (
-            <EmployeesTablePolished rows={visibleRows} selectedId={selectedUserId} onSelect={onSelectUser} />
+            <EmployeesTablePolished rows={visibleRows} selectedId={selectedUserId} onSelect={onSelectUser} onOpenDetails={(id) => openUserTools(id, "details")} canManage={canManage} />
           )}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
             <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} user{visibleRows.length === 1 ? "" : "s"} / {activeUsers.length} active login{activeUsers.length === 1 ? "" : "s"}</p>
@@ -17726,9 +17844,9 @@ function EmployeesPagePolished({
         </div>
         <div className="co-employees-tools-panel mt-3">
           {toolTab === "create" ? (
-            <UserCreatePanelPolished draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} />
+            <UserCreatePanelPolished draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} roleOptions={roleOptionsForManager} onDismissProvisionNotice={onDismissProvisionNotice} />
           ) : (
-            <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} />
+            <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} roleOptions={editRoleOptions} currentUserIsOwner={currentUserIsOwner} />
           )}
         </div>
       </details>
@@ -29200,6 +29318,7 @@ function MainContent(props) {
         onCreateUser={props.onCreateUser}
         onSaveUser={props.onSaveUser}
         provisionedNotice={props.userProvisionNotice}
+        onDismissProvisionNotice={props.onDismissProvisionNotice}
       />
     );
   }
@@ -31904,6 +32023,7 @@ export default function App() {
                 onCreateUser={handleCreateUser}
                 onSaveUser={handleSaveUser}
                 userProvisionNotice={userProvisionNotice}
+                onDismissProvisionNotice={() => setUserProvisionNotice(null)}
                 selectedCustomerId={selectedCustomerId}
                 onSelectCustomer={navigateToCustomer}
                 selectedCustomer={selectedCustomer}

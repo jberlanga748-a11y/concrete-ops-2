@@ -20,6 +20,11 @@ test("user list filtering supports search, role, and status", () => {
   assert.deepEqual(filtered.map((user) => user.id), ["U-2"]);
 });
 
+test("user list filtering supports office and field role groups", () => {
+  assert.deepEqual(deriveUserListState(USERS, { role: "Office roles" }).filteredUsers.map((user) => user.id), ["U-1"]);
+  assert.deepEqual(deriveUserListState(USERS, { role: "Field roles", status: "active" }).filteredUsers.map((user) => user.id), ["U-2", "U-3"]);
+});
+
 test("foreman assignment options only include active foremen", () => {
   assert.deepEqual(getForemanAssignmentOptions(USERS).map((user) => user.id), ["U-2"]);
 });

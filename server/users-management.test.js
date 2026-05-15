@@ -224,6 +224,82 @@ test("owner and admin can create role-based users and inactive users cannot log 
   }
 });
 
+test("only active owners can assign or manage owner access", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-GUARD",
+        email: "owner-guard@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Guard",
+        role: "Owner",
+      }),
+      createUserRecord({
+        id: "U-ADMIN-GUARD",
+        email: "admin-guard@lastyard.test",
+        password: "apexdemo123",
+        name: "Admin Guard",
+        role: "Administrator",
+      }),
+    ]);
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "admin-guard@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const blockedOwnerCreate = await requestJson(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        name: "Promoted Owner",
+        email: "promoted-owner@lastyard.test",
+        role: "Owner",
+      }),
+    });
+    assert.equal(blockedOwnerCreate.response.status, 403);
+
+    const blockedOwnerPatch = await requestJson(fixture.baseUrl, "/api/users/U-OWNER-GUARD", {
+      method: "PATCH",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        status: "inactive",
+      }),
+    });
+    assert.equal(blockedOwnerPatch.response.status, 403);
+
+    const blockedRoleEscalation = await requestJson(fixture.baseUrl, "/api/users/U-ADMIN-GUARD", {
+      method: "PATCH",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        role: "Owner",
+      }),
+    });
+    assert.equal(blockedRoleEscalation.response.status, 403);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-guard@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const ownerCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Second Owner",
+        email: "second-owner@lastyard.test",
+        role: "Owner",
+        password: "apexdemo123",
+      }),
+    });
+    assert.equal(ownerCreated.users.find((user) => user.email === "second-owner@lastyard.test")?.role, "Owner");
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("employee, foreman, and estimator cannot access user management while operations manager can", async () => {
   const fixture = await startServer();
 

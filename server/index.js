@@ -4870,6 +4870,16 @@ function ensureOwnerProtection(state, targetUser, nextRole, nextStatus) {
   }
 }
 
+function ensureOwnerRoleManagement(actor, targetUser, nextRole) {
+  const actorIsOwner = normalizeRole(actor?.role) === "owner";
+  const targetIsOwner = targetUser ? normalizeRole(targetUser.role) === "owner" : false;
+  const nextIsOwner = normalizeRole(nextRole) === "owner";
+
+  if (!actorIsOwner && (targetIsOwner || nextIsOwner)) {
+    throw new ApiError(403, "Only an active owner can manage Owner access.");
+  }
+}
+
 function appendAuditEvent(state, { entityType, entityId, action, summary, detail, actor, changedFields = [] }) {
   state.auditEvents.unshift({
     id: makeAuditId(),
@@ -9383,6 +9393,7 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
   const password = payload.password ? requiredPassword(payload.password, "Password") : temporaryPassword();
   const role = optionalUserRole(payload.role, "Employee");
   const status = optionalUserStatus(payload.status, "active");
+  ensureOwnerRoleManagement(req.auth.user, null, role);
   const userRecord = createUserRecord({
     email,
     password,
@@ -9445,6 +9456,7 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
       throw new ApiError(409, "A user with that email already exists.");
     }
 
+    ensureOwnerRoleManagement(req.auth.user, targetUser, nextRole);
     ensureOwnerProtection(draft, targetUser, nextRole, nextStatus);
 
     if (targetUser.name !== nextName) changedFields.push("name");
