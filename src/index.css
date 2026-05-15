@@ -9665,7 +9665,7 @@ textarea {
 .co-calculator-page.co-field-tool-page .co-toolbox-command-layout,
 .co-calculator-page.co-field-tool-page .co-calculator-workflow-wrap,
 .co-calculator-page.co-field-tool-page .co-calculator-workflow-card {
-  max-width: 1160px;
+  max-width: 1320px;
 }
 
 .co-calculator-page.co-field-tool-page .co-toolbox-command-layout {
@@ -9812,9 +9812,139 @@ textarea {
   background: #fffbeb;
 }
 
+.co-calculator-field-rail {
+  align-self: start;
+  max-height: none !important;
+  overflow: visible !important;
+  position: static !important;
+}
+
+.co-calculator-field-rail-result {
+  border-color: rgba(15, 23, 42, 0.16) !important;
+  border-top-color: rgba(249, 115, 22, 0.88) !important;
+  background: #07111f !important;
+  color: #ffffff;
+  box-shadow: 0 24px 56px -40px rgba(7, 17, 31, 0.82);
+}
+
+.co-calculator-field-rail-result-head {
+  background: #07111f;
+  padding: 1rem;
+}
+
+.co-calculator-field-rail-result-head p {
+  color: #fed7aa;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-calculator-field-rail-result-head h2 {
+  margin-top: 0.62rem;
+  font-size: clamp(1.56rem, 2.5vw, 2.35rem);
+  font-weight: 950;
+  letter-spacing: -0.01em;
+  line-height: 0.98;
+}
+
+.co-calculator-field-rail-result-head span {
+  display: block;
+  margin-top: 0.58rem;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.42;
+}
+
+.co-calculator-field-rail-actions {
+  display: grid;
+  gap: 0.5rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.72);
+  padding: 0.78rem;
+}
+
+.co-calculator-field-rail-actions > button {
+  justify-content: center;
+  min-height: 2.72rem;
+}
+
+.co-calculator-field-steps {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.co-calculator-field-steps span {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.72rem;
+  background: #ffffff;
+  padding: 0.58rem;
+}
+
+.co-calculator-field-steps em {
+  display: inline-flex;
+  height: 1.55rem;
+  width: 1.55rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.co-calculator-field-steps strong {
+  color: #07111f;
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1.18;
+}
+
+.co-calculator-field-steps span[data-state="active"] {
+  border-color: rgba(249, 115, 22, 0.42);
+  background: #fff7ed;
+}
+
+.co-calculator-field-steps span[data-state="active"] em {
+  background: var(--color-brand-orange-strong);
+  color: #ffffff;
+}
+
+.co-calculator-field-steps span[data-state="ready"] {
+  border-color: rgba(16, 185, 129, 0.28);
+  background: #ecfdf5;
+}
+
+.co-calculator-field-steps span[data-state="ready"] em {
+  background: #10b981;
+  color: #ffffff;
+}
+
 .co-calculator-page.co-field-tool-page .co-toolbox-main-board,
 .co-calculator-page.co-field-tool-page .co-toolbox-form-card {
   box-shadow: 0 18px 42px -36px rgba(7, 17, 31, 0.56);
+}
+
+@media (min-width: 1024px) {
+  .co-calculator-page.co-field-tool-page .co-calculator-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21.5rem) !important;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-toolbox-main-board {
+    min-height: 28rem;
+  }
+
+  .co-calculator-page.co-field-tool-page .co-calculator-workflow-wrap {
+    padding-bottom: 0.65rem !important;
+  }
 }
 
 .co-tool-checklist-page.co-field-tool-page .co-toolbox-kpi-grid {
@@ -10852,6 +10982,10 @@ textarea {
     display: none !important;
   }
 
+  .co-calculator-page .co-calculator-field-rail {
+    display: none !important;
+  }
+
   .co-calculator-field-result-wrap {
     display: none !important;
   }
@@ -10870,13 +11004,11 @@ textarea {
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-main-board > div:nth-child(2) {
-    order: 2;
-    border-top: 1px solid rgba(226, 232, 240, 0.96);
-    border-bottom: 0;
+    order: 1;
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-main-board > div:nth-child(3) {
-    order: 1;
+    order: 2;
   }
 
   .co-calculator-page.co-field-tool-page .co-toolbox-board-header p,
@@ -10975,7 +11107,7 @@ textarea {
   }
 
   .co-calculator-page .co-toolbox-main-board > .grid > .min-w-0 > .grid {
-    margin-top: 2.2rem;
+    margin-top: 0.85rem;
   }
 
   .co-calculator-page .co-calculator-type-tabs {
@@ -11000,6 +11132,14 @@ textarea {
 
   .co-calculator-field-panel .co-field-operator-strip {
     display: none;
+  }
+
+  .co-calculator-page .co-toolbox-command-layout {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem) !important;
+  }
+
+  .co-calculator-page .co-toolbox-form-card:last-child {
+    margin-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.85rem);
   }
 
   .co-prepour-field-panel .co-field-operator-strip {

@@ -144,6 +144,7 @@ import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from ".
 import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
+import { canViewJob } from "../shared/permissions.js";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -18166,6 +18167,12 @@ function defaultTakeoffSectionLabel(index) {
   return `Section ${index + 1}`;
 }
 
+function deriveAllowedCalculatorJobs(jobs, user, permissions) {
+  const activeJobs = deriveAllowedUploadJobs(jobs);
+  if (permissions?.jobs?.canManageAll || permissions?.jobs?.canViewMoney) return activeJobs;
+  return activeJobs.filter((job) => canViewJob(job, user));
+}
+
 function CalculatorModeTabsPolished({ calculatorMode, setCalculatorMode, onModeChange }) {
   return (
     <div className="co-toolbox-category-tabs">
@@ -18347,6 +18354,88 @@ function CalculatorResultRailPolished({ result, calculatorMode, takeoffSections 
           <span data-state={ready ? "ready" : "needs"}>Dimensions <strong>{ready ? "Complete" : "Needed"}</strong></span>
           <span data-state={ready ? "ready" : "needs"}>Copy text <strong>{ready ? "Ready" : "Pending"}</strong></span>
           <span data-state={ready ? "ready" : "needs"}>Job save <strong>{ready ? "Available" : "Pending"}</strong></span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function CalculatorFieldCommandRailPolished({
+  result,
+  calculatorMode,
+  takeoffSections,
+  allowedJobs,
+  resultCopied,
+  onFocusInput,
+  onCopyResult,
+  onSaveResult,
+  onStartTakeoff,
+}) {
+  const ready = result.status === "ready";
+  const resultValue = ready ? formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "") : "Open";
+  const statusItems = [
+    { label: "Values", value: result.status === "invalid" ? "Fix" : "Safe", state: result.status === "invalid" ? "needs" : "ready" },
+    { label: "Dimensions", value: ready ? "Complete" : "Needed", state: ready ? "ready" : "needs" },
+    { label: "Copy text", value: ready ? "Ready" : "Pending", state: ready ? "ready" : "needs" },
+    { label: "Job save", value: ready && allowedJobs.length ? "Ready" : "Pending", state: ready && allowedJobs.length ? "ready" : "needs" },
+  ];
+  const planItems = [
+    { label: "Enter pour dimensions", state: ready ? "ready" : "active" },
+    { label: ready ? "Copy field total" : "Review live yield", state: ready ? "active" : "needs" },
+    { label: allowedJobs.length ? "Save to visible job" : "Use as copy-only total", state: allowedJobs.length ? "ready" : "needs" },
+  ];
+
+  return (
+    <div className="co-toolbox-right-rail co-calculator-field-rail space-y-3">
+      <Card className="co-toolbox-rail-card co-calculator-field-rail-result overflow-hidden">
+        <div className="co-calculator-field-rail-result-head">
+          <p>Live Field Total</p>
+          <h2>{ready ? `${resultValue} yd^3` : "Waiting on dims"}</h2>
+          <span>{ready ? (result.summary || "Ready to copy or save internally.") : "Fill the required dimensions to unlock copy and save."}</span>
+        </div>
+        <div className="co-calculator-field-rail-actions">
+          <Button type="button" onClick={ready ? onCopyResult : onFocusInput}>
+            <Icon name={ready ? "clipboard" : "calculator"} />
+            {ready ? (resultCopied ? "Copied" : "Copy Result") : "Enter Dims"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onSaveResult}>
+            <Icon name="briefcase" />
+            {ready ? "Save to Job" : "Save Later"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onStartTakeoff}>
+            <Icon name="plus" />
+            {calculatorMode === "multi_section" ? "Add Section" : "Build Takeoff"}
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="co-toolbox-rail-card p-4">
+        <SectionHeader title="Readiness" description="Field-safe check before the result becomes a saved job record." />
+        <div className="co-toolbox-readiness-list">
+          {statusItems.map((item) => (
+            <span key={item.label} data-state={item.state}>
+              {item.label}
+              <strong>{item.value}</strong>
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="co-toolbox-rail-card p-4">
+        <SectionHeader title="Field Plan" description="The calculator stays focused on yield, takeoff, copy, and allowed job saves." />
+        <div className="co-calculator-field-steps">
+          {planItems.map((item, index) => (
+            <span key={item.label} data-state={item.state}>
+              <em>{index + 1}</em>
+              <strong>{item.label}</strong>
+            </span>
+          ))}
+        </div>
+        <div className="co-toolbox-selected-metrics">
+          <div><span>Mode</span><strong>{calculatorMode === "multi_section" ? "Takeoff" : "Single"}</strong></div>
+          <div><span>Sections</span><strong>{calculatorMode === "multi_section" ? takeoffSections.length : "Single"}</strong></div>
+          <div><span>Job saves</span><strong>{allowedJobs.length}</strong></div>
+          <div><span>Visibility</span><strong>Internal</strong></div>
         </div>
       </Card>
     </div>
@@ -18809,15 +18898,6 @@ function CalculatorPagePolished({
         />
       ) : null}
 
-      {isFieldTool ? (
-        <CalculatorFieldResultDock
-          result={result}
-          calculatorMode={calculatorMode}
-          takeoffSections={takeoffSections}
-          allowedJobs={allowedJobs}
-        />
-      ) : null}
-
       <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {calculatorKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
@@ -18849,7 +18929,7 @@ function CalculatorPagePolished({
         </Card>
       </div>
 
-      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+      <div className={`co-toolbox-command-layout co-calculator-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6 ${isFieldTool ? "co-calculator-field-command-layout" : ""}`}>
         <div className="min-w-0 space-y-3">
           <CalculatorInputPanelPolished
             calculatorMode={calculatorMode}
@@ -18881,15 +18961,27 @@ function CalculatorPagePolished({
           <CalculatorSummaryPanelPolished result={result} calculatorMode={calculatorMode} />
         </div>
 
-        {!isFieldTool ? (
+        {isFieldTool ? (
+          <CalculatorFieldCommandRailPolished
+            result={result}
+            calculatorMode={calculatorMode}
+            takeoffSections={takeoffSections}
+            allowedJobs={allowedJobs}
+            resultCopied={resultCopied}
+            onFocusInput={focusCalculatorInput}
+            onCopyResult={copyFromPriority}
+            onSaveResult={openSaveFromPriority}
+            onStartTakeoff={startTakeoffMode}
+          />
+        ) : (
           <CalculatorResultRailPolished result={result} calculatorMode={calculatorMode} takeoffSections={takeoffSections} />
-        ) : null}
+        )}
       </div>
     </div>
   );
 }
 
-function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permissions }) {
+function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permissions, user }) {
   const [calculatorMode, setCalculatorMode] = useState("single");
   const [calculatorType, setCalculatorType] = useState("slab");
   const [draftByType, setDraftByType] = useState(CALCULATOR_INPUT_DEFAULTS);
@@ -18905,7 +18997,7 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permi
   const activeDraft = draftByType[calculatorType] || CALCULATOR_INPUT_DEFAULTS.slab;
   const activeWastePercent = wastePreset === "custom" ? customWastePercent : wastePreset;
   const activeFields = CALCULATOR_FIELD_CONFIG[calculatorType] || [];
-  const allowedJobs = useMemo(() => deriveAllowedUploadJobs(jobs), [jobs]);
+  const allowedJobs = useMemo(() => deriveAllowedCalculatorJobs(jobs, user, permissions), [jobs, permissions, user]);
   const singleResult = useMemo(
     () => calculateConcreteResult(calculatorType, activeDraft, activeWastePercent),
     [activeDraft, activeWastePercent, calculatorType],
@@ -19070,9 +19162,10 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permi
   }
 
   async function handleSaveResult() {
-    if (result.status !== "ready" || !saveDraft.jobId || !onSaveCalculatorResult) return;
+    const selectedSaveJob = allowedJobs.find((job) => job.id === saveDraft.jobId);
+    if (result.status !== "ready" || !selectedSaveJob || !onSaveCalculatorResult) return;
     const success = await onSaveCalculatorResult({
-      jobId: saveDraft.jobId,
+      jobId: selectedSaveJob.id,
       calculatorType: calculatorMode === "multi_section" ? "multi_section" : calculatorType,
       inputsJson: calculatorMode === "multi_section"
         ? result.inputsJson
@@ -19137,241 +19230,6 @@ function CalculatorPage({ jobs, selectedJob, busy, onSaveCalculatorResult, permi
       duplicateSection={duplicateSection}
       removeSection={removeSection}
     />
-  );
-
-  return (
-    <div>
-      <PageHeader eyebrow="Tools" title="Concrete Calculator" description="Estimate concrete volume in cubic yards." />
-      <ModuleKpiStrip items={calculatorKpis} />
-      <div className="grid gap-4 px-5 sm:px-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:px-8">
-        <div className="min-w-0 space-y-4">
-          <Card className="p-4 sm:p-5">
-            <SectionHeader title="Mode" description="Use a single quick calculation or build a multi-section takeoff." />
-            <div className="grid grid-cols-2 gap-2">
-              {CALCULATOR_MODE_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setCalculatorMode(option.id)}
-                  className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
-                    calculatorMode === option.id
-                      ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20"
-                      : "bg-blue-50 text-slate-700 ring-1 ring-blue-100 hover:bg-blue-100"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-4 sm:p-5">
-            <SectionHeader title={calculatorMode === "multi_section" ? "Section type" : "Calculator type"} description={calculatorMode === "multi_section" ? "Choose a shape for the next section in this takeoff." : "Pick the shape you are pouring and enter the dimensions below."} />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {CALCULATOR_TYPES.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setCalculatorType(option.id)}
-                  className={`rounded-2xl px-3 py-3 text-sm font-black transition ${
-                    calculatorType === option.id
-                      ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20"
-                      : "bg-blue-50 text-slate-700 ring-1 ring-blue-100 hover:bg-blue-100"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-4 sm:p-5">
-            <SectionHeader title={calculatorMode === "multi_section" ? (editingSectionId ? "Edit section" : "Add section") : "Dimensions"} description={calculatorMode === "multi_section" ? "Build one section at a time, then total the takeoff together." : "Every field is labeled with feet or inches so the result stays quick and field-friendly."} />
-            {calculatorMode === "multi_section" ? (
-              <div className="mb-4 grid gap-3 sm:grid-cols-2">
-                <InputField label="Section label" placeholder={`e.g. ${defaultTakeoffSectionLabel(takeoffSections.length)}`} value={sectionForm.label} onChange={(event) => updateSectionForm("label", event.target.value)} />
-                <TextAreaField label="Section note" value={sectionForm.notes} onChange={(event) => updateSectionForm("notes", event.target.value)} placeholder="Optional note for this section." />
-              </div>
-            ) : null}
-            <div className="grid gap-3">
-              {activeFields.map((field) => (
-                <InputField
-                  key={field.key}
-                  label={field.label}
-                  type="number"
-                  min="0"
-                  step="any"
-                  inputMode="decimal"
-                  placeholder={field.placeholder}
-                  value={activeDraft[field.key] ?? ""}
-                  onChange={(event) => updateField(field.key, event.target.value)}
-                />
-              ))}
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,140px)]">
-              <SelectField label="Waste factor" value={wastePreset} onChange={(event) => setWastePreset(event.target.value)}>
-                {WASTE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </SelectField>
-              {wastePreset === "custom" ? (
-                <InputField
-                  label="Custom waste (%)"
-                  type="number"
-                  min="0"
-                  step="any"
-                  inputMode="decimal"
-                  placeholder="12"
-                  value={customWastePercent}
-                  onChange={(event) => setCustomWastePercent(event.target.value)}
-                />
-              ) : null}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {calculatorMode === "multi_section" ? (
-                <Button type="button" onClick={addOrUpdateSection} disabled={calculateConcreteResult(calculatorType, activeDraft, 0).status !== "ready"}>
-                  {editingSectionId ? "Save section" : "Add section"}
-                </Button>
-              ) : null}
-              {calculatorMode === "multi_section" && editingSectionId ? (
-                <Button type="button" variant="secondary" onClick={() => resetSectionBuilder()}>Cancel edit</Button>
-              ) : null}
-              <Button type="button" variant="secondary" onClick={resetCalculator}>{calculatorMode === "multi_section" ? "Reset takeoff" : "Reset"}</Button>
-              <Button type="button" variant="ghost" onClick={copyResult} disabled={result.status !== "ready"}>
-                {resultCopied ? "Copied" : calculatorMode === "multi_section" ? "Copy takeoff" : "Copy result"}
-              </Button>
-              <Button type="button" onClick={() => { setSavePanelOpen((current) => !current); setSaveMessage(""); }} disabled={result.status !== "ready"}>
-                {savePanelOpen ? "Hide Save to Job" : "Save to Job"}
-              </Button>
-            </div>
-            {savePanelOpen ? (
-              allowedJobs.length === 0 ? (
-                <StateCard title="No available job to save this calculation" description="Assigned or visible jobs will appear here when there is somewhere safe to store the result." tone="slate" />
-              ) : (
-                <div className="mt-4 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
-                  <SectionHeader title="Save to job" description="This creates an internal-only company record. Customers do not see it." />
-                  <SelectField label="Job" value={saveDraft.jobId} onChange={(event) => setSaveDraft((current) => ({ ...current, jobId: event.target.value }))}>
-                    {allowedJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
-                  </SelectField>
-                  <TextAreaField label="Internal note" value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional internal note for the crew or office." />
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" onClick={handleSaveResult} disabled={busy || !saveDraft.jobId}>Save</Button>
-                    <Button type="button" variant="secondary" onClick={() => setSavePanelOpen(false)} disabled={busy}>Cancel</Button>
-                  </div>
-                </div>
-              )
-            ) : null}
-            {saveMessage ? <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{saveMessage}</div> : null}
-          </Card>
-
-          {calculatorMode === "multi_section" ? (
-            <Card className="p-4 sm:p-5">
-              <SectionHeader title="Takeoff sections" description="Each section keeps its own dimensions so the full takeoff can be copied or saved to the job." />
-              {takeoffSections.length === 0 ? (
-                <StateCard title="No sections added yet" description="Add one or more panels, runs, or pours to build a running total." tone="slate" />
-              ) : (
-                <div className="space-y-3">
-                  {takeoffSections.map((section, index) => (
-                    <div key={section.id} className="rounded-2xl border border-blue-100 bg-white p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="break-words text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                          <p className="mt-1 text-sm text-slate-600">{calculatorTypeLabel(section.calculatorType)} · {formatCubicYards(section.cubicYards)}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant="secondary" onClick={() => editSection(section)}>Edit</Button>
-                          <Button type="button" size="sm" variant="ghost" onClick={() => duplicateSection(section)}>Duplicate</Button>
-                          <Button type="button" size="sm" variant="ghost" onClick={() => removeSection(section.id)}>Remove</Button>
-                        </div>
-                      </div>
-                      {section.notes ? <p className="mt-3 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ) : null}
-        </div>
-
-        <div className="min-w-0">
-          <Card className="overflow-hidden">
-            <div className="bg-blue-950 p-5 text-white sm:p-6">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-200">Result</p>
-              {result.status === "ready" ? (
-                <>
-                  <p className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">{formatCubicYards(result.cubicYardsWithWaste).replace(" yd^3", "")}</p>
-                  <p className="text-base font-black text-blue-100 sm:text-lg">yd^3 with waste</p>
-                  <p className="mt-3 text-sm leading-6 text-blue-100">{result.summary || "Ready to copy or save internally."}</p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-3 text-2xl font-black tracking-tight text-white">Ready when you are</p>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">
-                    {result.status === "invalid"
-                      ? "Use zero or positive numbers only. Negative dimensions do not calculate."
-                      : calculatorMode === "multi_section"
-                        ? "Add one or more valid sections to build the total takeoff."
-                        : "Enter the dimensions for this pour to see cubic feet, cubic yards, and the waste-adjusted total."}
-                  </p>
-                </>
-              )}
-            </div>
-            <div className={`grid gap-3 p-4 sm:p-6 ${calculatorMode === "multi_section" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-              <div className="rounded-2xl bg-blue-50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Base</p>
-                <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicYards(result.baseCubicYards) : "--"}</p>
-              </div>
-              <div className="rounded-2xl bg-blue-50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">With waste</p>
-                <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicYards(result.cubicYardsWithWaste) : "--"}</p>
-              </div>
-              <div className="rounded-2xl bg-blue-50 p-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Cubic feet</p>
-                <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? formatCubicFeet(result.baseCubicFeet) : "--"}</p>
-              </div>
-              {calculatorMode === "multi_section" ? (
-                <div className="rounded-2xl bg-blue-50 p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Sections</p>
-                  <p className="mt-2 text-lg font-black text-slate-950">{result.status === "ready" ? result.sectionCount : takeoffSections.length}</p>
-                </div>
-              ) : null}
-            </div>
-            <div className="border-t border-blue-100 bg-white p-4 sm:p-6">
-              <SectionHeader
-                title="Calculation summary"
-                description={result.status === "ready" ? "Copy this into a text or note for quick field coordination." : "The summary will appear once enough dimensions are entered."}
-              />
-              {result.status === "ready" ? (
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700">
-                  <p className="font-bold text-slate-950">{result.summary}</p>
-                  <p className="mt-2">
-                    Base: <span className="font-black">{formatCubicYards(result.baseCubicYards)}</span>
-                  </p>
-                  <p className="mt-1">
-                    With {result.wastePercent}% waste: <span className="font-black">{formatCubicYards(result.cubicYardsWithWaste)}</span>
-                  </p>
-                  {calculatorMode === "multi_section" && Array.isArray(result.sections) && result.sections.length > 0 ? (
-                    <div className="mt-3 space-y-2 border-t border-blue-100 pt-3">
-                      {result.sections.map((section, index) => (
-                        <div key={section.id || `${section.label}-${index}`} className="rounded-2xl border border-blue-100 bg-white/70 p-3">
-                          <p className="text-sm font-black text-slate-950">{summarizeTakeoffSection(section, index)}</p>
-                          <p className="mt-1 text-sm text-slate-600">{formatCubicYards(section.cubicYards)} · {formatCubicFeet(section.cubicFeet)}</p>
-                          {section.notes ? <p className="mt-1 text-sm leading-6 text-slate-600">{section.notes}</p> : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <StateCard
-                  title={result.status === "invalid" ? "Dimensions need a quick fix" : "No calculation yet"}
-                  description={result.status === "invalid" ? "Update the negative value above and the result card will recalculate." : calculatorMode === "multi_section" ? "Add at least one valid section so the page can total the takeoff without ever falling back to NaN." : "Missing inputs stay blank on purpose so the page never falls back to NaN or misleading totals."}
-                  tone={result.status === "invalid" ? "red" : "slate"}
-                />
-              )}
-            </div>
-          </Card>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -29622,7 +29480,7 @@ function MainContent(props) {
     );
   }
   if (active === "calculator") {
-    return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} permissions={props.permissions} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
+    return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} permissions={props.permissions} user={props.user} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
   }
   if (active === "changeOrders") {
     return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
