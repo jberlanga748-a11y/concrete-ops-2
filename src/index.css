@@ -18293,8 +18293,8 @@ textarea {
 .co-employees-summary-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.62rem;
-  margin-top: 0.9rem;
+  gap: 0.5rem;
+  margin-top: 0.72rem;
 }
 
 .co-employees-summary-grid button {
@@ -18302,7 +18302,7 @@ textarea {
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 0.74rem;
   background: rgba(255, 255, 255, 0.92);
-  padding: 0.64rem;
+  padding: 0.54rem;
   text-align: left;
   transition:
     border-color 150ms ease,
@@ -18321,7 +18321,7 @@ textarea {
 .co-employees-summary-grid strong {
   display: block;
   color: #07111f;
-  font-size: 1.35rem;
+  font-size: 1.18rem;
   font-weight: 950;
   line-height: 1;
 }
@@ -18351,7 +18351,7 @@ textarea {
 
 .co-employees-priority-list {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 @media (min-width: 768px) {
@@ -18375,12 +18375,12 @@ textarea {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.62rem;
+  gap: 0.5rem;
   min-width: 0;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 0.78rem;
   background: rgba(255, 255, 255, 0.94);
-  padding: 0.62rem;
+  padding: 0.5rem;
   text-align: left;
   transition:
     border-color 150ms ease,
@@ -18396,8 +18396,8 @@ textarea {
 
 .co-employees-priority-list button > span {
   display: inline-flex;
-  height: 1.95rem;
-  width: 1.95rem;
+  height: 1.75rem;
+  width: 1.75rem;
   align-items: center;
   justify-content: center;
   border-radius: 0.65rem;
@@ -18428,7 +18428,7 @@ textarea {
 
 .co-employees-priority-list strong {
   color: #07111f;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 950;
   line-height: 1.05;
 }
@@ -18437,7 +18437,7 @@ textarea {
   margin-top: -0.35rem;
   overflow: hidden;
   color: #64748b;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
   font-style: normal;
   font-weight: 800;
   line-height: 1.2;
@@ -18452,9 +18452,9 @@ textarea {
   border: 1px solid rgba(203, 213, 225, 0.96);
   border-radius: 999px;
   background: #ffffff;
-  padding: 0.3rem 0.52rem;
+  padding: 0.26rem 0.46rem;
   color: var(--color-brand-orange-dark);
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 950;
   text-transform: uppercase;
   white-space: nowrap;
@@ -18499,7 +18499,7 @@ textarea {
 
 .co-employees-filter-console {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 28rem);
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
   align-items: center;
   gap: 0.75rem;
   border-bottom: 1px solid rgba(203, 213, 225, 0.96);
@@ -19016,6 +19016,10 @@ textarea {
   text-transform: uppercase;
 }
 
+.co-employees-mobile-list-toggle {
+  display: none;
+}
+
 @media (min-width: 768px) {
   .co-employees-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -19084,6 +19088,26 @@ textarea {
   }
 }
 
+@media (min-width: 1400px) and (max-width: 1510px) {
+  .co-employees-command-layout {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+
+  .co-employees-command-table {
+    min-width: 760px !important;
+  }
+
+  .co-employees-command-table th,
+  .co-employees-command-table td {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .co-employees-right-rail .co-card {
+    padding: 0.85rem !important;
+  }
+}
+
 @media (max-width: 1023px) {
   .co-employees-command-deck {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -19145,20 +19169,18 @@ textarea {
   }
 
   .co-employees-summary-grid {
-    display: flex;
-    grid-template-columns: none;
-    gap: 0.5rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0.1rem;
-    scroll-snap-type: x proximity;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.46rem;
+    overflow: visible;
+    padding-bottom: 0;
+    scroll-snap-type: none;
   }
 
   .co-employees-summary-grid button {
-    flex: 0 0 6.15rem;
-    min-height: 3.85rem;
+    min-width: 0;
+    min-height: 3.55rem;
     padding: 0.5rem;
-    scroll-snap-align: start;
   }
 
   .co-employees-summary-grid strong {
@@ -19267,6 +19289,23 @@ textarea {
     padding-right: 1rem !important;
   }
 
+  .co-employees-tools-drawer {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.6rem) !important;
+  }
+
+  .co-employees-tools-panel {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem);
+  }
+
+  .co-employees-form-card {
+    scroll-margin-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem);
+  }
+
+  .co-employees-form-card .mt-4.flex,
+  .co-employees-form-card .md\:col-span-2:last-child {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
   .co-employees-page .co-toolbox-priority-grid {
     display: flex !important;
     grid-template-columns: none !important;
@@ -19295,17 +19334,32 @@ textarea {
     display: none;
   }
 
+  .co-employees-advanced-filters {
+    margin-top: 2.75rem;
+  }
+
   .co-employees-mobile-metrics,
   .co-employees-selected-metrics {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .co-employees-advanced-filters {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.65rem);
-  }
-
   .co-employees-mobile-list {
     margin-top: 0.75rem;
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.1rem) !important;
+  }
+
+  .co-employees-mobile-list-toggle {
+    display: inline-flex;
+    min-height: 2.42rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(203, 213, 225, 0.96);
+    border-radius: 0.78rem;
+    background: #ffffff;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 950;
+    box-shadow: 0 14px 32px -30px rgba(7, 17, 31, 0.5);
   }
 }
 

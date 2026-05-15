@@ -17422,11 +17422,22 @@ function isOwnerRole(role) {
 const OFFICE_USER_ROLES = ["Owner", "Administrator", "Operations Manager", "Estimator"];
 const FIELD_USER_ROLES = ["Foreman", "Employee"];
 
-function EmployeesTablePolished({ rows, selectedId, onSelect, onOpenDetails, canManage }) {
+function EmployeesTablePolished({
+  rows,
+  selectedId,
+  onSelect,
+  onOpenDetails,
+  canManage,
+  mobileMaxRows = null,
+  mobileExpanded = false,
+  onToggleMobileRows,
+}) {
+  const mobileRows = mobileMaxRows ? rows.slice(0, mobileMaxRows) : rows;
+
   return (
     <>
       <div className="co-employees-mobile-list grid gap-3 p-3 md:hidden">
-        {rows.map((entry) => {
+        {mobileRows.map((entry) => {
           const selected = entry.id === selectedId;
 
           return (
@@ -17454,11 +17465,16 @@ function EmployeesTablePolished({ rows, selectedId, onSelect, onOpenDetails, can
                   onOpenDetails?.(entry.id);
                 }}
               >
-                Tap to open {canManage ? "edit" : "details"}
+                Open {canManage ? "edit" : "details"}
               </button>
             </article>
           );
         })}
+        {rows.length > 2 ? (
+          <button type="button" className="co-employees-mobile-list-toggle" onClick={onToggleMobileRows}>
+            {mobileExpanded ? "Show priority users" : `Show all ${rows.length} users`}
+          </button>
+        ) : null}
       </div>
       <div className="co-employees-list-scroll hidden min-w-0 overflow-auto md:block">
         <table className="co-employees-command-table w-full min-w-[900px] text-left">
@@ -17489,7 +17505,7 @@ function EmployeesTablePolished({ rows, selectedId, onSelect, onOpenDetails, can
                   <td><UserStatusBadge status={entry.status} /></td>
                   <td className="font-bold text-slate-700">{entry.lastLoginAt ? formatDateTime(entry.lastLoginAt) : "Never"}</td>
                   <td>
-                    <button type="button" className="co-employees-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(entry.id); }} aria-label={`Open employee ${entry.name || entry.id}`}>
+                    <button type="button" className="co-employees-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(entry.id); onOpenDetails?.(entry.id); }} aria-label={`Open employee ${entry.name || entry.id}`}>
                       <Icon name="arrowUpRight" />
                     </button>
                   </td>
@@ -17704,6 +17720,7 @@ function EmployeesPagePolished({
   const canManage = permissions.users.canManage;
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState("details");
+  const [showAllMobileRows, setShowAllMobileRows] = useState(false);
   const toolsRef = useRef(null);
   const listState = useMemo(() => deriveUserListState(users, {
     query: search,
@@ -17745,7 +17762,7 @@ function EmployeesPagePolished({
     window.setTimeout(() => {
       toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
       if (window.innerWidth < 768) {
-        window.setTimeout(() => window.scrollBy({ top: 120, behavior: "smooth" }), 180);
+        window.setTimeout(() => window.scrollBy({ top: 150, behavior: "smooth" }), 180);
       }
     }, 0);
   }
@@ -17940,7 +17957,16 @@ function EmployeesPagePolished({
           ) : visibleRows.length === 0 ? (
             <div className="p-5"><StateCard title={users.length === 0 ? "No users yet" : "No users match these filters"} description={users.length === 0 ? "Create the first office, foreman, or employee login to power assignments." : "Clear a role, status, or search filter to find another account."} /></div>
           ) : (
-            <EmployeesTablePolished rows={visibleRows} selectedId={selectedUserId} onSelect={onSelectUser} onOpenDetails={(id) => openUserTools(id, "details")} canManage={canManage} />
+            <EmployeesTablePolished
+              rows={visibleRows}
+              selectedId={selectedUserId}
+              onSelect={onSelectUser}
+              onOpenDetails={(id) => openUserTools(id, "details")}
+              canManage={canManage}
+              mobileMaxRows={showAllMobileRows ? null : 2}
+              mobileExpanded={showAllMobileRows}
+              onToggleMobileRows={() => setShowAllMobileRows((current) => !current)}
+            />
           )}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
             <p className="text-sm font-bold text-slate-600">Showing {visibleRows.length} user{visibleRows.length === 1 ? "" : "s"} / {activeUsers.length} active login{activeUsers.length === 1 ? "" : "s"}</p>
