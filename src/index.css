@@ -14941,6 +14941,20 @@ textarea {
   align-items: start;
 }
 
+.co-change-orders-page[data-field-workspace="true"] .co-change-orders-kpi-grid {
+  display: none !important;
+}
+
+.co-change-orders-page[data-field-workspace="true"] .co-toolbox-priority-grid,
+.co-change-orders-page[data-field-workspace="true"] .co-change-orders-command-layout,
+.co-change-orders-page[data-field-workspace="true"] .co-change-orders-tools-drawer {
+  max-width: 1220px;
+}
+
+.co-change-orders-page[data-field-workspace="true"] .co-toolbox-priority-card {
+  min-height: 5.9rem;
+}
+
 .co-change-orders-main-board,
 .co-change-orders-rail-card,
 .co-change-orders-form-card {
@@ -15566,6 +15580,26 @@ textarea {
 
   .co-change-orders-right-rail > :not([hidden]) ~ :not([hidden]) {
     margin-top: 0 !important;
+  }
+}
+
+@media (min-width: 1400px) and (max-width: 1510px) {
+  .co-change-orders-command-layout {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+
+  .co-change-orders-command-table {
+    min-width: 760px !important;
+  }
+
+  .co-change-orders-command-table th,
+  .co-change-orders-command-table td {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .co-change-orders-right-rail .co-card {
+    padding: 0.85rem !important;
   }
 }
 

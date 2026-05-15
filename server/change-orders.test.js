@@ -218,6 +218,9 @@ test("change order requests stay field-safe while office manages review", async 
     assert.ok(visibleRequest);
     assert.equal(visibleRequest.status, "under_review");
     assert.equal(visibleRequest.officeNotes, "");
+    assert.equal(visibleRequest.reviewedBy, "");
+    assert.equal(visibleRequest.reviewedByName, "Office");
+    assert.notEqual(visibleRequest.reviewedByName, "Demo Admin");
 
     const archivedState = await assertOk(fixture.baseUrl, `/api/change-order-requests/${request.id}/archive`, {
       method: "POST",

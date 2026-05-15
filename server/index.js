@@ -2370,9 +2370,11 @@ function canViewChangeOrderRequestRecord(user, request, job) {
 function sanitizeChangeOrderRequestForUser(request, state, user) {
   const job = request.jobId ? state.jobs.find((entry) => entry.id === request.jobId) || null : null;
   if (!canViewChangeOrderRequestRecord(user, request, job)) return null;
+  const canManage = canManageChangeOrders(user);
   const requestedByUser = findUserById(state, request.requestedBy);
   const reviewedByUser = findUserById(state, request.reviewedBy);
   const customer = request.customerId ? state.customers.find((entry) => entry.id === request.customerId) || null : null;
+  const fieldReviewLabel = request.reviewedBy || request.reviewedAt ? "Office" : "";
 
   return {
     id: request.id,
@@ -2385,9 +2387,9 @@ function sanitizeChangeOrderRequestForUser(request, state, user) {
     fieldNotes: request.fieldNotes || "",
     status: optionalChangeOrderRequestStatus(request.status, "requested"),
     statusLabel: changeOrderRequestStatusLabel(request.status),
-    officeNotes: canManageChangeOrders(user) ? (request.officeNotes || "") : "",
-    reviewedBy: request.reviewedBy || "",
-    reviewedByName: reviewedByUser?.name || request.reviewedBy || "",
+    officeNotes: canManage ? (request.officeNotes || "") : "",
+    reviewedBy: canManage ? (request.reviewedBy || "") : "",
+    reviewedByName: canManage ? (reviewedByUser?.name || request.reviewedBy || "") : fieldReviewLabel,
     reviewedAt: request.reviewedAt || "",
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
