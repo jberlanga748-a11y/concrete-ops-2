@@ -5523,7 +5523,7 @@ function TimeCommandRailPolished({
   showClockCard = true,
 }) {
   const clockedInCount = rows.filter((item) => item.status !== "completed").length;
-  const reviewCount = rows.filter((item) => ["needs_correction", "pending_review"].includes(item.status)).length;
+  const completedCount = rows.filter((item) => item.status === "completed").length;
   const totalLabel = entry ? (entry.status === "completed" ? formatMinutes(entry.totalMinutes) : "In progress") : `${rows.length} visible`;
 
   return (
@@ -5559,8 +5559,8 @@ function TimeCommandRailPolished({
             <strong>{entry ? (entry.jobTitle || workCategoryLabel(entry.workCategory)) : rows.length}</strong>
           </div>
           <div>
-            <span>{entry ? "Clock in" : "Needs review"}</span>
-            <strong>{entry ? formatDateTime(entry.clockInAt) : reviewCount}</strong>
+            <span>{entry ? "Clock in" : "Completed"}</span>
+            <strong>{entry ? formatDateTime(entry.clockInAt) : completedCount}</strong>
           </div>
           <div>
             <span>{entry ? "Break" : "My week"}</span>
@@ -5611,7 +5611,8 @@ function TimePage({
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveTimeWorkspace(safeRows, jobs, user?.id, permissions.time.allowedCategories || []), [jobs, permissions.time.allowedCategories, safeRows, user?.id]);
   const clockedInCount = safeRows.filter((entry) => entry.status !== "completed").length;
-  const reviewCount = safeRows.filter((entry) => ["needs_correction", "pending_review"].includes(entry.status)).length;
+  const completedCount = safeRows.filter((entry) => entry.status === "completed").length;
+  const onBreakCount = safeRows.filter((entry) => entry.status === "on_break").length;
   const allWeeklySummary = useMemo(() => deriveCrewWeeklySummary(safeRows), [safeRows]);
   const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(safeRows, { excludeUserId: user?.id }), [safeRows, user?.id]);
   const canViewAll = permissions.time.canViewAll;
@@ -5637,8 +5638,14 @@ function TimePage({
   const timeKpis = [
     { label: "Visible Entries", value: boardRows.length, rawValue: boardRows.length, helper: "Role-scoped time log", icon: "clock", tone: "blue" },
     { label: "Clocked In", value: clockedInCount, rawValue: clockedInCount, helper: "Active or on break now", icon: "users", tone: "green" },
-    { label: "Needs Review", value: reviewCount, rawValue: reviewCount, helper: "Corrections or approvals", icon: "alert", tone: reviewCount ? "orange" : "slate" },
+    { label: "Completed", value: completedCount, rawValue: completedCount, helper: "Closed visible entries", icon: "check", tone: completedCount ? "green" : "slate" },
     { label: "My Week", value: formatMinutes(workspace.weeklySummary.totalMinutes || 0), rawValue: workspace.weeklySummary.totalMinutes || 0, helper: "Your visible hours", icon: "clipboard", tone: "amber" },
+  ];
+  const mobileSnapshotItems = [
+    { label: "Entries", value: boardRows.length },
+    { label: "Active", value: clockedInCount },
+    { label: "Breaks", value: formatMinutes(boardSummary.breakMinutes || 0) },
+    { label: "Week", value: formatMinutes(boardSummary.totalMinutes || 0) },
   ];
 
   return (
@@ -5650,7 +5657,7 @@ function TimePage({
         actions={
           <div className="co-time-header-status flex flex-wrap gap-2">
             <Badge tone={clockedInCount ? "blue" : "slate"}>{clockedInCount} clocked in</Badge>
-            <Badge tone={reviewCount ? "amber" : "green"}>{reviewCount} review</Badge>
+            <Badge tone={onBreakCount ? "amber" : "green"}>{onBreakCount} on break</Badge>
             <Badge tone="blue">{boardRows.length} entries</Badge>
           </div>
         }
@@ -5676,6 +5683,15 @@ function TimePage({
 
       <div className="co-time-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-4 lg:px-6">
         {timeKpis.map((item) => <TimeKpiCardPolished key={item.label} item={item} />)}
+      </div>
+
+      <div className="co-time-mobile-snapshot mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 md:hidden">
+        {mobileSnapshotItems.map((item) => (
+          <div key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
       </div>
 
       <div className="co-time-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">

@@ -7833,6 +7833,9 @@ textarea {
 
 .co-time-page {
   min-width: 0;
+  background:
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.08), transparent 24rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 250, 252, 0.72));
 }
 
 .co-time-kpi-grid {
@@ -7880,8 +7883,8 @@ textarea {
 
 .co-time-clock-form {
   display: grid;
-  grid-template-columns: minmax(14rem, 0.95fr) minmax(20rem, 1.45fr) minmax(13rem, 0.85fr);
-  align-items: stretch;
+  grid-template-columns: minmax(14rem, 0.95fr) minmax(20rem, 1.45fr) minmax(13rem, 0.8fr);
+  align-items: center;
   gap: 0.78rem;
 }
 
@@ -7957,9 +7960,11 @@ textarea {
 }
 
 .co-time-clock-hero .co-time-clock-primary {
-  height: 100%;
-  min-height: 7.4rem;
-  font-size: 1.34rem !important;
+  align-self: center;
+  height: 6.35rem;
+  min-height: 6.35rem;
+  max-height: 6.35rem;
+  font-size: 1.24rem !important;
   white-space: normal;
 }
 
@@ -8513,6 +8518,45 @@ textarea {
   white-space: nowrap;
 }
 
+.co-time-mobile-snapshot {
+  display: none;
+}
+
+.co-time-mobile-snapshot > div {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.78rem;
+  background: #ffffff;
+  padding: 0.55rem 0.6rem;
+  box-shadow: 0 14px 32px -30px rgba(7, 17, 31, 0.54);
+}
+
+.co-time-mobile-snapshot span,
+.co-time-mobile-snapshot strong {
+  display: block;
+  min-width: 0;
+}
+
+.co-time-mobile-snapshot span {
+  color: #64748b;
+  font-size: 0.56rem;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.co-time-mobile-snapshot strong {
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: #07111f;
+  font-size: 0.9rem;
+  font-weight: 950;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 1023px) {
   .co-time-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -8615,10 +8659,16 @@ textarea {
     line-height: 1.1 !important;
   }
 
+  .co-time-mobile-snapshot {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
   .co-time-command-layout {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
-    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.2rem) !important;
+    padding-bottom: 0.85rem !important;
   }
 
   .co-time-clock-hero {
