@@ -29,6 +29,8 @@
   --radius-control: 0.625rem;
   --layout-sidebar-width: 17rem;
   --layout-topbar-height: 4.5rem;
+  --co-mobile-bottom-nav-height: 5.75rem;
+  --co-mobile-bottom-nav-clearance: calc(var(--co-mobile-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 1.35rem);
   color: var(--color-text-main);
   background:
     radial-gradient(circle at top right, rgba(253, 186, 116, 0.34), transparent 30%),
@@ -23864,11 +23866,36 @@ textarea {
 }
 
 .mobile-content-safe {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
+  padding-bottom: var(--co-mobile-bottom-nav-clearance);
 }
 
 .mobile-nav-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+.co-mobile-bottom-spacer {
+  height: var(--co-mobile-bottom-nav-clearance);
+}
+
+@media (max-width: 1023px) {
+  html {
+    scroll-padding-bottom: var(--co-mobile-bottom-nav-clearance);
+  }
+
+  .co-module-frame {
+    padding-bottom: 0.75rem;
+  }
+
+  .co-office-page,
+  .co-field-workspace-page,
+  .co-field-tool-page,
+  .co-access-restricted-page {
+    padding-bottom: 1rem;
+  }
+
+  .co-mobile-bottom-nav {
+    min-height: var(--co-mobile-bottom-nav-height);
+  }
 }
 
 @media (min-width: 1024px) {

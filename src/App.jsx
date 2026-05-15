@@ -1023,7 +1023,7 @@ function runDesignSystemChecks() {
   const failures = [];
   const navIds = new Set(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id)));
 
-  ["dashboard", "leads", "jobs", "reports", "calculator", "copilot", "design"].forEach((id) => {
+  ["dashboard", "leads", "jobs", "reports", "calculator", "copilot", "design", "settings"].forEach((id) => {
     if (!navIds.has(id)) failures.push(`Missing nav item: ${id}`);
   });
 
@@ -29241,9 +29241,37 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   );
 }
 
+function AccessRestrictedPage({ user, companySettings, setActive }) {
+  const defaultModuleId = getDefaultModuleId(user);
+  const canOpenDefault = canAccessModule(defaultModuleId, user, companySettings);
+
+  return (
+    <div className="co-access-restricted-page">
+      <PageHeader
+        eyebrow="Role Protected"
+        title="Workspace unavailable"
+        description="This route is protected for your role. Apex HQ keeps office, admin, AI, and company setup data out of field workspaces."
+        actions={<Badge tone="slate">Access protected</Badge>}
+      />
+      <div className="mx-auto grid w-full max-w-[960px] gap-4 px-5 sm:px-6 lg:px-8">
+        <Card className="p-5">
+          <SectionHeader title="Open your allowed workspace" description="Use the workspace assigned to your role to continue without exposing restricted records." />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" onClick={() => canOpenDefault && setActive?.(defaultModuleId)} disabled={!canOpenDefault}>
+              Open workspace
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function MainContent(props) {
   const { active } = props;
-  if (!canAccessModule(active, props.user, props.companySettings)) return null;
+  if (!canAccessModule(active, props.user, props.companySettings)) {
+    return <AccessRestrictedPage user={props.user} companySettings={props.companySettings} setActive={props.setActive} />;
+  }
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "commandCenter") return <CommandCenterPage {...props} />;
   if (active === "leads") {
@@ -29515,6 +29543,7 @@ export default function App() {
   const publicEstimateRequestRoute = pathname === PUBLIC_ESTIMATE_REQUEST_PATH;
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
+  const previousActiveRef = useRef(active);
   const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings), [appState.companySettings, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
@@ -29536,6 +29565,14 @@ export default function App() {
       setDashboardFocusTarget("");
     }
   }, [active, dashboardFocusTarget]);
+
+  useEffect(() => {
+    if (previousActiveRef.current === active) return;
+    previousActiveRef.current = active;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+  }, [active]);
 
   function navigateTo(nextPath, { replace = false } = {}) {
     const normalized = normalizePathname(nextPath);
@@ -32337,6 +32374,7 @@ export default function App() {
               />
             </div>
           </main>
+          <div className="co-mobile-bottom-spacer lg:hidden" aria-hidden="true" />
         </div>
       </div>
       <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />

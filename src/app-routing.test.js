@@ -211,3 +211,24 @@ test("AI Office route resolves directly while legacy copilot links still work", 
     importedDraftId: "",
   });
 });
+
+test("system routes resolve directly", () => {
+  assert.equal(getModulePath("design"), "/design");
+  assert.deepEqual(parseAppPath("/design"), {
+    active: "design",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+  assert.equal(getModulePath("settings"), "/settings");
+  assert.deepEqual(parseAppPath("/settings"), {
+    active: "settings",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});

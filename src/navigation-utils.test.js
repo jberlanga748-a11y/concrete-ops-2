@@ -29,6 +29,8 @@ const NAV_GROUPS = [
     items: [
       { id: "calculator", label: "Calculator" },
       { id: "toolChecklist", label: "Tool Checklist" },
+      { id: "copilot", label: "AI Office" },
+      { id: "design", label: "Design System" },
       { id: "settings", label: "Settings" },
     ],
   },
@@ -42,9 +44,11 @@ test("office roles keep full office navigation and dashboard default", () => {
   assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "settings"],
+    ["dashboard", "jobs", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "copilot", "design", "settings"],
   );
   assert.equal(canAccessModule("employees", owner, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("copilot", owner, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("design", owner, { toolChecklistEnabled: true }), true);
 });
 
 test("administrators and operations managers can access employees", () => {
@@ -64,6 +68,8 @@ test("employees do not see leads in navigation and default to field workspace", 
   assert.equal(canAccessModule("customers", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("reports", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("settings", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("copilot", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("design", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("dashboard", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
@@ -85,7 +91,7 @@ test("foreman also stays in field-only navigation for now", () => {
 test("field roles are redirected away from office-only modules by access rules", () => {
   const foreman = { role: "Foreman" };
   const employee = { role: "Employee" };
-  const blockedModules = ["dashboard", "leads", "customers", "employees", "estimates", "settings"];
+  const blockedModules = ["dashboard", "leads", "customers", "employees", "estimates", "settings", "copilot", "design"];
 
   blockedModules.forEach((moduleId) => {
     assert.equal(canAccessModule(moduleId, foreman, { toolChecklistEnabled: true }), false);
