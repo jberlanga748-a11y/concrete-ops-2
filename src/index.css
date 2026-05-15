@@ -1108,6 +1108,32 @@ textarea {
     box-shadow: 0 14px 34px -30px rgba(7, 17, 31, 0.46);
   }
 
+  .co-topbar-actions {
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .co-topbar-user-pill,
+  .co-topbar-logout {
+    min-height: 2.25rem;
+    white-space: nowrap !important;
+    word-break: normal !important;
+  }
+
+  .co-topbar-user-pill {
+    display: inline-flex;
+    max-width: 14rem;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .co-topbar-logout {
+    border-radius: 999px !important;
+    padding-inline: 0.85rem !important;
+    line-height: 1.1 !important;
+  }
+
   .field-label {
     @apply grid w-full min-w-0 gap-1 text-xs font-black tracking-[0.02em] text-slate-700;
   }
@@ -1514,7 +1540,7 @@ textarea {
     align-items: center;
     gap: 0.45rem;
     margin-top: 0.55rem;
-    min-height: 1.55rem;
+    min-height: 2rem;
     padding: 0.24rem 0;
     border-radius: 999px;
     color: var(--co-command-link);
@@ -19824,7 +19850,7 @@ textarea {
 .co-ai-kpi-grid .co-command-kpi p:nth-child(3),
 .co-ai-kpi-grid .co-command-kpi-link {
   font-size: 0.72rem !important;
-  min-height: 1.85rem;
+  min-height: 2rem;
   line-height: 1.2 !important;
 }
 
@@ -21354,7 +21380,7 @@ textarea {
   .co-ai-kpi-grid .co-command-kpi p:nth-child(3),
   .co-ai-kpi-grid .co-command-kpi-link {
     font-size: 0.6rem !important;
-    min-height: 1.75rem;
+    min-height: 2rem;
     line-height: 1.15 !important;
   }
 

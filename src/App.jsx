@@ -1134,9 +1134,9 @@ function Icon({ name, className = "h-4 w-4" }) {
 
 function Button({ children, variant = "primary", size = "md", className = "", ...props }) {
   const sizes = {
-    sm: "px-3 py-1.5 text-xs",
-    md: "px-3.5 py-2 text-sm",
-    lg: "px-4 py-2.5 text-sm",
+    sm: "min-h-8 px-3 py-1.5 text-xs",
+    md: "min-h-9 px-3.5 py-2 text-sm",
+    lg: "min-h-10 px-4 py-2.5 text-sm",
   };
 
   return (
@@ -2413,7 +2413,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-700">{companyName || APP_NAME}</p>
           <p className="truncate text-base font-black text-slate-950">{current?.label || "Dashboard"}</p>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="co-topbar-actions hidden items-center gap-2 md:flex">
           <NotificationCenterButton
             source={notificationSource}
             permissions={permissions}
@@ -2442,8 +2442,8 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               </select>
             </label>
           ) : null}
-          <div className="co-topbar-pill rounded-full px-3 py-2 text-xs font-black text-slate-700">{user?.name || "User"}</div>
-          <Button variant="ghost" size="sm" onClick={onLogout}>
+          <div className="co-topbar-pill co-topbar-user-pill rounded-full px-3 py-2 text-xs font-black text-slate-700">{user?.name || "User"}</div>
+          <Button className="co-topbar-logout" variant="ghost" size="sm" onClick={onLogout}>
             Log out
           </Button>
         </div>
