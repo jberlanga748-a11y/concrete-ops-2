@@ -9948,19 +9948,23 @@ textarea {
 }
 
 @media (min-width: 1024px) and (max-width: 1399px) {
+  .co-ppe-page .co-toolbox-filter-strip,
   .co-toolbox-talks-page .co-toolbox-filter-strip {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .co-ppe-page .co-toolbox-category-tabs,
   .co-toolbox-talks-page .co-toolbox-category-tabs {
     flex-wrap: wrap;
     overflow: visible;
   }
 
+  .co-ppe-page .co-toolbox-category-tabs button,
   .co-toolbox-talks-page .co-toolbox-category-tabs button {
     flex: 1 1 auto;
   }
 
+  .co-ppe-page .co-toolbox-search,
   .co-toolbox-talks-page .co-toolbox-search {
     max-width: 34rem;
   }
@@ -22976,16 +22980,65 @@ textarea {
   }
 
   .co-ppe-page .co-toolbox-command-layout {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.85rem) !important;
+    margin-top: 0.85rem !important;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 
+  .co-ppe-page .co-toolbox-board-header {
+    padding: 0.85rem !important;
+  }
+
+  .co-ppe-page .co-toolbox-board-header p {
+    display: none;
+  }
+
   .co-ppe-page .co-toolbox-filter-strip {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.35rem) !important;
+    margin-top: 0 !important;
+  }
+
+  .co-ppe-page .co-toolbox-category-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.42rem;
+    overflow: visible;
+    padding-bottom: 0;
+    width: 100%;
+  }
+
+  .co-ppe-page .co-toolbox-category-tabs button {
+    min-height: 2.12rem;
+    min-width: 0;
+    padding: 0.42rem 0.36rem;
+    width: 100%;
+    font-size: 0.62rem;
+    white-space: normal;
+    line-height: 1.05;
+  }
+
+  .co-ppe-page .co-toolbox-search {
+    min-height: 2.32rem;
   }
 
   .co-ppe-page .co-toolbox-mobile-list {
-    padding-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+    padding-top: 0.75rem !important;
+  }
+
+  .co-ppe-page .co-toolbox-tool-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem !important;
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .co-ppe-page .co-toolbox-tool-tabs button {
+    min-width: 0;
+    width: 100%;
+    white-space: normal;
+  }
+
+  .co-ppe-page .co-toolbox-tools-panel {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
   }
 
   .co-tool-checklist-page .co-toolbox-kpi-grid,

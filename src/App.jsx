@@ -9217,11 +9217,9 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
           const selected = item.id === selectedId;
 
           return (
-            <button
+            <article
               key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -9231,7 +9229,10 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
                 <Badge tone={ppeItemStatusTone(item)}>{ppeItemRequirementLabel(item)}</Badge>
               </div>
               <div className="co-toolbox-mobile-summary">{item.description || "No PPE guidance recorded yet."}</div>
-            </button>
+              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => onSelect(item.id)}>
+                Open PPE
+              </button>
+            </article>
           );
         })}
       </div>
@@ -9828,7 +9829,7 @@ function PpeChecklistPagePolished({
         />
       ) : null}
 
-      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-3 2xl:grid-cols-5 lg:px-6">
         {ppeKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
@@ -9846,7 +9847,7 @@ function PpeChecklistPagePolished({
         ))}
       </div>
 
-      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 2xl:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <Card id="ppe-readiness-board" className="co-toolbox-main-board overflow-hidden">
           <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
             <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -9864,7 +9865,7 @@ function PpeChecklistPagePolished({
                 </button>
               ))}
             </div>
-            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search PPE item, requirement, or description..." />
+            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search PPE gear..." />
           </div>
           {filteredPpeItems.length === 0 ? (
             <div className="p-5"><StateCard title={activePpeItems.length === 0 ? "No PPE items yet" : "No PPE items match these filters"} description={activePpeItems.length === 0 ? "Office/admin can add the first PPE item from the management drawer." : "Clear the filter or search another equipment requirement."} tone="slate" /></div>
