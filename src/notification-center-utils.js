@@ -1,4 +1,5 @@
 import { getStartupCriticalWarnings, normalizeJobStartupFields } from "../shared/jobStartup.js";
+import { canViewJob } from "../shared/permissions.js";
 import { deriveFollowUpQueueState } from "./follow-up-queue-utils.js";
 
 export const NOTIFICATION_CENTER_FILTERS = [
@@ -36,6 +37,14 @@ const SPECIFICITY_RANK = {
   lead_source_dueToday: 85,
   lead_missing_info: 75,
   job_startup_blocker: 70,
+  job_no_activity: 68,
+  daily_report_missing: 67,
+  safety_unresolved: 66,
+  job_photos_missing: 64,
+  delivery_ticket_missing: 62,
+  pre_pour_incomplete: 58,
+  post_pour_incomplete: 57,
+  tool_checklist_unresolved: 56,
   job_draft_customer_match: 65,
   website_lead: 60,
   new_lead: 45,
@@ -63,6 +72,14 @@ export const NOTIFICATION_TRIGGER_DEFINITIONS = [
   { type: "job_draft_customer_match", label: "Imported Draft", title: "Imported draft needs customer match", defaultSeverity: "warning", moduleId: "jobDraftImports", officeOnly: true, description: "An imported job draft needs customer matching before job creation." },
   { type: "job_draft_needs_review", label: "Imported Draft", title: "Imported draft needs review", defaultSeverity: "info", moduleId: "jobDraftImports", officeOnly: true, description: "An imported job draft needs office review before moving forward." },
   { type: "job_startup_blocker", label: "Job Startup", title: "Job startup blocker", defaultSeverity: "warning", moduleId: "jobs", officeOnly: true, description: "A job has startup checklist blockers or needs office readiness review." },
+  { type: "job_no_activity", label: "Scheduled Work", title: "Scheduled job has no activity", defaultSeverity: "warning", moduleId: "schedule", officeOnly: true, description: "A scheduled or active job has no report, photo, ticket, or time activity recorded for the operating date." },
+  { type: "daily_report_missing", label: "Daily Report", title: "Daily report missing", defaultSeverity: "warning", moduleId: "reports", officeOnly: false, description: "A visible assigned job is missing its daily report for the operating date." },
+  { type: "job_photos_missing", label: "Photo Evidence", title: "Job photos missing", defaultSeverity: "warning", moduleId: "uploads", officeOnly: false, description: "A visible assigned job has no photo evidence for the operating date." },
+  { type: "delivery_ticket_missing", label: "Delivery Ticket", title: "Delivery ticket missing", defaultSeverity: "warning", moduleId: "deliveryTickets", officeOnly: false, description: "A visible concrete/material job appears to need a delivery ticket." },
+  { type: "pre_pour_incomplete", label: "Pre-Pour", title: "Pre-pour checklist incomplete", defaultSeverity: "warning", moduleId: "prePour", officeOnly: false, description: "A visible job has incomplete pre-pour readiness items." },
+  { type: "post_pour_incomplete", label: "Post-Pour", title: "Post-pour checklist incomplete", defaultSeverity: "warning", moduleId: "postPour", officeOnly: false, description: "A visible job has incomplete post-pour closeout items." },
+  { type: "safety_unresolved", label: "Safety", title: "Safety item unresolved", defaultSeverity: "critical", moduleId: "incidents", officeOnly: false, description: "A visible job has an unresolved incident or safety item." },
+  { type: "tool_checklist_unresolved", label: "Tools", title: "Tool checklist needs attention", defaultSeverity: "warning", moduleId: "toolChecklist", officeOnly: false, description: "A visible job has missing, damaged, or unfinished tool checklist items." },
 ];
 
 const TRIGGER_DEFINITIONS_BY_TYPE = new Map(NOTIFICATION_TRIGGER_DEFINITIONS.map((definition) => [definition.type, definition]));
@@ -174,6 +191,13 @@ export function canViewNotificationCenter(permissions = {}) {
     || permissionFlag(permissions, "estimates.canView")
     || permissionFlag(permissions, "jobDraftImports.canView")
     || permissionFlag(permissions, "jobs.canManageAll")
+    || permissionFlag(permissions, "reports.canView")
+    || permissionFlag(permissions, "uploads.canView")
+    || permissionFlag(permissions, "deliveryTickets.canView")
+    || permissionFlag(permissions, "prePour.canView")
+    || permissionFlag(permissions, "postPour.canView")
+    || permissionFlag(permissions, "safety.canView")
+    || permissionFlag(permissions, "toolChecklist.canUse")
   );
 }
 
@@ -214,6 +238,14 @@ export function notificationActionLabel(item = {}) {
   if (item.moduleId === "estimates") return "Open Estimates";
   if (item.moduleId === "jobDraftImports") return "Open Imported Drafts";
   if (item.moduleId === "jobs") return "Open Jobs";
+  if (item.moduleId === "schedule") return "Open Schedule";
+  if (item.moduleId === "reports") return "Open Reports";
+  if (item.moduleId === "uploads") return "Open Photo Evidence";
+  if (item.moduleId === "deliveryTickets") return "Open Delivery Tickets";
+  if (item.moduleId === "prePour") return "Open Pre-Pour";
+  if (item.moduleId === "postPour") return "Open Post-Pour";
+  if (item.moduleId === "incidents") return "Open Safety";
+  if (item.moduleId === "toolChecklist") return "Open Tool Checklist";
   return "Open";
 }
 
@@ -528,6 +560,328 @@ function buildStartupNotifications(source = {}, options = {}) {
     .filter(Boolean);
 }
 
+function recordJobId(record = {}) {
+  return text(record.jobId || record.jobID || record.job?.id || record.relatedJobId || record.targetJobId);
+}
+
+function recordDate(record = {}) {
+  return dateKey(
+    record.reportDate
+    || record.operatingDate
+    || record.workDate
+    || record.ticketDate
+    || record.deliveryDate
+    || record.uploadedAt
+    || record.takenAtIso
+    || record.clockInAt
+    || record.completedAt
+    || record.submittedAt
+    || record.createdAt
+    || record.updatedAt,
+  );
+}
+
+function jobOperatingDate(job = {}) {
+  return dateKey(job.scheduledStart || job.scheduledDate || job.startDate || job.startDateTarget || job.dueDate || job.due);
+}
+
+function recordMatchesJob(record = {}, job = {}) {
+  const jobId = recordJobId(record);
+  return Boolean(jobId && job?.id && jobId === job.id);
+}
+
+function recordMatchesJobDate(record = {}, job = {}, targetDate = "", { allowBlankDate = true } = {}) {
+  if (!recordMatchesJob(record, job)) return false;
+  const currentDate = recordDate(record);
+  if (!targetDate) return true;
+  if (!currentDate) return allowBlankDate;
+  return currentDate === targetDate;
+}
+
+function activeJobHasOperationalDate(job = {}, today = "") {
+  const status = normalizeStatus(job.status || job.stage);
+  const jobDate = jobOperatingDate(job);
+  return Boolean(
+    (jobDate && jobDate <= today)
+    || ["active", "in progress", "started"].includes(status)
+  );
+}
+
+function operationalJobSeverity(job = {}, today = "") {
+  const jobDate = jobOperatingDate(job);
+  return jobDate && jobDate < today ? "critical" : "warning";
+}
+
+function operationalJobDueLabel(job = {}, today = "") {
+  const jobDate = jobOperatingDate(job);
+  if (!jobDate) return "Needs attention";
+  if (jobDate < today) return `Overdue ${jobDate}`;
+  if (jobDate === today) return "Due today";
+  return `Scheduled ${jobDate}`;
+}
+
+function operationalJobTitle(job = {}) {
+  return job.title || job.name || job.projectName || job.customer || job.customerName || job.id || "Job";
+}
+
+function canViewOperationalJob(job = {}, options = {}) {
+  if (permissionFlag(options.permissions, "jobs.canManageAll")) return true;
+  return canViewJob(job, options.user);
+}
+
+function deliveryTicketExpected(job = {}, report = null) {
+  if (report?.concretePoured || report?.deliveryTicketRequired) return true;
+  if (job.concreteDeliveryExpected || job.materialDeliveryExpected || job.requiresDeliveryTicket || job.deliveryTicketRequired || job.pourDate) return true;
+  const haystack = [
+    job.title,
+    job.name,
+    job.projectType,
+    job.serviceType,
+    job.scope,
+    job.scopeSummary,
+    job.materialNotes,
+    job.fieldNotes,
+    job.notes,
+    job.nextStep,
+  ].map(text).join(" ").toLowerCase();
+  return /\b(concrete|pour|ready mix|ready-mix|truck|delivery ticket|delivery|material)\b/.test(haystack);
+}
+
+function checklistItemNeedsAction(item = {}) {
+  if (!item || item.archivedAt) return false;
+  const status = normalizeStatus(item.status);
+  if (!status) return false;
+  return ["unchecked", "needed", "missing", "damaged", "open", "in progress", "needs review", "reopened"].includes(status);
+}
+
+function checklistNeedsAction(record = {}) {
+  if (!record || isArchived(record)) return false;
+  const status = normalizeStatus(record.status);
+  const closedStatuses = new Set(["complete", "completed", "reviewed", "submitted", "approved", "closed", "archived", "not applicable"]);
+  const items = asArray(record.items);
+  const explicitGapCount = Number(record.missingItemCount || record.damagedItemCount || record.incompleteCount || record.openItemCount || 0);
+  if (explicitGapCount > 0) return true;
+  if (items.some(checklistItemNeedsAction)) return true;
+  if (items.length > 0) return !closedStatuses.has(status);
+  return Boolean(status && !closedStatuses.has(status));
+}
+
+function unresolvedSafetyIncident(record = {}) {
+  if (!record || isArchived(record)) return false;
+  const status = normalizeStatus(record.status);
+  return !["resolved", "closed", "reviewed", "archived"].includes(status);
+}
+
+function activityRecordedForJobDate({ job, targetDate, reports, uploads, deliveryTickets, timeEntries }) {
+  return reports.some((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }))
+    || uploads.some((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }))
+    || deliveryTickets.some((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }))
+    || timeEntries.some((record) => (
+      recordMatchesJob(record, job)
+      && (record.clockInAt && !record.clockOutAt
+        ? true
+        : recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }))
+    ));
+}
+
+function buildJobOperationalNotification({
+  id,
+  type,
+  severity,
+  title,
+  description,
+  job,
+  moduleId,
+  openPath = "",
+  dueAt = "",
+  dueLabel = "",
+  meta = {},
+}) {
+  return {
+    id,
+    sourceKey: id,
+    type,
+    severity,
+    title,
+    description,
+    dueAt,
+    createdAt: job.updatedAt || job.createdAt || "",
+    dueLabel,
+    recordType: "job",
+    recordId: job.id,
+    moduleId,
+    openPath,
+    actionLabel: notificationActionLabel({ moduleId }),
+    meta,
+  };
+}
+
+function buildOperationalWorkflowNotifications(source = {}, options = {}) {
+  const permissions = options.permissions || {};
+  const today = options.today || dateKey(new Date());
+  const reports = asArray(source.dailyReports).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const uploads = asArray(source.uploads).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const deliveryTickets = asArray(source.deliveryTickets).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const timeEntries = asArray(source.timeEntries).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const prePourChecklists = asArray(source.prePourChecklists).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const postPourChecklists = asArray(source.postPourChecklists).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const toolChecklists = asArray(source.toolChecklists).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+  const safetyIncidents = asArray(source.safetyIncidents).filter((record) => sameCompany(record, options.companyId) && !isArchived(record));
+
+  const visibleJobs = asArray(source.jobs)
+    .filter((job) => sameCompany(job, options.companyId) && isLiveJob(job))
+    .filter((job) => canViewOperationalJob(job, options))
+    .filter((job) => activeJobHasOperationalDate(job, today));
+
+  const items = [];
+
+  for (const job of visibleJobs) {
+    const targetDate = jobOperatingDate(job) || today;
+    const label = operationalJobTitle(job);
+    const dueLabel = operationalJobDueLabel(job, today);
+    const severity = operationalJobSeverity(job, today);
+    const report = reports.find((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }));
+    const jobUploads = uploads.filter((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }));
+    const jobDeliveryTickets = deliveryTickets.filter((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: false }));
+    const prePourOpen = [
+      job.prePourChecklist,
+      ...prePourChecklists.filter((record) => recordMatchesJob(record, job)),
+    ].filter(Boolean).filter(checklistNeedsAction);
+    const postPourOpen = [
+      job.postPourChecklist,
+      ...postPourChecklists.filter((record) => recordMatchesJob(record, job)),
+    ].filter(Boolean).filter(checklistNeedsAction);
+    const toolOpen = toolChecklists.filter((record) => recordMatchesJobDate(record, job, targetDate, { allowBlankDate: true })).filter(checklistNeedsAction);
+    const unresolvedIncidents = safetyIncidents.filter((record) => recordMatchesJob(record, job)).filter(unresolvedSafetyIncident);
+
+    if (permissionFlag(permissions, "jobs.canManageAll") && !activityRecordedForJobDate({ job, targetDate, reports, uploads, deliveryTickets, timeEntries })) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:noActivity`,
+        type: "job_no_activity",
+        severity,
+        title: "Scheduled job has no activity",
+        description: `${label} has no report, photo, ticket, or time activity recorded for ${targetDate}.`,
+        job,
+        moduleId: "schedule",
+        openPath: "/schedule",
+        dueAt: targetDate,
+        dueLabel,
+      }));
+    }
+
+    if (permissionFlag(permissions, "reports.canView") && !report) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:missingReport`,
+        type: "daily_report_missing",
+        severity,
+        title: "Daily report missing",
+        description: `${label} is missing a daily report for ${targetDate}.`,
+        job,
+        moduleId: "reports",
+        openPath: "/reports",
+        dueAt: targetDate,
+        dueLabel,
+      }));
+    }
+
+    if (permissionFlag(permissions, "uploads.canView") && jobUploads.length === 0) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:missingPhotos`,
+        type: "job_photos_missing",
+        severity: "warning",
+        title: "Job photos missing",
+        description: `${label} has no photo evidence recorded for ${targetDate}.`,
+        job,
+        moduleId: "uploads",
+        openPath: "/uploads",
+        dueAt: targetDate,
+        dueLabel,
+      }));
+    }
+
+    if (permissionFlag(permissions, "deliveryTickets.canView") && deliveryTicketExpected(job, report) && jobDeliveryTickets.length === 0) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:missingDeliveryTicket`,
+        type: "delivery_ticket_missing",
+        severity: "warning",
+        title: "Delivery ticket missing",
+        description: `${label} appears to need a material or concrete delivery ticket.`,
+        job,
+        moduleId: "deliveryTickets",
+        openPath: "/delivery-tickets",
+        dueAt: targetDate,
+        dueLabel,
+      }));
+    }
+
+    if (permissionFlag(permissions, "prePour.canView") && prePourOpen.length > 0) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:prePourIncomplete`,
+        type: "pre_pour_incomplete",
+        severity: "warning",
+        title: "Pre-pour checklist incomplete",
+        description: `${label} has ${prePourOpen.length} pre-pour readiness record${prePourOpen.length === 1 ? "" : "s"} needing action.`,
+        job,
+        moduleId: "prePour",
+        openPath: "/pre-pour",
+        dueAt: targetDate,
+        dueLabel,
+        meta: { openCount: prePourOpen.length },
+      }));
+    }
+
+    if (permissionFlag(permissions, "postPour.canView") && postPourOpen.length > 0) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:postPourIncomplete`,
+        type: "post_pour_incomplete",
+        severity: "warning",
+        title: "Post-pour checklist incomplete",
+        description: `${label} has ${postPourOpen.length} post-pour closeout record${postPourOpen.length === 1 ? "" : "s"} needing action.`,
+        job,
+        moduleId: "postPour",
+        openPath: "/post-pour",
+        dueAt: targetDate,
+        dueLabel,
+        meta: { openCount: postPourOpen.length },
+      }));
+    }
+
+    if (permissionFlag(permissions, "safety.canView") && unresolvedIncidents.length > 0) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:safetyUnresolved`,
+        type: "safety_unresolved",
+        severity: "critical",
+        title: "Safety item unresolved",
+        description: `${label} has ${unresolvedIncidents.length} unresolved incident or safety item${unresolvedIncidents.length === 1 ? "" : "s"}.`,
+        job,
+        moduleId: "incidents",
+        openPath: "/incidents",
+        dueAt: targetDate,
+        dueLabel,
+        meta: { openCount: unresolvedIncidents.length },
+      }));
+    }
+
+    if (permissionFlag(permissions, "toolChecklist.canUse") && toolOpen.length > 0) {
+      items.push(buildJobOperationalNotification({
+        id: `job:${job.id}:toolChecklistUnresolved`,
+        type: "tool_checklist_unresolved",
+        severity: "warning",
+        title: "Tool checklist needs attention",
+        description: `${label} has ${toolOpen.length} tool checklist record${toolOpen.length === 1 ? "" : "s"} needing action.`,
+        job,
+        moduleId: "toolChecklist",
+        openPath: "/tool-checklist",
+        dueAt: targetDate,
+        dueLabel,
+        meta: { openCount: toolOpen.length },
+      }));
+    }
+  }
+
+  return items;
+}
+
 function dedupeNotifications(items = []) {
   const bySource = new Map();
 
@@ -573,6 +927,7 @@ export function buildNotificationItems(source = {}, options = {}) {
     ...buildEstimateNotifications(source, nextOptions),
     ...buildJobDraftNotifications(source, nextOptions),
     ...buildStartupNotifications(source, nextOptions),
+    ...buildOperationalWorkflowNotifications(source, nextOptions),
   ]));
 }
 

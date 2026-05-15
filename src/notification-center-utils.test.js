@@ -24,7 +24,14 @@ const OFFICE_PERMISSIONS = {
   estimates: { canView: true },
   contactHistory: { canView: true },
   jobDraftImports: { canView: true },
-  jobs: { canManageAll: true },
+  jobs: { canView: true, canManageAll: true },
+  reports: { canView: true },
+  uploads: { canView: true },
+  deliveryTickets: { canView: true },
+  prePour: { canView: true },
+  postPour: { canView: true },
+  safety: { canView: true },
+  toolChecklist: { canUse: true },
 };
 const FIELD_PERMISSIONS = {
   leads: { canView: false },
@@ -33,6 +40,21 @@ const FIELD_PERMISSIONS = {
   contactHistory: { canView: false },
   jobDraftImports: { canView: false },
   jobs: { canManageAll: false },
+};
+const FOREMAN_PERMISSIONS = {
+  leads: { canView: false },
+  customers: { canView: false },
+  estimates: { canView: false },
+  contactHistory: { canView: false },
+  jobDraftImports: { canView: false },
+  jobs: { canView: true, canManageAll: false },
+  reports: { canView: true },
+  uploads: { canView: true },
+  deliveryTickets: { canView: true },
+  prePour: { canView: true },
+  postPour: { canView: true },
+  safety: { canView: true },
+  toolChecklist: { canUse: true },
 };
 
 test("notification center derives follow-up notifications with stable ids and severity order", () => {
@@ -178,6 +200,92 @@ test("job draft and startup notifications use existing office work records", () 
   assert.equal(items.some((item) => item.id === "job:J-1:startupBlocker"), true);
   assert.equal(items.find((item) => item.id === "job:J-1:startupBlocker").title, "Job startup blocker");
   assert.equal(items.some((item) => item.id === "job:J-2:startupBlocker"), false);
+});
+
+test("operational reminders surface missing contractor workflow activity for office users", () => {
+  const items = buildNotificationItems({
+    jobs: [
+      {
+        id: "J-OPS",
+        companyId: "COMPANY-A",
+        title: "Shop slab pour",
+        customer: "Cascade",
+        status: "Scheduled",
+        scheduledStart: `${TODAY}T07:00:00.000Z`,
+        materialNotes: "Concrete delivery expected.",
+        prePourChecklist: {
+          id: "PP-1",
+          jobId: "J-OPS",
+          status: "draft",
+          items: [{ id: "PP-I-1", label: "Forms checked", status: "unchecked" }],
+        },
+      },
+    ],
+    dailyReports: [],
+    uploads: [],
+    deliveryTickets: [],
+    postPourChecklists: [
+      { id: "POST-1", jobId: "J-OPS", status: "reopened", items: [{ id: "POST-I-1", status: "unchecked" }] },
+    ],
+    safetyIncidents: [
+      { id: "SAFE-1", jobId: "J-OPS", status: "open", title: "Trip hazard" },
+    ],
+    toolChecklists: [
+      { id: "TOOL-1", jobId: "J-OPS", createdAt: `${TODAY}T06:30:00.000Z`, status: "active", items: [{ id: "TOOL-I-1", name: "Saw", status: "missing" }] },
+    ],
+    timeEntries: [],
+  }, { today: TODAY, companyId: "COMPANY-A", permissions: OFFICE_PERMISSIONS });
+
+  assert.equal(items.some((item) => item.id === "job:J-OPS:noActivity" && item.moduleId === "schedule"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:missingReport" && item.moduleId === "reports"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:missingPhotos" && item.moduleId === "uploads"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:missingDeliveryTicket" && item.moduleId === "deliveryTickets"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:prePourIncomplete" && item.moduleId === "prePour"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:postPourIncomplete" && item.moduleId === "postPour"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:safetyUnresolved" && item.moduleId === "incidents"), true);
+  assert.equal(items.some((item) => item.id === "job:J-OPS:toolChecklistUnresolved" && item.moduleId === "toolChecklist"), true);
+});
+
+test("field notifications stay assigned-job and field-workflow scoped", () => {
+  const items = buildNotificationItems({
+    leads: [
+      { id: "L-HIDDEN", companyId: "COMPANY-A", customer: "Hidden Lead", status: "New", followUpDueAt: TODAY },
+    ],
+    estimates: [
+      { id: "E-HIDDEN", companyId: "COMPANY-A", title: "Hidden Estimate", status: "sent", followUpDueAt: TODAY },
+    ],
+    jobs: [
+      {
+        id: "J-ASSIGNED",
+        companyId: "COMPANY-A",
+        title: "Assigned driveway",
+        status: "Scheduled",
+        scheduledStart: `${TODAY}T07:00:00.000Z`,
+        assignedForemanId: "U-FOREMAN",
+      },
+      {
+        id: "J-OTHER",
+        companyId: "COMPANY-A",
+        title: "Other crew",
+        status: "Scheduled",
+        scheduledStart: `${TODAY}T08:00:00.000Z`,
+        assignedForemanId: "U-OTHER",
+      },
+    ],
+    dailyReports: [],
+    uploads: [],
+  }, {
+    today: TODAY,
+    companyId: "COMPANY-A",
+    permissions: FOREMAN_PERMISSIONS,
+    user: { id: "U-FOREMAN", role: "Foreman" },
+  });
+
+  assert.equal(canViewNotificationCenter(FOREMAN_PERMISSIONS), true);
+  assert.equal(items.some((item) => item.id === "job:J-ASSIGNED:missingReport"), true);
+  assert.equal(items.some((item) => item.id === "job:J-ASSIGNED:missingPhotos"), true);
+  assert.equal(items.some((item) => item.id.includes("J-OTHER")), false);
+  assert.equal(items.some((item) => ["leads", "estimates", "customers", "jobDraftImports"].includes(item.moduleId)), false);
 });
 
 test("dedupe keeps the highest-priority and most-specific notification for the same source record", () => {

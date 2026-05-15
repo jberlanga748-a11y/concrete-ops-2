@@ -2481,8 +2481,9 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
     today: todayDateInputValue(),
     companyId,
     permissions,
+    user,
     state: localState,
-  }), [companyId, localState, permissions, source]);
+  }), [companyId, localState, permissions, source, user]);
   const visibleItems = useMemo(() => filterNotificationItems(notificationState.items, { filter }), [filter, notificationState.items]);
 
   useEffect(() => {
@@ -2643,7 +2644,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
             )) : (
               <div className="co-mobile-empty rounded-2xl border border-blue-100 bg-slate-50 p-4 text-center">
                 <p className="text-sm font-black text-slate-950">{filter === "archived" ? "No archived notifications" : filter === "all" ? "No active notifications" : "No unread notifications"}</p>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Follow-ups, source checks, missing lead info, imported drafts, and startup blockers will appear here when they need office attention.</p>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Follow-ups, source checks, missing reports, photo gaps, tickets, checklists, and safety reminders will appear here when they need attention.</p>
               </div>
             )}
           </div>
@@ -31695,7 +31696,15 @@ export default function App() {
     contactHistory: appState.contactHistory,
     jobDraftImports: appState.jobDraftImports,
     jobs: appState.jobs,
-  }), [appState.contactHistory, appState.currentCompanyId, appState.customers, appState.estimates, appState.jobDraftImports, appState.jobs, appState.leadSources, appState.leads]);
+    dailyReports: appState.dailyReports,
+    uploads: appState.uploads,
+    deliveryTickets: appState.deliveryTickets,
+    prePourChecklists: appState.prePourChecklists,
+    postPourChecklists: appState.postPourChecklists,
+    safetyIncidents: appState.safetyIncidents,
+    toolChecklists: appState.toolChecklists,
+    timeEntries: appState.timeEntries,
+  }), [appState.contactHistory, appState.currentCompanyId, appState.customers, appState.dailyReports, appState.deliveryTickets, appState.estimates, appState.jobDraftImports, appState.jobs, appState.leadSources, appState.leads, appState.postPourChecklists, appState.prePourChecklists, appState.safetyIncidents, appState.timeEntries, appState.toolChecklists, appState.uploads]);
 
   async function runMutation(task) {
     if (!sessionToken) return;
