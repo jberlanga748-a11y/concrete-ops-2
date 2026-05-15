@@ -9920,6 +9920,23 @@ textarea {
   -webkit-line-clamp: 3;
 }
 
+.co-toolbox-mobile-card-action {
+  display: flex;
+  width: 100%;
+  min-height: 2.3rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.72rem;
+  border: 0;
+  border-radius: 0.72rem;
+  background: var(--color-brand-orange-strong);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .co-toolbox-main-board {
   scroll-margin-top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
 }
@@ -9927,6 +9944,25 @@ textarea {
 @media (min-width: 768px) {
   .co-toolbox-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1399px) {
+  .co-toolbox-talks-page .co-toolbox-filter-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-toolbox-talks-page .co-toolbox-category-tabs {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-category-tabs button {
+    flex: 1 1 auto;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-search {
+    max-width: 34rem;
   }
 }
 
@@ -10127,20 +10163,35 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .co-toolbox-talks-page .co-toolbox-board-header {
+    padding: 0.85rem !important;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-board-header p {
+    display: none;
+  }
+
   .co-toolbox-talks-page .co-toolbox-category-tabs {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.42rem;
     overflow: visible;
     padding-bottom: 0;
     width: 100%;
   }
 
   .co-toolbox-talks-page .co-toolbox-category-tabs button {
+    min-height: 2.12rem;
     min-width: 0;
+    padding: 0.42rem 0.36rem;
     width: 100%;
+    font-size: 0.62rem;
     white-space: normal;
-    line-height: 1.12;
+    line-height: 1.05;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-search {
+    min-height: 2.32rem;
   }
 
   .co-toolbox-tools-drawer > summary {
@@ -23092,7 +23143,11 @@ textarea {
   }
 
   .co-toolbox-talks-page .co-toolbox-mobile-list {
-    padding-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+    padding-top: 0.75rem !important;
+  }
+
+  .co-toolbox-talks-page .co-toolbox-tools-panel {
+    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
   }
 
   .co-toolbox-mobile-focus {

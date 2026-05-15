@@ -8633,11 +8633,9 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect }) {
           const selected = policy.id === selectedId;
 
           return (
-            <button
+            <article
               key={policy.id}
-              type="button"
-              onClick={() => onSelect(policy.id)}
-              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -8647,7 +8645,10 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect }) {
                 <Badge tone={toolboxPolicyStatusTone(policy)}>{policy.archivedAt ? "Archived" : policy.statusLabel || "Active"}</Badge>
               </div>
               <div className="co-toolbox-mobile-summary">{policy.body || "No guidance text recorded yet."}</div>
-            </button>
+              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => onSelect(policy.id)}>
+                Open talk
+              </button>
+            </article>
           );
         })}
       </div>
@@ -9105,7 +9106,7 @@ function ToolboxTalksPagePolished({
         onManage={() => openTools("manage")}
       />
 
-      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+      <div className="co-toolbox-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-3 2xl:grid-cols-5 lg:px-6">
         {toolboxKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
@@ -9123,7 +9124,7 @@ function ToolboxTalksPagePolished({
         ))}
       </div>
 
-      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
+      <div className="co-toolbox-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 2xl:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div id="toolbox-guidance-board" ref={boardRef} className="min-w-0">
           <Card className="co-toolbox-main-board overflow-hidden">
             <div className="co-toolbox-board-header border-b border-slate-200 bg-white p-4">
@@ -10042,29 +10043,32 @@ function SafetyPage({
     }
   }, [selectedIncidentId, visibleIncidents]);
 
-  function handlePolicySubmit(event) {
+  async function handlePolicySubmit(event) {
     event.preventDefault();
     if (selectedPolicy && canManage) {
-      onSaveSafetyPolicy(selectedPolicy.id, policyDraft);
+      await onSaveSafetyPolicy(selectedPolicy.id, policyDraft);
       return;
     }
-    onCreateSafetyPolicy(policyDraft);
+    const created = await onCreateSafetyPolicy(policyDraft);
+    if (!created) return;
     setPolicyDraft(INITIAL_SAFETY_POLICY_FORM);
   }
 
-  function handlePpeSubmit(event) {
+  async function handlePpeSubmit(event) {
     event.preventDefault();
     if (selectedPpeItem && canManage) {
-      onSavePpeItem(selectedPpeItem.id, ppeDraft);
+      await onSavePpeItem(selectedPpeItem.id, ppeDraft);
       return;
     }
-    onCreatePpeItem(ppeDraft);
+    const created = await onCreatePpeItem(ppeDraft);
+    if (!created) return;
     setPpeDraft(INITIAL_PPE_ITEM_FORM);
   }
 
-  function handleAcknowledge(event) {
+  async function handleAcknowledge(event) {
     event.preventDefault();
-    onAcknowledgeSafety(ackDraft);
+    const acknowledged = await onAcknowledgeSafety(ackDraft);
+    if (!acknowledged) return;
     setAckDraft((current) => ({ ...INITIAL_SAFETY_ACK_FORM, jobId: current.jobId }));
   }
 
