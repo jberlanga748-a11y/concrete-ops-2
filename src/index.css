@@ -10460,6 +10460,10 @@ textarea {
   .co-toolbox-talks-page .co-toolbox-command-layout {
     grid-template-columns: minmax(0, 1fr) 340px !important;
   }
+
+  .co-ppe-page .co-toolbox-command-layout {
+    grid-template-columns: minmax(0, 1fr) 340px !important;
+  }
 }
 
 @media (min-width: 768px) {
@@ -10749,6 +10753,27 @@ textarea {
   }
 
   .co-toolbox-talks-page .co-toolbox-tools-panel .co-card {
+    box-shadow: 0 18px 42px -34px rgba(7, 17, 31, 0.48);
+  }
+
+  .co-ppe-page .co-toolbox-tools-drawer[open] {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem) !important;
+  }
+
+  .co-ppe-page .co-toolbox-tools-panel {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
+  .co-ppe-page .co-toolbox-form-card {
+    scroll-margin-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.5rem);
+  }
+
+  .co-ppe-page .co-toolbox-form-card .md\:col-span-2:last-child,
+  .co-ppe-page .co-toolbox-form-card .flex.flex-wrap.gap-2 {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem);
+  }
+
+  .co-ppe-page .co-toolbox-tools-panel .co-card {
     box-shadow: 0 18px 42px -34px rgba(7, 17, 31, 0.48);
   }
 
@@ -23897,7 +23922,7 @@ textarea {
   }
 
   .co-ppe-page .co-toolbox-tools-panel {
-    margin-top: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.75rem) !important;
+    margin-top: 0.75rem !important;
   }
 
   .co-tool-checklist-page .co-toolbox-kpi-grid,
