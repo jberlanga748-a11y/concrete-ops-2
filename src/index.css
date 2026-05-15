@@ -21518,12 +21518,12 @@ textarea {
 
 .co-settings-kpi-grid .co-command-kpi {
   display: flex;
-  min-height: 5.15rem;
-  height: 5.15rem;
+  min-height: 5.6rem;
+  height: 5.6rem;
   flex-direction: column;
   justify-content: center;
   border-radius: 0.82rem !important;
-  padding: 0.56rem 0.66rem !important;
+  padding: 0.82rem 0.72rem 0.66rem !important;
 }
 
 .co-settings-kpi-grid .co-command-kpi-body {
@@ -21544,7 +21544,7 @@ textarea {
 .co-settings-kpi-grid .co-command-kpi-value {
   max-width: 8.5rem;
   font-size: 1.15rem !important;
-  line-height: 0.98 !important;
+  line-height: 1.08 !important;
 }
 
 .co-settings-kpi-grid .co-command-kpi p {
@@ -22136,7 +22136,7 @@ textarea {
   background: #fff7f7 !important;
 }
 
-@media (min-width: 1024px) and (max-width: 1599px) {
+@media (min-width: 1024px) and (max-width: 1439px) {
   .co-settings-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
   }
@@ -22160,9 +22160,9 @@ textarea {
   }
 
   .co-settings-kpi-grid .co-command-kpi {
-    min-height: 4.85rem !important;
-    height: 4.85rem !important;
-    padding: 0.64rem !important;
+    min-height: 5.35rem !important;
+    height: 5.35rem !important;
+    padding: 0.78rem 0.64rem 0.58rem !important;
   }
 
   .co-settings-kpi-grid .co-command-kpi-body {
@@ -22176,6 +22176,28 @@ textarea {
 
   .co-settings-kpi-grid .co-command-kpi-value {
     font-size: 1.18rem !important;
+  }
+
+  .co-settings-kpi-grid .co-command-kpi p:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (min-width: 1440px) {
+  .co-settings-page .co-page-header > div,
+  .co-settings-kpi-grid,
+  .co-settings-command-layout {
+    max-width: 1460px !important;
+  }
+
+  .co-settings-command-layout {
+    grid-template-columns: minmax(0, 1fr) 320px !important;
+  }
+
+  .co-settings-right-rail {
+    position: sticky;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.5rem);
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 0.85rem);
   }
 }
 
@@ -22236,6 +22258,10 @@ textarea {
   border-top: 1px solid rgba(226, 232, 240, 0.94);
   background: #f8fafc;
   padding: 0.82rem;
+}
+
+.co-settings-mobile-rail-drawer:not([open]) .co-settings-mobile-rail-panel {
+  display: none;
 }
 
 .co-settings-mobile-rail-strip {
