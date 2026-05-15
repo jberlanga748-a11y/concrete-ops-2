@@ -14797,6 +14797,10 @@ textarea {
     display: none;
   }
 
+  .co-uploads-page[data-field-workspace="true"] .co-uploads-tools-drawer:not([open]) {
+    display: none;
+  }
+
   .co-uploads-page[data-field-workspace="true"] .co-uploads-tools-drawer {
     margin-top: 1rem;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 3.25rem) !important;

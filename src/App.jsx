@@ -226,7 +226,7 @@ const NAV_GROUPS = [
       { id: "reports", label: "Reports", icon: "document" },
       { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
       { id: "postPour", label: "Post-Pour", icon: "clipboard" },
-      { id: "uploads", label: "Uploads", icon: "upload" },
+      { id: "uploads", label: "Photo Evidence", icon: "upload" },
       { id: "deliveryTickets", label: "Delivery Tickets", icon: "clipboard" },
     ],
   },
@@ -3908,7 +3908,7 @@ const FIELD_MOBILE_NAV_ORDER = [
   { id: "reports", label: "Reports", icon: "document" },
   { id: "prePour", label: "Pre-Pour", icon: "clipboard" },
   { id: "postPour", label: "Post-Pour", icon: "clipboard" },
-  { id: "uploads", label: "Uploads", icon: "upload" },
+  { id: "uploads", label: "Photos", icon: "upload" },
   { id: "deliveryTickets", label: "Tickets", icon: "clipboard" },
   { id: "ppe", label: "PPE", icon: "hardhat" },
   { id: "incidents", label: "Incidents", icon: "alert" },
@@ -6744,7 +6744,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
     return (
       <Card className="p-5">
         <SectionHeader title="Upload photo" description="This role cannot create upload evidence right now." />
-        <StateCard title="Read-only" description="Uploads are limited to office and field users with allowed job access." tone="slate" />
+        <StateCard title="Read-only" description="Photo Evidence is limited to office and field users with allowed job access." tone="slate" />
       </Card>
     );
   }
@@ -6775,7 +6775,7 @@ function UploadCreateCard({ canCreate, jobs, draft, setDraft, onRequestLocation,
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
       <input ref={libraryInputRef} type="file" accept="image/*" onChange={handleFileInputChange} className="hidden" tabIndex={-1} />
 
-      <UploadMobileAccordionCard title="Upload Photo Evidence" summary={uploadSummary} badge={<Badge tone="orange">New</Badge>} defaultOpen>
+      <UploadMobileAccordionCard title="Upload photo evidence" summary={uploadSummary} badge={<Badge tone="orange">New</Badge>} defaultOpen>
         <form className="co-uploads-create-mobile-form grid gap-3" onSubmit={onSubmit} noValidate>
           <div className="co-uploads-create-target">
             <span>Evidence target</span>
@@ -7158,7 +7158,7 @@ function UploadsFieldOperatorPanel({
               <Badge tone={canCreate ? "green" : "slate"}>{canCreate ? "Upload ready" : "Read only"}</Badge>
               {hasSelectedUpload ? <Badge tone={upload.hasGps ? "green" : "amber"}>{gpsStatusLabel(upload)}</Badge> : <Badge tone="slate">Select evidence</Badge>}
             </div>
-            <h2>{hasSelectedUpload ? uploadTitle(upload) : "Photo evidence ready"}</h2>
+            <h2>{hasSelectedUpload ? uploadTitle(upload) : "Photo Evidence ready"}</h2>
             <p>
               {hasSelectedUpload
                 ? `${uploadJobLabel(upload)} / ${upload.caption || upload.notes ? "Caption context added" : "Caption or note still helps the office."}`
@@ -7178,22 +7178,17 @@ function UploadsFieldOperatorPanel({
                 <Icon name="upload" />
                 Upload Photo
               </Button>
-            ) : (
-              <Button type="button" onClick={onJumpToBoard}>
-                <Icon name="layers" />
-                View Evidence
-              </Button>
-            )}
-            <Button type="button" variant="secondary" onClick={onJumpToBoard}>
-              <Icon name="layers" />
-              View Board
-            </Button>
+            ) : null}
             {hasSelectedUpload ? (
               <Button type="button" variant="secondary" onClick={() => onOpenTool("details")}>
                 <Icon name="clipboard" />
                 Details
               </Button>
             ) : null}
+            <Button type="button" variant={canCreate || hasSelectedUpload ? "secondary" : undefined} onClick={onJumpToBoard}>
+              <Icon name="layers" />
+              View Board
+            </Button>
           </div>
         </div>
 
@@ -7230,11 +7225,11 @@ function UploadsMobileFocusPanel({
     <div className="co-uploads-mobile-focus mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 md:hidden">
       <div className="co-uploads-mobile-focus-card">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Badge tone="orange">Photo evidence</Badge>
+          <Badge tone="orange">Photo Evidence</Badge>
           <Badge tone={missingGpsCount ? "amber" : "green"}>{missingGpsCount ? `${missingGpsCount} GPS gap${missingGpsCount === 1 ? "" : "s"}` : "GPS ready"}</Badge>
           <Badge tone={missingNotesCount ? "amber" : "green"}>{missingNotesCount ? `${missingNotesCount} caption gap${missingNotesCount === 1 ? "" : "s"}` : "Captions ready"}</Badge>
         </div>
-        <h2>{focusUpload ? uploadTitle(focusUpload) : "Photo evidence board"}</h2>
+        <h2>{focusUpload ? uploadTitle(focusUpload) : "Photo Evidence board"}</h2>
         <p>{focusUpload ? `${uploadJobLabel(focusUpload)} / ${uploadUploaderLabel(focusUpload)}` : "Capture job-linked proof, review GPS context, and keep photo evidence tied to the right job."}</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {canCreate ? (
@@ -7317,7 +7312,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     return currentTime > latestTime ? upload : latestUpload;
   }, visibleRows[0] || null);
   const uploadKpis = [
-    { label: "Uploads", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "orange", actionLabel: "View active", onAction: () => setFilter("Active only") },
+    { label: "Evidence", value: visibleRows.length, helper: "Matching current filters", icon: "upload", tone: "orange", actionLabel: "View active", onAction: () => setFilter("Active only") },
     { label: "Photos", value: imageCount, helper: "Image evidence in view", icon: "document", tone: "orange" },
     { label: "GPS Captured", value: gpsCount, helper: "Location metadata present", icon: "check", tone: gpsCount ? "green" : "slate", actionLabel: "View GPS", onAction: () => setGpsFilter("Has GPS") },
     { label: "Missing GPS", value: missingGpsCount, helper: "Still valid if denied", icon: "alert", tone: missingGpsCount ? "amber" : "slate", actionLabel: "Review missing", onAction: () => setGpsFilter("Missing GPS") },
@@ -7660,7 +7655,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
               </details>
               {successMessage ? <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{successMessage}</div> : null}
               {errorMessage && visibleRows.length === 0 ? (
-                <div className="p-5"><StateCard title="Uploads unavailable" description={errorMessage} tone="red" /></div>
+                <div className="p-5"><StateCard title="Photo Evidence unavailable" description={errorMessage} tone="red" /></div>
               ) : visibleRows.length === 0 ? (
                 <div className="p-5"><StateCard title={uploadsEmptyTitle} description={uploadsEmptyDescription} tone="slate" /></div>
               ) : (
@@ -7694,7 +7689,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
         <summary>
           <span>
             <strong>Evidence Tools</strong>
-            <em>Capture photo evidence, request GPS, edit captions, and review selected upload details below the board.</em>
+            <em>Capture photo evidence, request GPS, edit captions, and review selected evidence details below the board.</em>
           </span>
           <span>Open tools</span>
         </summary>
@@ -7730,6 +7725,17 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
 }
 
 function UploadsPage(props) {
+  if (!props.permissions?.uploads?.canView) {
+    return (
+      <div className="co-office-page co-uploads-page">
+        <PageHeader eyebrow="Field Tools" title="Photo Evidence" description="This module is not available for this role." />
+        <div className="px-5 sm:px-6 lg:px-8">
+          <StateCard title="Photo Evidence access unavailable" description="Only office, foreman, or assigned field roles can open job-linked photo evidence." tone="slate" />
+        </div>
+      </div>
+    );
+  }
+
   return <UploadsPagePolished {...props} />;
 }
 
