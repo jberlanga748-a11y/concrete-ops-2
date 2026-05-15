@@ -16036,7 +16036,7 @@ function ImportedDraftsTablePolished({ drafts, selectedId, onSelect, onReview, o
             <button
               key={draft.id}
               type="button"
-              onClick={() => onSelect(draft.id)}
+              onClick={() => onReview(draft.id)}
               className={`co-imports-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -16726,7 +16726,7 @@ function ImportedDraftCustomerMatchCard({ draft, customers = [], warnings = [], 
           {warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </div>
       ) : null}
-      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+      <div className="mt-4 grid gap-3">
         <SelectField
           label="Choose different customer"
           value={draft.matchedCustomerId}
@@ -16841,6 +16841,10 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
     setMessage("");
   }, [draft]);
 
+  useEffect(() => {
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  }, [draft?.id]);
+
   function updateField(field, value) {
     setDraftForm((current) => normalizeImportedJobDraft({ ...current, [field]: value }));
   }
@@ -16903,7 +16907,7 @@ function ImportedJobDraftDetailPage({ draft, jobs, customers, onBack, onCreateJo
             ) : (
               <Button type="button" onClick={createJob} disabled={busy || !canCreateJob}>{canCreateJob ? "Create Apex HQ Job" : "Create Restricted"}</Button>
             )}
-            <Button type="submit" disabled={busy || !canManageDraft}>{canManageDraft ? "Save Imported Draft" : "Read Only"}</Button>
+            <Button type="submit" variant="secondary" disabled={busy || !canManageDraft}>{canManageDraft ? "Save Imported Draft" : "Read Only"}</Button>
           </div>
         }
       />

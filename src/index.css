@@ -10370,7 +10370,7 @@ textarea {
   }
 }
 
-@media (min-width: 1024px) and (max-width: 1399px) {
+@media (min-width: 1024px) and (max-width: 1535px) {
   .co-ppe-page .co-toolbox-filter-strip,
   .co-toolbox-talks-page .co-toolbox-filter-strip {
     grid-template-columns: minmax(0, 1fr);
@@ -14557,7 +14557,7 @@ textarea {
   }
 }
 
-@media (min-width: 1024px) and (max-width: 1399px) {
+@media (min-width: 1024px) and (max-width: 1535px) {
   .co-uploads-page[data-field-workspace="true"] .co-uploads-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
     max-width: 1160px;
@@ -17850,7 +17850,7 @@ textarea {
   text-transform: uppercase;
 }
 
-@media (min-width: 1024px) and (max-width: 1399px) {
+@media (min-width: 1024px) and (max-width: 1535px) {
   .co-imports-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;
   }
@@ -18196,6 +18196,30 @@ textarea {
     text-align: center;
     line-height: 1.15;
     white-space: normal;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-import-detail-page .co-page-header-actions {
+    display: grid !important;
+    width: 100%;
+    margin-top: 0.72rem;
+  }
+
+  .co-import-detail-page .co-page-header-actions > div {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    gap: 0.45rem;
+  }
+
+  .co-import-detail-page .co-page-header-actions button {
+    min-height: 2.48rem;
+    justify-content: center;
+  }
+
+  .co-import-detail-page .co-import-detail-layout {
+    padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1.25rem);
   }
 }
 
