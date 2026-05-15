@@ -4631,8 +4631,8 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
   if (actions.length === 0) return null;
 
   const mobilePrimaryActionIds = new Set(role === "foreman"
-    ? ["time", "reports", "uploads", "toolChecklist", "ppe", "calculator"]
-    : ["time", "uploads", "ppe", "toolChecklist", "calculator"]);
+    ? ["deliveryTickets", "ppe", "toolChecklist", "calculator", "changeOrders"]
+    : ["deliveryTickets", "ppe", "toolChecklist", "calculator"]);
   const desktopPrimaryActionIds = new Set(role === "foreman"
     ? ["time", "reports", "uploads", "prePour", "postPour", "toolChecklist"]
     : ["time", "uploads", "ppe", "toolChecklist"]);
@@ -4701,6 +4701,167 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
   );
 }
 
+function fieldChecklistNeedsAction(checklist) {
+  if (!checklist) return true;
+  const label = String(checklist.statusLabel || checklist.status || "").toLowerCase();
+  if (!label) return true;
+  return !/(complete|completed|reviewed|approved)/i.test(label);
+}
+
+function fieldChecklistSummary(checklist, fallback = "Not started") {
+  return checklist?.statusLabel || checklist?.status || fallback;
+}
+
+function FieldRequiredItemsPanel({
+  role = "employee",
+  workspace,
+  focusJob,
+  permissions,
+  setActive,
+  onSelectJob,
+  timeWorkspace,
+  onAcknowledgeAssignmentNotice,
+  busy,
+  onClockIn,
+  onClockOut,
+  onStartBreak,
+  onEndBreak,
+}) {
+  const isForeman = role === "foreman";
+  const primaryJob = workspace?.nextAssignedJob || focusJob || workspace?.assignedJobs?.[0] || null;
+  const notices = Array.isArray(workspace?.assignmentNotices) ? workspace.assignmentNotices : [];
+  const firstNotice = notices[0] || null;
+  const activeEntry = timeWorkspace?.activeEntry || null;
+  const allowedCategories = Array.isArray(timeWorkspace?.allowedCategories) ? timeWorkspace.allowedCategories : [];
+  const canRoute = typeof setActive === "function";
+  const canQuickClockIn = Boolean(!activeEntry && primaryJob?.id && permissions?.time?.canManageOwn && allowedCategories.includes("job") && typeof onClockIn === "function");
+  const canManageBreakTime = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof (activeEntry?.status === "on_break" ? onEndBreak : onStartBreak) === "function");
+  const canClockOut = Boolean(activeEntry?.id && permissions?.time?.canManageOwn && typeof onClockOut === "function");
+  const openFieldTool = (toolId) => {
+    if (!canRoute) return;
+    setActive(toolId);
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
+    }
+  };
+  const quickClockIn = () => {
+    if (!canQuickClockIn) return;
+    onClockIn({ workCategory: "job", jobId: primaryJob.id, notes: "" });
+  };
+  const prePourPending = permissions?.prePour?.canView && fieldChecklistNeedsAction(primaryJob?.prePourChecklist);
+  const postPourPending = permissions?.postPour?.canView && fieldChecklistNeedsAction(primaryJob?.postPourChecklist);
+  const checklistTarget = prePourPending
+    ? { id: "prePour", label: "Pre-Pour", detail: fieldChecklistSummary(primaryJob?.prePourChecklist) }
+    : postPourPending
+      ? { id: "postPour", label: "Post-Pour", detail: fieldChecklistSummary(primaryJob?.postPourChecklist) }
+      : permissions?.toolChecklist?.canUse
+        ? { id: "toolChecklist", label: "Tool Checklist", detail: "Review loadout" }
+        : null;
+
+  const items = [
+    {
+      id: "clock",
+      tone: activeEntry ? "green" : "orange",
+      status: activeEntry ? (activeEntry.status === "on_break" ? "On break" : "Active") : "Ready",
+      title: activeEntry ? "Clock is running" : "Clock into current job",
+      detail: activeEntry ? (activeEntry.jobTitle || workCategoryLabel(activeEntry.workCategory)) : (primaryJob ? jobTitle(primaryJob) : "No assigned job selected"),
+      icon: "clock",
+      actionLabel: activeEntry?.status === "on_break" ? "End break" : activeEntry ? "Start break" : "Clock in now",
+      onAction: activeEntry?.status === "on_break"
+        ? () => canManageBreakTime && onEndBreak(activeEntry.id)
+        : activeEntry
+          ? () => canManageBreakTime && onStartBreak(activeEntry.id)
+          : quickClockIn,
+      disabled: busy || (activeEntry ? !canManageBreakTime : !canQuickClockIn),
+      secondaryLabel: activeEntry ? "Clock out" : "Open time",
+      onSecondary: activeEntry ? () => canClockOut && onClockOut(activeEntry.id) : () => openFieldTool("time"),
+      secondaryDisabled: busy || (activeEntry ? !canClockOut : !permissions?.time?.canView),
+    },
+    notices.length ? {
+      id: "notice",
+      tone: "amber",
+      status: `${notices.length} notice${notices.length === 1 ? "" : "s"}`,
+      title: "Acknowledge assignment",
+      detail: firstNotice?.job ? `${jobTitle(firstNotice.job)} - ${formatJobScheduleDetail(firstNotice.job)}` : "Review new assignment details",
+      icon: "alert",
+      actionLabel: "Got it",
+      onAction: () => firstNotice?.job?.id && onAcknowledgeAssignmentNotice?.(firstNotice.job.id),
+      disabled: busy || !firstNotice?.job?.id || typeof onAcknowledgeAssignmentNotice !== "function",
+      secondaryLabel: "View job",
+      onSecondary: () => {
+        if (!firstNotice?.job?.id) return;
+        onSelectJob?.(firstNotice.job.id);
+        openFieldTool("jobs");
+      },
+    } : null,
+    permissions?.uploads?.canView ? {
+      id: "photos",
+      tone: "slate",
+      status: "Evidence",
+      title: "Photo evidence",
+      detail: primaryJob ? `Capture photos for ${jobTitle(primaryJob)}` : "Upload field photos when assigned",
+      icon: "upload",
+      actionLabel: "Upload photos",
+      onAction: () => openFieldTool("uploads"),
+      disabled: !canRoute,
+    } : null,
+    isForeman && permissions?.reports?.canView ? {
+      id: "report",
+      tone: "blue",
+      status: "Foreman",
+      title: "Daily report",
+      detail: "Open field notes, labor, weather, and progress",
+      icon: "document",
+      actionLabel: "Open report",
+      onAction: () => openFieldTool("reports"),
+      disabled: !canRoute,
+    } : null,
+    checklistTarget ? {
+      id: "checklist",
+      tone: prePourPending || postPourPending ? "orange" : "green",
+      status: prePourPending || postPourPending ? "Pending" : "Ready",
+      title: checklistTarget.label,
+      detail: checklistTarget.detail,
+      icon: "clipboard",
+      actionLabel: "Open checklist",
+      onAction: () => openFieldTool(checklistTarget.id),
+      disabled: !canRoute,
+    } : null,
+  ].filter(Boolean);
+
+  if (items.length === 0) return null;
+
+  return (
+    <Card className="co-field-required-panel p-4">
+      <div className="co-field-required-heading">
+        <SectionHeader
+          title="Today's Required Items"
+          description="Handle the field actions that keep the day moving."
+          action={<Badge tone={items.some((item) => ["amber", "orange"].includes(item.tone)) ? "orange" : "green"}>{items.length} items</Badge>}
+        />
+      </div>
+      <div className="co-field-required-list">
+        {items.map((item) => (
+          <div key={item.id} className="co-field-required-item" data-tone={item.tone}>
+            <span className="co-field-required-icon"><Icon name={item.icon} /></span>
+            <div className="co-field-required-copy">
+              <p>{item.title}</p>
+              <strong>{item.detail}</strong>
+              <em>{item.status}</em>
+            </div>
+            <div className="co-field-required-actions">
+              <Button type="button" size="sm" className="co-field-required-primary" onClick={item.onAction} disabled={item.disabled}>{item.actionLabel}</Button>
+              {item.secondaryLabel ? (
+                <Button type="button" size="sm" className="co-field-required-secondary" variant="secondary" onClick={item.onSecondary} disabled={item.secondaryDisabled}>{item.secondaryLabel}</Button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function FieldWorkspacePagePolished({
   role = "employee",
   workspace,
@@ -4741,17 +4902,27 @@ function FieldWorkspacePagePolished({
           </div>
         }
       />
-      <div className="mx-auto w-full max-w-[1400px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
-        <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
-      </div>
-      <div className="co-field-mobile-focus-card mx-auto w-full max-w-[1400px] min-w-0 px-4 pb-3 sm:px-6 lg:px-6">
-        <FieldWorkspaceDisclosure
-          title={focusJob ? "Selected job details" : "Selected job"}
-          description={focusJob ? (focusJob.customer || "Assigned site") : "Choose an assigned job to review field-safe details."}
-          badge={focusJob ? jobStatusLabel(focusJob.status || focusJob.stage) : "None"}
-        >
-          <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} embedded />
-        </FieldWorkspaceDisclosure>
+      <div className="co-field-landing-stack mx-auto flex w-full max-w-[1400px] min-w-0 flex-col gap-3 px-5 pb-3 sm:px-6 lg:px-6">
+        <div className="co-field-operator-wrap">
+          <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
+        </div>
+        <div className="co-field-required-wrap">
+          <FieldRequiredItemsPanel
+            role={role}
+            workspace={workspace}
+            focusJob={focusJob}
+            permissions={permissions}
+            setActive={setActive}
+            onSelectJob={onSelectJob}
+            timeWorkspace={timeWorkspace}
+            onAcknowledgeAssignmentNotice={onAcknowledgeAssignmentNotice}
+            busy={busy}
+            onClockIn={onClockIn}
+            onClockOut={onClockOut}
+            onStartBreak={onStartBreak}
+            onEndBreak={onEndBreak}
+          />
+        </div>
       </div>
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1400px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_376px] lg:px-6">
@@ -4792,6 +4963,15 @@ function FieldWorkspacePagePolished({
             </div>
           </section>
           <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
+          <div className="co-field-mobile-focus-card">
+            <FieldWorkspaceDisclosure
+              title={focusJob ? "Selected job details" : "Selected job"}
+              description={focusJob ? (focusJob.customer || "Assigned site") : "Choose an assigned job to review field-safe details."}
+              badge={focusJob ? jobStatusLabel(focusJob.status || focusJob.stage) : "None"}
+            >
+              <FieldJobFocusCard job={focusJob} permissions={permissions} onFieldChange={onJobFieldChange} disabled={busy} embedded />
+            </FieldWorkspaceDisclosure>
+          </div>
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
               <div className="co-field-assigned-job-list">
@@ -6083,7 +6263,330 @@ function dailyReportPrimaryNote(report) {
   return report?.workPerformed || report?.crewSummary || report?.delays || report?.safetyNotes || report?.weather || "No field notes yet.";
 }
 
-function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, maxRows = 8 }) {
+function dailyReportDateKey(value) {
+  if (!value) return "";
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function dailyReportRecordJobId(record = {}) {
+  return record.jobId || record.linkedJobId || record.job?.id || "";
+}
+
+function dailyReportRecordDate(record = {}) {
+  return dailyReportDateKey(
+    record.reportDate
+    || record.ticketDate
+    || record.deliveredAt
+    || record.takenAt
+    || record.uploadedAt
+    || record.createdAt
+    || record.updatedAt
+    || record.completedAt
+    || record.submittedAt,
+  );
+}
+
+function dailyReportIsLiveJob(job = {}) {
+  if (!job || job.archivedAt) return false;
+  const status = normalizeJobStatus(job.status || job.stage);
+  return !["archived", "cancelled", "canceled", "complete", "completed", "closed"].includes(status);
+}
+
+function dailyReportMatchesReport(record = {}, report = {}) {
+  const recordReportId = record.reportId || record.dailyReportId;
+  if (recordReportId && report.id) return recordReportId === report.id;
+  const recordJobId = dailyReportRecordJobId(record);
+  const reportJobId = report.jobId || report.job?.id;
+  if (!recordJobId || !reportJobId || recordJobId !== reportJobId) return false;
+  const recordDate = dailyReportRecordDate(record);
+  const reportDate = dailyReportDateKey(report.reportDate || report.createdAt);
+  return !recordDate || !reportDate || recordDate === reportDate;
+}
+
+function dailyReportMatchesJobDate(record = {}, job = {}, dateKey = "") {
+  const recordJobId = dailyReportRecordJobId(record);
+  if (!recordJobId || !job?.id || recordJobId !== job.id) return false;
+  const recordDate = dailyReportRecordDate(record);
+  return !dateKey || !recordDate || recordDate === dateKey;
+}
+
+function dailyReportCoreMissingItems(report = {}) {
+  if (!report) return ["Report"];
+  return [
+    !report.workPerformed ? "Work notes" : "",
+    !report.crewSummary ? "Crew summary" : "",
+    !report.weather ? "Weather" : "",
+  ].filter(Boolean);
+}
+
+function dailyReportChecklistIsOpen(checklist) {
+  if (!checklist) return false;
+  return fieldChecklistNeedsAction(checklist);
+}
+
+function deriveDailyReportProofState({
+  report,
+  job,
+  operatingDate,
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+}) {
+  const targetJob = job || report?.job || {};
+  const targetDate = operatingDate || dailyReportDateKey(report?.reportDate || report?.createdAt);
+  const photos = normalizeObjectArray(uploads).filter((upload) => (
+    report ? dailyReportMatchesReport(upload, report) : dailyReportMatchesJobDate(upload, targetJob, targetDate)
+  ));
+  const tickets = normalizeObjectArray(deliveryTickets).filter((ticket) => (
+    report ? dailyReportMatchesReport(ticket, report) : dailyReportMatchesJobDate(ticket, targetJob, targetDate)
+  ));
+  const prePour = [
+    targetJob?.prePourChecklist,
+    ...normalizeObjectArray(prePourChecklists).filter((checklist) => dailyReportMatchesJobDate(checklist, targetJob, "")),
+  ].filter(Boolean);
+  const postPour = [
+    targetJob?.postPourChecklist,
+    ...normalizeObjectArray(postPourChecklists).filter((checklist) => dailyReportMatchesJobDate(checklist, targetJob, "")),
+  ].filter(Boolean);
+  const tools = normalizeObjectArray(toolChecklists).filter((checklist) => dailyReportMatchesJobDate(checklist, targetJob, targetDate));
+  const incidents = normalizeObjectArray(safetyIncidents).filter((incident) => dailyReportMatchesJobDate(incident, targetJob, targetDate) && !incident.archivedAt);
+  const missingCore = report ? dailyReportCoreMissingItems(report) : ["Daily report"];
+  const openChecklistCount = [...prePour, ...postPour, ...tools].filter(dailyReportChecklistIsOpen).length;
+  const ticketExpected = Boolean(report?.concretePoured);
+  const photoMissing = photos.length === 0;
+  const ticketMissing = ticketExpected && tickets.length === 0;
+  const gapCount = missingCore.length + (photoMissing ? 1 : 0) + (ticketMissing ? 1 : 0) + openChecklistCount;
+
+  return {
+    photoCount: photos.length,
+    ticketCount: tickets.length,
+    incidentCount: incidents.length,
+    missingCore,
+    openChecklistCount,
+    ticketExpected,
+    photoMissing,
+    ticketMissing,
+    gapCount,
+  };
+}
+
+function dailyReportProofSummary(proofState) {
+  if (!proofState) return "Proof not checked";
+  const parts = [`${proofState.photoCount} photo${proofState.photoCount === 1 ? "" : "s"}`];
+  if (proofState.ticketExpected || proofState.ticketCount) {
+    parts.push(`${proofState.ticketCount} ticket${proofState.ticketCount === 1 ? "" : "s"}`);
+  }
+  if (proofState.openChecklistCount) {
+    parts.push(`${proofState.openChecklistCount} checklist open`);
+  }
+  return parts.join(" / ");
+}
+
+function DailyReportProofChecklist({ proofState }) {
+  if (!proofState) return null;
+
+  const items = [
+    { label: "Work notes", state: proofState.missingCore.includes("Work notes") ? "needs" : "ready", value: proofState.missingCore.includes("Work notes") ? "Needed" : "Set" },
+    { label: "Crew summary", state: proofState.missingCore.includes("Crew summary") ? "needs" : "ready", value: proofState.missingCore.includes("Crew summary") ? "Needed" : "Set" },
+    { label: "Weather", state: proofState.missingCore.includes("Weather") ? "needs" : "ready", value: proofState.missingCore.includes("Weather") ? "Needed" : "Set" },
+    { label: "Photos", state: proofState.photoMissing ? "needs" : "ready", value: proofState.photoMissing ? "Missing" : `${proofState.photoCount} linked` },
+    { label: "Delivery ticket", state: proofState.ticketMissing ? "needs" : "ready", value: proofState.ticketExpected ? `${proofState.ticketCount} linked` : "If pour" },
+    { label: "Checklists", state: proofState.openChecklistCount ? "needs" : "ready", value: proofState.openChecklistCount ? `${proofState.openChecklistCount} open` : "Clear" },
+  ];
+
+  return (
+    <div className="co-reports-proof-checklist">
+      {items.map((item) => (
+        <span key={item.label} data-state={item.state}>
+          {item.label}
+          <strong>{item.value}</strong>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function DailyReportsOperationsBoard({
+  isFieldReportWorkspace,
+  canCreate,
+  canReview,
+  permissions,
+  operatingDate,
+  fieldFocusJob,
+  fieldFocusReport,
+  fieldFocusProof,
+  visibleRows,
+  missingReportJobs,
+  proofGapReports,
+  submittedCount,
+  needsActionCount,
+  onStartReportForJob,
+  onOpenReport,
+  onOpenReportTool,
+  onSetFilter,
+  onSetDateFilter,
+  onOpenModule,
+  proofStateByReportId,
+}) {
+  const reviewReports = visibleRows.filter(dailyReportNeedsReview).slice(0, 3);
+  const draftReports = visibleRows.filter(dailyReportNeedsAction).slice(0, 3);
+  const evidenceGapReports = proofGapReports.slice(0, 3);
+  const boardDateLabel = operatingDate || "Today";
+
+  if (isFieldReportWorkspace) {
+    const focusTitle = fieldFocusJob ? jobTitle(fieldFocusJob) : "No assigned job visible";
+    const reportStatus = fieldFocusReport ? reportStatusLabel(fieldFocusReport.status) : "Not started";
+    const primaryLabel = fieldFocusReport
+      ? (dailyReportNeedsAction(fieldFocusReport) ? "Continue report" : "Open report")
+      : "Start report";
+
+    return (
+      <div className="co-reports-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6" data-mode="field">
+        <Card className="co-reports-ops-card overflow-hidden">
+          <div className="co-reports-ops-field-main">
+            <div className="min-w-0">
+              <p className="co-reports-ops-eyebrow">Today&apos;s field closeout</p>
+              <h2>{focusTitle}</h2>
+              <p>{fieldFocusJob ? `${jobScheduleLabel(fieldFocusJob)} / ${reportStatus}` : "Select an assigned job before starting field paperwork."}</p>
+            </div>
+            <div className="co-reports-ops-actions">
+              {fieldFocusReport ? (
+                <Button type="button" onClick={() => onOpenReport(fieldFocusReport)}>{primaryLabel}</Button>
+              ) : (
+                <Button type="button" onClick={() => onStartReportForJob(fieldFocusJob)} disabled={!canCreate || !fieldFocusJob}>{primaryLabel}</Button>
+              )}
+              {permissions?.uploads?.canView ? <Button type="button" variant="secondary" onClick={() => onOpenModule("uploads")}>Upload photos</Button> : null}
+            </div>
+          </div>
+          <DailyReportProofChecklist proofState={fieldFocusProof} />
+          <div className="co-reports-quick-action-row">
+            {permissions?.time?.canView ? <button type="button" onClick={() => onOpenModule("time")}><Icon name="clock" />Clock</button> : null}
+            {permissions?.uploads?.canView ? <button type="button" onClick={() => onOpenModule("uploads")}><Icon name="upload" />Photos</button> : null}
+            {permissions?.deliveryTickets?.canView ? <button type="button" onClick={() => onOpenModule("deliveryTickets")}><Icon name="clipboard" />Tickets</button> : null}
+            {permissions?.prePour?.canView ? <button type="button" onClick={() => onOpenModule("prePour")}><Icon name="clipboard" />Pre-Pour</button> : null}
+            {permissions?.postPour?.canView ? <button type="button" onClick={() => onOpenModule("postPour")}><Icon name="clipboard" />Post-Pour</button> : null}
+            {permissions?.toolChecklist?.canUse ? <button type="button" onClick={() => onOpenModule("toolChecklist")}><Icon name="hardhat" />Tools</button> : null}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const reviewTiles = [
+    {
+      label: "Missing today",
+      value: missingReportJobs.length,
+      helper: `${boardDateLabel} job reports not started`,
+      tone: missingReportJobs.length ? "amber" : "green",
+      action: "View jobs",
+      onClick: () => {
+        onSetDateFilter(operatingDate);
+        onSetFilter("All");
+      },
+    },
+    {
+      label: "Drafts open",
+      value: needsActionCount,
+      helper: "Field reports not submitted",
+      tone: needsActionCount ? "orange" : "green",
+      action: "Open drafts",
+      onClick: () => onSetFilter("Draft"),
+    },
+    {
+      label: "Needs review",
+      value: submittedCount,
+      helper: "Submitted for office closeout",
+      tone: submittedCount ? "orange" : "green",
+      action: canReview ? "Review" : "View",
+      onClick: () => onSetFilter("Submitted"),
+    },
+    {
+      label: "Proof gaps",
+      value: proofGapReports.length,
+      helper: "Missing notes, photos, tickets, or checklists",
+      tone: proofGapReports.length ? "amber" : "green",
+      action: "Find gaps",
+      onClick: () => {
+        const target = proofGapReports[0];
+        if (target) onOpenReport(target);
+      },
+    },
+  ];
+
+  return (
+    <div className="co-reports-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6" data-mode="office">
+      <Card className="co-reports-ops-card overflow-hidden">
+        <div className="co-reports-ops-header">
+          <div className="min-w-0">
+            <p className="co-reports-ops-eyebrow">Daily closeout command</p>
+            <h2>Reports, proof, and review status in one pass</h2>
+            <p>Use this board to see what is missing before the day gets away from the office.</p>
+          </div>
+          <div className="co-reports-ops-actions">
+            {canCreate ? <Button type="button" onClick={() => onOpenReportTool("create")}>Start report</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => onSetFilter("Submitted")}>Review submitted</Button>
+          </div>
+        </div>
+        <div className="co-reports-ops-review-grid">
+          {reviewTiles.map((tile) => (
+            <button key={tile.label} type="button" data-tone={tile.tone} onClick={tile.onClick}>
+              <span>{tile.label}</span>
+              <strong>{tile.value}</strong>
+              <em>{tile.helper}</em>
+              <b>{tile.action}</b>
+            </button>
+          ))}
+        </div>
+        <div className="co-reports-ops-lists">
+          <div>
+            <span className="co-reports-ops-list-title">Missing report</span>
+            {missingReportJobs.slice(0, 3).length ? missingReportJobs.slice(0, 3).map((job) => (
+              <button key={job.id} type="button" onClick={() => onStartReportForJob(job)}>
+                <strong>{jobTitle(job)}</strong>
+                <span>{jobScheduleLabel(job)}</span>
+              </button>
+            )) : <p>All visible active jobs have a report for the operating date.</p>}
+          </div>
+          <div>
+            <span className="co-reports-ops-list-title">Needs office review</span>
+            {reviewReports.length ? reviewReports.map((report) => (
+              <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
+                <strong>{jobTitle(report.job)}</strong>
+                <span>{report.reportDate} / {report.createdByName}</span>
+              </button>
+            )) : <p>No submitted reports are waiting in this view.</p>}
+          </div>
+          <div>
+            <span className="co-reports-ops-list-title">Proof gaps</span>
+            {evidenceGapReports.length ? evidenceGapReports.map((report) => {
+              const proof = proofStateByReportId.get(report.id);
+              return (
+                <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
+                  <strong>{jobTitle(report.job)}</strong>
+                  <span>{dailyReportProofSummary(proof)}</span>
+                </button>
+              );
+            }) : draftReports.length ? draftReports.map((report) => (
+              <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
+                <strong>{jobTitle(report.job)}</strong>
+                <span>{reportStatusLabel(report.status)} / {report.reportDate}</span>
+              </button>
+            )) : <p>Proof checklist is clear for the current view.</p>}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, maxRows = 8, proofStateByReportId = new Map() }) {
   const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
   function handleMobileListToggle(event) {
     const drawer = event.currentTarget;
@@ -6104,6 +6607,7 @@ function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, 
         <div className="co-reports-mobile-list grid gap-3 p-3">
           {visibleRows.map((report) => {
             const selected = report.id === selectedId;
+            const proofState = proofStateByReportId.get(report.id);
 
             return (
               <button
@@ -6125,7 +6629,7 @@ function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, 
                 <div className="co-reports-mobile-metrics">
                   <span>Time <strong>{formatMinutes(report.timeSummary?.totalMinutes || 0)}</strong></span>
                   <span>Crew <strong>{report.crewAssignments?.length || 0}</strong></span>
-                  <span>Concrete <strong>{dailyReportConcreteSummary(report)}</strong></span>
+                  <span>Proof <strong>{dailyReportProofSummary(proofState)}</strong></span>
                 </div>
               </button>
             );
@@ -6141,13 +6645,14 @@ function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, 
               <th>Date</th>
               <th>Crew / Time</th>
               <th>Field Notes</th>
-              <th>Concrete</th>
+              <th>Proof</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.map((report) => {
               const selected = report.id === selectedId;
+              const proofState = proofStateByReportId.get(report.id);
 
               return (
                 <tr key={report.id} onClick={() => onSelect(report.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
@@ -6165,7 +6670,10 @@ function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, 
                     <p className="font-bold text-slate-700">{dailyReportPrimaryNote(report)}</p>
                     <p className="text-xs font-bold text-slate-500">{report.weather || "Weather not set"}</p>
                   </td>
-                  <td className="font-bold text-slate-700">{dailyReportConcreteSummary(report)}</td>
+                  <td>
+                    <p className="font-bold text-slate-700">{dailyReportProofSummary(proofState)}</p>
+                    <p className="text-xs font-bold text-slate-500">{dailyReportConcreteSummary(report)}</p>
+                  </td>
                   <td>
                     <div className="flex justify-end gap-1">
                       <button type="button" className="co-reports-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(report.id); onOpenDetails?.(); }} aria-label={`Open report ${report.id}`}>
@@ -6312,6 +6820,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
 
 function DailyReportDetailPanel({
   report,
+  proofState,
   reportDraft,
   setReportDraft,
   onSave,
@@ -6385,6 +6894,7 @@ function DailyReportDetailPanel({
             {canReview && ["submitted", "reviewed"].includes(report.status) ? <Button variant="secondary" size="sm" onClick={onReopen} disabled={disabled}>Reopen</Button> : null}
             {canArchive && !report.archivedAt ? <Button variant="secondary" size="sm" onClick={onArchive} disabled={disabled}>Archive</Button> : null}
           </div>
+          <DailyReportProofChecklist proofState={proofState} />
         </Card>
         <DailyReportMobileAccordionCard title="Job / date" summary={`${reportDraft.reportDate || report.reportDate} / ${reportDraft.weather || "weather pending"}`} defaultOpen>
           <TimestampMeta createdAt={report.createdAt} updatedAt={report.updatedAt} />
@@ -6466,6 +6976,7 @@ function DailyReportDetailPanel({
             </div>
           </div>
         </div>
+        <DailyReportProofChecklist proofState={proofState} />
         <div className="grid gap-3">
           <TimestampMeta createdAt={report.createdAt} updatedAt={report.updatedAt} />
           <div className="grid gap-3 md:grid-cols-2">
@@ -7019,36 +7530,53 @@ function uploadCapturedAt(upload) {
   return upload?.takenAt || upload?.uploadedAt || upload?.createdAt;
 }
 
+function uploadEvidenceDateKey(upload) {
+  return dailyReportDateKey(upload?.uploadedAt || upload?.createdAt || uploadCapturedAt(upload));
+}
+
+function uploadEvidenceJobId(upload) {
+  return upload?.jobId || upload?.job?.id || "";
+}
+
 function UploadsTablePolished({ rows, selectedId, onSelect }) {
   return (
     <>
-      <div className="co-uploads-mobile-list grid gap-3 p-3 md:hidden">
-        {rows.map((upload) => {
-          const selected = upload.id === selectedId;
+      <details className="co-uploads-mobile-list-drawer md:hidden">
+        <summary>
+          <span>
+            <strong>Evidence in view</strong>
+            <em>{rows.length} upload{rows.length === 1 ? "" : "s"} ready for review</em>
+          </span>
+          <span>{rows.length}</span>
+        </summary>
+        <div className="co-uploads-mobile-list grid gap-3 p-3">
+          {rows.map((upload) => {
+            const selected = upload.id === selectedId;
 
-          return (
-            <button
-              key={upload.id}
-              type="button"
-              onClick={() => onSelect(upload.id)}
-              className={`co-uploads-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-black text-slate-950">{uploadTitle(upload)}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
+            return (
+              <button
+                key={upload.id}
+                type="button"
+                onClick={() => onSelect(upload.id)}
+                className={`co-uploads-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-base font-black text-slate-950">{uploadTitle(upload)}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{uploadJobLabel(upload)} / {uploadUploaderLabel(upload)}</p>
+                  </div>
+                  <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
                 </div>
-                <Badge tone={upload.hasGps ? "green" : "slate"}>{gpsStatusLabel(upload)}</Badge>
-              </div>
-              <div className="co-uploads-mobile-metrics">
-                <span>Captured <strong>{formatDateTime(uploadCapturedAt(upload))}</strong></span>
-                <span>Size <strong>{formatFileSize(upload.fileSize)}</strong></span>
-                <span>Status <strong>{upload.archivedAt ? "Archived" : "Active"}</strong></span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                <div className="co-uploads-mobile-metrics">
+                  <span>Captured <strong>{formatDateTime(uploadCapturedAt(upload))}</strong></span>
+                  <span>Size <strong>{formatFileSize(upload.fileSize)}</strong></span>
+                  <span>Status <strong>{upload.archivedAt ? "Archived" : "Active"}</strong></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
       <div className="co-uploads-list-scroll hidden min-w-0 overflow-auto md:block">
         <table className="co-uploads-command-table w-full min-w-[900px] text-left">
           <thead>
@@ -7182,6 +7710,9 @@ function UploadsFieldOperatorPanel({
   upload,
   visibleRows,
   allowedJobs,
+  todayCount,
+  currentJobUploadCount,
+  currentJobLabel,
   missingGpsCount,
   missingNotesCount,
   canCreate,
@@ -7190,8 +7721,8 @@ function UploadsFieldOperatorPanel({
 }) {
   const hasSelectedUpload = Boolean(upload);
   const summaryItems = [
-    { label: "Evidence", value: visibleRows.length, tone: visibleRows.length ? "orange" : "slate" },
-    { label: "Assigned jobs", value: allowedJobs.length, tone: allowedJobs.length ? "orange" : "slate" },
+    { label: "Today", value: todayCount, tone: todayCount ? "orange" : "slate" },
+    { label: currentJobLabel || "Current job", value: currentJobUploadCount, tone: currentJobUploadCount ? "orange" : "slate" },
     { label: "Missing GPS", value: missingGpsCount, tone: missingGpsCount ? "amber" : "green" },
     { label: "Caption gaps", value: missingNotesCount, tone: missingNotesCount ? "amber" : "green" },
   ];
@@ -7257,11 +7788,16 @@ function UploadsMobileFocusPanel({
   upload,
   latestUpload,
   visibleCount,
+  todayCount,
+  currentJobUploadCount,
+  currentJobLabel,
   gpsCount,
   missingGpsCount,
   missingNotesCount,
   canCreate,
   onUpload,
+  onOpenToday,
+  onOpenCurrentJob,
   onOpenMissingGps,
   onOpenCaptionGap,
   onOpenLatest,
@@ -7274,11 +7810,13 @@ function UploadsMobileFocusPanel({
       <div className="co-uploads-mobile-focus-card">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Badge tone="orange">Photo Evidence</Badge>
+          <Badge tone={todayCount ? "orange" : "slate"}>{todayCount} today</Badge>
+          <Badge tone={currentJobUploadCount ? "orange" : "slate"}>{currentJobUploadCount} current job</Badge>
           <Badge tone={missingGpsCount ? "amber" : "green"}>{missingGpsCount ? `${missingGpsCount} GPS gap${missingGpsCount === 1 ? "" : "s"}` : "GPS ready"}</Badge>
           <Badge tone={missingNotesCount ? "amber" : "green"}>{missingNotesCount ? `${missingNotesCount} caption gap${missingNotesCount === 1 ? "" : "s"}` : "Captions ready"}</Badge>
         </div>
         <h2>{focusUpload ? uploadTitle(focusUpload) : "Photo Evidence board"}</h2>
-        <p>{focusUpload ? `${uploadJobLabel(focusUpload)} / ${uploadUploaderLabel(focusUpload)}` : "Capture job-linked proof, review GPS context, and keep photo evidence tied to the right job."}</p>
+        <p>{focusUpload ? `${uploadJobLabel(focusUpload)} / ${uploadUploaderLabel(focusUpload)}` : `Capture job-linked proof, review today's uploads, and keep photo evidence tied to ${currentJobLabel || "the current job"}.`}</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {canCreate ? (
             <Button type="button" onClick={onUpload}>
@@ -7298,9 +7836,13 @@ function UploadsMobileFocusPanel({
         </div>
       </div>
       <div className="co-uploads-mobile-focus-grid">
-        <button type="button" data-tone="orange" onClick={onJumpToBoard}>
-          <strong>{visibleCount}</strong>
-          <span>Visible evidence</span>
+        <button type="button" data-tone={todayCount ? "orange" : "slate"} onClick={onOpenToday}>
+          <strong>{todayCount}</strong>
+          <span>Today</span>
+        </button>
+        <button type="button" data-tone={currentJobUploadCount ? "orange" : "slate"} onClick={onOpenCurrentJob}>
+          <strong>{currentJobUploadCount}</strong>
+          <span>Current job</span>
         </button>
         <button type="button" data-tone={missingGpsCount ? "amber" : "green"} onClick={onOpenMissingGps}>
           <strong>{missingGpsCount}</strong>
@@ -7309,10 +7851,6 @@ function UploadsMobileFocusPanel({
         <button type="button" data-tone={missingNotesCount ? "amber" : "green"} onClick={onOpenCaptionGap}>
           <strong>{missingNotesCount}</strong>
           <span>Caption gaps</span>
-        </button>
-        <button type="button" data-tone={gpsCount ? "green" : "slate"} onClick={onOpenLatest}>
-          <strong>{gpsCount}</strong>
-          <span>GPS captured</span>
         </button>
       </div>
     </div>
@@ -7354,6 +7892,19 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const missingGpsCount = visibleRows.filter((upload) => !upload.hasGps).length;
   const missingNotesCount = visibleRows.filter((upload) => !String(upload.caption || upload.notes || "").trim()).length;
   const archivedCount = visibleRows.filter((upload) => upload.archivedAt).length;
+  const todayKey = todayDateInputValue();
+  const activeUploads = safeUploads.filter((upload) => !upload.archivedAt);
+  const preferredJobId = selectedJob?.id && allowedJobs.some((job) => job.id === selectedJob.id)
+    ? selectedJob.id
+    : draft.jobId && allowedJobs.some((job) => job.id === draft.jobId)
+      ? draft.jobId
+      : uploadEvidenceJobId(selectedUpload) || allowedJobs[0]?.id || "";
+  const currentEvidenceJob = allowedJobs.find((job) => job.id === preferredJobId) || null;
+  const currentEvidenceJobLabel = currentEvidenceJob ? jobTitle(currentEvidenceJob) : "Current job";
+  const todayUploadCount = activeUploads.filter((upload) => uploadEvidenceDateKey(upload) === todayKey).length;
+  const currentJobUploadCount = preferredJobId
+    ? activeUploads.filter((upload) => uploadEvidenceJobId(upload) === preferredJobId).length
+    : 0;
   const latestVisibleUpload = visibleRows.reduce((latestUpload, upload) => {
     const currentTime = new Date(uploadCapturedAt(upload) || 0).getTime() || 0;
     const latestTime = new Date(uploadCapturedAt(latestUpload) || 0).getTime() || 0;
@@ -7532,6 +8083,26 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openTodayUploads() {
+    setFilter("Active only");
+    setSearch("");
+    setJobFilter("All jobs");
+    setUploaderFilter("All uploaders");
+    setDateFilter(todayKey);
+    setGpsFilter("All locations");
+    jumpToBoard();
+  }
+
+  function openCurrentJobUploads() {
+    setFilter("Active only");
+    setSearch("");
+    if (preferredJobId) setJobFilter(preferredJobId);
+    setUploaderFilter("All uploaders");
+    setDateFilter("All dates");
+    setGpsFilter("All locations");
+    jumpToBoard();
+  }
+
   function openPriorityUpload(matchUpload, options = {}) {
     const targetUpload = visibleRows.find(matchUpload) || safeUploads.find(matchUpload);
     if (options.filter) setFilter(options.filter);
@@ -7615,11 +8186,16 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
           upload={selectedUpload}
           latestUpload={latestVisibleUpload}
           visibleCount={visibleRows.length}
+          todayCount={todayUploadCount}
+          currentJobUploadCount={currentJobUploadCount}
+          currentJobLabel={currentEvidenceJobLabel}
           gpsCount={gpsCount}
           missingGpsCount={missingGpsCount}
           missingNotesCount={missingNotesCount}
           canCreate={canCreate}
           onUpload={() => openTool("upload")}
+          onOpenToday={openTodayUploads}
+          onOpenCurrentJob={openCurrentJobUploads}
           onOpenMissingGps={() => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" })}
           onOpenCaptionGap={() => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" })}
           onOpenLatest={() => openPriorityUpload((upload) => upload.id === latestVisibleUpload?.id, { gpsFilter: "All locations" })}
@@ -7632,6 +8208,9 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
           upload={selectedUpload}
           visibleRows={visibleRows}
           allowedJobs={allowedJobs}
+          todayCount={todayUploadCount}
+          currentJobUploadCount={currentJobUploadCount}
+          currentJobLabel={currentEvidenceJobLabel}
           missingGpsCount={missingGpsCount}
           missingNotesCount={missingNotesCount}
           canCreate={canCreate}
@@ -8353,6 +8932,7 @@ function SafetyIncidentsMobileFocusPanel({
         <span>Safety Focus</span>
         <h2>{focusTitle}</h2>
         <p>{focusMeta}</p>
+        <em>{visibleOpen ? `${visibleOpen} open safety item${visibleOpen === 1 ? "" : "s"} need attention` : "Safety watch clear"}</em>
       </div>
 
       <div className="co-prepour-mobile-focus-actions">
@@ -9000,6 +9580,7 @@ function ToolboxTalksMobileFocusPanel({
         <span>Toolbox Focus</span>
         <h2>{focusTitle}</h2>
         <p>{focusMeta}</p>
+        <em>{acknowledgmentState.hasAcknowledged ? "Crew review acknowledged" : "Crew review still open"}</em>
       </div>
 
       <div className="co-prepour-mobile-focus-actions">
@@ -10728,6 +11309,7 @@ function SafetyPage({
 
 function ReportsCommandRailPolished({
   report,
+  proofState,
   canView,
   canCreate,
   canEdit,
@@ -10809,6 +11391,14 @@ function ReportsCommandRailPolished({
             <span>Weather</span>
             <strong>{report.weather || "Not set"}</strong>
           </div>
+          <div>
+            <span>Photos</span>
+            <strong>{proofState ? proofState.photoCount : 0} linked</strong>
+          </div>
+          <div>
+            <span>Tickets</span>
+            <strong>{proofState ? proofState.ticketCount : 0} linked</strong>
+          </div>
         </div>
 
         <div className="co-reports-note-panel">
@@ -10828,11 +11418,7 @@ function ReportsCommandRailPolished({
 
       <Card className="co-reports-rail-card p-4">
         <SectionHeader title="Readiness" description="Daily report review should explain the field day quickly." />
-        <div className="co-reports-readiness-list">
-          <span data-state={report.workPerformed ? "ready" : "needs"}>Work <strong>{report.workPerformed ? "Set" : "Needed"}</strong></span>
-          <span data-state={report.crewSummary ? "ready" : "needs"}>Crew <strong>{report.crewSummary ? "Set" : "Needed"}</strong></span>
-          <span data-state={report.weather ? "ready" : "needs"}>Weather <strong>{report.weather ? "Set" : "Needed"}</strong></span>
-        </div>
+        <DailyReportProofChecklist proofState={proofState} />
       </Card>
     </div>
   );
@@ -10841,9 +11427,16 @@ function ReportsCommandRailPolished({
 function ReportsPagePolished({
   user,
   permissions,
-  reports,
-  jobs,
-  users,
+  reports = [],
+  jobs = [],
+  users = [],
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+  setActive,
   filter,
   setFilter,
   search,
@@ -10894,6 +11487,39 @@ function ReportsPagePolished({
   const needsActionCount = visibleRows.filter(dailyReportNeedsAction).length;
   const concreteCount = visibleRows.filter((report) => report.concretePoured).length;
   const missingBasicsCount = visibleRows.filter((report) => !report.workPerformed || !report.crewSummary || !report.weather).length;
+  const operatingDate = dateFilter !== "All dates" ? dateFilter : todayDateInputValue();
+  const liveReportJobs = useMemo(() => normalizeObjectArray(jobs).filter(dailyReportIsLiveJob), [jobs]);
+  const reportsForOperatingDate = useMemo(() => reports.filter((report) => dailyReportDateKey(report.reportDate || report.createdAt) === operatingDate && !report.archivedAt), [operatingDate, reports]);
+  const reportedJobIdsForOperatingDate = useMemo(() => new Set(reportsForOperatingDate.map((report) => report.jobId || report.job?.id).filter(Boolean)), [reportsForOperatingDate]);
+  const missingReportJobs = useMemo(() => liveReportJobs.filter((job) => !reportedJobIdsForOperatingDate.has(job.id)), [liveReportJobs, reportedJobIdsForOperatingDate]);
+  const proofSource = useMemo(() => ({
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    safetyIncidents,
+  }), [deliveryTickets, postPourChecklists, prePourChecklists, safetyIncidents, toolChecklists, uploads]);
+  const proofStateByReportId = useMemo(() => {
+    const nextMap = new Map();
+    reports.forEach((report) => {
+      nextMap.set(report.id, deriveDailyReportProofState({ report, ...proofSource }));
+    });
+    return nextMap;
+  }, [proofSource, reports]);
+  const proofGapReports = visibleRows.filter((report) => (proofStateByReportId.get(report.id)?.gapCount || 0) > 0);
+  const selectedReportProofState = selectedReport ? proofStateByReportId.get(selectedReport.id) : null;
+  const fieldFocusJob = liveReportJobs[0] || normalizeObjectArray(jobs).find((job) => !job.archivedAt) || null;
+  const fieldFocusReport = (
+    (fieldFocusJob && reportsForOperatingDate.find((report) => (report.jobId || report.job?.id) === fieldFocusJob.id))
+    || visibleRows.find(dailyReportNeedsAction)
+    || selectedReport
+    || visibleRows[0]
+    || null
+  );
+  const fieldFocusProof = fieldFocusReport
+    ? proofStateByReportId.get(fieldFocusReport.id)
+    : deriveDailyReportProofState({ job: fieldFocusJob, operatingDate, ...proofSource });
   const reportKpis = [
     { label: "Reports", value: visibleRows.length, helper: "Matching current filters", icon: "document", tone: "orange", actionLabel: "View reports", onAction: () => setFilter("All") },
     { label: "Submitted", value: submittedCount, helper: "Waiting office review", icon: "clipboard", tone: submittedCount ? "orange" : "slate", actionLabel: "Review queue", onAction: () => setFilter("Submitted") },
@@ -10924,6 +11550,29 @@ function ReportsPagePolished({
   function selectReportTool(toolId = "details") {
     setActiveReportTool(toolId);
     window.setTimeout(() => reportToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function startReportForJob(job = null) {
+    if (!canCreate) return;
+    setCreateDraft((current) => ({
+      ...current,
+      jobId: job?.id || current.jobId || "",
+      reportDate: operatingDate || current.reportDate || todayDateInputValue(),
+    }));
+    openReportTool("create");
+  }
+
+  function openReportRecord(report) {
+    if (report?.id) {
+      onSelectReport(report.id);
+    }
+    openReportTool("details");
+  }
+
+  function openReportModule(moduleId) {
+    if (typeof setActive === "function") {
+      setActive(moduleId);
+    }
   }
 
   const reviewPriorityCard = {
@@ -10986,49 +11635,33 @@ function ReportsPagePolished({
       />
 
       {canView ? (
-        <div className="co-reports-mobile-focus mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 md:hidden">
-          <div className="co-reports-mobile-focus-card">
-            <div className="min-w-0">
-              <p>Today&apos;s report plan</p>
-              <h2>{isFieldReportWorkspace ? "Start or finish field paperwork" : "Review field paperwork"}</h2>
-              <span>{visibleRows.length} visible / {submittedCount} submitted / {needsActionCount} needs action</span>
-            </div>
-            {canCreate ? (
-              <Button type="button" onClick={() => openReportTool("create")}>Start Report</Button>
-            ) : (
-              <Button type="button" variant="secondary" onClick={() => openReportTool("details")}>Open Details</Button>
-            )}
-          </div>
-          <div className="co-reports-mobile-focus-grid">
-            {mobileFocusCards.map((card) => (
-              <button key={card.label} type="button" data-tone={card.tone} onClick={card.onAction}>
-                <strong>{card.value}</strong>
-                <span>{card.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <DailyReportsOperationsBoard
+          isFieldReportWorkspace={isFieldReportWorkspace}
+          canCreate={canCreate}
+          canReview={canReviewActions}
+          permissions={permissions}
+          operatingDate={operatingDate}
+          fieldFocusJob={fieldFocusJob}
+          fieldFocusReport={fieldFocusReport}
+          fieldFocusProof={fieldFocusProof}
+          visibleRows={visibleRows}
+          missingReportJobs={missingReportJobs}
+          proofGapReports={proofGapReports}
+          submittedCount={submittedCount}
+          needsActionCount={needsActionCount}
+          onStartReportForJob={startReportForJob}
+          onOpenReport={openReportRecord}
+          onOpenReportTool={openReportTool}
+          onSetFilter={setFilter}
+          onSetDateFilter={setDateFilter}
+          onOpenModule={openReportModule}
+          proofStateByReportId={proofStateByReportId}
+        />
       ) : null}
 
       {canView ? (
         <div className="co-reports-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
           {reportKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-        </div>
-      ) : null}
-
-      {canView ? (
-        <div className="co-reports-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
-          {reportPriorityCards.map((card) => (
-            <button key={card.label} type="button" className="co-reports-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === startPriorityCard && canCreate ? "true" : undefined} onClick={card.onAction}>
-              <span className="co-reports-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
-              <span className="min-w-0">
-                <span className="co-reports-priority-value">{card.value}</span>
-                <span className="co-reports-priority-label">{card.label}</span>
-                <span className="co-reports-priority-helper">{card.helper}</span>
-              </span>
-              <span className="co-reports-priority-action">{card.actionLabel} -&gt;</span>
-            </button>
-          ))}
         </div>
       ) : null}
 
@@ -11079,7 +11712,7 @@ function ReportsPagePolished({
                     <StateCard title="No reports match this view" description="Start a report or adjust filters to bring field paperwork into the board." tone="slate" />
                   </div>
                 ) : (
-                  <DailyReportsTablePolished rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} onOpenDetails={() => openReportTool("details")} maxRows={visibleReportCap} />
+                  <DailyReportsTablePolished rows={visibleRows} selectedId={selectedReportId} onSelect={onSelectReport} onOpenDetails={() => openReportTool("details")} maxRows={visibleReportCap} proofStateByReportId={proofStateByReportId} />
                 )}
                 <div className="co-reports-board-footer flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
                   <p className="text-sm font-bold text-slate-600">Showing {Math.min(visibleRows.length, visibleReportCap)} of {visibleRows.length} filtered reports</p>
@@ -11094,6 +11727,7 @@ function ReportsPagePolished({
 
         <ReportsCommandRailPolished
           report={selectedReport}
+          proofState={selectedReportProofState}
           canView={canView}
           canCreate={canCreate}
           canEdit={canEdit}
@@ -11144,6 +11778,7 @@ function ReportsPagePolished({
           {activeReportTool === "details" ? (
             <DailyReportDetailPanel
               report={selectedReport}
+              proofState={selectedReportProofState}
               reportDraft={reportDraft}
               setReportDraft={setReportDraft}
               onSave={onSaveReport}
@@ -21968,6 +22603,13 @@ function PrePourReadinessItemsPolished({
 
   const visibleItems = selectedItems.slice(0, 6);
   const remainingItems = selectedItems.slice(6);
+
+  function handleExtraItemsToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open || window.innerWidth >= 768) return;
+    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function renderReadinessItem(item) {
     return (
       <div key={item.id} className="co-prepour-item-row" data-status={item.status}>
@@ -22016,7 +22658,7 @@ function PrePourReadinessItemsPolished({
       <div className="co-prepour-items-list">
         {visibleItems.map(renderReadinessItem)}
         {remainingItems.length ? (
-          <details className="co-prepour-extra-items-drawer">
+          <details className="co-prepour-extra-items-drawer" onToggle={handleExtraItemsToggle}>
             <summary>
               <span>{remainingItems.length} more readiness item{remainingItems.length === 1 ? "" : "s"}</span>
               <strong>Open full checklist</strong>
@@ -22139,13 +22781,14 @@ function PrePourFieldOperatorPanel({
   const completedCount = Number(checklistSummary?.completedCount || 0);
   const totalCount = Number(checklistSummary?.totalCount || 0);
   const canComplete = Boolean(canCompleteChecklist && checklist && incompleteCount === 0);
+  const readyState = checklist ? (incompleteCount === 0 ? "Ready" : "Blocked") : "-";
   const statusLabel = checklist ? prePourChecklistStatusLabel(checklist.status) : "Not selected";
   const checklistActionLabel = checklist ? (incompleteCount ? "Open Items" : "Review Items") : "View Board";
   const summaryItems = [
-    { label: "Checklists", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
-    { label: "Open items", value: checklist ? incompleteCount : "-", tone: incompleteCount ? "amber" : "green" },
+    { label: "Open", value: checklist ? incompleteCount : "-", tone: incompleteCount ? "amber" : "green" },
     { label: "Checked", value: checklist ? `${completedCount}/${totalCount}` : "-", tone: checklist && incompleteCount === 0 ? "green" : "blue" },
-    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+    { label: "Pour status", value: readyState, tone: checklist && incompleteCount === 0 ? "green" : "amber" },
+    { label: "Visible", value: filteredRows.length || visibleJobs.length, tone: filteredRows.length || visibleJobs.length ? "orange" : "slate" },
   ];
 
   return (
@@ -23396,6 +24039,12 @@ function PostPourCloseoutItemsPolished({
     window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function handleExtraItemsToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open || window.innerWidth >= 768) return;
+    window.setTimeout(() => drawer.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
   function renderItemsPanel(extraClass = "") {
     return (
       <div className={`co-postpour-items-panel ${extraClass}`}>
@@ -23409,7 +24058,7 @@ function PostPourCloseoutItemsPolished({
       <div className="co-postpour-items-list">
         {visibleItems.map(renderCloseoutItem)}
         {remainingItems.length ? (
-          <details className="co-postpour-extra-items-drawer">
+          <details className="co-postpour-extra-items-drawer" onToggle={handleExtraItemsToggle}>
             <summary>
               <span>{remainingItems.length} more closeout item{remainingItems.length === 1 ? "" : "s"}</span>
               <strong>Open full checklist</strong>
@@ -23550,13 +24199,14 @@ function PostPourFieldOperatorPanel({
   const completedCount = Number(checklistSummary?.completedCount || 0);
   const totalCount = Number(checklistSummary?.totalCount || 0);
   const canComplete = Boolean(canCompleteChecklist && checklist && incompleteCount === 0);
+  const readyState = checklist ? (incompleteCount === 0 ? "Ready" : "Blocked") : "-";
   const statusLabel = checklist ? postPourChecklistStatusLabel(checklist.status) : "Not selected";
   const checklistActionLabel = checklist ? (incompleteCount ? "Open Items" : "Review Items") : "View Board";
   const summaryItems = [
-    { label: "Checklists", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
-    { label: "Open items", value: checklist ? incompleteCount : "-", tone: incompleteCount ? "amber" : "green" },
+    { label: "Open", value: checklist ? incompleteCount : "-", tone: incompleteCount ? "amber" : "green" },
     { label: "Checked", value: checklist ? `${completedCount}/${totalCount}` : "-", tone: checklist && incompleteCount === 0 ? "green" : "blue" },
-    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+    { label: "Closeout", value: readyState, tone: checklist && incompleteCount === 0 ? "green" : "amber" },
+    { label: "Visible", value: filteredRows.length || visibleJobs.length, tone: filteredRows.length || visibleJobs.length ? "orange" : "slate" },
   ];
 
   return (
@@ -26548,36 +27198,62 @@ function deliveryTicketPrimaryTime(ticket) {
   return ticket?.arrivalTime || ticket?.createdAt;
 }
 
+function deliveryTicketDateKey(ticket) {
+  return dailyReportDateKey(ticket?.createdAt || deliveryTicketPrimaryTime(ticket));
+}
+
+function deliveryTicketJobId(ticket) {
+  return ticket?.jobId || ticket?.job?.id || "";
+}
+
 function DeliveryTicketsTablePolished({ rows, selectedId, onSelect }) {
+  function handleMobileListToggle(event) {
+    const drawer = event.currentTarget;
+    if (!drawer.open) return;
+    if (!window.matchMedia?.("(max-width: 767px)")?.matches) return;
+    window.setTimeout(() => {
+      drawer.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   return (
     <>
-      <div className="co-delivery-mobile-list grid gap-3 p-3 md:hidden">
-        {rows.map((ticket) => {
-          const selected = ticket.id === selectedId;
+      <details className="co-delivery-mobile-list-drawer" onToggle={handleMobileListToggle}>
+        <summary>
+          <span>
+            <strong>Tickets in view</strong>
+            <em>{rows.length} delivery ticket{rows.length === 1 ? "" : "s"} ready for review</em>
+          </span>
+          <span>{rows.length}</span>
+        </summary>
+        <div className="co-delivery-mobile-list grid gap-3 p-3">
+          {rows.map((ticket) => {
+            const selected = ticket.id === selectedId;
 
-          return (
-            <button
-              key={ticket.id}
-              type="button"
-              onClick={() => onSelect(ticket.id)}
-              className={`co-delivery-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
+            return (
+              <button
+                key={ticket.id}
+                type="button"
+                onClick={() => onSelect(ticket.id)}
+                className={`co-delivery-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              >
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-base font-black text-slate-950">{deliveryTicketTitle(ticket)}</p>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-500">{ticket.job?.title || "Assigned job"} / {ticket.supplier || "Supplier pending"}</p>
+                  </div>
+                  {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone={ticket.ticketUploadId ? "green" : "orange"}>{deliveryTicketYardsLabel(ticket)}</Badge>}
                 </div>
-                {ticket.archivedAt ? <Badge tone="slate">Archived</Badge> : <Badge tone={ticket.ticketUploadId ? "green" : "orange"}>{deliveryTicketYardsLabel(ticket)}</Badge>}
-              </div>
-              <div className="co-delivery-mobile-metrics">
-                <span>Truck <strong>{ticket.truckNumber || "Not set"}</strong></span>
-                <span>Arrival <strong>{formatDateTime(deliveryTicketPrimaryTime(ticket))}</strong></span>
-                <span>Links <strong>{ticket.ticketUploadId ? "Photo" : ticket.reportId ? "Report" : "Needed"}</strong></span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                <div className="co-delivery-mobile-metrics">
+                  <span>Truck <strong>{ticket.truckNumber || "Not set"}</strong></span>
+                  <span>Arrival <strong>{formatDateTime(deliveryTicketPrimaryTime(ticket))}</strong></span>
+                  <span>Links <strong>{ticket.ticketUploadId ? "Photo" : ticket.reportId ? "Report" : "Needed"}</strong></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </details>
       <div className="co-delivery-list-scroll hidden min-w-0 overflow-auto md:block">
         <table className="co-delivery-command-table w-full min-w-[900px] text-left">
           <thead>
@@ -26729,6 +27405,9 @@ function DeliveryTicketsFieldOperatorPanel({
   ticket,
   filteredRows,
   visibleJobs,
+  todayCount,
+  currentJobTicketCount,
+  currentJobLabel,
   missingPhotoCount,
   missingReportCount,
   incompleteBasicsCount,
@@ -26739,8 +27418,8 @@ function DeliveryTicketsFieldOperatorPanel({
 }) {
   const hasTicket = Boolean(ticket);
   const summaryItems = [
-    { label: "Tickets", value: filteredRows.length, tone: filteredRows.length ? "orange" : "slate" },
-    { label: "Assigned jobs", value: visibleJobs.length, tone: visibleJobs.length ? "blue" : "slate" },
+    { label: "Today", value: todayCount, tone: todayCount ? "orange" : "slate" },
+    { label: "Current job", value: currentJobTicketCount, tone: currentJobTicketCount ? "blue" : "slate" },
     { label: "Need photo", value: missingPhotoCount, tone: missingPhotoCount ? "amber" : "green" },
     { label: "Need report", value: missingReportCount, tone: missingReportCount ? "amber" : "green" },
   ];
@@ -26761,7 +27440,7 @@ function DeliveryTicketsFieldOperatorPanel({
               {hasTicket
                 ? `${ticket.job?.title || "Assigned job"} / ${ticket.supplier || "Supplier pending"} / ${deliveryTicketYardsLabel(ticket)}`
                 : canCreate
-                  ? "Record truck, ticket, supplier, and delivered yards for an assigned job without exposing pricing or billing."
+                  ? `Record truck, ticket, supplier, and delivered yards for ${currentJobLabel || "an assigned job"} without exposing pricing or billing.`
                   : "Review assigned ticket records and linked evidence without office-only controls."}
             </p>
             <div className="co-field-operator-address">
@@ -26807,13 +27486,17 @@ function DeliveryTicketsMobileFocusPanel({
   ticket,
   latestTicket,
   visibleCount,
-  yardsLogged,
+  todayCount,
+  currentJobTicketCount,
+  currentJobLabel,
   missingPhotoCount,
   missingReportCount,
   incompleteBasicsCount,
   canCreate,
   onCreate,
   onOpenBoard,
+  onOpenToday,
+  onOpenCurrentJob,
   onOpenMissingPhoto,
   onOpenReportGap,
   onOpenBasicsGap,
@@ -26821,6 +27504,8 @@ function DeliveryTicketsMobileFocusPanel({
 }) {
   const focusTicket = ticket || latestTicket;
   const readinessItems = [
+    { label: "Today", value: todayCount, tone: todayCount ? "orange" : "slate", onClick: onOpenToday },
+    { label: currentJobLabel || "Current job", value: currentJobTicketCount, tone: currentJobTicketCount ? "orange" : "slate", onClick: onOpenCurrentJob },
     { label: "Need photo", value: missingPhotoCount, tone: missingPhotoCount ? "amber" : "green", onClick: onOpenMissingPhoto },
     { label: "Report gaps", value: missingReportCount, tone: missingReportCount ? "orange" : "green", onClick: onOpenReportGap },
     { label: "Basics gaps", value: incompleteBasicsCount, tone: incompleteBasicsCount ? "amber" : "green", onClick: onOpenBasicsGap },
@@ -26854,14 +27539,6 @@ function DeliveryTicketsMobileFocusPanel({
       </div>
 
       <div className="co-delivery-mobile-focus-metrics">
-        <button type="button" onClick={onOpenBoard} data-tone="orange">
-          <span>Visible</span>
-          <strong>{visibleCount}</strong>
-        </button>
-        <button type="button" onClick={onOpenBoard} data-tone={yardsLogged ? "green" : "slate"}>
-          <span>Yards</span>
-          <strong>{deliveryTicketYardsLabel({ yardsDelivered: yardsLogged })}</strong>
-        </button>
         {readinessItems.map((item) => (
           <button key={item.label} type="button" onClick={item.onClick} data-tone={item.tone}>
             <span>{item.label}</span>
@@ -27170,6 +27847,18 @@ function DeliveryTicketsPagePolished({
   const yardsLogged = filteredRows.reduce((sum, ticket) => sum + Number(ticket.yardsDelivered || 0), 0);
   const linkedReports = filteredRows.filter((ticket) => ticket.reportId).length;
   const archivedCount = filteredRows.filter((ticket) => ticket.archivedAt).length;
+  const todayKey = todayDateInputValue();
+  const activeTickets = ticketRows.filter((ticket) => !ticket.archivedAt);
+  const preferredDeliveryJobId = createDraft.jobId && visibleJobs.some((job) => job.id === createDraft.jobId)
+    ? createDraft.jobId
+    : deliveryTicketJobId(selectedTicket) || visibleJobs[0]?.id || "";
+  const currentDeliveryJob = visibleJobs.find((job) => job.id === preferredDeliveryJobId) || null;
+  const currentDeliveryJobLabel = currentDeliveryJob ? jobTitle(currentDeliveryJob) : "Current job";
+  const currentDeliveryJobFilter = currentDeliveryJob?.title || "";
+  const todayTicketCount = activeTickets.filter((ticket) => deliveryTicketDateKey(ticket) === todayKey).length;
+  const currentJobTicketCount = preferredDeliveryJobId
+    ? activeTickets.filter((ticket) => deliveryTicketJobId(ticket) === preferredDeliveryJobId).length
+    : 0;
   const latestTicket = filteredRows.reduce((latest, ticket) => {
     const currentTime = new Date(deliveryTicketPrimaryTime(ticket) || 0).getTime() || 0;
     const latestTime = new Date(deliveryTicketPrimaryTime(latest) || 0).getTime() || 0;
@@ -27276,6 +27965,26 @@ function DeliveryTicketsPagePolished({
     window.setTimeout(() => boardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openTodayTickets() {
+    setArchiveFilter("Active");
+    setSearch("");
+    setJobFilter("All jobs");
+    setSupplierFilter("All suppliers");
+    setCreatorFilter("All creators");
+    setDateFilter(todayKey);
+    jumpToBoard();
+  }
+
+  function openCurrentJobTickets() {
+    setArchiveFilter("Active");
+    setSearch("");
+    setJobFilter(currentDeliveryJobFilter || "All jobs");
+    setSupplierFilter("All suppliers");
+    setCreatorFilter("All creators");
+    setDateFilter("All dates");
+    jumpToBoard();
+  }
+
   function openPriorityTicket(matchTicket, options = {}) {
     const targetTicket = filteredRows.find(matchTicket) || ticketRows.find(matchTicket);
     if (options.archiveFilter) setArchiveFilter(options.archiveFilter);
@@ -27373,6 +28082,9 @@ function DeliveryTicketsPagePolished({
           ticket={selectedTicket}
           filteredRows={filteredRows}
           visibleJobs={visibleJobs}
+          todayCount={todayTicketCount}
+          currentJobTicketCount={currentJobTicketCount}
+          currentJobLabel={currentDeliveryJobLabel}
           missingPhotoCount={missingPhotoCount}
           missingReportCount={missingReportCount}
           incompleteBasicsCount={incompleteBasicsCount}
@@ -27388,13 +28100,17 @@ function DeliveryTicketsPagePolished({
           ticket={selectedTicket}
           latestTicket={latestTicket}
           visibleCount={filteredRows.length}
-          yardsLogged={yardsLogged}
+          todayCount={todayTicketCount}
+          currentJobTicketCount={currentJobTicketCount}
+          currentJobLabel={currentDeliveryJobLabel}
           missingPhotoCount={missingPhotoCount}
           missingReportCount={missingReportCount}
           incompleteBasicsCount={incompleteBasicsCount}
           canCreate={canCreate}
           onCreate={() => openTool("create")}
           onOpenBoard={jumpToBoard}
+          onOpenToday={openTodayTickets}
+          onOpenCurrentJob={openCurrentJobTickets}
           onOpenMissingPhoto={() => openPriorityTicket((ticket) => !ticket.ticketUploadId, { archiveFilter: "Active" })}
           onOpenReportGap={() => openPriorityTicket((ticket) => !ticket.reportId, { archiveFilter: "Active" })}
           onOpenBasicsGap={() => openPriorityTicket((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0), { archiveFilter: "Active" })}
@@ -28585,6 +29301,22 @@ function ToolChecklistItemsPanelPolished({ checklist, items, permissions, busy, 
                 </div>
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {permissions.toolChecklist.canContribute ? (
+                  <div className="co-tool-checklist-status-actions md:col-span-2" aria-label={`Quick status for ${item.name}`}>
+                    {["loaded", "on_site", "missing", "damaged"].map((statusOption) => (
+                      <button
+                        key={statusOption}
+                        type="button"
+                        className={item.status === statusOption ? "is-active" : ""}
+                        data-tone={toolChecklistItemStatusTone(statusOption)}
+                        onClick={() => onUpdateChecklistItem(checklist.id, item.id, { status: statusOption })}
+                        disabled={busy}
+                      >
+                        {toolChecklistItemStatusLabel(statusOption)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <TextAreaField label="Notes" key={`${item.id}-notes`} defaultValue={item.notes || ""} onBlur={(event) => onUpdateChecklistItem(checklist.id, item.id, { notes: event.target.value })} disabled={busy || !permissions.toolChecklist.canContribute} />
                 <div className="grid gap-3">
                   <SelectField label="Status" value={item.status} onChange={(event) => onUpdateChecklistItem(checklist.id, item.id, { status: event.target.value })} disabled={busy || !permissions.toolChecklist.canContribute}>
