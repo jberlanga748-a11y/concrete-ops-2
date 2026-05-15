@@ -12350,7 +12350,7 @@ function CommandCenterKpiCard({ item }) {
   const tone = item.tone || "orange";
   const value = Number.isFinite(Number(item.value)) ? Number(item.value) : 0;
   const displayValue = item.displayValue ?? value;
-  const canRunAction = typeof item.onAction === "function" && item.actionLabel !== "Unavailable" && !item.disabled;
+  const canRunAction = typeof item.onAction === "function" && !item.disabled;
 
   return (
     <div className="co-command-kpi border p-3" data-tone={tone}>
@@ -13501,9 +13501,9 @@ function DashboardPagePolished({
   ];
   const fieldKpis = [
     { label: "Visible Jobs", value: liveJobsPreview.length, helper: "Assigned and field-visible work", icon: "briefcase", tone: "blue", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
-    { label: "Daily Reports", value: permissions?.reports?.canView ? 1 : 0, helper: permissions?.reports?.canView ? "Available today" : "Not enabled", icon: "document", tone: permissions?.reports?.canView ? "green" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Unavailable", onAction: () => permissions?.reports?.canView && setActive("reports") },
-    { label: "Uploads", value: permissions?.uploads?.canView ? 1 : 0, helper: permissions?.uploads?.canView ? "Photo tools on" : "Not enabled", icon: "upload", tone: permissions?.uploads?.canView ? "green" : "slate", actionLabel: permissions?.uploads?.canView ? "Open uploads" : "Unavailable", onAction: () => permissions?.uploads?.canView && setActive("uploads") },
-    { label: "Time Tools", value: permissions?.time?.canView ? 1 : 0, helper: permissions?.time?.canView ? "Clock tools on" : "Not enabled", icon: "clock", tone: permissions?.time?.canView ? "green" : "slate", actionLabel: permissions?.time?.canView ? "Open time" : "Unavailable", onAction: () => permissions?.time?.canView && setActive("time") },
+    { label: "Daily Reports", value: permissions?.reports?.canView ? 1 : 0, helper: permissions?.reports?.canView ? "Available today" : "Not enabled", icon: "document", tone: permissions?.reports?.canView ? "green" : "slate", actionLabel: permissions?.reports?.canView ? "Open reports" : "Unavailable", disabled: !permissions?.reports?.canView, onAction: () => permissions?.reports?.canView && setActive("reports") },
+    { label: "Uploads", value: permissions?.uploads?.canView ? 1 : 0, helper: permissions?.uploads?.canView ? "Photo tools on" : "Not enabled", icon: "upload", tone: permissions?.uploads?.canView ? "green" : "slate", actionLabel: permissions?.uploads?.canView ? "Open uploads" : "Unavailable", disabled: !permissions?.uploads?.canView, onAction: () => permissions?.uploads?.canView && setActive("uploads") },
+    { label: "Time Tools", value: permissions?.time?.canView ? 1 : 0, helper: permissions?.time?.canView ? "Clock tools on" : "Not enabled", icon: "clock", tone: permissions?.time?.canView ? "green" : "slate", actionLabel: permissions?.time?.canView ? "Open time" : "Unavailable", disabled: !permissions?.time?.canView, onAction: () => permissions?.time?.canView && setActive("time") },
   ];
 
   function focusDashboardRef(ref) {
