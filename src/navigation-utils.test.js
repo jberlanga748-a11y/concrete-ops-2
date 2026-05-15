@@ -30,14 +30,13 @@ const NAV_GROUPS = [
     items: [
       { id: "calculator", label: "Calculator" },
       { id: "toolChecklist", label: "Tool Checklist" },
-      { id: "copilot", label: "AI Office" },
-      { id: "design", label: "Design System" },
+      { id: "copilot", label: "AI Office Preview" },
       { id: "settings", label: "Settings" },
     ],
   },
 ];
 
-test("office roles keep full office navigation and dashboard default", () => {
+test("office roles keep contractor-safe office navigation and dashboard default", () => {
   const owner = { role: "Owner" };
 
   assert.equal(isOfficeManager(owner), true);
@@ -45,11 +44,11 @@ test("office roles keep full office navigation and dashboard default", () => {
   assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "copilot", "design", "settings"],
+    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "copilot", "settings"],
   );
   assert.equal(canAccessModule("employees", owner, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("copilot", owner, { toolChecklistEnabled: true }), true);
-  assert.equal(canAccessModule("design", owner, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessModule("design", owner, { toolChecklistEnabled: true }), false);
 });
 
 test("administrators and operations managers can access employees", () => {

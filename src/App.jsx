@@ -257,8 +257,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { id: "calculator", label: "Calculator", icon: "calculator" },
-      { id: "copilot", label: "AI Office", icon: "spark" },
-      { id: "design", label: "Design System", icon: "layers" },
+      { id: "copilot", label: "AI Office Preview", icon: "spark" },
       { id: "settings", label: "Settings", icon: "settings" },
     ],
   },
@@ -1025,7 +1024,7 @@ function runDesignSystemChecks() {
   const failures = [];
   const navIds = new Set(NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id)));
 
-  ["dashboard", "leads", "jobs", "reports", "calculator", "copilot", "design", "settings"].forEach((id) => {
+  ["dashboard", "leads", "jobs", "reports", "calculator", "copilot", "settings"].forEach((id) => {
     if (!navIds.has(id)) failures.push(`Missing nav item: ${id}`);
   });
 
@@ -13056,7 +13055,7 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
     { label: "App Status", detail: "Review the live health panel", pill: "Review", tone: "blue" },
     { label: "Database", detail: "Confirm data service status", pill: "Review", tone: "blue" },
     { label: "Backup", detail: "Check export and safety status", pill: "Review", tone: "slate" },
-    { label: "AI Office", detail: "Server-side configuration only", pill: "Review", tone: "slate" },
+    { label: "AI Office Preview", detail: "Server-side, review-only assistant tools", pill: "Review", tone: "slate" },
     { label: "Website Intake", detail: "Review intake readiness", pill: "Review", tone: "slate" },
   ];
 
@@ -21139,11 +21138,12 @@ function CopilotPagePolished({
     <div className="co-office-page co-ai-office-page">
       <PageHeader
         eyebrow="Apex HQ AI"
-        title="AI Office"
-        description="Office-only Apex HQ AI command space for lead review, outreach drafts, startup signals, and operator next actions."
+        title="AI Office Preview"
+        description="Office-only review workspace for lead drafts, scout signals, startup checks, and operator next actions. Nothing sends or changes records without approval."
         actions={
           <div className="co-ai-header-actions">
             <div className="co-ai-header-badges">
+              <Badge tone="amber">Preview</Badge>
               <Badge tone="green">Field roles blocked</Badge>
               <Badge tone="amber">No auto-send</Badge>
             </div>
@@ -21165,8 +21165,8 @@ function CopilotPagePolished({
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2>Daily Job Finder</h2>
-                  <p>Office-ready job finding board built from AI search plans, lead sources, source check dates, and real lead follow-up signals.</p>
+                  <h2>Daily Job Finder Preview</h2>
+                  <p>Review-only job-finding board built from search plans, lead sources, source check dates, and real lead follow-up signals.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={opportunityScout.readiness.tone}>{opportunityScout.readiness.label}</Badge>
@@ -21641,7 +21641,7 @@ function CopilotPagePolished({
           <Card className="co-ai-main-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
                 <div className="min-w-0">
-                <h2>AI Office Focus Queue</h2>
+                <h2>AI Office Preview Focus Queue</h2>
                 <p>Highest-signal records and queues to open next. Every row routes to an existing Apex HQ workflow.</p>
               </div>
             </div>
@@ -21705,7 +21705,7 @@ function CopilotPagePolished({
           </Card>
 
           <Card className="co-ai-rail-card">
-            <SectionHeader title="Workspace Snapshot" description="Current live record counts feeding the AI Office view." />
+            <SectionHeader title="Workspace Snapshot" description="Current live record counts feeding the AI Office Preview view." />
             <div className="co-ai-snapshot-grid">
               {snapshotRows.map((row) => (
                 <div key={row.label}>
@@ -26015,13 +26015,13 @@ function EstimateCommandRailPolished({
           <Button type="button" size="sm" onClick={onSave} disabled={!canManage || detailSaveDisabled}>Save</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit</Button>
           <Button type="button" size="sm" variant="secondary" onClick={onPrint} disabled={!preview}>Print</Button>
-          <Button type="button" size="sm" onClick={onSend} disabled={!preview || busy}>Send</Button>
+          <Button type="button" size="sm" onClick={onSend} disabled={!preview || busy}>{emailSendingConfigured ? "Send" : "Copy to send"}</Button>
         </div>
         {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
       </Card>
 
       <Card className="co-estimates-rail-card p-4">
-        <SectionHeader title="Proposal actions" description={emailSendingConfigured ? "Email sending is configured." : "Email sending is not configured; copy and print still work."} />
+        <SectionHeader title="Proposal actions" description={emailSendingConfigured ? "Email sending is configured." : "Manual send mode: copy or print the customer-ready message, then record the send in Apex HQ."} />
         <div className="grid gap-2">
           <button type="button" className="co-estimates-action-row" onClick={onCopyEstimate} disabled={!preview}>
             <span>Copy estimate</span>
@@ -26291,8 +26291,10 @@ function EstimatesPagePolished({
   async function handleSendEstimate() {
     if (!detailEstimatePreview) return false;
     if (!emailSendingConfigured) {
-      showCopyFeedback("Email sending is not configured yet.");
-      return false;
+      return copyEstimateText(
+        () => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }),
+        "Manual send mode: customer message copied. Paste it into your email or text app, then mark sent.",
+      );
     }
     if (!detailEstimateCustomerEmail) {
       showCopyFeedback("Add a customer email before sending this estimate.");

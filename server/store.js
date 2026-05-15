@@ -703,20 +703,38 @@ export function createSeedState() {
     date.setHours(hours, minutes, 0, 0);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   };
+  const leadDemoDates = {
+    "L-1048": { followUpDueAt: toDateOnly(0), age: "Today" },
+    "L-1047": { followUpDueAt: toDateOnly(1), age: "1d" },
+    "L-1046": { followUpDueAt: toDateOnly(0), age: "Today" },
+    "L-1045": { followUpDueAt: toDateOnly(1), age: "1d" },
+    "L-1044": { followUpDueAt: toDateOnly(2), age: "2d" },
+  };
+  const jobDemoDates = {
+    "J-2201": { scheduledStart: toLocalDateTime(0, 7, 30), scheduledEnd: toLocalDateTime(0, 16, 30), due: "Today" },
+    "J-2198": { scheduledStart: toLocalDateTime(0, 7, 0), scheduledEnd: toLocalDateTime(0, 15, 30), due: "Today" },
+    "J-2192": { scheduledStart: toLocalDateTime(1, 8, 0), scheduledEnd: toLocalDateTime(1, 16, 0), due: "Tomorrow" },
+    "J-2204": { scheduledStart: toLocalDateTime(3, 7, 30), scheduledEnd: toLocalDateTime(3, 16, 0), due: "This week" },
+  };
   const customers = withSeedTimestamps(INITIAL_CUSTOMERS, seededAt, 220);
   const leads = withSeedTimestamps(INITIAL_LEADS, seededAt, 180).map((lead) => ({
     ...lead,
+    ...(leadDemoDates[lead.id] || {}),
     ownerId: officeActor.id,
   }));
   const jobs = withSeedTimestamps(INITIAL_JOBS, seededAt, 240).map((job) => {
+    const scheduledJob = {
+      ...job,
+      ...(jobDemoDates[job.id] || {}),
+    };
     if (!includeDemoRecords && job.id === "J-2192") {
       return {
-        ...job,
+        ...scheduledJob,
         fieldPlanningVisible: false,
         visibleToForeman: false,
       };
     }
-    return job;
+    return scheduledJob;
   });
   const jobAssignments = [
     {
@@ -2511,6 +2529,48 @@ function ensureDemoCompanySettingsInDatabase(database, companySettings, changedA
   return changed;
 }
 
+function refreshDemoScheduleDatesInDatabase(database, demoSeed) {
+  const updateLead = database.prepare(`
+    UPDATE leads
+    SET follow_up_due_at = ?,
+        age = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateJob = database.prepare(`
+    UPDATE jobs
+    SET scheduled_start = ?,
+        scheduled_end = ?,
+        due = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  let updated = 0;
+
+  for (const lead of demoSeed.leads || []) {
+    const result = updateLead.run(
+      lead.followUpDueAt || "",
+      lead.age || "",
+      lead.updatedAt || isoNow(),
+      lead.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const job of demoSeed.jobs || []) {
+    const result = updateJob.run(
+      job.scheduledStart || "",
+      job.scheduledEnd || "",
+      job.due || "",
+      job.updatedAt || isoNow(),
+      job.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  return updated;
+}
+
 function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
   const demoSeed = buildDemoSeedData(actualUserIdsByEmail);
   const attempted = [
@@ -3164,11 +3224,13 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
       event.createdAt || isoNow(),
     ],
   );
+  const updated = refreshDemoScheduleDatesInDatabase(database, demoSeed);
 
   return {
     inserted,
     skipped: Math.max(0, attempted - inserted),
     attempted,
+    updated,
   };
 }
 
@@ -3191,6 +3253,7 @@ function logDemoStartupSummary(summary) {
     demoData: summary.demoData,
     demoRecordsInserted: summary.demoRecordsInserted ?? 0,
     demoRecordsSkipped: summary.demoRecordsSkipped ?? 0,
+    demoRecordsUpdated: summary.demoRecordsUpdated ?? 0,
     demoRecordsDeleted: summary.demoRecordsDeleted ?? 0,
   });
 
@@ -6741,13 +6804,14 @@ async function ensureDbInternal() {
       if (serverConfig.seedDemoData) {
         const demoDataResult = ensureDemoSeedDataInDatabase(db, demoUsers.actualUserIdsByEmail);
         const demoRecordsDeleted = cleanupLegacyDemoSeedDataInDatabase(db);
-        demoData = demoDataResult.inserted > 0 ? "complete" : "skipped";
+        demoData = demoDataResult.inserted > 0 || demoDataResult.updated > 0 ? "complete" : "skipped";
         demoSummary = {
           usersEnsured: demoUsers.usersEnsured,
           usersUpdated: demoUsers.usersUpdated,
           demoData,
           demoRecordsInserted: demoDataResult.inserted,
           demoRecordsSkipped: demoDataResult.skipped,
+          demoRecordsUpdated: demoDataResult.updated,
           demoRecordsDeleted,
         };
       } else {
@@ -6757,6 +6821,7 @@ async function ensureDbInternal() {
           demoData,
           demoRecordsInserted: 0,
           demoRecordsSkipped: 0,
+          demoRecordsUpdated: 0,
           demoRecordsDeleted: 0,
         };
       }
@@ -6777,6 +6842,7 @@ async function ensureDbInternal() {
         demoData: serverConfig.seedDemoData ? "complete" : "skipped",
         demoRecordsInserted: 0,
         demoRecordsSkipped: 0,
+        demoRecordsUpdated: 0,
       };
     }
     writeStateToDb(nextState);
@@ -6797,6 +6863,7 @@ async function ensureDbInternal() {
           demoData: "skipped",
           demoRecordsInserted: 0,
           demoRecordsSkipped: 0,
+          demoRecordsUpdated: 0,
         };
       }
       writeStateToDb(nextState);
@@ -6816,6 +6883,7 @@ async function ensureDbInternal() {
           demoData: serverConfig.seedDemoData ? "complete" : "skipped",
           demoRecordsInserted: 0,
           demoRecordsSkipped: 0,
+          demoRecordsUpdated: 0,
           demoRecordsDeleted: 0,
         }
         : null);
@@ -6833,6 +6901,7 @@ async function ensureDbInternal() {
         demoData: "skipped",
         demoRecordsInserted: 0,
         demoRecordsSkipped: 0,
+        demoRecordsUpdated: 0,
       };
     }
     writeStateToDb(nextState);
