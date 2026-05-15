@@ -6377,6 +6377,165 @@ function deriveDailyReportProofState({
   };
 }
 
+function todayWorkDateKey(value = new Date()) {
+  return dailyReportDateKey(value) || todayDateInputValue();
+}
+
+function todayWorkJobDate(job = {}) {
+  return dailyReportDateKey(job.scheduledStart || job.startDate || job.startDateTarget || job.dueDate || job.due || "");
+}
+
+function todayWorkTimeValue(job = {}) {
+  const parsed = new Date(job.scheduledStart || job.startDate || job.dueDate || "");
+  return Number.isNaN(parsed.getTime()) ? Number.MAX_SAFE_INTEGER : parsed.getTime();
+}
+
+function todayWorkCrewAssignments(job = {}) {
+  const directAssignments = normalizeObjectArray(job.assignments).filter((assignment) => !assignment.removedAt);
+  const crewAssignments = normalizeObjectArray(job.crewAssignments).filter((assignment) => !assignment.removedAt);
+  const synthesized = [];
+  if (job.assignedForemanId) synthesized.push({ userId: job.assignedForemanId, roleOnJob: "foreman" });
+  if (job.assignedUserId) synthesized.push({ userId: job.assignedUserId, roleOnJob: "crew" });
+  const byKey = new Map();
+  [...directAssignments, ...crewAssignments, ...synthesized].forEach((assignment, index) => {
+    const key = assignment.userId || assignment.id || `${assignment.roleOnJob || "crew"}-${index}`;
+    if (!byKey.has(key)) byKey.set(key, assignment);
+  });
+  return Array.from(byKey.values());
+}
+
+function todayWorkCrewCount(job = {}) {
+  const assignmentCount = todayWorkCrewAssignments(job).length;
+  if (assignmentCount) return assignmentCount;
+  const textCrew = String(job.crew || "").trim();
+  if (textCrew) return 1;
+  return 0;
+}
+
+function todayWorkForemanLabel(job = {}, users = []) {
+  if (job.foremanAssignment?.userName) return job.foremanAssignment.userName;
+  if (job.assignedForemanName) return job.assignedForemanName;
+  if (job.assignedForemanId) {
+    const matchedUser = normalizeObjectArray(users).find((user) => user.id === job.assignedForemanId);
+    return matchedUser?.name || job.assignedForemanId;
+  }
+  return "Unassigned";
+}
+
+function todayWorkHasReport(report = {}) {
+  return Boolean(report?.id);
+}
+
+function todayWorkChecklistRows(checklists = [], job = {}, dateKey = "", includeDate = true) {
+  return normalizeObjectArray(checklists).filter((checklist) => (
+    includeDate ? dailyReportMatchesJobDate(checklist, job, dateKey) : dailyReportMatchesJobDate(checklist, job, "")
+  ));
+}
+
+function deriveTodayWorkCoordination({
+  jobs = [],
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+  timeEntries = [],
+  users = [],
+  today = new Date(),
+} = {}) {
+  const dateKey = todayWorkDateKey(today);
+  const safeJobs = normalizeObjectArray(jobs).filter((job) => dailyReportIsLiveJob(job));
+  const safeReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt);
+  const safeUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt);
+  const safeTickets = normalizeObjectArray(deliveryTickets).filter((ticket) => !ticket.archivedAt);
+  const safeTimeEntries = normalizeObjectArray(timeEntries).filter((entry) => !entry.archivedAt);
+
+  const jobsWithTodayActivity = new Set([
+    ...safeReports.filter((report) => dailyReportRecordDate(report) === dateKey).map(dailyReportRecordJobId),
+    ...safeUploads.filter((upload) => dailyReportRecordDate(upload) === dateKey).map(dailyReportRecordJobId),
+    ...safeTickets.filter((ticket) => dailyReportRecordDate(ticket) === dateKey).map(dailyReportRecordJobId),
+    ...safeTimeEntries.filter((entry) => dailyReportRecordDate(entry) === dateKey || (entry.clockInAt && !entry.clockOutAt)).map(dailyReportRecordJobId),
+  ].filter(Boolean));
+
+  const todayJobs = safeJobs
+    .filter((job) => todayWorkJobDate(job) === dateKey || normalizeJobStatus(job.status || job.stage) === "in_progress" || jobsWithTodayActivity.has(job.id))
+    .sort((left, right) => todayWorkTimeValue(left) - todayWorkTimeValue(right));
+
+  const upcomingJobs = safeJobs
+    .filter((job) => todayWorkJobDate(job) && todayWorkJobDate(job) > dateKey)
+    .sort((left, right) => todayWorkTimeValue(left) - todayWorkTimeValue(right))
+    .slice(0, 3);
+
+  const rows = todayJobs.map((job) => {
+    const report = safeReports.find((item) => dailyReportMatchesJobDate(item, job, dateKey));
+    const proofState = deriveDailyReportProofState({
+      report,
+      job,
+      operatingDate: dateKey,
+      uploads: safeUploads,
+      deliveryTickets: safeTickets,
+      prePourChecklists,
+      postPourChecklists,
+      toolChecklists,
+      safetyIncidents,
+    });
+    const prePourOpen = [
+      job.prePourChecklist,
+      ...todayWorkChecklistRows(prePourChecklists, job, dateKey, false),
+    ].filter(Boolean).filter(fieldChecklistNeedsAction).length;
+    const postPourOpen = [
+      job.postPourChecklist,
+      ...todayWorkChecklistRows(postPourChecklists, job, dateKey, false),
+    ].filter(Boolean).filter(fieldChecklistNeedsAction).length;
+    const toolOpen = todayWorkChecklistRows(toolChecklists, job, dateKey).filter(fieldChecklistNeedsAction).length;
+    const incidentsOpen = normalizeObjectArray(safetyIncidents).filter((incident) => (
+      dailyReportMatchesJobDate(incident, job, dateKey)
+      && !incident.archivedAt
+      && !/(resolved|closed|reviewed)/i.test(String(incident.status || ""))
+    )).length;
+    const crewCount = todayWorkCrewCount(job);
+    const missing = [
+      !job.scheduledStart ? "Schedule" : "",
+      !crewCount ? "Crew" : "",
+      !todayWorkHasReport(report) ? "Report" : "",
+      proofState.photoMissing ? "Photos" : "",
+      prePourOpen || postPourOpen || toolOpen ? "Checklist" : "",
+      incidentsOpen ? "Incident" : "",
+    ].filter(Boolean);
+
+    return {
+      job,
+      report,
+      proofState,
+      crewCount,
+      foreman: todayWorkForemanLabel(job, users),
+      scheduleLabel: formatJobScheduleDetail(job),
+      reportLabel: todayWorkHasReport(report) ? reportStatusLabel(report.status) : "Missing report",
+      photoCount: proofState.photoCount,
+      ticketCount: proofState.ticketCount,
+      openWorkflowCount: prePourOpen + postPourOpen + toolOpen + incidentsOpen,
+      missing,
+      tone: missing.length ? "amber" : "green",
+    };
+  });
+
+  return {
+    dateKey,
+    rows,
+    upcomingJobs,
+    stats: {
+      todayJobs: rows.length,
+      crewsAssigned: rows.filter((row) => row.crewCount > 0).length,
+      missingReports: rows.filter((row) => !todayWorkHasReport(row.report)).length,
+      missingPhotos: rows.filter((row) => row.proofState.photoMissing).length,
+      openWorkflows: rows.reduce((sum, row) => sum + row.openWorkflowCount, 0),
+      activeClocks: safeTimeEntries.filter((entry) => entry.clockInAt && !entry.clockOutAt).length,
+    },
+  };
+}
+
 function dailyReportProofSummary(proofState) {
   if (!proofState) return "Proof not checked";
   const parts = [`${proofState.photoCount} photo${proofState.photoCount === 1 ? "" : "s"}`];
@@ -13938,11 +14097,125 @@ function DashboardPage(props) {
   return <DashboardPagePolished {...props} />;
 }
 
+function DashboardTodayWorkMetric({ label, value, helper, tone = "slate" }) {
+  return (
+    <div className="co-today-work-metric" data-tone={tone}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{helper}</small>
+    </div>
+  );
+}
+
+function DashboardTodayWorkRow({ row, permissions, setActive, onSelectJob, fieldMode = false }) {
+  const job = row.job;
+  const missingLabel = row.missing.length ? row.missing.slice(0, 3).join(" / ") : "Ready";
+  const canRoute = typeof setActive === "function";
+  const canOpenReports = Boolean(permissions?.reports?.canView && canRoute);
+  const canOpenUploads = Boolean(permissions?.uploads?.canView && canRoute);
+
+  return (
+    <div className="co-today-work-row" data-tone={row.tone}>
+      <button type="button" className="co-today-work-job" onClick={() => onSelectJob?.(job.id)}>
+        <span>
+          <strong>{jobTitle(job)}</strong>
+          <small>{[job.customer, row.scheduleLabel].filter(Boolean).join(" / ")}</small>
+        </span>
+        <StatusBadge status={jobStatusLabel(job.status || job.stage)} />
+      </button>
+      <div className="co-today-work-details">
+        <div>
+          <span>Foreman</span>
+          <strong>{row.foreman}</strong>
+        </div>
+        <div>
+          <span>Crew</span>
+          <strong>{row.crewCount ? `${row.crewCount} assigned` : "Missing"}</strong>
+        </div>
+        <div>
+          <span>Report</span>
+          <strong>{row.reportLabel}</strong>
+        </div>
+        <div>
+          <span>Proof</span>
+          <strong>{row.photoCount} photos / {row.ticketCount} tickets</strong>
+        </div>
+      </div>
+      <div className="co-today-work-footer">
+        <Badge tone={row.missing.length ? "amber" : "green"}>{missingLabel}</Badge>
+        {row.openWorkflowCount ? <Badge tone="orange">{row.openWorkflowCount} workflow open</Badge> : <Badge tone="green">Workflows clear</Badge>}
+        <div className="co-today-work-actions">
+          {canOpenReports ? <Button type="button" size="sm" variant="secondary" onClick={() => setActive("reports")}>{fieldMode ? "Report" : "Reports"}</Button> : null}
+          {canOpenUploads ? <Button type="button" size="sm" variant="secondary" onClick={() => setActive("uploads")}>Photos</Button> : null}
+          {canRoute ? <Button type="button" size="sm" onClick={() => setActive("jobs")}>{fieldMode ? "My jobs" : "Jobs"}</Button> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardTodayCoordinationPanel({ coordination, permissions, setActive, onSelectJob, fieldMode = false }) {
+  const rows = normalizeObjectArray(coordination?.rows).slice(0, fieldMode ? 2 : 4);
+  const upcomingJobs = normalizeObjectArray(coordination?.upcomingJobs);
+  const stats = coordination?.stats || {};
+  const headline = rows.length
+    ? `${rows.length} active today`
+    : upcomingJobs.length
+      ? `${upcomingJobs.length} upcoming`
+      : "No scheduled jobs";
+
+  return (
+    <Card className={`co-today-work-board overflow-hidden ${fieldMode ? "co-today-work-board-field" : ""}`}>
+      <div className="co-dashboard-board-header co-today-work-header border-b border-slate-200 bg-white p-4">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <h2>{fieldMode ? "Today's Work" : "Today's Work Coordination"}</h2>
+            <p>{fieldMode ? "Assigned work, clock/report/photo actions, and missing items stay together." : "Crew assignments, job activity, and proof gaps for today's operating plan."}</p>
+          </div>
+          <div className="co-today-work-header-actions">
+            <Badge tone={rows.length ? "orange" : "slate"}>{headline}</Badge>
+            {permissions?.jobs?.canView || permissions?.jobs?.canManageAll || permissions?.jobs?.canManageField ? (
+              <Button type="button" size="sm" onClick={() => setActive?.("jobs")}>{fieldMode ? "Open my jobs" : "Open jobs"}</Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <div className="co-today-work-summary">
+        <DashboardTodayWorkMetric label="Active today" value={stats.todayJobs || 0} helper="Scheduled or moving" tone={stats.todayJobs ? "orange" : "slate"} />
+        <DashboardTodayWorkMetric label="Crew assigned" value={stats.crewsAssigned || 0} helper="Jobs with crew" tone={stats.crewsAssigned ? "green" : "amber"} />
+        <DashboardTodayWorkMetric label="Reports missing" value={stats.missingReports || 0} helper="Needs field closeout" tone={stats.missingReports ? "amber" : "green"} />
+        <DashboardTodayWorkMetric label="Proof gaps" value={(stats.missingPhotos || 0) + (stats.openWorkflows || 0)} helper="Photos or workflow items" tone={(stats.missingPhotos || 0) + (stats.openWorkflows || 0) ? "amber" : "green"} />
+      </div>
+      <div className="co-today-work-list">
+        {rows.length ? rows.map((row) => (
+          <DashboardTodayWorkRow key={row.job.id} row={row} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} fieldMode={fieldMode} />
+        )) : (
+          <div className="co-today-work-empty">
+            <StateCard
+              title={upcomingJobs.length ? "No active work today" : "No scheduled work today"}
+              description={upcomingJobs.length ? `Next scheduled job: ${jobTitle(upcomingJobs[0])} / ${formatJobScheduleDetail(upcomingJobs[0])}.` : "Scheduled and active job coordination will appear here once work is assigned."}
+              tone="slate"
+            />
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function DashboardPagePolished({
   stats,
   dashboardMetrics,
   leads,
   jobs,
+  dailyReports = [],
+  uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  toolChecklists = [],
+  safetyIncidents = [],
+  timeEntries = [],
   queueItems,
   activity,
   leadFilter,
@@ -14140,6 +14413,18 @@ function DashboardPagePolished({
     { label: "Uploads", value: permissions?.uploads?.canView ? 1 : 0, helper: permissions?.uploads?.canView ? "Photo tools on" : "Not enabled", icon: "upload", tone: permissions?.uploads?.canView ? "green" : "slate", actionLabel: permissions?.uploads?.canView ? "Open uploads" : "Unavailable", disabled: !permissions?.uploads?.canView, onAction: () => permissions?.uploads?.canView && setActive("uploads") },
     { label: "Time Tools", value: permissions?.time?.canView ? 1 : 0, helper: permissions?.time?.canView ? "Clock tools on" : "Not enabled", icon: "clock", tone: permissions?.time?.canView ? "green" : "slate", actionLabel: permissions?.time?.canView ? "Open time" : "Unavailable", disabled: !permissions?.time?.canView, onAction: () => permissions?.time?.canView && setActive("time") },
   ];
+  const todayCoordination = useMemo(() => deriveTodayWorkCoordination({
+    jobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    toolChecklists,
+    safetyIncidents,
+    timeEntries,
+    users,
+  }), [dailyReports, deliveryTickets, jobs, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, users]);
 
   function focusDashboardRef(ref) {
     ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -14175,6 +14460,13 @@ function DashboardPagePolished({
         </div>
         <div className="co-dashboard-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:px-6">
           <div className="co-dashboard-left-stack min-w-0 space-y-3">
+            <DashboardTodayCoordinationPanel
+              coordination={todayCoordination}
+              permissions={permissions}
+              setActive={setActive}
+              onSelectJob={onSelectJob}
+              fieldMode
+            />
             <Card className="co-dashboard-main-board overflow-hidden">
               <div className="co-dashboard-board-header border-b border-slate-200 bg-white p-4">
                 <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -14247,6 +14539,13 @@ function DashboardPagePolished({
             onFocusLeads={() => focusDashboardRef(leadPipelineRef)}
             onFocusJobs={() => focusDashboardRef(jobsRef)}
             onFocusQueue={() => focusDashboardRef(queueRef)}
+          />
+
+          <DashboardTodayCoordinationPanel
+            coordination={todayCoordination}
+            permissions={permissions}
+            setActive={setActive}
+            onSelectJob={onSelectJob}
           />
 
           <DashboardDailyFocusBoard
