@@ -941,7 +941,7 @@ const INITIAL_DELIVERY_TICKET_FORM = {
 
 const INITIAL_TOOL_CHECKLIST_FORM = {
   jobId: "",
-  title: "",
+  title: "Tool loadout",
   notes: "",
 };
 
@@ -28015,11 +28015,9 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, mobileMaxRows 
           const selected = checklist.id === selectedId;
 
           return (
-            <button
+            <article
               key={checklist.id}
-              type="button"
-              onClick={() => onSelect(checklist.id)}
-              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/35"}`}
+              className={`co-toolbox-mobile-card co-mobile-record-card w-full rounded-[1.05rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/75" : "border-slate-200 bg-white"}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -28034,7 +28032,10 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, mobileMaxRows 
                 <div><span>Damaged</span><strong>{checklist.damagedItemCount || 0}</strong></div>
                 <div><span>Foreman</span><strong>{toolChecklistForemanLabel(checklist)}</strong></div>
               </div>
-            </button>
+              <button type="button" className="co-toolbox-mobile-card-action" onClick={() => onSelect(checklist.id)}>
+                Open checklist
+              </button>
+            </article>
           );
         })}
       </div>
@@ -28347,16 +28348,19 @@ function ToolChecklistCreatePanelPolished({ canCreate, visibleJobs, checklistDra
           <option value="">Select a job</option>
           {visibleJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
         </SelectField>
-        <InputField label="Title" value={checklistDraft.title} onChange={(event) => setChecklistDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Pour day loadout" />
-        <div className="md:col-span-2">
-          <TextAreaField label="Notes" value={checklistDraft.notes} onChange={(event) => setChecklistDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="What should the crew prep before leaving the yard?" />
+        <div className="co-tool-checklist-create-title">
+          <InputField label="Title" value={checklistDraft.title} onChange={(event) => setChecklistDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Pour day loadout" />
+        </div>
+        <div className="co-tool-checklist-create-notes md:col-span-2">
+          <InputField label="Notes" value={checklistDraft.notes} onChange={(event) => setChecklistDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Crew prep notes" />
         </div>
         <div className="md:col-span-2">
           <Button
             type="button"
             className="w-full sm:w-auto"
-            onClick={() => {
-              onCreateChecklist(checklistDraft);
+            onClick={async () => {
+              const created = await onCreateChecklist(checklistDraft);
+              if (!created) return;
               setChecklistDraft({ ...INITIAL_TOOL_CHECKLIST_FORM, jobId: singleJobId });
             }}
             disabled={busy || !checklistDraft.jobId || !checklistDraft.title.trim()}
@@ -28481,8 +28485,9 @@ function ToolChecklistAddItemPanelPolished({ canAddItems, checklist, itemDraft, 
           <Button
             type="button"
             className="w-full sm:w-auto"
-            onClick={() => {
-              onAddChecklistItem(checklist.id, itemDraft);
+            onClick={async () => {
+              const added = await onAddChecklistItem(checklist.id, itemDraft);
+              if (!added) return;
               setItemDraft(INITIAL_TOOL_CHECKLIST_ITEM_FORM);
             }}
             disabled={busy || !itemDraft.name.trim()}
@@ -28535,7 +28540,7 @@ function ToolChecklistPagePolished({
   onArchiveChecklist,
 }) {
   const [showTools, setShowTools] = useState(false);
-  const [toolTab, setToolTab] = useState(canCreateChecklist ? "create" : "items");
+  const [toolTab, setToolTab] = useState("items");
   const [showAllMobileChecklists, setShowAllMobileChecklists] = useState(false);
   const toolsRef = useRef(null);
   const statusOptions = ["All", "Draft", "Active", "Submitted", "Reviewed", "Archived"];
@@ -28560,7 +28565,7 @@ function ToolChecklistPagePolished({
     window.setTimeout(() => document.getElementById("tool-checklist-loadout-board")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
-  function openTools(nextTab = canCreateChecklist ? "create" : "items") {
+  function openTools(nextTab = "items") {
     setToolTab(nextTab);
     setShowTools(true);
     window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
@@ -28722,7 +28727,7 @@ function ToolChecklistPagePolished({
                 </button>
               ))}
             </div>
-            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search checklist, job, tool, note, or foreman..." />
+            <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search loadout..." />
           </div>
           <details className="co-incidents-advanced-filters border-b border-slate-200 bg-white">
             <summary>
@@ -28993,8 +28998,9 @@ function ToolChecklistPage({
               <div className="mt-4">
                 <Button
                   type="button"
-                  onClick={() => {
-                    onCreateChecklist(checklistDraft);
+                  onClick={async () => {
+                    const created = await onCreateChecklist(checklistDraft);
+                    if (!created) return;
                     setChecklistDraft({ ...INITIAL_TOOL_CHECKLIST_FORM, jobId: singleJobId });
                   }}
                   disabled={busy || !checklistDraft.jobId || !checklistDraft.title.trim()}
@@ -29098,8 +29104,9 @@ function ToolChecklistPage({
               <div className="mt-4">
                 <Button
                   type="button"
-                  onClick={() => {
-                    onAddChecklistItem(selectedChecklist.id, itemDraft);
+                  onClick={async () => {
+                    const added = await onAddChecklistItem(selectedChecklist.id, itemDraft);
+                    if (!added) return;
                     setItemDraft(INITIAL_TOOL_CHECKLIST_ITEM_FORM);
                   }}
                   disabled={busy || !itemDraft.name.trim()}

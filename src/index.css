@@ -23047,13 +23047,71 @@ textarea {
     display: none !important;
   }
 
+  .co-tool-checklist-page .co-page-header {
+    margin-bottom: 0.7rem !important;
+    padding: 1rem 1.45rem 1.05rem !important;
+  }
+
+  .co-tool-checklist-page .co-page-header h1 {
+    font-size: clamp(1.78rem, 7vw, 2.05rem) !important;
+    line-height: 1;
+  }
+
+  .co-tool-checklist-page .co-page-header h1 + p {
+    margin-top: 0.56rem !important;
+    font-size: 0.92rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .co-tool-checklist-page .co-page-header .flex.flex-wrap.gap-2 {
+    gap: 0.46rem !important;
+  }
+
+  .co-tool-checklist-mobile-focus {
+    margin-bottom: 0.55rem !important;
+    padding: 0.58rem !important;
+  }
+
+  .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-copy p {
+    display: none !important;
+  }
+
+  .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-copy em {
+    margin-top: 0.34rem !important;
+  }
+
+  .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-actions {
+    margin-top: 0.46rem !important;
+  }
+
+  .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-metrics {
+    margin-top: 0.45rem !important;
+  }
+
+  .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-metrics button {
+    min-height: 2.7rem !important;
+  }
+
   .co-tool-checklist-page .co-toolbox-command-layout {
     margin-top: 0.85rem !important;
     padding-bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 1rem) !important;
   }
 
   .co-tool-checklist-page .co-toolbox-filter-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.36rem !important;
     margin-top: 0 !important;
+    padding: 0.62rem 0.75rem !important;
+  }
+
+  .co-tool-checklist-page .co-incidents-advanced-filters:not([open]) > .co-office-filter-grid {
+    display: none !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-search {
+    order: -1;
+    min-height: 2.1rem;
   }
 
   .co-tool-checklist-page .co-toolbox-mobile-list {
@@ -23061,7 +23119,7 @@ textarea {
   }
 
   .co-tool-checklist-page .co-toolbox-board-header {
-    padding: 0.85rem 1rem !important;
+    padding: 0.64rem 0.9rem !important;
   }
 
   .co-tool-checklist-page .co-toolbox-board-header p {
@@ -23075,17 +23133,75 @@ textarea {
   .co-tool-checklist-page .co-toolbox-category-tabs {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
+    gap: 0.34rem;
     overflow: visible;
     padding-bottom: 0;
     width: 100%;
   }
 
   .co-tool-checklist-page .co-toolbox-category-tabs button {
+    min-height: 1.68rem;
+    min-width: 0;
+    padding: 0.28rem 0.32rem;
+    width: 100%;
+    font-size: 0.61rem;
+    white-space: normal;
+    line-height: 1.05;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tool-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem !important;
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tool-tabs button {
     min-width: 0;
     width: 100%;
     white-space: normal;
-    line-height: 1.1;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .co-toolbox-form-card {
+    padding: 0.82rem !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .co-toolbox-form-grid {
+    gap: 0.55rem !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .field-input {
+    height: 2.45rem !important;
+    min-height: 2.45rem !important;
+    padding-top: 0.32rem !important;
+    padding-bottom: 0.32rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .field-label {
+    gap: 0.2rem !important;
+  }
+
+  .co-tool-checklist-page .co-tool-checklist-create-title,
+  .co-tool-checklist-page .co-tool-checklist-create-notes {
+    display: none !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .co-section-accent p {
+    display: none !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .co-section-accent {
+    padding-left: 0.58rem !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel .co-section-accent h2 {
+    font-size: 0.98rem !important;
+  }
+
+  .co-tool-checklist-page .co-toolbox-tools-panel textarea {
+    min-height: 3rem !important;
   }
 
   .co-tool-checklist-mobile-focus .co-prepour-mobile-focus-copy em,
