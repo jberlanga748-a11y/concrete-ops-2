@@ -8041,7 +8041,7 @@ function safetyIncidentPrimaryDate(incident) {
   return incident?.createdAt || incident?.updatedAt || incident?.reviewedAt || incident?.resolvedAt;
 }
 
-function SafetyIncidentsTablePolished({ rows, selectedId, onSelect }) {
+function SafetyIncidentsTablePolished({ rows, selectedId, onSelect, onOpenDetails }) {
   return (
     <>
       <div className="co-incidents-mobile-list grid gap-3 p-3 md:hidden">
@@ -8065,7 +8065,7 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect }) {
                 <span>Severity <strong>{incident.severity || "low"}</strong></span>
                 <span>Created <strong>{formatDateTime(safetyIncidentPrimaryDate(incident)) || "Not set"}</strong></span>
               </div>
-              <button type="button" className="co-incidents-mobile-card-action" onClick={() => onSelect(incident.id)}>
+              <button type="button" className="co-incidents-mobile-card-action" onClick={() => { onSelect(incident.id); onOpenDetails?.(incident.id); }}>
                 Open incident
               </button>
             </article>
@@ -8101,7 +8101,7 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect }) {
                   <td className="font-bold text-slate-700">{safetyIncidentReporterLabel(incident)}</td>
                   <td className="font-bold text-slate-700">{formatDateTime(safetyIncidentPrimaryDate(incident))}</td>
                   <td>
-                    <button type="button" className="co-incidents-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(incident.id); }} aria-label={`Open incident ${incident.title || incident.id}`}>
+                    <button type="button" className="co-incidents-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(incident.id); onOpenDetails?.(incident.id); }} aria-label={`Open incident ${incident.title || incident.id}`}>
                       <Icon name="arrowUpRight" />
                     </button>
                   </td>
@@ -8415,12 +8415,22 @@ function SafetyIncidentsPagePolished({
   function openTools(nextTab = canSubmitIncidents ? "submit" : "detail") {
     setToolTab(nextTab);
     setShowTools(true);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 130, behavior: "smooth" }), 180);
+      }
+    }, 0);
   }
 
   function selectTool(nextTab = "detail") {
     setToolTab(nextTab);
-    window.setTimeout(() => toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      toolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      if (window.innerWidth < 768) {
+        window.setTimeout(() => window.scrollBy({ top: 130, behavior: "smooth" }), 180);
+      }
+    }, 0);
   }
 
   function jumpToBoard() {
@@ -8597,43 +8607,47 @@ function SafetyIncidentsPagePolished({
           ) : visibleIncidents.length === 0 ? (
             <div className="p-5"><StateCard title={(allIncidents || []).length === 0 ? "No incidents yet" : "No incidents match these filters"} description={(allIncidents || []).length === 0 ? "Submitted concerns and incidents will appear here as soon as the field starts using the safety workflow." : "Clear a filter or search another title, job, reporter, or safety note."} tone="slate" /></div>
           ) : (
-            <SafetyIncidentsTablePolished rows={visibleIncidents} selectedId={selectedIncident?.id} onSelect={setSelectedIncidentId} />
+            <SafetyIncidentsTablePolished
+              rows={visibleIncidents}
+              selectedId={selectedIncident?.id}
+              onSelect={setSelectedIncidentId}
+              onOpenDetails={(id) => { setSelectedIncidentId(id); openTools("detail"); }}
+            />
           )}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
             <p className="text-sm font-bold text-slate-600">Showing {visibleIncidents.length} incident{visibleIncidents.length === 1 ? "" : "s"} / {visibleOpen} open follow-up{visibleOpen === 1 ? "" : "s"}</p>
             <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>Clear filters</Button>
           </div>
         </Card>
+        <details
+          ref={toolsRef}
+          className="co-incidents-tools-drawer mt-3 w-full min-w-0"
+          open={showTools}
+          onToggle={(event) => setShowTools(event.currentTarget.open)}
+        >
+          <summary>
+            <span>
+              <strong>Incident Tools</strong>
+              <em>Submit new safety items or review selected incidents without changing safety permissions.</em>
+            </span>
+            <span>Open tools</span>
+          </summary>
+          <div className="co-incidents-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+            {canSubmitIncidents ? <button type="button" className={toolTab === "submit" ? "is-active" : ""} onClick={() => selectTool("submit")}><Icon name="plus" />Submit</button> : null}
+            <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => selectTool("detail")}><Icon name="alert" />Detail</button>
+          </div>
+          <div className="co-incidents-tools-panel mt-3">
+            {toolTab === "submit" ? (
+              <SafetyIncidentSubmitPanelPolished canSubmit={canSubmitIncidents} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} busy={busy} onSubmit={onSubmitIncident} />
+            ) : (
+              <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+            )}
+          </div>
+        </details>
         </div>
 
         <SafetyIncidentCommandRailPolished incident={selectedIncident} canSubmit={canSubmitIncidents} canReview={canReview} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
       </div>
-
-      <details
-        ref={toolsRef}
-        className="co-incidents-tools-drawer mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-24 sm:px-6 md:pb-4 lg:px-8"
-        open={showTools}
-        onToggle={(event) => setShowTools(event.currentTarget.open)}
-      >
-        <summary>
-          <span>
-            <strong>Incident Tools</strong>
-            <em>Submit new safety items or review selected incidents without changing safety permissions.</em>
-          </span>
-          <span>Open tools</span>
-        </summary>
-        <div className="co-incidents-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-          {canSubmitIncidents ? <button type="button" className={toolTab === "submit" ? "is-active" : ""} onClick={() => selectTool("submit")}><Icon name="plus" />Submit</button> : null}
-          <button type="button" className={toolTab === "detail" ? "is-active" : ""} onClick={() => selectTool("detail")}><Icon name="alert" />Detail</button>
-        </div>
-        <div className="co-incidents-tools-panel mt-3">
-          {toolTab === "submit" ? (
-            <SafetyIncidentSubmitPanelPolished canSubmit={canSubmitIncidents} allowedJobs={allowedJobs} incidentDraft={incidentDraft} setIncidentDraft={setIncidentDraft} busy={busy} onSubmit={onSubmitIncident} />
-          ) : (
-            <SafetyIncidentDetailPanelPolished incident={selectedIncident} canReview={canReview} busy={busy} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
-          )}
-        </div>
-      </details>
     </div>
   );
 }
