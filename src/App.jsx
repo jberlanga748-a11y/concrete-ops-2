@@ -4539,8 +4539,8 @@ function FieldWorkspaceActionsPolished({ permissions, role = "employee", setActi
   const actions = [
     {
       id: "time",
-      label: activeEntry ? "Clock Out" : "Clock In",
-      helper: activeEntry ? "Active time entry" : "Start field time",
+      label: activeEntry ? "Time Running" : "Clock In",
+      helper: activeEntry ? "Open time to break or clock out" : "Start field time",
       icon: "clock",
       enabled: permissions.time.canView,
       tone: activeEntry ? "green" : "orange",
@@ -4725,12 +4725,17 @@ function FieldWorkspacePagePolished({
         eyebrow="Field Workspace"
         title={isForeman ? "My Jobs" : "My Job"}
         description={isForeman ? "Run assigned jobs, crew time, notes, checklists, photos, tickets, and job-safe tools from one field view." : "Open assigned work, clock in, review field notes, and use job-safe tools."}
-        actions={<Badge tone="orange">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="orange">{workspace.assignedJobs.length} assigned job{workspace.assignedJobs.length === 1 ? "" : "s"}</Badge>
+            {workspace.assignmentNotices.length ? <Badge tone="amber">{workspace.assignmentNotices.length} notice{workspace.assignmentNotices.length === 1 ? "" : "s"}</Badge> : <Badge tone="green">Field-safe</Badge>}
+          </div>
+        }
       />
-      <div className="mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <div className="mx-auto w-full max-w-[1400px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
         <FieldJobOperatorPanel role={role} workspace={workspace} focusJob={focusJob} permissions={permissions} setActive={setActive} onSelectJob={onSelectJob} activeEntry={timeWorkspace.activeEntry} />
       </div>
-      <div className="co-field-mobile-focus-card mx-auto w-full max-w-[1520px] min-w-0 px-4 pb-3 sm:px-6 lg:px-6">
+      <div className="co-field-mobile-focus-card mx-auto w-full max-w-[1400px] min-w-0 px-4 pb-3 sm:px-6 lg:px-6">
         <FieldWorkspaceDisclosure
           title={focusJob ? "Selected job details" : "Selected job"}
           description={focusJob ? (focusJob.customer || "Assigned site") : "Choose an assigned job to review field-safe details."}
@@ -4740,33 +4745,43 @@ function FieldWorkspacePagePolished({
         </FieldWorkspaceDisclosure>
       </div>
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
-      <div className="co-field-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:px-6">
+      <div className="co-field-command-layout mx-auto grid w-full max-w-[1400px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_376px] lg:px-6">
         <div className="co-field-left-stack min-w-0 space-y-3">
-          <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
-            <ActiveTimeCard
-              activeEntry={timeWorkspace.activeEntry}
-              availableJobs={timeWorkspace.availableJobs}
-              allowedCategories={timeWorkspace.allowedCategories}
-              onClockIn={onClockIn}
-              onClockOut={onClockOut}
-              onStartBreak={onStartBreak}
-              onEndBreak={onEndBreak}
-              disabled={busy}
-              compactMobile
-              mobileDefaultOpen={false}
-              description={isForeman ? "Clock your own assigned or field-visible work without exposing payroll or pricing data." : undefined}
-            />
-            <FieldNextJobCard
-              job={priorityJob}
-              titleOverride={priorityJobTitle}
-              descriptionOverride={priorityJobDescription}
-              onSelect={onSelectJob}
-              setActive={setActive}
-              permissions={permissions}
-              activeEntry={timeWorkspace.activeEntry}
-            />
-          </div>
           <FieldAssignmentNoticePanel notices={workspace.assignmentNotices} onSelectJob={onSelectJob} onAcknowledge={onAcknowledgeAssignmentNotice} disabled={busy} />
+          <section className="co-field-today-board">
+            <div className="co-field-today-board-header">
+              <SectionHeader
+                title="Today's Field Board"
+                description="Clock status, current assignment, address, and first field actions stay together."
+                action={priorityJob ? <Badge tone="orange">{jobTitle(priorityJob)}</Badge> : <Badge tone="slate">No job selected</Badge>}
+              />
+            </div>
+            <div className="co-field-two-up grid min-w-0 gap-3 xl:grid-cols-2">
+              <ActiveTimeCard
+                activeEntry={timeWorkspace.activeEntry}
+                availableJobs={timeWorkspace.availableJobs}
+                allowedCategories={timeWorkspace.allowedCategories}
+                onClockIn={onClockIn}
+                onClockOut={onClockOut}
+                onStartBreak={onStartBreak}
+                onEndBreak={onEndBreak}
+                disabled={busy}
+                compactMobile
+                mobileDefaultOpen={false}
+                heroClock
+                description={isForeman ? "Clock your own assigned or field-visible work without exposing payroll or pricing data." : undefined}
+              />
+              <FieldNextJobCard
+                job={priorityJob}
+                titleOverride={priorityJobTitle}
+                descriptionOverride={priorityJobDescription}
+                onSelect={onSelectJob}
+                setActive={setActive}
+                permissions={permissions}
+                activeEntry={timeWorkspace.activeEntry}
+              />
+            </div>
+          </section>
           <FieldWorkspaceActionsPolished permissions={permissions} role={role} setActive={setActive} activeEntry={timeWorkspace.activeEntry} focusJob={focusJob} />
           <FieldWorkspaceDisclosure title={assignedTitle} description={assignedDescription} badge={`${workspace.assignedJobs.length} assigned`} defaultOpen={workspace.assignedJobs.length > 0}>
             {workspace.assignedJobs.length > 0 ? (
@@ -4801,11 +4816,34 @@ function FieldWorkspacePagePolished({
   );
 }
 
+function fieldWorkspaceJobList(workspace, { includeUpcoming = false } = {}) {
+  const assignedJobs = Array.isArray(workspace?.assignedJobs) ? workspace.assignedJobs : [];
+  const upcomingJobs = includeUpcoming && Array.isArray(workspace?.upcomingJobs) ? workspace.upcomingJobs : [];
+  const seen = new Set();
+  return [...assignedJobs, ...upcomingJobs].filter((job) => {
+    if (!job?.id || seen.has(job.id)) return false;
+    seen.add(job.id);
+    return true;
+  });
+}
+
+function deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob, { includeUpcoming = false } = {}) {
+  const allowedJobs = fieldWorkspaceJobList(workspace, { includeUpcoming });
+  const allowedIds = new Set(allowedJobs.map((job) => job.id));
+  if (selectedJobId) {
+    const selectedAllowedJob = allowedJobs.find((job) => job.id === selectedJobId);
+    if (selectedAllowedJob) return selectedAllowedJob;
+  }
+  if (selectedJob?.id && allowedIds.has(selectedJob.id)) return selectedJob;
+  return workspace?.nextAssignedJob || workspace?.primaryJob || allowedJobs[0] || null;
+}
+
 function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
-  const focusJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || null;
-  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, safeRows, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, safeRows, timeEntries, user?.id]);
+  const fieldJobs = useMemo(() => fieldWorkspaceJobList(workspace, { includeUpcoming: true }), [workspace]);
+  const focusJob = useMemo(() => deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob, { includeUpcoming: true }), [selectedJob, selectedJobId, workspace]);
+  const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, fieldJobs, user?.id, permissions.time.allowedCategories || []), [fieldJobs, permissions.time.allowedCategories, timeEntries, user?.id]);
 
   return (
     <FieldWorkspacePagePolished
@@ -4830,7 +4868,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
 function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
-  const fallbackJob = safeRows.find((job) => job.id === selectedJobId) || selectedJob || workspace.primaryJob || safeRows[0] || null;
+  const fallbackJob = useMemo(() => deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob), [selectedJob, selectedJobId, workspace]);
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
 
   return (
@@ -15486,10 +15524,7 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8, mobileMaxR
                     </td>
                     <td>
                       <div className="flex justify-end gap-1">
-                        <button type="button" className="co-jobs-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Review ${jobTitle(job)}`}>
-                          <Icon name="briefcase" />
-                        </button>
-                        <button type="button" className="co-jobs-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Open ${jobTitle(job)}`}>
+                        <button type="button" className="co-jobs-icon-button" onClick={(event) => { event.stopPropagation(); onSelect(job.id); }} aria-label={`Select ${jobTitle(job)}`}>
                           <Icon name="arrowUpRight" />
                         </button>
                       </div>
