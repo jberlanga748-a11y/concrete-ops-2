@@ -12715,6 +12715,7 @@ function OfficePilotWalkthroughCard({ onOpenCommandCenter, onOpenDrafts, onOpenJ
 function DashboardCommandRailPolished({
   stats,
   selectedLead,
+  selectedJob,
   liveJobsPreview,
   queueItems,
   activity,
@@ -12728,6 +12729,7 @@ function DashboardCommandRailPolished({
   const activeJobs = normalizeObjectArray(liveJobsPreview).filter((job) => !job.archivedAt);
   const recentActivity = normalizeObjectArray(activity).slice(0, 1);
   const selectedLeadTitle = selectedLead?.customer || selectedLead?.company || "No lead selected";
+  const selectedJobTitle = selectedJob ? jobTitle(selectedJob) : "No job selected";
 
   return (
     <div className="co-dashboard-right-rail min-w-0">
@@ -12784,24 +12786,44 @@ function DashboardCommandRailPolished({
       </Card>
 
       <Card className="co-dashboard-rail-card p-4">
-        <SectionHeader title="Selected Lead" description="The current opportunity stays visible while the board moves." />
-        {selectedLead ? (
-          <div className="co-dashboard-selected-record">
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p>{selectedLeadTitle}</p>
-                <span>{selectedLead.project || selectedLead.city || "Project details pending"}</span>
+        <SectionHeader title="Selected Records" description="Current lead and job context stay visible while the board moves." />
+        {selectedLead || selectedJob ? (
+          <div className="co-dashboard-selected-stack">
+            {selectedLead ? (
+              <div className="co-dashboard-selected-record">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p>{selectedLeadTitle}</p>
+                    <span>{selectedLead.project || selectedLead.city || "Project details pending"}</span>
+                  </div>
+                  <StatusBadge status={selectedLead.status || "New"} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge tone={selectedLead.priority === "High" ? "amber" : "blue"}>{selectedLead.priority || "Normal"}</Badge>
+                  <LeadScoreBadge lead={selectedLead} />
+                </div>
+                <button type="button" className="co-dashboard-inline-link" onClick={() => setActive("leads")}>Open full lead record</button>
               </div>
-              <StatusBadge status={selectedLead.status || "New"} />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone={selectedLead.priority === "High" ? "amber" : "blue"}>{selectedLead.priority || "Normal"}</Badge>
-              <LeadScoreBadge lead={selectedLead} />
-            </div>
-            <button type="button" className="co-dashboard-inline-link" onClick={() => setActive("leads")}>Open full lead record</button>
+            ) : null}
+            {selectedJob ? (
+              <div className="co-dashboard-selected-record" data-kind="job">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p>{selectedJobTitle}</p>
+                    <span>{[selectedJob.customer, jobScheduleLabel(selectedJob)].filter(Boolean).join(" / ") || "Schedule pending"}</span>
+                  </div>
+                  <StatusBadge status={jobStatusLabel(selectedJob.status || selectedJob.stage)} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <StartupStatusBadge status={selectedJob.startupStatus || "Not Started"} />
+                  <Badge tone="blue">{Number(selectedJob.progress || 0)}% progress</Badge>
+                </div>
+                <button type="button" className="co-dashboard-inline-link" onClick={() => setActive("jobs")}>Open full job record</button>
+              </div>
+            ) : null}
           </div>
         ) : (
-          <StateCard title="No lead selected" description="Select a lead from the pipeline board to show its summary here." tone="slate" />
+          <StateCard title="No record selected" description="Select a lead or job from the focus board to show its summary here." tone="slate" />
         )}
       </Card>
 
@@ -13003,10 +13025,10 @@ function DashboardDailyFocusBoard({
             <h2>Daily Focus Board</h2>
             <p>Three operating lanes: sell the next job, protect active jobs, and clear today's office queue.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="secondary" onClick={onOpenLeads}>Full leads</Button>
-            <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Full jobs</Button>
-            <Button type="button" size="sm" onClick={onOpenTools}>Queue tools</Button>
+          <div className="co-dashboard-focus-actions">
+            <Button type="button" size="sm" variant="secondary" onClick={onOpenLeads}>Open lead board</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Open job board</Button>
+            <Button type="button" size="sm" onClick={onOpenTools}>Open queue tools</Button>
           </div>
         </div>
       </div>
@@ -13209,6 +13231,10 @@ function DashboardPagePolished({
   }, [leadFilter, leadSearch, leads]);
   const liveLeadCount = dashboardMetrics?.liveLeadCount ?? 0;
   const liveJobsPreview = Array.isArray(dashboardMetrics?.liveJobsPreview) ? dashboardMetrics.liveJobsPreview : [];
+  const selectedJob = useMemo(() => {
+    const allJobs = normalizeObjectArray(jobs);
+    return allJobs.find((job) => job.id === selectedJobId) || liveJobsPreview.find((job) => job.id === selectedJobId) || null;
+  }, [jobs, liveJobsPreview, selectedJobId]);
   const canViewLeads = Boolean(permissions?.leads?.canView);
   const normalizedQueueItems = useMemo(() => normalizeObjectArray(queueItems), [queueItems]);
   const activeQueueItems = useMemo(() => normalizedQueueItems.filter((item) => !item.archivedAt && !item.done), [normalizedQueueItems]);
@@ -13465,6 +13491,7 @@ function DashboardPagePolished({
         <DashboardCommandRailPolished
           stats={stats}
           selectedLead={selectedLead}
+          selectedJob={selectedJob}
           liveJobsPreview={liveJobsPreview}
           queueItems={queueItems}
           activity={activity}

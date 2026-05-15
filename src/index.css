@@ -21330,6 +21330,12 @@ textarea {
   padding-bottom: 0.52rem !important;
 }
 
+.co-dashboard-page .co-page-header > div,
+.co-dashboard-page .co-dashboard-command-layout,
+.co-dashboard-page .co-dashboard-kpi-grid {
+  max-width: 1680px !important;
+}
+
 .co-dashboard-page .co-page-header h1 {
   font-size: clamp(1.5rem, 1.85vw, 1.95rem) !important;
   line-height: 1 !important;
@@ -21517,16 +21523,16 @@ textarea {
   position: relative;
   display: grid;
   min-height: 0;
-  grid-template-columns: minmax(14rem, 0.88fr) minmax(14rem, 0.78fr) minmax(20rem, 1.18fr);
+  grid-template-columns: minmax(16rem, 0.82fr) minmax(18rem, 0.88fr) minmax(27rem, 1.25fr);
   overflow: hidden;
   align-items: center;
-  gap: 0.82rem;
+  gap: 0.9rem;
   border-color: rgba(203, 213, 225, 0.98) !important;
   border-left: 4px solid rgba(249, 115, 22, 0.84) !important;
   background:
     linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.95)),
     radial-gradient(circle at top right, rgba(255, 237, 213, 0.62), transparent 20rem) !important;
-  padding: 0.68rem 0.82rem !important;
+  padding: 0.78rem 0.9rem !important;
   color: #07111f;
   box-shadow: 0 18px 44px -36px rgba(7, 17, 31, 0.62) !important;
 }
@@ -21553,7 +21559,15 @@ textarea {
 .co-dashboard-cockpit-copy {
   position: relative;
   z-index: 1;
-  max-width: 21rem;
+  max-width: none;
+  align-self: stretch;
+  border: 1px solid rgba(15, 23, 42, 0.72);
+  border-radius: 0.86rem;
+  background:
+    linear-gradient(135deg, rgba(7, 17, 31, 0.98), rgba(15, 23, 42, 0.98) 62%, rgba(67, 30, 8, 0.96)),
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.24), transparent 18rem);
+  padding: 0.85rem 0.9rem;
+  box-shadow: inset 4px 0 0 rgba(249, 115, 22, 0.96), 0 18px 40px -34px rgba(7, 17, 31, 0.85);
 }
 
 .co-dashboard-cockpit-copy p,
@@ -21569,7 +21583,7 @@ textarea {
 
 .co-dashboard-cockpit-copy h2 {
   margin-top: 0.2rem;
-  color: #07111f;
+  color: #ffffff;
   font-size: clamp(1.04rem, 1.4vw, 1.28rem);
   font-weight: 950;
   line-height: 1.08;
@@ -21577,12 +21591,12 @@ textarea {
 
 .co-dashboard-cockpit-copy > span {
   display: block;
-  margin-top: 0.22rem;
+  margin-top: 0.36rem;
   max-width: 42rem;
-  color: #52647a;
-  font-size: 0.76rem;
+  color: #cbd5e1;
+  font-size: 0.78rem;
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
 .co-dashboard-cockpit-metrics {
@@ -21598,7 +21612,7 @@ textarea {
   border: 1px solid rgba(226, 232, 240, 0.96);
   border-radius: 0.62rem;
   background: #ffffff;
-  padding: 0.5rem 0.54rem;
+  padding: 0.56rem 0.62rem;
   box-shadow: 0 10px 24px -28px rgba(7, 17, 31, 0.55);
 }
 
@@ -21707,7 +21721,8 @@ textarea {
   border-left: 3px solid var(--co-dashboard-next-tone);
   border-radius: 0.62rem;
   background: #ffffff;
-  padding: 0.48rem 0.5rem 0.52rem;
+  min-height: 3.12rem;
+  padding: 0.48rem 0.55rem 0.52rem;
   text-align: left;
   transition:
     border-color 150ms ease,
@@ -21817,7 +21832,7 @@ textarea {
 
 .co-dashboard-command-layout {
   align-items: start;
-  gap: 0.72rem !important;
+  gap: 0.86rem !important;
   padding-bottom: 1rem !important;
 }
 
@@ -21943,7 +21958,7 @@ textarea {
 .co-dashboard-focus-lane {
   display: flex;
   min-width: 0;
-  min-height: 18.4rem;
+  min-height: 15.8rem;
   flex-direction: column;
   gap: 0.48rem;
   border: 1px solid rgba(226, 232, 240, 0.96);
@@ -21991,7 +22006,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.45rem;
-  padding: 0.5rem;
+  padding: 0.54rem;
   text-align: left;
   transition:
     border-color 150ms ease,
@@ -22143,7 +22158,7 @@ textarea {
 
 .co-dashboard-rail-card {
   border-left-color: rgba(249, 115, 22, 0.62) !important;
-  padding: 0.5rem !important;
+  padding: 0.58rem !important;
 }
 
 .co-dashboard-rail-card h3 {
@@ -22170,8 +22185,8 @@ textarea {
 
 .co-dashboard-rail-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.3rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
 }
 
 .co-dashboard-rail-metrics > div,
@@ -22181,7 +22196,7 @@ textarea {
   border: 1px solid rgba(226, 232, 240, 0.96);
   border-radius: 0.62rem;
   background: #ffffff;
-  padding: 0.36rem;
+  padding: 0.46rem;
 }
 
 .co-dashboard-rail-metrics span,
@@ -22201,7 +22216,7 @@ textarea {
   margin-top: 0.18rem;
   overflow-wrap: anywhere;
   color: #07111f;
-  font-size: 0.74rem;
+  font-size: 0.82rem;
   font-weight: 950;
   line-height: 1.12;
 }
@@ -22225,6 +22240,28 @@ textarea {
 
 .co-dashboard-selected-record .mt-3 {
   margin-top: 0.42rem !important;
+}
+
+.co-dashboard-selected-stack {
+  display: grid;
+  gap: 0.46rem;
+}
+
+.co-dashboard-selected-record[data-kind="job"] {
+  background: linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.92));
+}
+
+.co-dashboard-focus-actions {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: end;
+  gap: 0.48rem;
+}
+
+.co-dashboard-focus-actions .btn,
+.co-dashboard-focus-actions button {
+  white-space: nowrap;
 }
 
 .co-dashboard-action-row {
@@ -22491,6 +22528,7 @@ textarea {
     position: static !important;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 0.65rem;
     max-height: none !important;
     overflow: visible !important;
@@ -22519,7 +22557,43 @@ textarea {
 
 @media (min-width: 1200px) and (max-width: 1399px) {
   .co-dashboard-command-layout {
-    grid-template-columns: minmax(0, 1fr) 300px !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-dashboard-cockpit-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-dashboard-next-panel {
+    border-left: 0;
+    border-top: 1px solid rgba(226, 232, 240, 0.96);
+    padding: 0.7rem 0 0 0;
+  }
+
+  .co-dashboard-right-rail {
+    position: static !important;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.65rem;
+  }
+
+  .co-dashboard-right-rail > * + * {
+    margin-top: 0 !important;
+  }
+
+  .co-dashboard-rail-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-dashboard-quick-moves-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1400px) and (max-width: 1679px) {
+  .co-dashboard-page .co-dashboard-command-layout {
+    grid-template-columns: minmax(0, 1fr) 320px !important;
   }
 
   .co-dashboard-cockpit-main {
@@ -22536,18 +22610,28 @@ textarea {
     position: sticky !important;
     top: calc(var(--layout-topbar-height, 4.5rem) + 0.35rem);
     display: block;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .co-dashboard-right-rail > * + * {
     margin-top: 0.44rem !important;
   }
 
-  .co-dashboard-rail-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .co-dashboard-quick-moves-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1680px) {
+  .co-dashboard-page .co-dashboard-command-layout {
+    grid-template-columns: minmax(0, 1fr) 360px !important;
+  }
+}
+
+@media (min-width: 1900px) {
+  .co-dashboard-page .co-dashboard-command-layout {
+    grid-template-columns: minmax(0, 1fr) 380px !important;
   }
 }
 
@@ -22658,6 +22742,11 @@ textarea {
     text-align: center;
   }
 
+  .co-dashboard-focus-actions {
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+
   .co-dashboard-kpi-grid {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -22716,7 +22805,7 @@ textarea {
 
   .co-dashboard-cockpit-main {
     min-height: 0;
-    padding: 0.9rem !important;
+    padding: 0.7rem !important;
   }
 
   .co-dashboard-cockpit-copy h2 {
@@ -22725,15 +22814,19 @@ textarea {
 
   .co-dashboard-cockpit-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.52rem;
+    gap: 0.42rem;
   }
 
   .co-dashboard-cockpit-metric {
-    padding: 0.58rem;
+    padding: 0.48rem 0.52rem;
   }
 
   .co-dashboard-cockpit-metric strong {
-    font-size: 1.18rem;
+    font-size: 1.08rem;
+  }
+
+  .co-dashboard-cockpit-metric small {
+    display: none;
   }
 
   .co-dashboard-cockpit-actions {
@@ -22761,6 +22854,7 @@ textarea {
 
   .co-dashboard-next-tile {
     grid-template-columns: auto minmax(0, 1fr);
+    min-height: 2.72rem;
   }
 
   .co-dashboard-next-value {
