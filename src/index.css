@@ -13455,6 +13455,7 @@ textarea {
   .co-postpour-page[data-field-workspace="true"] .co-page-header .flex.flex-wrap.gap-2 > button {
     flex: 1 1 0;
     justify-content: center;
+    min-height: 2.4rem !important;
   }
 
   .co-prepour-kpi-grid {
@@ -13538,6 +13539,13 @@ textarea {
   .co-prepour-page:not(.co-postpour-page) .co-prepour-item-actions .co-focus-ring,
   .co-prepour-page:not(.co-postpour-page) .co-prepour-tools-panel button,
   .co-prepour-page:not(.co-postpour-page) .co-prepour-right-rail button {
+    min-height: 2.45rem !important;
+  }
+
+  .co-postpour-page .co-prepour-tool-tabs button,
+  .co-postpour-page .co-postpour-item-actions .co-focus-ring,
+  .co-postpour-page .co-prepour-tools-panel button,
+  .co-postpour-page .co-prepour-right-rail button {
     min-height: 2.45rem !important;
   }
 
