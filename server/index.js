@@ -441,6 +441,39 @@ function configuredJobDraftImportToken() {
   return String(process.env.APEX_HQ_IMPORT_TOKEN || process.env.CONCRETE_OPS_IMPORT_TOKEN || "").trim();
 }
 
+function configuredCompanyImportTokens() {
+  const raw = String(process.env.APEX_HQ_COMPANY_IMPORT_TOKENS || process.env.CONCRETE_OPS_COMPANY_IMPORT_TOKENS || "").trim();
+  const tokens = new Map();
+  if (!raw) return tokens;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      for (const [companyId, token] of Object.entries(parsed)) {
+        const normalizedCompanyId = normalizeCompanyId(companyId, "");
+        const normalizedToken = String(token || "").trim();
+        if (normalizedCompanyId && normalizedToken) {
+          tokens.set(normalizedCompanyId, normalizedToken);
+        }
+      }
+      return tokens;
+    }
+  } catch {
+    // Fall through to the lightweight "COMPANY-A=token,COMPANY-B=token" format.
+  }
+
+  for (const entry of raw.split(/[,\n;]/)) {
+    const [companyId, ...tokenParts] = entry.split("=");
+    const normalizedCompanyId = normalizeCompanyId(companyId, "");
+    const normalizedToken = tokenParts.join("=").trim();
+    if (normalizedCompanyId && normalizedToken) {
+      tokens.set(normalizedCompanyId, normalizedToken);
+    }
+  }
+
+  return tokens;
+}
+
 function objectPayload(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -495,9 +528,29 @@ function tokenMatches(expected, provided) {
   return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
-function requireJobDraftIntegrationToken(req) {
-  const expectedToken = configuredJobDraftImportToken();
+function hasMultipleActiveCompanies(state = {}) {
+  return companiesForState(state)
+    .filter((company) => String(company.status || "active").toLowerCase() !== "inactive")
+    .length > 1;
+}
+
+function requireExternalIntegrationToken(req, state, targetCompanyId = "") {
   const providedToken = bearerTokenFromRequest(req);
+  const normalizedCompanyId = normalizeCompanyId(targetCompanyId, "");
+  const companyToken = configuredCompanyImportTokens().get(normalizedCompanyId) || "";
+
+  if (companyToken) {
+    if (!tokenMatches(companyToken, providedToken)) {
+      throw new ApiError(401, "Invalid integration token.");
+    }
+    return;
+  }
+
+  if (hasMultipleActiveCompanies(state)) {
+    throw new ApiError(401, "A company integration token is required for the target company.");
+  }
+
+  const expectedToken = configuredJobDraftImportToken();
   if (!tokenMatches(expectedToken, providedToken)) {
     throw new ApiError(401, "Invalid integration token.");
   }
@@ -8373,8 +8426,6 @@ app.get("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
-  requireJobDraftIntegrationToken(req);
-
   const packageJson = req.body?.package || req.body;
   const result = createImportedJobDraftFromPackage(packageJson, { id: makeId("IJD"), importedAt: new Date().toISOString() });
 
@@ -8390,6 +8441,7 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
 
   const currentState = await readDb();
   const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
+  requireExternalIntegrationToken(req, currentState, targetCompany.id);
   const integrationActor = jobDraftIntegrationActor(targetCompany.id);
   const matchedDraft = applyCustomerMatchToImportedDraft(
     assignCompanyIdForCreate(result.draft, integrationActor, currentState),
@@ -8438,8 +8490,6 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
-  requireJobDraftIntegrationToken(req);
-
   const packageJson = req.body?.package || req.body;
   const result = createLeadImportFromPackage(packageJson, { id: makeId("L"), importedAt: new Date().toISOString() });
 
@@ -8454,6 +8504,7 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
 
   const currentState = await readDb();
   const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
+  requireExternalIntegrationToken(req, currentState, targetCompany.id);
   const integrationActor = leadFinderIntegrationActor(targetCompany.id);
   const duplicateResult = findLeadImportDuplicate(companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []), result.context);
 
@@ -8529,8 +8580,6 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/integrations/website-leads", asyncRoute(async (req, res) => {
-  requireJobDraftIntegrationToken(req);
-
   const packageJson = req.body?.package || req.body;
   const result = createWebsiteLeadFromPackage(packageJson, { id: makeId("L"), importedAt: new Date().toISOString() });
 
@@ -8563,6 +8612,8 @@ app.post("/api/integrations/website-leads", asyncRoute(async (req, res) => {
       requestId: res.locals.requestId,
     });
   }
+
+  requireExternalIntegrationToken(req, currentState, targetCompany.id);
 
   const integrationActor = websiteLeadIntakeActor(targetCompany.id);
   const scopedLeads = companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []);

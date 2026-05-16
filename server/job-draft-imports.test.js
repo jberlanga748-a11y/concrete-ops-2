@@ -297,7 +297,11 @@ test("integration job draft import returns a safe duplicate response without cre
 
 test("integration job draft import requires target company in multi-company mode and writes only to that company", async () => {
   const token = "integration-test-token";
-  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+  const lyfToken = "integration-lyf-token";
+  const fixture = await startServer({
+    CONCRETE_OPS_IMPORT_TOKEN: token,
+    APEX_HQ_COMPANY_IMPORT_TOKENS: JSON.stringify({ "COMPANY-LYF": lyfToken }),
+  });
 
   try {
     insertOtherCompany(fixture.sqliteFile);
@@ -363,9 +367,22 @@ test("integration job draft import requires target company in multi-company mode
     assert.equal(contextCompanyId.response.status, 400);
     assert.match(contextCompanyId.payload.error, /targetCompanyId/i);
 
-    const imported = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+    const wrongCompanyToken = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
       method: "POST",
       headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validPackage,
+        targetCompanyId: "COMPANY-LYF",
+        opsJobDraftId: "ops-draft-wrong-company-token",
+        sourceHandoffId: "handoff-wrong-company-token",
+      }),
+    });
+    assert.equal(wrongCompanyToken.response.status, 401);
+    assert.match(wrongCompanyToken.payload.error, /invalid integration token/i);
+
+    const imported = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(lyfToken),
       body: JSON.stringify({
         ...validPackage,
         targetCompanyId: "COMPANY-LYF",

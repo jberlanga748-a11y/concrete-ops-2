@@ -15,8 +15,11 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+let nextPort = 12200 + Math.floor(Math.random() * 400);
+
 function createPort() {
-  return 12200 + Math.floor(Math.random() * 1000);
+  nextPort += 1;
+  return nextPort;
 }
 
 async function waitForServer(baseUrl, serverOutput) {
@@ -399,7 +402,14 @@ test("website lead intake sourceSubmissionId duplicates do not create a second s
 
 test("website lead intake duplicate checks are scoped to the target company", async () => {
   const token = "website-token";
-  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+  const lyfToken = "website-lyf-token";
+  const fixture = await startServer({
+    CONCRETE_OPS_IMPORT_TOKEN: token,
+    APEX_HQ_COMPANY_IMPORT_TOKENS: JSON.stringify({
+      [DEFAULT_COMPANY_ID]: token,
+      "COMPANY-LYF": lyfToken,
+    }),
+  });
 
   try {
     insertOtherCompany(fixture.sqliteFile);
@@ -414,9 +424,21 @@ test("website lead intake duplicate checks are scoped to the target company", as
     });
     assert.equal(defaultCompanyLead.response.status, 201);
 
-    const otherCompanyLead = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
+    const wrongCompanyToken = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
       method: "POST",
       headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validWebsitePackage,
+        sourceSubmissionId: "wrong-token-shared-submission",
+        targetCompanyId: "COMPANY-LYF",
+      }),
+    });
+    assert.equal(wrongCompanyToken.response.status, 401);
+    assert.match(wrongCompanyToken.payload.error, /invalid integration token/i);
+
+    const otherCompanyLead = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
+      method: "POST",
+      headers: integrationHeaders(lyfToken),
       body: JSON.stringify({
         ...validWebsitePackage,
         sourceSubmissionId: "shared-submission",
@@ -471,13 +493,17 @@ test("website lead intake honeypot submissions are ignored without creating a le
 
 test("website leads stay hidden from field roles and outside-company users", async () => {
   const token = "website-token";
-  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+  const lyfToken = "website-lyf-token";
+  const fixture = await startServer({
+    CONCRETE_OPS_IMPORT_TOKEN: token,
+    APEX_HQ_COMPANY_IMPORT_TOKENS: JSON.stringify({ "COMPANY-LYF": lyfToken }),
+  });
 
   try {
     insertOtherCompany(fixture.sqliteFile);
     const imported = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
       method: "POST",
-      headers: integrationHeaders(token),
+      headers: integrationHeaders(lyfToken),
       body: JSON.stringify({
         ...validWebsitePackage,
         sourceSubmissionId: "field-hidden-submission",

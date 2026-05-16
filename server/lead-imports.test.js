@@ -333,7 +333,11 @@ test("integration lead import creates review lead for possible duplicates", asyn
 
 test("integration lead import requires target company in multi-company mode and writes only to that company", async () => {
   const token = "lead-import-token";
-  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+  const lyfToken = "lead-import-lyf-token";
+  const fixture = await startServer({
+    CONCRETE_OPS_IMPORT_TOKEN: token,
+    APEX_HQ_COMPANY_IMPORT_TOKENS: JSON.stringify({ "COMPANY-LYF": lyfToken }),
+  });
 
   try {
     insertOtherCompany(fixture.sqliteFile);
@@ -399,9 +403,21 @@ test("integration lead import requires target company in multi-company mode and 
     assert.equal(nestedLeadCompanyId.response.status, 400);
     assert.match(nestedLeadCompanyId.payload.error, /targetCompanyId/i);
 
-    const imported = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+    const wrongCompanyToken = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
       method: "POST",
       headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        targetCompanyId: "COMPANY-LYF",
+        sourceLeadId: "lead-import-wrong-company-token",
+      }),
+    });
+    assert.equal(wrongCompanyToken.response.status, 401);
+    assert.match(wrongCompanyToken.payload.error, /invalid integration token/i);
+
+    const imported = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(lyfToken),
       body: JSON.stringify({
         ...validLeadPackage,
         targetCompanyId: "COMPANY-LYF",
@@ -435,6 +451,30 @@ test("integration lead import requires target company in multi-company mode and 
       headers: authHeaders(defaultLogin.token),
     });
     assert.equal(defaultBootstrap.leads.some((item) => item.id === imported.payload.leadId), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration lead import rejects a global token in multi-company mode without a company binding", async () => {
+  const token = "lead-import-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    insertOtherCompany(fixture.sqliteFile);
+
+    const imported = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        targetCompanyId: "COMPANY-LYF",
+        sourceLeadId: "lead-import-global-token-multi-company",
+      }),
+    });
+
+    assert.equal(imported.response.status, 401);
+    assert.match(imported.payload.error, /company integration token/i);
   } finally {
     await fixture.stop();
   }
