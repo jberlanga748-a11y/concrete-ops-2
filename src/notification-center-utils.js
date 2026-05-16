@@ -11,6 +11,7 @@ export const NOTIFICATION_CENTER_FILTERS = [
 const DEFAULT_NOTIFICATION_STATE = {
   readIds: [],
   archivedIds: [],
+  itemMeta: [],
   updatedAt: "",
 };
 
@@ -90,6 +91,20 @@ function asArray(value) {
 
 function text(value) {
   return String(value ?? "").trim();
+}
+
+function normalizeNotificationMetaItem(item = {}) {
+  const id = text(item?.id);
+  if (!id) return null;
+
+  return {
+    id,
+    type: text(item?.type),
+    createdAt: text(item?.createdAt),
+    readAt: text(item?.readAt),
+    archivedAt: text(item?.archivedAt),
+    updatedAt: text(item?.updatedAt),
+  };
 }
 
 function normalizeStatus(value) {
@@ -216,12 +231,39 @@ export function normalizeNotificationState(state = {}) {
   }
 
   const uniqueTextArray = (value) => Array.from(new Set(asArray(value).map(text).filter(Boolean)));
+  const uniqueMetaItems = Array.from(new Map(
+    asArray(source?.itemMeta)
+      .map(normalizeNotificationMetaItem)
+      .filter(Boolean)
+      .map((item) => [item.id, item]),
+  ).values());
   return {
     ...DEFAULT_NOTIFICATION_STATE,
     readIds: uniqueTextArray(source?.readIds),
     archivedIds: uniqueTextArray(source?.archivedIds),
+    itemMeta: uniqueMetaItems,
     updatedAt: text(source?.updatedAt),
   };
+}
+
+export function extractNotificationStateForCompany(notificationState = {}, companyId = "") {
+  const normalizedCompanyId = text(companyId);
+  if (!normalizedCompanyId) {
+    return normalizeNotificationState(notificationState);
+  }
+
+  if (notificationState && typeof notificationState === "object" && !Array.isArray(notificationState)) {
+    const nestedState = notificationState[normalizedCompanyId];
+    if (nestedState) {
+      return normalizeNotificationState(nestedState);
+    }
+
+    if (Array.isArray(notificationState.readIds) || Array.isArray(notificationState.archivedIds) || Array.isArray(notificationState.itemMeta)) {
+      return normalizeNotificationState(notificationState);
+    }
+  }
+
+  return normalizeNotificationState();
 }
 
 export function notificationSeverityTone(severity) {

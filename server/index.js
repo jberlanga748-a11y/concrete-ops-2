@@ -130,6 +130,8 @@ import {
   readDb,
   replaceSessionForUser,
   nextSessionExpiry,
+  normalizeNotificationState,
+  normalizeNotificationStateMap,
   timestamp,
   touchSessionByTokenHash,
   updateSessionCurrentCompanyByTokenHash,
@@ -4810,7 +4812,7 @@ function sanitizeBootstrap(state, user) {
     user: publicUser({
       ...user,
       companyId: currentCompanyId,
-    }),
+    }, { includeNotificationState: true }),
     companies: accessibleCompanies,
     currentCompany,
     currentCompanyId,
@@ -5460,7 +5462,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
 
   const payload = {
     token,
-    user: publicUser(user),
+    user: publicUser(user, { includeNotificationState: true }),
   };
   routeProfiler.mark("payloadBuildMs");
   routeProfiler.log({
@@ -5472,7 +5474,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
 }));
 
 app.get("/api/auth/me", requireAuth, asyncRoute(async (req, res) => {
-  res.json({ user: publicUser(req.auth.user) });
+  res.json({ user: publicUser(req.auth.user, { includeNotificationState: true }) });
 }));
 
 app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
@@ -5521,6 +5523,35 @@ app.post("/api/companies/select", requireAuth, asyncRoute(async (req, res) => {
   };
 
   res.json(sanitizeBootstrap(state, selectedUser));
+}));
+
+app.patch("/api/auth/me/notification-state", requireAuth, asyncRoute(async (req, res) => {
+  const requestedCompanyId = normalizeCompanyId(requiredString(req.body?.companyId, "Company"));
+  const notificationState = normalizeNotificationState(req.body?.notificationState);
+
+  const nextState = await updateDb((draft) => {
+    const accessibleCompanies = accessibleCompaniesForUser(draft, req.auth.user);
+    if (!accessibleCompanies.some((company) => company.id === requestedCompanyId)) {
+      throw new ApiError(404, "Company not found.");
+    }
+
+    const targetUser = draft.users.find((user) => user.id === req.auth.user.id);
+    if (!targetUser) {
+      throw new ApiError(404, "Account missing.");
+    }
+
+    targetUser.notificationState = {
+      ...normalizeNotificationStateMap(targetUser.notificationState),
+      [requestedCompanyId]: notificationState,
+    };
+    targetUser.updatedAt = new Date().toISOString();
+    return draft;
+  });
+
+  const updatedUser = nextState.users.find((entry) => entry.id === req.auth.user.id) || req.auth.user;
+  res.json({
+    user: publicUser(updatedUser, { includeNotificationState: true }),
+  });
 }));
 
 app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {

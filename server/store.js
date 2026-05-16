@@ -76,6 +76,7 @@ export function createUserRecord({
   status = "active",
   companyId = DEFAULT_COMPANY_ID,
   operatorAccess = false,
+  notificationState = {},
   createdAt = isoNow(),
   updatedAt = createdAt,
   lastLoginAt = null,
@@ -90,6 +91,9 @@ export function createUserRecord({
     status: String(status || "active").trim().toLowerCase(),
     companyId: normalizeCompanyId(companyId),
     operatorAccess: Boolean(operatorAccess),
+    notificationState: notificationState && typeof notificationState === "object" && !Array.isArray(notificationState)
+      ? notificationState
+      : {},
     createdAt,
     updatedAt,
     lastLoginAt,
@@ -1936,8 +1940,8 @@ function insertRecordsIfMissing(database, tableName, columns, rows, toValues) {
 function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
   const existingUsers = Array.isArray(users) ? users : [];
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, notification_state, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const updateUser = database.prepare(`
     UPDATE users
@@ -1989,6 +1993,7 @@ function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
         createdUser.role,
         createdUser.phone,
         createdUser.status,
+        JSON.stringify(normalizeNotificationStateMap(createdUser.notificationState)),
         createdUser.createdAt,
         createdUser.updatedAt,
         createdUser.lastLoginAt,
@@ -3406,7 +3411,8 @@ function createBootstrapAdminState(adminConfig) {
   };
 }
 
-export function publicUser(user) {
+export function publicUser(user, { includeNotificationState = false } = {}) {
+  const publicNotificationState = includeNotificationState ? normalizeNotificationStateMap(user.notificationState) : undefined;
   return {
     id: user.id,
     email: user.email,
@@ -3419,6 +3425,7 @@ export function publicUser(user) {
     createdAt: user.createdAt || "",
     updatedAt: user.updatedAt || "",
     lastLoginAt: user.lastLoginAt || null,
+    ...(includeNotificationState ? { notificationState: publicNotificationState } : {}),
   };
 }
 
@@ -5334,6 +5341,23 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 45,
+      description: "Persist per-user notification inbox state.",
+      up(database) {
+        if (!columnExists(database, "users", "notification_state")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN notification_state TEXT NOT NULL DEFAULT '{}';
+          `);
+        }
+
+        database.exec(`
+          UPDATE users
+          SET notification_state = COALESCE(NULLIF(notification_state, ''), '{}');
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5373,8 +5397,8 @@ function writeStateToDb(state) {
   `);
 
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, notification_state, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCompanySetting = database.prepare(`
@@ -5622,6 +5646,7 @@ function writeStateToDb(state) {
         user.status || "active",
         normalizeCompanyId(user.companyId),
         user.operatorAccess === true ? 1 : 0,
+        JSON.stringify(normalizeNotificationStateMap(user.notificationState)),
         user.createdAt || isoNow(),
         user.updatedAt || user.createdAt || isoNow(),
         user.lastLoginAt || null,
@@ -6413,12 +6438,13 @@ function readTableState() {
   `).all(DEFAULT_COMPANY_ID), companySettings);
 
   const users = database.prepare(`
-    SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
+    SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
     ORDER BY email
   `).all().map((user) => ({
     ...withDefaultCompanyId(user),
     operatorAccess: Boolean(user.operatorAccess),
+    notificationState: normalizeNotificationStateMap(user.notificationState),
   }));
 
   const sessions = database.prepare(`
@@ -6851,6 +6877,7 @@ function mapUserRecord(row) {
     status: row.status || "active",
     companyId: normalizeCompanyId(row.companyId),
     operatorAccess: Boolean(row.operatorAccess),
+    notificationState: normalizeNotificationStateMap(row.notificationState),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     lastLoginAt: row.lastLoginAt || null,
@@ -6877,6 +6904,67 @@ function parseJsonValue(raw, fallback) {
   } catch {
     return fallback;
   }
+}
+
+export function normalizeNotificationState(state = {}) {
+  let source = state;
+  if (typeof source === "string") {
+    source = parseJsonValue(source, {});
+  }
+
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return {
+      readIds: [],
+      archivedIds: [],
+      itemMeta: [],
+      updatedAt: "",
+    };
+  }
+
+  const asText = (value) => String(value ?? "").trim();
+  const uniqueTextArray = (value) => Array.from(new Set((Array.isArray(value) ? value : []).map(asText).filter(Boolean)));
+  const uniqueMetaItems = Array.from(new Map(
+    (Array.isArray(source.itemMeta) ? source.itemMeta : [])
+      .map((item) => {
+        const id = asText(item?.id);
+        if (!id) return null;
+        return [id, {
+          id,
+          type: asText(item?.type),
+          createdAt: asText(item?.createdAt),
+          readAt: asText(item?.readAt),
+          archivedAt: asText(item?.archivedAt),
+          updatedAt: asText(item?.updatedAt),
+        }];
+      })
+      .filter(Boolean),
+  ).values());
+
+  return {
+    readIds: uniqueTextArray(source.readIds),
+    archivedIds: uniqueTextArray(source.archivedIds),
+    itemMeta: uniqueMetaItems,
+    updatedAt: asText(source.updatedAt),
+  };
+}
+
+export function normalizeNotificationStateMap(value = {}) {
+  let source = value;
+  if (typeof source === "string") {
+    source = parseJsonValue(source, {});
+  }
+
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return {};
+  }
+
+  const normalized = {};
+  for (const [companyId, notificationState] of Object.entries(source)) {
+    const normalizedCompanyId = normalizeCompanyId(companyId);
+    if (!normalizedCompanyId) continue;
+    normalized[normalizedCompanyId] = normalizeNotificationState(notificationState);
+  }
+  return normalized;
 }
 
 async function loadInitialState() {
@@ -7075,8 +7163,8 @@ export async function findUserAuthRecordByEmail(email) {
   await ensureDb();
   return withSqliteRetry(async () => {
     const database = createDatabaseConnection();
-    const row = database.prepare(`
-      SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, created_at AS createdAt, updated_at AS updatedAt,
+  const row = database.prepare(`
+      SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState, created_at AS createdAt, updated_at AS updatedAt,
              last_login_at AS lastLoginAt, password_hash AS passwordHash
       FROM users
       WHERE email = ?
@@ -7107,6 +7195,7 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
         u.status,
         u.company_id AS companyId,
         u.operator_access AS operatorAccess,
+        u.notification_state AS notificationState,
         u.created_at AS createdAt,
         u.updated_at AS updatedAt,
         u.last_login_at AS lastLoginAt,

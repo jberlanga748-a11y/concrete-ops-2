@@ -75,6 +75,10 @@ export function selectCompany(token, companyId) {
   return request("/api/companies/select", { method: "POST", token, body: { companyId } });
 }
 
+export function updateNotificationState(token, payload) {
+  return request("/api/auth/me/notification-state", { method: "PATCH", token, body: payload });
+}
+
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
 }

@@ -7,6 +7,7 @@ import {
   buildNotificationStateStorageKey,
   canViewNotificationCenter,
   deriveNotificationCenterState,
+  extractNotificationStateForCompany,
   filterNotificationItems,
   getNotificationTriggerDefinition,
   normalizeNotificationState,
@@ -77,6 +78,36 @@ test("notification center derives follow-up notifications with stable ids and se
   assert.equal(items[0].severity, "critical");
   assert.equal(items[1].severity, "warning");
   assert.equal(items[2].severity, "info");
+});
+
+test("notification state normalization preserves item metadata and company scoping", () => {
+  const normalized = normalizeNotificationState({
+    readIds: ["n-1", "n-1"],
+    archivedIds: ["n-2"],
+    itemMeta: [
+      { id: "n-1", type: "job_no_activity", createdAt: "2026-05-11T08:00:00.000Z" },
+      { id: "n-1", type: "job_no_activity", createdAt: "2026-05-11T08:00:00.000Z", updatedAt: "2026-05-11T09:00:00.000Z" },
+    ],
+    updatedAt: "2026-05-11T10:00:00.000Z",
+  });
+
+  assert.deepEqual(normalized.itemMeta, [
+    {
+      id: "n-1",
+      type: "job_no_activity",
+      createdAt: "2026-05-11T08:00:00.000Z",
+      readAt: "",
+      archivedAt: "",
+      updatedAt: "2026-05-11T09:00:00.000Z",
+    },
+  ]);
+
+  const companyState = extractNotificationStateForCompany({
+    "COMPANY-A": normalized,
+    "COMPANY-B": { readIds: ["n-3"], archivedIds: [], itemMeta: [], updatedAt: "2026-05-11T11:00:00.000Z" },
+  }, "COMPANY-A");
+
+  assert.deepEqual(companyState, normalized);
 });
 
 test("trigger definitions expose labels, default severity, module targets, and explanations", () => {
@@ -336,10 +367,11 @@ test("read and archive state filters notifications without storing record data",
 });
 
 test("notification state normalization tolerates corrupt local storage content", () => {
-  assert.deepEqual(normalizeNotificationState("{bad-json"), { readIds: [], archivedIds: [], updatedAt: "" });
+  assert.deepEqual(normalizeNotificationState("{bad-json"), { readIds: [], archivedIds: [], itemMeta: [], updatedAt: "" });
   assert.deepEqual(normalizeNotificationState({ readIds: ["N-1", "N-1", ""], archivedIds: ["N-2"], updatedAt: "now" }), {
     readIds: ["N-1"],
     archivedIds: ["N-2"],
+    itemMeta: [],
     updatedAt: "now",
   });
 });

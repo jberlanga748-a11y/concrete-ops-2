@@ -102,6 +102,7 @@ import {
   updateLead,
   updateLeadSource,
   updateOpportunitySearchProfile,
+  updateNotificationState,
   updatePpeItem,
   updatePostPourChecklist,
   updatePostPourChecklistItem,
@@ -140,7 +141,7 @@ import { CITY_STATE_WARNING, CUSTOMER_MATCH_STATUSES, IMPORTED_JOB_DRAFT_STATUSE
 import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calculateStartupStatus, getStartupCriticalWarnings, markStartupItem, normalizeJobStartupFields, normalizeStartupChecklist } from "../shared/jobStartup.js";
 import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
-import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
+import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
@@ -2618,7 +2619,7 @@ function Sidebar({ active, setActive, counts, navGroups, logoInitials }) {
   );
 }
 
-function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, notificationSource = {}, onOpenPath, logoInitials = DEFAULT_LOGO_INITIALS }) {
+function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary, navItems, permissions, companyName, companies = [], currentCompanyId = "", onSelectCompany, notificationSource = {}, onOpenPath, sessionToken = "", logoInitials = DEFAULT_LOGO_INITIALS }) {
   const current = navItems.find((item) => item.id === active);
   const canSwitchCompanies = Boolean(permissions?.companies?.canSwitch && companies.length > 1);
   const userInitials = sanitizeLogoInitials((user?.name || "User").split(/\s+/).map((part) => part[0] || "").join("")) || "U";
@@ -2635,6 +2636,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               permissions={permissions}
               user={user}
               companyId={currentCompanyId}
+              sessionToken={sessionToken}
               onOpenModule={setActive}
               onOpenPath={onOpenPath}
             />
@@ -2658,6 +2660,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
             permissions={permissions}
             user={user}
             companyId={currentCompanyId}
+            sessionToken={sessionToken}
             onOpenModule={setActive}
             onOpenPath={onOpenPath}
           />
@@ -2708,12 +2711,38 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
   );
 }
 
-function NotificationCenterButton({ source = {}, permissions = {}, user = null, companyId = "", onOpenModule = () => {}, onOpenPath = null }) {
+function notificationStateTimestamp(state = {}) {
+  const parsed = new Date(state?.updatedAt || "").getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function upsertNotificationItemMeta(items = [], state = {}, timestamp = "") {
+  const existingMetaById = new Map((Array.isArray(state?.itemMeta) ? state.itemMeta : []).map((item) => [item.id, item]));
+  const mergedMeta = new Map(existingMetaById);
+
+  for (const item of items) {
+    const existing = existingMetaById.get(item.id) || {};
+    mergedMeta.set(item.id, {
+      id: item.id,
+      type: item.type || existing.type || "",
+      createdAt: existing.createdAt || item.createdAt || timestamp,
+      readAt: existing.readAt || (item.read ? timestamp : ""),
+      archivedAt: existing.archivedAt || (item.archived ? timestamp : ""),
+      updatedAt: timestamp,
+    });
+  }
+
+  return Array.from(mergedMeta.values());
+}
+
+function NotificationCenterButton({ source = {}, permissions = {}, user = null, companyId = "", sessionToken = "", onOpenModule = () => {}, onOpenPath = null }) {
   const canView = canViewNotificationCenter(permissions);
   const storageKey = buildNotificationStateStorageKey({ companyId, userId: user?.id });
+  const serverStateForCompany = useMemo(() => extractNotificationStateForCompany(user?.notificationState, companyId), [companyId, user?.notificationState]);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("unread");
-  const [localState, setLocalState] = useState(() => loadNotificationState(storageKey));
+  const [localState, setLocalState] = useState(() => loadNotificationState(storageKey, serverStateForCompany));
+  const localStateRef = useRef(localState);
   const notificationState = useMemo(() => deriveNotificationCenterState(source, {
     today: todayDateInputValue(),
     companyId,
@@ -2724,27 +2753,47 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   const visibleItems = useMemo(() => filterNotificationItems(notificationState.items, { filter }), [filter, notificationState.items]);
 
   useEffect(() => {
-    setLocalState(loadNotificationState(storageKey));
+    const nextState = loadNotificationState(storageKey, serverStateForCompany);
+    localStateRef.current = nextState;
+    setLocalState(nextState);
     setFilter("unread");
     setOpen(false);
-  }, [storageKey]);
+    if (sessionToken && notificationStateTimestamp(nextState) > notificationStateTimestamp(serverStateForCompany)) {
+      void updateNotificationState(sessionToken, {
+        companyId,
+        notificationState: nextState,
+      }).catch(() => {});
+    }
+  }, [companyId, serverStateForCompany, sessionToken, storageKey]);
+
+  useEffect(() => {
+    localStateRef.current = localState;
+  }, [localState]);
 
   if (!canView) return null;
 
   function persistNotificationState(updater) {
-    setLocalState((current) => {
-      const draft = typeof updater === "function" ? updater(normalizeNotificationState(current)) : updater;
-      const next = normalizeNotificationState({
-        ...draft,
-        updatedAt: new Date().toISOString(),
-      });
-      try {
-        window.localStorage.setItem(storageKey, JSON.stringify(next));
-      } catch {
-        // Local notification read/archive state is nice-to-have only.
-      }
-      return next;
+    const current = normalizeNotificationState(localStateRef.current);
+    const draft = typeof updater === "function" ? updater(current) : updater;
+    const updatedAt = new Date().toISOString();
+    const next = normalizeNotificationState({
+      ...draft,
+      itemMeta: upsertNotificationItemMeta(notificationState.items, draft, updatedAt),
+      updatedAt,
     });
+    localStateRef.current = next;
+    setLocalState(next);
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // Local notification read/archive state is nice-to-have only.
+    }
+    if (sessionToken) {
+      void updateNotificationState(sessionToken, {
+        companyId,
+        notificationState: next,
+      }).catch(() => {});
+    }
   }
 
   function markRead(id) {
@@ -2891,11 +2940,13 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function loadNotificationState(storageKey) {
+function loadNotificationState(storageKey, fallbackState = {}) {
+  const fallback = normalizeNotificationState(fallbackState);
   try {
-    return normalizeNotificationState(window.localStorage.getItem(storageKey));
+    const localState = normalizeNotificationState(window.localStorage.getItem(storageKey));
+    return notificationStateTimestamp(localState) >= notificationStateTimestamp(fallback) ? localState : fallback;
   } catch {
-    return normalizeNotificationState();
+    return fallback;
   }
 }
 
@@ -34144,6 +34195,7 @@ export default function App() {
             onSelectCompany={handleSelectCompany}
             notificationSource={notificationCenterSource}
             onOpenPath={navigateTo}
+            sessionToken={sessionToken}
             logoInitials={workspaceLogoInitials}
           />
           <ErrorBanner message={errorMessage} onDismiss={() => setErrorMessage("")} />
