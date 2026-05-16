@@ -1746,7 +1746,9 @@ function EstimateRoughNotesHelper({
   onGenerate,
   onApplyToSelected,
   onApplyToNew,
+  onCreateNew,
   canApplySelected = false,
+  canCreateNew = false,
   disabled = false,
 }) {
   const loading = Boolean(assistant?.loading);
@@ -1774,8 +1776,8 @@ function EstimateRoughNotesHelper({
         <div className="rounded-2xl border border-orange-100 bg-white p-3">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Safe assistant rules</p>
           <div className="mt-3 space-y-2 text-sm font-bold leading-6 text-slate-600">
-            <p>Nothing sends, saves, prices, or approves automatically.</p>
-            <p>Suggestions only update draft fields after you choose an apply action.</p>
+            <p>Nothing sends, prices, or approves automatically.</p>
+            <p>Apply actions fill draft fields. Create draft now saves a new Draft estimate.</p>
             <p>Pricing, final scope, and customer terms still need office review.</p>
           </div>
           <Button type="button" className="mt-4 w-full" onClick={onGenerate} disabled={disabled || loading || !estimateRoughNotesText(roughNotes)}>
@@ -1815,9 +1817,10 @@ function EstimateRoughNotesHelper({
             <Button type="button" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply all to selected draft</Button>
             <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: false, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply proposal only</Button>
             <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: false, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply GC packet only</Button>
-            <Button type="button" variant="secondary" onClick={() => onApplyToNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled}>Apply all to new estimate draft</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled}>Fill New Estimate form</Button>
+            <Button type="button" onClick={() => onCreateNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canCreateNew}>Create draft now</Button>
           </div>
-          <p className="text-xs font-bold leading-5 text-slate-500">Apply actions update the on-screen draft only. Use Save estimate or Create New Estimate when the office review is complete.</p>
+          <p className="text-xs font-bold leading-5 text-slate-500">Fill New Estimate form does not save. Create draft now saves a Draft estimate, opens it, and keeps it visible in the list.</p>
         </div>
       ) : null}
     </div>
@@ -26514,12 +26517,69 @@ function EstimatesPagePolished({
     showCopyFeedback("AI suggestions applied to the selected draft. Review and save when ready.", 4000);
   }
 
+  function buildRoughNotesNewEstimateDraft(options = {}) {
+    const sourceDraft = selectedEstimate ? detailDraft : createDraft;
+    const baseDraft = createEstimateDraft({
+      ...INITIAL_ESTIMATE_FORM,
+      customerId: sourceDraft.customerId || singleCustomerId,
+      leadId: sourceDraft.leadId || "",
+      customerEmail: sourceDraft.customerEmail || linkedEstimateCustomerEmail(sourceDraft) || singleCustomerEmail,
+      status: "draft",
+    });
+    return mergeEstimateRoughNotesIntoDraft(baseDraft, roughNotesState.result, options);
+  }
+
   function applyRoughNotesToNewEstimate(options = {}) {
     if (!estimateRoughNotesHasSuggestions(roughNotesState.result)) return;
-    setCreateDraft((current) => mergeEstimateRoughNotesIntoDraft(current, roughNotesState.result, options));
+    const nextDraft = buildRoughNotesNewEstimateDraft(options);
+    setCreateDraft(nextDraft);
     setActiveEstimateTool("create");
     setShowEstimateTools(true);
-    showCopyFeedback("AI suggestions applied to the new estimate draft. Add pricing and create when ready.", 4000);
+    showCopyFeedback("New Estimate form filled from AI notes. It is not saved yet. Click Create New Estimate to save it.", 6000);
+  }
+
+  async function createRoughNotesEstimateDraft(options = {}) {
+    if (!estimateRoughNotesHasSuggestions(roughNotesState.result) || typeof onCreateEstimate !== "function") return false;
+    const nextDraft = buildRoughNotesNewEstimateDraft(options);
+    if (!nextDraft.customerId && !nextDraft.leadId) {
+      setCreateDraft(nextDraft);
+      setActiveEstimateTool("create");
+      setShowEstimateTools(true);
+      showCopyFeedback("Choose a customer or lead, then create the AI draft.", 6000);
+      return false;
+    }
+    if (!nextDraft.title) {
+      setCreateDraft(nextDraft);
+      setActiveEstimateTool("create");
+      setShowEstimateTools(true);
+      showCopyFeedback("Add an estimate title, then create the AI draft.", 6000);
+      return false;
+    }
+
+    const created = await onCreateEstimate({
+      ...nextDraft,
+      status: "draft",
+    });
+    if (created) {
+      const createdId = typeof created === "object" ? created.id : "";
+      const createdTitle = typeof created === "object" ? (created.title || nextDraft.title) : nextDraft.title;
+      setStatusFilter("Draft");
+      setCustomerFilter("All customers");
+      setLeadFilter("All leads");
+      setCreatorFilter("All creators");
+      setArchiveFilter("Active");
+      setSearch("");
+      if (createdId) setSelectedEstimateId(createdId);
+      setActiveEstimateTool("edit");
+      setShowEstimateTools(true);
+      setCreateDraft(createEstimateDraft({
+        ...INITIAL_ESTIMATE_FORM,
+        customerId: singleCustomerId,
+        customerEmail: singleCustomerEmail,
+      }));
+      showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
+    }
+    return created;
   }
 
   async function handleSendEstimate() {
@@ -26771,11 +26831,21 @@ function EstimatesPagePolished({
                       onClick={async () => {
                         const created = await onCreateEstimate(createDraft);
                         if (created) {
+                          const createdId = typeof created === "object" ? created.id : "";
+                          const createdTitle = typeof created === "object" ? (created.title || createDraft.title) : createDraft.title;
+                          setStatusFilter("Draft");
+                          setCustomerFilter("All customers");
+                          setLeadFilter("All leads");
+                          setCreatorFilter("All creators");
+                          setArchiveFilter("Active");
+                          setSearch("");
+                          if (createdId) setSelectedEstimateId(createdId);
                           setCreateDraft(createEstimateDraft({
                             ...INITIAL_ESTIMATE_FORM,
                             customerId: singleCustomerId,
                             customerEmail: singleCustomerEmail,
                           }));
+                          showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
                         }
                       }}
                       disabled={busy || (!createDraft.customerId && !createDraft.leadId) || !createDraft.title}
@@ -26801,7 +26871,9 @@ function EstimatesPagePolished({
                   onGenerate={handleGenerateEstimateRoughNotes}
                   onApplyToSelected={applyRoughNotesToSelected}
                   onApplyToNew={applyRoughNotesToNewEstimate}
+                  onCreateNew={createRoughNotesEstimateDraft}
                   canApplySelected={Boolean(selectedEstimate)}
+                  canCreateNew={Boolean((selectedEstimate ? detailDraft : createDraft).customerId || (selectedEstimate ? detailDraft : createDraft).leadId || singleCustomerId)}
                   disabled={busy}
                 />
               ) : (
@@ -33416,12 +33488,14 @@ export default function App() {
 
   async function handleCreateEstimate(payload) {
     if (!sessionToken || !appState.permissions.estimates.canManage) return false;
+    const existingEstimateIds = new Set(appState.estimates.map((estimate) => estimate.id));
     setBusy(true);
     try {
       const nextState = await createEstimate(sessionToken, payload);
+      const createdEstimate = (nextState.estimates || []).find((estimate) => !existingEstimateIds.has(estimate.id)) || null;
       applyBootstrap(nextState);
       setErrorMessage("");
-      return true;
+      return createdEstimate || true;
     } catch (error) {
       if (error.status === 401) clearSession();
       else setErrorMessage(error.message);
