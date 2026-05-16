@@ -53,6 +53,8 @@ test("estimate rough notes request asks OpenAI for strict structured JSON", () =
   assert.equal(request.response_format.type, "json_schema");
   assert.equal(request.response_format.json_schema.strict, true);
   assert.ok(request.response_format.json_schema.schema.required.includes("scopeOfWork"));
+  assert.ok(request.response_format.json_schema.schema.required.includes("customerName"));
+  assert.ok(request.response_format.json_schema.schema.required.includes("projectName"));
   assert.match(request.messages[0].content, /review-only/i);
   assert.match(request.messages[0].content, /Do not send/i);
 });
@@ -60,6 +62,11 @@ test("estimate rough notes request asks OpenAI for strict structured JSON", () =
 test("estimate rough notes helper sanitizes AI output and avoids extra fields", () => {
   const result = sanitizeEstimateRoughNotesResponse({
     suggestedTitle: "A".repeat(300),
+    customerName: "Martinez Concrete LLC",
+    contactName: "Jordan Martinez",
+    customerEmail: "office@martinez.test",
+    projectName: "Driveway replacement",
+    jobLocation: "Salem, OR",
     scopeOfWork: "Demo and replace existing sidewalk.",
     inclusions: ["Demolition", 123, "", "Broom finish"],
     exclusions: ["Permits"],
@@ -78,6 +85,8 @@ test("estimate rough notes helper sanitizes AI output and avoids extra fields", 
   assert.equal(result.ok, true);
   assert.equal(result.configured, true);
   assert.equal(result.suggestedTitle.length, 180);
+  assert.equal(result.customerName, "Martinez Concrete LLC");
+  assert.equal(result.projectName, "Driveway replacement");
   assert.deepEqual(result.inclusions, ["Demolition", "123", "Broom finish"]);
   assert.equal(Object.hasOwn(result, "secret"), false);
 });
@@ -97,6 +106,11 @@ test("estimate rough notes helper uses mocked OpenAI response without real API c
               message: {
                 content: JSON.stringify({
                   suggestedTitle: "Sidewalk Replacement Proposal",
+                  customerName: "Martinez Residence",
+                  contactName: "Jordan Martinez",
+                  customerEmail: "jordan@example.test",
+                  projectName: "Sidewalk replacement",
+                  jobLocation: "Salem, OR",
                   scopeOfWork: "Remove existing sidewalk and place new broom-finished concrete sidewalk.",
                   inclusions: ["Demolition of existing sidewalk", "Placement of 4-inch broom-finished concrete"],
                   exclusions: ["Permits", "Unmarked utilities"],
@@ -121,6 +135,8 @@ test("estimate rough notes helper uses mocked OpenAI response without real API c
   assert.equal(result.ok, true);
   assert.equal(result.configured, true);
   assert.equal(result.scopeOfWork.includes("broom-finished"), true);
+  assert.equal(result.customerName, "Martinez Residence");
+  assert.equal(result.jobLocation, "Salem, OR");
   assert.equal(captured.options.headers.Authorization, "Bearer test-key");
   assert.match(captured.options.body, /json_schema/);
 });

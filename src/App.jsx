@@ -885,9 +885,16 @@ function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {})
     includeGcPacket = true,
     includeReviewNotes = true,
   } = options;
+  const extractedCustomerName = estimateRoughNotesText(result.customerName);
+  const extractedProjectName = estimateRoughNotesText(result.projectName);
+  const extractedJobLocation = estimateRoughNotesText(result.jobLocation);
+  const extractedContactName = estimateRoughNotesText(result.contactName);
+  const extractedEmail = estimateRoughNotesText(result.customerEmail);
   let nextDraft = {
     ...draft,
-    title: estimateRoughNotesText(draft.title) || estimateRoughNotesText(result.suggestedTitle),
+    customerName: estimateRoughNotesText(draft.customerName) || extractedCustomerName,
+    customerEmail: estimateRoughNotesText(draft.customerEmail) || extractedEmail,
+    title: estimateRoughNotesText(draft.title) || extractedProjectName || estimateRoughNotesText(result.suggestedTitle),
   };
 
   if (includeProposal) {
@@ -895,6 +902,8 @@ function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {})
     const assumptions = estimateRoughNotesBullets([
       ...(Array.isArray(result.assumptions) ? result.assumptions : []),
       estimateRoughNotesText(result.scheduleNotes) ? `Schedule: ${estimateRoughNotesText(result.scheduleNotes)}` : "",
+      extractedJobLocation ? `Job location: ${extractedJobLocation}` : "",
+      extractedContactName ? `Primary contact: ${extractedContactName}` : "",
     ]);
     nextDraft = mergeEstimateProposalSections(nextDraft, {
       ...currentSections,
@@ -1798,6 +1807,11 @@ function EstimateRoughNotesHelper({
         <div className="mt-4 space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
             <EstimateRoughNotesPreviewBlock title="Suggested title" value={result.suggestedTitle} />
+            <EstimateRoughNotesPreviewBlock title="Customer / company name" value={result.customerName} />
+            <EstimateRoughNotesPreviewBlock title="Contact name" value={result.contactName} />
+            <EstimateRoughNotesPreviewBlock title="Customer email" value={result.customerEmail} />
+            <EstimateRoughNotesPreviewBlock title="Project name" value={result.projectName} />
+            <EstimateRoughNotesPreviewBlock title="Job location" value={result.jobLocation} />
             <EstimateRoughNotesPreviewBlock title="Scope of work" value={result.scopeOfWork} />
             <EstimateRoughNotesPreviewBlock title="Inclusions" items={result.inclusions} />
             <EstimateRoughNotesPreviewBlock title="Exclusions" items={result.exclusions} />
@@ -26386,17 +26400,15 @@ function EstimatesPagePolished({
     const nextLead = visibleLeads.find((entry) => entry.id === nextDraft.leadId) || null;
     const nextLinkedEmail = linkedEstimateCustomerEmail(nextDraft);
     const shouldPrefill = !current.customerEmail || current.customerEmail === previousLinkedEmail;
-    const shouldPrefillName = !current.customerName || current.customerName === current.title;
+    const nextCustomerName = typeof nextLinks.customerName === "string" ? nextLinks.customerName : current.customerName;
     return {
       ...nextDraft,
       customerEmail: shouldPrefill && nextLinkedEmail ? nextLinkedEmail : current.customerEmail,
       customerName: nextDraft.customerId && nextCustomer
-        ? nextCustomer.name || current.customerName
+        ? nextCustomer.name || nextCustomerName
         : nextDraft.leadId && nextLead
-          ? nextLead.customer || current.customerName
-          : shouldPrefillName
-            ? current.customerName
-            : current.customerName,
+          ? nextLead.customer || nextCustomerName
+          : nextCustomerName,
     };
   }
 
@@ -26573,30 +26585,25 @@ function EstimatesPagePolished({
   async function createRoughNotesEstimateDraft(options = {}) {
     if (!estimateRoughNotesHasSuggestions(roughNotesState.result) || typeof onCreateEstimate !== "function") return false;
     const nextDraft = buildRoughNotesNewEstimateDraft(options);
+    const fallbackDraft = {
+      ...nextDraft,
+      customerName: estimateRoughNotesText(nextDraft.customerName) || "Draft Customer",
+      title: estimateRoughNotesText(nextDraft.title) || "Draft Estimate",
+    };
     if (!nextDraft.customerId && !nextDraft.leadId && !nextDraft.customerName) {
-      setCreateDraft(nextDraft);
-      setEstimateViewMode("create");
-      setActiveEstimateTool("create");
-      setShowEstimateTools(true);
-      showCopyFeedback("Type a new customer/company name or link a lead, then create the AI draft.", 6000);
-      return false;
+      setCreateDraft(fallbackDraft);
     }
     if (!nextDraft.title) {
-      setCreateDraft(nextDraft);
-      setEstimateViewMode("create");
-      setActiveEstimateTool("create");
-      setShowEstimateTools(true);
-      showCopyFeedback("Add an estimate title, then create the AI draft.", 6000);
-      return false;
+      setCreateDraft(fallbackDraft);
     }
 
     const created = await onCreateEstimate({
-      ...nextDraft,
+      ...fallbackDraft,
       status: "draft",
     });
     if (created) {
       const createdId = typeof created === "object" ? created.id : "";
-      const createdTitle = typeof created === "object" ? (created.title || nextDraft.title) : nextDraft.title;
+      const createdTitle = typeof created === "object" ? (created.title || fallbackDraft.title) : fallbackDraft.title;
       setEstimateViewMode("browse");
       setStatusFilter("Draft");
       setCustomerFilter("All customers");
@@ -26933,12 +26940,7 @@ function EstimatesPagePolished({
                   onApplyToNew={applyRoughNotesToNewEstimate}
                   onCreateNew={createRoughNotesEstimateDraft}
                   canApplySelected={Boolean(selectedEstimate)}
-                  canCreateNew={Boolean(
-                    (selectedEstimate ? detailDraft : createDraft).customerId
-                    || (selectedEstimate ? detailDraft : createDraft).leadId
-                    || (selectedEstimate ? detailDraft : createDraft).customerName
-                    || singleCustomerId,
-                  )}
+                  canCreateNew={Boolean(estimateRoughNotesHasSuggestions(roughNotesState.result))}
                   disabled={busy}
                 />
               ) : (
