@@ -61,6 +61,25 @@ test("website lead intake validates package type and target company", () => {
   });
   assert.equal(missingCompany.ok, false);
   assert.match(missingCompany.errors.join(" "), /targetCompanyId/i);
+
+  const genericCompanyId = createWebsiteLeadFromPackage({
+    ...validWebsitePackage,
+    targetCompanyId: "",
+    companyId: "COMPANY-DEFAULT",
+  });
+  assert.equal(genericCompanyId.ok, false);
+  assert.match(genericCompanyId.errors.join(" "), /targetCompanyId/i);
+
+  const nestedLeadCompanyId = createWebsiteLeadFromPackage({
+    ...validWebsitePackage,
+    targetCompanyId: "",
+    lead: {
+      ...validWebsitePackage.lead,
+      targetCompanyId: "COMPANY-DEFAULT",
+    },
+  });
+  assert.equal(nestedLeadCompanyId.ok, false);
+  assert.match(nestedLeadCompanyId.errors.join(" "), /targetCompanyId/i);
 });
 
 test("website lead intake builds a safe Apex HQ lead without storing secrets", () => {

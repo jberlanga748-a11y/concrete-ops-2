@@ -266,6 +266,33 @@ test("website lead intake rejects unsupported packages and missing or invalid co
     assert.equal(missingCompany.response.status, 400);
     assert.match(missingCompany.payload.error, /targetCompanyId/i);
 
+    const genericCompanyId = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validWebsitePackage,
+        targetCompanyId: "",
+        companyId: DEFAULT_COMPANY_ID,
+      }),
+    });
+    assert.equal(genericCompanyId.response.status, 400);
+    assert.match(genericCompanyId.payload.error, /targetCompanyId/i);
+
+    const nestedLeadTargetCompanyId = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validWebsitePackage,
+        targetCompanyId: "",
+        lead: {
+          ...validWebsitePackage.lead,
+          targetCompanyId: DEFAULT_COMPANY_ID,
+        },
+      }),
+    });
+    assert.equal(nestedLeadTargetCompanyId.response.status, 400);
+    assert.match(nestedLeadTargetCompanyId.payload.error, /targetCompanyId/i);
+
     const invalidCompany = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
       method: "POST",
       headers: integrationHeaders(token),

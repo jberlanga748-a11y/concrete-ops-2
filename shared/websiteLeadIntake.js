@@ -285,7 +285,7 @@ function normalizeWebsiteLeadContext(source = {}) {
   const projectTitle = [serviceType, projectType].filter(Boolean).join(" - ") || firstLine(description);
 
   return {
-    targetCompanyId: firstText(packageSource.targetCompanyId, packageSource.companyId, lead.targetCompanyId),
+    targetCompanyId: firstText(packageSource.targetCompanyId),
     sourceSubmissionId: firstText(packageSource.sourceSubmissionId, packageSource.submissionId, lead.sourceSubmissionId, lead.submissionId),
     sourceApp: firstText(packageSource.sourceApp, "Website Form"),
     siteName: firstText(website.siteName, website.name, packageSource.siteName),
