@@ -8,6 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -115,6 +116,44 @@ function insertUsers(sqliteFile, users) {
         user.passwordHash,
       );
     }
+  } finally {
+    database.close();
+  }
+}
+
+function insertOtherCompany(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  const now = new Date().toISOString();
+  try {
+    database.prepare(`
+      INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+  } finally {
+    database.close();
+  }
+}
+
+function insertUser(sqliteFile, user) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+      user.phone || "",
+      user.status || "active",
+      user.companyId || DEFAULT_COMPANY_ID,
+      user.operatorAccess ? 1 : 0,
+      user.createdAt || new Date().toISOString(),
+      user.updatedAt || user.createdAt || new Date().toISOString(),
+      user.lastLoginAt || null,
+      user.passwordHash,
+    );
   } finally {
     database.close();
   }
@@ -234,6 +273,76 @@ test("public estimate request honeypot and rate limit block spam without exposin
       })),
     });
     assert.equal(limited.response.status, 429);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("public estimate request requires a valid target company in multi-company mode and writes only there", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompany(fixture.sqliteFile);
+    insertUser(fixture.sqliteFile, createUserRecord({
+      id: "U-PUBLIC-LYF-OWNER",
+      email: "public-lyf-owner@lastyard.test",
+      password: "apexdemo123",
+      name: "LYF Public Owner",
+      role: "Owner",
+      companyId: "COMPANY-LYF",
+    }));
+
+    const missingTarget = await requestJson(fixture.baseUrl, "/api/public/estimate-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildPublicRequestPayload({ name: "Missing Target", email: "missing-target@example.test" })),
+    });
+    assert.equal(missingTarget.response.status, 400);
+    assert.match(missingTarget.payload.error, /targetCompanyId/i);
+
+    const invalidTarget = await requestJson(fixture.baseUrl, "/api/public/estimate-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildPublicRequestPayload({
+        name: "Invalid Target",
+        email: "invalid-target@example.test",
+        targetCompanyId: "COMPANY-MISSING",
+      })),
+    });
+    assert.equal(invalidTarget.response.status, 404);
+    assert.match(invalidTarget.payload.error, /target company not found/i);
+
+    const submission = await assertOk(fixture.baseUrl, "/api/public/estimate-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildPublicRequestPayload({
+        name: "LYF Targeted Lead",
+        email: "lyf-target@example.test",
+        targetCompanyId: "COMPANY-LYF",
+      })),
+    });
+    assert.equal(submission.ok, true);
+
+    const lyfLogin = await login(fixture.baseUrl, {
+      email: "public-lyf-owner@lastyard.test",
+      password: "apexdemo123",
+    });
+    const lyfBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${lyfLogin.token}` },
+    });
+    const lyfLead = lyfBootstrap.leads.find((lead) => lead.customer === "LYF Targeted Lead");
+    assert.ok(lyfLead);
+    assert.equal(lyfLead.companyId, "COMPANY-LYF");
+    assert.ok(lyfBootstrap.queueItems.some((item) => item.title === "Follow up LYF Targeted Lead"));
+
+    const defaultLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const defaultBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${defaultLogin.token}` },
+    });
+    assert.equal(defaultBootstrap.leads.some((lead) => lead.customer === "LYF Targeted Lead"), false);
   } finally {
     await fixture.stop();
   }

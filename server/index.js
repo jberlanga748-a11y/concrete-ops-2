@@ -377,27 +377,30 @@ function extractCityFromProjectAddress(projectAddress) {
   return "";
 }
 
-function publicRequestActor() {
+function publicRequestActor(companyId = "") {
   return {
     id: "",
     name: "Public request",
     role: "Public",
+    ...(companyId ? { companyId: normalizeCompanyId(companyId) } : {}),
   };
 }
 
-function jobDraftIntegrationActor() {
+function jobDraftIntegrationActor(companyId = "") {
   return {
     id: "",
     name: "Proposal app integration",
     role: "Integration",
+    ...(companyId ? { companyId: normalizeCompanyId(companyId) } : {}),
   };
 }
 
-function leadFinderIntegrationActor() {
+function leadFinderIntegrationActor(companyId = "") {
   return {
     id: "",
     name: "Lead Finder integration",
     role: "Integration",
+    ...(companyId ? { companyId: normalizeCompanyId(companyId) } : {}),
   };
 }
 
@@ -412,6 +415,49 @@ function websiteLeadIntakeActor(companyId = "") {
 
 function configuredJobDraftImportToken() {
   return String(process.env.APEX_HQ_IMPORT_TOKEN || process.env.CONCRETE_OPS_IMPORT_TOKEN || "").trim();
+}
+
+function objectPayload(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function externalPayloadSource(payload = {}) {
+  const source = objectPayload(payload);
+  return Object.keys(objectPayload(source.package)).length > 0 ? objectPayload(source.package) : source;
+}
+
+function externalTargetCompanyIdFromPayload(payload = {}) {
+  const source = externalPayloadSource(payload);
+  const lead = objectPayload(source.lead);
+  const context = objectPayload(source.context);
+  return optionalString(
+    source.targetCompanyId
+      ?? source.companyId
+      ?? context.targetCompanyId
+      ?? context.companyId
+      ?? lead.targetCompanyId
+      ?? lead.companyId,
+    "",
+  );
+}
+
+function resolveExternalWriteCompany(state, payload = {}) {
+  const companies = companiesForState(state).filter((company) => String(company.status || "active").toLowerCase() !== "inactive");
+  const targetCompanyId = normalizeCompanyId(externalTargetCompanyIdFromPayload(payload), "");
+
+  if (targetCompanyId) {
+    const targetCompany = companies.find((company) => normalizeCompanyId(company.id) === targetCompanyId);
+    if (!targetCompany) {
+      throw new ApiError(404, "Target company not found.");
+    }
+    return targetCompany;
+  }
+
+  if (companies.length === 1) {
+    return companies[0];
+  }
+
+  throw new ApiError(400, "targetCompanyId is required when more than one company is available.");
 }
 
 function bearerTokenFromRequest(req) {
@@ -5230,14 +5276,15 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
   const city = extractCityFromProjectAddress(projectAddress);
   const createdAt = new Date().toISOString();
   const projectLabel = `${projectType} estimate request`;
-  const publicActor = publicRequestActor();
 
   await updateDb((draft) => {
     if (!Array.isArray(draft.users) || draft.users.length === 0) {
       throw new ApiError(503, "Public estimate requests are unavailable until the workspace is set up.");
     }
 
-    const owner = resolvePublicRequestOwner(draft);
+    const targetCompany = resolveExternalWriteCompany(draft, payload);
+    const publicActor = publicRequestActor(targetCompany.id);
+    const owner = resolveIntegrationLeadOwnerForCompany(draft, targetCompany.id);
     if (!owner) {
       throw new ApiError(503, "Public estimate requests are unavailable until an office lead manager is available.");
     }
@@ -5253,6 +5300,7 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
 
     const lead = {
       id: makeId("L"),
+      companyId: targetCompany.id,
       customerId: customer.id,
       customer: customer.name,
       city: customer.city || city,
@@ -5289,6 +5337,7 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
     });
     draft.queueItems.unshift({
       id: makeId("Q"),
+      companyId: targetCompany.id,
       title: `Follow up ${lead.customer}`,
       meta: `${projectType} - ${projectAddress}`,
       status: "Due today",
@@ -5297,7 +5346,7 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
       updatedAt: createdAt,
       archivedAt: null,
     });
-    appendActivity(draft, "Public estimate request received", `${lead.customer} requested an estimate for ${projectType}.`);
+    appendActivity(draft, "Public estimate request received", `${lead.customer} requested an estimate for ${projectType}.`, { companyId: targetCompany.id });
     appendAuditEvent(draft, {
       entityType: "lead",
       entityId: lead.id,
@@ -8200,12 +8249,14 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
+  const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
+  const integrationActor = jobDraftIntegrationActor(targetCompany.id);
   const matchedDraft = applyCustomerMatchToImportedDraft(
-    assignCompanyIdForCreate(result.draft, jobDraftIntegrationActor(), currentState),
-    companyScopedRecordsForUser(currentState, jobDraftIntegrationActor(), currentState.customers || []),
+    assignCompanyIdForCreate(result.draft, integrationActor, currentState),
+    companyScopedRecordsForUser(currentState, integrationActor, currentState.customers || []),
   );
   const duplicateDraft = findDuplicateImportedJobDraft(
-    companyScopedRecordsForUser(currentState, jobDraftIntegrationActor(), currentState.jobDraftImports || []),
+    companyScopedRecordsForUser(currentState, integrationActor, currentState.jobDraftImports || []),
     matchedDraft,
   );
   if (duplicateDraft) {
@@ -8223,14 +8274,14 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
 
   await updateDb((draft) => {
     draft.jobDraftImports = upsertImportedJobDraft(draft.jobDraftImports || [], matchedDraft);
-    appendActivity(draft, "Job draft imported by integration", `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`);
+    appendActivity(draft, "Job draft imported by integration", `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`, { companyId: targetCompany.id });
     appendAuditEvent(draft, {
       entityType: "jobDraftImport",
       entityId: matchedDraft.id,
       action: "integration_imported",
       summary: "Imported job draft from integration",
       detail: `${matchedDraft.jobName || "Imported draft"} imported for ${matchedDraft.customerName || "review"}.`,
-      actor: jobDraftIntegrationActor(),
+      actor: integrationActor,
     });
     return draft;
   });
@@ -8262,7 +8313,8 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const integrationActor = leadFinderIntegrationActor();
+  const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
+  const integrationActor = leadFinderIntegrationActor(targetCompany.id);
   const duplicateResult = findLeadImportDuplicate(companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []), result.context);
 
   if (duplicateResult.type === "exact" && duplicateResult.lead) {
@@ -8283,7 +8335,7 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
   let savedLead = importedLead;
 
   await updateDb((draft) => {
-    const owner = resolvePublicRequestOwner(draft);
+    const owner = resolveIntegrationLeadOwnerForCompany(draft, targetCompany.id);
     savedLead = {
       ...importedLead,
       owner: owner?.name || "",
@@ -8294,20 +8346,20 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
       leadId: savedLead.id,
       fromStatus: null,
       toStatus: savedLead.status,
-      actor: leadFinderIntegrationActor(),
+      actor: integrationActor,
       note: duplicateResult.type === "possible"
         ? "Lead imported from Lead Finder with possible duplicate warning."
         : "Lead imported from Lead Finder.",
       createdAt: savedLead.createdAt,
     });
-    appendActivity(draft, "Lead imported from Lead Finder", `${savedLead.customer} imported for office review.`);
+    appendActivity(draft, "Lead imported from Lead Finder", `${savedLead.customer} imported for office review.`, { companyId: targetCompany.id });
     appendAuditEvent(draft, {
       entityType: "lead",
       entityId: savedLead.id,
       action: "integration_imported",
       summary: "Lead imported from Lead Finder",
       detail: `${savedLead.customer} imported for office review. No customer, job, or estimate was created.`,
-      actor: leadFinderIntegrationActor(),
+      actor: integrationActor,
       changedFields: ["status", "source", "followUpDueAt"],
     });
     return draft;

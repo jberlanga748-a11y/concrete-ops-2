@@ -8,6 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -103,8 +104,8 @@ function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
     const insertUser = database.prepare(`
-      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const user of users) {
@@ -115,12 +116,27 @@ function insertUsers(sqliteFile, users) {
         user.role,
         user.phone || "",
         user.status || "active",
+        user.companyId || DEFAULT_COMPANY_ID,
+        user.operatorAccess ? 1 : 0,
         user.createdAt || new Date().toISOString(),
         user.updatedAt || user.createdAt || new Date().toISOString(),
         user.lastLoginAt || null,
         user.passwordHash,
       );
     }
+  } finally {
+    database.close();
+  }
+}
+
+function insertOtherCompany(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  const now = new Date().toISOString();
+  try {
+    database.prepare(`
+      INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
   } finally {
     database.close();
   }
@@ -310,6 +326,87 @@ test("integration lead import creates review lead for possible duplicates", asyn
     const lead = bootstrap.leads.find((item) => item.id === imported.payload.leadId);
     assert.match(lead.nextStep, /possible duplicate/i);
     assert.match(lead.notes, /Possible duplicate warning:/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration lead import requires target company in multi-company mode and writes only to that company", async () => {
+  const token = "lead-import-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    insertOtherCompany(fixture.sqliteFile);
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-LEAD-IMPORT-LYF-OWNER",
+        email: "lead-import-lyf-owner@lastyard.test",
+        password: "apexdemo123",
+        name: "Lead Import LYF Owner",
+        role: "Owner",
+        companyId: "COMPANY-LYF",
+      }),
+    ]);
+
+    const missingTarget = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        sourceLeadId: "lead-import-missing-target",
+      }),
+    });
+    assert.equal(missingTarget.response.status, 400);
+    assert.match(missingTarget.payload.error, /targetCompanyId/i);
+
+    const invalidTarget = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        targetCompanyId: "COMPANY-MISSING",
+        sourceLeadId: "lead-import-invalid-target",
+      }),
+    });
+    assert.equal(invalidTarget.response.status, 404);
+    assert.match(invalidTarget.payload.error, /target company not found/i);
+
+    const imported = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        targetCompanyId: "COMPANY-LYF",
+        sourceLeadId: "lead-import-lyf-target",
+        lead: {
+          ...validLeadPackage.lead,
+          title: "LYF targeted slab",
+          companyName: "LYF Target Customer",
+        },
+      }),
+    });
+    assert.equal(imported.response.status, 201);
+
+    const lyfLogin = await login(fixture.baseUrl, {
+      email: "lead-import-lyf-owner@lastyard.test",
+      password: "apexdemo123",
+    });
+    const lyfBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(lyfLogin.token),
+    });
+    const lead = lyfBootstrap.leads.find((item) => item.id === imported.payload.leadId);
+    assert.ok(lead);
+    assert.equal(lead.companyId, "COMPANY-LYF");
+    assert.equal(lead.customer, "LYF Target Customer");
+
+    const defaultLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const defaultBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(defaultLogin.token),
+    });
+    assert.equal(defaultBootstrap.leads.some((item) => item.id === imported.payload.leadId), false);
   } finally {
     await fixture.stop();
   }
