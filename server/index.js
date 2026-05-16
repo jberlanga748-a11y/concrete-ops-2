@@ -242,9 +242,12 @@ const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
 const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_REQUEST_RATE_LIMIT_MAX = 5;
+const PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const PUBLIC_SIGNUP_RATE_LIMIT_MAX = 5;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
+const publicSignupRateLimit = new Map();
 
 const app = express();
 
@@ -353,6 +356,27 @@ function optionalProgressNumber(value, fallback = 0) {
 function optionalEmail(value, fallback = "") {
   const normalized = String(value ?? "").trim().toLowerCase();
   return normalized || fallback;
+}
+
+function requiredEmail(value, fieldName = "Email") {
+  const normalized = requiredString(value, fieldName).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new ApiError(400, `${fieldName} must be a valid email address.`);
+  }
+  return normalized;
+}
+
+function logoInitialsForCompanyName(companyName) {
+  return String(companyName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((part) => part[0] || "")
+    .join("")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 3);
 }
 
 function requiredContactChannel(phone, email) {
@@ -1096,6 +1120,22 @@ const DEMO_ACTIVITY_DETAIL_SET = new Set(INITIAL_ACTIVITY.map((item) => item.det
 function isDemoModeUser(user) {
   const email = String(user?.email || "").toLowerCase();
   return serverConfig.demoMode && DEMO_USER_EMAILS.includes(email);
+}
+
+function isDemoUserEmail(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  return normalizedEmail === DEMO_CREDENTIALS.email.toLowerCase() || DEMO_USER_EMAILS.includes(normalizedEmail);
+}
+
+function canUseDemoReset(user) {
+  return serverConfig.demoMode && isDemoUserEmail(user?.email);
+}
+
+function hasNonDemoTenantData(state = {}) {
+  const companies = Array.isArray(state.companies) ? state.companies : [];
+  const users = Array.isArray(state.users) ? state.users : [];
+  return companies.some((company) => normalizeCompanyId(company?.id, "") !== "COMPANY-DEFAULT")
+    || users.some((user) => !isDemoUserEmail(user?.email));
 }
 
 function isDemoId(value) {
@@ -3616,6 +3656,18 @@ function consumePublicEstimateRequestRateLimit(req) {
   publicEstimateRequestRateLimit.set(ipKey, liveEntries);
 }
 
+function consumePublicSignupRateLimit(req) {
+  const now = Date.now();
+  const ipKey = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
+  const existing = publicSignupRateLimit.get(ipKey) || [];
+  const liveEntries = existing.filter((timestamp) => now - timestamp < PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS);
+  if (liveEntries.length >= PUBLIC_SIGNUP_RATE_LIMIT_MAX) {
+    throw new ApiError(429, "Too many signup attempts. Please try again later.");
+  }
+  liveEntries.push(now);
+  publicSignupRateLimit.set(ipKey, liveEntries);
+}
+
 function syncCustomerNameReferences(state, customer) {
   state.leads.forEach((lead) => {
     if (lead.customerId === customer.id) {
@@ -4961,6 +5013,7 @@ function sanitizeSetupStatus(state) {
     demoUserExists,
     environmentBootstrap: Boolean(serverConfig.bootstrapAdmin),
     publicEstimateRequestEnabled: serverConfig.publicEstimateRequestEnabled,
+    publicSignupEnabled: serverConfig.publicSignupEnabled,
   };
 }
 
@@ -5472,6 +5525,97 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
   res.status(201).json({
     token,
     ...sanitizeBootstrap(nextState, createdUser),
+  });
+}));
+
+app.post("/api/signup/company", asyncRoute(async (req, res) => {
+  if (!serverConfig.publicSignupEnabled) {
+    throw new ApiError(404, "Public signup is not enabled.");
+  }
+
+  consumePublicSignupRateLimit(req);
+
+  const payload = req.body || {};
+  const email = requiredEmail(payload.email, "Email");
+  const password = requiredPassword(payload.password, "Password");
+  const ownerName = requiredString(payload.ownerName || payload.name, "Owner name");
+  const companyName = requiredString(payload.companyName || payload.company, "Company name");
+  const phone = optionalString(payload.phone, "");
+  const createdAt = new Date().toISOString();
+  const companyId = makeId("COMPANY");
+  const token = generateToken();
+  const tokenHash = hashToken(token);
+  const owner = createUserRecord({
+    email,
+    password,
+    name: ownerName,
+    role: "Owner",
+    phone,
+    status: "active",
+    companyId,
+    operatorAccess: false,
+    createdAt,
+    updatedAt: createdAt,
+    lastLoginAt: createdAt,
+  });
+
+  const nextState = await updateDb((draft) => {
+    draft.companies ||= [];
+    draft.companySettingsByCompanyId ||= {};
+    draft.users ||= [];
+    draft.sessions ||= [];
+    draft.activity ||= [];
+    draft.auditEvents ||= [];
+
+    if (draft.users.some((user) => String(user.email || "").trim().toLowerCase() === email)) {
+      throw new ApiError(409, "An account with this email already exists.");
+    }
+
+    draft.companies.push({
+      id: companyId,
+      workspaceId: companyId,
+      name: companyName,
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    draft.companySettingsByCompanyId[companyId] = {
+      ...DEFAULT_COMPANY_SETTINGS,
+      companyName,
+      logoInitials: logoInitialsForCompanyName(companyName),
+      businessPhone: phone,
+      businessEmail: email,
+      managedSetupStatus: "Not Started",
+      managedSetupChecklist: [],
+      managedSetupNotes: "",
+      managedSetupUpdatedAt: "",
+    };
+    draft.users.push(owner);
+    draft.sessions.push({
+      id: makeId("S"),
+      userId: owner.id,
+      tokenHash,
+      currentCompanyId: companyId,
+      createdAt,
+      lastSeenAt: createdAt,
+      expiresAt: nextSessionExpiry(),
+    });
+    appendActivity(draft, "Company workspace created", `${companyName} started a new Apex HQ workspace.`, { companyId });
+    appendAuditEvent(draft, {
+      entityType: "company",
+      entityId: companyId,
+      action: "signup_created",
+      summary: "Company workspace created",
+      detail: `${owner.email} created ${companyName}.`,
+      actor: owner,
+      changedFields: ["company", "owner", "settings", "session"],
+    });
+    return draft;
+  });
+
+  res.status(201).json({
+    token,
+    ...sanitizeBootstrap(nextState, owner),
   });
 }));
 
@@ -11049,8 +11193,14 @@ app.post("/api/reset", requireAuth, asyncRoute(async (req, res) => {
   if (!serverConfig.demoMode || !serverConfig.seedDemoData) {
     throw new ApiError(403, "Workspace reset is only available when demo mode is explicitly enabled.");
   }
+  if (!canUseDemoReset(req.auth.user)) {
+    throw new ApiError(403, "Demo reset is only available to demo users.");
+  }
 
-  const nextState = await updateDb(() => {
+  const nextState = await updateDb((currentState) => {
+    if (hasNonDemoTenantData(currentState)) {
+      throw new ApiError(409, "Demo reset is blocked while real company data exists.");
+    }
     const seed = createSeedState();
     seed.sessions = [
       {

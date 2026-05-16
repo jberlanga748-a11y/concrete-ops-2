@@ -55,6 +55,10 @@ export function bootstrapAdminAccount(payload) {
   return request("/api/setup/bootstrap-admin", { method: "POST", body: payload });
 }
 
+export function signupCompany(payload) {
+  return request("/api/signup/company", { method: "POST", body: payload });
+}
+
 export function submitPublicEstimateRequest(payload) {
   return request("/api/public/estimate-request", { method: "POST", body: payload });
 }

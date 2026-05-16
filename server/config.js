@@ -110,6 +110,11 @@ export function createServerConfig(env = process.env) {
     "PUBLIC_ESTIMATE_REQUEST_ENABLED",
     demoMode,
   );
+  const publicSignupEnabled = parseBoolean(
+    env.PUBLIC_SIGNUP_ENABLED,
+    "PUBLIC_SIGNUP_ENABLED",
+    false,
+  );
   const bootstrapAdmin = resolveBootstrapAdmin(env);
 
   return Object.freeze({
@@ -124,6 +129,7 @@ export function createServerConfig(env = process.env) {
     seedDemoData,
     seedDemoDataRequested,
     publicEstimateRequestEnabled,
+    publicSignupEnabled,
     bootstrapAdmin,
     sessionTtlHours,
     sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,

@@ -84,6 +84,7 @@ import {
   restoreQueueItem,
   scoreLead as scoreLeadRequest,
   selectCompany,
+  signupCompany,
   submitDailyReport,
   submitPublicEstimateRequest,
   startBreak,
@@ -1109,6 +1110,15 @@ const INITIAL_SETUP_STATUS = {
   demoUserExists: false,
   environmentBootstrap: false,
   publicEstimateRequestEnabled: false,
+  publicSignupEnabled: false,
+};
+
+const INITIAL_PUBLIC_SIGNUP_FORM = {
+  companyName: "",
+  ownerName: "",
+  email: "",
+  phone: "",
+  password: "",
 };
 
 const INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM = {
@@ -2260,11 +2270,17 @@ function LoginScreen({
   setupDraft,
   setSetupDraft,
   onSetupSubmit,
+  signupDraft,
+  setSignupDraft,
+  onSignupSubmit,
+  showSignup,
+  setShowSignup,
   onOpenPublicEstimateRequest,
 }) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
   const backendLabel = backendStatus === "online" ? "Workspace online" : backendStatus === "offline" ? "Workspace offline" : "Checking workspace";
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
+  const isSignupMode = !isSetupMode && showSignup && setupStatus.publicSignupEnabled;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
   const fillDemoCredentials = (preset) => {
     if (!canShowDemoCredentials || !preset?.email) return;
@@ -2311,13 +2327,15 @@ function LoginScreen({
           </div>
 
           <div className="co-login-form-intro">
-            <p>{isSetupMode ? "Set up workspace" : "Sign in"}</p>
+            <p>{isSetupMode ? "Set up workspace" : isSignupMode ? "Create company" : "Sign in"}</p>
             <span>
               {isSetupMode
                 ? "Create the first admin account for this workspace."
-                : canShowDemoCredentials
-                  ? "Use demo logins for demo data, or sign in with your own office account."
-                  : "Enter the admin account for this workspace."}
+                : isSignupMode
+                  ? "Start a new Apex HQ workspace for your contracting company."
+                  : canShowDemoCredentials
+                    ? "Use demo logins for demo data, or sign in with your own office account."
+                    : "Enter the admin account for this workspace."}
             </span>
           </div>
 
@@ -2330,6 +2348,21 @@ function LoginScreen({
               {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
               <Button type="submit" size="lg" disabled={loading} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
                 {loading ? "Creating admin..." : "Create admin and enter workspace"}
+              </Button>
+            </form>
+          ) : isSignupMode ? (
+            <form className="co-login-form" onSubmit={onSignupSubmit}>
+              <InputField label="Company name" value={signupDraft.companyName} onChange={(event) => setSignupDraft((current) => ({ ...current, companyName: event.target.value }))} />
+              <InputField label="Your name" value={signupDraft.ownerName} onChange={(event) => setSignupDraft((current) => ({ ...current, ownerName: event.target.value }))} />
+              <InputField label="Email" type="email" value={signupDraft.email} onChange={(event) => setSignupDraft((current) => ({ ...current, email: event.target.value }))} />
+              <InputField label="Phone" type="tel" value={signupDraft.phone} onChange={(event) => setSignupDraft((current) => ({ ...current, phone: event.target.value }))} />
+              <InputField label="Password" type="password" value={signupDraft.password} onChange={(event) => setSignupDraft((current) => ({ ...current, password: event.target.value }))} />
+              {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
+              <Button type="submit" size="lg" disabled={loading} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
+                {loading ? "Creating workspace..." : "Create company workspace"}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowSignup(false)}>
+                Back to sign in
               </Button>
             </form>
           ) : (
@@ -2347,6 +2380,9 @@ function LoginScreen({
             <div>
               <p>Account help</p>
               <span>Use the office account for this workspace, or the shared demo users when opening demo mode.</span>
+              {setupStatus.publicSignupEnabled && !isSetupMode ? (
+                <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={() => setShowSignup(true)}>Create company</Button>
+              ) : null}
             </div>
             {setupStatus.publicEstimateRequestEnabled ? (
               <div>
@@ -22740,6 +22776,7 @@ function SettingsCommandRailPolished({
   workspaceCompanyName,
   user,
   demoMode,
+  demoResetAllowed,
   setupState,
   safeCompanySettings,
   users,
@@ -22830,7 +22867,7 @@ function SettingsCommandRailPolished({
             <div><span>Public intake</span><strong>{showPublicEstimateRequestStatus ? (publicEstimateRequestEnabled ? "On" : "Off") : "N/A"}</strong></div>
           </div>
 
-          {demoMode ? (
+          {demoResetAllowed ? (
             <div className="co-settings-mobile-danger-row">
               <span>Demo reset</span>
               <Button variant="danger" size="sm" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset</Button>
@@ -22922,7 +22959,7 @@ function SettingsCommandRailPolished({
         </div>
       </Card>
 
-      {demoMode ? (
+      {demoResetAllowed ? (
         <Card className="co-settings-rail-card co-settings-danger-card p-4">
           <SectionHeader title="Danger Zone" description="Demo reset stays separated from normal setup work." />
           <Button variant="danger" onClick={onReset} disabled={busy || typeof onReset !== "function"}>Reset demo data</Button>
@@ -22971,6 +23008,7 @@ function SettingsPagePolished({
   const canViewSettings = Boolean(safePermissions.settings?.canView);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
+  const demoResetAllowed = demoMode && DEMO_LOGIN_PRESETS.some((preset) => preset.email === String(user?.email || "").trim().toLowerCase());
   const [brandingDraft, setBrandingDraft] = useState(() => ({
     companyName: safeCompanySettings.companyName || "",
     logoInitials: safeCompanySettings.logoInitials || "",
@@ -23440,6 +23478,7 @@ function SettingsPagePolished({
           workspaceCompanyName={workspaceCompanyName}
           user={user}
           demoMode={demoMode}
+          demoResetAllowed={demoResetAllowed}
           setupState={settingsSetupState}
           safeCompanySettings={safeCompanySettings}
           users={users}
@@ -31542,6 +31581,8 @@ export default function App() {
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [setupDraft, setSetupDraft] = useState(INITIAL_SETUP_FORM);
   const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
+  const [publicSignupDraft, setPublicSignupDraft] = useState(INITIAL_PUBLIC_SIGNUP_FORM);
+  const [showPublicSignup, setShowPublicSignup] = useState(false);
   const [publicEstimateRequestDraft, setPublicEstimateRequestDraft] = useState(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
   const [publicEstimateRequestError, setPublicEstimateRequestError] = useState("");
   const [publicEstimateRequestSuccess, setPublicEstimateRequestSuccess] = useState("");
@@ -31858,6 +31899,7 @@ export default function App() {
           demoUserExists: nextSetupStatus.demoUserExists,
           environmentBootstrap: nextSetupStatus.environmentBootstrap,
           publicEstimateRequestEnabled: nextSetupStatus.publicEstimateRequestEnabled,
+          publicSignupEnabled: nextSetupStatus.publicSignupEnabled,
         });
       } catch {
         if (!cancelled) {
@@ -32261,6 +32303,7 @@ export default function App() {
         demoUserExists: false,
         environmentBootstrap: false,
         publicEstimateRequestEnabled: setupStatus.publicEstimateRequestEnabled,
+        publicSignupEnabled: setupStatus.publicSignupEnabled,
       });
       applyBootstrap(result);
       window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
@@ -32268,6 +32311,42 @@ export default function App() {
       setStartupError("");
       setAuthStatus("authenticated");
       setSetupDraft(INITIAL_SETUP_FORM);
+      setLoginError("");
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setLoginError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePublicSignup(event) {
+    event.preventDefault();
+    setBusy(true);
+    setLoginError("");
+
+    try {
+      const result = await signupCompany(publicSignupDraft);
+      setBackendStatus("online");
+      setSetupStatus({
+        checked: true,
+        needsSetup: false,
+        hasUsers: true,
+        demoMode: setupStatus.demoMode,
+        demoUserExists: setupStatus.demoUserExists,
+        environmentBootstrap: setupStatus.environmentBootstrap,
+        publicEstimateRequestEnabled: setupStatus.publicEstimateRequestEnabled,
+        publicSignupEnabled: setupStatus.publicSignupEnabled,
+      });
+      applyBootstrap(result);
+      window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+      setSessionToken(result.token);
+      setStartupError("");
+      setAuthStatus("authenticated");
+      setPublicSignupDraft(INITIAL_PUBLIC_SIGNUP_FORM);
+      setShowPublicSignup(false);
       setLoginError("");
     } catch (error) {
       if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
@@ -34164,6 +34243,11 @@ export default function App() {
         setupDraft={setupDraft}
         setSetupDraft={setSetupDraft}
         onSetupSubmit={handleBootstrapAdmin}
+        signupDraft={publicSignupDraft}
+        setSignupDraft={setPublicSignupDraft}
+        onSignupSubmit={handlePublicSignup}
+        showSignup={showPublicSignup}
+        setShowSignup={setShowPublicSignup}
         onOpenPublicEstimateRequest={openPublicEstimateRequest}
       />
     );
