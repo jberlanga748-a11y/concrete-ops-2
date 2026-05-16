@@ -26193,6 +26193,7 @@ function EstimateCommandRailPolished({
   canMarkSent,
   copyFeedback,
   emailSendingConfigured,
+  newDraftMode = false,
   onSave,
   onMarkSent,
   onMarkApproved,
@@ -26207,8 +26208,15 @@ function EstimateCommandRailPolished({
     return (
       <div className="co-estimates-right-rail space-y-4">
         <Card className="co-estimates-rail-card p-4">
-          <SectionHeader title="Selected estimate summary" description="Choose an estimate from the board to review proposal totals, workflow, and tools." />
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">No estimate selected.</div>
+          <SectionHeader
+            title="Selected estimate summary"
+            description={newDraftMode
+              ? "AI Rough Notes is building a new draft. No saved estimate is selected yet."
+              : "Choose an estimate from the board to review proposal totals, workflow, and tools."}
+          />
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">
+            {newDraftMode ? "New draft in progress." : "No estimate selected."}
+          </div>
         </Card>
       </div>
     );
@@ -26530,7 +26538,7 @@ function EstimatesPagePolished({
   }
 
   function openEstimateTool(toolId = "edit") {
-    if (toolId !== "create") {
+    if (toolId !== "create" && estimateViewMode !== "create") {
       setEstimateViewMode("browse");
     }
     setActiveEstimateTool(toolId);
@@ -26571,7 +26579,7 @@ function EstimatesPagePolished({
   }
 
   function buildRoughNotesNewEstimateDraft(options = {}) {
-    const sourceDraft = selectedEstimate ? detailDraft : createDraft;
+    const sourceDraft = createDraft;
     const baseDraft = createEstimateDraft({
       ...INITIAL_ESTIMATE_FORM,
       customerId: sourceDraft.customerId || singleCustomerId,
@@ -26787,6 +26795,7 @@ function EstimatesPagePolished({
           canMarkSent={canMarkSent}
           copyFeedback={copyFeedback}
           emailSendingConfigured={emailSendingConfigured}
+          newDraftMode={estimateViewMode === "create"}
           onSave={() => onSaveEstimate(selectedEstimate.id, detailDraft)}
           onMarkSent={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
           onMarkApproved={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "approved" })}
@@ -27122,7 +27131,10 @@ function EstimatesPagePolished({
                   <button
                     key={estimate.id}
                     type="button"
-                    onClick={() => setSelectedEstimateId(estimate.id)}
+                    onClick={() => {
+                      setEstimateViewMode("browse");
+                      setSelectedEstimateId(estimate.id);
+                    }}
                     className={`co-office-list-card w-full rounded-3xl border p-4 text-left transition ${selectedEstimate?.id === estimate.id ? "is-selected border-blue-300 bg-blue-50/80 shadow-panel" : "border-blue-100 bg-white hover:border-blue-200 hover:bg-blue-50/50"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
