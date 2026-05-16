@@ -2320,6 +2320,7 @@ function calculateEstimateTotals(items, { taxRate, feesTotal }) {
 function resolveEstimateLinks(state, payload, actor) {
   const leadId = optionalString(payload.leadId, "");
   const customerId = optionalString(payload.customerId, "");
+  const customerName = optionalString(payload.customerName, "");
   const lead = leadId ? findCompanyScopedRecord(state.leads || [], leadId, actor, state, "Lead") : null;
   let customer = customerId ? findCompanyScopedRecord(state.customers || [], customerId, actor, state, "Customer") : null;
 
@@ -2336,8 +2337,16 @@ function resolveEstimateLinks(state, payload, actor) {
     }, actor, { fallbackStatus: "Prospect" });
   }
 
+  if (!customer && customerName) {
+    customer = ensureCustomerRecord(state, {
+      name: customerName,
+      company: customerName,
+      status: "Prospect",
+    }, actor, { fallbackStatus: "Prospect" });
+  }
+
   if (!customer) {
-    throw new ApiError(400, "Customer is required to create an estimate.");
+    throw new ApiError(400, "Customer is required to create an estimate. Type a new customer/company name or select an existing customer.");
   }
 
   if (lead && customer.id !== lead.customerId && lead.customerId) {

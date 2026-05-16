@@ -805,6 +805,7 @@ const INITIAL_ESTIMATE_LINE_ITEM = {
 const INITIAL_ESTIMATE_FORM = {
   customerId: "",
   leadId: "",
+  customerName: "",
   customerEmail: "",
   title: "",
   status: "draft",
@@ -834,6 +835,7 @@ function createEstimateDraft(record) {
   return {
     customerId: record?.customerId || "",
     leadId: record?.leadId || "",
+    customerName: record?.customer?.name || record?.customerName || "",
     customerEmail: record?.customerEmail || estimateCustomerEmail(record) || "",
     title: record?.title || "",
     status: record?.status || "draft",
@@ -1761,7 +1763,7 @@ function EstimateRoughNotesHelper({
     <div className="rounded-3xl border border-orange-100 bg-orange-50/40 p-4 shadow-sm shadow-orange-100/40">
       <SectionHeader
         title="AI Rough Notes Helper"
-        description="Paste contractor notes, generate review-only proposal language, then choose what to apply to the draft."
+        description="Paste contractor notes, generate review-only proposal language, then choose what to apply to the draft. Type a new customer/company name if you do not want to pick an existing customer."
         action={<Badge tone="orange">Review only</Badge>}
       />
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1778,6 +1780,7 @@ function EstimateRoughNotesHelper({
           <div className="mt-3 space-y-2 text-sm font-bold leading-6 text-slate-600">
             <p>Nothing sends, prices, or approves automatically.</p>
             <p>Apply actions fill draft fields. Create draft now saves a new Draft estimate.</p>
+            <p>If the estimate is brand new, enter a customer/company name instead of selecting an existing customer.</p>
             <p>Pricing, final scope, and customer terms still need office review.</p>
           </div>
           <Button type="button" className="mt-4 w-full" onClick={onGenerate} disabled={disabled || loading || !estimateRoughNotesText(roughNotes)}>
@@ -26288,6 +26291,7 @@ function EstimatesPagePolished({
   const [archiveFilter, setArchiveFilter] = useState("Active");
   const [search, setSearch] = useState("");
   const [selectedEstimateId, setSelectedEstimateId] = useState("");
+  const [estimateViewMode, setEstimateViewMode] = useState("browse");
   const [createDraft, setCreateDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [detailDraft, setDetailDraft] = useState(createEstimateDraft(INITIAL_ESTIMATE_FORM));
   const [copyFeedback, setCopyFeedback] = useState("");
@@ -26312,12 +26316,15 @@ function EstimatesPagePolished({
     search,
   }), [archiveFilter, creatorFilter, customerFilter, leadFilter, rows, search, statusFilter]);
   const listState = useMemo(() => deriveEstimateListState(filteredRows, visibleCustomers, visibleLeads), [filteredRows, visibleCustomers, visibleLeads]);
-  const selectedEstimate = filteredRows.find((estimate) => estimate?.id === selectedEstimateId)
-    || filteredRows[0]
-    || rows.find((estimate) => estimate?.id === selectedEstimateId)
-    || null;
+  const selectedEstimate = estimateViewMode === "create"
+    ? null
+    : filteredRows.find((estimate) => estimate?.id === selectedEstimateId)
+      || filteredRows[0]
+      || rows.find((estimate) => estimate?.id === selectedEstimateId)
+      || null;
   const canManage = Boolean(permissions?.estimates?.canManage);
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
+  const singleCustomerName = visibleCustomers.length === 1 ? visibleCustomers[0].name || "" : "";
   const singleCustomerEmail = singleCustomerId ? visibleCustomers.find((customer) => customer.id === singleCustomerId)?.email || "" : "";
   const createTotals = useMemo(() => calculateEstimateTotals(createDraft.items, { taxRate: createDraft.taxRate, feesTotal: createDraft.feesTotal }), [createDraft.feesTotal, createDraft.items, createDraft.taxRate]);
   const detailTotals = useMemo(() => calculateEstimateTotals(detailDraft.items, { taxRate: detailDraft.taxRate, feesTotal: detailDraft.feesTotal }), [detailDraft.feesTotal, detailDraft.items, detailDraft.taxRate]);
@@ -26372,38 +26379,55 @@ function EstimatesPagePolished({
     return estimateCustomerEmail({ customer, lead });
   }
 
-  function updateDraftLinkEmail(current, nextLinks) {
+  function updateDraftLinkFields(current, nextLinks) {
     const previousLinkedEmail = linkedEstimateCustomerEmail(current);
     const nextDraft = { ...current, ...nextLinks };
+    const nextCustomer = visibleCustomers.find((entry) => entry.id === nextDraft.customerId) || null;
+    const nextLead = visibleLeads.find((entry) => entry.id === nextDraft.leadId) || null;
     const nextLinkedEmail = linkedEstimateCustomerEmail(nextDraft);
     const shouldPrefill = !current.customerEmail || current.customerEmail === previousLinkedEmail;
+    const shouldPrefillName = !current.customerName || current.customerName === current.title;
     return {
       ...nextDraft,
       customerEmail: shouldPrefill && nextLinkedEmail ? nextLinkedEmail : current.customerEmail,
+      customerName: nextDraft.customerId && nextCustomer
+        ? nextCustomer.name || current.customerName
+        : nextDraft.leadId && nextLead
+          ? nextLead.customer || current.customerName
+          : shouldPrefillName
+            ? current.customerName
+            : current.customerName,
     };
+  }
+
+  function updateDraftLinkEmail(current, nextLinks) {
+    return updateDraftLinkFields(current, nextLinks);
   }
 
   useEffect(() => {
     if (initialSelectedEstimateId && rows.some((estimate) => estimate?.id === initialSelectedEstimateId)) {
+      setEstimateViewMode("browse");
       setSelectedEstimateId(initialSelectedEstimateId);
     }
   }, [initialSelectedEstimateId, rows]);
 
   useEffect(() => {
+    if (estimateViewMode !== "browse") return;
     if (!selectedEstimateId && filteredRows[0]?.id) {
       setSelectedEstimateId(filteredRows[0].id);
     }
-  }, [filteredRows, selectedEstimateId]);
+  }, [estimateViewMode, filteredRows, selectedEstimateId]);
 
   useEffect(() => {
-    if (singleCustomerId && !createDraft.customerId && !createDraft.leadId) {
+    if (singleCustomerId && !createDraft.customerId && !createDraft.leadId && !createDraft.customerName) {
       setCreateDraft((current) => ({
         ...current,
         customerId: singleCustomerId,
+        customerName: current.customerName || singleCustomerName,
         customerEmail: current.customerEmail || singleCustomerEmail,
       }));
     }
-  }, [createDraft.customerId, createDraft.leadId, singleCustomerEmail, singleCustomerId]);
+  }, [createDraft.customerId, createDraft.customerName, createDraft.leadId, singleCustomerEmail, singleCustomerId, singleCustomerName]);
 
   useEffect(() => {
     setDetailDraft(createEstimateDraft(selectedEstimate || INITIAL_ESTIMATE_FORM));
@@ -26468,11 +26492,13 @@ function EstimatesPagePolished({
   }
 
   function focusNewEstimate() {
-    setCreateDraft((current) => ({
-      ...current,
-      status: current.status || "draft",
-      customerId: current.customerId || singleCustomerId,
-      customerEmail: current.customerEmail || singleCustomerEmail,
+    setEstimateViewMode("create");
+    setSelectedEstimateId("");
+    setCreateDraft(createEstimateDraft({
+      ...INITIAL_ESTIMATE_FORM,
+      customerId: singleCustomerId,
+      customerName: singleCustomerName,
+      customerEmail: singleCustomerEmail,
     }));
     setActiveEstimateTool("create");
     setShowEstimateTools(true);
@@ -26480,6 +26506,9 @@ function EstimatesPagePolished({
   }
 
   function openEstimateTool(toolId = "edit") {
+    if (toolId !== "create") {
+      setEstimateViewMode("browse");
+    }
     setActiveEstimateTool(toolId);
     setShowEstimateTools(true);
     window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
@@ -26522,6 +26551,7 @@ function EstimatesPagePolished({
     const baseDraft = createEstimateDraft({
       ...INITIAL_ESTIMATE_FORM,
       customerId: sourceDraft.customerId || singleCustomerId,
+      customerName: sourceDraft.customerName || singleCustomerName,
       leadId: sourceDraft.leadId || "",
       customerEmail: sourceDraft.customerEmail || linkedEstimateCustomerEmail(sourceDraft) || singleCustomerEmail,
       status: "draft",
@@ -26533,6 +26563,8 @@ function EstimatesPagePolished({
     if (!estimateRoughNotesHasSuggestions(roughNotesState.result)) return;
     const nextDraft = buildRoughNotesNewEstimateDraft(options);
     setCreateDraft(nextDraft);
+    setEstimateViewMode("create");
+    setSelectedEstimateId("");
     setActiveEstimateTool("create");
     setShowEstimateTools(true);
     showCopyFeedback("New Estimate form filled from AI notes. It is not saved yet. Click Create New Estimate to save it.", 6000);
@@ -26541,15 +26573,17 @@ function EstimatesPagePolished({
   async function createRoughNotesEstimateDraft(options = {}) {
     if (!estimateRoughNotesHasSuggestions(roughNotesState.result) || typeof onCreateEstimate !== "function") return false;
     const nextDraft = buildRoughNotesNewEstimateDraft(options);
-    if (!nextDraft.customerId && !nextDraft.leadId) {
+    if (!nextDraft.customerId && !nextDraft.leadId && !nextDraft.customerName) {
       setCreateDraft(nextDraft);
+      setEstimateViewMode("create");
       setActiveEstimateTool("create");
       setShowEstimateTools(true);
-      showCopyFeedback("Choose a customer or lead, then create the AI draft.", 6000);
+      showCopyFeedback("Type a new customer/company name or link a lead, then create the AI draft.", 6000);
       return false;
     }
     if (!nextDraft.title) {
       setCreateDraft(nextDraft);
+      setEstimateViewMode("create");
       setActiveEstimateTool("create");
       setShowEstimateTools(true);
       showCopyFeedback("Add an estimate title, then create the AI draft.", 6000);
@@ -26563,6 +26597,7 @@ function EstimatesPagePolished({
     if (created) {
       const createdId = typeof created === "object" ? created.id : "";
       const createdTitle = typeof created === "object" ? (created.title || nextDraft.title) : nextDraft.title;
+      setEstimateViewMode("browse");
       setStatusFilter("Draft");
       setCustomerFilter("All customers");
       setLeadFilter("All leads");
@@ -26575,6 +26610,7 @@ function EstimatesPagePolished({
       setCreateDraft(createEstimateDraft({
         ...INITIAL_ESTIMATE_FORM,
         customerId: singleCustomerId,
+        customerName: singleCustomerName,
         customerEmail: singleCustomerEmail,
       }));
       showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
@@ -26704,7 +26740,15 @@ function EstimatesPagePolished({
                 <StateCard title="No estimates match this view" description="Create a proposal from a customer or lead, or clear filters to bring older work back into view." tone="blue" />
               </div>
             ) : (
-              <EstimatesTablePolished rows={filteredRows} selectedId={selectedEstimate?.id} onSelect={setSelectedEstimateId} maxRows={visibleEstimateRowCap} />
+              <EstimatesTablePolished
+                rows={filteredRows}
+                selectedId={selectedEstimate?.id}
+                onSelect={(id) => {
+                  setEstimateViewMode("browse");
+                  setSelectedEstimateId(id);
+                }}
+                maxRows={visibleEstimateRowCap}
+              />
             )}
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
               <p className="text-sm font-bold text-slate-600">Showing {Math.min(filteredRows.length, visibleEstimateRowCap)} of {rows.length} estimates</p>
@@ -26757,7 +26801,20 @@ function EstimatesPagePolished({
         </summary>
         <div className="co-estimates-tool-tabs mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
           {estimateToolTabs.map((tab) => (
-            <button key={tab.id} type="button" className={activeEstimateTool === tab.id ? "is-active" : ""} onClick={() => setActiveEstimateTool(tab.id)}>
+            <button
+              key={tab.id}
+              type="button"
+              className={activeEstimateTool === tab.id ? "is-active" : ""}
+              onClick={() => {
+                if (tab.id === "create") {
+                  setEstimateViewMode("create");
+                  setSelectedEstimateId("");
+                } else {
+                  setEstimateViewMode("browse");
+                }
+                setActiveEstimateTool(tab.id);
+              }}
+            >
               {tab.label}
               <span>{tab.count}</span>
             </button>
@@ -26770,11 +26827,12 @@ function EstimatesPagePolished({
               {canManage ? (
                 <>
                   <div className="grid gap-3 md:grid-cols-2">
-                    <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { customerId: event.target.value }))}>
+                    <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
+                    <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
                       <option value="">Select a customer</option>
                       {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
                     </SelectField>
-                    <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { leadId: event.target.value }))}>
+                    <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
                       <option value="">Optional linked lead</option>
                       {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                     </SelectField>
@@ -26826,32 +26884,34 @@ function EstimatesPagePolished({
                     </div>
                   </details>
                   <div className="mt-4">
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        const created = await onCreateEstimate(createDraft);
-                        if (created) {
-                          const createdId = typeof created === "object" ? created.id : "";
-                          const createdTitle = typeof created === "object" ? (created.title || createDraft.title) : createDraft.title;
-                          setStatusFilter("Draft");
-                          setCustomerFilter("All customers");
-                          setLeadFilter("All leads");
-                          setCreatorFilter("All creators");
-                          setArchiveFilter("Active");
-                          setSearch("");
-                          if (createdId) setSelectedEstimateId(createdId);
-                          setCreateDraft(createEstimateDraft({
-                            ...INITIAL_ESTIMATE_FORM,
-                            customerId: singleCustomerId,
-                            customerEmail: singleCustomerEmail,
-                          }));
-                          showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
-                        }
-                      }}
-                      disabled={busy || (!createDraft.customerId && !createDraft.leadId) || !createDraft.title}
-                    >
-                      Create New Estimate
-                    </Button>
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      const created = await onCreateEstimate(createDraft);
+                      if (created) {
+                        setEstimateViewMode("browse");
+                        const createdId = typeof created === "object" ? created.id : "";
+                        const createdTitle = typeof created === "object" ? (created.title || createDraft.title) : createDraft.title;
+                        setStatusFilter("Draft");
+                        setCustomerFilter("All customers");
+                        setLeadFilter("All leads");
+                        setCreatorFilter("All creators");
+                        setArchiveFilter("Active");
+                        setSearch("");
+                        if (createdId) setSelectedEstimateId(createdId);
+                        setCreateDraft(createEstimateDraft({
+                          ...INITIAL_ESTIMATE_FORM,
+                          customerId: singleCustomerId,
+                          customerName: singleCustomerName,
+                          customerEmail: singleCustomerEmail,
+                        }));
+                        showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
+                      }
+                    }}
+                    disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
+                  >
+                    Create New Estimate
+                  </Button>
                   </div>
                 </>
               ) : (
@@ -26873,7 +26933,12 @@ function EstimatesPagePolished({
                   onApplyToNew={applyRoughNotesToNewEstimate}
                   onCreateNew={createRoughNotesEstimateDraft}
                   canApplySelected={Boolean(selectedEstimate)}
-                  canCreateNew={Boolean((selectedEstimate ? detailDraft : createDraft).customerId || (selectedEstimate ? detailDraft : createDraft).leadId || singleCustomerId)}
+                  canCreateNew={Boolean(
+                    (selectedEstimate ? detailDraft : createDraft).customerId
+                    || (selectedEstimate ? detailDraft : createDraft).leadId
+                    || (selectedEstimate ? detailDraft : createDraft).customerName
+                    || singleCustomerId,
+                  )}
                   disabled={busy}
                 />
               ) : (
@@ -27069,13 +27134,18 @@ function EstimatesPagePolished({
           {canManage ? (
             <div ref={newEstimateRef} className="scroll-mt-24">
               <Card className="p-4">
-              <SectionHeader title="New Estimate" description="Create a customer-ready proposal with scope, terms, line items, and a clear total." />
+              <SectionHeader
+                title="New Estimate"
+                description="Create a customer-ready proposal with scope, terms, line items, and a clear total."
+                action={estimateViewMode === "create" ? <Badge tone="orange">New draft mode</Badge> : null}
+              />
               <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { customerId: event.target.value }))}>
+                <InputField label="Customer / company name" value={createDraft.customerName} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerName: event.target.value }))} placeholder="Martinez Concrete LLC" />
+                <SelectField label="Customer" value={createDraft.customerId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { customerId: event.target.value }))}>
                   <option value="">Select a customer</option>
                   {visibleCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
                 </SelectField>
-                <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkEmail(current, { leadId: event.target.value }))}>
+                <SelectField label="Lead" value={createDraft.leadId} onChange={(event) => setCreateDraft((current) => updateDraftLinkFields(current, { leadId: event.target.value }))}>
                   <option value="">Optional linked lead</option>
                   {visibleLeads.map((lead) => <option key={lead.id} value={lead.id}>{`${lead.customer} - ${lead.project}`}</option>)}
                 </SelectField>
@@ -27127,14 +27197,20 @@ function EstimatesPagePolished({
                   onClick={async () => {
                     const created = await onCreateEstimate(createDraft);
                     if (created) {
+                      setEstimateViewMode("browse");
+                      const createdId = typeof created === "object" ? created.id : "";
+                      const createdTitle = typeof created === "object" ? (created.title || createDraft.title) : createDraft.title;
+                      if (createdId) setSelectedEstimateId(createdId);
                       setCreateDraft(createEstimateDraft({
                         ...INITIAL_ESTIMATE_FORM,
                         customerId: singleCustomerId,
+                        customerName: singleCustomerName,
                         customerEmail: singleCustomerEmail,
                       }));
+                      showCopyFeedback(`Draft created: ${createdTitle}. It is selected in the Estimates list.`, 7000);
                     }
                   }}
-                  disabled={busy || (!createDraft.customerId && !createDraft.leadId) || !createDraft.title}
+                  disabled={busy || (!createDraft.customerId && !createDraft.leadId && !createDraft.customerName) || !createDraft.title}
                 >
                   Create New Estimate
                 </Button>
@@ -33525,6 +33601,7 @@ export default function App() {
     ));
 
     if (existingDraft) {
+      setEstimateViewMode("browse");
       setEstimateFocusId(existingDraft.id);
       setErrorMessage("");
       setActive("estimates");
@@ -33538,6 +33615,7 @@ export default function App() {
       const nextState = await createEstimate(sessionToken, payload);
       const createdEstimate = (nextState.estimates || []).find((estimate) => !existingEstimateIds.has(estimate.id));
       applyBootstrap(nextState);
+      setEstimateViewMode("browse");
       setEstimateFocusId(createdEstimate?.id || "");
       setErrorMessage("");
       setActive("estimates");
