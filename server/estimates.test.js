@@ -236,6 +236,22 @@ test("office and estimator users can manage estimates while field roles are bloc
     assert.equal(officeEstimate.customerEmail, "martinez@example.test");
     assert.equal(officeEstimate.items.length, 2);
 
+    const blankStarterState = await assertOk(fixture.baseUrl, "/api/estimates", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify(buildEstimatePayload({
+        customerId,
+        leadId,
+        title: "Blank Starter Estimate",
+        items: [{ description: "", quantity: 1, unit: "ea", unitPrice: "" }],
+      })),
+    });
+    const blankStarterEstimate = blankStarterState.estimates.find((estimate) => estimate.title === "Blank Starter Estimate");
+    assert.ok(blankStarterEstimate);
+    assert.equal(blankStarterEstimate.items.length, 0);
+    assert.equal(blankStarterEstimate.subtotal, 0);
+    assert.equal(blankStarterEstimate.grandTotal, 125);
+
     const unconfiguredSend = await requestJson(fixture.baseUrl, `/api/estimates/${officeEstimate.id}/send`, {
       method: "POST",
       headers: officeHeaders,

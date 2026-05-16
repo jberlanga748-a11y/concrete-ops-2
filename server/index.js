@@ -2276,12 +2276,23 @@ function visibleImportedJobDraftsForUser(state, user) {
   return companyScopedRecordsForUser(state, user, normalizeImportedJobDrafts(state.jobDraftImports || []));
 }
 
+function isBlankEstimateItem(item = {}) {
+  const description = String(item?.description ?? "").trim();
+  const quantity = item?.quantity == null || item?.quantity === "" ? 1 : Number(item.quantity);
+  const unit = String(item?.unit ?? "").trim().toLowerCase();
+  const unitPrice = item?.unitPrice == null || item?.unitPrice === "" ? "" : String(item.unitPrice).trim();
+
+  return !description && (!unit || unit === "ea") && unitPrice === "" && (!Number.isFinite(quantity) || quantity === 1);
+}
+
 function normalizeEstimateItemsPayload(items, changedAt, estimateId = "") {
   if (!Array.isArray(items)) {
     throw new ApiError(400, "Estimate items must be an array.");
   }
 
-  return items.map((item, index) => {
+  return items
+    .filter((item) => !isBlankEstimateItem(item))
+    .map((item, index) => {
     const description = requiredString(item?.description, `Line item ${index + 1} description`);
     const quantity = optionalNonNegativeNumber(item?.quantity, `Line item ${index + 1} quantity`, 0);
     const unitPrice = optionalNonNegativeNumber(item?.unitPrice, `Line item ${index + 1} unit price`, 0);
