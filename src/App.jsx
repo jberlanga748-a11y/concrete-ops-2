@@ -871,6 +871,9 @@ function estimateRoughNotesHasSuggestions(result = null) {
     result?.ok
     && (
       estimateRoughNotesText(result.suggestedTitle)
+      || estimateRoughNotesText(result.customerName)
+      || estimateRoughNotesText(result.projectName)
+      || estimateRoughNotesText(result.jobLocation)
       || estimateRoughNotesText(result.scopeOfWork)
       || estimateRoughNotesBullets(result.inclusions)
       || estimateRoughNotesBullets(result.exclusions)
@@ -1777,6 +1780,7 @@ function EstimateRoughNotesHelper({
   const loading = Boolean(assistant?.loading);
   const result = assistant?.result || null;
   const hasSuggestions = estimateRoughNotesHasSuggestions(result);
+  const suggestedLineItems = hasSuggestions ? buildEstimateLineItemsFromRoughNotes(roughNotes, result) : [];
   const messageTone = result?.configured === false || assistant?.error ? "amber" : "emerald";
   const message = assistant?.error || result?.message || "";
 
@@ -1836,6 +1840,19 @@ function EstimateRoughNotesHelper({
             <EstimateRoughNotesPreviewBlock title="GC qualifications" value={result.gcQualifications} />
             <EstimateRoughNotesPreviewBlock title="Office review warnings" items={result.reviewWarnings} />
           </div>
+          {suggestedLineItems.length > 0 ? (
+            <div className="rounded-2xl border border-orange-100 bg-white p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Suggested editable line items</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {suggestedLineItems.map((item, index) => (
+                  <div key={`${item.description || "line"}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-black text-slate-900">{item.description || `Line item ${index + 1}`}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{[item.quantity, item.unit].filter(Boolean).join(" ") || "Review quantity/unit"} - pricing stays blank for office review</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {result.internalReviewNotes ? (
             <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Office-only review notes</p>
@@ -26836,6 +26853,8 @@ function EstimatesPagePolished({
               onClick={() => {
                 if (tab.id === "create") {
                   setEstimateViewMode("create");
+                  setSelectedEstimateId("");
+                } else if (tab.id === "roughNotes" && estimateViewMode === "create") {
                   setSelectedEstimateId("");
                 } else {
                   setEstimateViewMode("browse");
