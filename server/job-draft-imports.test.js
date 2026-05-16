@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createUserRecord } from "./store.js";
 import { CITY_STATE_WARNING } from "../shared/jobDraftImports.js";
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -143,6 +144,18 @@ function insertOtherCompany(sqliteFile) {
   }
 }
 
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
 const validPackage = {
   packageVersion: "1.0",
   exportedAt: "2026-05-10T12:00:00.000Z",
@@ -211,6 +224,7 @@ test("integration job draft import creates a draft only and keeps sensitive fiel
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const packageWithWarning = {
       ...validPackage,
       opsJobDraftId: "ops-draft-integration-1",
@@ -259,11 +273,36 @@ test("integration job draft import creates a draft only and keeps sensitive fiel
   }
 });
 
+test("integration job draft import requires the Integrations package feature", async () => {
+  const token = "integration-test-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.BASIC);
+    const denied = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validPackage,
+        opsJobDraftId: "ops-draft-basic-denied",
+        sourceHandoffId: "handoff-basic-denied",
+      }),
+    });
+
+    assert.equal(denied.response.status, 403);
+    assert.match(denied.payload.error, /Job Draft Imports/);
+    assert.match(denied.payload.error, /current Apex HQ package/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("integration job draft import returns a safe duplicate response without creating a second draft", async () => {
   const token = "integration-test-token";
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const firstImport = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
       method: "POST",
       headers: integrationHeaders(token),
@@ -305,6 +344,7 @@ test("integration job draft import requires target company in multi-company mode
 
   try {
     insertOtherCompany(fixture.sqliteFile);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM, "COMPANY-LYF");
     insertUsers(fixture.sqliteFile, [
       createUserRecord({
         id: "U-JOB-DRAFT-LYF-OWNER",
@@ -443,6 +483,7 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const employeeUser = createUserRecord({
       id: "U-JOB-DRAFT-EMPLOYEE",
       email: "job-draft-employee@lastyard.test",
@@ -548,10 +589,44 @@ test("Imported Job Drafts import, edit, and create jobs without exposing field r
   }
 });
 
+test("Imported Job Drafts are unavailable for Basic packages", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.BASIC);
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(ownerLogin.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+
+    assert.deepEqual(bootstrap.jobDraftImports, []);
+    assert.equal(bootstrap.permissions.jobDraftImports.canView, false);
+    assert.equal(bootstrap.permissions.jobDraftImports.canManage, false);
+    assert.equal(bootstrap.permissions.jobDraftImports.canCreateJob, false);
+
+    const listDenied = await requestJson(fixture.baseUrl, "/api/job-draft-imports", { headers });
+    assert.equal(listDenied.response.status, 403);
+    assert.match(listDenied.payload.error, /Job Draft Imports/);
+
+    const createDenied = await requestJson(fixture.baseUrl, "/api/job-draft-imports", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ package: validPackage }),
+    });
+    assert.equal(createDenied.response.status, 403);
+    assert.match(createDenied.payload.error, /Job Draft Imports/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("imported draft customer match uses existing customer when creating a job", async () => {
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -602,6 +677,7 @@ test("review-required customer matches block job creation until office confirms"
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -676,6 +752,7 @@ test("imported draft job creation blocks similar existing jobs unless confirmed"
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -724,6 +801,7 @@ test("missing city/state with address imports as Needs Review and requires confi
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",

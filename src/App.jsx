@@ -153,7 +153,7 @@ import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
 import { deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
-import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
+import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
@@ -351,6 +351,10 @@ const EMPTY_APP_STATE = {
       canView: false,
       canManage: false,
       canCreateJob: false,
+    },
+    aiOffice: {
+      canView: false,
+      canUseLeadAssistant: false,
     },
     jobs: {
       canView: false,
@@ -31440,7 +31444,7 @@ function AccessRestrictedPage({ user, companySettings, setActive }) {
 
 function MainContent(props) {
   const { active } = props;
-  if (!canAccessModule(active, props.user, props.companySettings)) {
+  if (!canAccessWorkspaceModule(active, props.user, props.companySettings, props.permissions)) {
     return <AccessRestrictedPage user={props.user} companySettings={props.companySettings} setActive={props.setActive} />;
   }
   if (active === "dashboard") return <DashboardPage {...props} />;
@@ -31721,7 +31725,7 @@ export default function App() {
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
   const previousActiveRef = useRef(active);
-  const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings), [appState.companySettings, appState.user]);
+  const visibleNavGroups = useMemo(() => getVisibleNavGroups(NAV_GROUPS, appState.user, appState.companySettings, appState.permissions), [appState.companySettings, appState.permissions, appState.user]);
   const visibleNavItems = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const defaultModuleId = useMemo(() => getDefaultModuleId(appState.user), [appState.user]);
   const selectedCustomer = appState.customers.find((customer) => customer.id === selectedCustomerId) || null;
@@ -32120,9 +32124,9 @@ export default function App() {
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
-    if (canAccessModule(active, appState.user, appState.companySettings)) return;
+    if (canAccessWorkspaceModule(active, appState.user, appState.companySettings, appState.permissions)) return;
     navigateTo(getModulePath(defaultModuleId), { replace: true });
-  }, [active, appState.companySettings, appState.user, authStatus, defaultModuleId]);
+  }, [active, appState.companySettings, appState.permissions, appState.user, authStatus, defaultModuleId]);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;

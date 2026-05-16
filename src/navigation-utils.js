@@ -2,6 +2,29 @@ import { DEFAULT_COMPANY_SETTINGS, canAccessModule, getAllowedModuleIds, getDefa
 
 export { canAccessModule, getDefaultModuleId };
 
+function permissionFlag(permissions, path) {
+  if (!permissions || !path) return null;
+  return path.split(".").reduce((value, key) => value?.[key], permissions);
+}
+
+function packageAllowsModule(moduleId, permissions = null) {
+  if (!permissions) return true;
+
+  if (moduleId === "jobDraftImports") {
+    return Boolean(permissionFlag(permissions, "jobDraftImports.canView"));
+  }
+
+  if (moduleId === "copilot") {
+    return Boolean(permissionFlag(permissions, "aiOffice.canView"));
+  }
+
+  return true;
+}
+
+export function canAccessWorkspaceModule(moduleId, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
+  return canAccessModule(moduleId, user, companySettings) && packageAllowsModule(moduleId, permissions);
+}
+
 const DASHBOARD_SHORTCUTS = {
   today: {
     id: "today",
@@ -49,13 +72,13 @@ const DASHBOARD_SHORTCUTS = {
   },
 };
 
-export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS) {
+export function getVisibleNavGroups(navGroups, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
   const allowedModules = getAllowedModuleIds(user, companySettings);
 
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => allowedModules.has(item.id)),
+      items: group.items.filter((item) => allowedModules.has(item.id) && packageAllowsModule(item.id, permissions)),
     }))
     .filter((group) => group.items.length > 0);
 }

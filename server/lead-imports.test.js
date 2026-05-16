@@ -9,6 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -142,6 +143,18 @@ function insertOtherCompany(sqliteFile) {
   }
 }
 
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
 const validLeadPackage = {
   packageType: "concrete_ops_lead",
   sourceApp: "Last Yard Proposal / Lead Finder",
@@ -192,6 +205,7 @@ test("integration lead import creates only a lead and strips sensitive fields", 
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -241,11 +255,35 @@ test("integration lead import creates only a lead and strips sensitive fields", 
   }
 });
 
+test("integration lead import requires the Lead Finder package feature", async () => {
+  const token = "lead-import-token";
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.BASIC);
+    const denied = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        sourceLeadId: "lead-import-basic-denied",
+      }),
+    });
+
+    assert.equal(denied.response.status, 403);
+    assert.match(denied.payload.error, /Lead Finder Import/);
+    assert.match(denied.payload.error, /current Apex HQ package/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("integration lead import returns duplicate without creating a second lead", async () => {
   const token = "lead-import-token";
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
     const firstImport = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
       method: "POST",
       headers: integrationHeaders(token),
@@ -282,6 +320,7 @@ test("integration lead import creates review lead for possible duplicates", asyn
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -341,6 +380,7 @@ test("integration lead import requires target company in multi-company mode and 
 
   try {
     insertOtherCompany(fixture.sqliteFile);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE, "COMPANY-LYF");
     insertUsers(fixture.sqliteFile, [
       createUserRecord({
         id: "U-LEAD-IMPORT-LYF-OWNER",
@@ -485,6 +525,7 @@ test("integration lead import rejects invalid packages and keeps field roles blo
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
     const invalidPackage = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
       method: "POST",
       headers: integrationHeaders(token),

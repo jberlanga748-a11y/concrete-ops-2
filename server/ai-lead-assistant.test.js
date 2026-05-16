@@ -8,6 +8,8 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { createUserRecord } from "./store.js";
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -114,10 +116,23 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
 test("AI lead assistant route returns configured false safely when OpenAI is not configured", async () => {
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const loginResult = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -136,6 +151,35 @@ test("AI lead assistant route returns configured false safely when OpenAI is not
     assert.match(result.message, /OPENAI_API_KEY/);
     assert.equal(result.followUpEmailDraft, "");
     assert.equal(result.followUpSmsDraft, "");
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("AI lead assistant route requires a Premium package feature", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.BASIC);
+    const loginResult = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(loginResult.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const lead = bootstrap.leads[0];
+
+    assert.equal(bootstrap.permissions.aiOffice.canView, false);
+    assert.equal(bootstrap.permissions.aiOffice.canUseLeadAssistant, false);
+
+    const denied = await requestJson(fixture.baseUrl, `/api/ai/leads/${lead.id}/assist`, {
+      method: "POST",
+      headers,
+    });
+
+    assert.equal(denied.response.status, 403);
+    assert.match(denied.payload.error, /Lead Assistant/);
+    assert.match(denied.payload.error, /current Apex HQ package/);
   } finally {
     await fixture.stop();
   }

@@ -4951,6 +4951,10 @@ function sanitizeBootstrap(state, user) {
   const currentCompanyPackage = packageSummary(settings.packageId);
   const canUseEstimateProposalTools = companyHasFeature(state, user, FEATURE_KEYS.PROPOSAL_TOOLS);
   const canUseEstimateGcPackets = companyHasFeature(state, user, FEATURE_KEYS.GC_PACKETS);
+  const canUseJobDraftImports = companyHasFeature(state, user, FEATURE_KEYS.INTEGRATIONS);
+  const canUseAiOffice = companyHasFeature(state, user, FEATURE_KEYS.GROWTH_AGENT)
+    || companyHasFeature(state, user, FEATURE_KEYS.WATCHTOWER)
+    || companyHasFeature(state, user, FEATURE_KEYS.MARKETING_AGENT);
   const accessibleCompanies = accessibleCompaniesForUser(state, user);
   const hydrationContext = getHydrationContext(state, user);
   const users = visibleUsers(state, user);
@@ -4963,7 +4967,7 @@ function sanitizeBootstrap(state, user) {
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
-  const jobDraftImports = visibleImportedJobDraftsForUser(state, user);
+  const jobDraftImports = canUseJobDraftImports ? visibleImportedJobDraftsForUser(state, user) : [];
   const jobs = visibleJobsForUser(state, user, hydrationContext);
   const safetyPolicies = visibleSafetyPoliciesForUser(state, user);
   const ppeItems = visiblePpeItemsForUser(state, user);
@@ -5042,9 +5046,13 @@ function sanitizeBootstrap(state, user) {
         canUseGcPackets: canUseEstimateGcPackets && canManageEstimates(user),
       },
       jobDraftImports: {
-        canView: canCreateJobs(user),
-        canManage: canCreateJobs(user),
-        canCreateJob: canCreateJobs(user),
+        canView: canUseJobDraftImports && canCreateJobs(user),
+        canManage: canUseJobDraftImports && canCreateJobs(user),
+        canCreateJob: canUseJobDraftImports && canCreateJobs(user),
+      },
+      aiOffice: {
+        canView: canUseAiOffice && canViewLeads(user),
+        canUseLeadAssistant: canUseAiOffice && canManageLeads(user),
       },
       jobs: {
         canView: Boolean(user),
@@ -8455,7 +8463,7 @@ app.get("/api/customers", requireAuth, asyncRoute(async (req, res) => {
 
 app.get("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
   assertCanCreateJobs(req.auth.user);
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.INTEGRATIONS, "Job Draft Imports");
   res.json({
     jobDraftImports: visibleImportedJobDraftsForUser(state, req.auth.user),
     requestId: res.locals.requestId,
@@ -8480,6 +8488,7 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
   const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
   requireExternalIntegrationToken(req, currentState, targetCompany.id);
   const integrationActor = jobDraftIntegrationActor(targetCompany.id);
+  assertCompanyFeature(currentState, integrationActor, FEATURE_KEYS.INTEGRATIONS, "Job Draft Imports");
   const matchedDraft = applyCustomerMatchToImportedDraft(
     assignCompanyIdForCreate(result.draft, integrationActor, currentState),
     companyScopedRecordsForUser(currentState, integrationActor, currentState.customers || []),
@@ -8543,6 +8552,7 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
   const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
   requireExternalIntegrationToken(req, currentState, targetCompany.id);
   const integrationActor = leadFinderIntegrationActor(targetCompany.id);
+  assertCompanyFeature(currentState, integrationActor, FEATURE_KEYS.LEAD_JOB_FINDER, "Lead Finder Import");
   const duplicateResult = findLeadImportDuplicate(companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []), result.context);
 
   if (duplicateResult.type === "exact" && duplicateResult.lead) {
@@ -8753,7 +8763,7 @@ app.post("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
     });
   }
 
-  const currentState = await readDb();
+  const currentState = await readFeatureScopedState(req, FEATURE_KEYS.INTEGRATIONS, "Job Draft Imports");
   const matchedDraft = applyCustomerMatchToImportedDraft(
     assignCompanyIdForCreate(result.draft, req.auth.user, currentState),
     companyScopedRecordsForUser(currentState, req.auth.user, currentState.customers || []),
@@ -8793,6 +8803,7 @@ app.post("/api/job-draft-imports", requireAuth, asyncRoute(async (req, res) => {
 
 app.patch("/api/job-draft-imports/:id", requireAuth, asyncRoute(async (req, res) => {
   assertCanCreateJobs(req.auth.user);
+  await readFeatureScopedState(req, FEATURE_KEYS.INTEGRATIONS, "Job Draft Imports");
   const { id } = req.params;
   const changedAt = new Date().toISOString();
   let updatedDraft = null;
@@ -8846,7 +8857,7 @@ app.post("/api/job-draft-imports/:id/create-job", requireAuth, asyncRoute(async 
   const allowMissingCityState = req.body?.allowMissingCityState === true;
   const allowDuplicateJob = req.body?.allowDuplicateJob === true;
   const allowCreateNewCustomer = req.body?.allowCreateNewCustomer === true;
-  const currentState = await readDb();
+  const currentState = await readFeatureScopedState(req, FEATURE_KEYS.INTEGRATIONS, "Job Draft Imports");
   const currentDraft = normalizeImportedJobDraft(findCompanyScopedRecord(currentState.jobDraftImports || [], id, req.auth.user, currentState, "Imported job draft"));
 
   if (currentDraft.createdJobId) {
@@ -10453,7 +10464,7 @@ app.post("/api/leads/:id/check-missing-info", requireAuth, asyncRoute(async (req
 
 app.post("/api/ai/leads/:id/assist", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.GROWTH_AGENT, "Lead Assistant");
   const lead = findCompanyScopedRecord(state.leads, req.params.id, req.auth.user, state, "Lead");
 
   const result = await generateLeadAssistantDrafts({

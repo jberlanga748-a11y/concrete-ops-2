@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils.js";
+import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils.js";
 import { canUseToolChecklist, isEstimator, isOfficeManager } from "../shared/permissions.js";
 
 const NAV_GROUPS = [
@@ -30,6 +30,7 @@ const NAV_GROUPS = [
     items: [
       { id: "calculator", label: "Calculator" },
       { id: "toolChecklist", label: "Tool Checklist" },
+      { id: "jobDraftImports", label: "Imported Drafts" },
       { id: "copilot", label: "AI Office Preview" },
       { id: "settings", label: "Settings" },
     ],
@@ -44,11 +45,38 @@ test("office roles keep contractor-safe office navigation and dashboard default"
   assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "copilot", "settings"],
+    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "jobDraftImports", "copilot", "settings"],
   );
   assert.equal(canAccessModule("employees", owner, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("copilot", owner, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("design", owner, { toolChecklistEnabled: true }), false);
+});
+
+test("package-aware navigation hides premium import and AI Office surfaces", () => {
+  const owner = { role: "Owner" };
+  const basicPermissions = {
+    jobDraftImports: { canView: false },
+    aiOffice: { canView: false },
+  };
+  const premiumPermissions = {
+    jobDraftImports: { canView: true },
+    aiOffice: { canView: true },
+  };
+
+  assert.equal(canAccessModule("copilot", owner, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, basicPermissions), false);
+  assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions), false);
+  assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
+  assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
+
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, basicPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("copilot"),
+    false,
+  );
+  assert.equal(
+    getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, basicPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("jobDraftImports"),
+    false,
+  );
 });
 
 test("administrators and operations managers can access employees", () => {
