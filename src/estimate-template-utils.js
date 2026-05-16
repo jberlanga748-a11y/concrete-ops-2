@@ -299,6 +299,154 @@ export function buildEstimateLineItemFromStarter(starterOrId) {
   };
 }
 
+const ROUGH_NOTES_LINE_ITEM_RULES = [
+  {
+    starterId: "demo-sawcut-haul-off",
+    label: "Demo / removal",
+    patterns: [/demo/i, /\bremove(?:d|l|)?\b/i, /\bremoval\b/i, /\btear out\b/i, /\bhaul[- ]?off\b/i, /\bsawcut\b/i],
+  },
+  {
+    starterId: "base-rock",
+    label: "Base rock / prep",
+    patterns: [/\bbase rock\b/i, /\brock base\b/i, /\bsubgrade\b/i, /\baggregate\b/i],
+  },
+  {
+    starterId: "excavation-grading-prep",
+    label: "Excavation / grading prep",
+    patterns: [/\bexcavat/i, /\bgrading\b/i, /\bgrade\b/i, /\bprep\b/i, /\bprepare\b/i],
+  },
+  {
+    starterId: "concrete-placement",
+    label: "Concrete slab installation",
+    patterns: [/\bslab\b/i, /\bflatwork\b/i, /\bconcrete placement\b/i, /\bplace concrete\b/i, /\bpour concrete\b/i, /\bpour\b/i, /\binstall concrete\b/i],
+  },
+  {
+    starterId: "finish-work",
+    label: "Finish / cleanup",
+    patterns: [/\bfinish\b/i, /\bbroom\b/i, /\btrowel\b/i, /\bcleanup\b/i, /\bclean up\b/i],
+  },
+  {
+    starterId: "cure-sawcut-cleanup",
+    label: "Sawcut / cleanup",
+    patterns: [/\bsawcut\b/i, /\bsaw-cut\b/i, /\bcontrol joints?\b/i, /\bcure\b/i],
+  },
+  {
+    starterId: "rebar-wire-mesh",
+    label: "Reinforcement",
+    patterns: [/\brebar\b/i, /\bwire mesh\b/i, /\breinforcement\b/i, /\bmesh\b/i, /\bdowel/i],
+  },
+  {
+    starterId: "forming",
+    label: "Forming",
+    patterns: [/\bform\b/i, /\bforming\b/i],
+  },
+  {
+    starterId: "traffic-control-allowance",
+    label: "Traffic control",
+    patterns: [/\btraffic\b/i, /\bcone\b/i, /\bsignage\b/i],
+  },
+  {
+    starterId: "disposal-trucking",
+    label: "Disposal / trucking",
+    patterns: [/\bdispose\b/i, /\bdisposal\b/i, /\bdump\b/i, /\bhaul\b/i, /\btrucking\b/i],
+  },
+];
+
+function normalizeRoughNotesUnit(unit = "") {
+  const normalized = String(unit || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (["sq ft", "sqft", "square feet", "square foot"].includes(normalized)) return "sf";
+  if (["yds", "yard", "yards"].includes(normalized)) return "yd";
+  if (["cu yd", "cu yds", "cubic yard", "cubic yards", "cuyd", "cy"].includes(normalized)) return "cy";
+  if (["linear feet", "linear foot", "feet", "foot", "ft"].includes(normalized)) return "lf";
+  if (["each", "ea"].includes(normalized)) return "ea";
+  if (["lump sum", "ls"].includes(normalized)) return "LS";
+  return normalized;
+}
+
+function parseRoughNotesQuantity(fragment = "") {
+  const match = String(fragment || "").match(/(\d+(?:\.\d+)?)\s*(sf|sq\.?\s*ft|square feet?|yds?|yards?|cy|cu\.?\s*yds?|cubic yards?|lf|linear feet?|ft|feet?|ea|each|ls|lump sum)\b/i);
+  if (!match) return null;
+  const quantity = Number(match[1]);
+  if (!Number.isFinite(quantity) || quantity < 0) return null;
+  return {
+    quantity,
+    unit: normalizeRoughNotesUnit(match[2]),
+  };
+}
+
+function roughNotesFragments(text = "") {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .split(/[\n,;•]+/g)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function roughNotesSeedText(roughNotes = "", result = {}) {
+  return [
+    roughNotes,
+    result?.suggestedTitle,
+    result?.scopeOfWork,
+    Array.isArray(result?.inclusions) ? result.inclusions.join("\n") : "",
+    Array.isArray(result?.exclusions) ? result.exclusions.join("\n") : "",
+    Array.isArray(result?.assumptions) ? result.assumptions.join("\n") : "",
+    result?.customerNotes,
+    result?.gcProposalSummary,
+    result?.gcCoverNote,
+    result?.gcQualifications,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildRoughNotesLineItem(rule, fragment = "") {
+  const starter = getEstimateLineItemStarter(rule.starterId);
+  if (!starter) return null;
+  const amount = parseRoughNotesQuantity(fragment);
+  const item = buildEstimateLineItemFromStarter(starter);
+  return {
+    ...item,
+    description: rule.label || starter.title || item.description,
+    ...(amount ? { quantity: amount.quantity, unit: amount.unit } : {}),
+  };
+}
+
+export function buildEstimateLineItemsFromRoughNotes(roughNotes = "", result = {}) {
+  const seed = roughNotesSeedText(roughNotes, result);
+  if (!seed) return [];
+
+  const fragments = roughNotesFragments(seed);
+  const items = [];
+  const seenStarterIds = new Set();
+
+  const addSuggestion = (rule, fragment = "") => {
+    if (seenStarterIds.has(rule.starterId)) return;
+    const item = buildRoughNotesLineItem(rule, fragment);
+    if (!item) return;
+    seenStarterIds.add(rule.starterId);
+    items.push(item);
+  };
+
+  fragments.forEach((fragment) => {
+    const rule = ROUGH_NOTES_LINE_ITEM_RULES.find((entry) => entry.patterns.some((pattern) => pattern.test(fragment)));
+    if (rule) addSuggestion(rule, fragment);
+  });
+
+  if (items.length === 0) {
+    const normalized = seed.toLowerCase();
+    for (const rule of ROUGH_NOTES_LINE_ITEM_RULES) {
+      if (seenStarterIds.has(rule.starterId)) continue;
+      if (rule.patterns.some((pattern) => pattern.test(normalized))) {
+        addSuggestion(rule, seed);
+      }
+    }
+  }
+
+  return items;
+}
+
 export function addEstimateLineItemStarter(estimate = {}, starterOrId) {
   const lineItem = buildEstimateLineItemFromStarter(starterOrId);
   if (!lineItem) return { ...estimate };

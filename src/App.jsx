@@ -132,7 +132,7 @@ import { createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEs
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
-import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, applyEstimateTemplateStarter } from "./estimate-template-utils";
+import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, buildEstimateLineItemsFromRoughNotes, applyEstimateTemplateStarter } from "./estimate-template-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
@@ -862,6 +862,10 @@ function estimateRoughNotesBullets(values = []) {
     .join("\n");
 }
 
+function hasMeaningfulEstimateItems(items = []) {
+  return Array.isArray(items) && items.some((item) => estimateRoughNotesText(item?.description) || estimateRoughNotesText(item?.unitPrice));
+}
+
 function estimateRoughNotesHasSuggestions(result = null) {
   return Boolean(
     result?.ok
@@ -879,7 +883,7 @@ function estimateRoughNotesHasSuggestions(result = null) {
   );
 }
 
-function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {}) {
+function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {}, roughNotesText = "") {
   const {
     includeProposal = true,
     includeGcPacket = true,
@@ -939,6 +943,14 @@ function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {})
       ? existingVisibleNotes
       : [existingVisibleNotes, reviewBlock].filter(Boolean).join("\n\n");
     nextDraft = mergeEstimateOfficeInternalNotes(nextDraft, nextVisibleNotes);
+  }
+
+  const suggestedLineItems = buildEstimateLineItemsFromRoughNotes(roughNotesText, result);
+  if (suggestedLineItems.length > 0 && !hasMeaningfulEstimateItems(nextDraft.items)) {
+    nextDraft = {
+      ...nextDraft,
+      items: suggestedLineItems,
+    };
   }
 
   return createEstimateDraft(nextDraft);
@@ -26553,7 +26565,7 @@ function EstimatesPagePolished({
 
   function applyRoughNotesToSelected(options = {}) {
     if (!selectedEstimate || !estimateRoughNotesHasSuggestions(roughNotesState.result)) return;
-    setDetailDraft((current) => mergeEstimateRoughNotesIntoDraft(current, roughNotesState.result, options));
+    setDetailDraft((current) => mergeEstimateRoughNotesIntoDraft(current, roughNotesState.result, options, roughNotes));
     setActiveEstimateTool(options.includeGcPacket && !options.includeProposal ? "backup" : "sections");
     showCopyFeedback("AI suggestions applied to the selected draft. Review and save when ready.", 4000);
   }
@@ -26568,7 +26580,7 @@ function EstimatesPagePolished({
       customerEmail: sourceDraft.customerEmail || linkedEstimateCustomerEmail(sourceDraft) || singleCustomerEmail,
       status: "draft",
     });
-    return mergeEstimateRoughNotesIntoDraft(baseDraft, roughNotesState.result, options);
+    return mergeEstimateRoughNotesIntoDraft(baseDraft, roughNotesState.result, options, roughNotes);
   }
 
   function applyRoughNotesToNewEstimate(options = {}) {

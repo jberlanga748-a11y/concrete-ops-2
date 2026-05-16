@@ -8,6 +8,7 @@ import {
   addEstimateLineItemStarter,
   applyEstimateTemplateStarter,
   buildEstimateLineItemFromStarter,
+  buildEstimateLineItemsFromRoughNotes,
   normalizeEstimateTemplateStarter,
 } from "./estimate-template-utils.js";
 import { buildPrintDocumentHtml, deriveEstimatePrintPacket } from "./print-packets.js";
@@ -100,6 +101,23 @@ test("line item starters create valid blank-price estimate items", () => {
   assert.equal(draft.items.length, 1);
   assert.equal(draft.items[0].description, "Traffic control, cones, signage, or pedestrian routing allowance where required.");
   assert.equal(draft.items[0].unitPrice, "");
+});
+
+test("rough notes line item suggestions extract workable starter rows without pricing guesses", () => {
+  const items = buildEstimateLineItemsFromRoughNotes("500 sf slab installation, demo old concrete, base rock, broom finish, sawcut, cleanup");
+
+  assert.equal(items.length >= 4, true);
+  assert.equal(items.some((item) => item.description === "Demo / removal"), true);
+  assert.equal(items.some((item) => item.description === "Base rock / prep"), true);
+  assert.equal(items.some((item) => item.description === "Concrete slab installation"), true);
+  assert.equal(items.some((item) => item.description === "Finish / cleanup"), true);
+  assert.equal(items.every((item) => item.unitPrice === ""), true);
+  assert.equal(items.some((item) => item.quantity === 500 && item.unit === "sf"), true);
+});
+
+test("blank rough notes do not invent line items", () => {
+  assert.deepEqual(buildEstimateLineItemsFromRoughNotes(""), []);
+  assert.deepEqual(buildEstimateLineItemsFromRoughNotes("   "), []);
 });
 
 test("template-created estimates still print customer-facing content without internal notes", () => {
