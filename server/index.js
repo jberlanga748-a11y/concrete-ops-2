@@ -4949,6 +4949,8 @@ function sanitizeBootstrap(state, user) {
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
   const currentCompanyPackage = packageSummary(settings.packageId);
+  const canUseEstimateProposalTools = companyHasFeature(state, user, FEATURE_KEYS.PROPOSAL_TOOLS);
+  const canUseEstimateGcPackets = companyHasFeature(state, user, FEATURE_KEYS.GC_PACKETS);
   const accessibleCompanies = accessibleCompaniesForUser(state, user);
   const hydrationContext = getHydrationContext(state, user);
   const users = visibleUsers(state, user);
@@ -5036,6 +5038,8 @@ function sanitizeBootstrap(state, user) {
       estimates: {
         canView: canViewEstimates(user),
         canManage: canManageEstimates(user),
+        canUseAiRoughNotes: canUseEstimateProposalTools && canManageEstimates(user),
+        canUseGcPackets: canUseEstimateGcPackets && canManageEstimates(user),
       },
       jobDraftImports: {
         canView: canCreateJobs(user),
@@ -10468,7 +10472,7 @@ app.post("/api/ai/estimates/rough-notes", requireAuth, asyncRoute(async (req, re
   assertCanManageEstimatesForRequest(req.auth.user);
   const payload = req.body || {};
   const roughNotes = requiredString(payload.roughNotes, "Rough notes");
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.PROPOSAL_TOOLS, "AI Rough Notes Helper");
 
   const result = await generateEstimateRoughNotesDrafts({
     context: buildEstimateRoughNotesContext({

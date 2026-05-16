@@ -344,6 +344,8 @@ const EMPTY_APP_STATE = {
     estimates: {
       canView: false,
       canManage: false,
+      canUseAiRoughNotes: false,
+      canUseGcPackets: false,
     },
     jobDraftImports: {
       canView: false,
@@ -26362,6 +26364,8 @@ function EstimateCommandRailPolished({
   totals,
   optionTotals,
   canManage,
+  canUseAiRoughNotes = false,
+  canUseGcPackets = false,
   busy,
   detailSaveDisabled,
   canMarkSent,
@@ -26458,11 +26462,11 @@ function EstimateCommandRailPolished({
       <Card className="co-estimates-rail-card p-4">
         <SectionHeader title="Estimate tools" description="Pricing, line items, AI notes, proposal sections, SOV, and packet settings stay in the tools drawer." />
         <div className="grid grid-cols-2 gap-2">
-          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
+          {canManage && canUseAiRoughNotes ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit pricing</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("sections")}>Sections</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("backup")}>SOV / Backup</Button>
-          <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button>
+          {canUseGcPackets ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button> : null}
         </div>
       </Card>
     </div>
@@ -26531,6 +26535,8 @@ function EstimatesPagePolished({
       || rows.find((estimate) => estimate?.id === selectedEstimateId)
       || null;
   const canManage = Boolean(permissions?.estimates?.canManage);
+  const canUseAiRoughNotes = Boolean(permissions?.estimates?.canUseAiRoughNotes);
+  const canUseGcPackets = Boolean(permissions?.estimates?.canUseGcPackets);
   const singleCustomerId = visibleCustomers.length === 1 ? visibleCustomers[0].id : "";
   const singleCustomerName = visibleCustomers.length === 1 ? visibleCustomers[0].name || "" : "";
   const singleCustomerEmail = singleCustomerId ? visibleCustomers.find((customer) => customer.id === singleCustomerId)?.email || "" : "";
@@ -26562,8 +26568,8 @@ function EstimatesPagePolished({
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
     presetId: packetPresetId,
     sectionIds: packetSectionIds,
-    allowInternalSections: canManage,
-  }), [canManage, packetPresetId, packetSectionIds]);
+    allowInternalSections: canManage && canUseGcPackets,
+  }), [canManage, canUseGcPackets, packetPresetId, packetSectionIds]);
   const visibleEstimateRowCap = 6;
   const estimateKpis = [
     { label: "Estimates", value: filteredRows.length, helper: "Matching current filters", icon: "quote", tone: "blue", actionLabel: "View estimates", onAction: () => setStatusFilter("All") },
@@ -26574,12 +26580,12 @@ function EstimatesPagePolished({
   ];
   const estimateToolTabs = [
     { id: "create", label: "New Estimate", count: canManage ? 1 : 0 },
-    { id: "roughNotes", label: "AI Notes", count: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0 },
+    canUseAiRoughNotes ? { id: "roughNotes", label: "AI Notes", count: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0 } : null,
     { id: "edit", label: "Edit / Pricing", count: selectedEstimate ? 1 : 0 },
     { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
     { id: "backup", label: "SOV / Backup", count: 1 },
-    { id: "packet", label: "Packet", count: packetSectionIds.length },
-  ];
+    canUseGcPackets ? { id: "packet", label: "Packet", count: packetSectionIds.length } : null,
+  ].filter(Boolean);
 
   function linkedEstimateCustomerEmail(draft = {}) {
     const customer = visibleCustomers.find((entry) => entry.id === draft.customerId) || null;
@@ -26712,6 +26718,8 @@ function EstimatesPagePolished({
   }
 
   function openEstimateTool(toolId = "edit") {
+    if (toolId === "roughNotes" && !canUseAiRoughNotes) return;
+    if (toolId === "packet" && !canUseGcPackets) return;
     if (toolId !== "create" && estimateViewMode !== "create") {
       setEstimateViewMode("browse");
     }
@@ -26721,6 +26729,7 @@ function EstimatesPagePolished({
   }
 
   async function handleGenerateEstimateRoughNotes() {
+    if (!canUseAiRoughNotes) return false;
     if (!estimateRoughNotesText(roughNotes) || typeof onGenerateEstimateRoughNotes !== "function") return false;
     setRoughNotesState({ loading: true, result: null, error: "" });
     try {
@@ -26964,6 +26973,8 @@ function EstimatesPagePolished({
           totals={detailTotals}
           optionTotals={detailOptionTotals}
           canManage={canManage}
+          canUseAiRoughNotes={canUseAiRoughNotes}
+          canUseGcPackets={canUseGcPackets}
           busy={busy}
           detailSaveDisabled={detailSaveDisabled}
           canMarkSent={canMarkSent}
@@ -27084,7 +27095,7 @@ function EstimatesPagePolished({
                     <div className="grid gap-3 p-3">
                       <EstimateBackupEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
                       <EstimateProposalSectionsEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
-                      <EstimateGcPacketLiteEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} />
+                      {canUseGcPackets ? <EstimateGcPacketLiteEditor draft={createDraft} setDraft={setCreateDraft} disabled={busy} /> : null}
                     </div>
                   </details>
                   <div className="mt-4">
@@ -27127,7 +27138,7 @@ function EstimatesPagePolished({
           {activeEstimateTool === "roughNotes" ? (
             <Card className="p-4">
               <SectionHeader title="Rough Notes to Proposal" description="Turn field or estimator notes into clean review-only proposal and GC packet language." />
-              {canManage ? (
+              {canManage && canUseAiRoughNotes ? (
                 <EstimateRoughNotesHelper
                   roughNotes={roughNotes}
                   setRoughNotes={setRoughNotes}
@@ -27141,7 +27152,7 @@ function EstimatesPagePolished({
                   disabled={busy}
                 />
               ) : (
-                <StateCard title="AI rough notes unavailable" description="Field roles and view-only roles cannot access estimate drafting, pricing, or AI proposal tools." tone="slate" />
+                <StateCard title="AI rough notes unavailable" description="AI Rough Notes is available in Premium and Elite packages for office roles that can manage estimates." tone="slate" />
               )}
             </Card>
           ) : null}
@@ -27195,7 +27206,7 @@ function EstimatesPagePolished({
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button type="button" onClick={() => onSaveEstimate(selectedEstimate.id, detailDraft)} disabled={detailSaveDisabled || !canManage}>Save estimate</Button>
-                    <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("packet")}>Open packet tools</Button>
+                    {canUseGcPackets ? <Button type="button" variant="secondary" onClick={() => setActiveEstimateTool("packet")}>Open packet tools</Button> : null}
                   </div>
                   <div className="mt-4">
                     <EstimateSentHistoryCard estimate={detailEstimatePreview} disabled={detailSaveDisabled || !canManage} onRecordSnapshot={handleRecordSentSnapshot} />
@@ -27227,7 +27238,7 @@ function EstimatesPagePolished({
               {selectedEstimate ? (
                 <div className="grid gap-3">
                   <EstimateBackupEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
-                  <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} />
+                  {canUseGcPackets ? <EstimateGcPacketLiteEditor draft={detailDraft} setDraft={setDetailDraft} disabled={busy || !canManage} /> : null}
                 </div>
               ) : (
                 <StateCard title="No estimate selected" description="Select an estimate before editing backup notes." tone="blue" />
@@ -27238,7 +27249,7 @@ function EstimatesPagePolished({
           {activeEstimateTool === "packet" ? (
             <Card className="p-4">
               <SectionHeader title="Packet / Send / Print" description="Proposal copy, print, email, and packet settings use the existing estimate handlers." />
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+              {canUseGcPackets ? <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <EstimatePacketSettingsPanel
                   presetId={packetPresetId}
                   sectionIds={packetSectionIds}
@@ -27256,7 +27267,7 @@ function EstimatesPagePolished({
                   </div>
                   {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
                 </div>
-              </div>
+              </div> : <StateCard title="Packet tools unavailable" description="Advanced GC packet controls are available in Premium and Elite packages." tone="slate" />}
             </Card>
           ) : null}
         </div>
@@ -33522,7 +33533,7 @@ export default function App() {
       estimate,
       packetSettings: {
         ...packetSettings,
-        allowInternalSections: Boolean(appState.permissions?.estimates?.canManage && packetSettings?.allowInternalSections),
+        allowInternalSections: Boolean(appState.permissions?.estimates?.canUseGcPackets && packetSettings?.allowInternalSections),
       },
     });
     const opened = openPrintDocument(packet);

@@ -7,6 +7,8 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 import { createUserRecord } from "./store.js";
 
 function sleep(ms) {
@@ -114,10 +116,24 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
 test("AI estimate rough notes route returns configured false safely when OpenAI is not configured", async () => {
   const fixture = await startServer();
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+
     const loginResult = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -125,6 +141,9 @@ test("AI estimate rough notes route returns configured false safely when OpenAI 
     const headers = authHeaders(loginResult.token);
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
     const estimate = bootstrap.estimates[0];
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.PREMIUM);
+    assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, true);
+    assert.equal(bootstrap.permissions.estimates.canUseGcPackets, true);
 
     const result = await assertOk(fixture.baseUrl, "/api/ai/estimates/rough-notes", {
       method: "POST",
@@ -147,6 +166,38 @@ test("AI estimate rough notes route returns configured false safely when OpenAI 
     assert.match(result.message, /OPENAI_API_KEY/);
     assert.equal(result.scopeOfWork, "");
     assert.deepEqual(result.inclusions, []);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("AI estimate rough notes route is blocked for Basic packages", async () => {
+  const fixture = await startServer();
+
+  try {
+    const loginResult = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(loginResult.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.BASIC);
+    assert.equal(bootstrap.permissions.estimates.canView, true);
+    assert.equal(bootstrap.permissions.estimates.canManage, true);
+    assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, false);
+    assert.equal(bootstrap.permissions.estimates.canUseGcPackets, false);
+
+    const denied = await requestJson(fixture.baseUrl, "/api/ai/estimates/rough-notes", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        roughNotes: "Demo old sidewalk and pour 300 sf broom finish.",
+      }),
+    });
+
+    assert.equal(denied.response.status, 403);
+    assert.match(denied.payload.error, /AI Rough Notes Helper/i);
+    assert.match(denied.payload.error, /current Apex HQ package/i);
   } finally {
     await fixture.stop();
   }
