@@ -21,6 +21,7 @@
     "verify:crew": "node --test --test-concurrency=1 server/crew-assignments.test.js",
     "verify:users": "node --test --test-concurrency=1 server/users-management.test.js server/company-setup.test.js server/company-scope.test.js shared/companyScope.test.js shared/managedCompanySetup.test.js src/user-utils.test.js",
     "verify:signup": "node --test --test-concurrency=1 server/signup.test.js server/company-scope.test.js shared/companyScope.test.js",
+    "verify:packages": "node --test --test-concurrency=1 shared/packages.test.js",
     "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js",
     "verify:time": "node --test --test-concurrency=1 server/time-tracking.test.js src/time-utils.test.js",
     "verify:daily-reports": "node --test --test-concurrency=1 server/daily-reports.test.js src/report-utils.test.js src/app-routing.test.js",
