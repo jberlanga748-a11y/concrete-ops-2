@@ -7,6 +7,8 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 import { createUserRecord } from "./store.js";
 
 function sleep(ms) {
@@ -114,6 +116,11 @@ function insertOtherCompanyOwner(sqliteFile) {
     `).run("COMPANY-OTHER", "COMPANY-OTHER", "Other Apex HQ Workspace", "active", now, now);
 
     database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run("COMPANY-OTHER", "packageId", PACKAGE_IDS.ELITE, now);
+
+    database.prepare(`
       INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -130,6 +137,18 @@ function insertOtherCompanyOwner(sqliteFile) {
       null,
       user.passwordHash,
     );
+  } finally {
+    database.close();
+  }
+}
+
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
   } finally {
     database.close();
   }
@@ -163,6 +182,8 @@ function insertUser(sqliteFile, user) {
 test("office users can manage Opportunity Scout profiles and found opportunities", async () => {
   const fixture = await startServer();
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+
     const adminLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -279,6 +300,49 @@ test("office users can manage Opportunity Scout profiles and found opportunities
   }
 });
 
+test("Basic package users cannot access Opportunity Scout even with lead permissions", async () => {
+  const fixture = await startServer();
+  try {
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers,
+    });
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.BASIC);
+    assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+    assert.equal(bootstrap.permissions.opportunityScout.canManage, false);
+    assert.deepEqual(bootstrap.opportunitySearchProfiles, []);
+    assert.deepEqual(bootstrap.foundOpportunities, []);
+
+    const listResponse = await requestJson(fixture.baseUrl, "/api/opportunity-scout", {
+      headers,
+    });
+    assert.equal(listResponse.response.status, 403);
+    assert.match(listResponse.payload.error, /current Apex HQ package/i);
+
+    const createResponse = await requestJson(fixture.baseUrl, "/api/opportunity-scout/search-profiles", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Blocked Basic scout profile" }),
+    });
+    assert.equal(createResponse.response.status, 403);
+    assert.match(createResponse.payload.error, /Opportunity Scout/i);
+
+    const aiResponse = await requestJson(fixture.baseUrl, "/api/ai/opportunity-scout/search-profiles/OSP-BASIC/search-plan", {
+      method: "POST",
+      headers,
+    });
+    assert.equal(aiResponse.response.status, 403);
+    assert.match(aiResponse.payload.error, /current Apex HQ package/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("field users cannot access Opportunity Scout", async () => {
   const fixture = await startServer();
   try {
@@ -331,6 +395,8 @@ test("field users cannot access Opportunity Scout", async () => {
 test("Opportunity Scout records stay company scoped", async () => {
   const fixture = await startServer();
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+
     const adminLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",

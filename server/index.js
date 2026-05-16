@@ -94,7 +94,11 @@ import {
   visibleRecordsForCompany,
 } from "../shared/companyScope.js";
 import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
-import { packageSummary } from "../shared/packages.js";
+import {
+  FEATURE_KEYS,
+  packageIncludesFeature,
+  packageSummary,
+} from "../shared/packages.js";
 import {
   buildOwnerHealthWarnings,
   checkOwnerHealthDatabase,
@@ -1090,6 +1094,23 @@ function companySettingsForState(state = null, user = null) {
     ...defaultSettings,
     ...((state?.companySettingsByCompanyId || {})[currentCompanyId] || {}),
   };
+}
+
+function companyHasFeature(state, user, featureKey) {
+  const settings = companySettingsForState(state, user);
+  return packageIncludesFeature(settings.packageId, featureKey);
+}
+
+function assertCompanyFeature(state, user, featureKey, featureLabel = "This feature") {
+  if (!companyHasFeature(state, user, featureKey)) {
+    throw new ApiError(403, `${featureLabel} is not included in the current Apex HQ package.`);
+  }
+}
+
+async function readFeatureScopedState(req, featureKey, featureLabel = "This feature") {
+  const state = await readDb();
+  assertCompanyFeature(state, req.auth.user, featureKey, featureLabel);
+  return state;
 }
 
 function companiesForState(state = null) {
@@ -4934,8 +4955,9 @@ function sanitizeBootstrap(state, user) {
   const customers = visibleCustomersForUser(state, user);
   const leads = visibleLeadsForUser(state, user);
   const leadSources = visibleLeadSourcesForUser(state, user);
-  const opportunitySearchProfiles = visibleOpportunitySearchProfilesForUser(state, user);
-  const foundOpportunities = visibleFoundOpportunitiesForUser(state, user);
+  const canUseOpportunityScout = companyHasFeature(state, user, FEATURE_KEYS.LEAD_JOB_FINDER);
+  const opportunitySearchProfiles = canUseOpportunityScout ? visibleOpportunitySearchProfilesForUser(state, user) : [];
+  const foundOpportunities = canUseOpportunityScout ? visibleFoundOpportunitiesForUser(state, user) : [];
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
@@ -5007,8 +5029,8 @@ function sanitizeBootstrap(state, user) {
       customers: customerPermissions,
       leads: leadPermissions,
       opportunityScout: {
-        canView: canViewLeads(user),
-        canManage: canManageLeads(user),
+        canView: canUseOpportunityScout && canViewLeads(user),
+        canManage: canUseOpportunityScout && canManageLeads(user),
       },
       contactHistory: contactHistoryPermissionsForUser(user),
       estimates: {
@@ -8092,7 +8114,7 @@ function buildOpportunityLeadNotes(opportunity) {
 
 app.get("/api/opportunity-scout", requireAuth, asyncRoute(async (req, res) => {
   assertCanViewLeads(req.auth.user);
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   res.json({
     searchProfiles: visibleOpportunitySearchProfilesForUser(state, req.auth.user),
     foundOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
@@ -8102,6 +8124,7 @@ app.get("/api/opportunity-scout", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/opportunity-scout/search-profiles", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
+  await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const errors = validateOpportunitySearchProfilePayload(req.body || {});
   if (errors.length > 0) {
     throw new ApiError(400, errors.join(" "));
@@ -8135,6 +8158,7 @@ app.post("/api/opportunity-scout/search-profiles", requireAuth, asyncRoute(async
 
 app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
+  await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
@@ -8176,7 +8200,7 @@ app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(
 
 app.post("/api/ai/opportunity-scout/search-profiles/:id/search-plan", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const searchProfile = findCompanyScopedRecord(state.opportunitySearchProfiles || [], req.params.id, req.auth.user, state, "Search profile");
 
   const result = await generateOpportunitySearchPlan({
@@ -8193,6 +8217,7 @@ app.post("/api/ai/opportunity-scout/search-profiles/:id/search-plan", requireAut
 
 app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
+  await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const errors = validateFoundOpportunityPayload(req.body || {});
   if (errors.length > 0) {
     throw new ApiError(400, errors.join(" "));
@@ -8227,6 +8252,7 @@ app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(a
 
 app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
+  await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const { id } = req.params;
   const changedAt = new Date().toISOString();
 
@@ -8269,6 +8295,7 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
 
 app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
+  await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const changedAt = new Date().toISOString();
   const followUpDueAt = new Date(changedAt).toISOString().slice(0, 10);
   let createdLeadId = "";
@@ -8391,7 +8418,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
 
 app.post("/api/ai/opportunity-scout/found-opportunities/:id/review", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
   const opportunity = findCompanyScopedRecord(state.foundOpportunities || [], req.params.id, req.auth.user, state, "Opportunity");
   const searchProfile = opportunity.searchProfileId
     ? findCompanyScopedRecord(state.opportunitySearchProfiles || [], opportunity.searchProfileId, req.auth.user, state, "Search profile")
