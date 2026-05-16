@@ -371,6 +371,34 @@ test("integration lead import requires target company in multi-company mode and 
     assert.equal(invalidTarget.response.status, 404);
     assert.match(invalidTarget.payload.error, /target company not found/i);
 
+    const genericCompanyId = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        companyId: "COMPANY-LYF",
+        sourceLeadId: "lead-import-generic-company-id",
+      }),
+    });
+    assert.equal(genericCompanyId.response.status, 400);
+    assert.match(genericCompanyId.payload.error, /targetCompanyId/i);
+
+    const nestedLeadCompanyId = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        sourceLeadId: "lead-import-nested-company-id",
+        lead: {
+          ...validLeadPackage.lead,
+          companyId: "COMPANY-LYF",
+          targetCompanyId: "COMPANY-LYF",
+        },
+      }),
+    });
+    assert.equal(nestedLeadCompanyId.response.status, 400);
+    assert.match(nestedLeadCompanyId.payload.error, /targetCompanyId/i);
+
     const imported = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
       method: "POST",
       headers: integrationHeaders(token),

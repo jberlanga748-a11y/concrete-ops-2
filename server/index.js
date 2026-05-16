@@ -452,15 +452,11 @@ function externalPayloadSource(payload = {}) {
 
 function externalTargetCompanyIdFromPayload(payload = {}) {
   const source = externalPayloadSource(payload);
-  const lead = objectPayload(source.lead);
   const context = objectPayload(source.context);
   return optionalString(
     source.targetCompanyId
-      ?? source.companyId
       ?? context.targetCompanyId
-      ?? context.companyId
-      ?? lead.targetCompanyId
-      ?? lead.companyId,
+      ?? "",
     "",
   );
 }

@@ -337,6 +337,32 @@ test("integration job draft import requires target company in multi-company mode
     assert.equal(invalidTarget.response.status, 404);
     assert.match(invalidTarget.payload.error, /target company not found/i);
 
+    const genericCompanyId = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validPackage,
+        companyId: "COMPANY-LYF",
+        opsJobDraftId: "ops-draft-generic-company-id",
+        sourceHandoffId: "handoff-generic-company-id",
+      }),
+    });
+    assert.equal(genericCompanyId.response.status, 400);
+    assert.match(genericCompanyId.payload.error, /targetCompanyId/i);
+
+    const contextCompanyId = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders(token),
+      body: JSON.stringify({
+        ...validPackage,
+        context: { companyId: "COMPANY-LYF" },
+        opsJobDraftId: "ops-draft-context-company-id",
+        sourceHandoffId: "handoff-context-company-id",
+      }),
+    });
+    assert.equal(contextCompanyId.response.status, 400);
+    assert.match(contextCompanyId.payload.error, /targetCompanyId/i);
+
     const imported = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
       method: "POST",
       headers: integrationHeaders(token),

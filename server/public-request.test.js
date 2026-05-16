@@ -312,6 +312,18 @@ test("public estimate request requires a valid target company in multi-company m
     assert.equal(invalidTarget.response.status, 404);
     assert.match(invalidTarget.payload.error, /target company not found/i);
 
+    const genericCompanyId = await requestJson(fixture.baseUrl, "/api/public/estimate-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildPublicRequestPayload({
+        name: "Generic Company ID",
+        email: "generic-company-id@example.test",
+        companyId: "COMPANY-LYF",
+      })),
+    });
+    assert.equal(genericCompanyId.response.status, 400);
+    assert.match(genericCompanyId.payload.error, /targetCompanyId/i);
+
     const submission = await assertOk(fixture.baseUrl, "/api/public/estimate-request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
