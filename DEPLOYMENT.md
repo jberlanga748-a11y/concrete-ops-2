@@ -35,6 +35,12 @@
 - Older `sea` examples are deprecated for this deployment; use `sjc`
 - Fly readiness checks should continue to target `GET /api/ready`
 - Production deploys keep `SEED_DEMO_DATA=false`
+- Production deploys must keep `DEMO_MODE` off
+- Customer pilots should use a separate Fly app and a separate Fly volume, not the production app or production data volume
+
+## Customer pilots
+
+For a real contractor pilot, use [CUSTOMER_PILOT_SETUP.md](CUSTOMER_PILOT_SETUP.md) and create a new Fly app plus a new Fly volume for that contractor.
 
 ## Observed successful requests
 

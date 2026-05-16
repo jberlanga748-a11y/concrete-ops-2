@@ -7,6 +7,19 @@ This guide assumes:
 - the demo app is separate
 - each customer pilot gets its own Fly app and its own Fly volume
 
+## Pilot Safety Checklist
+
+Before you hand a pilot to a contractor, confirm all of these are true:
+
+- the app name is unique
+- the volume name is unique
+- `DEMO_MODE` is off
+- `SEED_DEMO_DATA` is `false`
+- `GET /api/setup/status` shows `demoMode: false`
+- `GET /api/setup/status` shows no existing users before the first admin is created
+- the setup screen shows a new workspace, not an old demo or production estimate context
+- the pilot app is not sharing storage with demo or production
+
 ## Goal
 
 Create a clean customer-specific workspace that:
@@ -251,7 +264,7 @@ Use this only if you need internal support access during the pilot.
 Why:
 - full office access
 - can help with setup and troubleshooting
-- does not require using the customer’s primary account
+- does not require using the customer's primary account
 
 ### Contractor admin
 
@@ -259,7 +272,7 @@ Recommended role:
 - `Owner`
 
 Why:
-- gives the contractor’s primary admin full workspace control
+- gives the contractor's primary admin full workspace control
 - matches the expected top-level customer administrator role
 
 ### Foreman

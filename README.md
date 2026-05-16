@@ -79,6 +79,13 @@ Important notes:
 - runtime SQLite data is mounted at `/app/data`
 - Fly health checks call `GET /api/ready`
 
+Important separation rules:
+
+- `fly.toml` is the production config and must keep `SEED_DEMO_DATA=false`
+- customer pilots must use a separate Fly app and a separate Fly volume
+- customer pilots must keep `DEMO_MODE` off
+- customer pilots should follow [CUSTOMER_PILOT_SETUP.md](CUSTOMER_PILOT_SETUP.md)
+
 Typical first deploy flow:
 
 ```bash
@@ -142,6 +149,10 @@ Fresh production installs no longer create the demo user automatically. You now 
 - Environment bootstrap: set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` before first boot to create the first admin automatically
 
 The backend exposes `GET /api/setup/status` to detect whether a workspace still needs its first admin, and `POST /api/setup/bootstrap-admin` to create that first admin when no users exist yet.
+
+### Setup visibility
+
+The login/setup screen also shows whether the workspace is in demo mode or live mode, and `/api/setup/status` exposes the same operational flags so operators can confirm the environment before handing a workspace to a customer.
 
 ## Backup and export
 

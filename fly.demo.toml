@@ -1,3 +1,4 @@
+# Demo app only. Never reuse this app or volume for a real contractor pilot.
 app = "concrete-ops-demo"
 primary_region = "sjc"
 
@@ -9,6 +10,7 @@ primary_region = "sjc"
   PORT = "4000"
   DATA_DIR = "/app/data"
   LOG_LEVEL = "info"
+  # Demo seeding is intentional here only.
   SEED_DEMO_DATA = "true"
 
 [http_service]
@@ -34,6 +36,7 @@ primary_region = "sjc"
     X-Forwarded-Proto = "https"
 
 [[mounts]]
+  # Demo volume only.
   source = "concrete_ops_demo_data"
   destination = "/app/data"
   initial_size = "1gb"

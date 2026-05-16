@@ -1,7 +1,7 @@
 ﻿# Apex HQ Demo
 
 Demo URL:
-- [https://app.apexhq.online/](https://app.apexhq.online/)
+- Use the separate demo Fly app URL, not the production URL.
 
 Demo logins:
 - Admin: `demo.admin@apexhq.app`
@@ -128,9 +128,14 @@ Best modules to show in order:
 - The demo deployment should use a separate Fly app and separate SQLite volume.
 - Recommended demo app: `apex-hq-demo`
 - Recommended real app: Apex HQ production
+- Do not point demo mode at a real customer pilot workspace.
 - Demo reset should only be used when `DEMO_MODE=true`.
 - Public estimate requests can be disabled with `PUBLIC_ESTIMATE_REQUEST_ENABLED=false`.
 - On an existing database, demo backfill should be additive only: demo users and demo-prefixed records may be added, but real users and real contractor records must not be overwritten.
+
+## Real pilot reminder
+
+If you are setting up a real contractor workspace, follow [CUSTOMER_PILOT_SETUP.md](CUSTOMER_PILOT_SETUP.md) instead of the demo instructions.
 
 ## Recommended contractor pitch
 
