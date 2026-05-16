@@ -65,9 +65,40 @@ function renderKeyValueGrid(rows = []) {
   `;
 }
 
+function isBulletLine(line = "") {
+  return /^\s*(?:[-*•]|\d+\.)\s+/.test(String(line || ""));
+}
+
+function renderStructuredText(text) {
+  const value = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!value) {
+    return '<p class="empty-state">Nothing recorded.</p>';
+  }
+
+  const blocks = value
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  if (blocks.length === 0) {
+    return '<p class="empty-state">Nothing recorded.</p>';
+  }
+
+  return `
+    <div class="text-flow">
+      ${blocks.map((block) => {
+        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+        if (lines.length > 0 && lines.every((line) => isBulletLine(line))) {
+          return `<ul class="bullet-list">${lines.map((line) => `<li>${escapeHtml(line.replace(/^\s*(?:[-*•]|\d+\.)\s+/, ""))}</li>`).join("")}</ul>`;
+        }
+        return `<p class="text-block">${escapeHtml(block).replaceAll("\n", "<br />")}</p>`;
+      }).join("")}
+    </div>
+  `;
+}
+
 function renderTextBlock(text) {
-  const value = String(text || "").trim();
-  return value ? `<div class="text-block">${escapeHtml(value)}</div>` : '<p class="empty-state">Nothing recorded.</p>';
+  return renderStructuredText(text);
 }
 
 function renderBulletList(items = []) {
@@ -90,7 +121,7 @@ function renderRecordBlocks(records = []) {
         <div class="record-card">
           ${record.title ? `<div class="record-title">${escapeHtml(record.title)}</div>` : ""}
           ${record.meta && record.meta.length ? `<div class="record-meta">${record.meta.map((item) => escapeHtml(item)).join(" · ")}</div>` : ""}
-          ${record.body && record.body.length ? record.body.map((line) => `<p class="record-body">${escapeHtml(line)}</p>`).join("") : ""}
+          ${record.body && record.body.length ? renderStructuredText(record.body.join("\n\n")) : ""}
           ${record.badges && record.badges.length ? `<div class="record-badges">${record.badges.map((badge) => `<span class="badge">${escapeHtml(badge)}</span>`).join("")}</div>` : ""}
         </div>
       `).join("")}
@@ -635,9 +666,11 @@ export function buildPrintDocumentHtml(packetInput) {
         padding: 24px 24px 40px;
       }
       .packet-header {
-        border-bottom: 2px solid #dbeafe;
-        padding-bottom: 16px;
-        margin-bottom: 20px;
+        border: 1px solid #dbeafe;
+        border-radius: 20px;
+        padding: 18px 18px 16px;
+        margin-bottom: 16px;
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
         break-inside: avoid;
         page-break-inside: avoid;
       }
@@ -665,7 +698,7 @@ export function buildPrintDocumentHtml(packetInput) {
       }
       .eyebrow {
         color: #1d4ed8;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.18em;
         text-transform: uppercase;
@@ -678,15 +711,17 @@ export function buildPrintDocumentHtml(packetInput) {
       .subtitle {
         margin: 10px 0 0;
         color: #475569;
-        font-size: 14px;
+        font-size: 13px;
+        font-weight: 600;
+        max-width: 60ch;
       }
       .header-supporting {
         margin-top: 14px;
       }
       .kv-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+        gap: 10px;
       }
       .kv-card, .record-card {
         border: 1px solid #dbeafe;
@@ -708,41 +743,57 @@ export function buildPrintDocumentHtml(packetInput) {
         font-size: 14px;
         font-weight: 700;
       }
-      .packet-section {
-        margin-top: 18px;
+      .summary-band, .packet-section {
+        margin-top: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 14px 16px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .packet-section + .packet-section {
+        break-inside: auto;
+        page-break-inside: auto;
       }
       .section-heading {
-        font-size: 18px;
+        font-size: 14px;
         font-weight: 800;
         margin-bottom: 8px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
         break-after: avoid;
         page-break-after: avoid;
       }
       .section-description {
         margin: 0 0 10px;
         color: #475569;
-        font-size: 13px;
+        font-size: 12px;
       }
-      .text-block, .record-body, .empty-state {
-        margin: 6px 0 0;
-        font-size: 14px;
-        color: #334155;
-      }
-      .text-block {
-        white-space: pre-line;
-      }
-      .record-stack {
+      .text-flow {
         display: grid;
         gap: 10px;
       }
+      .text-block {
+        margin: 0;
+        font-size: 13px;
+        color: #334155;
+        white-space: pre-line;
+        line-height: 1.58;
+      }
+      .record-stack {
+        display: grid;
+        gap: 8px;
+      }
       .record-title {
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 800;
       }
       .record-meta {
         margin-top: 4px;
         color: #64748b;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
       }
       .record-badges {
@@ -766,6 +817,10 @@ export function buildPrintDocumentHtml(packetInput) {
         margin: 0;
         padding-left: 18px;
         color: #334155;
+        line-height: 1.55;
+      }
+      .bullet-list li + li {
+        margin-top: 4px;
       }
       .footer-note {
         margin-top: 12px;
@@ -784,12 +839,12 @@ export function buildPrintDocumentHtml(packetInput) {
       @media print {
         body { background: #ffffff; }
         .page { max-width: none; padding: 0; }
-        .packet-header { padding-bottom: 12px; margin-bottom: 16px; }
+        .packet-header { padding: 14px 14px 12px; margin-bottom: 14px; }
         .logo-mark { width: 42px; height: 42px; border-radius: 12px; font-size: 13px; }
         .header-supporting { margin-top: 10px; }
         .kv-grid { gap: 8px; }
-        .kv-card, .record-card { border-radius: 12px; padding: 9px 11px; }
-        .packet-section { margin-top: 14px; }
+        .kv-card, .record-card, .summary-band, .packet-section { border-radius: 12px; padding: 9px 11px; box-shadow: none; }
+        .summary-band, .packet-section { margin-top: 12px; }
         .section-heading { margin-bottom: 6px; }
         .record-stack { gap: 8px; }
         .footer-disclaimer { margin-top: 18px; padding: 10px 12px; }
@@ -809,7 +864,7 @@ export function buildPrintDocumentHtml(packetInput) {
         </div>
         ${packet.companyProfileRows.length ? `<div class="header-supporting">${renderKeyValueGrid(packet.companyProfileRows)}</div>` : ""}
       </header>
-      ${renderKeyValueGrid(packet.metadataRows)}
+      ${packet.metadataRows.length ? `<section class="summary-band">${renderKeyValueGrid(packet.metadataRows)}</section>` : ""}
       ${packet.sections.map((section) => renderSection(section)).join("")}
       ${packet.disclaimerNote ? `<p class="footer-disclaimer">${escapeHtml(packet.disclaimerNote)}</p>` : ""}
       <p class="footer-note">${escapeHtml(packet.footerNote || `Generated from Apex HQ ${packet.packetMode === "internal" ? "internal company packet" : "field-safe packet"} view.`)}</p>

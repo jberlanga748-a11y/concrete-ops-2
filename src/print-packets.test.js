@@ -255,6 +255,54 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /page-break-after: avoid/);
 });
 
+test("estimate print packet renders proposal text with readable summary bands and bullets", () => {
+  const packet = deriveEstimatePrintPacket({
+    companyName: "Apex HQ Demo",
+    companyProfile: {
+      businessPhone: "(503) 555-0100",
+      businessEmail: "office@apexhqdemo.com",
+    },
+    estimate: {
+      title: "Keizer Patio Project",
+      status: "draft",
+      createdAt: "2026-04-26T16:30:00Z",
+      scopeSummary: [
+        "Scope of Work:",
+        "Replace cracked patio concrete and refresh the edge detail.",
+        "",
+        "Inclusions:",
+        "- Demo and haul-off",
+        "- Base rock and prep",
+        "- Concrete placement",
+        "- Broom finish and cleanup",
+        "",
+        "Assumptions / Clarifications:",
+        "- Existing access remains open",
+        "- Final color selection is confirmed before scheduling",
+      ].join("\n"),
+      customerNotes: [
+        "Customer Notes / Terms:",
+        "Proposal is valid for 30 days.",
+        "",
+        "Schedule Notes:",
+        "Work is planned for the next available weather window.",
+      ].join("\n"),
+      customer: { name: "Keizer Residence" },
+      lead: { customer: "Keizer Residence", project: "Patio replacement" },
+      items: [{ description: "Concrete placement", quantity: 1, unit: "LS", unitPrice: 7250 }],
+    },
+  });
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.match(html, /class="summary-band"/);
+  assert.match(html, /class="text-flow"/);
+  assert.match(html, /class="bullet-list"/);
+  assert.match(html, /Demo and haul-off/);
+  assert.match(html, /Base rock and prep/);
+  assert.match(html, /Proposal is valid for 30 days\./);
+  assert.match(html, /Schedule Notes/);
+});
+
 test("estimate print packet keeps old plain estimates readable", () => {
   const packet = deriveEstimatePrintPacket({
     estimate: {
