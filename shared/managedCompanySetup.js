@@ -179,6 +179,10 @@ function isEmployeeRole(role) {
   return normalizeRole(role) === "employee";
 }
 
+function isRecognizedTeamRole(role) {
+  return isOfficeManagerRole(role) || isEstimatorRole(role) || isForemanRole(role) || isEmployeeRole(role);
+}
+
 function activeUsers(users = []) {
   return (Array.isArray(users) ? users : []).filter((user) => (user?.status || "active") !== "inactive");
 }
@@ -326,6 +330,87 @@ export function deriveManagedCompanySetupState({
     updatedAt: setupSettings.managedSetupUpdatedAt,
     categories,
     items,
+  };
+}
+
+function activeRecords(records = []) {
+  return (Array.isArray(records) ? records : []).filter((record) => !record?.archivedAt);
+}
+
+export function deriveFirstOwnerOnboardingState({
+  companySettings = {},
+  users = [],
+  leadSources = [],
+  jobs = [],
+  estimates = [],
+} = {}) {
+  const setupState = deriveManagedCompanySetupState({ companySettings, users, leadSources, jobs });
+  const safeUsers = activeUsers(users);
+  const activeEstimates = activeRecords(estimates);
+  const activeJobs = activeRecords(jobs);
+  const hasNonOwnerUser = safeUsers.some((user) => isRecognizedTeamRole(user.role) && normalizeRole(user.role) !== "owner");
+  const hasCompanyProfile = [
+    companySettings.companyName,
+    companySettings.businessPhone,
+    companySettings.businessEmail,
+    companySettings.serviceArea,
+  ].every(hasText);
+  const steps = [
+    {
+      key: "company_profile",
+      label: "Finish company profile",
+      description: "Add phone, email, service area, and workspace identity for proposals and job packets.",
+      completed: hasCompanyProfile,
+      moduleId: "settings",
+      actionLabel: "Open profile",
+    },
+    {
+      key: "users",
+      label: "Add the first team user",
+      description: "Create at least one office, foreman, or employee account before field rollout.",
+      completed: hasNonOwnerUser,
+      moduleId: "employees",
+      actionLabel: "Add users",
+    },
+    {
+      key: "first_estimate",
+      label: "Create first estimate",
+      description: "Build a draft estimate or proposal so office paperwork is ready to test.",
+      completed: activeEstimates.length > 0,
+      moduleId: "estimates",
+      actionLabel: "Open estimates",
+    },
+    {
+      key: "first_job",
+      label: "Create first job",
+      description: "Create or convert a job so schedule, reports, uploads, and field workflows have context.",
+      completed: activeJobs.length > 0,
+      moduleId: "jobs",
+      actionLabel: "Open jobs",
+    },
+    {
+      key: "managed_setup",
+      label: "Review setup readiness",
+      description: setupState.nextAction,
+      completed: ["Ready for Managed Use", "Ready for Field Rollout"].includes(setupState.status),
+      moduleId: "settings",
+      actionLabel: "Review setup",
+    },
+  ];
+  const completedCount = steps.filter((step) => step.completed).length;
+  const nextStep = steps.find((step) => !step.completed) || steps[steps.length - 1];
+  const coreSteps = steps.filter((step) => step.key !== "managed_setup");
+  const coreComplete = coreSteps.every((step) => step.completed);
+
+  return {
+    steps,
+    setupState,
+    completedCount,
+    totalCount: steps.length,
+    percentComplete: steps.length ? Math.round((completedCount / steps.length) * 100) : 0,
+    coreComplete,
+    complete: completedCount === steps.length,
+    nextStep,
   };
 }
 

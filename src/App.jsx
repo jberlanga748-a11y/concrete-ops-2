@@ -152,7 +152,7 @@ import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
-import { deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
+import { deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { canAccessModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -14424,6 +14424,55 @@ function DashboardPage(props) {
   return <DashboardPagePolished {...props} />;
 }
 
+function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
+  const steps = Array.isArray(onboarding?.steps) ? onboarding.steps : [];
+  const nextStep = onboarding?.nextStep || steps.find((step) => !step.completed) || null;
+
+  return (
+    <Card className="overflow-hidden border-orange-100 bg-white">
+      <div className="border-b border-orange-100 bg-orange-50/70 p-4">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="orange">First owner setup</Badge>
+              <Badge tone={onboarding?.percentComplete >= 80 ? "green" : "amber"}>{onboarding?.percentComplete || 0}% ready</Badge>
+            </div>
+            <h2 className="mt-2 text-lg font-black text-slate-950">Get this workspace ready for real work</h2>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+              Finish the first few setup actions so estimates, jobs, crews, and field workflows start from a clean operating base.
+            </p>
+          </div>
+          {nextStep ? (
+            <Button type="button" size="sm" onClick={() => onOpen?.(nextStep.moduleId)}>
+              {nextStep.actionLabel || "Continue setup"}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
+        {steps.map((step) => (
+          <button
+            key={step.key}
+            type="button"
+            className={`rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 ${
+              step.completed
+                ? "border-emerald-100 bg-emerald-50/70 hover:border-emerald-200"
+                : "border-orange-100 bg-white hover:border-orange-200 hover:bg-orange-50"
+            }`}
+            onClick={() => onOpen?.(step.moduleId)}
+          >
+            <span className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-sm font-black text-slate-950">{step.label}</span>
+              <Badge tone={step.completed ? "green" : "amber"}>{step.completed ? "Done" : "Next"}</Badge>
+            </span>
+            <span className="block text-xs font-bold leading-5 text-slate-600">{step.description}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function DashboardTodayWorkMetric({ label, value, helper, tone = "slate" }) {
   return (
     <div className="co-today-work-metric" data-tone={tone}>
@@ -14982,7 +15031,10 @@ function SchedulePage({
 function DashboardPagePolished({
   stats,
   dashboardMetrics,
+  companySettings = {},
   leads,
+  leadSources = [],
+  estimates = [],
   jobs,
   dailyReports = [],
   uploads = [],
@@ -15201,6 +15253,14 @@ function DashboardPagePolished({
     timeEntries,
     users,
   }), [dailyReports, deliveryTickets, jobs, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, users]);
+  const firstOwnerOnboarding = useMemo(() => deriveFirstOwnerOnboardingState({
+    companySettings,
+    users,
+    leadSources,
+    estimates,
+    jobs,
+  }), [companySettings, estimates, jobs, leadSources, users]);
+  const showFirstOwnerOnboarding = Boolean(permissions?.settings?.canView && !firstOwnerOnboarding.coreComplete);
 
   function focusDashboardRef(ref) {
     ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -15323,6 +15383,13 @@ function DashboardPagePolished({
             setActive={setActive}
             onSelectJob={onSelectJob}
           />
+
+          {showFirstOwnerOnboarding ? (
+            <FirstOwnerOnboardingCard
+              onboarding={firstOwnerOnboarding}
+              onOpen={(moduleId) => setActive(moduleId)}
+            />
+          ) : null}
 
           <DashboardDailyFocusBoard
             leadRef={leadPipelineRef}
