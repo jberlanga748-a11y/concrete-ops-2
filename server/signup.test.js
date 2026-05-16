@@ -147,6 +147,10 @@ test("public signup creates a company, first owner, default settings, and scoped
     assert.equal(payload.companies[0].id, payload.currentCompanyId);
     assert.equal(payload.permissions.companies.canSwitch, false);
     assert.equal(payload.companySettings.companyName, "ABC Builders");
+    assert.equal(payload.companySettings.packageId, "basic");
+    assert.equal(payload.currentCompany.packageId, "basic");
+    assert.equal(payload.companyPackage.id, "basic");
+    assert.equal(payload.companyPackage.features.includes("security.companyIsolation"), true);
     assert.equal(payload.companySettings.logoInitials, "AB");
     assert.equal(payload.companySettings.businessEmail, "owner@abcbuilder.test");
     assert.equal(payload.companySettings.businessPhone, "503-555-0199");
@@ -169,6 +173,9 @@ test("public signup creates a company, first owner, default settings, and scoped
       headers: authHeaders(payload.token),
     });
     assert.equal(bootstrap.currentCompanyId, payload.currentCompanyId);
+    assert.equal(bootstrap.companySettings.packageId, "basic");
+    assert.equal(bootstrap.currentCompany.packageId, "basic");
+    assert.equal(bootstrap.companyPackage.id, "basic");
     assert.equal(bootstrap.permissions.companies.canSwitch, false);
     assert.deepEqual(bootstrap.leads, []);
   } finally {

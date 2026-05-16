@@ -94,6 +94,7 @@ import {
   visibleRecordsForCompany,
 } from "../shared/companyScope.js";
 import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
+import { packageSummary } from "../shared/packages.js";
 import {
   buildOwnerHealthWarnings,
   checkOwnerHealthDatabase,
@@ -4926,6 +4927,7 @@ function sanitizeBootstrap(state, user) {
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
+  const currentCompanyPackage = packageSummary(settings.packageId);
   const accessibleCompanies = accessibleCompaniesForUser(state, user);
   const hydrationContext = getHydrationContext(state, user);
   const users = visibleUsers(state, user);
@@ -4961,9 +4963,13 @@ function sanitizeBootstrap(state, user) {
       companyId: currentCompanyId,
     }, { includeNotificationState: true }),
     companies: accessibleCompanies,
-    currentCompany,
+    currentCompany: currentCompany ? {
+      ...currentCompany,
+      packageId: currentCompanyPackage.id,
+    } : null,
     currentCompanyId,
     currentWorkspaceId: currentCompany?.workspaceId || currentCompanyId,
+    companyPackage: currentCompanyPackage,
     companySettings: settings,
     users,
     customers,

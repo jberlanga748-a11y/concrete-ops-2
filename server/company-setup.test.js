@@ -167,6 +167,7 @@ test("office users can save managed company setup in company settings", async ()
       headers,
       body: JSON.stringify({
         companyName: "Managed Setup Concrete",
+        packageId: "elite",
         businessPhone: "503-555-0199",
         businessEmail: "setup@example.test",
         serviceArea: "Salem and Portland",
@@ -181,6 +182,8 @@ test("office users can save managed company setup in company settings", async ()
       }),
     });
 
+    assert.equal(updated.companySettings.packageId, "basic");
+    assert.equal(updated.companyPackage.id, "basic");
     assert.equal(updated.companySettings.managedSetupNotes, "Walk through the first pilot contractor before field rollout.");
     assert.ok(Array.isArray(updated.companySettings.managedSetupChecklist));
     assert.equal(updated.companySettings.managedSetupChecklist.some((item) => item.key === "roles_reviewed" && item.completed), true);

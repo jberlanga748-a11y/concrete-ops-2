@@ -12,6 +12,7 @@ import {
   normalizeCompanyId,
   withDefaultCompanyId,
 } from "../shared/companyScope.js";
+import { normalizePackageId } from "../shared/packages.js";
 import { normalizeManagedSetupSettings } from "../shared/managedCompanySetup.js";
 import { DEFAULT_COMPANY_SETTINGS } from "../shared/permissions.js";
 import { normalizeImportedJobDrafts } from "../shared/jobDraftImports.js";
@@ -3454,6 +3455,7 @@ function normalizeCompanySettings(settings = {}) {
     licenseText: normalizeText(settings?.licenseText, 200),
     printPacketFooter: normalizeText(settings?.printPacketFooter, 240),
     printPacketDisclaimer: normalizeText(settings?.printPacketDisclaimer, 320),
+    packageId: normalizePackageId(settings?.packageId),
     toolChecklistEnabled: settings?.toolChecklistEnabled !== false,
     ...managedSetup,
   };
@@ -3473,6 +3475,7 @@ function companySettingsPairs(settings = {}) {
     ["licenseText", normalized.licenseText || ""],
     ["printPacketFooter", normalized.printPacketFooter || ""],
     ["printPacketDisclaimer", normalized.printPacketDisclaimer || ""],
+    ["packageId", normalized.packageId],
     ["toolChecklistEnabled", normalized.toolChecklistEnabled ? "true" : "false"],
     ["managedSetupStatus", normalized.managedSetupStatus || "Not Started"],
     ["managedSetupChecklist", JSON.stringify(normalized.managedSetupChecklist || [])],

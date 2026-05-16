@@ -10,6 +10,7 @@ export const DEFAULT_COMPANY_SETTINGS = {
   licenseText: "",
   printPacketFooter: "",
   printPacketDisclaimer: "",
+  packageId: "basic",
   toolChecklistEnabled: true,
   managedSetupStatus: "Not Started",
   managedSetupChecklist: [],
