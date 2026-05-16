@@ -72,6 +72,10 @@ import {
   generateLeadAssistantDrafts,
 } from "../shared/leadAiAssistant.js";
 import {
+  buildEstimateRoughNotesContext,
+  generateEstimateRoughNotesDrafts,
+} from "../shared/estimateRoughNotesAi.js";
+import {
   buildOpportunityAssistantContext,
   buildOpportunitySearchPlanContext,
   generateOpportunityAssistantReview,
@@ -2219,6 +2223,39 @@ function sanitizeEstimateForUser(estimate, state, user) {
       status: lead.status || "",
     } : null,
     job: job ? sanitizeJobForUser(job, user, state) : null,
+  };
+}
+
+function buildEstimateRoughNotesEstimateContext(state, user, payload = {}) {
+  const estimateId = optionalString(payload.estimateId, "");
+  const draft = payload.estimateDraft && typeof payload.estimateDraft === "object" && !Array.isArray(payload.estimateDraft)
+    ? payload.estimateDraft
+    : {};
+  const existingEstimate = estimateId ? sanitizeEstimateForUser(findEstimate(state, estimateId, user), state, user) : null;
+  const customerId = optionalString(draft.customerId, existingEstimate?.customerId || "");
+  const leadId = optionalString(draft.leadId, existingEstimate?.leadId || "");
+  const customer = customerId ? findCompanyScopedRecord(state.customers || [], customerId, user, state, "Customer") : null;
+  const lead = leadId ? findCompanyScopedRecord(state.leads || [], leadId, user, state, "Lead") : null;
+
+  return {
+    ...(existingEstimate || {}),
+    title: optionalString(draft.title, existingEstimate?.title || ""),
+    status: optionalString(draft.status, existingEstimate?.status || "draft"),
+    scopeSummary: optionalString(draft.scopeSummary, existingEstimate?.scopeSummary || ""),
+    customerNotes: optionalString(draft.customerNotes, existingEstimate?.customerNotes || ""),
+    items: Array.isArray(draft.items) ? draft.items : (existingEstimate?.items || []),
+    customer: customer ? {
+      id: customer.id,
+      name: customer.name || "",
+      city: customer.city || "",
+      status: customer.status || "",
+    } : existingEstimate?.customer || null,
+    lead: lead ? {
+      id: lead.id,
+      customer: lead.customer || "",
+      project: lead.project || "",
+      status: lead.status || "",
+    } : existingEstimate?.lead || null,
   };
 }
 
@@ -10092,6 +10129,24 @@ app.post("/api/ai/leads/:id/assist", requireAuth, asyncRoute(async (req, res) =>
     context: buildLeadAssistantContext({
       lead,
       leadSources: visibleLeadSourcesForUser(state, req.auth.user),
+      companySettings: companySettingsForState(state, req.auth.user),
+    }),
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  return res.json(result);
+}));
+
+app.post("/api/ai/estimates/rough-notes", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageEstimatesForRequest(req.auth.user);
+  const payload = req.body || {};
+  const roughNotes = requiredString(payload.roughNotes, "Rough notes");
+  const state = await readDb();
+
+  const result = await generateEstimateRoughNotesDrafts({
+    context: buildEstimateRoughNotesContext({
+      roughNotes,
+      estimate: buildEstimateRoughNotesEstimateContext(state, req.auth.user, payload),
       companySettings: companySettingsForState(state, req.auth.user),
     }),
     apiKey: process.env.OPENAI_API_KEY,

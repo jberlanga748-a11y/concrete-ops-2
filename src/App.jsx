@@ -21,6 +21,7 @@ import {
   archiveLead,
   archiveLeadSource,
   archiveQueueItem,
+  assistEstimateRoughNotes as assistEstimateRoughNotesRequest,
   assistLead as assistLeadRequest,
   bootstrapAdminAccount,
   convertEstimateToJob,
@@ -847,6 +848,91 @@ function createEstimateDraft(record) {
   };
 }
 
+function estimateRoughNotesText(value) {
+  return String(value ?? "").trim();
+}
+
+function estimateRoughNotesBullets(values = []) {
+  return (Array.isArray(values) ? values : [])
+    .map((value) => estimateRoughNotesText(value))
+    .filter(Boolean)
+    .map((value) => `- ${value}`)
+    .join("\n");
+}
+
+function estimateRoughNotesHasSuggestions(result = null) {
+  return Boolean(
+    result?.ok
+    && (
+      estimateRoughNotesText(result.suggestedTitle)
+      || estimateRoughNotesText(result.scopeOfWork)
+      || estimateRoughNotesBullets(result.inclusions)
+      || estimateRoughNotesBullets(result.exclusions)
+      || estimateRoughNotesBullets(result.assumptions)
+      || estimateRoughNotesText(result.customerNotes)
+      || estimateRoughNotesText(result.gcProposalSummary)
+      || estimateRoughNotesText(result.gcCoverNote)
+      || estimateRoughNotesText(result.gcQualifications)
+    )
+  );
+}
+
+function mergeEstimateRoughNotesIntoDraft(draft = {}, result = {}, options = {}) {
+  const {
+    includeProposal = true,
+    includeGcPacket = true,
+    includeReviewNotes = true,
+  } = options;
+  let nextDraft = {
+    ...draft,
+    title: estimateRoughNotesText(draft.title) || estimateRoughNotesText(result.suggestedTitle),
+  };
+
+  if (includeProposal) {
+    const currentSections = deriveEstimateProposalSections(nextDraft);
+    const assumptions = estimateRoughNotesBullets([
+      ...(Array.isArray(result.assumptions) ? result.assumptions : []),
+      estimateRoughNotesText(result.scheduleNotes) ? `Schedule: ${estimateRoughNotesText(result.scheduleNotes)}` : "",
+    ]);
+    nextDraft = mergeEstimateProposalSections(nextDraft, {
+      ...currentSections,
+      scopeOfWork: estimateRoughNotesText(result.scopeOfWork) || currentSections.scopeOfWork,
+      inclusions: estimateRoughNotesBullets(result.inclusions) || currentSections.inclusions,
+      exclusions: estimateRoughNotesBullets(result.exclusions) || currentSections.exclusions,
+      assumptions: assumptions || currentSections.assumptions,
+      customerNotes: estimateRoughNotesText(result.customerNotes) || currentSections.customerNotes,
+    });
+  }
+
+  if (includeGcPacket) {
+    const currentPacket = deriveEstimateGcPacketLite(nextDraft);
+    const reviewNotes = estimateRoughNotesBullets([
+      ...(Array.isArray(result.clarificationNotes) ? result.clarificationNotes : []),
+      ...(Array.isArray(result.reviewWarnings) ? result.reviewWarnings : []),
+    ]);
+    nextDraft = mergeEstimateGcPacketLite(nextDraft, {
+      ...currentPacket,
+      proposalCoverNote: estimateRoughNotesText(result.gcCoverNote) || currentPacket.proposalCoverNote,
+      proposalSummary: estimateRoughNotesText(result.gcProposalSummary) || currentPacket.proposalSummary,
+      qualifications: estimateRoughNotesText(result.gcQualifications) || currentPacket.qualifications,
+      scheduleNotes: estimateRoughNotesText(result.scheduleNotes) || currentPacket.scheduleNotes,
+      gcReviewNotes: reviewNotes || currentPacket.gcReviewNotes,
+      internalPacketNotes: estimateRoughNotesText(result.internalReviewNotes) || currentPacket.internalPacketNotes,
+    });
+  }
+
+  if (includeReviewNotes && estimateRoughNotesText(result.internalReviewNotes)) {
+    const existingVisibleNotes = getEstimateVisibleInternalNotes(nextDraft);
+    const reviewBlock = `AI Rough Notes Review:\n${estimateRoughNotesText(result.internalReviewNotes)}`;
+    const nextVisibleNotes = existingVisibleNotes.includes(reviewBlock)
+      ? existingVisibleNotes
+      : [existingVisibleNotes, reviewBlock].filter(Boolean).join("\n\n");
+    nextDraft = mergeEstimateOfficeInternalNotes(nextDraft, nextVisibleNotes);
+  }
+
+  return createEstimateDraft(nextDraft);
+}
+
 const INITIAL_USER_FORM = {
   name: "",
   email: "",
@@ -1631,6 +1717,109 @@ function EstimateProposalSectionsEditor({ draft, setDraft, disabled = false }) {
           <p className="mt-2 text-xs font-bold leading-5 text-amber-700">Internal notes are for office use only and should not print for the customer.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EstimateRoughNotesPreviewBlock({ title, value, items }) {
+  const textValue = estimateRoughNotesText(value);
+  const listItems = Array.isArray(items) ? items.map((item) => estimateRoughNotesText(item)).filter(Boolean) : [];
+  if (!textValue && listItems.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      {textValue ? <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-slate-700">{textValue}</p> : null}
+      {listItems.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-sm font-bold leading-6 text-slate-700">
+          {listItems.map((item, index) => <li key={`${title}-${index}-${item}`}>- {item}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function EstimateRoughNotesHelper({
+  roughNotes,
+  setRoughNotes,
+  assistant,
+  onGenerate,
+  onApplyToSelected,
+  onApplyToNew,
+  canApplySelected = false,
+  disabled = false,
+}) {
+  const loading = Boolean(assistant?.loading);
+  const result = assistant?.result || null;
+  const hasSuggestions = estimateRoughNotesHasSuggestions(result);
+  const messageTone = result?.configured === false || assistant?.error ? "amber" : "emerald";
+  const message = assistant?.error || result?.message || "";
+
+  return (
+    <div className="rounded-3xl border border-orange-100 bg-orange-50/40 p-4 shadow-sm shadow-orange-100/40">
+      <SectionHeader
+        title="AI Rough Notes Helper"
+        description="Paste contractor notes, generate review-only proposal language, then choose what to apply to the draft."
+        action={<Badge tone="orange">Review only</Badge>}
+      />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <TextAreaField
+          label="Rough contractor notes"
+          value={roughNotes}
+          onChange={(event) => setRoughNotes(event.target.value)}
+          disabled={disabled || loading}
+          className="field-input min-h-48 resize-y"
+          placeholder="Example: demo old sidewalk, pour 4 inch broom finish, 300 sf, include base rock, exclude permits."
+        />
+        <div className="rounded-2xl border border-orange-100 bg-white p-3">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Safe assistant rules</p>
+          <div className="mt-3 space-y-2 text-sm font-bold leading-6 text-slate-600">
+            <p>Nothing sends, saves, prices, or approves automatically.</p>
+            <p>Suggestions only update draft fields after you choose an apply action.</p>
+            <p>Pricing, final scope, and customer terms still need office review.</p>
+          </div>
+          <Button type="button" className="mt-4 w-full" onClick={onGenerate} disabled={disabled || loading || !estimateRoughNotesText(roughNotes)}>
+            {loading ? "Generating..." : hasSuggestions ? "Regenerate Suggestions" : "Generate Suggestions"}
+          </Button>
+          {message ? (
+            <p className={`mt-3 rounded-xl border px-3 py-2 text-xs font-black ${messageTone === "amber" ? "border-amber-100 bg-amber-50 text-amber-800" : "border-emerald-100 bg-emerald-50 text-emerald-700"}`}>
+              {message}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {hasSuggestions ? (
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <EstimateRoughNotesPreviewBlock title="Suggested title" value={result.suggestedTitle} />
+            <EstimateRoughNotesPreviewBlock title="Scope of work" value={result.scopeOfWork} />
+            <EstimateRoughNotesPreviewBlock title="Inclusions" items={result.inclusions} />
+            <EstimateRoughNotesPreviewBlock title="Exclusions" items={result.exclusions} />
+            <EstimateRoughNotesPreviewBlock title="Assumptions" items={result.assumptions} />
+            <EstimateRoughNotesPreviewBlock title="Schedule notes" value={result.scheduleNotes} />
+            <EstimateRoughNotesPreviewBlock title="Clarifications to verify" items={result.clarificationNotes} />
+            <EstimateRoughNotesPreviewBlock title="Customer notes / terms" value={result.customerNotes} />
+            <EstimateRoughNotesPreviewBlock title="GC packet summary" value={result.gcProposalSummary} />
+            <EstimateRoughNotesPreviewBlock title="GC cover note" value={result.gcCoverNote} />
+            <EstimateRoughNotesPreviewBlock title="GC qualifications" value={result.gcQualifications} />
+            <EstimateRoughNotesPreviewBlock title="Office review warnings" items={result.reviewWarnings} />
+          </div>
+          {result.internalReviewNotes ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Office-only review notes</p>
+              <p className="mt-2 whitespace-pre-line text-sm font-bold leading-6 text-amber-800">{result.internalReviewNotes}</p>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply all to selected draft</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: true, includeGcPacket: false, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply proposal only</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToSelected?.({ includeProposal: false, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled || !canApplySelected}>Apply GC packet only</Button>
+            <Button type="button" variant="secondary" onClick={() => onApplyToNew?.({ includeProposal: true, includeGcPacket: true, includeReviewNotes: true })} disabled={disabled}>Apply all to new estimate draft</Button>
+          </div>
+          <p className="text-xs font-bold leading-5 text-slate-500">Apply actions update the on-screen draft only. Use Save estimate or Create New Estimate when the office review is complete.</p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -26053,8 +26242,9 @@ function EstimateCommandRailPolished({
       </Card>
 
       <Card className="co-estimates-rail-card p-4">
-        <SectionHeader title="Estimate tools" description="Pricing, line items, proposal sections, SOV, and packet settings stay in the tools drawer." />
+        <SectionHeader title="Estimate tools" description="Pricing, line items, AI notes, proposal sections, SOV, and packet settings stay in the tools drawer." />
         <div className="grid grid-cols-2 gap-2">
+          {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit pricing</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("sections")}>Sections</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("backup")}>SOV / Backup</Button>
@@ -26082,6 +26272,7 @@ function EstimatesPagePolished({
   onConvertEstimate,
   onPrintEstimate,
   onSendEstimate,
+  onGenerateEstimateRoughNotes,
   initialSelectedEstimateId = "",
   emailSendingConfigured = false,
   companyName = DEFAULT_COMPANY_NAME,
@@ -26101,6 +26292,8 @@ function EstimatesPagePolished({
   const [packetSectionIds, setPacketSectionIds] = useState(() => getEstimatePacketPreset(DEFAULT_ESTIMATE_PACKET_PRESET_ID).sectionIds);
   const [showEstimateTools, setShowEstimateTools] = useState(false);
   const [activeEstimateTool, setActiveEstimateTool] = useState("edit");
+  const [roughNotes, setRoughNotes] = useState("");
+  const [roughNotesState, setRoughNotesState] = useState({ loading: false, result: null, error: "" });
   const newEstimateRef = useRef(null);
   const copyFeedbackTimeoutRef = useRef(null);
 
@@ -26163,6 +26356,7 @@ function EstimatesPagePolished({
   ];
   const estimateToolTabs = [
     { id: "create", label: "New Estimate", count: canManage ? 1 : 0 },
+    { id: "roughNotes", label: "AI Notes", count: estimateRoughNotesHasSuggestions(roughNotesState.result) ? 1 : 0 },
     { id: "edit", label: "Edit / Pricing", count: selectedEstimate ? 1 : 0 },
     { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
     { id: "backup", label: "SOV / Backup", count: 1 },
@@ -26286,6 +26480,46 @@ function EstimatesPagePolished({
     setActiveEstimateTool(toolId);
     setShowEstimateTools(true);
     window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  async function handleGenerateEstimateRoughNotes() {
+    if (!estimateRoughNotesText(roughNotes) || typeof onGenerateEstimateRoughNotes !== "function") return false;
+    setRoughNotesState({ loading: true, result: null, error: "" });
+    try {
+      const result = await onGenerateEstimateRoughNotes({
+        roughNotes,
+        estimateId: selectedEstimate?.id || "",
+        estimateDraft: selectedEstimate ? (detailEstimatePreview || detailDraft) : createDraft,
+      });
+      setRoughNotesState({
+        loading: false,
+        result,
+        error: result?.ok === false || result?.configured === false ? result?.message || "AI rough notes suggestions are unavailable right now." : "",
+      });
+      return Boolean(result?.ok);
+    } catch (error) {
+      setRoughNotesState({
+        loading: false,
+        result: null,
+        error: error?.message || "AI rough notes suggestions are unavailable right now.",
+      });
+      return false;
+    }
+  }
+
+  function applyRoughNotesToSelected(options = {}) {
+    if (!selectedEstimate || !estimateRoughNotesHasSuggestions(roughNotesState.result)) return;
+    setDetailDraft((current) => mergeEstimateRoughNotesIntoDraft(current, roughNotesState.result, options));
+    setActiveEstimateTool(options.includeGcPacket && !options.includeProposal ? "backup" : "sections");
+    showCopyFeedback("AI suggestions applied to the selected draft. Review and save when ready.", 4000);
+  }
+
+  function applyRoughNotesToNewEstimate(options = {}) {
+    if (!estimateRoughNotesHasSuggestions(roughNotesState.result)) return;
+    setCreateDraft((current) => mergeEstimateRoughNotesIntoDraft(current, roughNotesState.result, options));
+    setActiveEstimateTool("create");
+    setShowEstimateTools(true);
+    showCopyFeedback("AI suggestions applied to the new estimate draft. Add pricing and create when ready.", 4000);
   }
 
   async function handleSendEstimate() {
@@ -26552,6 +26786,26 @@ function EstimatesPagePolished({
                 </>
               ) : (
                 <StateCard title="Estimate creation unavailable" description="This role can review estimates but cannot create new pricing records." tone="slate" />
+              )}
+            </Card>
+          ) : null}
+
+          {activeEstimateTool === "roughNotes" ? (
+            <Card className="p-4">
+              <SectionHeader title="Rough Notes to Proposal" description="Turn field or estimator notes into clean review-only proposal and GC packet language." />
+              {canManage ? (
+                <EstimateRoughNotesHelper
+                  roughNotes={roughNotes}
+                  setRoughNotes={setRoughNotes}
+                  assistant={roughNotesState}
+                  onGenerate={handleGenerateEstimateRoughNotes}
+                  onApplyToSelected={applyRoughNotesToSelected}
+                  onApplyToNew={applyRoughNotesToNewEstimate}
+                  canApplySelected={Boolean(selectedEstimate)}
+                  disabled={busy}
+                />
+              ) : (
+                <StateCard title="AI rough notes unavailable" description="Field roles and view-only roles cannot access estimate drafting, pricing, or AI proposal tools." tone="slate" />
               )}
             </Card>
           ) : null}
@@ -30880,6 +31134,7 @@ function MainContent(props) {
           onConvertEstimate={props.onConvertEstimate}
           onPrintEstimate={props.onPrintEstimate}
           onSendEstimate={props.onSendEstimate}
+          onGenerateEstimateRoughNotes={props.onGenerateEstimateRoughNotes}
           initialSelectedEstimateId={props.estimateFocusId}
         />
       );
@@ -33276,6 +33531,28 @@ export default function App() {
     }
   }
 
+  async function handleGenerateEstimateRoughNotes(payload) {
+    if (!sessionToken || !appState.permissions.estimates.canManage) {
+      return {
+        ok: false,
+        configured: false,
+        message: "Estimate AI rough notes are only available to office roles that can manage estimates.",
+      };
+    }
+    setBusy(true);
+    try {
+      const result = await assistEstimateRoughNotesRequest(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      else setErrorMessage(error.message);
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateChangeOrderRequest(payload) {
     if (!sessionToken || !(appState.permissions.changeOrders.canRequest || appState.permissions.changeOrders.canManage)) return false;
     setBusy(true);
@@ -33750,6 +34027,7 @@ export default function App() {
                   onConvertEstimate={handleConvertEstimate}
                   onPrintEstimate={handlePrintEstimate}
                   onSendEstimate={handleSendEstimate}
+                  onGenerateEstimateRoughNotes={handleGenerateEstimateRoughNotes}
                   onCreateEstimateFromLead={handleCreateEstimateFromLead}
                   estimateFocusId={estimateFocusId}
                   relatedRecords={customerRelated}
