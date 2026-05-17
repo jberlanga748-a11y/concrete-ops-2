@@ -8,6 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 import { CONTRACTOR_OPS_WEBSITE_LEAD_PACKAGE_TYPE } from "../shared/websiteLeadIntake.js";
 import { createUserRecord } from "./store.js";
 
@@ -112,6 +113,18 @@ function insertOtherCompany(sqliteFile) {
       INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+  } finally {
+    database.close();
+  }
+}
+
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
   } finally {
     database.close();
   }
@@ -316,6 +329,7 @@ test("website lead intake creates only a lead in the target company and strips s
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const beforeCounts = {
       customers: tableCount(fixture.sqliteFile, "customers"),
       estimates: tableCount(fixture.sqliteFile, "estimates"),
@@ -377,6 +391,7 @@ test("website lead intake sourceSubmissionId duplicates do not create a second s
   const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: token });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const firstImport = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
       method: "POST",
       headers: integrationHeaders(token),
@@ -413,6 +428,8 @@ test("website lead intake duplicate checks are scoped to the target company", as
 
   try {
     insertOtherCompany(fixture.sqliteFile);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM, "COMPANY-LYF");
 
     const defaultCompanyLead = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
       method: "POST",
@@ -501,6 +518,7 @@ test("website leads stay hidden from field roles and outside-company users", asy
 
   try {
     insertOtherCompany(fixture.sqliteFile);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM, "COMPANY-LYF");
     const imported = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
       method: "POST",
       headers: integrationHeaders(lyfToken),

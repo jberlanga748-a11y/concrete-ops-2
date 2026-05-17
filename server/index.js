@@ -9057,6 +9057,7 @@ app.post("/api/integrations/website-leads", asyncRoute(async (req, res) => {
   requireExternalIntegrationToken(req, currentState, targetCompany.id);
 
   const integrationActor = websiteLeadIntakeActor(targetCompany.id);
+  assertCompanyFeature(currentState, integrationActor, FEATURE_KEYS.INTEGRATIONS, "Website Lead Intake");
   const scopedLeads = companyScopedRecordsForUser(currentState, integrationActor, currentState.leads || []);
   const duplicateResult = findWebsiteLeadDuplicate(scopedLeads, result.context);
 

@@ -9,6 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
 import { PACKAGE_IDS } from "../shared/packages.js";
+import { CONTRACTOR_OPS_WEBSITE_LEAD_PACKAGE_TYPE } from "../shared/websiteLeadIntake.js";
 import { createUserRecord } from "./store.js";
 
 function sleep(ms) {
@@ -151,6 +152,53 @@ function roughNotesBody() {
   });
 }
 
+function websiteLeadPackage() {
+  return {
+    packageType: CONTRACTOR_OPS_WEBSITE_LEAD_PACKAGE_TYPE,
+    sourceApp: "Website Form",
+    sourceSubmissionId: `entitlement-website-${Date.now()}`,
+    targetCompanyId: DEFAULT_COMPANY_ID,
+    website: {
+      siteName: "Apex HQ Demo Website",
+      pageUrl: "https://example.test/request-estimate",
+      formName: "Request Estimate",
+      medium: "website",
+      source: "Website",
+    },
+    lead: {
+      serviceType: "Concrete",
+      projectType: "Warehouse slab",
+      customerName: "Website Entitlement Customer",
+      contactName: "Website Entitlement Customer",
+      contactEmail: "website-entitlement@example.test",
+      contactPhone: "541-555-0188",
+      city: "Salem",
+      state: "OR",
+      description: "Requesting a slab estimate from the website.",
+      consentToContact: true,
+    },
+    honeypot: "",
+  };
+}
+
+function leadCount(sqliteFile) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare("SELECT COUNT(*) AS count FROM leads").get().count;
+  } finally {
+    database.close();
+  }
+}
+
+function leadCompanyId(sqliteFile, id) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare("SELECT company_id AS companyId FROM leads WHERE id = ?").get(id)?.companyId || "";
+  } finally {
+    database.close();
+  }
+}
+
 test("Basic package exposes core office permissions but blocks premium and elite surfaces", async () => {
   const fixture = await startServer();
 
@@ -202,6 +250,30 @@ test("Basic package exposes core office permissions but blocks premium and elite
   }
 });
 
+test("Basic package blocks website lead intake integration writes", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.BASIC);
+    const beforeCount = leadCount(fixture.sqliteFile);
+
+    const deniedWebsiteLead = await requestJson(fixture.baseUrl, "/api/integrations/website-leads", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer entitlement-test-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(websiteLeadPackage()),
+    });
+
+    assert.equal(deniedWebsiteLead.response.status, 403);
+    assert.match(deniedWebsiteLead.payload.error, /Website Lead Intake/);
+    assert.equal(leadCount(fixture.sqliteFile), beforeCount);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Premium package enables premium tools while keeping Elite Lead Finder locked", async () => {
   const fixture = await startServer();
 
@@ -242,6 +314,28 @@ test("Premium package enables premium tools while keeping Elite Lead Finder lock
     const deniedScout = await requestJson(fixture.baseUrl, "/api/opportunity-scout", { headers });
     assert.equal(deniedScout.response.status, 403);
     assert.match(deniedScout.payload.error, /Opportunity Scout/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Premium package allows website lead intake integration writes", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const importedWebsiteLead = await assertOk(fixture.baseUrl, "/api/integrations/website-leads", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer entitlement-test-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(websiteLeadPackage()),
+    });
+
+    assert.equal(importedWebsiteLead.ok, true);
+    assert.equal(importedWebsiteLead.duplicate, false);
+    assert.equal(leadCompanyId(fixture.sqliteFile, importedWebsiteLead.leadId), DEFAULT_COMPANY_ID);
   } finally {
     await fixture.stop();
   }
