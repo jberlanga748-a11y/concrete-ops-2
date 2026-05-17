@@ -29,6 +29,19 @@ function parseInteger(value, fieldName, fallback) {
   return normalized;
 }
 
+function parseNonNegativeInteger(value, fieldName, fallback) {
+  if (value == null || value === "") {
+    return fallback;
+  }
+
+  const normalized = Number.parseInt(String(value), 10);
+  if (!Number.isInteger(normalized) || normalized < 0) {
+    throw new Error(`${fieldName} must be a non-negative integer.`);
+  }
+
+  return normalized;
+}
+
 function parseNodeEnv(value) {
   return parseChoice(value, "NODE_ENV", ALLOWED_NODE_ENVS, "development");
 }
@@ -131,6 +144,11 @@ export function createServerConfig(env = process.env) {
   const port = parseInteger(env.PORT, "PORT", DEFAULT_PORT);
   const smokeTestPort = parseInteger(env.SMOKE_TEST_PORT, "SMOKE_TEST_PORT", DEFAULT_SMOKE_TEST_PORT);
   const sessionTtlHours = parseInteger(env.SESSION_TTL_HOURS, "SESSION_TTL_HOURS", DEFAULT_SESSION_TTL_HOURS);
+  const trustProxyHops = parseNonNegativeInteger(
+    env.TRUST_PROXY_HOPS,
+    "TRUST_PROXY_HOPS",
+    nodeEnv === "production" ? 1 : 0,
+  );
   const logLevel = parseChoice(env.LOG_LEVEL, "LOG_LEVEL", ALLOWED_LOG_LEVELS, "info");
   const demoMode = parseBoolean(env.DEMO_MODE, "DEMO_MODE", false);
   const seedWorkspaceData = nodeEnv !== "production";
@@ -170,6 +188,7 @@ export function createServerConfig(env = process.env) {
     bootstrapAdmin,
     sessionTtlHours,
     sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,
+    trustProxyHops,
   });
 }
 

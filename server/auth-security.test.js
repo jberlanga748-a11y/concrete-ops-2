@@ -31,7 +31,7 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Auth security test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer() {
+async function startServer(extraEnv = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-auth-security-"));
   const port = createPort();
   const baseUrl = `http://localhost:${port}`;
@@ -44,6 +44,7 @@ async function startServer() {
       DATA_DIR: tempDataDir,
       LOG_LEVEL: "warn",
       NODE_ENV: "test",
+      ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -89,10 +90,10 @@ function authHeaders(token) {
   };
 }
 
-async function login(baseUrl, body = {}) {
+async function login(baseUrl, body = {}, extraHeaders = {}) {
   return requestJson(baseUrl, "/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify({
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -100,6 +101,35 @@ async function login(baseUrl, body = {}) {
     }),
   });
 }
+
+test("trusted proxy mode scopes login rate limits to forwarded client IP", async () => {
+  const fixture = await startServer({ TRUST_PROXY_HOPS: "1" });
+
+  try {
+    const blockedIpHeaders = { "X-Forwarded-For": "203.0.113.10" };
+    const otherIpHeaders = { "X-Forwarded-For": "203.0.113.11" };
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const { response, payload } = await login(fixture.baseUrl, {
+        password: `forwarded-wrong-${attempt}`,
+      }, blockedIpHeaders);
+      assert.equal(response.status, 401);
+      assert.match(payload.error, /invalid email or password/i);
+    }
+
+    const limited = await login(fixture.baseUrl, {
+      password: "forwarded-wrong-final",
+    }, blockedIpHeaders);
+    assert.equal(limited.response.status, 429);
+    assert.match(limited.payload.error, /too many login attempts/i);
+
+    const otherIpLogin = await login(fixture.baseUrl, {}, otherIpHeaders);
+    assert.equal(otherIpLogin.response.status, 200);
+    assert.ok(otherIpLogin.payload.token);
+  } finally {
+    await fixture.stop();
+  }
+});
 
 function insertUser(sqliteFile, user) {
   const database = new DatabaseSync(sqliteFile);

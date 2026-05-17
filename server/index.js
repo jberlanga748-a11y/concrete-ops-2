@@ -271,6 +271,8 @@ const authTokenRateLimit = new Map();
 
 const app = express();
 
+app.set("trust proxy", serverConfig.trustProxyHops > 0 ? serverConfig.trustProxyHops : false);
+
 function corsOrigin(origin, callback) {
   if (!origin) {
     callback(null, true);
