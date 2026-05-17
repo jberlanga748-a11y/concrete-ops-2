@@ -232,6 +232,19 @@ test("owner and admin can create role-based users and inactive users cannot log 
     assert.ok(foremanActivation.token);
     assert.equal(foremanActivation.user.email, "freya@lastyard.test");
 
+    const afterActivationDatabase = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const activatedRow = afterActivationDatabase.prepare(`
+        SELECT invite_token_hash AS inviteTokenHash, invite_expires_at AS inviteExpiresAt
+        FROM users
+        WHERE email = ?
+      `).get("freya@lastyard.test");
+      assert.equal(activatedRow.inviteTokenHash || "", "");
+      assert.equal(activatedRow.inviteExpiresAt || "", "");
+    } finally {
+      afterActivationDatabase.close();
+    }
+
     const reusedInvite = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

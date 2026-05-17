@@ -5850,6 +5850,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
     activatedUserId = targetUser.id;
     targetUser.passwordHash = hashPassword(password);
     targetUser.inviteTokenHash = "";
+    targetUser.inviteExpiresAt = "";
     targetUser.inviteAcceptedAt = activatedAt;
     targetUser.mustSetPassword = false;
     targetUser.updatedAt = activatedAt;
@@ -5862,7 +5863,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
       summary: "Invite accepted",
       detail: `${targetUser.name} activated their login.`,
       actor: targetUser,
-      changedFields: ["password", "inviteAcceptedAt", "mustSetPassword"],
+      changedFields: ["password", "inviteAcceptedAt", "inviteExpiresAt", "mustSetPassword"],
     });
     return draft;
   });
@@ -5952,9 +5953,11 @@ app.post("/api/auth/password-reset/complete", asyncRoute(async (req, res) => {
     resetUserId = targetUser.id;
     targetUser.passwordHash = hashPassword(password);
     targetUser.resetTokenHash = "";
+    targetUser.resetExpiresAt = "";
     targetUser.resetUsedAt = completedAt;
     targetUser.mustSetPassword = false;
     targetUser.inviteTokenHash = "";
+    targetUser.inviteExpiresAt = "";
     targetUser.inviteAcceptedAt = targetUser.inviteAcceptedAt || completedAt;
     targetUser.updatedAt = completedAt;
     draft.sessions = (draft.sessions || []).filter((session) => session.userId !== targetUser.id);
@@ -5967,7 +5970,7 @@ app.post("/api/auth/password-reset/complete", asyncRoute(async (req, res) => {
       summary: "Password reset completed",
       detail: `${targetUser.name} reset their password.`,
       actor: targetUser,
-      changedFields: ["password", "resetUsedAt", "sessions"],
+      changedFields: ["password", "resetUsedAt", "resetExpiresAt", "invite", "sessions"],
     });
     return draft;
   });

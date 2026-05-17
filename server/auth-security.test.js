@@ -278,6 +278,19 @@ test("password reset request is generic and reset completion is single-use", asy
     assert.ok(completed.token);
     assert.equal(completed.user.email, "auth-reset@apexhq.test");
 
+    const afterResetDatabase = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const resetRow = afterResetDatabase.prepare(`
+        SELECT reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt
+        FROM users
+        WHERE email = ?
+      `).get("auth-reset@apexhq.test");
+      assert.equal(resetRow.resetTokenHash || "", "");
+      assert.equal(resetRow.resetExpiresAt || "", "");
+    } finally {
+      afterResetDatabase.close();
+    }
+
     const revokedBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(existingSession.payload.token),
     });
