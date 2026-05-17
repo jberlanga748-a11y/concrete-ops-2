@@ -9,10 +9,10 @@ This is the short agent handoff board. The full phase source of truth is `docs/A
 - Current repo: `jberlanga748-a11y/concrete-ops-2`
 - Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
 - Branch: `main`
-- Latest shipped app commit: `d5f064b36ab388f3d984571f0b7020f1b26d4ea0`
-- Latest shipped message: `Polish Apex HQ package locked states`
-- Latest Fly release: `v482`
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTYKYK9KRYEW6ZK49A7SXYC`
+- Latest shipped app commit: `cfc73232403fdfb4f1f5685a295417e826ed20a3`
+- Latest shipped message: `Add Apex HQ advanced reporting prep`
+- Latest Fly release: `v483`
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTZMGGMWBRY6Q24H9219EHF`
 - Latest health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned ready with database ok.
 
 ## Current Product State
@@ -33,6 +33,7 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - Basic/Premium/Elite package entitlement foundation.
 - Package Upgrade / Locked State Polish.
 - Advanced Reporting Prep.
+- Enterprise Trust Prep.
 - Billing / Plans Readiness Prep.
 - Support/help page and package gate.
 - Customer Success / Guided Setup Phase 2.
@@ -59,7 +60,7 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - `npm.cmd run verify:roles`: passed 8/8.
 - Public SaaS Signup UX release checks: `npm.cmd run verify:signup`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser desktop/mobile signup QA, and `git diff --check` passed; release `v481` health-checked ready.
 - Package Upgrade / Locked State Polish checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner desktop/mobile package lock QA, field role safety check, and `git diff --check` passed; release `v482` health-checked ready.
-- Advanced Reporting Prep checks: `npm.cmd run verify:packages`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, browser owner desktop/mobile reporting prep QA, field role safety check, and `git diff --check` passed.
+- Advanced Reporting Prep checks: `npm.cmd run verify:packages`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, browser owner desktop/mobile reporting prep QA, field role safety check, and `git diff --check` passed; release `v483` health-checked ready.
 - Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v480` health-checked ready.
 - Latest Command Center release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
@@ -69,14 +70,14 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 
 ## Next Recommended Phase
 
-Enterprise Trust Prep.
+Release Enterprise Trust Prep, then run Pilot Browser QA Checkpoint.
 
 Goal:
 
-- prepare audit/export/admin trust surfaces without overbuilding compliance
+- release the owner/admin trust readiness surface now built in Settings
+- then run focused live-style pilot QA before broader demos
 - keep security, role protection, and company isolation as included foundations
-- make owner/admin trust evidence easier to inspect before broader public SaaS
-- avoid SOC 2 paperwork or enterprise sales pages until core trust surfaces are clearer
+- avoid SOC 2 paperwork or enterprise sales pages until core trust surfaces are proven
 
 Do not include:
 
@@ -90,7 +91,7 @@ Do not include:
 - billing or customer portal work
 - field access to office/admin/pricing/trust admin controls
 
-## Next Phase After That
+## Next Phase After Release
 
 Pilot Browser QA Checkpoint.
 

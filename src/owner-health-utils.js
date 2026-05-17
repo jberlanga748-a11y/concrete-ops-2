@@ -179,3 +179,94 @@ export function deriveAppHealthAuditState(source = {}, { today = new Date() } = 
     },
   };
 }
+
+export function deriveEnterpriseTrustReadinessState(source = {}, { today = new Date() } = {}) {
+  const auditState = deriveAppHealthAuditState(source, { today });
+  const canExportData = Boolean(source.canExportData);
+  const canViewAppHealth = Boolean(source.canViewAppHealth);
+  const canViewSettings = Boolean(source.canViewSettings);
+  const canViewSupport = Boolean(source.canViewSupport);
+  const releaseSafetyReady = source.releaseSafetyReady !== false;
+  const packageLabel = text(source.packageLabel) || "Current package";
+  const exportEvents = auditState.auditEvents.filter((event) => event.action.toLowerCase() === "data_exported");
+  const checks = [
+    {
+      id: "company-scope",
+      label: "Company scope",
+      status: canViewSettings ? "ready" : "restricted",
+      detail: canViewSettings
+        ? "Owner/admin workspace views are scoped to the current company context."
+        : "Current role does not expose company administration controls.",
+    },
+    {
+      id: "audit-activity",
+      label: "Audit activity",
+      status: auditState.stats.auditEvents > 0 ? "ready" : "attention",
+      detail: auditState.stats.auditEvents > 0
+        ? `${auditState.stats.auditEvents} workspace audit events are visible for owner/admin review.`
+        : "Audit activity will become stronger after users create, update, export, or review records.",
+    },
+    {
+      id: "owner-export",
+      label: "Owner export",
+      status: canExportData ? "ready" : "restricted",
+      detail: canExportData
+        ? "Owner-only workspace JSON export is available and audit logged."
+        : "Workspace export is restricted to owner access.",
+    },
+    {
+      id: "owner-health",
+      label: "Owner health",
+      status: canViewAppHealth ? "ready" : "restricted",
+      detail: canViewAppHealth
+        ? "Owner Health can check app, database, storage, backup, and configuration status."
+        : "Owner Health requires the App Health package feature plus settings access.",
+    },
+    {
+      id: "support-handoff",
+      label: "Support handoff",
+      status: canViewSupport ? "ready" : "attention",
+      detail: canViewSupport
+        ? "Copy-only support diagnostics are available without sending data automatically."
+        : "Support handoff is not available to the current role/package.",
+    },
+    {
+      id: "release-safety",
+      label: "Release safety",
+      status: releaseSafetyReady ? "ready" : "attention",
+      detail: releaseSafetyReady
+        ? "Release checklist and rollback guidance are visible for controlled deployment review."
+        : "Release safety guidance needs review before broader production rollout.",
+    },
+  ];
+  const readyChecks = checks.filter((check) => check.status === "ready");
+  const restrictedChecks = checks.filter((check) => check.status === "restricted");
+  const attentionChecks = checks.filter((check) => check.status === "attention");
+  const overallStatus = attentionChecks.length > 0
+    ? "review"
+    : restrictedChecks.length > 0
+      ? "limited"
+      : "ready";
+
+  return {
+    generatedForDate: auditState.generatedForDate,
+    packageLabel,
+    overallStatus,
+    checks,
+    readyChecks,
+    restrictedChecks,
+    attentionChecks,
+    stats: {
+      totalChecks: checks.length,
+      readyChecks: readyChecks.length,
+      restrictedChecks: restrictedChecks.length,
+      attentionChecks: attentionChecks.length,
+      auditEvents: auditState.stats.auditEvents,
+      sensitiveAuditEvents: auditState.stats.sensitiveAuditEvents,
+      exportEvents: exportEvents.length,
+      recentActivity: auditState.recentActivity.length,
+    },
+    recentAuditEvents: auditState.recentAuditEvents,
+    sensitiveAuditEvents: auditState.sensitiveAuditEvents,
+  };
+}

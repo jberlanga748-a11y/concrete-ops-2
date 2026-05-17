@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `d5f064b36ab388f3d984571f0b7020f1b26d4ea0`
-- Message: `Polish Apex HQ package locked states`
-- Fly release: `v482`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTYKYK9KRYEW6ZK49A7SXYC`
+- Commit: `cfc73232403fdfb4f1f5685a295417e826ed20a3`
+- Message: `Add Apex HQ advanced reporting prep`
+- Fly release: `v483`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTZMGGMWBRY6Q24H9219EHF`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -49,6 +49,7 @@ Recent shipped phase stack:
 | `a925b41` | `v480` | Customer Success / Guided Setup Phase 2 and Billing / Plans Readiness Prep |
 | `d6153ae` | `v481` | Public SaaS Signup UX Phase 2 |
 | `d5f064b` | `v482` | Package Upgrade / Locked State Polish |
+| `cfc7323` | `v483` | Advanced Reporting Prep |
 
 ## Done / Do Not Rebuild
 
@@ -67,7 +68,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Role permissions | Built and tested | Field users remain blocked from office/admin/pricing. Never loosen. |
 | Package entitlement foundation | Done and released | Basic/Premium/Elite feature map, backend checks, frontend nav gates started. |
 | Package Upgrade / Locked State Polish | Done and released | Package-locked routes now explain manual upgrades and route owner/admin users to Plan Readiness without exposing field roles. |
-| Advanced Reporting Prep | Built / pending release | Premium owner/admin report prep panel and pure summary helper exist. Field users and Basic package workspaces do not see the advanced reporting panel. |
+| Advanced Reporting Prep | Done and released | Premium owner/admin report prep panel and pure summary helper exist. Field users and Basic package workspaces do not see the advanced reporting panel. |
 | Billing / Plans Readiness Prep | Done and released | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
@@ -88,6 +89,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Pre-pour/post-pour | Tightened | Preserve workflow. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
+| Enterprise Trust Prep | Built / pending release | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
 | Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
 | Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
@@ -104,7 +106,7 @@ Recent focused verification:
 - `npm.cmd run verify:roles`: passed 8/8.
 - Public SaaS Signup UX release checks: `npm.cmd run verify:signup`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser desktop/mobile signup QA, and `git diff --check` passed; release `v481` health-checked ready.
 - Package Upgrade / Locked State Polish checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner desktop/mobile package lock QA, field role safety check, and `git diff --check` passed; release `v482` health-checked ready.
-- Advanced Reporting Prep checks: `npm.cmd run verify:packages`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, browser owner desktop/mobile reporting prep QA, field role safety check, and `git diff --check` passed.
+- Advanced Reporting Prep checks: `npm.cmd run verify:packages`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, browser owner desktop/mobile reporting prep QA, field role safety check, and `git diff --check` passed; release `v483` health-checked ready.
 - Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v480` health-checked ready.
 - `npm.cmd run build`: passed before latest release.
 - Latest Command Center checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner/admin mobile/desktop QA, and field role safety QA passed.
@@ -137,6 +139,7 @@ Do not start these phases again as if they are missing:
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
 - Advanced Reporting Prep.
+- Enterprise Trust Prep.
 
 If one of those areas comes up, first ask:
 
@@ -154,6 +157,7 @@ Why this is next:
 - Apex HQ has signup, package gates, support, app health, audit activity, and advanced reporting prep foundations.
 - The next owner/admin risk is trust evidence before broader public SaaS selling.
 - Enterprise trust should prepare audit/export/admin visibility without pretending SOC 2 or SSO is fully built.
+- First slice is built and pending release: Settings now surfaces Enterprise Trust Readiness from existing audit/export/app health/support/release safety signals.
 
 Scope:
 
@@ -185,7 +189,7 @@ Suggested verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
+| 1 | Release Enterprise Trust Prep | Commit, push, deploy, and health-check the built trust readiness slice. | Medium | No. |
 | 2 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
 | 3 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
 | 4 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
@@ -262,45 +266,47 @@ Use this when ready to build the next phase:
 ```text
 You are entering:
 
-APEX HQ - ADVANCED REPORTING PREP
+APEX HQ - ENTERPRISE TRUST PREP
 
 Use skills:
 - apex-build-router
 - apex-product-system
+- apex-saas-hardening
 - apex-qa-engineer
 
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT redesign the app.
-Do NOT rebuild auth, signup, settings, support, estimates, jobs, reports, uploads, packages, or field workflows.
+Do NOT rebuild auth, signup, settings, support, exports, app health, audit activity, packages, or field workflows.
 Do NOT refactor architecture.
-Do NOT start billing, Stripe, customer portal, offline mode, payroll, job costing automation, or AI autopilot.
+Do NOT start billing, Stripe, customer portal, offline mode, payroll, SOC 2 paperwork, SSO/MFA/SCIM, or AI autopilot.
 Do NOT commit, push, or deploy.
 
 Goal:
-Define and tighten owner/admin reporting surfaces before heavier job costing, payroll, billing, or analytics systems are built.
+Tighten owner/admin trust surfaces before broader public SaaS selling, without overbuilding compliance.
 
 Focus only on:
-- existing reports/operations data
-- owner/admin reporting summary clarity
-- job/report/upload/activity readiness indicators
-- role-safe reporting visibility
-- small reporting utilities/tests if needed
-- role-safe visibility
+- existing audit activity
+- owner health/status visibility
+- owner data export visibility
+- support handoff visibility
+- release safety / rollback guidance
+- role-safe trust readiness visibility
+- small trust readiness utilities/tests if needed
 
 Preserve:
 - existing customers/leads/estimates/jobs workflows
 - existing permissions and package gates
 - existing field restrictions
-- existing report/upload/job workflows
+- existing export/owner health/audit behavior
 - existing server-side role checks
 
 Verify:
 - build
-- verify:jobs
-- verify:daily-reports
-- verify:uploads
+- verify:server
+- verify:exports
+- verify:users
 - verify:roles
 - git diff --check
 

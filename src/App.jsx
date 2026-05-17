@@ -153,7 +153,7 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
-import { buildOwnerSupportPacket, deriveAppHealthAuditState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
+import { buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
 import { canViewJob } from "../shared/permissions.js";
@@ -13742,6 +13742,115 @@ function AppHealthAuditActivityPanel({ auditEvents = [], activity = [], canView 
   );
 }
 
+function EnterpriseTrustReadinessPanel({
+  auditEvents = [],
+  activity = [],
+  canView = false,
+  canViewSettings = false,
+  canExportData = false,
+  canViewAppHealth = false,
+  canViewSupport = false,
+  packageReadiness = null,
+  onJump = null,
+  onOpenSupport = null,
+}) {
+  const trustReadiness = useMemo(() => deriveEnterpriseTrustReadinessState({
+    auditEvents,
+    activity,
+    canViewSettings,
+    canExportData,
+    canViewAppHealth,
+    canViewSupport,
+    packageLabel: packageReadiness?.currentPackage?.label || "Current package",
+  }), [
+    activity,
+    auditEvents,
+    canExportData,
+    canViewAppHealth,
+    canViewSettings,
+    canViewSupport,
+    packageReadiness?.currentPackage?.label,
+  ]);
+
+  if (!canView) return null;
+
+  const statusTone = trustReadiness.overallStatus === "ready"
+    ? "green"
+    : trustReadiness.overallStatus === "limited"
+      ? "blue"
+      : "amber";
+  const statusLabel = trustReadiness.overallStatus === "ready"
+    ? "Trust surface ready"
+    : trustReadiness.overallStatus === "limited"
+      ? "Limited by role/package"
+      : "Needs review";
+  const statCards = [
+    { label: "Ready checks", value: `${trustReadiness.stats.readyChecks}/${trustReadiness.stats.totalChecks}`, helper: "Owner trust controls", tone: statusTone },
+    { label: "Audit events", value: trustReadiness.stats.auditEvents, helper: "Workspace history", tone: trustReadiness.stats.auditEvents ? "blue" : "amber" },
+    { label: "Sensitive events", value: trustReadiness.stats.sensitiveAuditEvents, helper: "Users, roles, exports", tone: trustReadiness.stats.sensitiveAuditEvents ? "amber" : "green" },
+    { label: "Exports logged", value: trustReadiness.stats.exportEvents, helper: "Owner data exports", tone: trustReadiness.stats.exportEvents ? "green" : "slate" },
+  ];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="Enterprise Trust Readiness"
+        description="Owner/admin view of the trust controls Apex HQ needs before broader SaaS rollout. This is evidence and guidance only - no compliance claims, automation, or billing changes."
+        action={<Badge tone={statusTone}>{statusLabel}</Badge>}
+      />
+      <div className="co-trust-readiness-hero">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="slate">{trustReadiness.packageLabel}</Badge>
+            <Badge tone="green">Security included</Badge>
+            <Badge tone="slate">Manual review</Badge>
+          </div>
+          <p>Trust work is strongest when owners can inspect health, exports, audit activity, support context, and release safety from one place.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {canExportData ? <Button type="button" size="sm" variant="secondary" onClick={() => onJump?.("settings-workspace-identity")}><Icon name="document" />Export area</Button> : null}
+          {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={() => onJump?.("settings-owner-health")}><Icon name="database" />Owner Health</Button> : null}
+          {canViewSupport ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenSupport?.()}><Icon name="help" />Support</Button> : null}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((stat) => (
+          <div key={stat.label} className="co-trust-stat-card">
+            <Badge tone={stat.tone}>{stat.label}</Badge>
+            <strong>{stat.value}</strong>
+            <span>{stat.helper}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {trustReadiness.checks.map((check) => (
+          <div key={check.id} className={`co-trust-check-card is-${check.status}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p>{check.label}</p>
+              <Badge tone={check.status === "ready" ? "green" : check.status === "restricted" ? "slate" : "amber"}>
+                {check.status === "ready" ? "Ready" : check.status === "restricted" ? "Restricted" : "Review"}
+              </Badge>
+            </div>
+            <span>{check.detail}</span>
+          </div>
+        ))}
+      </div>
+
+      {trustReadiness.attentionChecks.length ? (
+        <div className="mt-4">
+          <StateCard
+            title="Trust items still need evidence"
+            description={`${trustReadiness.attentionChecks.map((check) => check.label).join(", ")} should be reviewed before positioning Apex HQ as broad public SaaS or enterprise-ready.`}
+            tone="amber"
+          />
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 function LeadIntakeCard({ draft, setDraft, onCreateLead, disabled, canManage, customers, users }) {
   if (!canManage) {
     return (
@@ -24399,6 +24508,7 @@ function SettingsPagePolished({
   const canViewSettings = Boolean(safePermissions.settings?.canView);
   const canExportData = Boolean(safePermissions.settings?.canExport);
   const canViewAppHealth = Boolean(safePermissions.appHealth?.canView);
+  const canViewSupport = Boolean(safePermissions.support?.canView);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
   const demoResetAllowed = demoMode && DEMO_LOGIN_PRESETS.some((preset) => preset.email === String(user?.email || "").trim().toLowerCase());
@@ -24945,6 +25055,18 @@ function SettingsPagePolished({
               <span>Owner tools</span>
             </summary>
             <div className="co-settings-tools-panel grid gap-3">
+              <EnterpriseTrustReadinessPanel
+                auditEvents={auditEvents}
+                activity={activity}
+                canView={canViewAppHealth}
+                canViewSettings={canViewSettings}
+                canExportData={canExportData}
+                canViewAppHealth={canViewAppHealth}
+                canViewSupport={canViewSupport}
+                packageReadiness={packageReadiness}
+                onJump={jumpToSettingsSection}
+                onOpenSupport={() => setActive?.("support")}
+              />
               <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
               <AppHealthAuditActivityPanel auditEvents={auditEvents} activity={activity} canView={canViewAppHealth} />
               <ReleaseSafetyRollbackPanel canView={canViewAppHealth} />

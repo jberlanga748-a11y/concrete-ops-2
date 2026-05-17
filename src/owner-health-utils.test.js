@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildOwnerSupportPacket,
   deriveAppHealthAuditState,
+  deriveEnterpriseTrustReadinessState,
   deriveOverallOwnerHealthStatus,
   formatBytes,
   healthStatusTone,
@@ -52,6 +53,62 @@ test("deriveAppHealthAuditState summarizes audit and activity trust signals", ()
   assert.equal(state.stats.sensitiveAuditEvents, 1);
   assert.equal(state.recentAuditEvents[0].id, "A-1");
   assert.deepEqual(state.recentAuditEvents[0].changedFields, ["role"]);
+});
+
+test("deriveEnterpriseTrustReadinessState summarizes owner trust controls without overclaiming", () => {
+  const state = deriveEnterpriseTrustReadinessState({
+    canViewSettings: true,
+    canExportData: true,
+    canViewAppHealth: true,
+    canViewSupport: true,
+    packageLabel: "Premium",
+    auditEvents: [
+      {
+        id: "A-EXPORT",
+        entityType: "company",
+        action: "data_exported",
+        summary: "Workspace data exported",
+        actorName: "Alex Owner",
+        createdAt: "2026-05-17T10:00:00.000Z",
+      },
+      {
+        id: "A-ROLE",
+        entityType: "user",
+        action: "role_changed",
+        summary: "Role changed",
+        actorName: "Alex Owner",
+        createdAt: "2026-05-17T09:00:00.000Z",
+      },
+    ],
+    activity: [
+      { id: "ACT-1", title: "Daily report submitted", detail: "Foreman submitted report.", createdAt: "2026-05-17T08:00:00.000Z" },
+    ],
+  }, { today: new Date("2026-05-17T12:00:00.000Z") });
+
+  assert.equal(state.packageLabel, "Premium");
+  assert.equal(state.overallStatus, "ready");
+  assert.equal(state.stats.totalChecks, 6);
+  assert.equal(state.stats.readyChecks, 6);
+  assert.equal(state.stats.exportEvents, 1);
+  assert.equal(state.stats.sensitiveAuditEvents, 2);
+});
+
+test("deriveEnterpriseTrustReadinessState fails soft for limited roles or empty audit history", () => {
+  const state = deriveEnterpriseTrustReadinessState({
+    canViewSettings: false,
+    canExportData: false,
+    canViewAppHealth: false,
+    canViewSupport: false,
+    auditEvents: [],
+    activity: [],
+  }, { today: new Date("2026-05-17T12:00:00.000Z") });
+
+  assert.equal(state.overallStatus, "review");
+  assert.equal(state.stats.readyChecks, 1);
+  assert.equal(state.stats.restrictedChecks, 3);
+  assert.equal(state.stats.attentionChecks, 2);
+  assert.equal(state.attentionChecks.some((check) => check.id === "audit-activity"), true);
+  assert.equal(state.restrictedChecks.some((check) => check.id === "owner-export"), true);
 });
 
 test("formatBytes handles useful sizes and missing values", () => {

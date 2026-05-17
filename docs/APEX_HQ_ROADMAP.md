@@ -98,10 +98,11 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Keep public signup UX stable; do not rebuild signup/auth unless a proven security bug is found.
 - Keep package locked states stable; do not add billing or expose package CTAs to field roles.
 - Keep Advanced Reporting Prep stable; do not turn it into job costing, payroll, billing, or broad analytics without a planned reporting phase.
+- Enterprise Trust Prep first slice is built and pending release; do not expand it into SOC 2, SSO, MFA, SCIM, or compliance claims yet.
 
 ### Next
 
-- Enterprise trust layer.
+- Release Enterprise Trust Prep.
 - Pilot browser QA checkpoint.
 
 ### Later
@@ -130,7 +131,7 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Enterprise trust layer.
+1. Release Enterprise Trust Prep.
 2. Pilot browser QA checkpoint.
 3. Mobile field trust polish.
 4. Assistant Command Expansion Phase 2.
