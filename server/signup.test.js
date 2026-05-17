@@ -108,6 +108,14 @@ async function signup(baseUrl, body = {}) {
   });
 }
 
+async function activateInvite(baseUrl, body = {}) {
+  return assertOk(baseUrl, "/api/auth/activate-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 function readSignupRows(sqliteFile, { companyId, email }) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -354,6 +362,57 @@ test("public signup owners cannot switch into demo or default workspaces", async
     });
     assert.equal(bootstrapAfterResetDenied.currentCompanyId, payload.currentCompanyId);
     assert.equal(bootstrapAfterResetDenied.currentCompany.name, "Real Contractor Workspace");
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("invited users activate into the signup workspace, not the default or demo workspace", async () => {
+  const fixture = await startServer({ demoMode: true });
+
+  try {
+    const { response, payload } = await signup(fixture.baseUrl, {
+      companyName: "Invite Scoped Builders",
+      ownerName: "Invite Scoped Owner",
+      email: "invite-owner@abcbuilder.test",
+    });
+    assert.equal(response.status, 201);
+    assert.notEqual(payload.currentCompanyId, DEFAULT_COMPANY_ID);
+
+    const createdInvite = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(payload.token),
+      body: JSON.stringify({
+        name: "Scoped Foreman",
+        email: "scoped-foreman@abcbuilder.test",
+        role: "Foreman",
+      }),
+    });
+    const invitedUser = createdInvite.users.find((user) => user.email === "scoped-foreman@abcbuilder.test");
+    assert.ok(invitedUser);
+    assert.equal(invitedUser.companyId, payload.currentCompanyId);
+    assert.equal(createdInvite.provisionedUser?.activationToken?.length > 0, true);
+
+    const activated = await activateInvite(fixture.baseUrl, {
+      token: createdInvite.provisionedUser.activationToken,
+      password: "foremanpass123",
+    });
+    assert.ok(activated.token);
+    assert.equal(activated.user.email, "scoped-foreman@abcbuilder.test");
+    assert.equal(activated.user.companyId, payload.currentCompanyId);
+    assert.equal(activated.currentCompanyId, payload.currentCompanyId);
+    assert.equal(activated.currentWorkspaceId, payload.currentCompanyId);
+    assert.equal(activated.companies.length, 1);
+    assert.equal(activated.companies[0].id, payload.currentCompanyId);
+    assert.equal(activated.leads.some((lead) => lead.companyId === DEFAULT_COMPANY_ID), false);
+    assert.deepEqual(activated.users.map((user) => user.email), ["scoped-foreman@abcbuilder.test"]);
+
+    const rows = readSignupRows(fixture.sqliteFile, {
+      companyId: payload.currentCompanyId,
+      email: "scoped-foreman@abcbuilder.test",
+    });
+    assert.equal(rows.user.company_id, payload.currentCompanyId);
+    assert.equal(rows.session.current_company_id, payload.currentCompanyId);
   } finally {
     await fixture.stop();
   }
