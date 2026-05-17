@@ -2012,8 +2012,15 @@ function findToolChecklistItem(state, itemId) {
   return findRequiredRecord(state.toolChecklistItems || [], itemId, "Tool checklist item");
 }
 
+function assertToolChecklistItemBelongsToChecklist(item, checklist) {
+  if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) {
+    throw new ApiError(404, "Tool checklist item not found.");
+  }
+}
+
 function sanitizeToolChecklistItemForUser(item, state, user, checklist, settings) {
   const job = checklist?.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) return null;
   if (!canViewToolChecklistRecord(user, checklist, job, settings)) return null;
   if (item.archivedAt && !canViewAllToolChecklists(user)) return null;
   const addedBy = findUserById(state, item.addedBy);
@@ -2046,7 +2053,7 @@ function sanitizeToolChecklistForUser(checklist, state, user, settings = company
   const submittedBy = findUserById(state, checklist.submittedBy);
   const reviewedBy = findUserById(state, checklist.reviewedBy);
   const items = (state.toolChecklistItems || [])
-    .filter((item) => item.checklistId === checklist.id)
+    .filter((item) => item.checklistId === checklist.id && normalizeCompanyId(item.companyId) === normalizeCompanyId(checklist.companyId))
     .map((item) => sanitizeToolChecklistItemForUser(item, state, user, checklist, settings))
     .filter(Boolean);
 
@@ -7757,9 +7764,7 @@ app.patch("/api/tool-checklists/:id/items/:itemId", requireAuth, asyncRoute(asyn
       throw new ApiError(403, "You do not have permission to update that checklist item.");
     }
     const item = findToolChecklistItem(draft, req.params.itemId);
-    if (item.checklistId !== checklist.id) {
-      throw new ApiError(404, "Tool checklist item not found.");
-    }
+    assertToolChecklistItemBelongsToChecklist(item, checklist);
 
     const changedFields = [];
     if (payload.name != null && canManageJobToolChecklist(req.auth.user, draft.companySettings)) {

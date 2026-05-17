@@ -123,6 +123,24 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function ensureOtherCompany(database) {
+  const now = new Date().toISOString();
+  database.prepare(`
+    INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+}
+
+function moveToolChecklistItemToOtherCompany(sqliteFile, itemId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    ensureOtherCompany(database);
+    database.prepare("UPDATE tool_checklist_items SET company_id = ? WHERE id = ?").run("COMPANY-LYF", itemId);
+  } finally {
+    database.close();
+  }
+}
+
 test("tool checklist toggle and role-scoped checklist workflows work without leaking field data", async () => {
   const fixture = await startServer();
 
@@ -338,6 +356,79 @@ test("tool checklist toggle and role-scoped checklist workflows work without lea
 
     const officeChecklistList = await assertOk(fixture.baseUrl, "/api/tool-checklists", { headers: officeHeaders });
     assert.equal(officeChecklistList.toolChecklists.some((checklist) => checklist.id === createdChecklist.id), true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("tool checklist items fail closed when child company ownership is stale", async () => {
+  const fixture = await startServer();
+
+  try {
+    const foremanUser = createUserRecord({
+      id: "U-TC-STALENESS-FOREMAN",
+      email: "tool-stale-foreman@lastyard.test",
+      password: "apexdemo123",
+      name: "Tool Stale Foreman",
+      role: "Foreman",
+    });
+    insertUsers(fixture.sqliteFile, [foremanUser]);
+
+    const opsLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
+    const officeHeaders = authHeaders(opsLogin.token);
+    await assertOk(fixture.baseUrl, "/api/jobs/J-2201/assignments", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({ userId: foremanUser.id, roleOnJob: "foreman" }),
+    });
+
+    const foremanLogin = await login(fixture.baseUrl, { email: foremanUser.email, password: "apexdemo123" });
+    const foremanHeaders = authHeaders(foremanLogin.token);
+
+    const checklistState = await assertOk(fixture.baseUrl, "/api/tool-checklists", {
+      method: "POST",
+      headers: foremanHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        title: "Stale item checklist",
+      }),
+    });
+    const checklist = checklistState.toolChecklists.find((entry) => entry.title === "Stale item checklist");
+    assert.ok(checklist);
+
+    const itemState = await assertOk(fixture.baseUrl, `/api/tool-checklists/${checklist.id}/items`, {
+      method: "POST",
+      headers: foremanHeaders,
+      body: JSON.stringify({
+        name: "Hidden stale child pump",
+        category: "small_equipment",
+        quantity: 1,
+        status: "needed",
+      }),
+    });
+    const checklistWithItem = itemState.toolChecklists.find((entry) => entry.id === checklist.id);
+    const item = checklistWithItem.items.find((entry) => entry.name === "Hidden stale child pump");
+    assert.ok(item);
+    moveToolChecklistItemToOtherCompany(fixture.sqliteFile, item.id);
+
+    const patchResponse = await requestJson(fixture.baseUrl, `/api/tool-checklists/${checklist.id}/items/${item.id}`, {
+      method: "PATCH",
+      headers: foremanHeaders,
+      body: JSON.stringify({ status: "loaded" }),
+    });
+    assert.equal(patchResponse.response.status, 404);
+
+    const listPayload = await assertOk(fixture.baseUrl, "/api/tool-checklists", { headers: foremanHeaders });
+    const listChecklist = listPayload.toolChecklists.find((entry) => entry.id === checklist.id);
+    assert.ok(listChecklist);
+    assert.equal(listChecklist.items.some((entry) => entry.id === item.id), false);
+    assert.equal(JSON.stringify(listChecklist.items).includes("Hidden stale child pump"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: foremanHeaders });
+    const bootstrapChecklist = bootstrap.toolChecklists.find((entry) => entry.id === checklist.id);
+    assert.ok(bootstrapChecklist);
+    assert.equal(bootstrapChecklist.items.some((entry) => entry.id === item.id), false);
+    assert.equal(JSON.stringify(bootstrapChecklist.items).includes("Hidden stale child pump"), false);
   } finally {
     await fixture.stop();
   }
