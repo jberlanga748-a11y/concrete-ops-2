@@ -824,6 +824,45 @@ test("invite activation fails safely for invalid or expired tokens", async () =>
       }),
     });
     assert.equal(expiredInvite.response.status, 400);
+
+    const inactiveInvite = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Inactive Invite",
+        email: "inactive-invite@lastyard.test",
+        role: "Employee",
+      }),
+    });
+    assert.ok(inactiveInvite.provisionedUser.activationToken);
+
+    const inactiveDatabase = new DatabaseSync(fixture.sqliteFile);
+    try {
+      inactiveDatabase.prepare("UPDATE users SET status = ? WHERE email = ?").run("inactive", "inactive-invite@lastyard.test");
+    } finally {
+      inactiveDatabase.close();
+    }
+
+    const inactiveActivation = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: inactiveInvite.provisionedUser.activationToken,
+        password: "validpass123",
+      }),
+    });
+    assert.equal(inactiveActivation.response.status, 403);
+    assert.equal(inactiveActivation.payload.token, undefined);
+
+    const inactiveLogin = await requestJson(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "inactive-invite@lastyard.test",
+        password: "validpass123",
+      }),
+    });
+    assert.equal(inactiveLogin.response.status, 401);
   } finally {
     await fixture.stop();
   }
