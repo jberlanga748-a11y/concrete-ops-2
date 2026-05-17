@@ -254,6 +254,63 @@ test("public signup is safely gated when disabled", async () => {
   }
 });
 
+test("public signup support preserves first-run bootstrap admin setup", async () => {
+  const fixture = await startServer({ publicSignupEnabled: true, nodeEnv: "production" });
+
+  try {
+    const setupStatus = await assertOk(fixture.baseUrl, "/api/setup/status");
+    assert.equal(setupStatus.needsSetup, true);
+    assert.equal(setupStatus.hasUsers, false);
+    assert.equal(setupStatus.demoMode, false);
+    assert.equal(setupStatus.publicSignupEnabled, true);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/setup/bootstrap-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Production Admin",
+        email: "admin@example.com",
+        password: "pouring123",
+        role: "Administrator",
+      }),
+    });
+    assert.ok(bootstrap.token);
+    assert.equal(bootstrap.user.email, "admin@example.com");
+    assert.equal(bootstrap.user.companyId, DEFAULT_COMPANY_ID);
+    assert.equal(bootstrap.currentCompanyId, DEFAULT_COMPANY_ID);
+    assert.equal(bootstrap.currentWorkspaceId, DEFAULT_COMPANY_ID);
+
+    const bootstrapWorkspace = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(bootstrap.token),
+    });
+    assert.equal(bootstrapWorkspace.user.email, "admin@example.com");
+    assert.equal(bootstrapWorkspace.currentCompanyId, DEFAULT_COMPANY_ID);
+    assert.equal(bootstrapWorkspace.currentCompany.name, "Apex HQ Workspace");
+
+    const duplicateBootstrap = await requestJson(fixture.baseUrl, "/api/setup/bootstrap-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Second Admin",
+        email: "second-admin@example.com",
+        password: "pouring123",
+        role: "Administrator",
+      }),
+    });
+    assert.equal(duplicateBootstrap.response.status, 409);
+
+    const rows = readSignupRows(fixture.sqliteFile, {
+      companyId: DEFAULT_COMPANY_ID,
+      email: "admin@example.com",
+    });
+    assert.equal(rows.company.id, DEFAULT_COMPANY_ID);
+    assert.equal(rows.user.company_id, DEFAULT_COMPANY_ID);
+    assert.equal(rows.session.current_company_id, DEFAULT_COMPANY_ID);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("public signup blocks duplicate emails without creating another company", async () => {
   const fixture = await startServer();
 
