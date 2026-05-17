@@ -83,6 +83,10 @@ export function getBootstrap(token) {
   return request("/api/bootstrap", { token });
 }
 
+export function exportCompanyData(token) {
+  return request("/api/export/company", { token });
+}
+
 export function getOwnerHealth(token) {
   return request("/api/owner-health", { token });
 }

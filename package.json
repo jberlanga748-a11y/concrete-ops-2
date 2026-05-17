@@ -13,6 +13,7 @@
     "verify:server": "node server/smoke-test.js && node --test --test-concurrency=1 server/owner-health.test.js src/owner-health-utils.test.js src/release-safety-utils.test.js src/pwa-config.test.js src/design-tokens.test.js",
     "backup:data": "node server/backup-export.js",
     "verify:backup": "node server/backup-export-test.js",
+    "verify:exports": "node --test --test-concurrency=1 server/data-export.test.js",
     "verify:customers": "node --test --test-concurrency=1 server/customer-api.test.js src/app-routing.test.js src/customer-utils.test.js src/customer-filter-layout.test.js src/contact-history-utils.test.js",
     "verify:jobs": "node --test --test-concurrency=1 server/jobs-workflow.test.js src/job-utils.test.js shared/jobStartup.test.js src/command-center-utils.test.js src/app-routing.test.js",
     "verify:job-draft-imports": "node --test --test-concurrency=1 shared/jobDraftImports.test.js shared/jobStartup.test.js server/job-draft-imports.test.js src/app-routing.test.js shared/permissions.test.js",

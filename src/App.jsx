@@ -59,6 +59,7 @@ import {
   deleteLead,
   deleteQueueItem,
   endBreak,
+  exportCompanyData,
   getBootstrap,
   getHealth,
   getOwnerHealth,
@@ -23229,6 +23230,7 @@ function SettingsPagePolished({
     appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, permissions?.appHealth),
   };
   const canViewSettings = Boolean(safePermissions.settings?.canView);
+  const canExportData = Boolean(safePermissions.settings?.canExport);
   const canViewAppHealth = Boolean(safePermissions.appHealth?.canView);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
@@ -23248,6 +23250,7 @@ function SettingsPagePolished({
     licenseText: safeCompanySettings.licenseText || "",
   }));
   const [profileNotice, setProfileNotice] = useState("");
+  const [exportNotice, setExportNotice] = useState("");
   const [printPacketDraft, setPrintPacketDraft] = useState(() => ({
     printPacketFooter: safeCompanySettings.printPacketFooter || "",
     printPacketDisclaimer: safeCompanySettings.printPacketDisclaimer || "",
@@ -23363,6 +23366,32 @@ function SettingsPagePolished({
       printPacketDisclaimer: printPacketDraft.printPacketDisclaimer.trim(),
     });
     setPrintPacketNotice(saved ? "Print packet settings saved." : "Could not save print packet settings. Please try again.");
+  }
+
+  async function handleExportWorkspaceData() {
+    if (!sessionToken || !canExportData) return;
+    setExportNotice("");
+    try {
+      const payload = await exportCompanyData(sessionToken);
+      const fileDate = String(payload?.exportedAt || new Date().toISOString()).slice(0, 10);
+      const safeWorkspaceId = String(payload?.workspaceId || payload?.companyId || "workspace")
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48) || "workspace";
+      const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `apex-hq-${safeWorkspaceId}-${fileDate}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportNotice("Workspace export prepared.");
+    } catch (error) {
+      setExportNotice(error.message || "Workspace export could not be prepared.");
+    }
   }
 
   async function copyPublicRequestLink() {
@@ -23588,6 +23617,22 @@ function SettingsPagePolished({
                   </div>
                 </form>
               </Card>
+
+              {canExportData ? (
+                <Card className="co-settings-console-card p-5">
+                  <SectionHeader title="Owner data export" description="Download a scoped JSON export of this workspace for records, handoff, or backup review." />
+                  <div className="grid gap-3">
+                    <p className="text-sm font-bold leading-6 text-slate-600">Exports include the current company workspace records visible to the owner. Password hashes, session tokens, and other internal secrets are not included.</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button type="button" variant="secondary" onClick={handleExportWorkspaceData} disabled={busy || !sessionToken}>
+                        <Icon name="document" />
+                        Export workspace JSON
+                      </Button>
+                      <p className="text-sm font-bold text-slate-500">{exportNotice || "Owner-only export access is audit logged."}</p>
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
             </div>
           </details>
 

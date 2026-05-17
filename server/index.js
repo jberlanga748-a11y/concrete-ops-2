@@ -6055,6 +6055,44 @@ app.get("/api/bootstrap", requireAuth, asyncRoute(async (req, res) => {
   res.json(payload);
 }));
 
+app.get("/api/export/company", requireAuth, asyncRoute(async (req, res) => {
+  if (!canExportData(req.auth.user)) {
+    throw new ApiError(403, "Only owners can export workspace data.");
+  }
+
+  const exportedAt = new Date().toISOString();
+  const nextState = await updateDb((draft) => {
+    appendAuditEvent(draft, {
+      entityType: "company",
+      entityId: req.auth.user.currentCompanyId || req.auth.user.companyId,
+      action: "data_exported",
+      summary: "Workspace data exported",
+      detail: `${req.auth.user.name} exported scoped workspace data.`,
+      actor: req.auth.user,
+      changedFields: ["exportedAt"],
+    });
+    return draft;
+  });
+  const scopedData = sanitizeBootstrap(nextState, req.auth.user);
+  const safeWorkspaceId = String(scopedData.currentWorkspaceId || scopedData.currentCompanyId || "workspace")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "workspace";
+  const fileDate = exportedAt.slice(0, 10);
+
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Disposition", `attachment; filename="apex-hq-${safeWorkspaceId}-${fileDate}.json"`);
+  res.json({
+    exportVersion: 1,
+    exportedAt,
+    companyId: scopedData.currentCompanyId,
+    workspaceId: scopedData.currentWorkspaceId,
+    companyName: scopedData.companySettings?.companyName || scopedData.currentCompany?.name || "Apex HQ Workspace",
+    data: scopedData,
+  });
+}));
+
 app.post("/api/companies/select", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageCompanies(req.auth.user);
   const state = await readDb();
