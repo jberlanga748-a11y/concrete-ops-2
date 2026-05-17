@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildOwnerSupportPacket,
   deriveOverallOwnerHealthStatus,
   formatBytes,
   healthStatusTone,
@@ -66,3 +67,33 @@ test("ownerHealthWarnings normalizes missing warning fields safely", () => {
   ]);
 });
 
+test("buildOwnerSupportPacket creates copy-only diagnostics without secrets", () => {
+  const packet = buildOwnerSupportPacket({
+    requestId: "REQ-123",
+    generatedAt: "2026-05-17T08:00:00.000Z",
+    app: { status: "ok", environment: "production" },
+    database: { status: "ok", message: "Database ready." },
+    storage: { status: "warning", message: "Low disk space.", freeBytes: 1024, totalBytes: 1024 * 1024 },
+    ai: { status: "not_configured", message: "AI disabled." },
+    websiteIntake: { status: "configured", message: "Token present." },
+    backups: { status: "available", message: "Backup command available." },
+    counts: { companies: 1, users: 2, leads: 3, customers: 4, estimates: 5, jobs: 6, uploads: 7 },
+    warnings: [{ severity: "warning", title: "Storage low", message: "Review volume." }],
+    token: "super-secret-token",
+    passwordHash: "super-secret-hash",
+  }, {
+    companyName: "ABC Builders",
+    userName: "Alex Owner",
+    reportedAt: "2026-05-17T09:00:00.000Z",
+  });
+
+  assert.match(packet, /Apex HQ Support Packet/);
+  assert.match(packet, /Workspace: ABC Builders/);
+  assert.match(packet, /Reported by: Alex Owner/);
+  assert.match(packet, /Request ID: REQ-123/);
+  assert.match(packet, /Storage: Warning - Low disk space/);
+  assert.match(packet, /Counts: companies=1, users=2, leads=3, customers=4, estimates=5, jobs=6, uploads=7/);
+  assert.match(packet, /copy-only/);
+  assert.equal(packet.includes("super-secret-token"), false);
+  assert.equal(packet.includes("super-secret-hash"), false);
+});

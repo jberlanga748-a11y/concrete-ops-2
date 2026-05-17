@@ -29,6 +29,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { id: "calculator", label: "Calculator" },
+      { id: "support", label: "Support" },
       { id: "toolChecklist", label: "Tool Checklist" },
       { id: "jobDraftImports", label: "Imported Drafts" },
       { id: "appHealth", label: "App Health" },
@@ -46,7 +47,7 @@ test("office roles keep contractor-safe office navigation and dashboard default"
   assert.equal(canAccessModule("leads", owner, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "toolChecklist", "jobDraftImports", "appHealth", "copilot", "settings"],
+    ["dashboard", "jobs", "schedule", "reports", "deliveryTickets", "prePour", "postPour", "leads", "customers", "employees", "calculator", "support", "toolChecklist", "jobDraftImports", "appHealth", "copilot", "settings"],
   );
   assert.equal(canAccessModule("employees", owner, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("copilot", owner, { toolChecklistEnabled: true }), true);
@@ -71,6 +72,7 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, basicPermissions), false);
   assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions), false);
   assert.equal(canAccessWorkspaceModule("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions), false);
+  assert.equal(canAccessWorkspaceModule("support", owner, { toolChecklistEnabled: true }, basicPermissions), true);
   assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
   assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
   assert.equal(canAccessWorkspaceModule("appHealth", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
@@ -128,10 +130,11 @@ test("employees do not see leads in navigation and default to field workspace", 
   assert.equal(canAccessModule("copilot", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("design", employee, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("dashboard", employee, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("support", employee, { toolChecklistEnabled: true }), true);
   assert.equal(canAccessModule("jobs", employee, { toolChecklistEnabled: true }), true);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: true }).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "deliveryTickets", "prePour", "postPour", "calculator", "toolChecklist"],
+    ["jobs", "deliveryTickets", "prePour", "postPour", "calculator", "support", "toolChecklist"],
   );
 });
 
@@ -142,6 +145,7 @@ test("foreman also stays in field-only navigation for now", () => {
   assert.equal(canAccessModule("customers", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("employees", foreman, { toolChecklistEnabled: true }), false);
   assert.equal(canAccessModule("settings", foreman, { toolChecklistEnabled: true }), false);
+  assert.equal(canAccessModule("support", foreman, { toolChecklistEnabled: true }), true);
   assert.equal(getDefaultModuleId(foreman), "jobs");
 });
 
@@ -157,6 +161,8 @@ test("field roles are redirected away from office-only modules by access rules",
 
   assert.equal(getDefaultModuleId(foreman), "jobs");
   assert.equal(getDefaultModuleId(employee), "jobs");
+  assert.equal(canAccessWorkspaceModule("support", foreman, { toolChecklistEnabled: true }), true);
+  assert.equal(canAccessWorkspaceModule("support", employee, { toolChecklistEnabled: true }), true);
 });
 
 test("employees are also redirected away from reports while foremen keep access", () => {
@@ -190,7 +196,7 @@ test("tool checklist hides from field roles when disabled", () => {
   assert.equal(canAccessModule("toolChecklist", foreman, { toolChecklistEnabled: false }), false);
   assert.deepEqual(
     getVisibleNavGroups(NAV_GROUPS, employee, { toolChecklistEnabled: false }).flatMap((group) => group.items.map((item) => item.id)),
-    ["jobs", "deliveryTickets", "prePour", "postPour", "calculator"],
+    ["jobs", "deliveryTickets", "prePour", "postPour", "calculator", "support"],
   );
 });
 

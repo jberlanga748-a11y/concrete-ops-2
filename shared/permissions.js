@@ -333,13 +333,13 @@ export function getAllowedModuleIds(user, companySettings = DEFAULT_COMPANY_SETT
   const modules = new Set();
 
   if (isOwner(user) || isAdministrator(user) || isOperationsManager(user)) {
-    ["dashboard", "commandCenter", "leads", "customers", "estimates", "jobDraftImports", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "appHealth", "settings", "copilot"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "commandCenter", "leads", "customers", "estimates", "jobDraftImports", "jobs", "schedule", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "employees", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "appHealth", "settings", "copilot", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEstimator(user)) {
-    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["dashboard", "leads", "customers", "estimates", "jobs", "time", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isForeman(user)) {
-    ["jobs", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["jobs", "time", "reports", "uploads", "deliveryTickets", "changeOrders", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
   } else if (isEmployee(user)) {
-    ["jobs", "time", "uploads", "deliveryTickets", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator"].forEach((moduleId) => modules.add(moduleId));
+    ["jobs", "time", "uploads", "deliveryTickets", "incidents", "toolbox", "ppe", "prePour", "postPour", "calculator", "support"].forEach((moduleId) => modules.add(moduleId));
   }
 
   if (canUseToolChecklist(user, companySettings)) {

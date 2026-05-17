@@ -57,3 +57,42 @@ export function deriveOverallOwnerHealthStatus(payload = {}) {
   if (!payload || Object.keys(payload).length === 0) return "unknown";
   return "ok";
 }
+
+export function buildOwnerSupportPacket(payload = {}, options = {}) {
+  const warnings = ownerHealthWarnings(payload);
+  const counts = payload?.counts || {};
+  const sections = [
+    ["Workspace", options.companyName || payload?.companyName || "Apex HQ Workspace"],
+    ["Reported by", options.userName || "Workspace owner"],
+    ["Reported at", options.reportedAt || new Date().toISOString()],
+    ["Health generated at", payload?.generatedAt || "Not checked"],
+    ["Request ID", payload?.requestId || "Unavailable"],
+    ["Overall status", ownerHealthStatusLabel(deriveOverallOwnerHealthStatus(payload))],
+    ["App", `${ownerHealthStatusLabel(payload?.app?.status)}${payload?.app?.environment ? ` (${payload.app.environment})` : ""}`],
+    ["Database", `${ownerHealthStatusLabel(payload?.database?.status)} - ${payload?.database?.message || "No message"}`],
+    ["Storage", `${ownerHealthStatusLabel(payload?.storage?.status)} - ${payload?.storage?.message || "No message"}; free ${formatBytes(payload?.storage?.freeBytes)} of ${formatBytes(payload?.storage?.totalBytes)}`],
+    ["AI", `${ownerHealthStatusLabel(payload?.ai?.status)} - ${payload?.ai?.message || "No message"}`],
+    ["Website intake", `${ownerHealthStatusLabel(payload?.websiteIntake?.status)} - ${payload?.websiteIntake?.message || "No message"}`],
+    ["Backups", `${ownerHealthStatusLabel(payload?.backups?.status)} - ${payload?.backups?.message || "No message"}`],
+    ["Counts", `companies=${Number(counts.companies || 0)}, users=${Number(counts.users || 0)}, leads=${Number(counts.leads || 0)}, customers=${Number(counts.customers || 0)}, estimates=${Number(counts.estimates || 0)}, jobs=${Number(counts.jobs || 0)}, uploads=${Number(counts.uploads || 0)}`],
+  ];
+
+  const warningLines = warnings.length
+    ? warnings.map((warning) => `- ${ownerHealthStatusLabel(warning.severity)}: ${warning.title} - ${warning.message}`)
+    : ["- No active owner health warnings."];
+
+  return [
+    "Apex HQ Support Packet",
+    "",
+    ...sections.map(([label, value]) => `${label}: ${value}`),
+    "",
+    "Warnings:",
+    ...warningLines,
+    "",
+    "Issue summary:",
+    "[Describe what happened, which screen you were on, and what you expected.]",
+    "",
+    "Manual note:",
+    "This packet is copy-only. Apex HQ did not send it automatically.",
+  ].join("\n");
+}

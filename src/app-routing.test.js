@@ -236,6 +236,18 @@ test("App Health route resolves directly", () => {
   });
 });
 
+test("Support route resolves directly", () => {
+  assert.equal(getModulePath("support"), "/support");
+  assert.deepEqual(parseAppPath("/support"), {
+    active: "support",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("system routes resolve directly", () => {
   assert.equal(getModulePath("design"), "/design");
   assert.deepEqual(parseAppPath("/design"), {

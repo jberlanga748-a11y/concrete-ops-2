@@ -22,6 +22,7 @@ export const MODULE_PATHS = {
   calculator: "/calculator",
   appHealth: "/app-health",
   copilot: "/ai-office",
+  support: "/support",
   design: "/design",
   settings: "/settings",
 };

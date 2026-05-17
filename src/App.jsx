@@ -149,7 +149,7 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
-import { deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
+import { buildOwnerSupportPacket, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
 import { canViewJob } from "../shared/permissions.js";
@@ -164,6 +164,7 @@ import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourCheck
 import { deriveDailyReportPrintPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
+import { buildSupportPacket, createSupportDraft, SUPPORT_BLOCKER_OPTIONS, SUPPORT_WORKFLOW_OPTIONS } from "./support-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
@@ -267,6 +268,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { id: "calculator", label: "Calculator", icon: "calculator" },
+      { id: "support", label: "Support", icon: "help" },
       { id: "appHealth", label: "App Health", icon: "database" },
       { id: "copilot", label: "AI Office Preview", icon: "spark" },
       { id: "settings", label: "Settings", icon: "settings" },
@@ -1283,6 +1285,7 @@ function Icon({ name, className = "h-4 w-4" }) {
     database: [<ellipse key="1" cx="12" cy="5" rx="7" ry="3" />, <path key="2" d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5" />, <path key="3" d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />],
     lock: [<rect key="1" x="4" y="11" width="16" height="10" rx="2" />, <path key="2" d="M8 11V7a4 4 0 1 1 8 0v4" />],
     bell: [<path key="1" d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />, <path key="2" d="M10 21a2 2 0 0 0 4 0" />],
+    help: [<circle key="1" cx="12" cy="12" r="9" />, <path key="2" d="M9.5 9a2.7 2.7 0 0 1 5 1.4c0 1.8-2.5 2.1-2.5 4" />, <path key="3" d="M12 18h.01" />],
   };
 
   return <svg {...common}>{paths[name] || paths.grid}</svg>;
@@ -2365,7 +2368,7 @@ function LoginScreen({
               {isSetupMode
                 ? "Create the first admin account for this workspace."
                 : isSignupMode
-                  ? "Start a new Apex HQ workspace for your contracting company."
+                  ? "Create your workspace, then Apex HQ will guide you through services, your first team user, and your first estimate or job."
                   : canShowDemoCredentials
                     ? "Use demo logins for demo data, or sign in with your own office account."
                     : "Enter the admin account for this workspace."}
@@ -4399,6 +4402,7 @@ const FIELD_MOBILE_NAV_ORDER = [
   { id: "toolChecklist", label: "Tools", icon: "clipboard" },
   { id: "calculator", label: "Calc", icon: "calculator" },
   { id: "changeOrders", label: "Change", icon: "refresh" },
+  { id: "support", label: "Help", icon: "help" },
 ];
 
 function getFieldMobileNavItems(visibleNavItems) {
@@ -14615,7 +14619,7 @@ function DashboardPage(props) {
   return <DashboardPagePolished {...props} />;
 }
 
-function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
+function FirstOwnerOnboardingCard({ onboarding, onOpen, onOpenSupport }) {
   const steps = Array.isArray(onboarding?.steps) ? onboarding.steps : [];
   const nextStep = onboarding?.nextStep || steps.find((step) => !step.completed) || null;
 
@@ -14662,6 +14666,27 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
           </button>
           );
         })}
+      </div>
+      <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3">
+        <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <p className="text-sm font-bold leading-6 text-slate-600">
+            Need help during setup? Open Support to copy a clean setup question with your workspace context.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              if (typeof onOpenSupport === "function") {
+                onOpenSupport("Setup / onboarding");
+                return;
+              }
+              onOpen?.({ moduleId: "support" });
+            }}
+          >
+            <Icon name="help" />Open Support
+          </Button>
+        </div>
       </div>
     </Card>
   );
@@ -15281,6 +15306,7 @@ function DashboardPagePolished({
   onRestoreTask,
   onDeleteTask,
   setActive,
+  onOpenSupport,
   dashboardShortcuts,
   dashboardFocusTarget,
   onRunDashboardShortcut,
@@ -15593,6 +15619,7 @@ function DashboardPagePolished({
             <FirstOwnerOnboardingCard
               onboarding={firstOwnerOnboarding}
               onOpen={openFirstOwnerOnboardingStep}
+              onOpenSupport={onOpenSupport}
             />
           ) : null}
 
@@ -22676,10 +22703,11 @@ function ManagedSetupPanelPolished({
   );
 }
 
-function OwnerHealthStatusPanel({ sessionToken, canView = false }) {
+function OwnerHealthStatusPanel({ sessionToken, canView = false, user = null, companyName = "" }) {
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
+  const [supportCopyMessage, setSupportCopyMessage] = useState("");
 
   async function refreshHealth({ silent = false } = {}) {
     if (!canView || !sessionToken) return;
@@ -22726,6 +22754,10 @@ function OwnerHealthStatusPanel({ sessionToken, canView = false }) {
   const overallStatus = deriveOverallOwnerHealthStatus(health || {});
   const warnings = ownerHealthWarnings(health || {});
   const counts = health?.counts || {};
+  const supportPacket = buildOwnerSupportPacket(health || {}, {
+    companyName,
+    userName: user?.name || user?.email || "Workspace owner",
+  });
   const sectionCards = [
     {
       id: "app",
@@ -22777,6 +22809,29 @@ function OwnerHealthStatusPanel({ sessionToken, canView = false }) {
     ["Uploads", counts.uploads],
     ["Open follow-ups", counts.openFollowUps],
   ];
+
+  async function copySupportPacket() {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(supportPacket);
+      } else if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = supportPacket;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } else {
+        throw new Error("Clipboard unavailable");
+      }
+      setSupportCopyMessage("Support packet copied. Paste it into your support message with what happened.");
+    } catch {
+      setSupportCopyMessage("Could not copy automatically. Select the packet text and copy it manually.");
+    }
+  }
 
   return (
     <Card className="p-5">
@@ -22845,6 +22900,28 @@ function OwnerHealthStatusPanel({ sessionToken, canView = false }) {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="slate">Support packet</Badge>
+              <Badge tone="green">Copy only</Badge>
+              <Badge tone="slate">No secrets</Badge>
+            </div>
+            <p className="mt-2 text-sm font-black text-slate-950">Report an issue with clean diagnostics</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Copy a safe app-health summary, then add what screen you were on and what you expected. Apex HQ does not send this automatically.</p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={copySupportPacket}>
+            <Icon name="clipboard" />Copy support packet
+          </Button>
+        </div>
+        {supportCopyMessage ? <p className="mt-3 text-sm font-bold text-emerald-700">{supportCopyMessage}</p> : null}
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-black text-slate-700">Preview packet</summary>
+          <pre className="mt-3 max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700">{supportPacket}</pre>
+        </details>
       </div>
     </Card>
   );
@@ -23851,7 +23928,7 @@ function SettingsPagePolished({
               <span>Owner tools</span>
             </summary>
             <div className="co-settings-tools-panel grid gap-3">
-              <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} />
+              <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
               <ReleaseSafetyRollbackPanel canView={canViewAppHealth} />
               <PwaInstallGuidancePanel canView={canViewAppHealth} />
               <UiStyleFoundationPanel canView={canViewAppHealth} />
@@ -31703,6 +31780,145 @@ function ToolChecklistPage({
   );
 }
 
+function SupportPage({ user, companyName, currentCompanyId, active, permissions, setActive, supportDraftSeed }) {
+  const [draft, setDraft] = useState(() => createSupportDraft());
+  const [copyMessage, setCopyMessage] = useState("");
+  useEffect(() => {
+    if (!supportDraftSeed?.nonce) return;
+    setDraft((current) => createSupportDraft({ ...current, workflow: supportDraftSeed.workflow || current.workflow }));
+    setCopyMessage("");
+  }, [supportDraftSeed?.nonce, supportDraftSeed?.workflow]);
+  const supportPacket = buildSupportPacket({
+    draft,
+    user,
+    companyName,
+    currentCompanyId,
+    activeModule: active,
+    path: typeof window !== "undefined" ? window.location.pathname : "/support",
+  });
+  const isOfficeUser = Boolean(permissions?.settings?.canView || permissions?.users?.canView || permissions?.audit?.canView);
+  const quickActions = [
+    { label: "My work", helper: "Open assigned jobs and field tasks.", moduleId: "jobs", icon: "briefcase", show: true },
+    { label: "Clock", helper: "Open time tracking.", moduleId: "time", icon: "clock", show: true },
+    { label: "Photos", helper: "Open uploads/photo evidence.", moduleId: "uploads", icon: "upload", show: Boolean(permissions?.uploads?.canView) },
+    { label: "Reports", helper: "Open daily reports if your role can use them.", moduleId: "reports", icon: "document", show: Boolean(permissions?.reports?.canView) },
+    { label: "Settings", helper: "Open owner/admin setup tools.", moduleId: "settings", icon: "settings", show: Boolean(permissions?.settings?.canView) },
+  ].filter((item) => item.show);
+
+  function updateDraft(field, value) {
+    setDraft((current) => ({ ...current, [field]: value }));
+    setCopyMessage("");
+  }
+
+  async function copySupportRequest() {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(supportPacket);
+      } else if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = supportPacket;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } else {
+        throw new Error("Clipboard unavailable");
+      }
+      setCopyMessage("Support request copied. Paste it into your support message with any screenshot.");
+    } catch {
+      setCopyMessage("Could not copy automatically. Select the preview text and copy it manually.");
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Support"
+        title="Help / Support"
+        description="Copy a clear issue report, find the right workspace, and keep support manual until messaging automation is ready."
+        actions={<Badge tone="green">Basic included</Badge>}
+      />
+      <div className="grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
+        <div className="grid gap-4">
+          <Card className="p-5">
+            <SectionHeader title="Create a support request" description="Apex HQ does not send this automatically. Copy the packet, add a screenshot if useful, and send it through your normal support channel." />
+            <div className="grid gap-3 md:grid-cols-2">
+              <SelectField label="Workflow / page" value={draft.workflow} onChange={(event) => updateDraft("workflow", event.target.value)}>
+                {SUPPORT_WORKFLOW_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </SelectField>
+              <SelectField label="Blocker level" value={draft.blockerLevel} onChange={(event) => updateDraft("blockerLevel", event.target.value)}>
+                {SUPPORT_BLOCKER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </SelectField>
+            </div>
+            <div className="mt-3 grid gap-3">
+              <InputField label="Follow-up needed" value={draft.followUpNeeded} onChange={(event) => updateDraft("followUpNeeded", event.target.value)} placeholder="Example: Today before 3 PM, tomorrow morning, or not urgent." />
+              <TextAreaField label="What happened?" value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} placeholder="Example: I tapped Upload Photo and nothing happened." />
+              <TextAreaField label="What should have happened?" value={draft.expected} onChange={(event) => updateDraft("expected", event.target.value)} placeholder="Example: The camera/photo picker should open." />
+              <TextAreaField label="Workaround / urgency" value={draft.workaround} onChange={(event) => updateDraft("workaround", event.target.value)} placeholder="Example: Texted the photo to the office. Blocking today's report." />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button type="button" onClick={copySupportRequest}><Icon name="clipboard" />Copy support request</Button>
+              <p className="text-sm font-bold text-slate-500">{copyMessage || "Copy-only keeps support safe: no email, text, upload, or ticket is created automatically."}</p>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <SectionHeader title="Support packet preview" description="Review before sending. Add a screenshot or screen recording outside Apex HQ when useful." />
+            <pre className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">{supportPacket}</pre>
+          </Card>
+        </div>
+
+        <aside className="grid h-fit gap-4">
+          <Card className="p-4">
+            <SectionHeader title="Quick help" description="Common support info to capture before a call or message." />
+            <div className="grid gap-2 text-sm leading-6 text-slate-700">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Company</strong><br />{companyName || "Apex HQ Workspace"}</div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Role</strong><br />{user?.role || "Unknown"}</div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Current page</strong><br />{typeof window !== "undefined" ? window.location.pathname : "/support"}</div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Priority</strong><br />Blocker, workaround, and expected result matter most.</div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Open workspace" description="Jump back to the screen involved in the issue." />
+            <div className="grid gap-2">
+              {quickActions.map((action) => (
+                <button key={action.moduleId} type="button" className="co-settings-action-row" onClick={() => setActive?.(action.moduleId)}>
+                  <span>
+                    <strong>{action.label}</strong>
+                    <em>{action.helper}</em>
+                  </span>
+                  <Icon name={action.icon} />
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Support rules" description="What Apex HQ will not do from this page." />
+            <div className="grid gap-2">
+              <div className="co-ai-boundary-row" data-state="manual"><span>Sending</span><strong>Manual only</strong></div>
+              <div className="co-ai-boundary-row" data-state="safe"><span>Field data</span><strong>Role safe</strong></div>
+              <div className="co-ai-boundary-row" data-state="safe"><span>Secrets</span><strong>Not included</strong></div>
+              <div className="co-ai-boundary-row" data-state="manual"><span>Custom builds</span><strong>Not promised</strong></div>
+            </div>
+          </Card>
+
+          {isOfficeUser ? (
+            <Card className="p-4">
+              <SectionHeader title="Owner tools" description="Office roles can open setup and health tools when included." />
+              <Button type="button" size="sm" variant="secondary" onClick={() => setActive?.("settings")}>Open Settings</Button>
+            </Card>
+          ) : null}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
 function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   const item = NAV_GROUPS.flatMap((group) => group.items).find((nav) => nav.id === active);
   const safeQueueItems = Array.isArray(queueItems) ? queueItems : [];
@@ -31966,6 +32182,9 @@ function MainContent(props) {
   if (active === "calculator") {
     return <CalculatorPage jobs={props.jobs} selectedJob={props.selectedJob} busy={props.busy} permissions={props.permissions} user={props.user} onSaveCalculatorResult={props.onSaveCalculatorResult} />;
   }
+  if (active === "support") {
+    return <SupportPage {...props} />;
+  }
   if (active === "changeOrders") {
     return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
   }
@@ -32020,6 +32239,7 @@ export default function App() {
   const [jobStartupFilter, setJobStartupFilter] = useState("All startup");
   const [dashboardFocusTarget, setDashboardFocusTarget] = useState("");
   const [settingsFocusSection, setSettingsFocusSection] = useState(null);
+  const [supportDraftSeed, setSupportDraftSeed] = useState(null);
   const [reportFilter, setReportFilter] = useState("All");
   const [reportSearch, setReportSearch] = useState("");
   const [reportJobFilter, setReportJobFilter] = useState("All jobs");
@@ -32111,7 +32331,18 @@ export default function App() {
   }
 
   function setActive(nextActive) {
+    if (nextActive !== "support" && supportDraftSeed) {
+      setSupportDraftSeed(null);
+    }
     navigateTo(getModulePath(nextActive));
+  }
+
+  function openSupportWorkflow(workflow = "General workspace") {
+    setSupportDraftSeed({
+      workflow,
+      nonce: Date.now(),
+    });
+    setActive("support");
   }
 
   function openSettingsSection(sectionId) {
@@ -34868,6 +35099,8 @@ export default function App() {
                 settingsFocusSection={settingsFocusSection}
                 onOpenSettingsSection={openSettingsSection}
                 onSettingsSectionFocused={() => setSettingsFocusSection(null)}
+                supportDraftSeed={supportDraftSeed}
+                onOpenSupport={openSupportWorkflow}
                 currentCompanyId={appState.currentCompanyId}
                 companyName={workspaceCompanyName}
                 companyProfile={workspacePrintProfile}
