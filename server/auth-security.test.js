@@ -338,3 +338,83 @@ test("password reset completion rejects expired tokens without changing the pass
     await fixture.stop();
   }
 });
+
+test("password reset request rate limit blocks repeated requests for the same email", async () => {
+  const fixture = await startServer();
+
+  try {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const request = await requestJson(fixture.baseUrl, "/api/auth/password-reset/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "reset-limit@apexhq.test" }),
+      });
+      assert.equal(request.response.status, 200);
+      assert.match(request.payload.message, /if that email has access/i);
+    }
+
+    const limited = await requestJson(fixture.baseUrl, "/api/auth/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "reset-limit@apexhq.test" }),
+    });
+    assert.equal(limited.response.status, 429);
+    assert.match(limited.payload.error, /too many password reset requests/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("token endpoints rate limit repeated invalid activation and reset attempts", async () => {
+  const fixture = await startServer();
+
+  try {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const resetAttempt = await requestJson(fixture.baseUrl, "/api/auth/password-reset/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: `bad-reset-token-${attempt}`,
+          password: "validpass123",
+        }),
+      });
+      assert.equal(resetAttempt.response.status, 400);
+    }
+
+    const limitedReset = await requestJson(fixture.baseUrl, "/api/auth/password-reset/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: "bad-reset-token-final",
+        password: "validpass123",
+      }),
+    });
+    assert.equal(limitedReset.response.status, 429);
+    assert.match(limitedReset.payload.error, /too many token attempts/i);
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const inviteAttempt = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: `bad-invite-token-${attempt}`,
+          password: "validpass123",
+        }),
+      });
+      assert.equal(inviteAttempt.response.status, 400);
+    }
+
+    const limitedInvite = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: "bad-invite-token-final",
+        password: "validpass123",
+      }),
+    });
+    assert.equal(limitedInvite.response.status, 429);
+    assert.match(limitedInvite.payload.error, /too many token attempts/i);
+  } finally {
+    await fixture.stop();
+  }
+});

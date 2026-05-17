@@ -252,11 +252,17 @@ const PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const PUBLIC_SIGNUP_RATE_LIMIT_MAX = 5;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 6;
+const PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX = 5;
+const AUTH_TOKEN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_TOKEN_RATE_LIMIT_MAX = 12;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
 const publicSignupRateLimit = new Map();
 const loginRateLimit = new Map();
+const passwordResetRequestRateLimit = new Map();
+const authTokenRateLimit = new Map();
 
 const app = express();
 
@@ -3752,33 +3758,63 @@ function assertPublicEstimateRequestEnabled() {
   }
 }
 
-function consumePublicEstimateRequestRateLimit(req) {
+function requestIpKey(req) {
+  return optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
+}
+
+function consumeRateLimitBucket(bucket, key, windowMs, maxEntries, message) {
   const now = Date.now();
-  const ipKey = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
-  const existing = publicEstimateRequestRateLimit.get(ipKey) || [];
-  const liveEntries = existing.filter((timestamp) => now - timestamp < PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS);
-  if (liveEntries.length >= PUBLIC_REQUEST_RATE_LIMIT_MAX) {
-    throw new ApiError(429, "Too many estimate requests from this connection. Please wait and try again.");
+  const existing = bucket.get(key) || [];
+  const liveEntries = existing.filter((timestamp) => now - timestamp < windowMs);
+  if (liveEntries.length >= maxEntries) {
+    throw new ApiError(429, message);
   }
   liveEntries.push(now);
-  publicEstimateRequestRateLimit.set(ipKey, liveEntries);
+  bucket.set(key, liveEntries);
+}
+
+function consumePublicEstimateRequestRateLimit(req) {
+  consumeRateLimitBucket(
+    publicEstimateRequestRateLimit,
+    requestIpKey(req),
+    PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS,
+    PUBLIC_REQUEST_RATE_LIMIT_MAX,
+    "Too many estimate requests from this connection. Please wait and try again.",
+  );
 }
 
 function consumePublicSignupRateLimit(req) {
-  const now = Date.now();
-  const ipKey = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
-  const existing = publicSignupRateLimit.get(ipKey) || [];
-  const liveEntries = existing.filter((timestamp) => now - timestamp < PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS);
-  if (liveEntries.length >= PUBLIC_SIGNUP_RATE_LIMIT_MAX) {
-    throw new ApiError(429, "Too many signup attempts. Please try again later.");
-  }
-  liveEntries.push(now);
-  publicSignupRateLimit.set(ipKey, liveEntries);
+  consumeRateLimitBucket(
+    publicSignupRateLimit,
+    requestIpKey(req),
+    PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS,
+    PUBLIC_SIGNUP_RATE_LIMIT_MAX,
+    "Too many signup attempts. Please try again later.",
+  );
+}
+
+function consumePasswordResetRequestRateLimit(req, email) {
+  consumeRateLimitBucket(
+    passwordResetRequestRateLimit,
+    `${requestIpKey(req)}:${normalizeLookup(email)}`,
+    PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW_MS,
+    PASSWORD_RESET_REQUEST_RATE_LIMIT_MAX,
+    "Too many password reset requests. Please try again later.",
+  );
+}
+
+function consumeAuthTokenRateLimit(req, action) {
+  consumeRateLimitBucket(
+    authTokenRateLimit,
+    `${action}:${requestIpKey(req)}`,
+    AUTH_TOKEN_RATE_LIMIT_WINDOW_MS,
+    AUTH_TOKEN_RATE_LIMIT_MAX,
+    "Too many token attempts. Please wait and try again.",
+  );
 }
 
 function loginRateLimitKey(req, email) {
-  const ipKey = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
-  return `${ipKey}:${normalizeLookup(email)}`;
+  return `${requestIpKey(req)}:${normalizeLookup(email)}`;
 }
 
 function loginAttemptsForKey(key, now = Date.now()) {
@@ -5795,6 +5831,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
   await cleanupExpiredSessions();
   const token = requiredString(req.body?.token, "Invite token");
   const password = requiredPassword(req.body?.password, "Password");
+  consumeAuthTokenRateLimit(req, "activate-invite");
   const tokenHash = hashToken(token);
   const activatedAt = new Date().toISOString();
   let activatedUserId = "";
@@ -5850,6 +5887,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
 
 app.post("/api/auth/password-reset/request", asyncRoute(async (req, res) => {
   const email = requiredString(req.body?.email, "Email").toLowerCase();
+  consumePasswordResetRequestRateLimit(req, email);
   const requestedAt = new Date().toISOString();
   const resetToken = generateToken();
   let tokenCreated = false;
@@ -5895,6 +5933,7 @@ app.post("/api/auth/password-reset/complete", asyncRoute(async (req, res) => {
   await cleanupExpiredSessions();
   const token = requiredString(req.body?.token, "Reset token");
   const password = requiredPassword(req.body?.password, "Password");
+  consumeAuthTokenRateLimit(req, "password-reset");
   const tokenHash = hashToken(token);
   const completedAt = new Date().toISOString();
   let resetUserId = "";
