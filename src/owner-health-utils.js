@@ -1,5 +1,26 @@
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"];
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function text(value) {
+  return String(value ?? "").trim();
+}
+
+function dateKey(value) {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function timeValue(value) {
+  const parsed = value ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+}
+
 export function ownerHealthStatusLabel(status) {
   const normalized = String(status || "").trim().toLowerCase();
   const labels = {
@@ -95,4 +116,66 @@ export function buildOwnerSupportPacket(payload = {}, options = {}) {
     "Manual note:",
     "This packet is copy-only. Apex HQ did not send it automatically.",
   ].join("\n");
+}
+
+export function deriveAppHealthAuditState(source = {}, { today = new Date() } = {}) {
+  const todayKey = dateKey(today);
+  const auditEvents = asArray(source.auditEvents)
+    .map((event, index) => ({
+      id: text(event?.id) || `audit-${index + 1}`,
+      entityType: text(event?.entityType) || "workspace",
+      entityId: text(event?.entityId),
+      action: text(event?.action) || "updated",
+      summary: text(event?.summary || event?.title) || "Workspace event",
+      detail: text(event?.detail || event?.description) || "Changes were recorded for this workspace event.",
+      actorName: text(event?.actorName || event?.userName) || "Unknown user",
+      createdAt: text(event?.createdAt || event?.time),
+      changedFields: asArray(event?.changedFields).map(text).filter(Boolean),
+    }))
+    .sort((left, right) => timeValue(right.createdAt) - timeValue(left.createdAt));
+  const activity = asArray(source.activity)
+    .map((item, index) => ({
+      id: text(item?.id) || `activity-${index + 1}`,
+      title: text(item?.title) || "Workspace activity",
+      detail: text(item?.detail) || "Activity was recorded for this workspace.",
+      time: text(item?.time),
+      createdAt: text(item?.createdAt || item?.time),
+    }))
+    .sort((left, right) => timeValue(right.createdAt) - timeValue(left.createdAt));
+  const securityActions = new Set([
+    "login",
+    "logout",
+    "password_reset",
+    "password_reset_requested",
+    "invite_accepted",
+    "invite_sent",
+    "user_created",
+    "user_updated",
+    "role_changed",
+    "company_selected",
+    "company_created",
+    "data_exported",
+  ]);
+  const todayAuditEvents = auditEvents.filter((event) => dateKey(event.createdAt) === todayKey);
+  const sensitiveAuditEvents = auditEvents.filter((event) => {
+    const normalized = event.action.toLowerCase();
+    return securityActions.has(normalized) || /\b(user|role|password|invite|export|company|login|session)\b/i.test([event.action, event.summary, event.entityType].join(" "));
+  });
+  const recentAuditEvents = auditEvents.slice(0, 8);
+  const recentActivity = activity.slice(0, 8);
+
+  return {
+    generatedForDate: todayKey,
+    auditEvents,
+    activity,
+    recentAuditEvents,
+    recentActivity,
+    sensitiveAuditEvents: sensitiveAuditEvents.slice(0, 8),
+    stats: {
+      auditEvents: auditEvents.length,
+      activity: activity.length,
+      todayAuditEvents: todayAuditEvents.length,
+      sensitiveAuditEvents: sensitiveAuditEvents.length,
+    },
+  };
 }

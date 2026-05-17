@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildOwnerSupportPacket,
+  deriveAppHealthAuditState,
   deriveOverallOwnerHealthStatus,
   formatBytes,
   healthStatusTone,
@@ -17,6 +18,40 @@ test("owner health status helpers format labels and tones", () => {
   assert.equal(healthStatusTone("warning"), "amber");
   assert.equal(healthStatusTone("critical"), "red");
   assert.equal(healthStatusTone("something-new"), "slate");
+});
+
+test("deriveAppHealthAuditState summarizes audit and activity trust signals", () => {
+  const state = deriveAppHealthAuditState({
+    auditEvents: [
+      {
+        id: "A-1",
+        entityType: "user",
+        action: "user_created",
+        summary: "User created",
+        actorName: "Alex Owner",
+        createdAt: "2026-05-17T10:00:00.000Z",
+        changedFields: ["role", "", null],
+      },
+      {
+        id: "A-2",
+        entityType: "job",
+        action: "updated",
+        summary: "Job updated",
+        createdAt: "2026-05-16T10:00:00.000Z",
+      },
+    ],
+    activity: [
+      { id: "ACT-1", title: "Job created", detail: "Salem slab added.", createdAt: "2026-05-17T09:00:00.000Z" },
+    ],
+  }, { today: new Date("2026-05-17T12:00:00.000Z") });
+
+  assert.equal(state.generatedForDate, "2026-05-17");
+  assert.equal(state.stats.auditEvents, 2);
+  assert.equal(state.stats.activity, 1);
+  assert.equal(state.stats.todayAuditEvents, 1);
+  assert.equal(state.stats.sensitiveAuditEvents, 1);
+  assert.equal(state.recentAuditEvents[0].id, "A-1");
+  assert.deepEqual(state.recentAuditEvents[0].changedFields, ["role"]);
 });
 
 test("formatBytes handles useful sizes and missing values", () => {
