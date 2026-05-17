@@ -262,6 +262,41 @@ test("public signup rejects weak passwords without creating a company", async ()
   }
 });
 
+test("public signup rate limits repeated workspace creation attempts", async () => {
+  const fixture = await startServer();
+
+  try {
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      const { response } = await signup(fixture.baseUrl, {
+        companyName: `Rate Limit Builders ${attempt}`,
+        ownerName: `Rate Limit Owner ${attempt}`,
+        email: `rate-limit-${attempt}@abcbuilder.test`,
+      });
+      assert.equal(response.status, 201);
+    }
+
+    const limited = await signup(fixture.baseUrl, {
+      companyName: "Rate Limit Blocked Builders",
+      ownerName: "Rate Limit Blocked Owner",
+      email: "rate-limit-blocked@abcbuilder.test",
+    });
+    assert.equal(limited.response.status, 429);
+    assert.match(limited.payload.error, /too many signup attempts/i);
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const blockedUser = database.prepare("SELECT COUNT(*) AS count FROM users WHERE email = ?").get("rate-limit-blocked@abcbuilder.test");
+      const blockedCompany = database.prepare("SELECT COUNT(*) AS count FROM companies WHERE name = ?").get("Rate Limit Blocked Builders");
+      assert.equal(blockedUser.count, 0);
+      assert.equal(blockedCompany.count, 0);
+    } finally {
+      database.close();
+    }
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("public signup ignores privilege escalation and custom company IDs", async () => {
   const fixture = await startServer();
 
