@@ -1,7 +1,7 @@
 # Apex HQ Demo Launch Packet
 
-Status: ready-to-use draft
-Use for: the first clean guided demos after builder chat finishes demo cleanup
+Status: guided-demo ready after v486 cleanup; rehearse once before cold demos
+Use for: the first clean guided demos after v486 live confirmation
 
 ## Launch Position
 
@@ -227,4 +227,10 @@ The goal is to help contractors find opportunities, follow up faster, organize j
 
 ## Best First Move
 
-When the demo cleanup is finished, send M2 Mini the follow-up text first. He already asked price, uses Wix, is solo, and is a real-world fit for the $99/month Basic founder pilot.
+Demo cleanup is now live-confirmed through v486.
+
+Next move:
+
+1. Rehearse the guided demo path in `docs/GUIDED_DEMO_LAUNCH_READINESS.md`.
+2. Send M2 Mini the follow-up text first. He already asked price, uses Wix, is solo, and is a real-world fit for the $99/month Basic founder pilot.
+3. Keep the first demo focused on one useful workflow, not the whole product.

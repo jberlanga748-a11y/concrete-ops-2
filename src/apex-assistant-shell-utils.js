@@ -73,9 +73,32 @@ const ROUTE_COMMANDS = [
 
 const DEFAULT_PROMPTS = [
   "What needs attention?",
+  "Start estimate from rough notes",
   "Open reports needing review",
   "Show job blockers",
-  "Open estimates and proposals",
+];
+
+const BLOCKED_ACTIONS = [
+  {
+    pattern: /\b(send|email|text|sms|message|notify)\b/i,
+    message: "I can help prepare the estimate or proposal, but I will not send customer messages automatically. Open Estimates and use manual send after review.",
+  },
+  {
+    pattern: /\b(approve|mark approved|accept|sign)\b/i,
+    message: "I will not approve estimates, proposals, change orders, or job actions automatically. Open the existing workflow and approve it yourself after review.",
+  },
+  {
+    pattern: /\b(assign|schedule)\b.*\b(crew|foreman|employee|team)\b/i,
+    message: "I will not assign crews automatically. Open Jobs or Schedule and confirm assignments manually.",
+  },
+  {
+    pattern: /\b(order|buy|purchase)\b.*\b(material|concrete|supplies|rock|rebar)\b/i,
+    message: "I will not order materials. I can help organize notes and calculations in a later reviewed phase.",
+  },
+  {
+    pattern: /\b(publish|launch|run)\b.*\b(ad|campaign|website)\b/i,
+    message: "I will not publish ads, campaigns, or websites automatically. Those actions require a separate review workflow.",
+  },
 ];
 
 export function deriveApexAssistantShellState({ permissions = {}, commandCenter = {} } = {}) {
@@ -105,6 +128,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const text = normalizeText(input);
   const firstAction = asArray(state.watchtowerActions)[0] || asArray(state.watchtowerQueue)[0] || null;
 
+  const blocked = resolveBlockedActionCommand(input);
+  if (blocked) return blocked;
+
   if (!text || text === normalizeText(DEFAULT_PROMPTS[0])) {
     if (firstAction) {
       return {
@@ -122,6 +148,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     };
   }
 
+  const estimateDraftCommand = resolveAssistantEstimateDraftCommand(input, state.commandContext || {});
+  if (estimateDraftCommand) return estimateDraftCommand;
+
   const match = ROUTE_COMMANDS.find((command) => command.keywords.some((keyword) => text.includes(keyword)));
   if (match) {
     return {
@@ -138,6 +167,195 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
   };
+}
+
+export function resolveAssistantEstimateDraftCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasEstimateDraftIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!permissions?.estimates?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Estimate draft commands require an office or estimator role with estimate access. Field roles stay blocked from leads, pricing, and proposals.",
+    };
+  }
+
+  const roughNotes = extractRoughNotesFromCommand(rawText);
+  const hasRoughNotes = Boolean(normalizeText(roughNotes));
+  if (hasRoughNotes && !permissions?.estimates?.canUseAiRoughNotes) {
+    return {
+      type: "package-blocked",
+      moduleId: "estimates",
+      actionLabel: "Open Estimates",
+      message: "Assistant rough-note estimate drafts require the Premium AI Rough Notes feature. You can still open Estimates and create a basic draft manually.",
+    };
+  }
+
+  const query = extractEstimateTargetQuery(rawText);
+  const matches = findAssistantEstimateMatches(query, context);
+  const customerName = query || extractCustomerNameFromNotes(roughNotes);
+  const fallback = {
+    id: "assistant-new-draft",
+    type: "new",
+    label: customerName ? `New draft for ${customerName}` : "New estimate draft",
+    helper: hasRoughNotes ? "No exact lead/customer match found. Start a clean draft from the rough notes." : "Start a clean estimate draft.",
+    customerName,
+    roughNotes,
+  };
+
+  return {
+    type: "estimate-draft-review",
+    moduleId: "estimates",
+    actionLabel: matches.length === 1 ? "Review draft in Estimates" : matches.length > 1 ? "Choose record" : "Start new draft",
+    message: matches.length === 1
+      ? `I found ${matches[0].label}. Review before creating a Draft estimate.`
+      : matches.length > 1
+        ? "I found multiple possible lead/customer matches. Choose the right one before opening Estimates."
+        : "I did not find an exact lead or customer match. You can still start a clean Draft estimate from the rough notes.",
+    commandText: rawText,
+    query,
+    roughNotes,
+    matches,
+    fallback,
+  };
+}
+
+function resolveBlockedActionCommand(input = "") {
+  const rawText = String(input || "").trim();
+  if (!rawText) return null;
+  const blocked = BLOCKED_ACTIONS.find((item) => item.pattern.test(rawText));
+  if (!blocked) return null;
+  return {
+    type: "blocked-command",
+    moduleId: "commandCenter",
+    actionLabel: "Open Command Center",
+    message: blocked.message,
+  };
+}
+
+function hasEstimateDraftIntent(text = "") {
+  return /\b(start|create|build|make|draft|prepare|open)\b/.test(text)
+    && /\b(estimate|proposal|quote|bid|gc packet)\b/.test(text);
+}
+
+function extractRoughNotesFromCommand(input = "") {
+  const rawText = String(input || "").trim();
+  const markerMatch = rawText.match(/\b(?:rough\s+notes?|notes?|scope|details?)\s*:\s*([\s\S]+)$/i);
+  if (markerMatch?.[1]) return markerMatch[1].trim();
+
+  const withMatch = rawText.match(/\bwith\s+(?:these\s+)?(?:rough\s+)?notes?\s+([\s\S]+)$/i);
+  if (withMatch?.[1]) return withMatch[1].trim();
+
+  const forMatch = rawText.match(/\b(?:estimate|proposal|quote|bid)\b[\s\S]*?\b(?:for|from)\b[\s\S]*?\b(?:to|and)\b\s+([\s\S]+)$/i);
+  if (forMatch?.[1] && roughNoteLooksLikeScope(forMatch[1])) return forMatch[1].trim();
+
+  return "";
+}
+
+function roughNoteLooksLikeScope(value = "") {
+  return /\b(demo|pour|prep|install|remove|finish|exclude|include|sf|lf|cy|slab|sidewalk|driveway|base|cleanup)\b/i.test(String(value || ""));
+}
+
+function extractEstimateTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const beforeAction = rawText.split(/\b(?:and\s+)?(?:start|create|build|make|draft|prepare)\b.*\b(?:estimate|proposal|quote|bid|gc packet)\b/i)[0] || "";
+  const cleanedBeforeAction = cleanTargetQuery(beforeAction.replace(/\b(open|pull up|find|lead|customer|company|for|from|this|the)\b/gi, " "));
+  if (cleanedBeforeAction) return cleanedBeforeAction;
+
+  const forMatch = rawText.match(/\b(?:estimate|proposal|quote|bid|gc packet)\b\s+(?:for|from)\s+(.+?)(?:\s+\b(?:with|using|rough notes?|notes?|scope|details?)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  return "";
+}
+
+function cleanTargetQuery(value = "") {
+  return String(value || "")
+    .replace(/[:.,;]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findAssistantEstimateMatches(query = "", context = {}) {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return [];
+  const words = normalizedQuery.split(" ").filter((word) => word.length > 1);
+  if (words.length === 0) return [];
+
+  const leads = asArray(context.leads).filter((lead) => !lead?.archivedAt);
+  const customers = asArray(context.customers).filter((customer) => !customer?.archivedAt);
+  const matches = [];
+
+  leads.forEach((lead) => {
+    const haystack = normalizeText([
+      lead.customer,
+      lead.project,
+      lead.city,
+      lead.status,
+      lead.source,
+      lead.notes,
+    ].filter(Boolean).join(" "));
+    if (targetMatchesWords(haystack, words)) {
+      matches.push({
+        id: `lead:${lead.id}`,
+        type: "lead",
+        leadId: lead.id,
+        customerId: lead.customerId || "",
+        customerName: lead.customer || "",
+        projectName: lead.project || "",
+        customerEmail: lead.customerEmail || lead.email || lead.contactEmail || "",
+        label: [lead.customer || "Lead", lead.project].filter(Boolean).join(" - "),
+        helper: [lead.city, lead.status, lead.source].filter(Boolean).join(" - "),
+      });
+    }
+  });
+
+  customers.forEach((customer) => {
+    const haystack = normalizeText([
+      customer.name,
+      customer.company,
+      customer.city,
+      customer.serviceArea,
+      customer.email,
+      customer.phone,
+    ].filter(Boolean).join(" "));
+    if (targetMatchesWords(haystack, words)) {
+      matches.push({
+        id: `customer:${customer.id}`,
+        type: "customer",
+        customerId: customer.id,
+        customerName: customer.name || customer.company || "",
+        customerEmail: customer.email || "",
+        label: customer.name || customer.company || "Customer",
+        helper: [customer.city, customer.status, customer.email].filter(Boolean).join(" - "),
+      });
+    }
+  });
+
+  return dedupeAssistantMatches(matches).slice(0, 4);
+}
+
+function targetMatchesWords(haystack = "", words = []) {
+  if (!haystack) return false;
+  return words.every((word) => haystack.includes(word));
+}
+
+function dedupeAssistantMatches(matches = []) {
+  const seen = new Set();
+  return matches.filter((match) => {
+    const key = [match.type, match.leadId || "", match.customerId || "", normalizeText(match.label)].join(":");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function extractCustomerNameFromNotes(roughNotes = "") {
+  const customerMatch = String(roughNotes || "").match(/\b(?:customer|company|client)\s*:\s*([^\n,;.]+)/i);
+  return cleanTargetQuery(customerMatch?.[1] || "");
 }
 
 function asArray(value) {

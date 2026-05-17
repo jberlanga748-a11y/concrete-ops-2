@@ -3201,7 +3201,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, onOpenModule = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3216,7 +3216,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, onOpenModule
   }
 
   function runPrompt(nextPrompt = prompt) {
-    const result = resolveApexAssistantCommand(nextPrompt, assistantState);
+    const result = resolveApexAssistantCommand(nextPrompt, { ...assistantState, commandContext });
     setResponse(result);
     setPrompt("");
   }
@@ -3224,6 +3224,19 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, onOpenModule
   function handleSubmit(event) {
     event.preventDefault();
     runPrompt(prompt);
+  }
+
+  function startEstimateDraft(choice = {}) {
+    const payload = {
+      ...choice,
+      roughNotes: response?.roughNotes || choice.roughNotes || "",
+      commandText: response?.commandText || "",
+    };
+    const started = onStartEstimateDraft(payload);
+    if (started !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
   }
 
   return (
@@ -3299,7 +3312,26 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, onOpenModule
             {response ? (
               <div className="mt-4 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3">
                 <p className="text-sm font-black text-white">{response.message}</p>
-                <Button type="button" size="sm" className="mt-3" onClick={() => openModule(response.moduleId)}>{response.actionLabel}</Button>
+                {response.type === "estimate-draft-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => startEstimateDraft(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review in Estimates before creating a draft."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => startEstimateDraft(response.fallback || {})}>
+                      {response.matches?.length ? "Start clean new draft instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button type="button" size="sm" className="mt-3" onClick={() => openModule(response.moduleId)}>{response.actionLabel}</Button>
+                )}
               </div>
             ) : null}
 
@@ -28027,6 +28059,8 @@ function EstimatesPagePolished({
   onSendEstimate,
   onGenerateEstimateRoughNotes,
   initialSelectedEstimateId = "",
+  assistantEstimateDraftSeed = null,
+  onAssistantEstimateDraftSeedHandled = () => {},
   emailSendingConfigured = false,
   companyName = DEFAULT_COMPANY_NAME,
   companyProfile = {},
@@ -28157,6 +28191,55 @@ function EstimatesPagePolished({
       setSelectedEstimateId(initialSelectedEstimateId);
     }
   }, [initialSelectedEstimateId, rows]);
+
+  useEffect(() => {
+    const seed = assistantEstimateDraftSeed;
+    if (!seed?.nonce || !canManage) return;
+
+    const seedLead = seed.leadId ? visibleLeads.find((lead) => lead.id === seed.leadId) || null : null;
+    const seedCustomer = seed.customerId ? visibleCustomers.find((customer) => customer.id === seed.customerId) || null : null;
+    const leadDraft = seedLead ? buildEstimateDraftFromLead(seedLead, { customers: visibleCustomers }) : {};
+    const customerName = estimateRoughNotesText(seed.customerName)
+      || estimateRoughNotesText(seedCustomer?.name)
+      || estimateRoughNotesText(leadDraft.customerName)
+      || "Draft Customer";
+    const title = estimateRoughNotesText(seed.projectName)
+      || estimateRoughNotesText(leadDraft.title)
+      || `${customerName} estimate`;
+    const roughNotesText = estimateRoughNotesText(seed.roughNotes) || estimateRoughNotesText(seed.commandText);
+    const nextDraft = createEstimateDraft({
+      ...INITIAL_ESTIMATE_FORM,
+      ...leadDraft,
+      customerId: seed.customerId || leadDraft.customerId || seedCustomer?.id || "",
+      leadId: seed.leadId || leadDraft.leadId || "",
+      customerName,
+      customerEmail: seed.customerEmail || leadDraft.customerEmail || seedCustomer?.email || "",
+      title,
+      status: "draft",
+    });
+
+    setCreateDraft(nextDraft);
+    setRoughNotes(roughNotesText);
+    setRoughNotesState({ loading: false, result: null, error: "" });
+    setEstimateViewMode("create");
+    setSelectedEstimateId("");
+    setStatusFilter("Draft");
+    setCustomerFilter("All customers");
+    setLeadFilter("All leads");
+    setCreatorFilter("All creators");
+    setArchiveFilter("Active");
+    setSearch("");
+    setActiveEstimateTool(canUseAiRoughNotes && roughNotesText ? "roughNotes" : "create");
+    setShowEstimateTools(true);
+    showCopyFeedback(
+      canUseAiRoughNotes && roughNotesText
+        ? "Assistant started a clean estimate draft. Review the rough notes, generate suggestions, then create the Draft when ready."
+        : "Assistant started a clean estimate draft. Review and save it when ready.",
+      8000,
+    );
+    window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    onAssistantEstimateDraftSeedHandled(seed.nonce);
+  }, [assistantEstimateDraftSeed?.nonce]);
 
   useEffect(() => {
     if (estimateViewMode !== "browse") return;
@@ -33210,6 +33293,8 @@ function MainContent(props) {
           onSendEstimate={props.onSendEstimate}
           onGenerateEstimateRoughNotes={props.onGenerateEstimateRoughNotes}
           initialSelectedEstimateId={props.estimateFocusId}
+          assistantEstimateDraftSeed={props.assistantEstimateDraftSeed}
+          onAssistantEstimateDraftSeedHandled={props.onAssistantEstimateDraftSeedHandled}
         />
       );
     }
@@ -33420,6 +33505,7 @@ export default function App() {
   const [selectedImportedDraftId, setSelectedImportedDraftId] = useState("");
   const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
   const [estimateFocusId, setEstimateFocusId] = useState("");
+  const [assistantEstimateDraftSeed, setAssistantEstimateDraftSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -33518,6 +33604,20 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("settings");
+  }
+
+  function handleStartAssistantEstimateDraft(seed = {}) {
+    if (!appState.permissions.estimates?.canManage) {
+      setErrorMessage("Estimate assistant drafts require an office or estimator role with estimate access.");
+      return false;
+    }
+    setEstimateFocusId("");
+    setAssistantEstimateDraftSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("estimates");
+    return true;
   }
 
   function runDashboardShortcut(shortcutId) {
@@ -36355,19 +36455,25 @@ export default function App() {
                 customerSaveState={customerSaveState}
                 customerDraft={customerDraft}
                 setCustomerDraft={setCustomerDraft}
-                  onCreateCustomer={handleCreateCustomer}
-                  onArchiveCustomer={handleArchiveCustomer}
-                  onRestoreCustomer={handleRestoreCustomer}
-                  onCreateEstimate={handleCreateEstimate}
-                  onSaveEstimate={handleSaveEstimate}
-                  onConvertEstimate={handleConvertEstimate}
-                  onPrintEstimate={handlePrintEstimate}
-                  onPrintEstimateForemanHandoff={handlePrintEstimateForemanHandoff}
-                  onSendEstimate={handleSendEstimate}
-                  onGenerateEstimateRoughNotes={handleGenerateEstimateRoughNotes}
-                  onCreateEstimateFromLead={handleCreateEstimateFromLead}
-                  estimateFocusId={estimateFocusId}
-                  relatedRecords={customerRelated}
+                onCreateCustomer={handleCreateCustomer}
+                onArchiveCustomer={handleArchiveCustomer}
+                onRestoreCustomer={handleRestoreCustomer}
+                onCreateEstimate={handleCreateEstimate}
+                onSaveEstimate={handleSaveEstimate}
+                onConvertEstimate={handleConvertEstimate}
+                onPrintEstimate={handlePrintEstimate}
+                onPrintEstimateForemanHandoff={handlePrintEstimateForemanHandoff}
+                onSendEstimate={handleSendEstimate}
+                onGenerateEstimateRoughNotes={handleGenerateEstimateRoughNotes}
+                onCreateEstimateFromLead={handleCreateEstimateFromLead}
+                estimateFocusId={estimateFocusId}
+                assistantEstimateDraftSeed={assistantEstimateDraftSeed}
+                onAssistantEstimateDraftSeedHandled={(nonce) => {
+                  if (!assistantEstimateDraftSeed || assistantEstimateDraftSeed.nonce === nonce) {
+                    setAssistantEstimateDraftSeed(null);
+                  }
+                }}
+                relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
                 setLeadFilter={setLeadFilter}
@@ -36560,7 +36666,17 @@ export default function App() {
         </div>
       </div>
       <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
-      <ApexAssistantShell permissions={appState.permissions} commandCenter={assistantCommandCenter} onOpenModule={setActive} />
+      <ApexAssistantShell
+        permissions={appState.permissions}
+        commandCenter={assistantCommandCenter}
+        commandContext={{
+          permissions: appState.permissions,
+          leads: appState.permissions.leads?.canView ? appState.leads : [],
+          customers: appState.permissions.customers?.canView ? appState.customers : [],
+        }}
+        onOpenModule={setActive}
+        onStartEstimateDraft={handleStartAssistantEstimateDraft}
+      />
     </div>
   );
 }

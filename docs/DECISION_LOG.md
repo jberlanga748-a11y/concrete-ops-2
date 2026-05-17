@@ -167,3 +167,88 @@ Medium before verification; low after focused checks.
 
 Rollback / revisit condition:
 Revert the Watchtower utility/UI changes if the Command Center shows incorrect operational counts or role tests fail. Future Assistant work must reuse Watchtower as read-only context unless a later approved phase adds reviewed command actions.
+
+### 2026-05-17 - Demo Cleanup Is Complete Enough For Guided Demos
+
+Decision:
+Treat the v485/v486 demo cleanup as complete and stop looping on demo-data cleanup unless browser QA finds a new visible issue.
+
+Why:
+The live v486 app was checked across Command Center, Leads, Jobs, and Schedule as a demo operations user. Known rough/test records were not visible, health checks passed, and no console/API failures were observed.
+
+Scope:
+Demo-visible filtering and live confirmation only. Real company data behavior, auth, permissions, packages, and field workflows were not redesigned.
+
+Risk:
+Low after focused demo and role verification.
+
+Rollback / revisit condition:
+If a guided demo exposes new junk data, open a narrow cleanup bug phase. Do not restart broad demo hardening or rebuild demo mode.
+
+### 2026-05-17 - Next Phase Is Guided Demo Launch Readiness
+
+Decision:
+Move the immediate next phase to Guided Demo Launch Readiness, with Assistant Command Expansion Phase 2 parked until command scope is approved.
+
+Why:
+Apex HQ has a clean enough guided demo path after v486. The next value is proving the product with contractors and avoiding another app-cleanup loop. Assistant commands are the next product-heavy direction, but reviewed command actions need explicit scope because they can affect estimates, jobs, crews, and customer communication.
+
+Scope:
+Demo script, owner/admin walkthrough, field walkthrough, pilot handoff, and narrow issue capture. No billing, customer portal, autonomous AI actions, or broad redesign.
+
+Risk:
+Low for demo readiness documentation; high for later assistant command execution if it is not scoped carefully.
+
+Rollback / revisit condition:
+If demo rehearsal finds blockers, fix only those blockers. If the user approves Assistant Command Expansion, create a separate scoped build phase with QA and rollback plan.
+
+### 2026-05-17 - Guided Demo Launch Readiness Packet Created
+
+Decision:
+Create `docs/GUIDED_DEMO_LAUNCH_READINESS.md` as the current demo/pilot handoff source, and move the next product build gate to Assistant Command Expansion Phase 2 Scope Lock.
+
+Why:
+The app is clean enough for guided warm demos after v486, but future sessions need a single path for owner/admin walkthroughs, field walkthroughs, pilot handoff, go/no-go rules, and assistant command boundaries.
+
+Scope:
+Documentation only. No app behavior, routes, permissions, package gates, demo data, or production systems changed.
+
+Risk:
+Low.
+
+Rollback / revisit condition:
+Revert or update the demo readiness packet if the live rehearsal finds a better demo path or if new product capabilities change the talk track.
+
+### 2026-05-17 - Assistant Command Expansion Scope Locked
+
+Decision:
+Scope Assistant Command Expansion Phase 2 around review-first command actions, with Phase 2A limited to lead/customer/rough-notes to clean estimate draft handoff.
+
+Why:
+The current assistant shell is intentionally review-only and already routes to existing workflows. The highest-value next assistant behavior is helping an owner or estimator start a professional estimate from a lead and rough notes without stale estimate context, while preserving package gates, field restrictions, manual send mode, and user review.
+
+Scope:
+Documentation and implementation prompt only. Phase 2A may later touch `src/apex-assistant-shell-utils.js`, `src/App.jsx`, estimate/lead utilities, and existing estimate rough-notes flows, but this decision does not change app behavior.
+
+Risk:
+Medium for the future build because assistant commands touch leads, estimates, packages, and role safety. Low for this scope-lock document.
+
+Rollback / revisit condition:
+If Phase 2A starts to require autonomous sending, pricing approval, automatic job conversion, crew assignment, or material ordering, stop and split the work into a later reviewed-command phase.
+
+### 2026-05-17 - Assistant Command Expansion Phase 2A Built Review-First
+
+Decision:
+Build Phase 2A as a reviewed assistant handoff only: lead/customer/rough-notes commands can open a clean estimate draft context, but the assistant still does not save, send, approve, price, assign crews, order materials, or contact customers automatically.
+
+Why:
+This is the safest first step toward the finished Apex Assistant product promise. It helps an owner or estimator start estimate/proposal work faster while preserving existing Estimates, AI Rough Notes, role restrictions, package gates, and manual send behavior.
+
+Scope:
+Frontend assistant command parsing, visible lead/customer matching, reviewed match choices, clean Estimates new-draft handoff, tests, and documentation. No backend route, schema change, customer communication, job conversion, material ordering, billing, or field-role access was added.
+
+Risk:
+Medium before release because assistant commands touch leads, customers, estimates, and package gates. Focused tests passed, and local browser QA confirmed the Basic demo workspace blocks Premium AI Rough Notes assistant commands safely.
+
+Rollback / revisit condition:
+If released behavior shows stale estimate context, package-gate leakage, field-role access, or confusing draft creation, revert the Phase 2A changes in `src/apex-assistant-shell-utils.js`, `src/apex-assistant-shell-utils.test.js`, and `src/App.jsx`, then reopen a narrow bug-fix phase.

@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `cfc73232403fdfb4f1f5685a295417e826ed20a3`
-- Message: `Add Apex HQ advanced reporting prep`
-- Fly release: `v483`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTZMGGMWBRY6Q24H9219EHF`
+- Commit: `9cd3ac9810c5e2d1ca5393e67aeb92bf16d99d5c`
+- Message: `Clean remaining Apex HQ demo records`
+- Fly release: `v486`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV1WGMZH6RPG6MJB2J05CH4`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -50,6 +50,9 @@ Recent shipped phase stack:
 | `d6153ae` | `v481` | Public SaaS Signup UX Phase 2 |
 | `d5f064b` | `v482` | Package Upgrade / Locked State Polish |
 | `cfc7323` | `v483` | Advanced Reporting Prep |
+| `575be23` | `v484` | Enterprise Trust Prep |
+| `7276412` | `v485` | Demo pilot data cleanup |
+| `9cd3ac9` | `v486` | Remaining demo record cleanup |
 
 ## Done / Do Not Rebuild
 
@@ -65,6 +68,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | User invite/activation/password reset | Built and verified | Token flow, expiry, single-use behavior, and company-scoped activation exist. Improve UX later only if needed. |
 | Company/workspace foundations | Done | `companies`, `company_id`, company scoping helpers, company switching rules exist. Keep hardening route by route. |
 | Demo vs real separation | Built and tested | Demo reset protections exist. Preserve. |
+| Demo pilot data cleanup | Done and released | Known rough/test records are filtered from demo-visible lead/job/schedule paths. Do not restart demo cleanup unless browser QA finds new visible junk. |
 | Role permissions | Built and tested | Field users remain blocked from office/admin/pricing. Never loosen. |
 | Package entitlement foundation | Done and released | Basic/Premium/Elite feature map, backend checks, frontend nav gates started. |
 | Package Upgrade / Locked State Polish | Done and released | Package-locked routes now explain manual upgrades and route owner/admin users to Plan Readiness without exposing field roles. |
@@ -89,9 +93,12 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Pre-pour/post-pour | Tightened | Preserve workflow. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
-| Enterprise Trust Prep | Built / pending release | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
+| Enterprise Trust Prep | Built and released | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
+| Guided Demo Launch Readiness | Prepared | `docs/GUIDED_DEMO_LAUNCH_READINESS.md` now locks the owner/admin path, field path, talk track, pilot handoff, and next product gate. Rehearse before cold demos. |
 | Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
 | Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
+| Assistant Command Expansion Phase 2 Scope Lock | Prepared | `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` defines allowed/later/never commands, role/package gates, first slice, and builder prompt. |
+| Assistant Command Expansion Phase 2A | Built, pending release | Lead/customer/rough-notes commands now hand off to clean reviewed estimate draft mode while preserving role/package gates and blocking unsafe automation. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -107,6 +114,9 @@ Recent focused verification:
 - Public SaaS Signup UX release checks: `npm.cmd run verify:signup`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser desktop/mobile signup QA, and `git diff --check` passed; release `v481` health-checked ready.
 - Package Upgrade / Locked State Polish checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner desktop/mobile package lock QA, field role safety check, and `git diff --check` passed; release `v482` health-checked ready.
 - Advanced Reporting Prep checks: `npm.cmd run verify:packages`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, browser owner desktop/mobile reporting prep QA, field role safety check, and `git diff --check` passed; release `v483` health-checked ready.
+- Enterprise Trust Prep checks: `npm.cmd run build`, focused trust/roles verification, release `v484`, and live health checks passed.
+- Demo pilot data cleanup checks: `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; releases `v485` and `v486` health-checked ready.
+- Live v486 demo confirmation: Playwright checked `https://app.apexhq.online` as demo ops across Command Center, Leads, Jobs, and Schedule. No known junk/test terms were visible, no horizontal overflow was detected, and no console/API failures were observed. Screenshot evidence was saved under `C:\Users\jberl\AppData\Local\Temp\apex-v486-demo-confirm-1779024520548`.
 - Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v480` health-checked ready.
 - `npm.cmd run build`: passed before latest release.
 - Latest Command Center checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner/admin mobile/desktop QA, and field role safety QA passed.
@@ -114,6 +124,7 @@ Recent focused verification:
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
 - Watchtower / Missing Work Agent release checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v478` health-checked ready.
 - Apex Assistant Shell release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, browser owner desktop/mobile sanity QA, field role safety check, and `git diff --check` passed; release `v479` health-checked ready.
+- Assistant Command Expansion Phase 2A checks: `npm.cmd run build`, `npm.cmd run verify:estimates`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, and `git diff --check` passed. Local browser check confirmed the Basic demo workspace safely blocks Premium AI Rough Notes assistant commands without console/API failures. Not released yet.
 
 ## Current Loop Prevention Rules
 
@@ -140,6 +151,7 @@ Do not start these phases again as if they are missing:
 - Package Upgrade / Locked State Polish.
 - Advanced Reporting Prep.
 - Enterprise Trust Prep.
+- Demo pilot data cleanup.
 
 If one of those areas comes up, first ask:
 
@@ -150,49 +162,52 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Enterprise Trust Prep
+### Release Assistant Command Expansion Phase 2A
 
 Why this is next:
 
-- Apex HQ has signup, package gates, support, app health, audit activity, and advanced reporting prep foundations.
-- The next owner/admin risk is trust evidence before broader public SaaS selling.
-- Enterprise trust should prepare audit/export/admin visibility without pretending SOC 2 or SSO is fully built.
-- First slice is built and pending release: Settings now surfaces Enterprise Trust Readiness from existing audit/export/app health/support/release safety signals.
+- Assistant Command Expansion Phase 2A is built and focused verification passed.
+- The next safe move is not another build phase; it is a release-manager pass, explicit staging, commit, push, deploy, and health check.
+- Releasing this first reviewed command keeps Apex HQ moving toward the finished assistant vision without opening autopilot risks.
 
 Scope:
 
-- Tighten owner/admin trust surfaces around audit activity, exports, settings, support, and health status.
-- Keep security, role protection, and company isolation included for every package.
-- Preserve field workflows and current data structures.
-- Add only small utilities/tests if needed to prove trust summaries.
+- Confirm changed files.
+- Stage only Phase 2A app/docs files and avoid unrelated business side-chat docs.
+- Commit, push, deploy, and health-check when the user says release.
 
 Do not include:
 
 - Billing.
 - Customer portal.
 - AI autopilot or automatic task completion.
+- Automatic email/SMS sending.
+- Automatic pricing approval.
+- Automatic crew assignment without owner/admin review.
+- Automatic material ordering.
+- Direct customer communication.
+- Job conversion.
 - Enterprise SSO/MFA/SCIM.
 - SOC 2 paperwork or public compliance claims.
 - New analytics warehouse or schema rewrite.
 - Field access to office/admin/pricing/trust controls.
 
-Suggested verification:
+Suggested release verification:
 
 - `npm.cmd run build`
-- `npm.cmd run verify:server`
-- `npm.cmd run verify:exports`
-- `npm.cmd run verify:users`
+- `npm.cmd run verify:estimates`
 - `npm.cmd run verify:roles`
+- `npm.cmd run verify:packages`
 - `git diff --check`
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Release Enterprise Trust Prep | Commit, push, deploy, and health-check the built trust readiness slice. | Medium | No. |
-| 2 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
-| 3 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
-| 4 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
+| 1 | Release Assistant Command Expansion Phase 2A | Commit, push, deploy, and health-check the reviewed estimate draft assistant command. | Medium | No, unless release fails. |
+| 2 | Rehearse Guided Demo Launch Readiness | Run the scripted owner/admin and field demo path once before cold demos. | Low | No. |
+| 3 | Assistant Missing Proof Summary | Add reviewed/read-only proof gap summaries for selected jobs. | Medium | Maybe. |
+| 4 | Mobile Field Trust Polish | Fix only proven mobile field friction found during demo rehearsal or pilot use. | Medium | Maybe. |
 | 5 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
 | 6 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
 | 7 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
@@ -261,59 +276,60 @@ Before each release:
 
 ## Recommended Next Prompt
 
-Use this when ready to build the next phase:
+Use this when ready to build the next product slice:
 
 ```text
 You are entering:
 
-APEX HQ - ENTERPRISE TRUST PREP
+APEX HQ - ASSISTANT COMMAND EXPANSION PHASE 2A
 
 Use skills:
 - apex-build-router
 - apex-product-system
-- apex-saas-hardening
 - apex-qa-engineer
+- apex-estimate-proposal-system
 
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT redesign the app.
-Do NOT rebuild auth, signup, settings, support, exports, app health, audit activity, packages, or field workflows.
+Do NOT rebuild the assistant shell, estimates, leads, jobs, field workflows, permissions, packages, or navigation.
 Do NOT refactor architecture.
-Do NOT start billing, Stripe, customer portal, offline mode, payroll, SOC 2 paperwork, SSO/MFA/SCIM, or AI autopilot.
+Do NOT add automatic email/SMS sending.
+Do NOT add autonomous job creation, autonomous pricing approval, automatic crew assignment, material ordering, billing, Stripe, customer portal, offline mode, payroll, or AI autopilot.
 Do NOT commit, push, or deploy.
 
 Goal:
-Tighten owner/admin trust surfaces before broader public SaaS selling, without overbuilding compliance.
+Build the first reviewed assistant command: lead/customer/rough-notes to clean estimate draft handoff.
 
 Focus only on:
-- existing audit activity
-- owner health/status visibility
-- owner data export visibility
-- support handoff visibility
-- release safety / rollback guidance
-- role-safe trust readiness visibility
-- small trust readiness utilities/tests if needed
+- assistant command parsing for lead/customer/estimate-draft intent
+- visible lead/customer match handling
+- review-before-save behavior
+- existing AI Rough Notes handoff
+- clean Estimates new-draft mode
+- role/package safety
 
 Preserve:
-- existing customers/leads/estimates/jobs workflows
+- existing Assistant Shell Phase 1
+- existing lead/estimate/job workflows
 - existing permissions and package gates
 - existing field restrictions
-- existing export/owner health/audit behavior
-- existing server-side role checks
+- existing manual-send behavior
 
 Verify:
-- build
-- verify:server
-- verify:exports
-- verify:users
+- npm.cmd run build
+- npm.cmd run verify:estimates
+- npm.cmd run verify:leads
 - verify:roles
+- npm.cmd run verify:packages
 - git diff --check
 
 Report:
-- root cause/gaps found
+- root cause/gap addressed
 - files changed
-- exact fix
+- exact behavior added
+- role/package safety
 - verification results
 - safe to release yes/no
 ```
