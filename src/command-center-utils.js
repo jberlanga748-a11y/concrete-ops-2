@@ -9,6 +9,7 @@ const REVIEW_REPORT_STATUSES = new Set(["submitted", "pending review", "needs re
 const CLOSED_CHECKLIST_STATUSES = new Set(["archived", "complete", "completed", "done", "reviewed"]);
 const CLOSED_CHANGE_ORDER_STATUSES = new Set(["approved", "rejected", "declined", "cancelled", "canceled", "closed", "completed", "archived"]);
 const CUSTOMER_MATCH_REVIEW_STATUSES = new Set(["not checked", "possible match", "review required", "new customer needed"]);
+const CLOSED_SAFETY_STATUSES = new Set(["resolved", "closed", "reviewed", "archived"]);
 
 export function deriveCommandCenterState(source = {}, options = {}) {
   const todayKey = dateKey(options.today || new Date());
@@ -20,6 +21,8 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   const prePourChecklists = asArray(source.prePourChecklists).filter((checklist) => !isArchived(checklist));
   const postPourChecklists = asArray(source.postPourChecklists).filter((checklist) => !isArchived(checklist));
   const deliveryTickets = asArray(source.deliveryTickets).filter((ticket) => !isArchived(ticket));
+  const safetyIncidents = asArray(source.safetyIncidents).filter((incident) => !isArchived(incident));
+  const toolChecklists = asArray(source.toolChecklists).filter((checklist) => !isArchived(checklist));
   const timeEntries = asArray(source.timeEntries).filter((entry) => !isArchived(entry));
   const changeOrderRequests = asArray(source.changeOrderRequests).filter((request) => !isArchived(request));
   const leadSourceChecks = deriveDailySourceCheckState(source.leadSources || [], { today: todayKey });
@@ -85,6 +88,8 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     if (!status) return true;
     return !CLOSED_CHECKLIST_STATUSES.has(status) && status !== "delivered";
   });
+  const openSafetyIncidents = safetyIncidents.filter((incident) => !CLOSED_SAFETY_STATUSES.has(normalizeStatus(incident.status)));
+  const openToolChecklists = toolChecklists.filter(toolChecklistNeedsAction);
 
   const activeTimeEntries = timeEntries.filter((entry) => normalizeStatus(entry.status) === "active" || Boolean(entry.clockInAt && !entry.clockOutAt));
   const timeEntriesWithoutJob = timeEntries.filter((entry) => !recordJobId(entry));
@@ -100,12 +105,16 @@ export function deriveCommandCenterState(source = {}, options = {}) {
     + jobsMissingPhotos.length
     + pendingDeliveryTickets.length
     + pendingPrePour.length
-    + pendingPostPour.length;
+    + pendingPostPour.length
+    + openSafetyIncidents.length
+    + openToolChecklists.length;
   const reviewQueueItems = dailyReportsNeedingReview.length
     + openChangeOrders.length
     + importedDraftsNeedingReview.length
     + allTimeIssues.length
-    + pendingPostPour.length;
+    + pendingPostPour.length
+    + openSafetyIncidents.length
+    + openToolChecklists.length;
   const moneyReadyItems = jobsReadyToBill.length + approvedEstimatesReadyToConvert.length;
 
   const result = {
@@ -130,6 +139,8 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       pendingPrePourChecklists: pendingPrePour.length,
       pendingPostPourChecklists: pendingPostPour.length,
       pendingDeliveryTickets: pendingDeliveryTickets.length,
+      openSafetyIncidents: openSafetyIncidents.length,
+      openToolChecklists: openToolChecklists.length,
       openChangeOrders: openChangeOrders.length,
       timeIssues: allTimeIssues.length,
       activeJobs: jobs.length,
@@ -169,6 +180,8 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       pendingPrePour,
       pendingPostPour,
       pendingDeliveryTickets,
+      openSafetyIncidents,
+      openToolChecklists,
     },
     timeIssues: {
       activeTimeEntries,
@@ -182,6 +195,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   return {
     ...result,
     watchtowerActions: deriveWatchtowerActions(result),
+    watchtowerQueue: deriveWatchtowerQueue(result),
   };
 }
 
@@ -250,6 +264,17 @@ export function deriveWatchtowerActions(commandCenter = {}) {
     actionLabel: "Open tickets",
   });
   addAction({
+    id: "safety-tool-accountability",
+    count: Number(stats.openSafetyIncidents || 0) + Number(stats.openToolChecklists || 0),
+    priority: 45,
+    title: "Resolve safety and tool issues",
+    description: "Safety incidents or tool accountability records need review before closeout.",
+    moduleId: stats.openSafetyIncidents ? "incidents" : "toolChecklist",
+    tone: stats.openSafetyIncidents ? "red" : "amber",
+    icon: "alert",
+    actionLabel: stats.openSafetyIncidents ? "Open safety" : "Open tools",
+  });
+  addAction({
     id: "time-issues",
     count: stats.timeIssues,
     priority: 50,
@@ -286,6 +311,169 @@ export function deriveWatchtowerActions(commandCenter = {}) {
   return actions.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title)).slice(0, 5);
 }
 
+export function deriveWatchtowerQueue(commandCenter = {}) {
+  const jobsById = new Map(asArray(commandCenter.jobsNeedingStartupReview)
+    .concat(asArray(commandCenter.jobsReadyForField))
+    .concat(asArray(commandCenter.jobsMissingCrewOrStartDate))
+    .concat(asArray(commandCenter.dailyReports?.activeJobsMissingTodayReport))
+    .concat(asArray(commandCenter.uploads?.jobsMissingPhotos))
+    .filter((job) => job?.id)
+    .map((job) => [job.id, job]));
+  const rows = [];
+
+  function jobLabel(jobId, fallback = "Job") {
+    const job = jobsById.get(jobId) || {};
+    return jobTitle(job) || fallback;
+  }
+
+  function addRow({ id, priority, title, description, moduleId, tone = "amber", actionLabel = "Review", sourceLabel = "" }) {
+    if (!id || !title) return;
+    rows.push({
+      id,
+      priority: Number(priority || 99),
+      title,
+      description,
+      moduleId,
+      tone,
+      actionLabel,
+      sourceLabel,
+    });
+  }
+
+  for (const job of asArray(commandCenter.jobsMissingCrewOrStartDate)) {
+    addRow({
+      id: `job:${job.id}:startup`,
+      priority: 10,
+      title: jobTitle(job),
+      description: [job.missingCrew ? "Assign crew" : "", job.missingStartDate ? "Set start date" : ""].filter(Boolean).join(" / ") || "Job startup needs review.",
+      moduleId: "jobs",
+      tone: "amber",
+      actionLabel: "Open job",
+      sourceLabel: "Startup",
+    });
+  }
+
+  for (const report of asArray(commandCenter.dailyReports?.dailyReportsNeedingReview)) {
+    addRow({
+      id: `report:${report.id}:review`,
+      priority: 20,
+      title: jobLabel(recordJobId(report), report.title || "Daily report"),
+      description: `Daily report is ${report.status || "submitted"} and needs office review.`,
+      moduleId: "reports",
+      tone: "orange",
+      actionLabel: "Review report",
+      sourceLabel: "Report",
+    });
+  }
+
+  for (const job of asArray(commandCenter.dailyReports?.activeJobsMissingTodayReport)) {
+    addRow({
+      id: `job:${job.id}:missing-report`,
+      priority: 30,
+      title: jobTitle(job),
+      description: "Missing today's daily report.",
+      moduleId: "reports",
+      tone: "amber",
+      actionLabel: "Open reports",
+      sourceLabel: "Missing report",
+    });
+  }
+
+  for (const job of asArray(commandCenter.uploads?.jobsMissingPhotos)) {
+    addRow({
+      id: `job:${job.id}:missing-photos`,
+      priority: 35,
+      title: jobTitle(job),
+      description: "No photo evidence is attached to this active job.",
+      moduleId: "uploads",
+      tone: "amber",
+      actionLabel: "Open uploads",
+      sourceLabel: "Photo proof",
+    });
+  }
+
+  for (const incident of asArray(commandCenter.fieldRecords?.openSafetyIncidents)) {
+    addRow({
+      id: `safety:${incident.id}:open`,
+      priority: 40,
+      title: incident.title || incident.incidentType || jobLabel(recordJobId(incident), "Safety item"),
+      description: `Safety status: ${incident.status || "open"}.`,
+      moduleId: "incidents",
+      tone: "red",
+      actionLabel: "Open safety",
+      sourceLabel: "Safety",
+    });
+  }
+
+  for (const checklist of asArray(commandCenter.fieldRecords?.openToolChecklists)) {
+    const issueCount = Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0);
+    addRow({
+      id: `tool:${checklist.id}:open`,
+      priority: 45,
+      title: checklist.title || checklist.name || jobLabel(recordJobId(checklist), "Tool checklist"),
+      description: issueCount > 0 ? `${issueCount} missing or damaged tool item${issueCount === 1 ? "" : "s"}.` : `Tool checklist is ${checklist.status || "open"}.`,
+      moduleId: "toolChecklist",
+      tone: issueCount > 0 ? "amber" : "blue",
+      actionLabel: "Open tools",
+      sourceLabel: "Tools",
+    });
+  }
+
+  for (const ticket of asArray(commandCenter.fieldRecords?.pendingDeliveryTickets)) {
+    addRow({
+      id: `ticket:${ticket.id}:pending`,
+      priority: 50,
+      title: ticket.ticketNumber || ticket.supplier || jobLabel(recordJobId(ticket), "Delivery ticket"),
+      description: `Delivery ticket is ${ticket.status || "pending"} and needs review or completion.`,
+      moduleId: "deliveryTickets",
+      tone: "blue",
+      actionLabel: "Open tickets",
+      sourceLabel: "Ticket",
+    });
+  }
+
+  for (const checklist of asArray(commandCenter.fieldRecords?.pendingPrePour)) {
+    addRow({
+      id: `prepour:${checklist.id}:pending`,
+      priority: 55,
+      title: checklist.title || jobLabel(recordJobId(checklist), "Pre-pour checklist"),
+      description: `Pre-pour status: ${checklist.status || "open"}.`,
+      moduleId: "prePour",
+      tone: "blue",
+      actionLabel: "Open pre-pour",
+      sourceLabel: "Pre-pour",
+    });
+  }
+
+  for (const checklist of asArray(commandCenter.fieldRecords?.pendingPostPour)) {
+    addRow({
+      id: `postpour:${checklist.id}:pending`,
+      priority: 60,
+      title: checklist.title || jobLabel(recordJobId(checklist), "Post-pour checklist"),
+      description: `Post-pour status: ${checklist.status || "open"}.`,
+      moduleId: "postPour",
+      tone: "blue",
+      actionLabel: "Open post-pour",
+      sourceLabel: "Post-pour",
+    });
+  }
+
+  for (const entry of asArray(commandCenter.timeIssues?.allTimeIssues)) {
+    addRow({
+      id: `time:${entry.id || rows.length}:issue`,
+      priority: 70,
+      title: jobLabel(recordJobId(entry), entry.userName || "Time entry"),
+      description: recordJobId(entry) ? "Active clock needs review." : "Time entry is not tied to a job.",
+      moduleId: "time",
+      tone: "blue",
+      actionLabel: "Open time",
+      sourceLabel: "Time",
+    });
+  }
+
+  return rows.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title) || left.id.localeCompare(right.id));
+}
+
 export function isLiveJob(job = {}) {
   if (!job || isArchived(job)) return false;
   const status = normalizeStatus(job.status || job.stage);
@@ -311,6 +499,18 @@ function scheduledDateValue(job = {}) {
 
 function recordJobId(record = {}) {
   return record.jobId || record.linkedJobId || record.job?.id || "";
+}
+
+function jobTitle(job = {}) {
+  return job.title || job.name || job.projectName || job.customer || job.customerName || job.address || job.id || "Job";
+}
+
+function toolChecklistNeedsAction(checklist = {}) {
+  if (!checklist || isArchived(checklist)) return false;
+  const status = normalizeStatus(checklist.status);
+  if (Number(checklist.missingItemCount || 0) > 0 || Number(checklist.damagedItemCount || 0) > 0) return true;
+  if (!status) return false;
+  return !CLOSED_CHECKLIST_STATUSES.has(status) && !["submitted", "not applicable"].includes(status);
 }
 
 function uniqueById(records = []) {

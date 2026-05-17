@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `5b6426ffa55f75f488a4ac7476a13f0cda7c13de`
-- Message: `Polish Apex HQ command center mobile KPIs`
-- Fly release: `v475`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTR56RQNC8CZC3JKTHP4ACM`
+- Commit: `e77e9cadbc9ea8bce5f45979f354399b93bb08ad`
+- Message: `Add Apex HQ app health audit review`
+- Fly release: `v477`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTSY9VB0D61E2SKT6G3W0D9`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -32,6 +32,12 @@ Known working tree note:
 - Existing uncommitted docs/agent/skill files may be present.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
+
+Current unreleased work:
+
+- Watchtower / Missing Work Agent Phase 1 is built and locally verified.
+- It has not been committed, pushed, deployed, or health-checked yet.
+- Next step should be release if the user approves release.
 
 Recent shipped phase stack:
 
@@ -42,6 +48,8 @@ Recent shipped phase stack:
 | `fd43d40` | `v473` | Foreman handoff packet split |
 | `b6959b3` | `v474` | Operations Command UX Upgrade Phase 1 |
 | `5b6426f` | `v475` | Command Center mobile KPI polish |
+| `931938b` | `v476` | Communication Center Phase 1 |
+| `e77e9ca` | `v477` | App Health / Audit Activity Phase 1 |
 
 ## Done / Do Not Rebuild
 
@@ -59,6 +67,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Role permissions | Built and tested | Field users remain blocked from office/admin/pricing. Never loosen. |
 | Package entitlement foundation | Done and released | Basic/Premium/Elite feature map, backend checks, frontend nav gates started. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
+| Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
 | Leads | Done/frozen | Do not redesign; only planned improvements or bugs. |
 | Customers | Done/frozen | Do not redesign. |
@@ -74,7 +83,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Delivery tickets | Tightened | Preserve workflow. |
 | Pre-pour/post-pour | Tightened | Preserve workflow. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
-| App health / owner health foundations | Built | Can be expanded later into trust/observability. |
+| App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -89,6 +98,8 @@ Recent focused verification:
 - `npm.cmd run verify:roles`: passed 8/8.
 - `npm.cmd run build`: passed before latest release.
 - Latest Command Center checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner/admin mobile/desktop QA, and field role safety QA passed.
+- Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
+- App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
 
 ## Current Loop Prevention Rules
 
@@ -105,6 +116,8 @@ Do not start these phases again as if they are missing:
 - Estimate options/reference attachments/takeoff input foundation.
 - GC packet/foreman handoff packet split.
 - Operations Command UX Phase 1 and mobile KPI polish.
+- Communication Center Phase 1.
+- App Health / Audit Activity Phase 1.
 
 If one of those areas comes up, first ask:
 
@@ -113,24 +126,24 @@ If one of those areas comes up, first ask:
 3. Is there a narrow UX improvement?
 4. Is it already covered and should we move on?
 
-## Current Next Phase
+## Current Next Step
 
-### Phase: Communication Center Phase 1
+### Release Watchtower / Missing Work Agent Phase 1
 
 Why this is next:
 
-- Contractors need one place to see what was said, promised, requested, and followed up across leads, customers, estimates, and jobs.
-- Existing contact history and follow-up foundations can be extended without adding SMS/email automation.
-- This reduces owner friction before heavier AI assistant or customer portal work.
-- It supports real pilot usage because communication context is often what gets lost between office and field.
+- Watchtower / Missing Work Agent Phase 1 is implemented locally and passed focused verification.
+- Releasing it clears the phase before Apex Assistant Shell work begins.
+- Do not start Apex Assistant until Watchtower is committed, deployed, and health-checked.
 
-Scope:
+Released scope:
 
-- Manual notes and communication log visibility.
-- Reuse or extend existing contact history patterns where possible.
-- Link communication context to customers, leads, estimates, and jobs.
-- Owner/admin review first; field visibility only where safe and job-specific.
-- Clear empty states and no fake external-send behavior.
+- Read-only missing-work recommendations.
+- Owner/admin queue for missing reports, uploads, tickets, checklists, follow-ups, crew assignment gaps, startup blockers, and ready-to-review items.
+- Owner/admin Watchtower card now includes exact "needs attention" rows.
+- Safety incidents and tool checklist gaps are included in Command Center Watchtower derivation.
+- Use existing data and routes where possible.
+- No automatic sending, scheduling, job changes, or AI autopilot actions.
 
 Do not include:
 
@@ -138,17 +151,18 @@ Do not include:
 - Automatic email sending.
 - Automatic SMS sending.
 - Customer portal.
-- AI autopilot.
+- AI autopilot or automatic task completion.
 - Full visual redesign.
 - Broad notification rebuild.
 - Pricing/margin exposure to field users.
 
-Suggested verification:
+Passed verification:
 
 - `npm.cmd run build`
-- `npm.cmd run verify:customers`
-- `npm.cmd run verify:leads`
 - `npm.cmd run verify:jobs`
+- `npm.cmd run verify:daily-reports`
+- `npm.cmd run verify:uploads`
+- `npm.cmd run verify:delivery-tickets`
 - `npm.cmd run verify:roles`
 - `git diff --check`
 
@@ -156,16 +170,16 @@ Suggested verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Communication Center Phase 1 | Add notes/comments/customer communication log in manual-first mode. | Medium | Probably. |
-| 2 | App Health / Audit Activity Phase 1 | Improve trust layer: errors, health, audit log visibility, support packet continuity. | Medium | No unless scope expands. |
-| 3 | Watchtower / Missing Work Agent Phase 1 | Read-only recommendations for missing reports/photos/follow-ups/startup blockers. | Medium | Yes for agent behavior boundaries. |
-| 4 | Apex Assistant Shell Phase 1 | Persistent in-app assistant shell with safe commands and review-only mode. | High | Yes. |
-| 5 | Customer Success / Guided Setup Phase 2 | Turn first owner onboarding into a clearer guided setup checklist. | Medium | Maybe. |
-| 6 | Billing / Plans Readiness Prep | Prepare plan limits/admin controls before Stripe. | High | Yes before any billing. |
-| 7 | Public SaaS Signup UX Phase 2 | Tighten signup-to-setup path for real contractors without changing auth foundation. | Medium | Yes for onboarding expectations. |
-| 8 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
-| 9 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
-| 10 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
+| 1 | Release Watchtower / Missing Work Agent Phase 1 | Commit, push, deploy, and health-check the verified Watchtower work. | Low | No. |
+| 2 | Apex Assistant Shell Phase 1 | Persistent in-app assistant shell with safe commands and review-only mode. | High | Yes. |
+| 3 | Customer Success / Guided Setup Phase 2 | Turn first owner onboarding into a clearer guided setup checklist. | Medium | Maybe. |
+| 4 | Billing / Plans Readiness Prep | Prepare plan limits/admin controls before Stripe. | High | Yes before any billing. |
+| 5 | Public SaaS Signup UX Phase 2 | Tighten signup-to-setup path for real contractors without changing auth foundation. | Medium | Yes for onboarding expectations. |
+| 6 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
+| 7 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
+| 8 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
+| 9 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
+| 10 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
 
 ## Later / Do Not Build Yet
 
@@ -233,7 +247,7 @@ Use this when ready to build the next phase:
 ```text
 You are entering:
 
-APEX HQ - COMMUNICATION CENTER PHASE 1
+APEX HQ - WATCHTOWER / MISSING WORK AGENT PHASE 1
 
 Use skills:
 - apex-build-router
@@ -252,15 +266,17 @@ Do NOT add automatic email or SMS sending.
 Do NOT commit, push, or deploy.
 
 Goal:
-Create a practical manual-first communication log so owners/admins can see important customer, lead, estimate, and job communication context without chasing scattered notes.
+Create a practical read-only Watchtower / Missing Work layer so owners/admins can see what is missing, late, blocked, or ready for review without chasing texts or manually checking every workflow.
 
 Focus only on:
-- communication notes/log visibility
-- existing contact history patterns
-- customer/lead/estimate/job context links
-- owner/admin review flow
-- field-safe job-specific visibility only if already supported safely
-- no external send behavior
+- missing daily reports
+- missing uploads/photos
+- missing delivery tickets
+- incomplete pre/post-pour and safety/tool checklist work
+- crew assignment/startup blockers
+- overdue follow-ups or review-needed items if already supported
+- owner/admin review queue
+- field-safe assigned-job reminders only where permissions already support it
 
 Preserve:
 - existing customers/leads/estimates/jobs workflows
@@ -270,9 +286,10 @@ Preserve:
 
 Verify:
 - build
-- verify:customers
-- verify:leads
 - verify:jobs
+- verify:daily-reports
+- verify:uploads
+- verify:delivery-tickets
 - verify:roles
 - git diff --check
 

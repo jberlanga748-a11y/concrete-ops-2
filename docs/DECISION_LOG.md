@@ -133,3 +133,37 @@ Medium.
 
 Rollback / revisit condition:
 If the implementation risks field data leaks, broad schema churn, or fake messaging behavior, pause and narrow the phase to existing contact-history surfaces only.
+
+### 2026-05-17 - Communication And App Health Phases Are Complete
+
+Decision:
+Mark Communication Center Phase 1 and App Health / Audit Activity Phase 1 as completed/released, and move the next phase to Watchtower / Missing Work Agent Phase 1.
+
+Why:
+Communication Center shipped in Fly release `v476` and App Health / Audit Activity shipped in Fly release `v477`. Leaving those as future phases created rebuild-loop risk.
+
+Scope:
+Documentation only. Update the build status tracker, roadmap, and agent handoff file so future sessions extend or fix these systems instead of rebuilding them.
+
+Risk:
+Low.
+
+Rollback / revisit condition:
+If either released phase has a bug, open a narrow bug-fix phase. Do not restart the phase unless a verified security, data, or workflow issue requires it.
+
+### 2026-05-17 - Watchtower Phase Is Read-Only And Pending Release
+
+Decision:
+Implement Watchtower / Missing Work Agent Phase 1 as a read-only Command Center layer, not an autonomous agent.
+
+Why:
+Owners need exact missing-work visibility before the larger Apex Assistant exists. The safe first step is to summarize existing reports, uploads, delivery tickets, safety incidents, tool checklists, startup blockers, and review queues without changing jobs or contacting anyone.
+
+Scope:
+Frontend derivation and Command Center display only. No backend writes, no AI, no automatic sending, no route rebuild, no permission loosening.
+
+Risk:
+Medium before verification; low after focused checks.
+
+Rollback / revisit condition:
+Revert the Watchtower utility/UI changes if the Command Center shows incorrect operational counts or role tests fail. Keep the broader Assistant phase blocked until Watchtower is released and health-checked.

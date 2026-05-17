@@ -42,10 +42,12 @@ Existing app foundations:
 - concrete calculator
 - change orders
 - notifications/reminders foundations
+- communication center foundation
 - demo mode
 - backup/export
 - health/readiness checks
 - owner health utilities
+- app health audit activity review
 - support/help handoff
 - website lead intake foundation
 - package entitlement foundation for Basic/Premium/Elite
@@ -57,7 +59,7 @@ Existing app foundations:
 | Pillar | Purpose | Timing |
 | --- | --- | --- |
 | Core Operations | leads, estimates, jobs, crews, reports, photos, tickets, safety, checklists, closeout | Now |
-| App Health Monitoring | crashes, failed API calls, uptime, health checks, troubleshooting guidance | Next |
+| App Health Monitoring | crashes, failed API calls, uptime, health checks, troubleshooting guidance | Built / expand later |
 | Watchtower / Autopilot Agent | missing reports/photos/follow-ups, startup blockers, recommendations | Next |
 | Field Ops Agent | clock issues, missing field proof, weather/GPS risk with consent | Later |
 | Growth Agent | stale estimates, lead targeting, close-rate recommendations | Later |
@@ -66,7 +68,7 @@ Existing app foundations:
 | Ad Assistant Agent | ad copy/budget/audience drafts with approval before spend | Later |
 | Website Builder Agent | contractor websites, service pages, forms, SEO pages | Later |
 | Customer Portal | proposal approvals, photos, change orders, payments later | Later |
-| Communication System | notes, mentions, updates, summaries | Next |
+| Communication System | notes, mentions, updates, summaries | Built / expand later |
 | Integrations | QuickBooks, Gmail, Calendar, Drive, Stripe, Twilio, Maps, Weather, DocuSign, CompanyCam, Sentry | Later |
 | Reporting / Intelligence | job costing, labor, close rates, lead sources, production KPIs | Later |
 | Customer Success | onboarding, demo/training mode, support, walkthroughs, help docs | Next |
@@ -89,18 +91,15 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Keep pilot workflows stable.
 - Preserve field permissions.
 - Use `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` before starting any build phase.
-- Communication Center Phase 1.
-- App Health / Audit Activity Phase 1 planning.
 - Watchtower / Missing Work Agent boundaries.
 - Keep released branding, estimate options, packet split, and Operations Command work stable.
+- Keep released Communication Center and App Health / Audit Activity work stable.
 
 ### Next
 
-- App Health page/foundation.
 - Watchtower missing-work recommendations.
-- Communication Center.
 - Customer Success onboarding.
-- Operations Command UX.
+- Package upgrade and locked-state clarity.
 
 ### Later
 
@@ -128,16 +127,16 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Communication Center Phase 1.
-2. App Health / Audit Activity Phase 1.
-3. Watchtower / Autopilot Agent Phase 1.
-4. Apex Assistant Shell Phase 1.
-5. Customer Success / Guided Setup Phase 2.
-6. Billing / Plans Readiness Prep.
-7. Public SaaS Signup UX Phase 2.
-8. Package Upgrade / Locked State Polish.
-9. Advanced Reporting Prep.
-10. Enterprise trust layer.
+1. Watchtower / Missing Work Agent Phase 1.
+2. Apex Assistant Shell Phase 1.
+3. Customer Success / Guided Setup Phase 2.
+4. Billing / Plans Readiness Prep.
+5. Public SaaS Signup UX Phase 2.
+6. Package Upgrade / Locked State Polish.
+7. Advanced Reporting Prep.
+8. Enterprise trust layer.
+9. Pilot browser QA checkpoint.
+10. Mobile field trust polish.
 
 Completed foundational phases that should not be restarted:
 
@@ -151,6 +150,8 @@ Completed foundational phases that should not be restarted:
 - Estimate options / reference attachments / takeoff input foundation.
 - GC packet / foreman handoff packet split.
 - Operations Command UX Upgrade Phase 1 and mobile KPI polish.
+- Communication Center Phase 1.
+- App Health / Audit Activity Phase 1.
 
 ## Freeze Policy
 

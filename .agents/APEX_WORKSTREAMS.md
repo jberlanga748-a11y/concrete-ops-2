@@ -27,15 +27,9 @@ Rules:
 
 Current queue:
 
-1. Global mobile bottom-nav safe-space pattern.
-2. Time page structural redesign.
-3. Jobs command board table/mobile action cleanup.
-4. Estimates command board table/mobile action cleanup.
-5. Leads command board table/mobile action cleanup.
-6. Customers command board table/mobile action cleanup.
-7. Uploads, Delivery Tickets, Reports mobile cleanup.
-8. Employees mobile clipping cleanup.
-9. Login semantic heading touch-up.
+1. Only fix proven mobile/desktop friction found during pilot or phase QA.
+2. Preserve the released Operations Command north-star direction.
+3. Do not restart frozen page redesigns unless a workflow is broken.
 
 ## Track B - Product Feature Phases
 
@@ -62,11 +56,13 @@ Rules:
 - AI suggests and drafts; risky actions need human approval.
 - Field roles stay blocked from office/admin/pricing/internal data.
 
-Recommended first feature after UI blockers:
+Current product queue:
 
-1. AI Office Agent Phase 1 - read-only daily brief and suggested actions.
-2. Pending action queue - office approves/rejects AI suggestions.
-3. Daily Job Finder review loop - human-reviewed opportunities only.
+1. Release Watchtower / Missing Work Agent Phase 1 - verified locally, pending commit/push/deploy/health check.
+2. Apex Assistant Shell Phase 1 - persistent assistant shell with review-only actions.
+3. Customer Success / Guided Setup Phase 2 - clearer signup-to-first-workflow path.
+4. Billing / Plans Readiness Prep - plan limits/admin controls before Stripe.
+5. Public SaaS Signup UX Phase 2 - onboarding polish without rebuilding auth.
 
 ## Track C - Safety, QA, Release Hardening
 
@@ -85,11 +81,11 @@ Typical work:
 
 Current queue:
 
-1. Align `/design`, `/settings`, and `/ai-office` route permission/loading behavior.
-2. Add field-safe terminology checks for internal `pricing` language where field roles can view screens.
-3. Add reusable mobile bottom-nav overlap audit.
-4. Add responsive table overflow audit for desktop 1366px.
-5. Keep release/rollback/health notes current.
+1. Keep release/rollback/health notes current after every release.
+2. Add reusable mobile bottom-nav overlap audit when mobile QA shows recurring risk.
+3. Add responsive table overflow audit for desktop 1366px when UI work resumes.
+4. Continue role/company/package checks for every feature phase.
+5. Keep demo vs real workspace boundaries visible in tests and docs.
 
 ## Parallel Rules
 

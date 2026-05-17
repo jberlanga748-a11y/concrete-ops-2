@@ -13740,12 +13740,13 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
   );
 }
 
-function CommandCenterWatchtowerCard({ actions = [], onOpenModule }) {
+function CommandCenterWatchtowerCard({ actions = [], queue = [], onOpenModule }) {
   const visibleActions = Array.isArray(actions) ? actions.slice(0, 5) : [];
+  const visibleQueue = Array.isArray(queue) ? queue.slice(0, 4) : [];
 
   return (
     <Card className="co-command-card p-2.5">
-      <SectionHeader title="Watchtower" description="Owner next actions from live operational gaps." />
+      <SectionHeader title="Watchtower" description="Read-only owner view of missing work and field blockers." />
       <div className="grid gap-1">
         {visibleActions.length ? visibleActions.map((action) => (
           <button
@@ -13770,6 +13771,29 @@ function CommandCenterWatchtowerCard({ actions = [], onOpenModule }) {
           </div>
         )}
       </div>
+      {visibleQueue.length ? (
+        <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-2">
+          <p className="px-1 pb-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Needs attention</p>
+          <div className="grid gap-1">
+            {visibleQueue.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenModule?.(item.moduleId)}
+                className="co-focus-ring w-full rounded-xl border border-white bg-white px-2 py-1.5 text-left transition hover:border-orange-200 hover:bg-orange-50"
+              >
+                <span className="flex min-w-0 items-start justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-black text-slate-950">{item.title}</span>
+                    <span className="mt-0.5 block text-[11px] font-bold leading-4 text-slate-600">{item.description}</span>
+                  </span>
+                  <Badge tone={item.tone || "amber"}>{item.sourceLabel || "Review"}</Badge>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <p className="mt-3 text-xs font-bold text-slate-600">Review-only. Watchtower does not send messages, change jobs, or contact customers automatically.</p>
     </Card>
   );
@@ -13939,6 +13963,8 @@ function CommandCenterPage({
   prePourChecklists,
   postPourChecklists,
   deliveryTickets,
+  safetyIncidents,
+  toolChecklists,
   timeEntries,
   changeOrderRequests,
   permissions,
@@ -13961,9 +13987,11 @@ function CommandCenterPage({
     prePourChecklists,
     postPourChecklists,
     deliveryTickets,
+    safetyIncidents,
+    toolChecklists,
     timeEntries,
     changeOrderRequests,
-  }), [changeOrderRequests, contactHistory, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, timeEntries, uploads]);
+  }), [changeOrderRequests, contactHistory, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
 
   function openModule(moduleId) {
     setActive?.(moduleId);
@@ -14115,7 +14143,7 @@ function CommandCenterPage({
     {
       title: "Field Execution",
       value: commandCenter.stats.fieldProofGaps,
-      helper: "Reports, photos, tickets, and checklist gaps",
+      helper: "Reports, photos, tickets, safety, and checklist gaps",
       icon: "upload",
       tone: commandCenter.stats.fieldProofGaps ? "amber" : "green",
       actionLabel: "Open reports",
@@ -14137,7 +14165,7 @@ function CommandCenterPage({
       rows: [
         { label: "Reports", value: commandCenter.stats.dailyReportsNeedingReview },
         { label: "Changes", value: commandCenter.stats.openChangeOrders },
-        { label: "Time", value: commandCenter.stats.timeIssues },
+        { label: "Safety", value: commandCenter.stats.openSafetyIncidents },
       ],
     },
     {
@@ -14414,7 +14442,7 @@ function CommandCenterPage({
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
-            {canViewWatchtower ? <CommandCenterWatchtowerCard actions={commandCenter.watchtowerActions} onOpenModule={openModule} /> : null}
+            {canViewWatchtower ? <CommandCenterWatchtowerCard actions={commandCenter.watchtowerActions} queue={commandCenter.watchtowerQueue} onOpenModule={openModule} /> : null}
             {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={openOwnerHealth} /> : null}
 
             <Card className="co-command-card p-2.5">

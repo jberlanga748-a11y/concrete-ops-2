@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveCommandCenterState, deriveWatchtowerActions, isLiveJob } from "./command-center-utils.js";
+import { deriveCommandCenterState, deriveWatchtowerActions, deriveWatchtowerQueue, isLiveJob } from "./command-center-utils.js";
 
 const READY_STARTUP_CHECKLIST = [
   { key: "customerContactConfirmed", checked: true },
@@ -60,6 +60,12 @@ test("command center derives priority stats across existing concrete modules", (
     deliveryTickets: [
       { id: "DT-1", jobId: "J-1", supplier: "Knife River" },
     ],
+    safetyIncidents: [
+      { id: "S-1", jobId: "J-1", status: "open", title: "Trip hazard" },
+    ],
+    toolChecklists: [
+      { id: "TC-1", jobId: "J-1", status: "active", title: "Shop apron loadout", missingItemCount: 1 },
+    ],
     timeEntries: [
       { id: "T-1", jobId: "J-1", status: "active", clockInAt: "2026-05-10T12:00:00.000Z" },
       { id: "T-2", status: "closed", clockInAt: "2026-05-10T12:00:00.000Z", clockOutAt: "2026-05-10T14:00:00.000Z" },
@@ -90,6 +96,8 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.pendingPrePourChecklists, 1);
   assert.equal(result.stats.pendingPostPourChecklists, 1);
   assert.equal(result.stats.pendingDeliveryTickets, 1);
+  assert.equal(result.stats.openSafetyIncidents, 1);
+  assert.equal(result.stats.openToolChecklists, 1);
   assert.equal(result.stats.openChangeOrders, 1);
   assert.equal(result.stats.timeIssues, 2);
   assert.equal(result.stats.activeJobs, 2);
@@ -97,8 +105,8 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.approvedEstimatesReadyToConvert, 1);
   assert.equal(result.stats.sentEstimatesWaiting, 1);
   assert.equal(result.stats.draftEstimates, 1);
-  assert.equal(result.stats.fieldProofGaps, 7);
-  assert.equal(result.stats.reviewQueueItems, 6);
+  assert.equal(result.stats.fieldProofGaps, 9);
+  assert.equal(result.stats.reviewQueueItems, 8);
   assert.equal(result.stats.moneyReadyItems, 2);
   assert.equal(result.stats.scheduledTodayJobs, 1);
   assert.equal(result.stats.scheduledTomorrowJobs, 0);
@@ -110,6 +118,9 @@ test("command center derives priority stats across existing concrete modules", (
     "field-proof-gaps",
   ]);
   assert.equal(result.watchtowerActions[0].count, 3);
+  assert.equal(result.watchtowerActions.some((action) => action.id === "safety-tool-accountability"), true);
+  assert.equal(result.watchtowerQueue.some((item) => item.id === "safety:S-1:open" && item.moduleId === "incidents"), true);
+  assert.equal(result.watchtowerQueue.some((item) => item.id === "tool:TC-1:open" && item.moduleId === "toolChecklist"), true);
 });
 
 test("command center exposes route-safe records for office actions", () => {
@@ -152,6 +163,7 @@ test("watchtower actions prioritize owner revenue and field blockers", () => {
       overdueFollowUps: 1,
       jobsMissingCrew: 1,
       jobsMissingPhotos: 3,
+      openSafetyIncidents: 1,
       timeIssues: 4,
     },
   });
@@ -161,6 +173,40 @@ test("watchtower actions prioritize owner revenue and field blockers", () => {
     "job-startup-blockers",
     "field-proof-gaps",
     "concrete-closeout-gaps",
-    "time-issues",
+    "safety-tool-accountability",
   ]);
+});
+
+test("watchtower queue turns missing work into read-only operational review rows", () => {
+  const queue = deriveWatchtowerQueue({
+    jobsMissingCrewOrStartDate: [
+      { id: "J-1", title: "Warehouse slab", missingCrew: true, missingStartDate: true },
+    ],
+    dailyReports: {
+      dailyReportsNeedingReview: [{ id: "R-1", jobId: "J-1", status: "submitted" }],
+      activeJobsMissingTodayReport: [{ id: "J-2", title: "Driveway apron" }],
+    },
+    uploads: {
+      jobsMissingPhotos: [{ id: "J-3", title: "Retaining curb" }],
+    },
+    fieldRecords: {
+      openSafetyIncidents: [{ id: "S-1", jobId: "J-1", status: "open", title: "Trip hazard" }],
+      openToolChecklists: [{ id: "TC-1", jobId: "J-1", status: "active", missingItemCount: 2 }],
+      pendingDeliveryTickets: [{ id: "DT-1", jobId: "J-1", status: "pending", supplier: "Knife River" }],
+      pendingPrePour: [{ id: "PP-1", jobId: "J-1", status: "in_progress" }],
+      pendingPostPour: [{ id: "PO-1", jobId: "J-1", status: "reopened" }],
+    },
+    timeIssues: {
+      allTimeIssues: [{ id: "T-1", status: "active" }],
+    },
+  });
+
+  assert.deepEqual(queue.slice(0, 5).map((item) => item.id), [
+    "job:J-1:startup",
+    "report:R-1:review",
+    "job:J-2:missing-report",
+    "job:J-3:missing-photos",
+    "safety:S-1:open",
+  ]);
+  assert.equal(queue.every((item) => item.actionLabel && item.moduleId), true);
 });
