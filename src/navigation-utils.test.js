@@ -83,8 +83,13 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.match(getWorkspaceModuleLock("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Imported Drafts/);
   assert.match(getWorkspaceModuleLock("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /App Health/);
   assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.badge || "", /Premium package/);
-  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.reviewActionLabel || "", /Review package readiness/);
-  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.manualUpgradeNote || "", /reviewed manually/i);
+  const aiOfficeLock = getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions);
+  assert.match(aiOfficeLock?.reviewActionLabel || "", /Review plan readiness/);
+  assert.match(aiOfficeLock?.supportActionLabel || "", /Request upgrade review/);
+  assert.equal(aiOfficeLock?.requiredPackage, "Premium");
+  assert.equal(aiOfficeLock?.requestedFeature, "AI Office Preview");
+  assert.match(aiOfficeLock?.manualUpgradeNote || "", /reviewed manually/i);
+  assert.match(aiOfficeLock?.manualUpgradeNote || "", /checkout|billing collection/i);
   assert.equal(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), null);
   assert.equal(getWorkspaceModuleLock("support", owner, { toolChecklistEnabled: true }, basicPermissions), null);
   assert.match(getWorkspaceModuleLock("support", owner, { toolChecklistEnabled: true }, { support: { canView: false } })?.title || "", /Support/);
@@ -116,6 +121,8 @@ test("workspace module locks do not replace role protection for field users", ()
   assert.equal(getWorkspaceModuleLock("copilot", employee, { toolChecklistEnabled: true }, basicPermissions), null);
   assert.equal(getWorkspaceModuleLock("jobDraftImports", employee, { toolChecklistEnabled: true }, basicPermissions), null);
   assert.equal(getWorkspaceModuleLock("appHealth", employee, { toolChecklistEnabled: true }, basicPermissions), null);
+  assert.equal(canAccessWorkspaceModule("settings", employee, { toolChecklistEnabled: true }, basicPermissions), false);
+  assert.equal(canAccessWorkspaceModule("appHealth", employee, { toolChecklistEnabled: true }, { ...basicPermissions, appHealth: { canView: true } }), false);
 });
 
 test("administrators and operations managers can access employees", () => {

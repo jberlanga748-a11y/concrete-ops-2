@@ -21,6 +21,7 @@ import {
   canManageSafety,
   canManageUploads,
   canManageUsers,
+  canRequestPackageReview,
   canReviewReports,
   canReviewSafetyIncidents,
   canSubmitSafetyIncidents,
@@ -63,6 +64,7 @@ test("owner has full office access and export rights", () => {
   assert.equal(canManageUsers(owner), true);
   assert.equal(canViewSettings(owner), true);
   assert.equal(canExportData(owner), true);
+  assert.equal(canRequestPackageReview(owner), true);
   assert.equal(getAllowedModuleIds(owner).has("commandCenter"), true);
   assert.equal(getAllowedModuleIds(owner).has("communications"), true);
   assert.equal(getAllowedModuleIds(owner).has("schedule"), true);
@@ -84,6 +86,7 @@ test("operations manager can manage users and see employees module", () => {
   const modules = getAllowedModuleIds(operations, { toolChecklistEnabled: true });
 
   assert.equal(canManageUsers(operations), true);
+  assert.equal(canRequestPackageReview(operations), false);
   assert.equal(canViewAllTime(operations), true);
   assert.equal(canManageReports(operations), true);
   assert.equal(canManageChangeOrders(operations), true);
@@ -112,6 +115,7 @@ test("estimator gets sales access without settings access", () => {
   const modules = getAllowedModuleIds(estimator, { toolChecklistEnabled: true });
 
   assert.equal(canViewLeads(estimator), true);
+  assert.equal(canRequestPackageReview(estimator), false);
   assert.equal(canManageLeads(estimator), true);
   assert.equal(canViewCustomers(estimator), true);
   assert.equal(canManageCustomers(estimator), true);
@@ -141,6 +145,7 @@ test("foreman stays field-only with calculator and safety access", () => {
   const foreman = { role: "Foreman" };
 
   assert.equal(canViewLeads(foreman), false);
+  assert.equal(canRequestPackageReview(foreman), false);
   assert.equal(canViewContactHistory(foreman), false);
   assert.equal(canManageContactHistory(foreman), false);
   assert.equal(canCreateJobs(foreman), false);
@@ -180,6 +185,7 @@ test("employee stays field-only with no office modules", () => {
   const modules = getAllowedModuleIds(employee, { toolChecklistEnabled: false });
 
   assert.equal(canViewLeads(employee), false);
+  assert.equal(canRequestPackageReview(employee), false);
   assert.equal(canViewContactHistory(employee), false);
   assert.equal(canManageContactHistory(employee), false);
   assert.equal(canViewCustomers(employee), false);
@@ -217,6 +223,28 @@ test("employee stays field-only with no office modules", () => {
   assert.equal(modules.has("calculator"), true);
   assert.equal(modules.has("support"), true);
   assert.equal(modules.has("toolChecklist"), false);
+});
+
+test("field roles do not get package readiness or upgrade control modules", () => {
+  for (const user of [{ role: "Foreman" }, { role: "Employee" }]) {
+    const modules = getAllowedModuleIds(user, { toolChecklistEnabled: true });
+
+    for (const moduleId of ["settings", "appHealth", "copilot", "jobDraftImports", "estimates", "leads", "customers", "commandCenter", "communications", "schedule"]) {
+      assert.equal(modules.has(moduleId), false, `${user.role} should not access ${moduleId}`);
+    }
+
+    assert.equal(modules.has("support"), true);
+    assert.equal(canViewSettings(user), false);
+    assert.equal(canExportData(user), false);
+    assert.equal(canRequestPackageReview(user), false);
+  }
+});
+
+test("administrators can request package review without broad operator access", () => {
+  const administrator = { role: "Administrator" };
+
+  assert.equal(canRequestPackageReview(administrator), true);
+  assert.equal(canManageCompanies(administrator), false);
 });
 
 test("office can still access tool checklist records while the field module is disabled", () => {

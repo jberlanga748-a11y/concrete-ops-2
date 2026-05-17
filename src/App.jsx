@@ -157,7 +157,7 @@ import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from ".
 import { buildEnterpriseTrustReviewPacket, buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
-import { canViewJob } from "../shared/permissions.js";
+import { canRequestPackageReview, canViewJob } from "../shared/permissions.js";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -23710,13 +23710,34 @@ function ManagedCompanySetupPanel(props) {
   return <ManagedSetupPanelPolished {...props} />;
 }
 
-function PlanReadinessPanel({ packageReadiness }) {
+function PlanReadinessPanel({ packageReadiness, onOpenSupport }) {
   const currentPackage = packageReadiness?.currentPackage || {};
   const nextPackage = packageReadiness?.nextPackage || null;
   const includedHighlights = (packageReadiness?.includedFeatures || []).filter((feature) => !feature.security).slice(0, 8);
   const securityFeatures = (packageReadiness?.securityFeatures || []).slice(0, 6);
   const upgradeHighlights = (packageReadiness?.upgradeFeatures || []).slice(0, 8);
   const lockedHighlights = (packageReadiness?.lockedFutureFeatures || []).slice(0, 8);
+  const canOpenSupport = typeof onOpenSupport === "function";
+  const upgradeFeatureLabels = upgradeHighlights.map((feature) => feature.label).join(", ");
+
+  function requestUpgradeReview() {
+    if (!canOpenSupport) return;
+    onOpenSupport({
+      workflow: "Upgrade / package review",
+      blockerLevel: "Not a blocker",
+      currentPackage: currentPackage.label || "Basic",
+      requestedPackage: nextPackage?.label || currentPackage.label || "Current package",
+      requestedFeature: upgradeFeatureLabels || "Package readiness review",
+      upgradeReason: nextPackage
+        ? `Review whether ${nextPackage.label} is the right next package for this workspace based on the locked features and current rollout needs.`
+        : "Review whether this workspace needs any manual package or growth-service follow-up.",
+      summary: nextPackage
+        ? `Please review a manual upgrade path from ${currentPackage.label || "Basic"} to ${nextPackage.label}.`
+        : "Please review whether this top-package workspace needs any manual package follow-up.",
+      expected: "Founder/operator reviews the request manually before any package change. No checkout, invoice, payment collection, or self-serve plan change should happen from Apex HQ.",
+      workaround: "Current package tools remain available while the request is reviewed.",
+    });
+  }
 
   function renderFeaturePills(features, tone = "slate") {
     if (!features.length) {
@@ -23745,8 +23766,15 @@ function PlanReadinessPanel({ packageReadiness }) {
             {packageReadiness?.billingDescription || "Plan controls are read-only until billing and self-serve upgrades are intentionally built."}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
-          {nextPackage ? `Next: ${nextPackage.label}` : "Top package"}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+            {nextPackage ? `Next: ${nextPackage.label}` : "Top package"}
+          </div>
+          {canOpenSupport ? (
+            <Button type="button" size="sm" variant="secondary" onClick={requestUpgradeReview}>
+              <Icon name="help" />Request upgrade review
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -23766,7 +23794,7 @@ function PlanReadinessPanel({ packageReadiness }) {
         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Billing state</p>
           <strong className="mt-2 block text-lg font-black text-slate-950">Manual review</strong>
-          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">No self-serve plan changes or Stripe billing are active in this workspace.</span>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">No self-serve plan changes, invoices, payment collection, checkout, or Stripe billing are active in this workspace.</span>
         </div>
       </div>
 
@@ -23786,6 +23814,22 @@ function PlanReadinessPanel({ packageReadiness }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <SectionHeader title="Still gated" description="Locked features stay gated by both company package and user role permissions." />
           {renderFeaturePills(lockedHighlights, "amber")}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">Manual upgrade handoff</p>
+            <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-slate-700">
+              Use Support to copy a review request with workspace, role, current package, requested package, and feature context. Apex HQ will not change the package or collect payment from this panel.
+            </p>
+          </div>
+          {canOpenSupport ? (
+            <Button type="button" size="sm" onClick={requestUpgradeReview}>
+              <Icon name="clipboard" />Copy request context
+            </Button>
+          ) : null}
         </div>
       </div>
     </Card>
@@ -24773,6 +24817,7 @@ function SettingsPagePolished({
   publicEstimateRequestEnabled,
   settingsFocusSection,
   onSettingsSectionFocused,
+  onOpenSupport,
 }) {
   const safeCompanySettings = {
     ...EMPTY_APP_STATE.companySettings,
@@ -25034,7 +25079,7 @@ function SettingsPagePolished({
               <span>{packageReadiness.currentPackage.label} / Manual</span>
             </summary>
             <div className="co-settings-tools-panel grid gap-3">
-              <PlanReadinessPanel packageReadiness={packageReadiness} />
+              <PlanReadinessPanel packageReadiness={packageReadiness} onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null} />
             </div>
           </details>
 
@@ -33268,9 +33313,13 @@ function ToolChecklistPage({
 function SupportPage({ user, companyName, currentCompanyId, active, permissions, setActive, supportDraftSeed }) {
   const [draft, setDraft] = useState(() => createSupportDraft());
   const [copyMessage, setCopyMessage] = useState("");
+  const isOfficeUser = Boolean(permissions?.settings?.canView || permissions?.users?.canView || permissions?.audit?.canView);
+  const canRequestUpgradeReview = canRequestPackageReview(user);
+  const supportWorkflowOptions = SUPPORT_WORKFLOW_OPTIONS.filter((option) => canRequestUpgradeReview || option !== "Upgrade / package review");
   useEffect(() => {
     if (!supportDraftSeed?.nonce) return;
-    setDraft((current) => createSupportDraft({ ...current, workflow: supportDraftSeed.workflow || current.workflow }));
+    const { nonce, ...seed } = supportDraftSeed;
+    setDraft((current) => createSupportDraft({ ...current, ...seed, workflow: seed.workflow || current.workflow }));
     setCopyMessage("");
   }, [supportDraftSeed?.nonce, supportDraftSeed?.workflow]);
   const supportPacket = buildSupportPacket({
@@ -33281,7 +33330,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
     activeModule: active,
     path: typeof window !== "undefined" ? window.location.pathname : "/support",
   });
-  const isOfficeUser = Boolean(permissions?.settings?.canView || permissions?.users?.canView || permissions?.audit?.canView);
+  const isUpgradeReview = canRequestUpgradeReview && draft.workflow === "Upgrade / package review";
   const quickActions = [
     { label: "My work", helper: "Open assigned jobs and field tasks.", moduleId: "jobs", icon: "briefcase", show: true },
     { label: "Clock", helper: "Open time tracking.", moduleId: "time", icon: "clock", show: true },
@@ -33332,12 +33381,23 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
             <SectionHeader title="Create a support request" description="Apex HQ does not send this automatically. Copy the packet, add a screenshot if useful, and send it through your normal support channel." />
             <div className="grid gap-3 md:grid-cols-2">
               <SelectField label="Workflow / page" value={draft.workflow} onChange={(event) => updateDraft("workflow", event.target.value)}>
-                {SUPPORT_WORKFLOW_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                {supportWorkflowOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </SelectField>
               <SelectField label="Blocker level" value={draft.blockerLevel} onChange={(event) => updateDraft("blockerLevel", event.target.value)}>
                 {SUPPORT_BLOCKER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </SelectField>
             </div>
+            {isUpgradeReview ? (
+              <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+                <SectionHeader title="Manual upgrade context" description="Owner/admin context only. This does not change packages, collect payment, create invoices, or start checkout." />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <InputField label="Current package" value={draft.currentPackage} onChange={(event) => updateDraft("currentPackage", event.target.value)} placeholder="Basic" />
+                  <InputField label="Requested package" value={draft.requestedPackage} onChange={(event) => updateDraft("requestedPackage", event.target.value)} placeholder="Premium or Elite" />
+                  <InputField label="Requested feature" value={draft.requestedFeature} onChange={(event) => updateDraft("requestedFeature", event.target.value)} placeholder="App Health, Watchtower, Lead Finder..." />
+                  <InputField label="Reason / use case" value={draft.upgradeReason} onChange={(event) => updateDraft("upgradeReason", event.target.value)} placeholder="What workflow needs review?" />
+                </div>
+              </div>
+            ) : null}
             <div className="mt-3 grid gap-3">
               <InputField label="Follow-up needed" value={draft.followUpNeeded} onChange={(event) => updateDraft("followUpNeeded", event.target.value)} placeholder="Example: Today before 3 PM, tomorrow morning, or not urgent." />
               <TextAreaField label="What happened?" value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} placeholder="Example: I tapped Upload Photo and nothing happened." />
@@ -33430,12 +33490,16 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   );
 }
 
-function AccessRestrictedPage({ active, user, companySettings, permissions, setActive, onOpenSettingsSection }) {
+function AccessRestrictedPage({ active, user, companySettings, permissions, setActive, onOpenSettingsSection, onOpenSupport }) {
   const defaultModuleId = getDefaultModuleId(user);
   const canOpenDefault = canAccessModule(defaultModuleId, user, companySettings);
   const packageLock = getWorkspaceModuleLock(active, user, companySettings, permissions);
   const isPackageLocked = Boolean(packageLock);
   const canReviewPackage = Boolean(isPackageLocked && canAccessWorkspaceModule("settings", user, companySettings, permissions));
+  const canRequestUpgradeReview = Boolean(isPackageLocked && canReviewPackage && canRequestPackageReview(user) && canAccessWorkspaceModule("support", user, companySettings, permissions) && typeof onOpenSupport === "function");
+  const packageReadiness = isPackageLocked ? packageReadinessSummary(companySettings?.packageId) : null;
+  const currentPackageLabel = packageReadiness?.currentPackage?.label || "Basic";
+  const requestedPackageLabel = packageLock?.requiredPackage || packageReadiness?.nextPackage?.label || "Premium";
 
   function openPackageReadiness() {
     if (typeof onOpenSettingsSection === "function") {
@@ -33443,6 +33507,21 @@ function AccessRestrictedPage({ active, user, companySettings, permissions, setA
       return;
     }
     setActive?.("settings");
+  }
+
+  function openUpgradeReview() {
+    if (!canRequestUpgradeReview) return;
+    onOpenSupport({
+      workflow: "Upgrade / package review",
+      blockerLevel: "Not a blocker",
+      currentPackage: currentPackageLabel,
+      requestedPackage: requestedPackageLabel,
+      requestedFeature: packageLock?.requestedFeature || packageLock?.title || "Locked feature",
+      upgradeReason: `Review access for ${packageLock?.requestedFeature || packageLock?.title || "this locked feature"} from the package-locked route.`,
+      summary: `${packageLock?.title || "A package-locked feature"} was opened from ${active}. Please review the manual upgrade path.`,
+      expected: "Founder/operator reviews the request manually before any package change. No checkout, invoice, payment collection, or self-serve plan change should happen from Apex HQ.",
+      workaround: "Open workspace keeps the user in the included tools while the package review is handled manually.",
+    });
   }
 
   return (
@@ -33468,6 +33547,11 @@ function AccessRestrictedPage({ active, user, companySettings, permissions, setA
                 {packageLock?.reviewActionLabel || "Review package readiness"}
               </Button>
             ) : null}
+            {canRequestUpgradeReview ? (
+              <Button type="button" variant="secondary" onClick={openUpgradeReview}>
+                <Icon name="help" />{packageLock?.supportActionLabel || "Request upgrade review"}
+              </Button>
+            ) : null}
           </div>
           {isPackageLocked ? (
             <p className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold leading-6 text-amber-800">
@@ -33483,7 +33567,7 @@ function AccessRestrictedPage({ active, user, companySettings, permissions, setA
 function MainContent(props) {
   const { active } = props;
   if (!canAccessWorkspaceModule(active, props.user, props.companySettings, props.permissions)) {
-    return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} onOpenSettingsSection={props.onOpenSettingsSection} />;
+    return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} onOpenSettingsSection={props.onOpenSettingsSection} onOpenSupport={props.onOpenSupport} />;
   }
   if (active === "appHealth") {
     return (
@@ -33847,8 +33931,10 @@ export default function App() {
   }
 
   function openSupportWorkflow(workflow = "General workspace") {
+    const seed = typeof workflow === "object" && workflow !== null ? workflow : { workflow };
     setSupportDraftSeed({
-      workflow,
+      ...seed,
+      workflow: seed.workflow || "General workspace",
       nonce: Date.now(),
     });
     setActive("support");

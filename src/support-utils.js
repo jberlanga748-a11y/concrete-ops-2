@@ -7,6 +7,7 @@ export const SUPPORT_BLOCKER_OPTIONS = Object.freeze([
 
 export const SUPPORT_WORKFLOW_OPTIONS = Object.freeze([
   "General workspace",
+  "Upgrade / package review",
   "Setup / onboarding",
   "Login / access",
   "Leads / customers",
@@ -31,6 +32,10 @@ export function createSupportDraft(overrides = {}) {
     expected: "",
     workaround: "",
     followUpNeeded: "",
+    currentPackage: "",
+    requestedPackage: "",
+    requestedFeature: "",
+    upgradeReason: "",
     ...(overrides || {}),
   };
 }
@@ -45,6 +50,12 @@ export function buildSupportPacket({
   generatedAt = new Date().toISOString(),
 } = {}) {
   const safeDraft = { ...createSupportDraft(), ...(draft || {}) };
+  const hasUpgradeContext = Boolean(
+    text(safeDraft.currentPackage)
+    || text(safeDraft.requestedPackage)
+    || text(safeDraft.requestedFeature)
+    || text(safeDraft.upgradeReason),
+  );
   const lines = [
     "Apex HQ Support Request",
     "",
@@ -67,10 +78,28 @@ export function buildSupportPacket({
     "",
     "Workaround:",
     text(safeDraft.workaround, "[Describe any workaround or write none.]"),
+  ];
+
+  if (hasUpgradeContext) {
+    lines.push(
+      "",
+      "Manual upgrade review context:",
+      `Current package: ${text(safeDraft.currentPackage, "Unknown")}`,
+      `Requested package: ${text(safeDraft.requestedPackage, "Not specified")}`,
+      `Requested feature: ${text(safeDraft.requestedFeature, "Not specified")}`,
+      "Reason / use case:",
+      text(safeDraft.upgradeReason, "[Describe the workflow or feature needed.]"),
+      "",
+      "Upgrade boundary:",
+      "This is a manual review request only. Apex HQ did not change the package, collect payment, create an invoice, or start checkout.",
+    );
+  }
+
+  lines.push(
     "",
     "Manual note:",
     "This request is copy-only. Apex HQ did not send it automatically.",
-  ];
+  );
 
   return lines.join("\n");
 }
