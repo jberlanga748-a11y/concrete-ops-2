@@ -3858,7 +3858,17 @@ function assertPublicEstimateRequestEnabled() {
 }
 
 function requestIpKey(req) {
-  return optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
+  const rawIp = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown"))
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  if (["::1", "127.0.0.1", "::ffff:127.0.0.1"].includes(rawIp)) {
+    return "loopback";
+  }
+  if (rawIp.startsWith("::ffff:")) {
+    return rawIp.slice("::ffff:".length) || "unknown";
+  }
+  return rawIp || "unknown";
 }
 
 function consumeRateLimitBucket(bucket, key, windowMs, maxEntries, message) {
