@@ -329,3 +329,40 @@ test("Elite package does not grant field users office-only premium tools", async
     await fixture.stop();
   }
 });
+
+test("premium entitlements fail closed when user company context is missing", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
+    const orphanOwner = createUserRecord({
+      id: "U-ENTITLEMENT-ORPHAN",
+      email: "entitlement-orphan@apexhq.test",
+      password: "apexdemo123",
+      name: "Entitlement Orphan",
+      role: "Owner",
+      companyId: "COMPANY-MISSING",
+    });
+    insertUser(fixture.sqliteFile, orphanOwner);
+
+    const loginResult = await assertOk(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: orphanOwner.email,
+        password: "apexdemo123",
+      }),
+    });
+    const headers = authHeaders(loginResult.token);
+
+    const deniedDrafts = await requestJson(fixture.baseUrl, "/api/job-draft-imports", { headers });
+    assert.equal(deniedDrafts.response.status, 403);
+    assert.match(deniedDrafts.payload.error, /Job Draft Imports/);
+
+    const deniedHealth = await requestJson(fixture.baseUrl, "/api/owner-health", { headers });
+    assert.equal(deniedHealth.response.status, 403);
+    assert.match(deniedHealth.payload.error, /Owner Health Status/);
+  } finally {
+    await fixture.stop();
+  }
+});

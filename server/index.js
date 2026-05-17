@@ -90,6 +90,7 @@ import {
   DEFAULT_COMPANY_ID,
   companiesForUser,
   currentCompanyIdForUser,
+  hasOperatorCompanyAccess,
   normalizeCompanies,
   normalizeCompanyId,
   recordBelongsToCompany,
@@ -98,6 +99,7 @@ import {
 import { deriveFirstOwnerOnboardingState, managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
 import {
   FEATURE_KEYS,
+  SECURITY_FEATURES,
   packageIncludesFeature,
   packageSummary,
 } from "../shared/packages.js";
@@ -1149,7 +1151,20 @@ function companySettingsForState(state = null, user = null) {
 }
 
 function companyHasFeature(state, user, featureKey) {
-  const settings = companySettingsForState(state, user);
+  if (SECURITY_FEATURES.includes(featureKey)) return true;
+  if (!user) return false;
+  const companies = companiesForState(state);
+  const explicitCompanyId = hasOperatorCompanyAccess(user)
+    ? normalizeCompanyId(user.currentCompanyId || user.selectedCompanyId || user.companyId, "")
+    : normalizeCompanyId(user.companyId, "");
+  if (!explicitCompanyId) return false;
+  const currentCompany = companies.find((company) => normalizeCompanyId(company.id) === explicitCompanyId);
+  if (!currentCompany || String(currentCompany.status || "active").toLowerCase() === "inactive") return false;
+  const settings = companySettingsForState(state, {
+    ...user,
+    companyId: explicitCompanyId,
+    currentCompanyId: explicitCompanyId,
+  });
   return packageIncludesFeature(settings.packageId, featureKey);
 }
 
