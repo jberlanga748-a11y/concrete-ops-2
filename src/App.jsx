@@ -267,6 +267,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { id: "calculator", label: "Calculator", icon: "calculator" },
+      { id: "appHealth", label: "App Health", icon: "database" },
       { id: "copilot", label: "AI Office Preview", icon: "spark" },
       { id: "settings", label: "Settings", icon: "settings" },
     ],
@@ -13717,6 +13718,10 @@ function CommandCenterPage({
     setActive?.(moduleId);
   }
 
+  function openOwnerHealth() {
+    openModule("appHealth");
+  }
+
   function openJob(jobId) {
     if (jobId) onSelectJob?.(jobId);
   }
@@ -13912,7 +13917,7 @@ function CommandCenterPage({
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Start Priority Work</Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Job Board</Button>
-            {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={() => openModule("settings")}><Icon name="settings" />Owner Health</Button> : null}
+            {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={openOwnerHealth}><Icon name="database" />App Health</Button> : null}
           </div>
         </div>
       </div>
@@ -14084,7 +14089,7 @@ function CommandCenterPage({
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
-            {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={() => openModule("settings")} /> : null}
+            {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={openOwnerHealth} /> : null}
 
             <Card className="co-command-card p-2.5">
               <SectionHeader title="Quick Actions" />
@@ -31722,6 +31727,14 @@ function MainContent(props) {
   const { active } = props;
   if (!canAccessWorkspaceModule(active, props.user, props.companySettings, props.permissions)) {
     return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} />;
+  }
+  if (active === "appHealth") {
+    return (
+      <SettingsPage
+        {...props}
+        settingsFocusSection={props.settingsFocusSection || { id: "settings-owner-health", nonce: "app-health-route" }}
+      />
+    );
   }
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "commandCenter") return <CommandCenterPage {...props} />;

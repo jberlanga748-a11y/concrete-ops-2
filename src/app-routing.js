@@ -20,6 +20,7 @@ export const MODULE_PATHS = {
   postPour: "/post-pour",
   toolChecklist: "/tool-checklist",
   calculator: "/calculator",
+  appHealth: "/app-health",
   copilot: "/ai-office",
   design: "/design",
   settings: "/settings",

@@ -224,6 +224,18 @@ test("AI Office route resolves directly while legacy copilot links still work", 
   });
 });
 
+test("App Health route resolves directly", () => {
+  assert.equal(getModulePath("appHealth"), "/app-health");
+  assert.deepEqual(parseAppPath("/app-health"), {
+    active: "appHealth",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+});
+
 test("system routes resolve directly", () => {
   assert.equal(getModulePath("design"), "/design");
   assert.deepEqual(parseAppPath("/design"), {

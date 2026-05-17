@@ -18,6 +18,10 @@ function packageAllowsModule(moduleId, permissions = null) {
     return Boolean(permissionFlag(permissions, "aiOffice.canView"));
   }
 
+  if (moduleId === "appHealth") {
+    return Boolean(permissionFlag(permissions, "appHealth.canView"));
+  }
+
   return true;
 }
 
@@ -38,6 +42,14 @@ const PACKAGE_LOCKED_MODULES = {
     eyebrow: "Package Protected",
     title: "AI Office Preview is not included",
     description: "Assistant and growth-agent tools are available in Premium and Elite packages. Core office and field workflows stay available without exposing AI-only data.",
+    badge: "Premium",
+    actionTitle: "Open your operating workspace",
+    actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
+  },
+  appHealth: {
+    eyebrow: "Package Protected",
+    title: "App Health is not included",
+    description: "Owner app health, release safety, and operational readiness checks are available in Premium and Elite packages. Core contractor workflows stay available for this company.",
     badge: "Premium",
     actionTitle: "Open your operating workspace",
     actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
