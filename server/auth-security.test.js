@@ -185,6 +185,11 @@ test("successful login and logout are written to the audit trail", async () => {
     });
     assert.equal(logout.response.status, 204);
 
+    const loggedOutBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(firstLogin.payload.token),
+    });
+    assert.equal(loggedOutBootstrap.response.status, 401);
+
     const secondLogin = await login(fixture.baseUrl);
     assert.equal(secondLogin.response.status, 200);
 
