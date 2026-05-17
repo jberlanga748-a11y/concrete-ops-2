@@ -105,6 +105,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Assistant Command Expansion Phase 2A | Built and released | Lead/customer/rough-notes commands now hand off to clean reviewed estimate draft mode while preserving role/package gates and blocking unsafe automation. |
 | Assistant Missing Proof Summary | Built and released | Apex Assistant now summarizes read-only missing proof for visible office jobs and routes users to existing reports, uploads, ticket, checklist, safety, and tool workflows. |
 | Mobile Field Trust Polish | Built and released | Demo field job dates now freshen for demo users so mobile foreman/employee views feel current without mutating real company data. |
+| Field Ops Agent Planning Checkpoint | Prepared | `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` defines read-only phase 1 scope, GPS/location consent boundaries, role visibility, package policy, QA plan, and a builder prompt. Implementation requires approval. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -156,6 +157,7 @@ Do not start these phases again as if they are missing:
 - Apex Assistant Shell Phase 1.
 - Assistant Missing Proof Summary.
 - Mobile Field Trust Polish.
+- Field Ops Agent Planning Checkpoint.
 - Customer Success / Guided Setup Phase 2.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
@@ -173,20 +175,21 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Field Ops Agent Planning Checkpoint
+### Field Ops Agent Phase 1 Read-Only Risk Summary - Awaiting Approval
 
 Why this is next:
 
-- Mobile Field Trust Polish is now built, released, and health-checked.
-- The next roadmap item touches weather, time, GPS-distance flags, missed clock-outs, missing reports/photos/checklists, and field accountability.
-- This is high-risk product planning because GPS/location, employee monitoring, and assistant escalation rules require explicit consent, settings, and approval boundaries before code.
+- Field Ops Agent Planning Checkpoint is documented in `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md`.
+- The approved-safe first build slice is read-only field execution risk visibility.
+- This still touches employee accountability, so implementation should start only after the user approves the boundaries in the planning checkpoint.
 
 Scope:
 
-- Create a no-code plan for Field Ops Agent behavior.
-- Define allowed read-only insights, approval-required actions, GPS consent rules, role visibility, and disabled-by-default settings.
-- Decide what belongs in phase 1 versus later.
-- Produce the builder prompt only after boundaries are approved.
+- Owner/admin company-level field execution risk summary.
+- Foreman assigned-job reminders only.
+- Employee personal assigned-task reminders only.
+- Links to existing workflows.
+- Existing upload GPS evidence status labels only, with no distance or location judgment.
 
 Do not include:
 
@@ -204,11 +207,11 @@ Do not include:
 - New analytics warehouse or schema rewrite.
 - Field access to office/admin/pricing/trust controls.
 - Broad redesigns of Command Center, Leads, Customers, Estimates, or Jobs.
-- New assistant behavior or autonomous field actions.
+- Autonomous field actions.
 - Hidden GPS tracking.
 - Automatic discipline, payroll, HR, legal, or punitive monitoring.
 - Automatic employee messages or warnings.
-- Field Ops Agent code before approval boundaries are agreed.
+- GPS distance flags before consent/settings/audit trail are approved and built.
 
 Suggested verification:
 
@@ -219,7 +222,7 @@ Suggested verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
+| 1 | Field Ops Agent Phase 1 read-only risk summary | Build only the approved read-only field-risk assistant slice. | High | Yes. |
 | 2 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
 | 3 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
 | 4 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |

@@ -98,12 +98,13 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Keep public signup UX stable; do not rebuild signup/auth unless a proven security bug is found.
 - Keep package locked states stable; do not add billing or expose package CTAs to field roles.
 - Keep Advanced Reporting Prep stable; do not turn it into job costing, payroll, billing, or broad analytics without a planned reporting phase.
-- Enterprise Trust Prep first slice is built and pending release; do not expand it into SOC 2, SSO, MFA, SCIM, or compliance claims yet.
+- Enterprise Trust Prep is built and released; do not expand it into SOC 2, SSO, MFA, SCIM, or compliance claims without a scoped trust phase.
+- Field Ops Agent planning is documented; do not build GPS/location risk behavior without explicit consent, settings, and approval boundaries.
 
 ### Next
 
-- Release Enterprise Trust Prep.
-- Pilot browser QA checkpoint.
+- Field Ops Agent Phase 1 read-only risk summary, only after approving `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md`.
+- Advanced Reporting Prep Phase 2 after KPI priorities are confirmed.
 
 ### Later
 
@@ -131,14 +132,14 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Release Enterprise Trust Prep.
-2. Pilot browser QA checkpoint.
-3. Mobile field trust polish.
-4. Assistant Command Expansion Phase 2.
-5. Field Ops Agent planning checkpoint.
-6. Advanced Reporting Prep Phase 2.
-7. Billing / manual upgrade prep.
-8. Customer Portal Planning Checkpoint.
+1. Field Ops Agent Phase 1 read-only risk summary, if approved.
+2. Advanced Reporting Prep Phase 2.
+3. Enterprise Trust Phase 2.
+4. Billing / manual upgrade prep.
+5. Customer Portal Planning Checkpoint.
+6. Assistant material planning prep.
+7. Assistant job conversion planning.
+8. Premium demo workspace prep.
 
 Completed foundational phases that should not be restarted:
 
@@ -161,6 +162,9 @@ Completed foundational phases that should not be restarted:
 - App Health / Audit Activity Phase 1.
 - Watchtower / Missing Work Agent Phase 1.
 - Apex Assistant Shell Phase 1.
+- Assistant Missing Proof Summary.
+- Mobile Field Trust Polish.
+- Field Ops Agent Planning Checkpoint.
 
 ## Freeze Policy
 
