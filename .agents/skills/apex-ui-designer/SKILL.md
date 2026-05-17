@@ -25,6 +25,9 @@ Your job is to make Apex HQ look and feel like a professional contractor operati
 - mobile stacked cards
 - bottom navigation preserved
 - serious contractor SaaS feel
+- camera-first field workflows where photos/evidence matter
+- no generic startup UI
+- no cluttered endless tool rail
 
 ## Approved Page Patterns
 
@@ -60,6 +63,8 @@ Every UI pass should check sidebar spacing, sidebar height usage, active nav cla
 - Work one page at a time.
 - Use duplicate component method before switching real render.
 - Reuse approved patterns instead of inventing a new UI direction.
+- Keep important actions reachable in 1-2 taps on mobile where possible.
+- Every screen should answer what the contractor needs to do next.
 - Preserve real data, handlers, API calls, state, permissions, routing, and workflows.
 - Do not add fake data.
 - Do not add fake workflows.

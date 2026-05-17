@@ -1,6 +1,9 @@
 # Apex HQ Master Roadmap
 
-This is the source-of-truth roadmap for building Apex HQ into a premium contractor growth and operations platform.
+Status note, 2026-05-17:
+This file is historical/reference strategy. Current completed phases, latest release, do-not-rebuild list, and next build phase now live in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`. Use that tracker before acting on any "current priority" text below.
+
+This roadmap describes the long-term direction for building Apex HQ into a premium contractor growth and operations platform.
 
 Product promise:
 

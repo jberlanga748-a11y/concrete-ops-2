@@ -1,4 +1,7 @@
-﻿# APEX_HQ_MASTER_CHECKLIST
+# APEX_HQ_MASTER_CHECKLIST
+
+Status note, 2026-05-17:
+This checklist is historical/pilot-reference material. Current build state, latest release, completed phases, and next build phase now live in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`. Use that tracker before treating any item here as active work.
 
 ## Current Priority
 Apex HQ is in first-pilot mode. The current priority is helping Last Yard complete the first real workflow, fixing only blockers, and preparing a demo video after demo pages show meaningful content.

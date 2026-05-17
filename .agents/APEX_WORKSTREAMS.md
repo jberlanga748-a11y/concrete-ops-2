@@ -2,6 +2,9 @@
 
 This file is the operating board for building Apex HQ quickly without mixing unrelated risk.
 
+Status note, 2026-05-17:
+Use `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` for the active phase queue. The lists below are workstream reference material and may include older completed UI priorities.
+
 ## Track A - Premium UI Passes
 
 Purpose: make the app look and feel like a premium contractor SaaS command center.
@@ -16,7 +19,8 @@ Rules:
 
 - Work one page or one shared shell system at a time.
 - Preserve real handlers, data, routes, permissions, and workflows.
-- Use `apex-ui-designer`, `apex-elite-app-builder`, `apex-platform-operator`, and `apex-overseer`.
+- Use canonical skills first: `apex-build-router`, `apex-product-system`, `apex-ui-designer`, `apex-qa-engineer`, and `apex-release-manager` when releasing.
+- Treat `apex-elite-app-builder`, `apex-platform-operator`, and `apex-overseer` as legacy/reference skills unless an older prompt explicitly requires them.
 - Use Spark review before commit/push/deploy.
 - Capture desktop and mobile screenshots.
 - Audit desktop and mobile before commit.
