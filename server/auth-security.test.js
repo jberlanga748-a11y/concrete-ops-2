@@ -238,6 +238,13 @@ test("password reset request is generic and reset completion is single-use", asy
       role: "Administrator",
     }));
 
+    const existingSession = await login(fixture.baseUrl, {
+      email: "auth-reset@apexhq.test",
+      password: "oldpass123",
+    });
+    assert.equal(existingSession.response.status, 200);
+    assert.ok(existingSession.payload.token);
+
     const missing = await assertOk(fixture.baseUrl, "/api/auth/password-reset/request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -265,6 +272,11 @@ test("password reset request is generic and reset completion is single-use", asy
     });
     assert.ok(completed.token);
     assert.equal(completed.user.email, "auth-reset@apexhq.test");
+
+    const revokedBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(existingSession.payload.token),
+    });
+    assert.equal(revokedBootstrap.response.status, 401);
 
     const reused = await requestJson(fixture.baseUrl, "/api/auth/password-reset/complete", {
       method: "POST",
