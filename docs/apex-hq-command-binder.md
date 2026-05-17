@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `c1e66f0 Add pilot readiness preview batch`.
-- Fly release `v495` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `19d7fd2 Polish invite activation handoff`.
+- Fly release `v496` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 
 Usable now:
 
@@ -49,7 +49,7 @@ Usable now:
 - Premium demo workspace package config.
 - Pilot Feedback Capture Phase 1 owner/admin copy-only feedback packet.
 - Customer Portal Phase 1 Manual Approval Preview owner/admin internal preview.
-- Invite / Activation UX Polish is built locally and release pending.
+- Invite / Activation UX Polish.
 - Support/help handoff and guided setup foundations.
 - Demo mode and demo reset protections.
 - Backup/export tooling.
@@ -295,7 +295,7 @@ Confirmed facts:
 
 Assumptions / needs confirmation:
 
-- Production v495 is tracked from prior release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production v496 is tracked from prior release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
@@ -443,8 +443,7 @@ Demo/customer separation:
    - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
 
 2. Invite / Activation UX Polish:
-   - Built locally and release pending.
-   - Release only after full verification and explicit release approval.
+   - Built, verified, released, and health-checked in Fly `v496`.
    - Keep token expiry, single-use activation, company scoping, and password rules intact.
    - Keep automatic email/SMS sending, new roles, public signup changes, and permission broadening out of scope.
 
@@ -466,8 +465,7 @@ Demo/customer separation:
 
 Product priorities:
 
-1. Release Invite / Activation UX Polish after verification and approval.
-2. Guided Demo Rehearsal Refresh.
+1. Guided Demo Rehearsal Refresh.
 
 Business priorities:
 

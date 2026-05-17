@@ -21,17 +21,17 @@ Current state:
 - Billing / Manual Upgrade Prep Phase 1: built, verified, released, and health-checked.
 - Pilot Feedback Capture Phase 1: built, verified, released, and health-checked.
 - Customer Portal Phase 1 Manual Approval Preview: built, verified, released, and health-checked.
-- Invite / Activation UX Polish: built locally, not released.
+- Invite / Activation UX Polish: built, verified, released, and health-checked.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `c1e66f0`
-- Message: `Add pilot readiness preview batch`
-- Fly release: `v495`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVS86NP8K4J3QNT3XCN8RPF`
+- Commit: `19d7fd2`
+- Message: `Polish invite activation handoff`
+- Fly release: `v496`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVT1JXT76XG9E03DHF43H9R`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -69,6 +69,7 @@ Recent shipped phase stack:
 | `0da4e5e` | `v493` | Enterprise Trust Phase 2 |
 | `f604949` | `v494` | Billing / Manual Upgrade Prep Phase 1 |
 | `c1e66f0` | `v495` | Pilot readiness preview batch |
+| `19d7fd2` | `v496` | Invite / Activation UX Polish |
 
 ## Done / Do Not Rebuild
 
@@ -100,7 +101,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Assistant Material Planning Prep | Prepared and released | `docs/ASSISTANT_MATERIAL_PLANNING_PREP.md` defines the reviewed material planning assistant boundary, Premium-and-up package policy, allowed source data, role restrictions, negative tests, and no-ordering/no-pricing/no-job-conversion rules. |
 | Assistant Job Conversion Planning | Prepared and released | `docs/ASSISTANT_JOB_CONVERSION_PLANNING.md` defines the reviewed estimate-to-job assistant handoff boundary, Premium-and-up package policy, approved-estimate source rules, role restrictions, negative tests, and no-automatic-job-creation/scheduling/crew-assignment rules. |
 | Public Website / Sales Funnel Planning | Prepared and released | `docs/PUBLIC_WEBSITE_SALES_FUNNEL_PLANNING.md` defines the claims-safe public website and founder-led demo funnel boundary, manual demo-interest capture, no-self-serve signup/billing/package-management rules, auth separation, follow-up limits, and future implementation prompt. |
-| Invite / Activation UX Polish | Built locally, not released | Owner/admin Employees now clarifies manual activation handoff, one-time invite links, expiry/reissue expectations, and field-safe role boundaries. Activation setup explains missing/expired/used invite links without changing token, session, password, role, or company-scope behavior. |
+| Invite / Activation UX Polish | Built and released | Owner/admin Employees now clarifies manual activation handoff, one-time invite links, expiry/reissue expectations, and field-safe role boundaries. Activation setup explains missing/expired/used invite links without changing token, session, password, role, or company-scope behavior. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
@@ -167,7 +168,7 @@ Recent focused verification:
 - Pilot Feedback Capture Phase 1 local checks: `node --test --test-concurrency=1 src\support-utils.test.js shared\permissions.test.js`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Not released.
 - Customer Portal Phase 1 Manual Approval Preview local checks: `node --test --test-concurrency=1 src\customer-portal-preview-utils.test.js shared\packageEntitlements.test.js shared\permissions.test.js`, `node --test --test-concurrency=1 server\package-entitlements.test.js`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. The first `verify:packages` attempt exited with a Windows test-process crash and no assertion output; rerun passed 12/12. Not released.
 - Pilot readiness preview batch release checks: `npm.cmd run verify:demo`, focused support/customer-portal/permissions/package tests, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v495`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted the usual listening-address warning, but Fly status showed the machine started with `1 passing` check.
-- Invite / Activation UX Polish local focused checks: `node --test --test-concurrency=1 server\users-management.test.js src\navigation-utils.test.js` passed. Not released.
+- Invite / Activation UX Polish release checks: `npm.cmd run verify:users`, `npm.cmd run verify:auth`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v496`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted the usual listening-address warning, but Fly status showed the machine started with `1 passing` check.
 
 ## Current Loop Prevention Rules
 
@@ -215,20 +216,21 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Invite / Activation UX Polish - Built Locally, Release Pending
+### Guided Demo Rehearsal Refresh - Next
 
 Why this is current:
 
 - Premium Demo Workspace Prep Phase 1, Pilot Feedback Capture Phase 1, Customer Portal Phase 1 Manual Approval Preview, and related planning docs were released in Fly `v495`.
-- Invite / Activation UX Polish is now built locally and should be verified fully before release.
-- The next app phase after release is a guided demo rehearsal refresh.
+- Invite / Activation UX Polish was released in Fly `v496`.
+- The next app phase is a guided demo rehearsal refresh.
 
-Scope completed locally:
+Scope:
 
-- Improved invite/activation copy, empty states, and handoff clarity.
-- Preserved existing invite, activation, password reset, role, and company-scope logic.
-- Kept owner/admin user-management visibility role-safe.
-- Added direct API tests for field-user restrictions on user-management and invite actions.
+- Rehearse owner/admin desktop guided demo path.
+- Rehearse owner mobile sanity path.
+- Rehearse foreman and employee mobile role-safety checks.
+- Check estimates/proposals, Support/trust, package upgrade, and invite activation handoff paths.
+- Check console/network failures and horizontal overflow.
 
 Do not include:
 
@@ -263,17 +265,15 @@ Do not include:
 Suggested verification:
 
 - `npm.cmd run build`
-- `npm.cmd run verify:users`
-- `npm.cmd run verify:auth`
 - `npm.cmd run verify:roles`
+- `npm.cmd run verify:demo`
 - `git diff --check`
 
 ## Next Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Invite / Activation UX Polish release | Release the built local invite/activation polish after full verification. | Medium | Yes, release approval. |
-| 2 | Guided Demo Rehearsal Refresh | Re-run a focused owner/field demo walkthrough after the next product batch. | Low | Maybe. |
+| 1 | Guided Demo Rehearsal Refresh | Re-run a focused owner/field demo walkthrough after the latest product batch. | Low | Maybe. |
 
 ## Later / Do Not Build Yet
 
@@ -334,15 +334,9 @@ Before each release:
 - Do not deploy if verification fails.
 - Report commit hash, release/version, live URLs, health checks, and warnings.
 
-## Recommended Release Prompt
+## Recommended Next Prompt
 
-Use this when ready to release the built local invite/activation polish:
-
-```text
-release
-```
-
-After this release is health-checked, the next product prompt should be:
+Use this when ready for the next product/QA slice:
 
 ```text
 You are entering:
