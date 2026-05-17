@@ -106,6 +106,51 @@ function authHeaders(token) {
   };
 }
 
+const AUTH_SECRET_FIELDS = new Set([
+  "passwordHash",
+  "inviteTokenHash",
+  "resetTokenHash",
+  "activationToken",
+  "activationUrl",
+  "resetToken",
+  "resetUrl",
+  "temporaryPassword",
+]);
+
+function assertNoAuthSecretFields(value, label = "payload") {
+  const leaks = [];
+
+  function visit(entry, pathName) {
+    if (!entry || typeof entry !== "object") return;
+    if (Array.isArray(entry)) {
+      entry.forEach((item, index) => visit(item, `${pathName}[${index}]`));
+      return;
+    }
+
+    for (const [key, child] of Object.entries(entry)) {
+      const childPath = `${pathName}.${key}`;
+      if (AUTH_SECRET_FIELDS.has(key)) {
+        leaks.push(childPath);
+      }
+      visit(child, childPath);
+    }
+  }
+
+  visit(value, label);
+  assert.deepEqual(leaks, []);
+}
+
+function assertSerializedPayloadExcludes(value, secrets, label = "payload") {
+  const serialized = JSON.stringify(value);
+  for (const secret of secrets.filter(Boolean)) {
+    assert.equal(
+      serialized.includes(secret),
+      false,
+      `${label} should not include provisioning secret ${secret}`,
+    );
+  }
+}
+
 function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -255,6 +300,82 @@ test("owner and admin can create role-based users and inactive users cannot log 
       }),
     });
     assert.equal(inactiveLogin.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("user management and bootstrap payloads do not expose auth hashes or provisioning secrets", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-AUTH-SECRETS",
+        email: "owner-auth-secrets@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Auth Secrets",
+        role: "Owner",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-auth-secrets@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const inviteCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Invite Only Foreman",
+        email: "invite-only-foreman@lastyard.test",
+        role: "Foreman",
+      }),
+    });
+    const activationToken = inviteCreated.provisionedUser?.activationToken;
+    assert.ok(activationToken);
+    assert.match(inviteCreated.provisionedUser?.activationUrl || "", /^\/activate-invite\?token=/);
+    assertNoAuthSecretFields({ users: inviteCreated.users }, "create invite users");
+    assertSerializedPayloadExcludes({ users: inviteCreated.users }, [activationToken], "create invite users");
+
+    const temporaryCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Temporary Password Employee",
+        email: "temporary-password-employee@lastyard.test",
+        role: "Employee",
+        provisioningMode: "temporary_password",
+      }),
+    });
+    const temporaryPassword = temporaryCreated.provisionedUser?.temporaryPassword;
+    assert.ok(temporaryPassword);
+    assertNoAuthSecretFields({ users: temporaryCreated.users }, "create temporary users");
+    assertSerializedPayloadExcludes({ users: temporaryCreated.users }, [activationToken, temporaryPassword], "create temporary users");
+
+    const usersPayload = await assertOk(fixture.baseUrl, "/api/users", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assertNoAuthSecretFields(usersPayload, "owner users payload");
+    assertSerializedPayloadExcludes(usersPayload, [activationToken, temporaryPassword], "owner users payload");
+
+    const ownerBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assertNoAuthSecretFields(ownerBootstrap, "owner bootstrap");
+    assertSerializedPayloadExcludes(ownerBootstrap, [activationToken, temporaryPassword], "owner bootstrap");
+
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: "temporary-password-employee@lastyard.test",
+      password: temporaryPassword,
+    });
+    const employeeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assertNoAuthSecretFields(employeeBootstrap, "employee bootstrap");
+    assertSerializedPayloadExcludes(employeeBootstrap, [activationToken, temporaryPassword], "employee bootstrap");
+    assert.deepEqual(employeeBootstrap.users.map((user) => user.email), ["temporary-password-employee@lastyard.test"]);
   } finally {
     await fixture.stop();
   }
