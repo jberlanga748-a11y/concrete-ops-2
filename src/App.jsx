@@ -70,6 +70,7 @@ import {
   planOpportunitySearchWithAi,
   resetWorkspace,
   requestPasswordReset,
+  resendUserInvite,
   reviewDailyReport,
   reviewToolChecklist,
   reopenDailyReport,
@@ -19671,7 +19672,7 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
   );
 }
 
-function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canManage, notFound, roleOptions = USER_ROLE_OPTIONS, currentUserIsOwner = false }) {
+function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, onResendInvite, busy, canManage, notFound, roleOptions = USER_ROLE_OPTIONS, currentUserIsOwner = false, provisionedNotice, onDismissProvisionNotice }) {
   if (notFound) {
     return (
       <Card className="co-employees-form-card p-4">
@@ -19690,6 +19691,11 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canM
 
   const selectedUserIsOwner = isOwnerRole(user.role);
   const canEditUser = canManage && (currentUserIsOwner || !selectedUserIsOwner);
+  const canReissueInvite = canEditUser && (user.status || "active") === "active" && ["pending", "expired"].includes(user.inviteStatus || "");
+  const activationCopyValue = provisionedNotice?.activationUrl
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}${provisionedNotice.activationUrl}`
+    : "";
+  const showProvisionedNotice = provisionedNotice?.id === user.id && activationCopyValue;
 
   return (
     <Card className="co-employees-form-card p-4">
@@ -19698,6 +19704,24 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canM
         <div className="co-employees-owner-lock mb-3">
           <span><Icon name="lock" /></span>
           <p>Owner accounts can only be changed by an active Owner.</p>
+        </div>
+      ) : null}
+      {showProvisionedNotice ? (
+        <div className="co-employees-temp-password mb-4">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <span>Activation invite ready</span>
+              <strong>{provisionedNotice.email}</strong>
+              <code>{activationCopyValue}</code>
+            </div>
+            <div className="grid gap-2 sm:flex sm:shrink-0">
+              <Button type="button" size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText?.(activationCopyValue)}>
+                <Icon name="clipboard" />
+                Copy
+              </Button>
+              {onDismissProvisionNotice ? <Button type="button" size="sm" variant="ghost" onClick={onDismissProvisionNotice}>Dismiss</Button> : null}
+            </div>
+          </div>
         </div>
       ) : null}
       <div className="co-employees-timestamp-meta">
@@ -19719,9 +19743,15 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, busy, canM
       <div className="co-employees-note-panel">
         <span>Last login</span>
         <p>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</p>
+        {user.inviteStatus ? <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Invite: {user.inviteStatus}</p> : null}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button onClick={onSaveUser} disabled={!canEditUser || busy}>Save user</Button>
+        {canReissueInvite ? (
+          <Button type="button" variant="secondary" onClick={() => onResendInvite?.(user.id)} disabled={busy}>
+            Reissue invite
+          </Button>
+        ) : null}
       </div>
     </Card>
   );
@@ -19744,6 +19774,7 @@ function EmployeesPagePolished({
   setCreateDraft,
   onCreateUser,
   onSaveUser,
+  onResendUserInvite,
   busy,
   errorMessage,
   permissions,
@@ -20031,7 +20062,7 @@ function EmployeesPagePolished({
               {toolTab === "create" ? (
                 <UserCreatePanelPolished draft={createDraft} setDraft={setCreateDraft} onCreateUser={onCreateUser} disabled={busy || !canManage} provisionedNotice={provisionedNotice} roleOptions={roleOptionsForManager} onDismissProvisionNotice={onDismissProvisionNotice} />
               ) : (
-                <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} busy={busy} canManage={canManage} notFound={notFound} roleOptions={editRoleOptions} currentUserIsOwner={currentUserIsOwner} />
+                <UserDetailPanelPolished user={selectedUser} draft={userDraft} setDraft={setUserDraft} onSaveUser={onSaveUser} onResendInvite={onResendUserInvite} busy={busy} canManage={canManage} notFound={notFound} roleOptions={editRoleOptions} currentUserIsOwner={currentUserIsOwner} provisionedNotice={provisionedNotice} onDismissProvisionNotice={onDismissProvisionNotice} />
               )}
             </div>
           </details>
@@ -31856,6 +31887,7 @@ function MainContent(props) {
         setUserDraft={props.setUserEditDraft}
         onCreateUser={props.onCreateUser}
         onSaveUser={props.onSaveUser}
+        onResendUserInvite={props.onResendUserInvite}
         provisionedNotice={props.userProvisionNotice}
         onDismissProvisionNotice={props.onDismissProvisionNotice}
       />
@@ -33393,6 +33425,16 @@ export default function App() {
     runMutation(() => updateUser(sessionToken, selectedUser.id, userEditDraft));
   }
 
+  function handleResendUserInvite(userId) {
+    if (!userId || !appState.permissions.users.canManage) return;
+    runMutation(async () => {
+      const nextState = await resendUserInvite(sessionToken, userId);
+      setSelectedUserId(userId);
+      setUserProvisionNotice(nextState.provisionedUser?.activationToken ? nextState.provisionedUser : null);
+      return nextState;
+    });
+  }
+
   function handleCreateJob(event) {
     event.preventDefault();
     if (!appState.permissions.jobs.canCreate) return;
@@ -34808,6 +34850,7 @@ export default function App() {
                 setUserEditDraft={setUserEditDraft}
                 onCreateUser={handleCreateUser}
                 onSaveUser={handleSaveUser}
+                onResendUserInvite={handleResendUserInvite}
                 userProvisionNotice={userProvisionNotice}
                 onDismissProvisionNotice={() => setUserProvisionNotice(null)}
                 selectedCustomerId={selectedCustomerId}

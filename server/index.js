@@ -10258,6 +10258,64 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.post("/api/users/:id/invite", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageUsers(req.auth.user);
+  const { id } = req.params;
+  const inviteToken = generateToken();
+  const inviteExpiresAt = inviteActivationExpiresAt();
+  const changedAt = new Date().toISOString();
+  let provisionedUser = null;
+
+  const nextState = await updateDb((draft) => {
+    const targetUser = findCompanyScopedRecord(draft.users, id, req.auth.user, draft, "User");
+    ensureOwnerRoleManagement(req.auth.user, targetUser, targetUser.role);
+
+    if (optionalUserStatus(targetUser.status, "active") !== "active") {
+      throw new ApiError(409, "Only active users can receive activation invites.");
+    }
+    if (targetUser.inviteAcceptedAt || !targetUser.mustSetPassword) {
+      throw new ApiError(409, "This user has already activated. Use password reset for an existing login.");
+    }
+
+    targetUser.inviteTokenHash = hashToken(inviteToken);
+    targetUser.inviteSentAt = changedAt;
+    targetUser.inviteExpiresAt = inviteExpiresAt;
+    targetUser.mustSetPassword = true;
+    targetUser.resetTokenHash = "";
+    targetUser.resetRequestedAt = "";
+    targetUser.resetExpiresAt = "";
+    targetUser.resetUsedAt = "";
+    targetUser.updatedAt = changedAt;
+
+    provisionedUser = {
+      id: targetUser.id,
+      email: targetUser.email,
+      provisioningMode: "invite",
+      temporaryPassword: null,
+      activationToken: inviteToken,
+      activationUrl: activationOpenPath(inviteToken),
+      inviteExpiresAt,
+    };
+
+    appendActivity(draft, "User invite reissued", `${targetUser.name} received a new activation invite.`);
+    appendAuditEvent(draft, {
+      entityType: "user",
+      entityId: targetUser.id,
+      action: "invite_reissued",
+      summary: "User invite reissued",
+      detail: `${targetUser.name} received a new activation invite.`,
+      actor: req.auth.user,
+      changedFields: ["inviteTokenHash", "inviteSentAt", "inviteExpiresAt", "reset"],
+    });
+    return draft;
+  });
+
+  return res.json({
+    ...sanitizeBootstrap(nextState, req.auth.user),
+    provisionedUser,
+  });
+}));
+
 app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageUsers(req.auth.user);
   const { id } = req.params;

@@ -365,6 +365,96 @@ test("owner and admin can create role-based users and inactive users cannot log 
   }
 });
 
+test("owners can reissue pending activation invites without exposing field access", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-REISSUE",
+        email: "owner-reissue@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Reissue",
+        role: "Owner",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-reissue@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const createdInvite = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Riley Reissue",
+        email: "riley-reissue@lastyard.test",
+        role: "Foreman",
+      }),
+    });
+    const invitedUser = createdInvite.users.find((user) => user.email === "riley-reissue@lastyard.test");
+    assert.ok(invitedUser);
+    assert.ok(createdInvite.provisionedUser?.activationToken);
+
+    const expiredDatabase = new DatabaseSync(fixture.sqliteFile);
+    try {
+      expiredDatabase.prepare(`
+        UPDATE users
+        SET invite_expires_at = ?, reset_token_hash = ?, reset_requested_at = ?, reset_expires_at = ?
+        WHERE id = ?
+      `).run("2020-01-01T00:00:00.000Z", "stale-reset-token-hash", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z", invitedUser.id);
+    } finally {
+      expiredDatabase.close();
+    }
+
+    const reissuedInvite = await assertOk(fixture.baseUrl, `/api/users/${invitedUser.id}/invite`, {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(reissuedInvite.provisionedUser?.email, "riley-reissue@lastyard.test");
+    assert.equal(reissuedInvite.provisionedUser?.provisioningMode, "invite");
+    assert.ok(reissuedInvite.provisionedUser?.activationToken);
+    assert.notEqual(reissuedInvite.provisionedUser.activationToken, createdInvite.provisionedUser.activationToken);
+    assert.match(reissuedInvite.provisionedUser?.activationUrl || "", /^\/activate-invite\?token=/);
+    const reissuedUser = reissuedInvite.users.find((user) => user.id === invitedUser.id);
+    assert.equal(reissuedUser.inviteStatus, "pending");
+    assert.equal(reissuedUser.mustSetPassword, true);
+
+    const staleActivation = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: createdInvite.provisionedUser.activationToken,
+        password: "foremanpass123",
+      }),
+    });
+    assert.equal(staleActivation.response.status, 400);
+
+    const activated = await activateInvite(fixture.baseUrl, {
+      token: reissuedInvite.provisionedUser.activationToken,
+      password: "foremanpass123",
+    });
+    assert.ok(activated.token);
+    assert.equal(activated.user.email, "riley-reissue@lastyard.test");
+
+    const fieldReissue = await requestJson(fixture.baseUrl, `/api/users/${invitedUser.id}/invite`, {
+      method: "POST",
+      headers: authHeaders(activated.token),
+    });
+    assert.equal(fieldReissue.response.status, 403);
+
+    const activatedReissue = await requestJson(fixture.baseUrl, `/api/users/${invitedUser.id}/invite`, {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(activatedReissue.response.status, 409);
+    assert.match(activatedReissue.payload.error, /already activated/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("user management and bootstrap payloads do not expose auth hashes or provisioning secrets", async () => {
   const fixture = await startServer();
 

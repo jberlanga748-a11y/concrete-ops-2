@@ -115,6 +115,10 @@ export function createUser(token, payload) {
   return request("/api/users", { method: "POST", token, body: payload });
 }
 
+export function resendUserInvite(token, id) {
+  return request(`/api/users/${id}/invite`, { method: "POST", token });
+}
+
 export function updateUser(token, id, payload) {
   return request(`/api/users/${id}`, { method: "PATCH", token, body: payload });
 }
