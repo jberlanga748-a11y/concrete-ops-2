@@ -2824,7 +2824,7 @@ function jobCrewSummaryForDate(state, job, reportDate, user) {
 }
 
 function sanitizeDailyReportForUser(report, state, user) {
-  const job = state.jobs.find((entry) => entry.id === report.jobId);
+  const job = findSameCompanyLinkedRecord(state.jobs || [], report.jobId, report);
   if (!job || !canViewJob(job, user)) return null;
 
   const createdByUser = findUserById(state, report.createdBy);

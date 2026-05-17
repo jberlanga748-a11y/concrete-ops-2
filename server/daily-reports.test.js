@@ -125,6 +125,36 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function ensureOtherCompany(database) {
+  const now = new Date().toISOString();
+  database.prepare(`
+    INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+}
+
+function moveJobAndCustomerToOtherCompany(sqliteFile, jobId, customerId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    ensureOtherCompany(database);
+    database.prepare("UPDATE jobs SET company_id = ? WHERE id = ?").run("COMPANY-LYF", jobId);
+    if (customerId) {
+      database.prepare("UPDATE customers SET company_id = ? WHERE id = ?").run("COMPANY-LYF", customerId);
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function setDailyReportJob(sqliteFile, reportId, jobId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare("UPDATE daily_reports SET job_id = ? WHERE id = ?").run(jobId, reportId);
+  } finally {
+    database.close();
+  }
+}
+
 test("daily reports respect foreman workflow, office review, employee restrictions, and field-safe summaries", async () => {
   const fixture = await startServer();
 
@@ -320,6 +350,63 @@ test("daily reports respect foreman workflow, office review, employee restrictio
     assert.ok(auditActions.includes("reviewed"));
     assert.ok(auditActions.includes("reopened"));
     assert.ok(auditActions.includes("archived"));
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("daily reports fail closed on stale cross-company linked jobs", async () => {
+  const fixture = await startServer();
+
+  try {
+    const opsLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const officeHeaders = authHeaders(opsLogin.token);
+
+    const hiddenJobState = await assertOk(fixture.baseUrl, "/api/jobs", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        title: "Hidden Daily Report Job",
+        customer: "Hidden Daily Report Customer",
+        address: "700 Hidden Report Lane",
+        city: "Eugene",
+        status: "scheduled",
+      }),
+    });
+    const hiddenJob = hiddenJobState.jobs.find((entry) => entry.title === "Hidden Daily Report Job");
+    assert.ok(hiddenJob);
+    moveJobAndCustomerToOtherCompany(fixture.sqliteFile, hiddenJob.id, hiddenJob.customerId);
+
+    const reportState = await assertOk(fixture.baseUrl, "/api/daily-reports", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        reportDate: "2035-08-11",
+        crewSummary: "Visible report crew",
+        workPerformed: "Visible report should disappear if linked to a hidden job.",
+      }),
+    });
+    const report = reportState.dailyReports.find((entry) => entry.reportDate === "2035-08-11");
+    assert.ok(report);
+    setDailyReportJob(fixture.sqliteFile, report.id, hiddenJob.id);
+
+    const reportsPayload = await assertOk(fixture.baseUrl, "/api/daily-reports", { headers: officeHeaders });
+    assert.equal(reportsPayload.dailyReports.some((entry) => entry.id === report.id), false);
+    const serializedReports = JSON.stringify(reportsPayload.dailyReports);
+    assert.equal(serializedReports.includes("Hidden Daily Report Job"), false);
+    assert.equal(serializedReports.includes("Hidden Daily Report Customer"), false);
+    assert.equal(serializedReports.includes("700 Hidden Report Lane"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    assert.equal(bootstrap.dailyReports.some((entry) => entry.id === report.id), false);
+    const serializedBootstrapReports = JSON.stringify(bootstrap.dailyReports);
+    assert.equal(serializedBootstrapReports.includes("Hidden Daily Report Job"), false);
+    assert.equal(serializedBootstrapReports.includes("Hidden Daily Report Customer"), false);
+    assert.equal(serializedBootstrapReports.includes("700 Hidden Report Lane"), false);
   } finally {
     await fixture.stop();
   }
