@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `666a2a6 Add Apex HQ field ops read-only assistant`.
-- Fly release `v491` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` now tracks this release as the current app state.
+- Latest release tracked: `4648e70 Add Apex HQ advanced reporting signals`.
+- Fly release `v492` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 
 Usable now:
 
@@ -290,7 +290,7 @@ Confirmed facts:
 
 Assumptions / needs confirmation:
 
-- Production v491 is tracked from prior release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production v492 is tracked from prior release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
@@ -437,11 +437,11 @@ Demo/customer separation:
 1. Keep source-of-truth docs current:
    - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
 
-2. Advanced Reporting Prep Phase 2:
-   - Use existing data only.
+2. Enterprise Trust Phase 2:
+   - Extend existing App Health, audit activity, exports, release safety, and support-readiness surfaces.
    - Owner/admin only.
-   - Package-gated.
-   - No payroll, job costing, billing, or fake metrics.
+   - Avoid SOC 2, SSO, MFA, SLA, or compliance claims until verified and documented.
+   - Keep it a practical pilot-trust layer, not an enterprise compliance platform.
 
 3. Premium demo workspace decision:
    - Decide whether to create a controlled Premium demo workspace for AI Rough Notes, Field Ops Agent, Watchtower, and reporting demos.
@@ -465,15 +465,15 @@ Demo/customer separation:
 
 Product priorities:
 
-1. Advanced Reporting Prep Phase 2.
-2. Enterprise Trust Phase 2.
-3. Billing / Manual Upgrade Prep planning, not Stripe build.
-4. Customer Portal Planning Checkpoint.
-5. Assistant Material Planning Prep.
-6. Assistant Job Conversion Planning.
-7. Premium Demo Workspace Prep.
-8. Public Website / Sales Funnel Planning.
-9. Pilot Feedback Capture Phase 1.
+1. Enterprise Trust Phase 2.
+2. Billing / Manual Upgrade Prep planning, not Stripe build.
+3. Customer Portal Planning Checkpoint.
+4. Assistant Material Planning Prep.
+5. Assistant Job Conversion Planning.
+6. Premium Demo Workspace Prep.
+7. Public Website / Sales Funnel Planning.
+8. Pilot Feedback Capture Phase 1.
+9. Invite / Activation UX Polish.
 
 Business priorities:
 
