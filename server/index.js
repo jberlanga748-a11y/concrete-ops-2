@@ -5564,7 +5564,7 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
       throw new ApiError(503, "Public estimate requests are unavailable until the workspace is set up.");
     }
 
-    const targetCompany = resolveExternalWriteCompany(draft, payload);
+    const targetCompany = resolveExternalWriteCompany(draft, payload, { requireExplicitTarget: true });
     const publicActor = publicRequestActor(targetCompany.id);
     const owner = resolveIntegrationLeadOwnerForCompany(draft, targetCompany.id);
     if (!owner) {

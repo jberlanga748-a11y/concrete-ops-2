@@ -169,6 +169,7 @@ function buildPublicRequestPayload(overrides = {}) {
     projectDetails: "Need a small ADA ramp poured at the storefront entry and want a quick estimate visit.",
     preferredContactMethod: "Phone",
     preferredContactTime: "Weekday afternoons",
+    targetCompanyId: DEFAULT_COMPANY_ID,
     honeypot: "",
     ...overrides,
   };
@@ -203,6 +204,7 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     });
     const createdLead = officeBootstrap.leads.find((lead) => lead.customer === "Alex Rivera" && lead.source === "public_request_form");
     assert.ok(createdLead);
+    assert.equal(createdLead.companyId, DEFAULT_COMPANY_ID);
     assert.equal(createdLead.status, "New");
     assert.match(createdLead.notes, /Project address: 412 Market Street NE, Salem, OR/);
     assert.match(createdLead.notes, /Preferred contact method: Phone/);
@@ -267,6 +269,26 @@ test("public estimate request redacts secret-looking freeform note content", asy
   }
 });
 
+test("public estimate request requires explicit target company in single-company mode", async () => {
+  const fixture = await startServer();
+
+  try {
+    const missingTarget = await requestJson(fixture.baseUrl, "/api/public/estimate-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildPublicRequestPayload({
+        name: "Single Missing Target",
+        email: "single-missing-target@example.test",
+        targetCompanyId: "",
+      })),
+    });
+    assert.equal(missingTarget.response.status, 400);
+    assert.match(missingTarget.payload.error, /targetCompanyId/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("public estimate request honeypot and rate limit block spam without exposing internal data", async () => {
   const fixture = await startServer();
 
@@ -277,6 +299,7 @@ test("public estimate request honeypot and rate limit block spam without exposin
       body: JSON.stringify(buildPublicRequestPayload({
         name: "Spam Bot",
         email: "spam@example.test",
+        targetCompanyId: "",
         honeypot: "https://spam.invalid",
       })),
     });
@@ -334,7 +357,7 @@ test("public estimate request requires a valid target company in multi-company m
     const missingTarget = await requestJson(fixture.baseUrl, "/api/public/estimate-request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildPublicRequestPayload({ name: "Missing Target", email: "missing-target@example.test" })),
+      body: JSON.stringify(buildPublicRequestPayload({ name: "Missing Target", email: "missing-target@example.test", targetCompanyId: "" })),
     });
     assert.equal(missingTarget.response.status, 400);
     assert.match(missingTarget.payload.error, /targetCompanyId/i);
@@ -357,6 +380,7 @@ test("public estimate request requires a valid target company in multi-company m
       body: JSON.stringify(buildPublicRequestPayload({
         name: "Generic Company ID",
         email: "generic-company-id@example.test",
+        targetCompanyId: "",
         companyId: "COMPANY-LYF",
       })),
     });
