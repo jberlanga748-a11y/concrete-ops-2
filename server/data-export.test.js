@@ -142,6 +142,26 @@ test("owner export returns scoped workspace data without auth secrets", async ()
     const database = new DatabaseSync(fixture.sqliteFile);
     try {
       database.prepare("UPDATE leads SET company_id = ? WHERE id = (SELECT id FROM leads LIMIT 1)").run("COMPANY-OTHER");
+      database.prepare(`
+        INSERT INTO audit_events (
+          id, sort_index, company_id, entity_type, entity_id, action, summary, detail,
+          actor_user_id, actor_name, changed_fields, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        "AUDIT-OTHER-COMPANY-EXPORT",
+        9999,
+        "COMPANY-OTHER",
+        "lead",
+        "L-OTHER-EXPORT",
+        "other_company_secret",
+        "Other company audit event",
+        "This audit event belongs to another company and must not export.",
+        "U-OTHER",
+        "Other Owner",
+        "[]",
+        new Date().toISOString(),
+      );
     } finally {
       database.close();
     }
@@ -164,6 +184,7 @@ test("owner export returns scoped workspace data without auth secrets", async ()
     assert.equal(payload.data.users.some((user) => "passwordHash" in user), false);
     assert.equal(payload.data.users.some((user) => "resetTokenHash" in user || "inviteTokenHash" in user), false);
     assert.equal(payload.data.auditEvents.some((event) => event.action === "data_exported"), true);
+    assert.equal(payload.data.auditEvents.some((event) => event.action === "other_company_secret"), false);
   } finally {
     await fixture.stop();
   }
@@ -190,6 +211,32 @@ test("non-owner roles cannot export workspace data", async () => {
       }),
     ]);
 
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      database.prepare(`
+        INSERT INTO audit_events (
+          id, sort_index, company_id, entity_type, entity_id, action, summary, detail,
+          actor_user_id, actor_name, changed_fields, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        "AUDIT-EMPLOYEE-HIDDEN",
+        9998,
+        "COMPANY-DEFAULT",
+        "company",
+        "COMPANY-DEFAULT",
+        "employee_hidden_audit",
+        "Employee-hidden audit event",
+        "Employees must not receive office audit history in bootstrap.",
+        "U-EXPORT-ADMIN",
+        "Admin Export",
+        "[]",
+        new Date().toISOString(),
+      );
+    } finally {
+      database.close();
+    }
+
     const adminLogin = await login(fixture.baseUrl, {
       email: "admin-export@apexhq.test",
       password: "apexdemo123",
@@ -203,6 +250,12 @@ test("non-owner roles cannot export workspace data", async () => {
       email: "employee-export@apexhq.test",
       password: "apexdemo123",
     });
+    const { payload: employeeBootstrap } = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(employeeBootstrap.permissions.audit.canView, false);
+    assert.deepEqual(employeeBootstrap.auditEvents, []);
+
     const employeeExport = await requestJson(fixture.baseUrl, "/api/export/company", {
       headers: authHeaders(employeeLogin.token),
     });
