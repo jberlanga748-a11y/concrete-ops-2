@@ -262,6 +262,8 @@ function moveRecordsToOtherCompany(sqliteFile, recordIds = {}) {
       ["delivery_tickets", recordIds.deliveryTicketId],
       ["change_order_requests", recordIds.changeOrderRequestId],
       ["time_entries", recordIds.timeEntryId],
+      ["contact_history", recordIds.contactHistoryId],
+      ["queue_items", recordIds.queueItemId],
       ["safety_policies", recordIds.safetyPolicyId],
       ["ppe_items", recordIds.ppeItemId],
       ["safety_incidents", recordIds.safetyIncidentId],
@@ -772,6 +774,151 @@ test("cross-company links are blocked on default-company mutations", async () =>
     await assertStatus(fixture.baseUrl, `/api/estimates/${estimate.id}`, token, 404, {
       method: "PATCH",
       body: { customerId: otherCustomer.id, title: "Should stay blocked" },
+    });
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("proof, time, contact history, and queue records remain company-isolated", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = ownerLogin.token;
+    const headers = authHeaders(token);
+    const initial = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const today = new Date().toISOString().slice(0, 10);
+    const foremanUser = createUserRecord({
+      id: "U-SCOPE-PROOF-FOREMAN",
+      email: "scope-proof-foreman@lastyard.test",
+      password: "apexdemo123",
+      name: "Scope Proof Foreman",
+      role: "Foreman",
+    });
+    insertUserRecord(fixture.sqliteFile, foremanUser);
+    await postJson(fixture.baseUrl, "/api/jobs/J-2201/assignments", token, {
+      userId: foremanUser.id,
+      roleOnJob: "foreman",
+    });
+
+    const reportPayload = await postJson(fixture.baseUrl, "/api/daily-reports", token, {
+      jobId: "J-2201",
+      reportDate: today,
+      crewSummary: "Other company crew",
+      workPerformed: "Other company daily report.",
+    });
+    const report = findAddedRecord(initial.dailyReports, reportPayload.dailyReports, "Daily report");
+
+    const uploadPayload = await postJson(fixture.baseUrl, "/api/uploads", token, {
+      jobId: "J-2201",
+      fileName: "other-company-proof.png",
+      fileType: "image/png",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      caption: "Other company proof",
+    });
+    const upload = findAddedRecord(initial.uploads, uploadPayload.uploads, "Upload");
+
+    const ticketPayload = await postJson(fixture.baseUrl, "/api/delivery-tickets", token, {
+      jobId: "J-2201",
+      reportId: report.id,
+      supplier: "Other Company Ready Mix",
+      ticketNumber: "OC-1001",
+      yardsDelivered: 3,
+    });
+    const ticket = findAddedRecord(initial.deliveryTickets, ticketPayload.deliveryTickets, "Delivery ticket");
+
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: foremanUser.email,
+      password: "apexdemo123",
+    });
+    const timePayload = await postJson(fixture.baseUrl, "/api/time-entries/clock-in", foremanLogin.token, {
+      workCategory: "job",
+      jobId: "J-2201",
+      notes: "Other company time entry",
+    });
+    const timeEntry = findAddedRecord(initial.timeEntries, timePayload.timeEntries, "Time entry");
+
+    const leadPayload = await postJson(fixture.baseUrl, "/api/leads", token, {
+      customer: "Other Company Contact Lead",
+      city: "Portland",
+      project: "Other company contact scope",
+      source: "Call-in",
+    });
+    const lead = findByName(leadPayload.leads, "Other Company Contact Lead", "Lead");
+
+    const contactPayload = await postJson(fixture.baseUrl, "/api/contact-history", token, {
+      entityType: "lead",
+      entityId: lead.id,
+      contactName: "Other Company Contact",
+      method: "Call",
+      direction: "outbound",
+      outcome: "Follow-Up Needed",
+      notes: "Other company contact history.",
+    });
+    const contact = findAddedRecord(initial.contactHistory, contactPayload.contactHistory, "Contact history");
+
+    const queuePayload = await postJson(fixture.baseUrl, "/api/queue-items", token, {
+      title: "Other company queue item",
+      meta: "Must stay hidden from default company.",
+      status: "Due today",
+    });
+    const queueItem = findByName(queuePayload.queueItems, "Other company queue item", "Queue item");
+
+    moveRecordsToOtherCompany(fixture.sqliteFile, {
+      dailyReportId: report.id,
+      uploadId: upload.id,
+      deliveryTicketId: ticket.id,
+      timeEntryId: timeEntry.id,
+      leadId: lead.id,
+      contactHistoryId: contact.id,
+      queueItemId: queueItem.id,
+    });
+
+    const scopedBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    assert.equal(scopedBootstrap.dailyReports.some((record) => record.id === report.id), false);
+    assert.equal(scopedBootstrap.uploads.some((record) => record.id === upload.id), false);
+    assert.equal(scopedBootstrap.deliveryTickets.some((record) => record.id === ticket.id), false);
+    assert.equal(scopedBootstrap.timeEntries.some((record) => record.id === timeEntry.id), false);
+    assert.equal(scopedBootstrap.contactHistory.some((record) => record.id === contact.id), false);
+    assert.equal(scopedBootstrap.queueItems.some((record) => record.id === queueItem.id), false);
+
+    const scopedReports = await assertOk(fixture.baseUrl, "/api/daily-reports", { headers });
+    assert.equal(scopedReports.dailyReports.some((record) => record.id === report.id), false);
+    const scopedUploads = await assertOk(fixture.baseUrl, "/api/uploads", { headers });
+    assert.equal(scopedUploads.uploads.some((record) => record.id === upload.id), false);
+    const scopedTickets = await assertOk(fixture.baseUrl, "/api/delivery-tickets", { headers });
+    assert.equal(scopedTickets.deliveryTickets.some((record) => record.id === ticket.id), false);
+    const scopedTime = await assertOk(fixture.baseUrl, "/api/time-entries", { headers });
+    assert.equal(scopedTime.timeEntries.some((record) => record.id === timeEntry.id), false);
+    const scopedContact = await assertOk(fixture.baseUrl, "/api/contact-history", { headers });
+    assert.equal(scopedContact.contactHistory.some((record) => record.id === contact.id), false);
+
+    await assertStatus(fixture.baseUrl, `/api/daily-reports/${report.id}`, token, 404, {
+      method: "PATCH",
+      body: { workPerformed: "Cross-company report edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/uploads/${upload.id}`, token, 404, {
+      method: "PATCH",
+      body: { caption: "Cross-company upload edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/delivery-tickets/${ticket.id}`, token, 404, {
+      method: "PATCH",
+      body: { notes: "Cross-company delivery edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/time-entries/${timeEntry.id}`, token, 404, {
+      method: "PATCH",
+      body: { notes: "Cross-company time edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/contact-history/${contact.id}`, token, 404, {
+      method: "PATCH",
+      body: { notes: "Cross-company contact edit" },
+    });
+    await assertStatus(fixture.baseUrl, `/api/queue-items/${queueItem.id}/toggle`, token, 404, {
+      method: "PATCH",
     });
   } finally {
     await fixture.stop();
