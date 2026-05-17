@@ -1718,6 +1718,77 @@ function visibleUsers(state, user) {
   return [publicUser(user)];
 }
 
+const DEMO_FIELD_DATE_ANCHOR = "2026-04-25";
+const DEMO_FIELD_DATE_FIELDS = new Set([
+  "scheduledStart",
+  "scheduledEnd",
+  "startDate",
+  "endDate",
+  "reportDate",
+  "date",
+  "createdAt",
+  "updatedAt",
+  "submittedAt",
+  "reviewedAt",
+  "completedAt",
+  "uploadedAt",
+  "takenAt",
+  "locationCapturedAt",
+  "ticketDate",
+  "deliveryDate",
+  "arrivalTime",
+  "dischargeTime",
+  "acknowledgedAt",
+  "assignedAt",
+  "clockInAt",
+  "clockOutAt",
+  "breakStartedAt",
+  "breakEndedAt",
+]);
+
+function freshenDemoFieldDatesForUser(user, records) {
+  if (!isDemoModeUser(user)) return records;
+  return (Array.isArray(records) ? records : []).map((record) => freshenDemoFieldRecordDates(record));
+}
+
+function freshenDemoFieldRecordDates(value, fieldName = "") {
+  if (Array.isArray(value)) return value.map((item) => freshenDemoFieldRecordDates(item, fieldName));
+  if (!value || typeof value !== "object") {
+    return DEMO_FIELD_DATE_FIELDS.has(fieldName) ? freshenStaleDemoDateValue(value) : value;
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, entryValue]) => [
+    key,
+    freshenDemoFieldRecordDates(entryValue, key),
+  ]));
+}
+
+function freshenStaleDemoDateValue(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  const today = startOfUtcDay(new Date());
+  const staleBefore = new Date(today);
+  staleBefore.setUTCDate(staleBefore.getUTCDate() - 7);
+  if (parsed >= staleBefore) return value;
+
+  const anchor = startOfUtcDay(new Date(`${DEMO_FIELD_DATE_ANCHOR}T00:00:00.000Z`));
+  const parsedDay = startOfUtcDay(parsed);
+  const daysFromAnchor = Math.round((parsedDay.getTime() - anchor.getTime()) / 86400000);
+  const nextDay = new Date(today);
+  nextDay.setUTCDate(today.getUTCDate() + daysFromAnchor);
+  return replaceDatePortion(value, nextDay);
+}
+
+function startOfUtcDay(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function replaceDatePortion(value, date) {
+  const datePart = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  return `${datePart}${String(value).slice(10)}`;
+}
+
 function userPermissionsForUser(user) {
   if (!user) {
     return { canView: false, canManage: false };
@@ -5271,20 +5342,20 @@ function sanitizeBootstrap(state, user) {
   const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
   const jobDraftImports = packageEntitlements.jobDraftImports.canUse ? visibleImportedJobDraftsForUser(state, user) : [];
-  const jobs = visibleJobsForUser(state, user, hydrationContext);
+  const jobs = freshenDemoFieldDatesForUser(user, visibleJobsForUser(state, user, hydrationContext));
   const safetyPolicies = visibleSafetyPoliciesForUser(state, user);
   const ppeItems = visiblePpeItemsForUser(state, user);
-  const safetyAcknowledgments = visibleSafetyAcknowledgmentsForUser(state, user);
-  const safetyIncidents = visibleSafetyIncidentsForUser(state, user);
+  const safetyAcknowledgments = freshenDemoFieldDatesForUser(user, visibleSafetyAcknowledgmentsForUser(state, user));
+  const safetyIncidents = freshenDemoFieldDatesForUser(user, visibleSafetyIncidentsForUser(state, user));
   const changeOrderRequests = visibleChangeOrderRequestsForUser(state, user);
-  const deliveryTickets = visibleDeliveryTicketsForUser(state, user);
-  const prePourChecklists = visiblePrePourChecklistsForUser(state, user, hydrationContext);
-  const postPourChecklists = visiblePostPourChecklistsForUser(state, user, hydrationContext);
-  const toolChecklists = visibleToolChecklistsForUser(state, user);
+  const deliveryTickets = freshenDemoFieldDatesForUser(user, visibleDeliveryTicketsForUser(state, user));
+  const prePourChecklists = freshenDemoFieldDatesForUser(user, visiblePrePourChecklistsForUser(state, user, hydrationContext));
+  const postPourChecklists = freshenDemoFieldDatesForUser(user, visiblePostPourChecklistsForUser(state, user, hydrationContext));
+  const toolChecklists = freshenDemoFieldDatesForUser(user, visibleToolChecklistsForUser(state, user));
   const calculatorResults = visibleCalculatorResultsForUser(state, user);
-  const uploads = visibleUploadsForUser(state, user);
-  const dailyReports = visibleDailyReportsForUser(state, user);
-  const timeEntries = visibleTimeEntriesForUser(state, user);
+  const uploads = freshenDemoFieldDatesForUser(user, visibleUploadsForUser(state, user));
+  const dailyReports = freshenDemoFieldDatesForUser(user, visibleDailyReportsForUser(state, user));
+  const timeEntries = freshenDemoFieldDatesForUser(user, visibleTimeEntriesForUser(state, user));
   const queueItems = visibleQueueItemsForUser(state, user);
   const activity = visibleActivityForUser(state, user);
   const auditEvents = visibleAuditEventsForUser(state, user);

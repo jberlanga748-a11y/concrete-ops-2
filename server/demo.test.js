@@ -540,6 +540,12 @@ function ageDemoWalkthroughDates(sqliteFile) {
       STALE_DEMO_WALKTHROUGH_TIMESTAMP,
       "DEMO-TCI-DEMO-%",
     );
+    database.prepare("UPDATE jobs SET scheduled_start = ?, scheduled_end = ?, updated_at = ? WHERE title = ?").run(
+      "2026-04-25T07:30",
+      "2026-04-25T16:30",
+      STALE_DEMO_WALKTHROUGH_TIMESTAMP,
+      "Martinez Driveway Replacement",
+    );
   } finally {
     database.close();
   }
@@ -802,16 +808,20 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     const refreshedAcknowledgment = bootstrap.safetyAcknowledgments.find((acknowledgment) => acknowledgment.id === "DEMO-SA-DEMO-001");
     const refreshedIncident = bootstrap.safetyIncidents.find((incident) => incident.id === "DEMO-SI-DEMO-001");
     const refreshedToolChecklist = bootstrap.toolChecklists.find((checklist) => checklist.id === "DEMO-TC-DEMO-001");
+    const refreshedFieldJob = bootstrap.jobs.find((job) => job.title === "Martinez Driveway Replacement");
+    const todayKey = new Date().toISOString().slice(0, 10);
     assert.ok(refreshedSafetyPolicy);
     assert.ok(refreshedPpeItem);
     assert.ok(refreshedAcknowledgment);
     assert.ok(refreshedIncident);
     assert.ok(refreshedToolChecklist);
+    assert.ok(refreshedFieldJob);
     assert.ok(Date.parse(refreshedSafetyPolicy.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
     assert.ok(Date.parse(refreshedPpeItem.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
     assert.ok(Date.parse(refreshedAcknowledgment.acknowledgedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
     assert.ok(Date.parse(refreshedIncident.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
     assert.ok(Date.parse(refreshedToolChecklist.updatedAt) > Date.parse(STALE_DEMO_WALKTHROUGH_TIMESTAMP));
+    assert.equal(String(refreshedFieldJob.scheduledStart || "").slice(0, 10), todayKey);
   } finally {
     await secondServer.stop();
   }
