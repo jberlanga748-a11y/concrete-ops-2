@@ -80,6 +80,12 @@ export const ESTIMATE_PACKET_SECTION_DEFS = [
     internalOnly: true,
   },
   {
+    id: "referenceAttachments",
+    label: "Reference attachments",
+    description: "Office-only plan, photo, Bluebeam, and takeoff reference files.",
+    internalOnly: true,
+  },
+  {
     id: "internalReviewNotes",
     label: "Internal review notes",
     description: "Office-only internal notes, GC review notes, and backup notes.",
@@ -160,6 +166,7 @@ export const ESTIMATE_PACKET_PRESETS = [
       "customerNotesTerms",
       "sovBackup",
       "takeoffBackup",
+      "referenceAttachments",
       "internalReviewNotes",
     ],
     internalOnly: true,

@@ -279,6 +279,20 @@ function deriveEstimateBackupSections(internalNotes = "", includes = {}) {
     }
   }
 
+  if (includes.referenceAttachments) {
+    const referenceRows = normalizeBackupRows(backup?.referenceRows, (row = {}) => ({
+      title: textValue(row?.fileName || row?.name || row?.title || "Reference attachment"),
+      meta: [
+        row?.referenceType ? `Type ${textValue(row.referenceType)}` : "",
+        row?.source ? `Source ${textValue(row.source)}` : "",
+      ].filter(Boolean),
+      body: [textBlock(row?.url), textBlock(row?.notes || row?.estimatorNote)].filter(Boolean),
+    }));
+    if (referenceRows.length > 0) {
+      sections.push({ key: "referenceAttachments", title: "Reference Attachments", type: "records", records: referenceRows });
+    }
+  }
+
   return sections;
 }
 

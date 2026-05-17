@@ -434,6 +434,7 @@ test("internal review estimate packet can include office-only backup sections wh
         JSON.stringify({
           sovRows: [{ section: "Mobilization", description: "Mobilize crew", quantity: "1", unit: "LS", amount: "$1,000" }],
           takeoffRows: [{ item: "Sidewalk", quantity: "500", unit: "SF", source: "A1.1", estimatorNote: "Field verify." }],
+          referenceRows: [{ fileName: "Bluebeam slab screenshot.png", referenceType: "Screenshot", url: "https://files.example.test/slab.png", source: "A1.1", notes: "Plan takeoff reference." }],
           notes: "Backup note.",
         }),
         "[/Apex HQ Estimate Backup]",
@@ -452,6 +453,9 @@ test("internal review estimate packet can include office-only backup sections wh
   assert.match(html, /Mobilization/);
   assert.match(html, /Takeoff Backup/);
   assert.match(html, /Sidewalk/);
+  assert.match(html, /Reference Attachments/);
+  assert.match(html, /Bluebeam slab screenshot/);
+  assert.match(html, /files\.example\.test\/slab/);
   assert.match(html, /Internal Review Notes/);
   assert.match(html, /Visible office note/);
   assert.match(html, /Office-only GC note/);

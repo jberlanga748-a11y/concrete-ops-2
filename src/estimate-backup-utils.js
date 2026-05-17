@@ -19,7 +19,8 @@ function backupHasContent(backup = {}) {
   return Boolean(
     textValue(backup?.notes)
     || (Array.isArray(backup?.sovRows) && backup.sovRows.some(rowHasContent))
-    || (Array.isArray(backup?.takeoffRows) && backup.takeoffRows.some(rowHasContent)),
+    || (Array.isArray(backup?.takeoffRows) && backup.takeoffRows.some(rowHasContent))
+    || (Array.isArray(backup?.referenceRows) && backup.referenceRows.some(rowHasContent)),
   );
 }
 
@@ -58,6 +59,16 @@ export function createEmptyTakeoffRow() {
   };
 }
 
+export function createEmptyReferenceAttachmentRow() {
+  return {
+    fileName: "",
+    referenceType: "",
+    url: "",
+    source: "",
+    notes: "",
+  };
+}
+
 export function normalizeEstimateSovRow(row = {}) {
   return {
     section: textValue(row?.section || row?.item),
@@ -79,6 +90,16 @@ export function normalizeEstimateTakeoffRow(row = {}) {
   };
 }
 
+export function normalizeEstimateReferenceAttachmentRow(row = {}) {
+  return {
+    fileName: textValue(row?.fileName || row?.name || row?.title),
+    referenceType: textValue(row?.referenceType || row?.type),
+    url: textValue(row?.url || row?.link || row?.imageUrl),
+    source: textValue(row?.source || row?.sheet || row?.planSheet),
+    notes: textValue(row?.notes || row?.estimatorNote),
+  };
+}
+
 export function normalizeEstimateBackup(backup = {}) {
   return {
     sovRows: (Array.isArray(backup?.sovRows) ? backup.sovRows : [])
@@ -86,6 +107,9 @@ export function normalizeEstimateBackup(backup = {}) {
       .filter(rowHasContent),
     takeoffRows: (Array.isArray(backup?.takeoffRows) ? backup.takeoffRows : [])
       .map((row) => normalizeEstimateTakeoffRow(row))
+      .filter(rowHasContent),
+    referenceRows: (Array.isArray(backup?.referenceRows) ? backup.referenceRows : [])
+      .map((row) => normalizeEstimateReferenceAttachmentRow(row))
       .filter(rowHasContent),
     notes: textValue(backup?.notes),
   };

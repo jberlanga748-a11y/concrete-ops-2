@@ -116,6 +116,7 @@ test("internal review packet can include SOV, takeoff, and internal notes only w
     JSON.stringify({
       sovRows: [{ section: "Mobilization", description: "Mobilize crew", quantity: "1", unit: "LS", amount: "$1,000", notes: "Office SOV note" }],
       takeoffRows: [{ item: "4 inch sidewalk", quantity: "500", unit: "SF", source: "A1.1", estimatorNote: "Field verify." }],
+      referenceRows: [{ fileName: "Bluebeam takeoff screenshot.png", referenceType: "Screenshot", url: "https://files.example.test/takeoff.png", source: "A1.1", notes: "Shows sidewalk SF backup." }],
       notes: "Backup quantity note.",
     }),
     "[/Apex HQ Estimate Backup]",
@@ -140,9 +141,12 @@ test("internal review packet can include SOV, takeoff, and internal notes only w
   assert.equal(internal.packetSettings.allowInternalSections, true);
   assert.equal(internal.internalSections.some((section) => section.key === "sovBackup"), true);
   assert.equal(internal.internalSections.some((section) => section.key === "takeoffBackup"), true);
+  assert.equal(internal.internalSections.some((section) => section.key === "referenceAttachments"), true);
   assert.equal(internal.internalSections.some((section) => section.key === "internalReviewNotes"), true);
   assert.match(printedText, /Mobilization/);
   assert.match(printedText, /4 inch sidewalk/);
+  assert.match(printedText, /Bluebeam takeoff screenshot/);
+  assert.match(printedText, /files\.example\.test\/takeoff/);
   assert.match(printedText, /Visible office note/);
   assert.match(printedText, /Office-only GC review note/);
   assert.match(printedText, /Internal packet assembly note/);

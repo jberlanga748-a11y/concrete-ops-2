@@ -4,6 +4,7 @@ import test from "node:test";
 import { calculateEstimateTotals } from "./estimate-utils.js";
 import { applyEstimateTemplateStarter } from "./estimate-template-utils.js";
 import {
+  createEmptyReferenceAttachmentRow,
   createEmptySovRow,
   createEmptyTakeoffRow,
   deriveEstimateBackup,
@@ -11,6 +12,7 @@ import {
   mergeEstimateBackup,
   mergeEstimateInternalNotes,
   normalizeEstimateBackup,
+  normalizeEstimateReferenceAttachmentRow,
   normalizeEstimateSovRow,
   normalizeEstimateTakeoffRow,
   serializeEstimateBackup,
@@ -21,6 +23,7 @@ test("old estimates without backup fields normalize safely", () => {
   assert.deepEqual(deriveEstimateBackup({ internalNotes: "Office-only note." }), {
     sovRows: [],
     takeoffRows: [],
+    referenceRows: [],
     notes: "",
   });
   assert.equal(getEstimateInternalNotesWithoutBackup("Office-only note."), "Office-only note.");
@@ -38,6 +41,13 @@ test("old estimates without backup fields normalize safely", () => {
     unit: "",
     source: "",
     estimatorNote: "",
+  });
+  assert.deepEqual(createEmptyReferenceAttachmentRow(), {
+    fileName: "",
+    referenceType: "",
+    url: "",
+    source: "",
+    notes: "",
   });
 });
 
@@ -63,10 +73,12 @@ test("SOV rows and backup notes normalize safely", () => {
   assert.deepEqual(normalizeEstimateBackup({
     sovRows: [row, createEmptySovRow()],
     takeoffRows: [],
+    referenceRows: [],
     notes: "  estimator backup note  ",
   }), {
     sovRows: [row],
     takeoffRows: [],
+    referenceRows: [],
     notes: "estimator backup note",
   });
 });
@@ -89,6 +101,24 @@ test("takeoff rows normalize safely", () => {
   });
 });
 
+test("reference attachment rows normalize safely", () => {
+  const row = normalizeEstimateReferenceAttachmentRow({
+    name: "  Bluebeam slab takeoff.png  ",
+    type: " Screenshot ",
+    link: " https://files.example.test/takeoff.png ",
+    sheet: " A2.0 ",
+    estimatorNote: " Shows 500 SF slab area ",
+  });
+
+  assert.deepEqual(row, {
+    fileName: "Bluebeam slab takeoff.png",
+    referenceType: "Screenshot",
+    url: "https://files.example.test/takeoff.png",
+    source: "A2.0",
+    notes: "Shows 500 SF slab area",
+  });
+});
+
 test("backup data stores in internal notes without overwriting line items or visible notes", () => {
   const estimate = {
     internalNotes: "Call supplier before final send.",
@@ -97,6 +127,7 @@ test("backup data stores in internal notes without overwriting line items or vis
   const next = mergeEstimateBackup(estimate, {
     sovRows: [{ section: "Concrete", description: "Placement", quantity: "8", unit: "CY", amount: "1800", notes: "Backup only" }],
     takeoffRows: [{ item: "Concrete volume", quantity: "8", unit: "CY", source: "Takeoff sheet", estimatorNote: "Round up after waste review" }],
+    referenceRows: [{ fileName: "Bluebeam takeoff.png", referenceType: "Screenshot", url: "https://files.example.test/takeoff.png", source: "A2.0", notes: "Office proof only" }],
     notes: "Backup rows do not change line items.",
   });
 
@@ -105,6 +136,7 @@ test("backup data stores in internal notes without overwriting line items or vis
   assert.deepEqual(deriveEstimateBackup(next), {
     sovRows: [{ section: "Concrete", description: "Placement", quantity: "8", unit: "CY", amount: "1800", notes: "Backup only" }],
     takeoffRows: [{ item: "Concrete volume", quantity: "8", unit: "CY", source: "Takeoff sheet", estimatorNote: "Round up after waste review" }],
+    referenceRows: [{ fileName: "Bluebeam takeoff.png", referenceType: "Screenshot", url: "https://files.example.test/takeoff.png", source: "A2.0", notes: "Office proof only" }],
     notes: "Backup rows do not change line items.",
   });
 });
@@ -152,6 +184,7 @@ test("backup data does not print customer-facing estimate output", () => {
   }, {
     sovRows: [{ section: "Private SOV", description: "Do not print", amount: "1000" }],
     takeoffRows: [{ item: "Private takeoff", quantity: "200", unit: "SF", source: "Estimator worksheet" }],
+    referenceRows: [{ fileName: "Private takeoff photo.jpg", referenceType: "Photo", url: "https://files.example.test/private.jpg", notes: "Do not print" }],
     notes: "Estimator backup only.",
   });
 
@@ -162,6 +195,8 @@ test("backup data does not print customer-facing estimate output", () => {
   assert.doesNotMatch(html, /Private estimator note/);
   assert.doesNotMatch(html, /Private SOV/);
   assert.doesNotMatch(html, /Private takeoff/);
+  assert.doesNotMatch(html, /Private takeoff photo/);
+  assert.doesNotMatch(html, /files\.example\.test\/private/);
   assert.doesNotMatch(html, /Estimator backup only/);
   assert.doesNotMatch(html, /Apex HQ Estimate Backup/);
 });

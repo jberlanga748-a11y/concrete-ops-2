@@ -135,7 +135,7 @@ import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDr
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
-import { createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
+import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
@@ -1519,6 +1519,7 @@ function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
   const backup = deriveEstimateBackup(draft);
   const sovRows = backup.sovRows.length > 0 ? backup.sovRows : [createEmptySovRow()];
   const takeoffRows = backup.takeoffRows.length > 0 ? backup.takeoffRows : [createEmptyTakeoffRow()];
+  const referenceRows = backup.referenceRows.length > 0 ? backup.referenceRows : [createEmptyReferenceAttachmentRow()];
   const commitBackup = (updates) => {
     setDraft((current) => mergeEstimateBackup(current, {
       ...deriveEstimateBackup(current),
@@ -1533,6 +1534,10 @@ function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
     const nextRows = takeoffRows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row);
     commitBackup({ takeoffRows: nextRows });
   };
+  const updateReferenceRow = (index, field, value) => {
+    const nextRows = referenceRows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row);
+    commitBackup({ referenceRows: nextRows });
+  };
   const removeSovRow = (index) => {
     const nextRows = sovRows.filter((_, rowIndex) => rowIndex !== index);
     commitBackup({ sovRows: nextRows.length > 0 ? nextRows : [] });
@@ -1540,6 +1545,10 @@ function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
   const removeTakeoffRow = (index) => {
     const nextRows = takeoffRows.filter((_, rowIndex) => rowIndex !== index);
     commitBackup({ takeoffRows: nextRows.length > 0 ? nextRows : [] });
+  };
+  const removeReferenceRow = (index) => {
+    const nextRows = referenceRows.filter((_, rowIndex) => rowIndex !== index);
+    commitBackup({ referenceRows: nextRows.length > 0 ? nextRows : [] });
   };
 
   return (
@@ -1600,6 +1609,30 @@ function EstimateBackupEditor({ draft, setDraft, disabled = false }) {
           </div>
           <div className="mt-3">
             <Button type="button" variant="secondary" size="sm" onClick={() => commitBackup({ takeoffRows: [...takeoffRows, createEmptyTakeoffRow()] })} disabled={disabled}>Add Takeoff Row</Button>
+          </div>
+        </div>
+        <div>
+          <SectionHeader title="Reference attachments" description="Track Bluebeam screenshots, plan PDFs, takeoff photos, or reference links for office review. Storage upload comes later." />
+          <div className="space-y-3">
+            {referenceRows.map((row, index) => (
+              <div key={`reference-${index}`} className="rounded-2xl border border-amber-100 bg-white p-3">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_150px_minmax(0,1.2fr)]">
+                  <InputField label={`File / reference ${index + 1}`} value={row.fileName || ""} onChange={(event) => updateReferenceRow(index, "fileName", event.target.value)} disabled={disabled} placeholder="A1.1 slab takeoff screenshot" />
+                  <InputField label="Type" value={row.referenceType || ""} onChange={(event) => updateReferenceRow(index, "referenceType", event.target.value)} disabled={disabled} placeholder="Bluebeam, PDF, photo" />
+                  <InputField label="Source / sheet" value={row.source || ""} onChange={(event) => updateReferenceRow(index, "source", event.target.value)} disabled={disabled} placeholder="A1.1, field photo, takeoff set" />
+                </div>
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <InputField label="Reference URL / path" value={row.url || ""} onChange={(event) => updateReferenceRow(index, "url", event.target.value)} disabled={disabled} placeholder="Optional link or file path" />
+                  <TextAreaField label="Reference notes" value={row.notes || ""} onChange={(event) => updateReferenceRow(index, "notes", event.target.value)} disabled={disabled} className="field-input min-h-20 resize-y" placeholder="What this reference proves, quantity context, or review notes." />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button type="button" className="text-xs font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300" onClick={() => removeReferenceRow(index)} disabled={disabled}>Remove reference</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={() => commitBackup({ referenceRows: [...referenceRows, createEmptyReferenceAttachmentRow()] })} disabled={disabled}>Add Reference</Button>
           </div>
         </div>
         <TextAreaField
