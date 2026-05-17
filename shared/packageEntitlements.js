@@ -22,6 +22,9 @@ export function resolvePackageEntitlements({ hasFeature } = {}) {
     appHealth: {
       canUse: canUseFeature(FEATURE_KEYS.APP_HEALTH),
     },
+    watchtower: {
+      canUse: canUseWatchtower,
+    },
     opportunityScout: {
       canUse: canUseFeature(FEATURE_KEYS.LEAD_JOB_FINDER),
     },

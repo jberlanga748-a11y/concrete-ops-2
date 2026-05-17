@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveCommandCenterState, isLiveJob } from "./command-center-utils.js";
+import { deriveCommandCenterState, deriveWatchtowerActions, isLiveJob } from "./command-center-utils.js";
 
 const READY_STARTUP_CHECKLIST = [
   { key: "customerContactConfirmed", checked: true },
@@ -87,6 +87,12 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.timeIssues, 2);
   assert.equal(result.stats.activeJobs, 2);
   assert.deepEqual(result.leadSourceChecks.checksNeeded.map((source) => source.id), ["LS-1", "LS-2"]);
+  assert.deepEqual(result.watchtowerActions.slice(0, 3).map((action) => action.id), [
+    "overdue-follow-ups",
+    "job-startup-blockers",
+    "field-proof-gaps",
+  ]);
+  assert.equal(result.watchtowerActions[0].count, 3);
 });
 
 test("command center exposes route-safe records for office actions", () => {
@@ -115,4 +121,29 @@ test("time issues do not duplicate active entries that are also missing a job", 
 
   assert.equal(result.stats.timeIssues, 1);
   assert.equal(result.timeIssues.allTimeIssues.length, 1);
+});
+
+test("watchtower actions stay empty when operations are clear", () => {
+  assert.deepEqual(deriveWatchtowerActions({ stats: {} }), []);
+});
+
+test("watchtower actions prioritize owner revenue and field blockers", () => {
+  const actions = deriveWatchtowerActions({
+    stats: {
+      openChangeOrders: 2,
+      pendingDeliveryTickets: 1,
+      overdueFollowUps: 1,
+      jobsMissingCrew: 1,
+      jobsMissingPhotos: 3,
+      timeIssues: 4,
+    },
+  });
+
+  assert.deepEqual(actions.map((action) => action.id), [
+    "overdue-follow-ups",
+    "job-startup-blockers",
+    "field-proof-gaps",
+    "concrete-closeout-gaps",
+    "time-issues",
+  ]);
 });

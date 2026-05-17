@@ -13558,6 +13558,41 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
   );
 }
 
+function CommandCenterWatchtowerCard({ actions = [], onOpenModule }) {
+  const visibleActions = Array.isArray(actions) ? actions.slice(0, 5) : [];
+
+  return (
+    <Card className="co-command-card p-2.5">
+      <SectionHeader title="Watchtower" description="Owner next actions from live operational gaps." />
+      <div className="grid gap-1">
+        {visibleActions.length ? visibleActions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            onClick={() => onOpenModule?.(action.moduleId)}
+            className="co-command-rail-row co-focus-ring grid w-full grid-cols-[0.55rem_minmax(0,1fr)_auto] items-start gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-left transition hover:border-orange-200 hover:bg-orange-50"
+          >
+            <span className="co-command-alert-dot mt-1.5" data-tone={action.tone || "amber"} aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black text-slate-950">{action.title}</span>
+              <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-600">{action.description}</span>
+            </span>
+            <span className="flex shrink-0 flex-col items-end gap-1">
+              <Badge tone={action.tone || "amber"}>{action.count}</Badge>
+              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{action.actionLabel || "Review"}</span>
+            </span>
+          </button>
+        )) : (
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">
+            Watchtower has no owner actions right now.
+          </div>
+        )}
+      </div>
+      <p className="mt-3 text-xs font-bold text-slate-600">Review-only. Watchtower does not send messages, change jobs, or contact customers automatically.</p>
+    </Card>
+  );
+}
+
 function CommandCenterMorningFlowCard({ onOpenLeads, onOpenDrafts, onOpenJobs, onOpenReports, priorityCount = 0, overdueCount = 0, jobsNeedingReview = 0, reportsUploadsDue = 0 }) {
   const steps = [
     "Clear overdue follow-ups",
@@ -13731,6 +13766,7 @@ function CommandCenterPage({
   }
 
   const canViewAppHealth = Boolean(permissions?.appHealth?.canView);
+  const canViewWatchtower = Boolean(permissions?.watchtower?.canView);
   const canViewJobDraftImports = Boolean(permissions?.jobDraftImports?.canView);
   const timeIssueCount = commandCenter.stats.timeIssues;
   const reportsUploadsDue = commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + commandCenter.stats.jobsMissingPhotos;
@@ -14089,6 +14125,7 @@ function CommandCenterPage({
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
+            {canViewWatchtower ? <CommandCenterWatchtowerCard actions={commandCenter.watchtowerActions} onOpenModule={openModule} /> : null}
             {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={openOwnerHealth} /> : null}
 
             <Card className="co-command-card p-2.5">

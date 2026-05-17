@@ -87,7 +87,7 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   const allTimeIssues = uniqueById([...activeTimeEntries, ...timeEntriesWithoutJob]);
   const openChangeOrders = changeOrderRequests.filter((request) => !CLOSED_CHANGE_ORDER_STATUSES.has(normalizeStatus(request.status)));
 
-  return {
+  const result = {
     generatedForDate: todayKey,
     stats: {
       importedDraftsNeedingReview: importedDraftsNeedingReview.length,
@@ -145,6 +145,111 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       openChangeOrders,
     },
   };
+  return {
+    ...result,
+    watchtowerActions: deriveWatchtowerActions(result),
+  };
+}
+
+export function deriveWatchtowerActions(commandCenter = {}) {
+  const stats = commandCenter.stats || {};
+  const actions = [];
+
+  function addAction({ id, count, priority, title, description, moduleId, tone = "amber", icon = "alert", actionLabel = "Review" }) {
+    const numericCount = Number(count || 0);
+    if (numericCount <= 0) return;
+    actions.push({
+      id,
+      count: numericCount,
+      priority,
+      title,
+      description,
+      moduleId,
+      tone,
+      icon,
+      actionLabel,
+    });
+  }
+
+  addAction({
+    id: "overdue-follow-ups",
+    count: Number(stats.overdueFollowUps || 0) + Number(stats.overdueLeadSources || 0),
+    priority: 10,
+    title: "Clear overdue follow-ups",
+    description: "Leads, customers, estimates, or lead sources are past due and can stall revenue.",
+    moduleId: "leads",
+    tone: "red",
+    icon: "clock",
+    actionLabel: "Open follow-ups",
+  });
+  addAction({
+    id: "job-startup-blockers",
+    count: Number(stats.jobsNeedingStartupReview || 0) + Number(stats.jobsMissingCrew || 0) + Number(stats.jobsMissingStartDate || 0),
+    priority: 20,
+    title: "Unblock job startup",
+    description: "Jobs need startup review, crew assignment, or a start date before field work is clean.",
+    moduleId: "jobs",
+    tone: "amber",
+    icon: "briefcase",
+    actionLabel: "Open jobs",
+  });
+  addAction({
+    id: "field-proof-gaps",
+    count: Number(stats.openDailyReports || 0) + Number(stats.dailyReportsNeedingReview || 0) + Number(stats.jobsMissingPhotos || 0),
+    priority: 30,
+    title: "Close proof-of-work gaps",
+    description: "Daily reports, review items, or photos need attention before the office can trust the day.",
+    moduleId: "reports",
+    tone: "amber",
+    icon: "document",
+    actionLabel: "Open reports",
+  });
+  addAction({
+    id: "concrete-closeout-gaps",
+    count: Number(stats.pendingDeliveryTickets || 0) + Number(stats.pendingPrePourChecklists || 0) + Number(stats.pendingPostPourChecklists || 0),
+    priority: 40,
+    title: "Review concrete readiness",
+    description: "Tickets or pour checklists are still incomplete and need field or office follow-up.",
+    moduleId: "deliveryTickets",
+    tone: "blue",
+    icon: "clipboard",
+    actionLabel: "Open tickets",
+  });
+  addAction({
+    id: "time-issues",
+    count: stats.timeIssues,
+    priority: 50,
+    title: "Review crew time issues",
+    description: "Active clocks or time entries without a job need owner review before payroll or job costing later.",
+    moduleId: "time",
+    tone: "blue",
+    icon: "clock",
+    actionLabel: "Open time",
+  });
+  addAction({
+    id: "change-orders",
+    count: stats.openChangeOrders,
+    priority: 60,
+    title: "Review change orders",
+    description: "Open change requests need approval, rejection, or follow-up before scope drifts.",
+    moduleId: "changeOrders",
+    tone: "amber",
+    icon: "refresh",
+    actionLabel: "Open change orders",
+  });
+  addAction({
+    id: "imported-drafts",
+    count: Number(stats.importedDraftsNeedingReview || 0) + Number(stats.importedDraftsNeedingCustomerMatch || 0),
+    priority: 70,
+    title: "Review imported drafts",
+    description: "Imported work needs office review or customer matching before it becomes a real job.",
+    moduleId: "jobDraftImports",
+    tone: "slate",
+    icon: "database",
+    actionLabel: "Open drafts",
+  });
+
+  return actions.sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title)).slice(0, 5);
 }
 
 export function isLiveJob(job = {}) {
