@@ -2726,8 +2726,8 @@ function sanitizeDeliveryTicketForUser(ticket, state, user) {
   if (ticket.archivedAt && !canManageDeliveryTickets(user)) return null;
 
   const createdByUser = findUserById(state, ticket.createdBy);
-  const report = ticket.reportId ? state.dailyReports.find((entry) => entry.id === ticket.reportId) || null : null;
-  const upload = ticket.ticketUploadId ? state.uploads.find((entry) => entry.id === ticket.ticketUploadId) || null : null;
+  const report = findSameCompanyLinkedRecord(state.dailyReports || [], ticket.reportId, ticket);
+  const upload = findSameCompanyLinkedRecord(state.uploads || [], ticket.ticketUploadId, ticket);
   const visibleUpload = upload ? sanitizeUploadForUser(upload, state, user) : null;
 
   return {

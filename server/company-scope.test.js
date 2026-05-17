@@ -290,7 +290,7 @@ function findById(records, id, label) {
 }
 
 function findByName(records, name, label) {
-  const record = (records || []).find((item) => item.name === name || item.customer === name || item.title === name || item.label === name || item.summary === name);
+  const record = (records || []).find((item) => item.name === name || item.customer === name || item.title === name || item.label === name || item.summary === name || item.ticketNumber === name);
   assert.ok(record, `${label} named ${name} should be present in bootstrap payload.`);
   return record;
 }
@@ -337,6 +337,19 @@ function setEstimateLinks(sqliteFile, estimateId, links = {}) {
       SET customer_id = ?, lead_id = ?, job_id = ?
       WHERE id = ?
     `).run(links.customerId || "", links.leadId || "", links.jobId || "", estimateId);
+  } finally {
+    database.close();
+  }
+}
+
+function setDeliveryTicketLinks(sqliteFile, ticketId, links = {}) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE delivery_tickets
+      SET report_id = ?, ticket_upload_id = ?
+      WHERE id = ?
+    `).run(links.reportId || "", links.uploadId || "", ticketId);
   } finally {
     database.close();
   }
@@ -999,6 +1012,69 @@ test("estimate responses do not hydrate stale cross-company linked records", asy
     assert.equal(bootstrapEstimate.customer, null);
     assert.equal(bootstrapEstimate.lead, null);
     assert.equal(bootstrapEstimate.job, null);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("delivery ticket responses do not hydrate stale cross-company linked records", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = ownerLogin.token;
+    const headers = authHeaders(token);
+    const initial = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+
+    const hiddenReportPayload = await postJson(fixture.baseUrl, "/api/daily-reports", token, {
+      jobId: "J-2201",
+      reportDate: "2026-05-16",
+      crewSummary: "Hidden delivery link crew",
+      workPerformed: "Hidden delivery report work.",
+    });
+    const hiddenReport = findAddedRecord(initial.dailyReports, hiddenReportPayload.dailyReports, "Daily report");
+    const hiddenUploadPayload = await postJson(fixture.baseUrl, "/api/uploads", token, {
+      jobId: "J-2201",
+      fileName: "hidden-delivery-ticket-proof.png",
+      fileType: "image/png",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      caption: "Hidden delivery ticket proof",
+    });
+    const hiddenUpload = findAddedRecord(hiddenReportPayload.uploads, hiddenUploadPayload.uploads, "Upload");
+    moveRecordsToOtherCompany(fixture.sqliteFile, {
+      dailyReportId: hiddenReport.id,
+      uploadId: hiddenUpload.id,
+    });
+
+    const ticketPayload = await postJson(fixture.baseUrl, "/api/delivery-tickets", token, {
+      jobId: "J-2201",
+      supplier: "Visible Delivery Supplier",
+      ticketNumber: "VISIBLE-STALENESS-1",
+      yardsDelivered: 4,
+    });
+    const ticket = findByName(ticketPayload.deliveryTickets, "VISIBLE-STALENESS-1", "Delivery ticket");
+    setDeliveryTicketLinks(fixture.sqliteFile, ticket.id, {
+      reportId: hiddenReport.id,
+      uploadId: hiddenUpload.id,
+    });
+
+    const ticketsResponse = await assertOk(fixture.baseUrl, "/api/delivery-tickets", { headers });
+    const responseTicket = findByName(ticketsResponse.deliveryTickets, "VISIBLE-STALENESS-1", "Delivery ticket");
+    assert.equal(responseTicket.report, null);
+    assert.equal(responseTicket.ticketUpload, null);
+    const serializedTickets = JSON.stringify(ticketsResponse);
+    assert.equal(serializedTickets.includes("Hidden delivery link crew"), false);
+    assert.equal(serializedTickets.includes("Hidden delivery report work"), false);
+    assert.equal(serializedTickets.includes("hidden-delivery-ticket-proof.png"), false);
+    assert.equal(serializedTickets.includes("Hidden delivery ticket proof"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const bootstrapTicket = findByName(bootstrap.deliveryTickets, "VISIBLE-STALENESS-1", "Delivery ticket");
+    assert.equal(bootstrapTicket.report, null);
+    assert.equal(bootstrapTicket.ticketUpload, null);
   } finally {
     await fixture.stop();
   }
