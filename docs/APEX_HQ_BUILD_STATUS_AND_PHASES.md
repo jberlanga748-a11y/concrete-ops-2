@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `9cd3ac9810c5e2d1ca5393e67aeb92bf16d99d5c`
-- Message: `Clean remaining Apex HQ demo records`
-- Fly release: `v486`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV1WGMZH6RPG6MJB2J05CH4`
+- Commit: `cc6e59af95b62fcf779cbfc697dbd442d5d33c59`
+- Message: `Add Apex HQ assistant estimate draft commands`
+- Fly release: `v487`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV59YX0GWJ7FCJ2GJXY3J1T`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -53,6 +53,7 @@ Recent shipped phase stack:
 | `575be23` | `v484` | Enterprise Trust Prep |
 | `7276412` | `v485` | Demo pilot data cleanup |
 | `9cd3ac9` | `v486` | Remaining demo record cleanup |
+| `cc6e59a` | `v487` | Assistant estimate draft commands |
 
 ## Done / Do Not Rebuild
 
@@ -98,7 +99,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
 | Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
 | Assistant Command Expansion Phase 2 Scope Lock | Prepared | `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` defines allowed/later/never commands, role/package gates, first slice, and builder prompt. |
-| Assistant Command Expansion Phase 2A | Built, pending release | Lead/customer/rough-notes commands now hand off to clean reviewed estimate draft mode while preserving role/package gates and blocking unsafe automation. |
+| Assistant Command Expansion Phase 2A | Built and released | Lead/customer/rough-notes commands now hand off to clean reviewed estimate draft mode while preserving role/package gates and blocking unsafe automation. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -124,7 +125,7 @@ Recent focused verification:
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
 - Watchtower / Missing Work Agent release checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v478` health-checked ready.
 - Apex Assistant Shell release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, browser owner desktop/mobile sanity QA, field role safety check, and `git diff --check` passed; release `v479` health-checked ready.
-- Assistant Command Expansion Phase 2A checks: `npm.cmd run build`, `npm.cmd run verify:estimates`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, and `git diff --check` passed. Local browser check confirmed the Basic demo workspace safely blocks Premium AI Rough Notes assistant commands without console/API failures. Not released yet.
+- Assistant Command Expansion Phase 2A checks: `npm.cmd run build`, `npm.cmd run verify:estimates`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, and `git diff --check` passed. Local browser check confirmed the Basic demo workspace safely blocks Premium AI Rough Notes assistant commands without console/API failures. Released as Fly `v487`; both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -162,19 +163,19 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Release Assistant Command Expansion Phase 2A
+### Rehearse Guided Demo Launch Readiness
 
 Why this is next:
 
-- Assistant Command Expansion Phase 2A is built and focused verification passed.
-- The next safe move is not another build phase; it is a release-manager pass, explicit staging, commit, push, deploy, and health check.
-- Releasing this first reviewed command keeps Apex HQ moving toward the finished assistant vision without opening autopilot risks.
+- Assistant Command Expansion Phase 2A is released.
+- The next safe move is not another build phase; it is a controlled owner/admin and field demo rehearsal using the guided demo packet.
+- This prevents product-building loops and proves whether the app is ready for the next real contractor walkthrough.
 
 Scope:
 
-- Confirm changed files.
-- Stage only Phase 2A app/docs files and avoid unrelated business side-chat docs.
-- Commit, push, deploy, and health-check when the user says release.
+- Run the guided demo path in `docs/GUIDED_DEMO_LAUNCH_READINESS.md`.
+- Capture only true demo blockers, confusing moments, or permission leaks.
+- Do not redesign or start new product work during rehearsal.
 
 Do not include:
 
@@ -192,28 +193,27 @@ Do not include:
 - New analytics warehouse or schema rewrite.
 - Field access to office/admin/pricing/trust controls.
 
-Suggested release verification:
+Suggested verification:
 
-- `npm.cmd run build`
-- `npm.cmd run verify:estimates`
-- `npm.cmd run verify:roles`
-- `npm.cmd run verify:packages`
-- `git diff --check`
+- Browser owner/admin demo path.
+- Browser field demo path.
+- Console/API error check.
+- Role-safe field access check.
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Release Assistant Command Expansion Phase 2A | Commit, push, deploy, and health-check the reviewed estimate draft assistant command. | Medium | No, unless release fails. |
-| 2 | Rehearse Guided Demo Launch Readiness | Run the scripted owner/admin and field demo path once before cold demos. | Low | No. |
-| 3 | Assistant Missing Proof Summary | Add reviewed/read-only proof gap summaries for selected jobs. | Medium | Maybe. |
-| 4 | Mobile Field Trust Polish | Fix only proven mobile field friction found during demo rehearsal or pilot use. | Medium | Maybe. |
-| 5 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
-| 6 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
-| 7 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
-| 8 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
-| 9 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
-| 10 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
+| 1 | Rehearse Guided Demo Launch Readiness | Run the scripted owner/admin and field demo path once before cold demos. | Low | No. |
+| 2 | Assistant Missing Proof Summary | Add reviewed/read-only proof gap summaries for selected jobs. | Medium | Maybe. |
+| 3 | Mobile Field Trust Polish | Fix only proven mobile field friction found during demo rehearsal or pilot use. | Medium | Maybe. |
+| 4 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
+| 5 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
+| 6 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
+| 7 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
+| 8 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
+| 9 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
+| 10 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
 
 ## Later / Do Not Build Yet
 

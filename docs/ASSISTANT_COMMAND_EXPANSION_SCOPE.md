@@ -1,6 +1,6 @@
 # Apex HQ Assistant Command Expansion Phase 2 Scope Lock
 
-Status: Phase 2A built, pending release
+Status: Phase 2A built and released
 Owner: Apex HQ Master Coordinator
 Use with: `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
 
@@ -118,7 +118,7 @@ Do not save anything directly from the assistant prompt.
 
 ## Phase 2A Implementation Status
 
-Status: built and verified locally, not released.
+Status: built, verified, committed, pushed, deployed, and health-checked.
 
 Implemented behavior:
 
@@ -143,10 +143,11 @@ Verification completed:
 
 Release status:
 
-- Not committed.
-- Not pushed.
-- Not deployed.
-- Next action should be release manager commit/push/deploy/health-check when approved.
+- Commit: `cc6e59af95b62fcf779cbfc697dbd442d5d33c59`
+- Fly release: `v487`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV59YX0GWJ7FCJ2GJXY3J1T`
+- Health checks passed for `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready`.
+- Next action should be guided demo rehearsal, not another Phase 2A build loop.
 
 ## First Slice Files Likely Involved
 
