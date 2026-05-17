@@ -91,6 +91,14 @@ async function login(baseUrl, credentials) {
   });
 }
 
+async function activateInvite(baseUrl, payload) {
+  return assertOk(baseUrl, "/api/auth/activate-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 function authHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
@@ -166,7 +174,34 @@ test("owner and admin can create role-based users and inactive users cannot log 
     assert.ok(foremanUser);
     assert.equal(foremanUser.role, "Foreman");
     assert.equal(foremanUser.status, "active");
-    assert.ok(createForeman.provisionedUser?.temporaryPassword);
+    assert.equal(createForeman.provisionedUser?.temporaryPassword, null);
+    assert.ok(createForeman.provisionedUser?.activationToken);
+    assert.match(createForeman.provisionedUser?.activationUrl || "", /^\/activate-invite\?token=/);
+    assert.equal(foremanUser.mustSetPassword, true);
+    assert.equal(foremanUser.inviteStatus, "pending");
+
+    const foremanActivation = await activateInvite(fixture.baseUrl, {
+      token: createForeman.provisionedUser.activationToken,
+      password: "foremanpass123",
+    });
+    assert.ok(foremanActivation.token);
+    assert.equal(foremanActivation.user.email, "freya@lastyard.test");
+
+    const reusedInvite = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: createForeman.provisionedUser.activationToken,
+        password: "foremanpass123",
+      }),
+    });
+    assert.equal(reusedInvite.response.status, 400);
+
+    const foremanLogin = await login(fixture.baseUrl, {
+      email: "freya@lastyard.test",
+      password: "foremanpass123",
+    });
+    assert.ok(foremanLogin.token);
 
     const adminLogin = await login(fixture.baseUrl, {
       email: "admin-users@lastyard.test",
@@ -189,6 +224,7 @@ test("owner and admin can create role-based users and inactive users cannot log 
     assert.ok(employeeUser);
     assert.equal(employeeUser.role, "Employee");
     assert.equal(createEmployee.provisionedUser?.temporaryPassword, null);
+    assert.equal(createEmployee.provisionedUser?.activationToken, null);
 
     const employeeLogin = await assertOk(fixture.baseUrl, "/api/auth/login", {
       method: "POST",
@@ -339,6 +375,65 @@ test("explicit user passwords must meet the public SaaS password policy", async 
     } finally {
       database.close();
     }
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("invite activation fails safely for invalid or expired tokens", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-INVITE-FAIL",
+        email: "owner-invite-fail@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Invite Fail",
+        role: "Owner",
+      }),
+    ]);
+
+    const invalidInvite = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: "not-a-real-token",
+        password: "validpass123",
+      }),
+    });
+    assert.equal(invalidInvite.response.status, 400);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-invite-fail@lastyard.test",
+      password: "apexdemo123",
+    });
+    const createdInvite = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Expired Invite",
+        email: "expired-invite@lastyard.test",
+        role: "Employee",
+      }),
+    });
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      database.prepare("UPDATE users SET invite_expires_at = ? WHERE email = ?").run("2020-01-01T00:00:00.000Z", "expired-invite@lastyard.test");
+    } finally {
+      database.close();
+    }
+
+    const expiredInvite = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: createdInvite.provisionedUser.activationToken,
+        password: "validpass123",
+      }),
+    });
+    assert.equal(expiredInvite.response.status, 400);
   } finally {
     await fixture.stop();
   }

@@ -47,6 +47,10 @@ export function login(credentials) {
   return request("/api/auth/login", { method: "POST", body: credentials });
 }
 
+export function activateInvite(payload) {
+  return request("/api/auth/activate-invite", { method: "POST", body: payload });
+}
+
 export function getSetupStatus() {
   return request("/api/setup/status");
 }

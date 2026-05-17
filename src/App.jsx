@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  activateInvite,
   acknowledgeJobAssignmentNotice,
   acknowledgeSafety,
   archiveUpload,
@@ -189,6 +190,7 @@ const DEMO_LOGIN_PRESETS = [
 ];
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
+const INVITE_ACTIVATION_PATH = "/activate-invite";
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const APEX_PUBLIC_REQUEST_URL = `https://app.apexhq.online${PUBLIC_ESTIMATE_REQUEST_PATH}`;
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"];
@@ -1131,6 +1133,11 @@ const INITIAL_PUBLIC_SIGNUP_FORM = {
   email: "",
   phone: "",
   password: "",
+};
+
+const INITIAL_INVITE_ACTIVATION_FORM = {
+  password: "",
+  confirmPassword: "",
 };
 
 const INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM = {
@@ -2441,6 +2448,55 @@ function LoginScreen({
               <strong>Setup and control</strong>
             </div>
           </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function InviteActivationScreen({
+  draft,
+  setDraft,
+  onSubmit,
+  onBackToLogin,
+  loading,
+  error,
+  tokenPresent,
+}) {
+  return (
+    <div className="co-login-screen">
+      <div className="co-login-shell">
+        <section className="co-login-hero" aria-label="Apex HQ activation brand">
+          <img className="co-login-hero-art" src={APEX_BRAND_ASSETS.loginLogo} alt="" />
+          <div className="co-login-hero-shade" aria-hidden="true" />
+        </section>
+        <section className="co-login-panel" aria-label="Activate Apex HQ login">
+          <div className="co-login-panel-head">
+            <div className="co-login-icon-tile">
+              <img src={APEX_BRAND_ASSETS.loginIcon} alt="" />
+            </div>
+            <div className="min-w-0">
+              <img className="co-login-wordmark-transparent" src={APEX_BRAND_ASSETS.wordmarkTransparent} alt={APP_NAME} />
+            </div>
+          </div>
+
+          <div className="co-login-form-intro">
+            <p>Activate login</p>
+            <span>Create your password to enter the Apex HQ workspace your office invited you to.</span>
+          </div>
+
+          <form className="co-login-form" onSubmit={onSubmit}>
+            <InputField label="New password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} />
+            <InputField label="Confirm password" type="password" value={draft.confirmPassword} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} />
+            {!tokenPresent ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">This activation link is missing its invite token.</p> : null}
+            {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
+            <Button type="submit" size="lg" disabled={loading || !tokenPresent} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
+              {loading ? "Activating..." : "Activate and enter workspace"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={onBackToLogin}>
+              Back to sign in
+            </Button>
+          </form>
         </section>
       </div>
     </div>
@@ -19203,14 +19259,17 @@ function UsersTable({ rows, selectedId, onSelect }) {
 }
 
 function UserCreateCard({ draft, setDraft, onCreateUser, disabled, provisionedNotice }) {
+  const activationCopyValue = provisionedNotice?.activationUrl
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}${provisionedNotice.activationUrl}`
+    : provisionedNotice?.temporaryPassword || "";
   return (
     <Card className="p-5">
       <SectionHeader title="Create user" description="Create a login for office, foreman, or employee access." />
       {provisionedNotice ? (
         <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">
-          <p className="font-black text-emerald-900">Temporary password ready</p>
+          <p className="font-black text-emerald-900">{provisionedNotice.activationToken ? "Activation invite ready" : "Temporary password ready"}</p>
           <p className="mt-1">{provisionedNotice.email}</p>
-          <p className="mt-2 font-mono text-xs">{provisionedNotice.temporaryPassword}</p>
+          <p className="mt-2 break-all font-mono text-xs">{activationCopyValue}</p>
         </div>
       ) : null}
       <form className="grid gap-3" onSubmit={onCreateUser}>
@@ -19228,7 +19287,7 @@ function UserCreateCard({ draft, setDraft, onCreateUser, disabled, provisionedNo
             <option value="inactive">Inactive</option>
           </SelectField>
         </div>
-        <InputField label="Password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to generate a temporary password" />
+        <InputField label="Password" type="text" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to create an activation invite" />
         <Button type="submit" disabled={disabled}>
           <Icon name="plus" />
           Add user
@@ -19477,6 +19536,9 @@ function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
 }
 
 function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, provisionedNotice, roleOptions = USER_ROLE_OPTIONS, onDismissProvisionNotice }) {
+  const activationCopyValue = provisionedNotice?.activationUrl
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}${provisionedNotice.activationUrl}`
+    : provisionedNotice?.temporaryPassword || "";
   return (
     <Card className="co-employees-form-card p-4">
       <SectionHeader title="Create User" description="Create a real login for office, foreman, or employee access." />
@@ -19484,12 +19546,12 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
         <div className="co-employees-temp-password mb-4">
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <span>Temporary password ready</span>
+              <span>{provisionedNotice.activationToken ? "Activation invite ready" : "Temporary password ready"}</span>
               <strong>{provisionedNotice.email}</strong>
-              <code>{provisionedNotice.temporaryPassword}</code>
+              <code>{activationCopyValue}</code>
             </div>
             <div className="grid gap-2 sm:flex sm:shrink-0">
-              <Button type="button" size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText?.(provisionedNotice.temporaryPassword || "")}>
+              <Button type="button" size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText?.(activationCopyValue)}>
                 <Icon name="clipboard" />
                 Copy
               </Button>
@@ -19509,7 +19571,7 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </SelectField>
-        <InputField label="Password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to generate a temporary password" />
+        <InputField label="Password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to create an activation invite" />
         <div className="md:col-span-2">
           <Button type="submit" disabled={disabled}>
             <Icon name="plus" />
@@ -31685,6 +31747,8 @@ export default function App() {
   const [setupStatus, setSetupStatus] = useState(INITIAL_SETUP_STATUS);
   const [publicSignupDraft, setPublicSignupDraft] = useState(INITIAL_PUBLIC_SIGNUP_FORM);
   const [showPublicSignup, setShowPublicSignup] = useState(false);
+  const [inviteActivationDraft, setInviteActivationDraft] = useState(INITIAL_INVITE_ACTIVATION_FORM);
+  const [inviteActivationError, setInviteActivationError] = useState("");
   const [publicEstimateRequestDraft, setPublicEstimateRequestDraft] = useState(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
   const [publicEstimateRequestError, setPublicEstimateRequestError] = useState("");
   const [publicEstimateRequestSuccess, setPublicEstimateRequestSuccess] = useState("");
@@ -31742,6 +31806,11 @@ export default function App() {
   const autosaveVersionsRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const publicEstimateRequestRoute = pathname === PUBLIC_ESTIMATE_REQUEST_PATH;
+  const inviteActivationRoute = pathname === INVITE_ACTIVATION_PATH;
+  const inviteActivationToken = useMemo(() => {
+    if (!inviteActivationRoute) return "";
+    return new URLSearchParams(window.location.search).get("token") || "";
+  }, [inviteActivationRoute, pathname]);
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
   const previousActiveRef = useRef(active);
@@ -32460,6 +32529,41 @@ export default function App() {
     }
   }
 
+  async function handleInviteActivation(event) {
+    event.preventDefault();
+    setBusy(true);
+    setInviteActivationError("");
+
+    if (inviteActivationDraft.password !== inviteActivationDraft.confirmPassword) {
+      setInviteActivationError("Passwords do not match.");
+      setBusy(false);
+      return;
+    }
+
+    try {
+      const result = await activateInvite({
+        token: inviteActivationToken,
+        password: inviteActivationDraft.password,
+      });
+      setBackendStatus("online");
+      applyBootstrap(result);
+      window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+      setSessionToken(result.token);
+      setStartupError("");
+      setAuthStatus("authenticated");
+      setInviteActivationDraft(INITIAL_INVITE_ACTIVATION_FORM);
+      setInviteActivationError("");
+      navigateTo("/", { replace: true });
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setInviteActivationError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handlePublicEstimateRequest(event) {
     event.preventDefault();
     setBusy(true);
@@ -33055,7 +33159,7 @@ export default function App() {
         setSelectedUserId(createdUser.id);
       }
       setCreateUserDraft(INITIAL_USER_FORM);
-      setUserProvisionNotice(nextState.provisionedUser?.temporaryPassword ? nextState.provisionedUser : null);
+      setUserProvisionNotice(nextState.provisionedUser?.temporaryPassword || nextState.provisionedUser?.activationToken ? nextState.provisionedUser : null);
       return nextState;
     });
   }
@@ -34305,6 +34409,20 @@ export default function App() {
 
   if (splashVisible) {
     return <BrandIntroScreen />;
+  }
+
+  if (inviteActivationRoute) {
+    return (
+      <InviteActivationScreen
+        draft={inviteActivationDraft}
+        setDraft={setInviteActivationDraft}
+        onSubmit={handleInviteActivation}
+        onBackToLogin={navigateToLoginScreen}
+        loading={busy}
+        error={inviteActivationError}
+        tokenPresent={Boolean(inviteActivationToken)}
+      />
+    );
   }
 
   if (publicEstimateRequestRoute) {

@@ -63,9 +63,13 @@ function sqliteStringLiteral(value) {
   return value.replaceAll("'", "''");
 }
 
-function passwordHash(password, salt = crypto.randomBytes(16).toString("hex")) {
+export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const derivedKey = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${derivedKey}`;
+}
+
+function passwordHash(password, salt = crypto.randomBytes(16).toString("hex")) {
+  return hashPassword(password, salt);
 }
 
 export function createUserRecord({
@@ -78,6 +82,11 @@ export function createUserRecord({
   companyId = DEFAULT_COMPANY_ID,
   operatorAccess = false,
   notificationState = {},
+  inviteTokenHash = "",
+  inviteSentAt = "",
+  inviteExpiresAt = "",
+  inviteAcceptedAt = "",
+  mustSetPassword = false,
   createdAt = isoNow(),
   updatedAt = createdAt,
   lastLoginAt = null,
@@ -95,6 +104,11 @@ export function createUserRecord({
     notificationState: notificationState && typeof notificationState === "object" && !Array.isArray(notificationState)
       ? notificationState
       : {},
+    inviteTokenHash: String(inviteTokenHash || "").trim(),
+    inviteSentAt: String(inviteSentAt || "").trim(),
+    inviteExpiresAt: String(inviteExpiresAt || "").trim(),
+    inviteAcceptedAt: String(inviteAcceptedAt || "").trim(),
+    mustSetPassword: mustSetPassword === true,
     createdAt,
     updatedAt,
     lastLoginAt,
@@ -3415,6 +3429,9 @@ function createBootstrapAdminState(adminConfig) {
 
 export function publicUser(user, { includeNotificationState = false } = {}) {
   const publicNotificationState = includeNotificationState ? normalizeNotificationStateMap(user.notificationState) : undefined;
+  const inviteAccepted = Boolean(user.inviteAcceptedAt);
+  const invitePending = Boolean(user.inviteTokenHash && user.inviteExpiresAt && new Date(user.inviteExpiresAt).getTime() > Date.now());
+  const inviteExpired = Boolean(user.inviteTokenHash && user.inviteExpiresAt && !invitePending);
   return {
     id: user.id,
     email: user.email,
@@ -3427,6 +3444,8 @@ export function publicUser(user, { includeNotificationState = false } = {}) {
     createdAt: user.createdAt || "",
     updatedAt: user.updatedAt || "",
     lastLoginAt: user.lastLoginAt || null,
+    mustSetPassword: user.mustSetPassword === true,
+    inviteStatus: inviteAccepted ? "accepted" : invitePending ? "pending" : inviteExpired ? "expired" : "",
     ...(includeNotificationState ? { notificationState: publicNotificationState } : {}),
   };
 }
@@ -5362,6 +5381,50 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 46,
+      description: "Persist invite activation state for user provisioning.",
+      up(database) {
+        if (!columnExists(database, "users", "invite_token_hash")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN invite_token_hash TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "invite_sent_at")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN invite_sent_at TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "invite_expires_at")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN invite_expires_at TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "invite_accepted_at")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN invite_accepted_at TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "must_set_password")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN must_set_password INTEGER NOT NULL DEFAULT 0;
+          `);
+        }
+
+        database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_users_invite_token_hash ON users(invite_token_hash);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5401,8 +5464,8 @@ function writeStateToDb(state) {
   `);
 
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, notification_state, created_at, updated_at, last_login_at, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, notification_state, invite_token_hash, invite_sent_at, invite_expires_at, invite_accepted_at, must_set_password, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCompanySetting = database.prepare(`
@@ -5651,6 +5714,11 @@ function writeStateToDb(state) {
         normalizeCompanyId(user.companyId),
         user.operatorAccess === true ? 1 : 0,
         JSON.stringify(normalizeNotificationStateMap(user.notificationState)),
+        user.inviteTokenHash || "",
+        user.inviteSentAt || "",
+        user.inviteExpiresAt || "",
+        user.inviteAcceptedAt || "",
+        user.mustSetPassword === true ? 1 : 0,
         user.createdAt || isoNow(),
         user.updatedAt || user.createdAt || isoNow(),
         user.lastLoginAt || null,
@@ -6442,13 +6510,16 @@ function readTableState() {
   `).all(DEFAULT_COMPANY_ID), companySettings);
 
   const users = database.prepare(`
-    SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
+    SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState,
+           invite_token_hash AS inviteTokenHash, invite_sent_at AS inviteSentAt, invite_expires_at AS inviteExpiresAt, invite_accepted_at AS inviteAcceptedAt,
+           must_set_password AS mustSetPassword, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
     ORDER BY email
   `).all().map((user) => ({
     ...withDefaultCompanyId(user),
     operatorAccess: Boolean(user.operatorAccess),
     notificationState: normalizeNotificationStateMap(user.notificationState),
+    mustSetPassword: Boolean(user.mustSetPassword),
   }));
 
   const sessions = database.prepare(`
@@ -6882,6 +6953,11 @@ function mapUserRecord(row) {
     companyId: normalizeCompanyId(row.companyId),
     operatorAccess: Boolean(row.operatorAccess),
     notificationState: normalizeNotificationStateMap(row.notificationState),
+    inviteTokenHash: row.inviteTokenHash || "",
+    inviteSentAt: row.inviteSentAt || "",
+    inviteExpiresAt: row.inviteExpiresAt || "",
+    inviteAcceptedAt: row.inviteAcceptedAt || "",
+    mustSetPassword: Boolean(row.mustSetPassword),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     lastLoginAt: row.lastLoginAt || null,
@@ -7168,8 +7244,9 @@ export async function findUserAuthRecordByEmail(email) {
   return withSqliteRetry(async () => {
     const database = createDatabaseConnection();
   const row = database.prepare(`
-      SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState, created_at AS createdAt, updated_at AS updatedAt,
-             last_login_at AS lastLoginAt, password_hash AS passwordHash
+      SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState,
+             invite_token_hash AS inviteTokenHash, invite_sent_at AS inviteSentAt, invite_expires_at AS inviteExpiresAt, invite_accepted_at AS inviteAcceptedAt,
+             must_set_password AS mustSetPassword, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
       FROM users
       WHERE email = ?
       LIMIT 1
@@ -7200,6 +7277,11 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
         u.company_id AS companyId,
         u.operator_access AS operatorAccess,
         u.notification_state AS notificationState,
+        u.invite_token_hash AS inviteTokenHash,
+        u.invite_sent_at AS inviteSentAt,
+        u.invite_expires_at AS inviteExpiresAt,
+        u.invite_accepted_at AS inviteAcceptedAt,
+        u.must_set_password AS mustSetPassword,
         u.created_at AS createdAt,
         u.updated_at AS updatedAt,
         u.last_login_at AS lastLoginAt,

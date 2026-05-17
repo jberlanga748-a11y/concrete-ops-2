@@ -126,6 +126,7 @@ import {
   findUserAuthRecordByEmail,
   generateToken,
   getDataPaths,
+  hashPassword,
   hashToken,
   leadProjectName,
   makeActivityId,
@@ -577,6 +578,21 @@ function leadOpenPath(id) {
 
 function temporaryPassword() {
   return crypto.randomBytes(9).toString("base64url");
+}
+
+const INVITE_ACTIVATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function inviteActivationExpiresAt(nowMs = Date.now()) {
+  return new Date(nowMs + INVITE_ACTIVATION_TTL_MS).toISOString();
+}
+
+function activationOpenPath(token) {
+  return `/activate-invite?token=${encodeURIComponent(token)}`;
+}
+
+function inviteIsExpired(user, nowMs = Date.now()) {
+  const expiresAtMs = new Date(user?.inviteExpiresAt || "").getTime();
+  return !Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs;
 }
 
 function optionalDateString(value, fieldName, fallback = "") {
@@ -5760,6 +5776,63 @@ app.post("/api/signup/company", asyncRoute(async (req, res) => {
   });
 }));
 
+app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
+  await cleanupExpiredSessions();
+  const token = requiredString(req.body?.token, "Invite token");
+  const password = requiredPassword(req.body?.password, "Password");
+  const tokenHash = hashToken(token);
+  const activatedAt = new Date().toISOString();
+  let activatedUserId = "";
+
+  const nextState = await updateDb((draft) => {
+    const targetUser = (draft.users || []).find((user) => user.inviteTokenHash === tokenHash);
+    if (!targetUser || targetUser.inviteAcceptedAt || inviteIsExpired(targetUser)) {
+      throw new ApiError(400, "Invite is invalid or expired.");
+    }
+    if (optionalUserStatus(targetUser.status, "active") !== "active") {
+      throw new ApiError(403, "Account inactive.");
+    }
+
+    activatedUserId = targetUser.id;
+    targetUser.passwordHash = hashPassword(password);
+    targetUser.inviteTokenHash = "";
+    targetUser.inviteAcceptedAt = activatedAt;
+    targetUser.mustSetPassword = false;
+    targetUser.updatedAt = activatedAt;
+
+    appendActivity(draft, "Invite accepted", `${targetUser.name} activated their Apex HQ login.`);
+    appendAuditEvent(draft, {
+      entityType: "user",
+      entityId: targetUser.id,
+      action: "invite_accepted",
+      summary: "Invite accepted",
+      detail: `${targetUser.name} activated their login.`,
+      actor: targetUser,
+      changedFields: ["password", "inviteAcceptedAt", "mustSetPassword"],
+    });
+    return draft;
+  });
+
+  const activatedUser = nextState.users.find((user) => user.id === activatedUserId);
+  if (!activatedUser) {
+    throw new ApiError(500, "Activated user was not found.");
+  }
+
+  const sessionToken = generateToken();
+  await replaceSessionForUser(activatedUser.id, {
+    tokenHash: hashToken(sessionToken),
+    currentCompanyId: activatedUser.companyId,
+    createdAt: activatedAt,
+    lastSeenAt: activatedAt,
+    expiresAt: nextSessionExpiry(),
+  });
+
+  return res.json({
+    token: sessionToken,
+    ...sanitizeBootstrap(nextState, activatedUser),
+  });
+}));
+
 app.post("/api/auth/login", asyncRoute(async (req, res) => {
   const routeProfiler = createRouteProfiler("POST /api/auth/login", res.locals.requestId);
   await cleanupExpiredSessions();
@@ -9852,7 +9925,12 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
   const payload = req.body || {};
   const createdAt = new Date().toISOString();
   const email = requiredString(payload.email, "Email").toLowerCase();
-  const password = payload.password ? requiredPassword(payload.password, "Password") : temporaryPassword();
+  const hasExplicitPassword = typeof payload.password === "string" && payload.password.trim().length > 0;
+  const provisioningMode = optionalString(payload.provisioningMode, hasExplicitPassword ? "password" : "invite").toLowerCase();
+  const useInviteActivation = !hasExplicitPassword && provisioningMode !== "temporary_password";
+  const password = hasExplicitPassword ? requiredPassword(payload.password, "Password") : temporaryPassword();
+  const inviteToken = useInviteActivation ? generateToken() : "";
+  const inviteExpiresAt = useInviteActivation ? inviteActivationExpiresAt() : "";
   const role = optionalUserRole(payload.role, "Employee");
   const status = optionalUserStatus(payload.status, "active");
   ensureOwnerRoleManagement(req.auth.user, null, role);
@@ -9863,6 +9941,10 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
     phone: optionalString(payload.phone, ""),
     role,
     status,
+    inviteTokenHash: inviteToken ? hashToken(inviteToken) : "",
+    inviteSentAt: inviteToken ? createdAt : "",
+    inviteExpiresAt,
+    mustSetPassword: Boolean(inviteToken),
     createdAt,
     updatedAt: createdAt,
   });
@@ -9892,7 +9974,11 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
     provisionedUser: {
       id: userRecord.id,
       email: userRecord.email,
-      temporaryPassword: payload.password ? null : password,
+      provisioningMode: inviteToken ? "invite" : hasExplicitPassword ? "password" : "temporary_password",
+      temporaryPassword: (!hasExplicitPassword && !inviteToken) ? password : null,
+      activationToken: inviteToken || null,
+      activationUrl: inviteToken ? activationOpenPath(inviteToken) : "",
+      inviteExpiresAt,
     },
   });
 }));
@@ -9948,6 +10034,10 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
         id: targetUser.id,
       });
       targetUser.passwordHash = replacement.passwordHash;
+      targetUser.inviteTokenHash = "";
+      targetUser.inviteAcceptedAt = targetUser.inviteAcceptedAt || changedAt;
+      targetUser.mustSetPassword = false;
+      changedFields.push("invite");
     }
 
     if (nextStatus !== "active") {
