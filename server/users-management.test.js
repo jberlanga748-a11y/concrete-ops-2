@@ -300,6 +300,11 @@ test("owner and admin can create role-based users and inactive users cannot log 
       }),
     });
     assert.equal(inactiveLogin.response.status, 403);
+
+    const inactiveBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(inactiveBootstrap.response.status, 401);
   } finally {
     await fixture.stop();
   }
