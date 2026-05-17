@@ -87,6 +87,7 @@ import {
   validateContactHistoryPayload,
 } from "../shared/contactHistory.js";
 import {
+  DEFAULT_COMPANY_ID,
   companiesForUser,
   currentCompanyIdForUser,
   normalizeCompanies,
@@ -1134,9 +1135,12 @@ function companySettingsForState(state = null, user = null) {
     companies,
     companySettings: defaultSettings,
   });
+  const currentCompanySettings = (state?.companySettingsByCompanyId || {})[currentCompanyId];
+  const legacyDefaultCompanySettings = currentCompanyId === DEFAULT_COMPANY_ID ? (state?.companySettings || {}) : {};
   return {
-    ...defaultSettings,
-    ...((state?.companySettingsByCompanyId || {})[currentCompanyId] || {}),
+    ...DEFAULT_COMPANY_SETTINGS,
+    ...legacyDefaultCompanySettings,
+    ...(currentCompanySettings || {}),
   };
 }
 

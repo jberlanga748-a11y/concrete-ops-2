@@ -459,6 +459,50 @@ test("operator company settings remain scoped to the selected company", async ()
   }
 });
 
+test("company settings ignore client-supplied company scope fields", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    enableOperatorAccess(fixture.sqliteFile);
+
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = operatorLogin.token;
+
+    const defaultBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(token),
+    });
+    assert.equal(defaultBootstrap.currentCompanyId, DEFAULT_COMPANY_ID);
+
+    const updatedDefault = await assertOk(fixture.baseUrl, "/api/settings/company", {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({
+        companyId: "COMPANY-LYF",
+        currentCompanyId: "COMPANY-LYF",
+        selectedCompanyId: "COMPANY-LYF",
+        companyName: "Default Workspace Only",
+        businessEmail: "default-only@apexhq.test",
+      }),
+    });
+    assert.equal(updatedDefault.currentCompanyId, DEFAULT_COMPANY_ID);
+    assert.equal(updatedDefault.companySettings.companyName, "Default Workspace Only");
+    assert.equal(updatedDefault.companySettings.businessEmail, "default-only@apexhq.test");
+
+    const switched = await postJson(fixture.baseUrl, "/api/companies/select", token, {
+      companyId: "COMPANY-LYF",
+    });
+    assert.equal(switched.currentCompanyId, "COMPANY-LYF");
+    assert.notEqual(switched.companySettings.companyName, "Default Workspace Only");
+    assert.notEqual(switched.companySettings.businessEmail, "default-only@apexhq.test");
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("field roles cannot switch companies even if the flag is present", async () => {
   const fixture = await startServer();
 
