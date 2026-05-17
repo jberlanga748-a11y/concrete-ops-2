@@ -159,6 +159,7 @@ const validLeadPackage = {
   packageType: "concrete_ops_lead",
   sourceApp: "Last Yard Proposal / Lead Finder",
   sourceLeadId: "lead-import-server-1",
+  targetCompanyId: DEFAULT_COMPANY_ID,
   lead: {
     title: "Albany shop slab",
     companyName: "Willamette Shop LLC",
@@ -195,6 +196,26 @@ test("integration lead import rejects missing and invalid tokens", async () => {
     });
     assert.equal(invalidToken.response.status, 401);
     assert.match(invalidToken.payload.error, /invalid integration token/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration lead import requires explicit target company in single-company mode", async () => {
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: "lead-import-token" });
+
+  try {
+    const missingTarget = await requestJson(fixture.baseUrl, "/api/integrations/leads", {
+      method: "POST",
+      headers: integrationHeaders("lead-import-token"),
+      body: JSON.stringify({
+        ...validLeadPackage,
+        targetCompanyId: "",
+        sourceLeadId: "lead-import-single-company-missing-target",
+      }),
+    });
+    assert.equal(missingTarget.response.status, 400);
+    assert.match(missingTarget.payload.error, /targetCompanyId/i);
   } finally {
     await fixture.stop();
   }
@@ -397,6 +418,7 @@ test("integration lead import requires target company in multi-company mode and 
       headers: integrationHeaders(token),
       body: JSON.stringify({
         ...validLeadPackage,
+        targetCompanyId: "",
         sourceLeadId: "lead-import-missing-target",
       }),
     });
@@ -420,6 +442,7 @@ test("integration lead import requires target company in multi-company mode and 
       headers: integrationHeaders(token),
       body: JSON.stringify({
         ...validLeadPackage,
+        targetCompanyId: "",
         companyId: "COMPANY-LYF",
         sourceLeadId: "lead-import-generic-company-id",
       }),
@@ -432,6 +455,7 @@ test("integration lead import requires target company in multi-company mode and 
       headers: integrationHeaders(token),
       body: JSON.stringify({
         ...validLeadPackage,
+        targetCompanyId: "",
         sourceLeadId: "lead-import-nested-company-id",
         lead: {
           ...validLeadPackage.lead,

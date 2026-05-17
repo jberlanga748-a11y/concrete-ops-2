@@ -514,7 +514,7 @@ function externalTargetCompanyIdFromPayload(payload = {}) {
   );
 }
 
-function resolveExternalWriteCompany(state, payload = {}) {
+function resolveExternalWriteCompany(state, payload = {}, options = {}) {
   const companies = companiesForState(state).filter((company) => String(company.status || "active").toLowerCase() !== "inactive");
   const targetCompanyId = normalizeCompanyId(externalTargetCompanyIdFromPayload(payload), "");
 
@@ -524,6 +524,10 @@ function resolveExternalWriteCompany(state, payload = {}) {
       throw new ApiError(404, "Target company not found.");
     }
     return targetCompany;
+  }
+
+  if (options.requireExplicitTarget) {
+    throw new ApiError(400, "targetCompanyId is required for this external write.");
   }
 
   if (companies.length === 1) {
@@ -8845,7 +8849,7 @@ app.post("/api/integrations/job-draft-imports", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
+  const targetCompany = resolveExternalWriteCompany(currentState, packageJson, { requireExplicitTarget: true });
   requireExternalIntegrationToken(req, currentState, targetCompany.id);
   const integrationActor = jobDraftIntegrationActor(targetCompany.id);
   assertCompanyFeature(currentState, integrationActor, FEATURE_KEYS.INTEGRATIONS, "Job Draft Imports");
@@ -8909,7 +8913,7 @@ app.post("/api/integrations/leads", asyncRoute(async (req, res) => {
   }
 
   const currentState = await readDb();
-  const targetCompany = resolveExternalWriteCompany(currentState, packageJson);
+  const targetCompany = resolveExternalWriteCompany(currentState, packageJson, { requireExplicitTarget: true });
   requireExternalIntegrationToken(req, currentState, targetCompany.id);
   const integrationActor = leadFinderIntegrationActor(targetCompany.id);
   assertCompanyFeature(currentState, integrationActor, FEATURE_KEYS.LEAD_JOB_FINDER, "Lead Finder Import");

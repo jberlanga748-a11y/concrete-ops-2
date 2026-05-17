@@ -161,6 +161,7 @@ const validPackage = {
   exportedAt: "2026-05-10T12:00:00.000Z",
   sourceApp: "Last Yard Concrete Proposal / GC Packet Generator",
   packageType: "concrete_ops_job_draft",
+  targetCompanyId: DEFAULT_COMPANY_ID,
   opsJobDraftId: "ops-draft-server-1",
   sourceHandoffId: "handoff-server-1",
   sourceLeadId: "lead-server-1",
@@ -214,6 +215,27 @@ test("integration job draft import rejects missing and invalid tokens", async ()
     });
     assert.equal(invalidToken.response.status, 401);
     assert.match(invalidToken.payload.error, /invalid integration token/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("integration job draft import requires explicit target company in single-company mode", async () => {
+  const fixture = await startServer({ CONCRETE_OPS_IMPORT_TOKEN: "integration-test-token" });
+
+  try {
+    const missingTarget = await requestJson(fixture.baseUrl, "/api/integrations/job-draft-imports", {
+      method: "POST",
+      headers: integrationHeaders("integration-test-token"),
+      body: JSON.stringify({
+        ...validPackage,
+        targetCompanyId: "",
+        opsJobDraftId: "ops-draft-single-company-missing-target",
+        sourceHandoffId: "handoff-single-company-missing-target",
+      }),
+    });
+    assert.equal(missingTarget.response.status, 400);
+    assert.match(missingTarget.payload.error, /targetCompanyId/i);
   } finally {
     await fixture.stop();
   }
@@ -361,6 +383,7 @@ test("integration job draft import requires target company in multi-company mode
       headers: integrationHeaders(token),
       body: JSON.stringify({
         ...validPackage,
+        targetCompanyId: "",
         opsJobDraftId: "ops-draft-missing-target",
         sourceHandoffId: "handoff-missing-target",
       }),
@@ -386,6 +409,7 @@ test("integration job draft import requires target company in multi-company mode
       headers: integrationHeaders(token),
       body: JSON.stringify({
         ...validPackage,
+        targetCompanyId: "",
         companyId: "COMPANY-LYF",
         opsJobDraftId: "ops-draft-generic-company-id",
         sourceHandoffId: "handoff-generic-company-id",
@@ -399,6 +423,7 @@ test("integration job draft import requires target company in multi-company mode
       headers: integrationHeaders(token),
       body: JSON.stringify({
         ...validPackage,
+        targetCompanyId: "",
         context: { companyId: "COMPANY-LYF" },
         opsJobDraftId: "ops-draft-context-company-id",
         sourceHandoffId: "handoff-context-company-id",
