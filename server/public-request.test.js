@@ -206,6 +206,7 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     assert.equal(createdLead.status, "New");
     assert.match(createdLead.notes, /Project address: 412 Market Street NE, Salem, OR/);
     assert.match(createdLead.notes, /Preferred contact method: Phone/);
+    assert.doesNotMatch(createdLead.notes, /token=|apiKey=|password=/i);
 
     const linkedCustomer = officeBootstrap.customers.find((customer) => customer.id === createdLead.customerId);
     assert.ok(linkedCustomer);
@@ -223,6 +224,44 @@ test("public estimate request creates a lead, links a customer, and keeps field 
     });
     assert.equal(employeeBootstrap.leads.length, 0);
     assert.equal(employeeBootstrap.customers.length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("public estimate request redacts secret-looking freeform note content", async () => {
+  const fixture = await startServer();
+
+  try {
+    const submission = await assertOk(fixture.baseUrl, "/api/public/estimate-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildPublicRequestPayload({
+        name: "Sensitive Notes Lead",
+        email: "sensitive-notes@example.test",
+        projectAddress: "https://example.test/intake?token=secret&zip=97321",
+        projectDetails: "Need slab. apiKey=do-not-save password=also-secret session=hidden",
+        preferredContactMethod: "Email authToken=private",
+        preferredContactTime: "Friday code=123456",
+      })),
+    });
+    assert.equal(submission.ok, true);
+
+    const officeLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const officeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${officeLogin.token}` },
+    });
+    const createdLead = officeBootstrap.leads.find((lead) => lead.customer === "Sensitive Notes Lead");
+    assert.ok(createdLead);
+    assert.match(createdLead.notes, /token=\[redacted\]/i);
+    assert.match(createdLead.notes, /apiKey=\[redacted\]/i);
+    assert.match(createdLead.notes, /password=\[redacted\]/i);
+    assert.match(createdLead.notes, /authToken=\[redacted\]/i);
+    assert.match(createdLead.notes, /code=\[redacted\]/i);
+    assert.doesNotMatch(createdLead.notes, /do-not-save|also-secret|session=hidden|authToken=private|code=123456/i);
   } finally {
     await fixture.stop();
   }

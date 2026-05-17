@@ -45,6 +45,7 @@ import {
   createWebsiteLeadFromPackage,
   findMatchingWebsiteLeadSource,
   findWebsiteLeadDuplicate,
+  sanitizeFreeformTextForNotes,
 } from "../shared/websiteLeadIntake.js";
 import {
   buildLeadSourceCheckedPatch,
@@ -3739,15 +3740,15 @@ function buildPublicRequestLeadNotes({
 }) {
   const lines = [
     `Source: public estimate request form`,
-    `Project type: ${projectType}`,
-    `Project address: ${projectAddress}`,
-    `Project details: ${projectDetails}`,
+    `Project type: ${sanitizeFreeformTextForNotes(projectType)}`,
+    `Project address: ${sanitizeFreeformTextForNotes(projectAddress)}`,
+    `Project details: ${sanitizeFreeformTextForNotes(projectDetails)}`,
   ];
   if (preferredContactMethod) {
-    lines.push(`Preferred contact method: ${preferredContactMethod}`);
+    lines.push(`Preferred contact method: ${sanitizeFreeformTextForNotes(preferredContactMethod)}`);
   }
   if (preferredContactTime) {
-    lines.push(`Preferred contact time: ${preferredContactTime}`);
+    lines.push(`Preferred contact time: ${sanitizeFreeformTextForNotes(preferredContactTime)}`);
   }
   return lines.join("\n");
 }
