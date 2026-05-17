@@ -14590,7 +14590,7 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
             </p>
           </div>
           {nextStep ? (
-            <Button type="button" size="sm" onClick={() => onOpen?.(nextStep.moduleId)}>
+            <Button type="button" size="sm" onClick={() => onOpen?.(nextStep)}>
               {nextStep.actionLabel || "Continue setup"}
             </Button>
           ) : null}
@@ -14608,7 +14608,7 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
                 ? "border-emerald-100 bg-emerald-50/70 hover:border-emerald-200"
                 : "border-orange-100 bg-white hover:border-orange-200 hover:bg-orange-50"
             }`}
-            onClick={() => onOpen?.(step.moduleId)}
+            onClick={() => onOpen?.(step)}
           >
             <span className="mb-2 flex items-center justify-between gap-2">
               <span className="text-sm font-black text-slate-950">{step.label}</span>
@@ -15183,6 +15183,7 @@ function DashboardPagePolished({
   dashboardMetrics,
   companySettings = {},
   firstOwnerOnboarding: firstOwnerOnboardingFromServer = null,
+  onOpenSettingsSection,
   leads,
   leadSources = [],
   estimates = [],
@@ -15414,6 +15415,14 @@ function DashboardPagePolished({
   const firstOwnerOnboarding = firstOwnerOnboardingFromServer || derivedFirstOwnerOnboarding;
   const showFirstOwnerOnboarding = Boolean(permissions?.settings?.canView && !firstOwnerOnboarding.complete);
 
+  function openFirstOwnerOnboardingStep(step = {}) {
+    if (step.moduleId === "settings" && step.settingsSectionId && typeof onOpenSettingsSection === "function") {
+      onOpenSettingsSection(step.settingsSectionId);
+      return;
+    }
+    setActive(step.moduleId || "settings");
+  }
+
   function focusDashboardRef(ref) {
     ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     ref.current?.focus?.({ preventScroll: true });
@@ -15539,7 +15548,7 @@ function DashboardPagePolished({
           {showFirstOwnerOnboarding ? (
             <FirstOwnerOnboardingCard
               onboarding={firstOwnerOnboarding}
-              onOpen={(moduleId) => setActive(moduleId)}
+              onOpen={openFirstOwnerOnboardingStep}
             />
           ) : null}
 
@@ -23215,6 +23224,8 @@ function SettingsPagePolished({
   onUpdateCompanySettings,
   setActive,
   publicEstimateRequestEnabled,
+  settingsFocusSection,
+  onSettingsSectionFocused,
 }) {
   const safeCompanySettings = {
     ...EMPTY_APP_STATE.companySettings,
@@ -23335,6 +23346,15 @@ function SettingsPagePolished({
     }
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  useEffect(() => {
+    if (!settingsFocusSection?.id) return undefined;
+    const timerId = window.setTimeout(() => {
+      jumpToSettingsSection(settingsFocusSection.id);
+      onSettingsSectionFocused?.(settingsFocusSection.id);
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [settingsFocusSection?.id, settingsFocusSection?.nonce, onSettingsSectionFocused]);
 
   async function handleBrandingSave(event) {
     event.preventDefault();
@@ -31897,6 +31917,7 @@ export default function App() {
   const [jobDateFilter, setJobDateFilter] = useState("All dates");
   const [jobStartupFilter, setJobStartupFilter] = useState("All startup");
   const [dashboardFocusTarget, setDashboardFocusTarget] = useState("");
+  const [settingsFocusSection, setSettingsFocusSection] = useState(null);
   const [reportFilter, setReportFilter] = useState("All");
   const [reportSearch, setReportSearch] = useState("");
   const [reportJobFilter, setReportJobFilter] = useState("All jobs");
@@ -31989,6 +32010,14 @@ export default function App() {
 
   function setActive(nextActive) {
     navigateTo(getModulePath(nextActive));
+  }
+
+  function openSettingsSection(sectionId) {
+    setSettingsFocusSection({
+      id: sectionId,
+      nonce: Date.now(),
+    });
+    setActive("settings");
   }
 
   function runDashboardShortcut(shortcutId) {
@@ -34724,6 +34753,9 @@ export default function App() {
                 user={appState.user}
                 companySettings={appState.companySettings}
                 firstOwnerOnboarding={appState.firstOwnerOnboarding}
+                settingsFocusSection={settingsFocusSection}
+                onOpenSettingsSection={openSettingsSection}
+                onSettingsSectionFocused={() => setSettingsFocusSection(null)}
                 currentCompanyId={appState.currentCompanyId}
                 companyName={workspaceCompanyName}
                 companyProfile={workspacePrintProfile}

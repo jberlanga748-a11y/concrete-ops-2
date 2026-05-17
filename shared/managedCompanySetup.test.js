@@ -134,7 +134,9 @@ test("first owner onboarding highlights signup workspace next steps", () => {
   assert.equal(state.coreComplete, false);
   assert.equal(state.completedCount, 1);
   assert.equal(state.steps.find((step) => step.key === "company_profile")?.completed, true);
+  assert.equal(state.steps.find((step) => step.key === "company_profile")?.settingsSectionId, "settings-company-profile");
   assert.equal(state.steps.find((step) => step.key === "service_setup")?.completed, false);
+  assert.equal(state.steps.find((step) => step.key === "service_setup")?.settingsSectionId, "settings-managed-setup");
   assert.equal(state.steps.find((step) => step.key === "users")?.completed, false);
   assert.equal(state.steps.find((step) => step.key === "first_estimate")?.completed, false);
   assert.equal(state.steps.find((step) => step.key === "first_job")?.completed, false);
@@ -176,6 +178,7 @@ test("first owner onboarding completes users, estimate, and job steps without co
   assert.equal(state.coreComplete, true);
   assert.equal(state.complete, false);
   assert.equal(state.nextStep.key, "managed_setup");
+  assert.equal(state.nextStep.settingsSectionId, "settings-managed-setup");
   assert.ok(state.completedCount >= 4);
 });
 

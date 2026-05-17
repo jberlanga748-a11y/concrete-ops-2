@@ -368,6 +368,7 @@ export function deriveFirstOwnerOnboardingState({
       description: "Confirm company name, phone, email, and workspace identity for proposals and job packets.",
       completed: hasCompanyProfile,
       moduleId: "settings",
+      settingsSectionId: "settings-company-profile",
       actionLabel: "Open profile",
     },
     {
@@ -376,6 +377,7 @@ export function deriveFirstOwnerOnboardingState({
       description: "Add service area or work-type notes so leads, estimates, and assistant context fit the contractor.",
       completed: hasServiceSetup,
       moduleId: "settings",
+      settingsSectionId: "settings-managed-setup",
       actionLabel: "Open services",
     },
     {
@@ -408,6 +410,7 @@ export function deriveFirstOwnerOnboardingState({
       description: setupState.nextAction,
       completed: ["Ready for Managed Use", "Ready for Field Rollout"].includes(setupState.status),
       moduleId: "settings",
+      settingsSectionId: "settings-managed-setup",
       actionLabel: "Review setup",
     },
   ];
