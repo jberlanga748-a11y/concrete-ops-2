@@ -164,6 +164,31 @@ function insertExistingBusinessRecords(sqliteFile) {
     );
 
     database.prepare(`
+      INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "L-JUNK-003",
+      1202,
+      "C-JUNK-001",
+      "riley",
+      "Keizer",
+      "fghfghfg",
+      "Contacted",
+      "Low",
+      100,
+      "Real Admin",
+      "U-REAL-ADMIN",
+      "0d",
+      "Call-in",
+      "2026-05-12",
+      "Ignore",
+      "Live demo rough lead that should not appear for demo users.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
       INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -333,6 +358,45 @@ function insertJunkBusinessRecords(sqliteFile) {
       "2026-05-04",
       0,
       "Junk job note.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
+      INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "J-JUNK-002",
+      1201,
+      "C-JUNK-001",
+      "L-JUNK-003",
+      "jack walk",
+      "jack walk",
+      "JACK",
+      "525445",
+      "jack",
+      "Junk imported job that should not appear for demo users.",
+      "2026-05-04T08:00",
+      "2026-05-04T16:00",
+      "1 day",
+      1,
+      "",
+      "",
+      "",
+      "",
+      "U-REAL-FOREMAN",
+      "",
+      0,
+      0,
+      "scheduled",
+      "Scheduled",
+      "jack",
+      "Ignore",
+      "Ignore",
+      "2026-05-04",
+      0,
+      "Junk imported job note.",
       createdAt,
       createdAt,
       null,
@@ -1074,7 +1138,9 @@ test("demo users only see the clean demo story even when an existing database co
     assert.equal(demoBootstrap.customers.some((customer) => customer.name === "john berlan" || customer.name === "asas"), false);
     assert.equal(demoBootstrap.leads.some((lead) => lead.project === "gfsghyrh"), false);
     assert.equal(demoBootstrap.leads.some((lead) => lead.customer === "QA Test GC"), false);
+    assert.equal(demoBootstrap.leads.some((lead) => lead.customer === "riley" || lead.project === "fghfghfg"), false);
     assert.equal(demoBootstrap.jobs.some((job) => job.title === "hhhh"), false);
+    assert.equal(demoBootstrap.jobs.some((job) => job.title === "jack walk" || job.address === "525445"), false);
     assert.equal(demoBootstrap.queueItems.some((item) => item.title === "Follow up with john"), false);
     assert.equal(demoBootstrap.activity.some((item) => item.title === "riley" || item.detail === "gfsghyrh"), false);
 
@@ -1096,7 +1162,9 @@ test("demo users only see the clean demo story even when an existing database co
     assert.equal(demoOpsBootstrap.customers.some((customer) => customer.name === "john berlan" || customer.name === "asas"), false);
     assert.equal(demoOpsBootstrap.leads.some((lead) => lead.project === "gfsghyrh"), false);
     assert.equal(demoOpsBootstrap.leads.some((lead) => lead.customer === "QA Test GC"), false);
+    assert.equal(demoOpsBootstrap.leads.some((lead) => lead.customer === "riley" || lead.project === "fghfghfg"), false);
     assert.equal(demoOpsBootstrap.jobs.some((job) => job.title === "hhhh"), false);
+    assert.equal(demoOpsBootstrap.jobs.some((job) => job.title === "jack walk" || job.address === "525445"), false);
     assert.equal(demoOpsBootstrap.queueItems.some((item) => item.title === "Follow up with john"), false);
     assert.equal(demoOpsBootstrap.activity.some((item) => item.title === "riley" || item.detail === "gfsghyrh"), false);
 

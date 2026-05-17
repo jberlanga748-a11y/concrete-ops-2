@@ -1337,6 +1337,10 @@ function isDemoJunkText(value) {
     "hhhh",
     "john berlan",
     "qa test gc",
+    "riley",
+    "fghfghfg",
+    "jack walk",
+    "525445",
     "tytyt",
   ].some((term) => text === term || text.includes(term))
     || /\bqa\s+test\b/i.test(text)
