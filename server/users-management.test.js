@@ -386,6 +386,71 @@ test("user management and bootstrap payloads do not expose auth hashes or provis
   }
 });
 
+test("user password updates revoke existing sessions and require the new password", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-PASSWORD-UPDATE",
+        email: "owner-password-update@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Password Update",
+        role: "Owner",
+      }),
+      createUserRecord({
+        id: "U-EMPLOYEE-PASSWORD-UPDATE",
+        email: "employee-password-update@lastyard.test",
+        password: "oldfield123",
+        name: "Employee Password Update",
+        role: "Employee",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-password-update@lastyard.test",
+      password: "apexdemo123",
+    });
+    const employeeLogin = await login(fixture.baseUrl, {
+      email: "employee-password-update@lastyard.test",
+      password: "oldfield123",
+    });
+    assert.ok(employeeLogin.token);
+
+    const updated = await assertOk(fixture.baseUrl, "/api/users/U-EMPLOYEE-PASSWORD-UPDATE", {
+      method: "PATCH",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        password: "newfield123",
+      }),
+    });
+    assert.equal(updated.users.find((user) => user.id === "U-EMPLOYEE-PASSWORD-UPDATE")?.mustSetPassword, false);
+
+    const oldTokenBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(employeeLogin.token),
+    });
+    assert.equal(oldTokenBootstrap.response.status, 401);
+
+    const oldPasswordLogin = await requestJson(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "employee-password-update@lastyard.test",
+        password: "oldfield123",
+      }),
+    });
+    assert.equal(oldPasswordLogin.response.status, 401);
+
+    const newPasswordLogin = await login(fixture.baseUrl, {
+      email: "employee-password-update@lastyard.test",
+      password: "newfield123",
+    });
+    assert.ok(newPasswordLogin.token);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("only active owners can assign or manage owner access", async () => {
   const fixture = await startServer();
 

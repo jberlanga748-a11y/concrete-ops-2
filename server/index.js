@@ -10232,6 +10232,8 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
       targetUser.mustSetPassword = false;
       targetUser.resetTokenHash = "";
       targetUser.resetUsedAt = targetUser.resetUsedAt || changedAt;
+      draft.sessions = (draft.sessions || []).filter((session) => session.userId !== targetUser.id);
+      changedFields.push("sessions");
       changedFields.push("invite");
     }
 
