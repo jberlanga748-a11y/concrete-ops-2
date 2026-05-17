@@ -1251,7 +1251,7 @@ function filterVisibleRecordsForUser(state, user, records, entityType) {
   return filterDemoRecordsForUser(
     state,
     user,
-    companyScopedRecordsForUser(state, user, records),
+    filterDemoJunkRecordsForUser(user, companyScopedRecordsForUser(state, user, records), entityType),
     entityType,
   );
 }
@@ -1302,14 +1302,14 @@ const DEMO_QUEUE_TITLE_SET = new Set(INITIAL_QUEUE_ITEMS.map((item) => item.titl
 const DEMO_ACTIVITY_TITLE_SET = new Set(INITIAL_ACTIVITY.map((item) => item.title));
 const DEMO_ACTIVITY_DETAIL_SET = new Set(INITIAL_ACTIVITY.map((item) => item.detail));
 
-function isDemoModeUser(user) {
-  const email = String(user?.email || "").toLowerCase();
-  return serverConfig.demoMode && DEMO_USER_EMAILS.includes(email);
-}
-
 function isDemoUserEmail(email) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   return normalizedEmail === DEMO_CREDENTIALS.email.toLowerCase() || DEMO_USER_EMAILS.includes(normalizedEmail);
+}
+
+function isDemoModeUser(user) {
+  const email = String(user?.email || "").toLowerCase();
+  return serverConfig.demoMode && DEMO_USER_EMAILS.includes(email);
 }
 
 function canUseDemoReset(user) {
@@ -1325,6 +1325,41 @@ function hasNonDemoTenantData(state = {}) {
 
 function isDemoId(value) {
   return String(value || "").toUpperCase().includes("DEMO");
+}
+
+function isDemoJunkText(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return false;
+  return [
+    "asas",
+    "fghfhg",
+    "gfsghyrh",
+    "hhhh",
+    "john berlan",
+    "qa test gc",
+    "tytyt",
+  ].some((term) => text === term || text.includes(term))
+    || /\bqa\s+test\b/i.test(text)
+    || /\btest\s+(gc|lead|job|customer|company)\b/i.test(text);
+}
+
+function isDemoJunkRecord(entry, entityType) {
+  if (!entry) return false;
+  const fieldsByType = {
+    customers: ["name", "company", "email", "notes"],
+    leads: ["customer", "project", "nextStep", "notes"],
+    jobs: ["title", "job", "customer", "siteContact", "scopeSummary", "crew", "notes"],
+    queueItems: ["title", "meta"],
+    activity: ["title", "detail"],
+    contactHistory: ["contactName", "subject", "messageDraft", "notes"],
+  };
+  const fields = fieldsByType[entityType] || ["title", "name", "customer", "project", "detail", "notes"];
+  return fields.some((field) => isDemoJunkText(entry[field]));
+}
+
+function filterDemoJunkRecordsForUser(user, records, entityType) {
+  if (!serverConfig.demoMode || !isDemoUserEmail(user?.email)) return records;
+  return (Array.isArray(records) ? records : []).filter((entry) => !isDemoJunkRecord(entry, entityType));
 }
 
 function hasDemoReference(value, allowedIds) {
@@ -1799,7 +1834,7 @@ function visibleJobsForUser(state, user, context = null) {
   return filterDemoRecordsForUser(
     state,
     user,
-    companyScopedRecordsForUser(state, user, state.jobs)
+    filterDemoJunkRecordsForUser(user, companyScopedRecordsForUser(state, user, state.jobs), "jobs")
       .filter((job) => canViewJob(job, user))
       .map((job) => sanitizeJobForUser(job, user, state, hydrationContext)),
     "jobs",

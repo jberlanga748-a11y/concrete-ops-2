@@ -275,6 +275,31 @@ function insertJunkBusinessRecords(sqliteFile) {
     );
 
     database.prepare(`
+      INSERT INTO leads (id, sort_index, customer_id, customer, city, project, status, priority, value, owner, owner_id, age, source, follow_up_due_at, next_step, notes, created_at, updated_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "L-JUNK-002",
+      1201,
+      "C-JUNK-001",
+      "QA Test GC",
+      "Salem",
+      "Hashsh / Salem / Lead Finder",
+      "New",
+      "Low",
+      100,
+      "Real Admin",
+      "U-REAL-ADMIN",
+      "0d",
+      "Lead Finder",
+      "2026-05-03",
+      "Ignore",
+      "Live demo junk lead that should not appear for demo users.",
+      createdAt,
+      createdAt,
+      null,
+    );
+
+    database.prepare(`
       INSERT INTO jobs (id, sort_index, customer_id, lead_id, title, job, customer, address, site_contact, scope_summary, scheduled_start, scheduled_end, estimated_duration, crew_size_needed, equipment_notes, safety_notes, material_notes, field_notes, assigned_foreman_id, assigned_user_id, field_planning_visible, visible_to_foreman, status, stage, crew, next_step, next_step_v2, due, progress, notes, created_at, updated_at, archived_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -1048,6 +1073,7 @@ test("demo users only see the clean demo story even when an existing database co
     );
     assert.equal(demoBootstrap.customers.some((customer) => customer.name === "john berlan" || customer.name === "asas"), false);
     assert.equal(demoBootstrap.leads.some((lead) => lead.project === "gfsghyrh"), false);
+    assert.equal(demoBootstrap.leads.some((lead) => lead.customer === "QA Test GC"), false);
     assert.equal(demoBootstrap.jobs.some((job) => job.title === "hhhh"), false);
     assert.equal(demoBootstrap.queueItems.some((item) => item.title === "Follow up with john"), false);
     assert.equal(demoBootstrap.activity.some((item) => item.title === "riley" || item.detail === "gfsghyrh"), false);
@@ -1059,6 +1085,20 @@ test("demo users only see the clean demo story even when an existing database co
     assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Northwest Storage Yard"));
     assert.ok(demoBootstrap.leads.some((lead) => lead.project === "Driveway replacement estimate"));
     assert.ok(demoBootstrap.jobs.some((job) => job.title === "Martinez Driveway Replacement"));
+
+    const demoOpsLogin = await login(demoServer.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const demoOpsBootstrap = await assertOk(demoServer.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${demoOpsLogin.token}` },
+    });
+    assert.equal(demoOpsBootstrap.customers.some((customer) => customer.name === "john berlan" || customer.name === "asas"), false);
+    assert.equal(demoOpsBootstrap.leads.some((lead) => lead.project === "gfsghyrh"), false);
+    assert.equal(demoOpsBootstrap.leads.some((lead) => lead.customer === "QA Test GC"), false);
+    assert.equal(demoOpsBootstrap.jobs.some((job) => job.title === "hhhh"), false);
+    assert.equal(demoOpsBootstrap.queueItems.some((item) => item.title === "Follow up with john"), false);
+    assert.equal(demoOpsBootstrap.activity.some((item) => item.title === "riley" || item.detail === "gfsghyrh"), false);
 
     const realAdminLogin = await login(demoServer.baseUrl, {
       email: "real.admin@example.test",
