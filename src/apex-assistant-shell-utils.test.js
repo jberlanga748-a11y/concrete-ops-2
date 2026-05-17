@@ -5,6 +5,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
   resolveAssistantEstimateDraftCommand,
+  resolveAssistantMissingProofCommand,
 } from "./apex-assistant-shell-utils.js";
 
 test("assistant shell is hidden without AI Office permission", () => {
@@ -80,6 +81,76 @@ test("empty assistant command starts with highest watchtower action", () => {
   assert.equal(command.type, "watchtower");
   assert.equal(command.moduleId, "jobs");
   assert.match(command.message, /Unblock job startup/);
+});
+
+test("assistant summarizes missing proof for a visible office job", () => {
+  const command = resolveAssistantMissingProofCommand("Summarize missing proof for Westview Warehouse", {
+    permissions: {
+      jobs: { canManageAll: true, canView: true },
+      reports: { canManageAll: true, canReview: true },
+      uploads: { canManageAll: true },
+      deliveryTickets: { canManageAll: true },
+    },
+    jobs: [{ id: "JOB-1", title: "Westview Warehouse" }],
+    commandCenter: {
+      dailyReports: {
+        activeJobsMissingTodayReport: [{ id: "JOB-1", title: "Westview Warehouse" }],
+        dailyReportsNeedingReview: [],
+      },
+      uploads: { jobsMissingPhotos: [{ id: "JOB-1", title: "Westview Warehouse" }] },
+      fieldRecords: {
+        pendingDeliveryTickets: [{ id: "TICKET-1", jobId: "JOB-1", status: "pending" }],
+        pendingPrePour: [],
+        pendingPostPour: [],
+        openSafetyIncidents: [],
+        openToolChecklists: [],
+      },
+    },
+  });
+
+  assert.equal(command.type, "missing-proof-summary");
+  assert.equal(command.job.title, "Westview Warehouse");
+  assert.match(command.message, /3 proof items?/i);
+  assert.equal(command.items.find((item) => item.id === "daily-report").status, "missing");
+  assert.equal(command.items.find((item) => item.id === "photo-proof").status, "missing");
+  assert.equal(command.items.find((item) => item.id === "delivery-tickets").status, "needs-review");
+  assert.deepEqual(command.actions.map((action) => action.moduleId), ["reports", "uploads", "deliveryTickets"]);
+});
+
+test("assistant missing proof summary stays clear when current proof data is complete", () => {
+  const command = resolveAssistantMissingProofCommand("what proof is missing", {
+    permissions: { jobs: { canManageAll: true, canView: true } },
+    jobs: [{ id: "JOB-2", title: "Clean Job" }],
+    commandCenter: {
+      dailyReports: { activeJobsMissingTodayReport: [], dailyReportsNeedingReview: [] },
+      uploads: { jobsMissingPhotos: [] },
+      fieldRecords: {
+        pendingDeliveryTickets: [],
+        pendingPrePour: [],
+        pendingPostPour: [],
+        openSafetyIncidents: [],
+        openToolChecklists: [],
+      },
+    },
+  });
+
+  assert.equal(command.type, "missing-proof-summary");
+  assert.match(command.message, /does not show missing proof/i);
+  assert.equal(command.items.every((item) => item.status === "complete"), true);
+});
+
+test("assistant missing proof summary is blocked for field roles", () => {
+  const command = resolveAssistantMissingProofCommand("show missing photos", {
+    permissions: {
+      jobs: { canView: true, canManageField: true, canManageAll: false },
+      reports: { canCreate: true, canManageAll: false },
+      uploads: { canCreate: true, canManageAll: false },
+    },
+    jobs: [{ id: "JOB-3", title: "Field Job" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
 });
 
 test("assistant classifies lead to estimate rough-note commands with a review match", () => {

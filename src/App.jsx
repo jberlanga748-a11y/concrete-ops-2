@@ -3312,7 +3312,36 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
             {response ? (
               <div className="mt-4 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3">
                 <p className="text-sm font-black text-white">{response.message}</p>
-                {response.type === "estimate-draft-review" ? (
+                {response.type === "missing-proof-summary" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.job?.title ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Job context</p>
+                        <p className="mt-1 text-sm font-black text-white">{response.job.title}</p>
+                      </div>
+                    ) : null}
+                    <div className="grid gap-2">
+                      {(response.items || []).map((item) => (
+                        <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <p className="text-sm font-black text-white">{item.label}</p>
+                            <span className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${item.status === "complete" ? "bg-emerald-500/15 text-emerald-100" : item.status === "missing" ? "bg-orange-500/20 text-orange-100" : "bg-blue-500/20 text-blue-100"}`}>
+                              {item.status === "complete" ? "Clear" : item.status === "missing" ? "Missing" : "Review"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions || []).map((action) => (
+                        <Button key={action.moduleId} type="button" size="sm" onClick={() => openModule(action.moduleId)}>
+                          {action.actionLabel}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : response.type === "estimate-draft-review" ? (
                   <div className="mt-3 grid gap-2">
                     {response.matches?.length ? response.matches.map((match) => (
                       <button
@@ -36671,6 +36700,15 @@ export default function App() {
         commandCenter={assistantCommandCenter}
         commandContext={{
           permissions: appState.permissions,
+          commandCenter: assistantCommandCenter,
+          jobs: appState.permissions.jobs?.canView ? appState.jobs : [],
+          dailyReports: appState.permissions.reports?.canView ? appState.dailyReports : [],
+          uploads: appState.permissions.uploads?.canView ? appState.uploads : [],
+          deliveryTickets: appState.permissions.deliveryTickets?.canView ? appState.deliveryTickets : [],
+          prePourChecklists: appState.permissions.prePour?.canView ? appState.prePourChecklists : [],
+          postPourChecklists: appState.permissions.postPour?.canView ? appState.postPourChecklists : [],
+          safetyIncidents: appState.permissions.safety?.canView ? appState.safetyIncidents : [],
+          toolChecklists: appState.permissions.toolChecklist?.canUse ? appState.toolChecklists : [],
           leads: appState.permissions.leads?.canView ? appState.leads : [],
           customers: appState.permissions.customers?.canView ? appState.customers : [],
         }}

@@ -73,6 +73,7 @@ const ROUTE_COMMANDS = [
 
 const DEFAULT_PROMPTS = [
   "What needs attention?",
+  "Summarize missing proof",
   "Start estimate from rough notes",
   "Open reports needing review",
   "Show job blockers",
@@ -148,6 +149,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     };
   }
 
+  const missingProofCommand = resolveAssistantMissingProofCommand(input, state.commandContext || {});
+  if (missingProofCommand) return missingProofCommand;
+
   const estimateDraftCommand = resolveAssistantEstimateDraftCommand(input, state.commandContext || {});
   if (estimateDraftCommand) return estimateDraftCommand;
 
@@ -166,6 +170,61 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+export function resolveAssistantMissingProofCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasMissingProofIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!canUseMissingProofSummary(permissions)) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Missing proof summaries are office review tools. Field users stay limited to assigned job workflows, uploads, reports, tickets, and checklists.",
+    };
+  }
+
+  const commandCenter = context.commandCenter || {};
+  const jobs = collectProofJobs(context, commandCenter);
+  if (!jobs.length) {
+    return {
+      type: "missing-proof-summary",
+      moduleId: "jobs",
+      actionLabel: "Open jobs",
+      message: "I do not see any active jobs in the visible workspace to summarize right now.",
+      job: null,
+      items: [],
+      actions: [{ moduleId: "jobs", actionLabel: "Open jobs" }],
+    };
+  }
+
+  const targetQuery = extractMissingProofTargetQuery(rawText);
+  const targetJob = findProofTargetJob(jobs, targetQuery) || chooseMostActionableProofJob(jobs, commandCenter);
+  const items = deriveMissingProofItemsForJob(targetJob, commandCenter);
+  const clear = items.every((item) => item.status === "complete");
+  const jobName = jobTitle(targetJob);
+  const issueCount = items.filter((item) => item.status === "missing" || item.status === "needs-review").length;
+  const actions = dedupeProofActions(items
+    .filter((item) => item.status !== "complete")
+    .map((item) => ({ moduleId: item.moduleId, actionLabel: item.actionLabel })));
+
+  return {
+    type: "missing-proof-summary",
+    moduleId: actions[0]?.moduleId || "jobs",
+    actionLabel: actions[0]?.actionLabel || "Open job",
+    message: clear
+      ? `${jobName} does not show missing proof in the current Watchtower data. Review the job if you need deeper detail.`
+      : `${jobName} has ${issueCount} proof item${issueCount === 1 ? "" : "s"} needing attention. Open the existing workflows below to fix them.`,
+    job: {
+      id: targetJob?.id || "",
+      title: jobName,
+    },
+    items,
+    actions: actions.length ? actions : [{ moduleId: "jobs", actionLabel: "Open job" }],
   };
 }
 
@@ -240,6 +299,152 @@ function resolveBlockedActionCommand(input = "") {
 function hasEstimateDraftIntent(text = "") {
   return /\b(start|create|build|make|draft|prepare|open)\b/.test(text)
     && /\b(estimate|proposal|quote|bid|gc packet)\b/.test(text);
+}
+
+function hasMissingProofIntent(text = "") {
+  const mentionsProof = /\b(proof|evidence|documentation|documented|closeout)\b/.test(text);
+  const asksForSummary = /\b(missing|needed|need|summarize|summary|show|what|review)\b/.test(text);
+  const mentionsFieldRecord = /\b(photo|photos|report|reports|ticket|tickets|checklist|checklists)\b/.test(text);
+  return (mentionsProof && asksForSummary) || (/\b(missing|needed|need)\b/.test(text) && mentionsFieldRecord);
+}
+
+function canUseMissingProofSummary(permissions = {}) {
+  return Boolean(
+    permissions?.jobs?.canManageAll
+    || permissions?.reports?.canManageAll
+    || permissions?.reports?.canReview
+    || permissions?.uploads?.canManageAll
+    || permissions?.deliveryTickets?.canManageAll
+    || permissions?.safety?.canReviewIncidents
+    || permissions?.toolChecklist?.canReview
+    || permissions?.aiOffice?.canView,
+  );
+}
+
+function collectProofJobs(context = {}, commandCenter = {}) {
+  const jobs = []
+    .concat(asArray(context.jobs))
+    .concat(asArray(commandCenter.jobsNeedingStartupReview))
+    .concat(asArray(commandCenter.jobsReadyForField))
+    .concat(asArray(commandCenter.jobsMissingCrewOrStartDate))
+    .concat(asArray(commandCenter.dailyReports?.activeJobsMissingTodayReport))
+    .concat(asArray(commandCenter.uploads?.jobsMissingPhotos));
+  return dedupeById(jobs.filter((job) => job?.id));
+}
+
+function extractMissingProofTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:for|on|at)\s+(.+?)(?:\s+\b(?:job|project|today|please|now)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+  return "";
+}
+
+function findProofTargetJob(jobs = [], query = "") {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return null;
+  const words = normalizedQuery.split(" ").filter((word) => word.length > 1);
+  return jobs.find((job) => targetMatchesWords(normalizeText([
+    jobTitle(job),
+    job.customer,
+    job.customerName,
+    job.address,
+    job.location,
+    job.city,
+    job.status,
+  ].filter(Boolean).join(" ")), words)) || null;
+}
+
+function chooseMostActionableProofJob(jobs = [], commandCenter = {}) {
+  return jobs
+    .map((job) => ({ job, issueCount: deriveMissingProofItemsForJob(job, commandCenter).filter((item) => item.status !== "complete").length }))
+    .sort((left, right) => right.issueCount - left.issueCount || jobTitle(left.job).localeCompare(jobTitle(right.job)))[0]?.job || jobs[0] || null;
+}
+
+function deriveMissingProofItemsForJob(job = {}, commandCenter = {}) {
+  const jobId = job?.id || "";
+  const missingReport = asArray(commandCenter.dailyReports?.activeJobsMissingTodayReport).some((record) => record?.id === jobId);
+  const reportNeedsReview = asArray(commandCenter.dailyReports?.dailyReportsNeedingReview).some((record) => recordJobId(record) === jobId);
+  const missingPhotos = asArray(commandCenter.uploads?.jobsMissingPhotos).some((record) => record?.id === jobId);
+  const pendingTickets = asArray(commandCenter.fieldRecords?.pendingDeliveryTickets).filter((record) => recordJobId(record) === jobId);
+  const pendingPrePour = asArray(commandCenter.fieldRecords?.pendingPrePour).filter((record) => recordJobId(record) === jobId);
+  const pendingPostPour = asArray(commandCenter.fieldRecords?.pendingPostPour).filter((record) => recordJobId(record) === jobId);
+  const openSafety = asArray(commandCenter.fieldRecords?.openSafetyIncidents).filter((record) => recordJobId(record) === jobId);
+  const openTools = asArray(commandCenter.fieldRecords?.openToolChecklists).filter((record) => recordJobId(record) === jobId);
+
+  return [
+    {
+      id: "daily-report",
+      label: "Daily report",
+      status: missingReport ? "missing" : reportNeedsReview ? "needs-review" : "complete",
+      detail: missingReport ? "Today's daily report is missing." : reportNeedsReview ? "A submitted report needs office review." : "No missing report is showing for this job.",
+      moduleId: "reports",
+      actionLabel: missingReport ? "Open reports" : "Review report",
+    },
+    {
+      id: "photo-proof",
+      label: "Photo proof",
+      status: missingPhotos ? "missing" : "complete",
+      detail: missingPhotos ? "No photo evidence is attached to this active job." : "Photo evidence is present in the current workspace data.",
+      moduleId: "uploads",
+      actionLabel: "Open uploads",
+    },
+    {
+      id: "delivery-tickets",
+      label: "Delivery tickets",
+      status: pendingTickets.length ? "needs-review" : "complete",
+      detail: pendingTickets.length ? `${pendingTickets.length} delivery ticket${pendingTickets.length === 1 ? "" : "s"} pending review or completion.` : "No pending delivery tickets are showing for this job.",
+      moduleId: "deliveryTickets",
+      actionLabel: "Open tickets",
+    },
+    {
+      id: "pre-pour",
+      label: "Pre-pour",
+      status: pendingPrePour.length ? "needs-review" : "complete",
+      detail: pendingPrePour.length ? `${pendingPrePour.length} pre-pour checklist${pendingPrePour.length === 1 ? "" : "s"} incomplete.` : "No open pre-pour checklist is showing for this job.",
+      moduleId: "prePour",
+      actionLabel: "Open pre-pour",
+    },
+    {
+      id: "post-pour",
+      label: "Post-pour",
+      status: pendingPostPour.length ? "needs-review" : "complete",
+      detail: pendingPostPour.length ? `${pendingPostPour.length} post-pour checklist${pendingPostPour.length === 1 ? "" : "s"} incomplete.` : "No open post-pour checklist is showing for this job.",
+      moduleId: "postPour",
+      actionLabel: "Open post-pour",
+    },
+    {
+      id: "safety",
+      label: "Safety",
+      status: openSafety.length ? "needs-review" : "complete",
+      detail: openSafety.length ? `${openSafety.length} safety item${openSafety.length === 1 ? "" : "s"} unresolved.` : "No unresolved safety items are showing for this job.",
+      moduleId: "incidents",
+      actionLabel: "Open safety",
+    },
+    {
+      id: "tools",
+      label: "Tools",
+      status: openTools.length ? "needs-review" : "complete",
+      detail: openTools.length ? `${openTools.length} tool checklist item${openTools.length === 1 ? "" : "s"} need attention.` : "No open tool checklist issues are showing for this job.",
+      moduleId: "toolChecklist",
+      actionLabel: "Open tools",
+    },
+  ];
+}
+
+function recordJobId(record = {}) {
+  return record.jobId || record.linkedJobId || record.job?.id || "";
+}
+
+function jobTitle(job = {}) {
+  return job.title || job.name || job.projectName || job.customer || job.customerName || job.address || job.id || "Job";
+}
+
+function dedupeProofActions(actions = []) {
+  return dedupeById(actions.filter((action) => action?.moduleId).map((action) => ({
+    id: action.moduleId,
+    moduleId: action.moduleId,
+    actionLabel: action.actionLabel || "Open workflow",
+  })));
 }
 
 function extractRoughNotesFromCommand(input = "") {
@@ -356,6 +561,16 @@ function dedupeAssistantMatches(matches = []) {
 function extractCustomerNameFromNotes(roughNotes = "") {
   const customerMatch = String(roughNotes || "").match(/\b(?:customer|company|client)\s*:\s*([^\n,;.]+)/i);
   return cleanTargetQuery(customerMatch?.[1] || "");
+}
+
+function dedupeById(records = []) {
+  const seen = new Set();
+  return records.filter((record) => {
+    const key = record?.id || "";
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function asArray(value) {
