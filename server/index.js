@@ -2659,12 +2659,13 @@ function canViewChangeOrderRequestRecord(user, request, job) {
 }
 
 function sanitizeChangeOrderRequestForUser(request, state, user) {
-  const job = request.jobId ? state.jobs.find((entry) => entry.id === request.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], request.jobId, request);
+  if (request.jobId && !job) return null;
   if (!canViewChangeOrderRequestRecord(user, request, job)) return null;
   const canManage = canManageChangeOrders(user);
   const requestedByUser = findUserById(state, request.requestedBy);
   const reviewedByUser = findUserById(state, request.reviewedBy);
-  const customer = request.customerId ? state.customers.find((entry) => entry.id === request.customerId) || null : null;
+  const customer = findSameCompanyLinkedRecord(state.customers || [], request.customerId, request);
   const fieldReviewLabel = request.reviewedBy || request.reviewedAt ? "Office" : "";
 
   return {

@@ -118,6 +118,40 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function ensureOtherCompany(database) {
+  const now = new Date().toISOString();
+  database.prepare(`
+    INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+}
+
+function moveJobAndCustomerToOtherCompany(sqliteFile, jobId, customerId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    ensureOtherCompany(database);
+    database.prepare("UPDATE jobs SET company_id = ? WHERE id = ?").run("COMPANY-LYF", jobId);
+    if (customerId) {
+      database.prepare("UPDATE customers SET company_id = ? WHERE id = ?").run("COMPANY-LYF", customerId);
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function setChangeOrderRequestLinks(sqliteFile, requestId, links = {}) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE change_order_requests
+      SET job_id = ?, customer_id = ?
+      WHERE id = ?
+    `).run(links.jobId || "", links.customerId || "", requestId);
+  } finally {
+    database.close();
+  }
+}
+
 test("change order requests stay field-safe while office manages review", async () => {
   const fixture = await startServer();
 
@@ -230,6 +264,63 @@ test("change order requests stay field-safe while office manages review", async 
     assert.equal(archivedRequest.status, "archived");
     assert.equal(Boolean(archivedRequest.archivedAt), true);
     assert.equal(archivedState.auditEvents.some((event) => event.entityType === "changeOrderRequest"), true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("change order requests fail closed on stale cross-company linked jobs", async () => {
+  const fixture = await startServer();
+
+  try {
+    const opsLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
+    const officeHeaders = authHeaders(opsLogin.token);
+
+    const hiddenJobState = await assertOk(fixture.baseUrl, "/api/jobs", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        title: "Hidden Change Order Job",
+        customer: "Hidden Change Order Customer",
+        address: "900 Hidden Change Order Way",
+        city: "Eugene",
+        status: "scheduled",
+      }),
+    });
+    const hiddenJob = hiddenJobState.jobs.find((entry) => entry.title === "Hidden Change Order Job");
+    assert.ok(hiddenJob);
+    moveJobAndCustomerToOtherCompany(fixture.sqliteFile, hiddenJob.id, hiddenJob.customerId);
+
+    const createdState = await assertOk(fixture.baseUrl, "/api/change-order-requests", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        reason: "Visible scope change",
+        scopeDescription: "Visible request should disappear if linked to a hidden job.",
+        fieldNotes: "Created in the default company.",
+      }),
+    });
+    const request = createdState.changeOrderRequests.find((entry) => entry.reason === "Visible scope change");
+    assert.ok(request);
+    setChangeOrderRequestLinks(fixture.sqliteFile, request.id, {
+      jobId: hiddenJob.id,
+      customerId: hiddenJob.customerId,
+    });
+
+    const listPayload = await assertOk(fixture.baseUrl, "/api/change-order-requests", { headers: officeHeaders });
+    assert.equal(listPayload.changeOrderRequests.some((entry) => entry.id === request.id), false);
+    const serializedList = JSON.stringify(listPayload);
+    assert.equal(serializedList.includes("Hidden Change Order Job"), false);
+    assert.equal(serializedList.includes("Hidden Change Order Customer"), false);
+    assert.equal(serializedList.includes("900 Hidden Change Order Way"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    assert.equal(bootstrap.changeOrderRequests.some((entry) => entry.id === request.id), false);
+    const serializedBootstrap = JSON.stringify(bootstrap.changeOrderRequests);
+    assert.equal(serializedBootstrap.includes("Hidden Change Order Job"), false);
+    assert.equal(serializedBootstrap.includes("Hidden Change Order Customer"), false);
+    assert.equal(serializedBootstrap.includes("900 Hidden Change Order Way"), false);
   } finally {
     await fixture.stop();
   }
