@@ -58,11 +58,11 @@ Rules:
 
 Current product queue:
 
-1. Release Watchtower / Missing Work Agent Phase 1 - verified locally, pending commit/push/deploy/health check.
-2. Apex Assistant Shell Phase 1 - persistent assistant shell with review-only actions.
-3. Customer Success / Guided Setup Phase 2 - clearer signup-to-first-workflow path.
-4. Billing / Plans Readiness Prep - plan limits/admin controls before Stripe.
-5. Public SaaS Signup UX Phase 2 - onboarding polish without rebuilding auth.
+1. Apex Assistant Shell Phase 1 - persistent assistant shell with review-only actions.
+2. Customer Success / Guided Setup Phase 2 - clearer signup-to-first-workflow path.
+3. Billing / Plans Readiness Prep - plan limits/admin controls before Stripe.
+4. Public SaaS Signup UX Phase 2 - onboarding polish without rebuilding auth.
+5. Package Upgrade / Locked State Polish - clear upgrade/locked states before billing.
 
 ## Track C - Safety, QA, Release Hardening
 

@@ -9,10 +9,10 @@ This is the short agent handoff board. The full phase source of truth is `docs/A
 - Current repo: `jberlanga748-a11y/concrete-ops-2`
 - Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
 - Branch: `main`
-- Latest shipped app commit: `e77e9cadbc9ea8bce5f45979f354399b93bb08ad`
-- Latest shipped message: `Add Apex HQ app health audit review`
-- Latest Fly release: `v477`
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTSY9VB0D61E2SKT6G3W0D9`
+- Latest shipped app commit: `4cd51049ac2524df03d643437eb4b1c40623430e`
+- Latest shipped message: `Add Apex HQ watchtower missing work queue`
+- Latest Fly release: `v478`
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTTV1KNKJQQYHVY6KVB5XM9`
 - Latest health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned ready with database ok.
 
 ## Current Product State
@@ -42,6 +42,7 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - Command Center mobile KPI polish.
 - Communication Center Phase 1.
 - App Health / Audit Activity Phase 1.
+- Watchtower / Missing Work Agent Phase 1.
 
 ## Current Verified Checks
 
@@ -53,17 +54,18 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - Latest Command Center release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
-- Watchtower / Missing Work Agent Phase 1 local checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed.
+- Watchtower / Missing Work Agent release checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v478` health-checked ready.
 
 ## Next Recommended Phase
 
-Release Watchtower / Missing Work Agent Phase 1.
+Apex Assistant Shell Phase 1.
 
 Goal:
 
-- commit, push, deploy, and health-check the verified Watchtower work
-- preserve the docs/status changes in the same release if approved
-- do not start Apex Assistant Shell until this verified phase is shipped
+- add a persistent in-app assistant shell with safe command prompts
+- reuse Watchtower recommendations as assistant context
+- route users to existing workflows without changing records automatically
+- keep human approval before send, schedule, pricing, job, crew, or customer actions
 
 Do not include:
 
@@ -79,13 +81,13 @@ Do not include:
 
 ## Next Phase After That
 
-Apex Assistant Shell Phase 1.
+Customer Success / Guided Setup Phase 2.
 
 Goal:
 
-- add a persistent in-app assistant shell with safe, review-only command paths
-- preserve all human approval gates before send, schedule, pricing, job, crew, or customer actions
-- reuse Watchtower recommendations instead of inventing separate assistant state
+- tighten the signup-to-setup path
+- guide the first owner into company profile, users, first estimate, and first job
+- keep onboarding package-aware and role-safe
 
 ## Active Skills
 

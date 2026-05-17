@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  deriveApexAssistantShellState,
+  resolveApexAssistantCommand,
+} from "./apex-assistant-shell-utils";
+import {
   activateInvite,
   acknowledgeJobAssignmentNotice,
   acknowledgeSafety,
@@ -3160,6 +3164,142 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, onOpenModule = () => {} }) {
+  const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
+  const [open, setOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [response, setResponse] = useState(null);
+
+  if (!assistantState.canView) return null;
+
+  function openModule(moduleId) {
+    if (!moduleId) return;
+    onOpenModule(moduleId);
+    setOpen(false);
+  }
+
+  function runPrompt(nextPrompt = prompt) {
+    const result = resolveApexAssistantCommand(nextPrompt, assistantState);
+    setResponse(result);
+    setPrompt("");
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    runPrompt(prompt);
+  }
+
+  return (
+    <div className="fixed bottom-[5.75rem] right-3 z-40 w-[min(26rem,calc(100vw-1.5rem))] lg:bottom-5 lg:right-5">
+      {open ? (
+        <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 text-white shadow-[0_28px_90px_-35px_rgba(2,6,23,0.88)]">
+          <div className="border-b border-white/10 bg-slate-900/95 p-4">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-orange-500 text-white">
+                    <Icon name="spark" className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-white">Apex Assistant</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-200">{assistantState.modeLabel}</p>
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="co-focus-ring rounded-full border border-white/10 px-3 py-1 text-xs font-black text-slate-200 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close Apex Assistant">
+                Close
+              </button>
+            </div>
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <p className="text-sm font-black text-white">{assistantState.statusLabel}</p>
+                <Badge tone={assistantState.statusLabel === "Operations clear" ? "green" : "amber"}>{assistantState.watchtowerQueue.length || assistantState.watchtowerActions.length}</Badge>
+              </div>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{assistantState.summary}</p>
+            </div>
+          </div>
+
+          <div className="max-h-[62vh] overflow-y-auto p-4">
+            {assistantState.watchtowerQueue.length ? (
+              <div className="grid gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Watchtower context</p>
+                {assistantState.watchtowerQueue.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openModule(item.moduleId)}
+                    className="co-focus-ring w-full rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                  >
+                    <span className="flex min-w-0 items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-black text-white">{item.title}</span>
+                        <span className="mt-1 block break-words text-xs font-bold leading-5 text-slate-300">{item.description}</span>
+                      </span>
+                      <span className="shrink-0 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">{item.sourceLabel || "Review"}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm font-bold text-emerald-100">
+                Watchtower has no urgent owner actions right now.
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {assistantState.prompts.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => runPrompt(item)}
+                  className="co-focus-ring min-h-10 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-left text-xs font-black leading-4 text-slate-100 transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            {response ? (
+              <div className="mt-4 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3">
+                <p className="text-sm font-black text-white">{response.message}</p>
+                <Button type="button" size="sm" className="mt-3" onClick={() => openModule(response.moduleId)}>{response.actionLabel}</Button>
+              </div>
+            ) : null}
+
+            <form className="mt-4 flex min-w-0 gap-2" onSubmit={handleSubmit}>
+              <input
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                className="min-h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 outline-none focus:border-orange-300"
+                placeholder="Ask Apex Assistant..."
+              />
+              <button type="submit" className="co-focus-ring inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-sm shadow-orange-950/20 hover:bg-orange-700" aria-label="Ask Apex Assistant">
+                <Icon name="arrowUpRight" className="h-4 w-4" />
+              </button>
+            </form>
+            <p className="mt-3 text-[11px] font-bold leading-5 text-slate-400">Manual-first: no customer contact, approvals, estimate sends, job changes, or field updates happen from this shell.</p>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="co-focus-ring ml-auto flex max-w-full items-center gap-2 rounded-full border border-slate-800 bg-slate-950 px-4 py-3 text-left text-white shadow-[0_18px_60px_-28px_rgba(2,6,23,0.88)] transition hover:bg-slate-900"
+          aria-label="Open Apex Assistant"
+        >
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-600 text-white">
+            <Icon name="spark" className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-black">Apex Assistant</span>
+            <span className="block truncate text-xs font-bold text-slate-300">{assistantState.statusLabel}</span>
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -33527,6 +33667,10 @@ export default function App() {
     toolChecklists: appState.toolChecklists,
     timeEntries: appState.timeEntries,
   }), [appState.contactHistory, appState.currentCompanyId, appState.customers, appState.dailyReports, appState.deliveryTickets, appState.estimates, appState.jobDraftImports, appState.jobs, appState.leadSources, appState.leads, appState.postPourChecklists, appState.prePourChecklists, appState.safetyIncidents, appState.timeEntries, appState.toolChecklists, appState.uploads]);
+  const assistantCommandCenter = useMemo(() => deriveCommandCenterState({
+    ...notificationCenterSource,
+    changeOrderRequests: appState.changeOrderRequests,
+  }, { companyId: appState.currentCompanyId }), [appState.changeOrderRequests, appState.currentCompanyId, notificationCenterSource]);
 
   async function runMutation(task) {
     if (!sessionToken) return;
@@ -35995,6 +36139,7 @@ export default function App() {
         </div>
       </div>
       <FieldMobileQuickNav items={mobileNavItems} active={active} onOpen={setActive} />
+      <ApexAssistantShell permissions={appState.permissions} commandCenter={assistantCommandCenter} onOpenModule={setActive} />
     </div>
   );
 }

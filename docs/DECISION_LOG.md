@@ -151,19 +151,19 @@ Low.
 Rollback / revisit condition:
 If either released phase has a bug, open a narrow bug-fix phase. Do not restart the phase unless a verified security, data, or workflow issue requires it.
 
-### 2026-05-17 - Watchtower Phase Is Read-Only And Pending Release
+### 2026-05-17 - Watchtower Phase Is Read-Only And Released
 
 Decision:
-Implement Watchtower / Missing Work Agent Phase 1 as a read-only Command Center layer, not an autonomous agent.
+Implement and release Watchtower / Missing Work Agent Phase 1 as a read-only Command Center layer, not an autonomous agent.
 
 Why:
 Owners need exact missing-work visibility before the larger Apex Assistant exists. The safe first step is to summarize existing reports, uploads, delivery tickets, safety incidents, tool checklists, startup blockers, and review queues without changing jobs or contacting anyone.
 
 Scope:
-Frontend derivation and Command Center display only. No backend writes, no AI, no automatic sending, no route rebuild, no permission loosening.
+Frontend derivation and Command Center display only. No backend writes, no AI, no automatic sending, no route rebuild, no permission loosening. Released as Fly `v478`.
 
 Risk:
 Medium before verification; low after focused checks.
 
 Rollback / revisit condition:
-Revert the Watchtower utility/UI changes if the Command Center shows incorrect operational counts or role tests fail. Keep the broader Assistant phase blocked until Watchtower is released and health-checked.
+Revert the Watchtower utility/UI changes if the Command Center shows incorrect operational counts or role tests fail. Future Assistant work must reuse Watchtower as read-only context unless a later approved phase adds reviewed command actions.

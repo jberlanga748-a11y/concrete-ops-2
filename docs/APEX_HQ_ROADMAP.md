@@ -60,7 +60,7 @@ Existing app foundations:
 | --- | --- | --- |
 | Core Operations | leads, estimates, jobs, crews, reports, photos, tickets, safety, checklists, closeout | Now |
 | App Health Monitoring | crashes, failed API calls, uptime, health checks, troubleshooting guidance | Built / expand later |
-| Watchtower / Autopilot Agent | missing reports/photos/follow-ups, startup blockers, recommendations | Next |
+| Watchtower / Autopilot Agent | missing reports/photos/follow-ups, startup blockers, recommendations | Built / expand later |
 | Field Ops Agent | clock issues, missing field proof, weather/GPS risk with consent | Later |
 | Growth Agent | stale estimates, lead targeting, close-rate recommendations | Later |
 | Lead / Job Finder Agent | finds opportunities, scores fit, drafts outreach with approval | Later |
@@ -93,11 +93,11 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Use `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` before starting any build phase.
 - Watchtower / Missing Work Agent boundaries.
 - Keep released branding, estimate options, packet split, and Operations Command work stable.
-- Keep released Communication Center and App Health / Audit Activity work stable.
+- Keep released Communication Center, App Health / Audit Activity, and Watchtower work stable.
 
 ### Next
 
-- Watchtower missing-work recommendations.
+- Apex Assistant Shell Phase 1.
 - Customer Success onboarding.
 - Package upgrade and locked-state clarity.
 
@@ -127,16 +127,16 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Watchtower / Missing Work Agent Phase 1.
-2. Apex Assistant Shell Phase 1.
-3. Customer Success / Guided Setup Phase 2.
-4. Billing / Plans Readiness Prep.
-5. Public SaaS Signup UX Phase 2.
-6. Package Upgrade / Locked State Polish.
-7. Advanced Reporting Prep.
-8. Enterprise trust layer.
-9. Pilot browser QA checkpoint.
-10. Mobile field trust polish.
+1. Apex Assistant Shell Phase 1.
+2. Customer Success / Guided Setup Phase 2.
+3. Billing / Plans Readiness Prep.
+4. Public SaaS Signup UX Phase 2.
+5. Package Upgrade / Locked State Polish.
+6. Advanced Reporting Prep.
+7. Enterprise trust layer.
+8. Pilot browser QA checkpoint.
+9. Mobile field trust polish.
+10. Assistant Command Expansion Phase 2.
 
 Completed foundational phases that should not be restarted:
 
@@ -152,6 +152,7 @@ Completed foundational phases that should not be restarted:
 - Operations Command UX Upgrade Phase 1 and mobile KPI polish.
 - Communication Center Phase 1.
 - App Health / Audit Activity Phase 1.
+- Watchtower / Missing Work Agent Phase 1.
 
 ## Freeze Policy
 

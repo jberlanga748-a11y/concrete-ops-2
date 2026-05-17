@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `e77e9cadbc9ea8bce5f45979f354399b93bb08ad`
-- Message: `Add Apex HQ app health audit review`
-- Fly release: `v477`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTSY9VB0D61E2SKT6G3W0D9`
+- Commit: `4cd51049ac2524df03d643437eb4b1c40623430e`
+- Message: `Add Apex HQ watchtower missing work queue`
+- Fly release: `v478`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTTV1KNKJQQYHVY6KVB5XM9`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -32,12 +32,6 @@ Known working tree note:
 - Existing uncommitted docs/agent/skill files may be present.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
-
-Current unreleased work:
-
-- Watchtower / Missing Work Agent Phase 1 is built and locally verified.
-- It has not been committed, pushed, deployed, or health-checked yet.
-- Next step should be release if the user approves release.
 
 Recent shipped phase stack:
 
@@ -50,6 +44,7 @@ Recent shipped phase stack:
 | `5b6426f` | `v475` | Command Center mobile KPI polish |
 | `931938b` | `v476` | Communication Center Phase 1 |
 | `e77e9ca` | `v477` | App Health / Audit Activity Phase 1 |
+| `4cd5104` | `v478` | Watchtower / Missing Work Agent Phase 1 |
 
 ## Done / Do Not Rebuild
 
@@ -84,6 +79,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Pre-pour/post-pour | Tightened | Preserve workflow. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
+| Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -100,6 +96,7 @@ Recent focused verification:
 - Latest Command Center checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner/admin mobile/desktop QA, and field role safety QA passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
+- Watchtower / Missing Work Agent release checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v478` health-checked ready.
 
 ## Current Loop Prevention Rules
 
@@ -118,6 +115,7 @@ Do not start these phases again as if they are missing:
 - Operations Command UX Phase 1 and mobile KPI polish.
 - Communication Center Phase 1.
 - App Health / Audit Activity Phase 1.
+- Watchtower / Missing Work Agent Phase 1.
 
 If one of those areas comes up, first ask:
 
@@ -126,24 +124,23 @@ If one of those areas comes up, first ask:
 3. Is there a narrow UX improvement?
 4. Is it already covered and should we move on?
 
-## Current Next Step
+## Current Next Phase
 
-### Release Watchtower / Missing Work Agent Phase 1
+### Apex Assistant Shell Phase 1
 
 Why this is next:
 
-- Watchtower / Missing Work Agent Phase 1 is implemented locally and passed focused verification.
-- Releasing it clears the phase before Apex Assistant Shell work begins.
-- Do not start Apex Assistant until Watchtower is committed, deployed, and health-checked.
+- Watchtower now gives Apex HQ a safe read-only source of operational recommendations.
+- Contractors need one persistent assistant surface that can explain what needs attention and route them to existing workflows.
+- This should be a shell and command/review surface only, not a full AI autopilot.
 
-Released scope:
+Scope:
 
-- Read-only missing-work recommendations.
-- Owner/admin queue for missing reports, uploads, tickets, checklists, follow-ups, crew assignment gaps, startup blockers, and ready-to-review items.
-- Owner/admin Watchtower card now includes exact "needs attention" rows.
-- Safety incidents and tool checklist gaps are included in Command Center Watchtower derivation.
-- Use existing data and routes where possible.
-- No automatic sending, scheduling, job changes, or AI autopilot actions.
+- Persistent assistant entry point for owner/admin workspaces where permitted.
+- Reuse Watchtower recommendations as assistant context.
+- Provide safe quick prompts/actions that route to existing modules.
+- Clearly label review-only/manual-first behavior.
+- No automatic customer contact, schedule changes, job updates, sending, pricing changes, or field data exposure.
 
 Do not include:
 
@@ -156,13 +153,10 @@ Do not include:
 - Broad notification rebuild.
 - Pricing/margin exposure to field users.
 
-Passed verification:
+Suggested verification:
 
 - `npm.cmd run build`
 - `npm.cmd run verify:jobs`
-- `npm.cmd run verify:daily-reports`
-- `npm.cmd run verify:uploads`
-- `npm.cmd run verify:delivery-tickets`
 - `npm.cmd run verify:roles`
 - `git diff --check`
 
@@ -170,16 +164,16 @@ Passed verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Release Watchtower / Missing Work Agent Phase 1 | Commit, push, deploy, and health-check the verified Watchtower work. | Low | No. |
-| 2 | Apex Assistant Shell Phase 1 | Persistent in-app assistant shell with safe commands and review-only mode. | High | Yes. |
-| 3 | Customer Success / Guided Setup Phase 2 | Turn first owner onboarding into a clearer guided setup checklist. | Medium | Maybe. |
-| 4 | Billing / Plans Readiness Prep | Prepare plan limits/admin controls before Stripe. | High | Yes before any billing. |
-| 5 | Public SaaS Signup UX Phase 2 | Tighten signup-to-setup path for real contractors without changing auth foundation. | Medium | Yes for onboarding expectations. |
-| 6 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
-| 7 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
-| 8 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
-| 9 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
-| 10 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
+| 1 | Apex Assistant Shell Phase 1 | Persistent in-app assistant shell with safe commands and review-only mode. | High | Yes. |
+| 2 | Customer Success / Guided Setup Phase 2 | Turn first owner onboarding into a clearer guided setup checklist. | Medium | Maybe. |
+| 3 | Billing / Plans Readiness Prep | Prepare plan limits/admin controls before Stripe. | High | Yes before any billing. |
+| 4 | Public SaaS Signup UX Phase 2 | Tighten signup-to-setup path for real contractors without changing auth foundation. | Medium | Yes for onboarding expectations. |
+| 5 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
+| 6 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
+| 7 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
+| 8 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
+| 9 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
+| 10 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
 
 ## Later / Do Not Build Yet
 
@@ -247,7 +241,7 @@ Use this when ready to build the next phase:
 ```text
 You are entering:
 
-APEX HQ - WATCHTOWER / MISSING WORK AGENT PHASE 1
+APEX HQ - APEX ASSISTANT SHELL PHASE 1
 
 Use skills:
 - apex-build-router
@@ -259,37 +253,34 @@ Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT redesign the app.
-Do NOT rebuild customers, leads, estimates, jobs, notifications, or field workflows.
+Do NOT rebuild customers, leads, estimates, jobs, notifications, Watchtower, or field workflows.
 Do NOT refactor architecture.
 Do NOT start billing, customer portal, offline mode, payroll, or AI autopilot.
 Do NOT add automatic email or SMS sending.
 Do NOT commit, push, or deploy.
 
 Goal:
-Create a practical read-only Watchtower / Missing Work layer so owners/admins can see what is missing, late, blocked, or ready for review without chasing texts or manually checking every workflow.
+Create a persistent Apex Assistant shell that helps owners/admins understand what needs attention and route into existing workflows, using Watchtower as read-only context.
 
 Focus only on:
-- missing daily reports
-- missing uploads/photos
-- missing delivery tickets
-- incomplete pre/post-pour and safety/tool checklist work
-- crew assignment/startup blockers
-- overdue follow-ups or review-needed items if already supported
-- owner/admin review queue
-- field-safe assigned-job reminders only where permissions already support it
+- assistant entry point/shell
+- safe prompt suggestions
+- Watchtower context summary
+- route-to-existing-module actions
+- review-only/manual-first language
+- role-safe visibility
+- no automatic writes or sends
 
 Preserve:
 - existing customers/leads/estimates/jobs workflows
 - existing permissions and package gates
 - existing notifications/reminders
 - existing field restrictions
+- existing Watchtower derivation
 
 Verify:
 - build
 - verify:jobs
-- verify:daily-reports
-- verify:uploads
-- verify:delivery-tickets
 - verify:roles
 - git diff --check
 
