@@ -356,6 +356,77 @@ test("password reset completion rejects expired tokens without changing the pass
   }
 });
 
+test("inactive users cannot receive or complete password resets", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUser(fixture.sqliteFile, createUserRecord({
+      id: "U-AUTH-RESET-INACTIVE",
+      email: "auth-reset-inactive@apexhq.test",
+      password: "oldpass123",
+      name: "Auth Reset Inactive",
+      role: "Employee",
+      status: "inactive",
+    }));
+    insertUser(fixture.sqliteFile, createUserRecord({
+      id: "U-AUTH-RESET-DEACTIVATED",
+      email: "auth-reset-deactivated@apexhq.test",
+      password: "oldpass123",
+      name: "Auth Reset Deactivated",
+      role: "Employee",
+    }));
+
+    const inactiveRequested = await assertOk(fixture.baseUrl, "/api/auth/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "auth-reset-inactive@apexhq.test" }),
+    });
+    assert.match(inactiveRequested.message, /if that email has access/i);
+    assert.equal(inactiveRequested.resetToken, undefined);
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const inactiveRow = database.prepare("SELECT reset_token_hash AS resetTokenHash FROM users WHERE email = ?").get("auth-reset-inactive@apexhq.test");
+      assert.equal(inactiveRow.resetTokenHash || "", "");
+    } finally {
+      database.close();
+    }
+
+    const requested = await assertOk(fixture.baseUrl, "/api/auth/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "auth-reset-deactivated@apexhq.test" }),
+    });
+    assert.ok(requested.resetToken);
+
+    const deactivationDb = new DatabaseSync(fixture.sqliteFile);
+    try {
+      deactivationDb.prepare("UPDATE users SET status = ? WHERE email = ?").run("inactive", "auth-reset-deactivated@apexhq.test");
+    } finally {
+      deactivationDb.close();
+    }
+
+    const completed = await requestJson(fixture.baseUrl, "/api/auth/password-reset/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: requested.resetToken,
+        password: "newpass123",
+      }),
+    });
+    assert.equal(completed.response.status, 403);
+    assert.equal(completed.payload.token, undefined);
+
+    const deactivatedLogin = await login(fixture.baseUrl, {
+      email: "auth-reset-deactivated@apexhq.test",
+      password: "newpass123",
+    });
+    assert.equal(deactivatedLogin.response.status, 401);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("password reset request rate limit blocks repeated requests for the same email", async () => {
   const fixture = await startServer();
 
