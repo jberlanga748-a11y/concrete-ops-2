@@ -271,7 +271,44 @@ const authTokenRateLimit = new Map();
 
 const app = express();
 
-app.use(cors());
+function corsOrigin(origin, callback) {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  if (serverConfig.corsAllowedOrigins.length === 0 && serverConfig.nodeEnv !== "production") {
+    callback(null, true);
+    return;
+  }
+
+  if (serverConfig.corsAllowedOrigins.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(null, false);
+}
+
+function securityHeaders(_req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), payment=(), usb=()");
+
+  if (serverConfig.nodeEnv === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  }
+
+  next();
+}
+
+app.use(securityHeaders);
+app.use(cors({
+  origin: corsOrigin,
+  optionsSuccessStatus: 204,
+}));
 app.use(express.json({ limit: "16mb" }));
 
 class ApiError extends Error {

@@ -51,6 +51,31 @@ async function expectStatus(path, expectedStatus, options = {}) {
   return response;
 }
 
+function assertSecurityHeaders(response, { production = false } = {}) {
+  const expectedHeaders = {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+    "cross-origin-opener-policy": "same-origin",
+    "permissions-policy": "geolocation=(), microphone=(), payment=(), usb=()",
+  };
+
+  for (const [header, expected] of Object.entries(expectedHeaders)) {
+    const actual = response.headers.get(header);
+    if (actual !== expected) {
+      throw new Error(`Expected ${header} to be ${expected}, received ${actual}.`);
+    }
+  }
+
+  const hsts = response.headers.get("strict-transport-security");
+  if (production && hsts !== "max-age=15552000; includeSubDomains") {
+    throw new Error(`Expected production HSTS header, received ${hsts}.`);
+  }
+  if (!production && hsts) {
+    throw new Error("Expected non-production responses to omit HSTS.");
+  }
+}
+
 function waitForExit(childProcess) {
   return new Promise((resolve) => {
     childProcess.once("exit", resolve);
@@ -97,6 +122,21 @@ async function runProductionSetupBootstrapTest() {
       if (attempt === 19) {
         throw new Error("Production setup server did not become ready.");
       }
+    }
+
+    const productionHealth = await fetch(`${setupBaseUrl}/api/health`, {
+      headers: { Origin: "https://app.apexhq.online" },
+    });
+    assertSecurityHeaders(productionHealth, { production: true });
+    if (productionHealth.headers.get("access-control-allow-origin") !== "https://app.apexhq.online") {
+      throw new Error("Expected production CORS to allow the Apex HQ app origin.");
+    }
+
+    const blockedOriginHealth = await fetch(`${setupBaseUrl}/api/health`, {
+      headers: { Origin: "https://example.invalid" },
+    });
+    if (blockedOriginHealth.headers.get("access-control-allow-origin")) {
+      throw new Error("Expected production CORS to omit access-control-allow-origin for unapproved origins.");
     }
 
     const setupStatus = await setupRequest("/api/setup/status");
@@ -170,6 +210,13 @@ async function run() {
     await waitForServer();
 
     const healthResponse = await rawRequest("/api/health");
+    assertSecurityHeaders(healthResponse);
+    const localOriginHealth = await fetch(`${baseUrl}/api/health`, {
+      headers: { Origin: "http://localhost:5173" },
+    });
+    if (localOriginHealth.headers.get("access-control-allow-origin") !== "http://localhost:5173") {
+      throw new Error("Expected non-production CORS to preserve local development access.");
+    }
     const health = await healthResponse.json();
     if (health.status !== "healthy") {
       throw new Error(`Expected /api/health to report healthy, received ${health.status}.`);

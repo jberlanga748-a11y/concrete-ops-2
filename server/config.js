@@ -11,6 +11,10 @@ const DEFAULT_SMOKE_TEST_PORT = 4100;
 const DEFAULT_SESSION_TTL_HOURS = 24 * 7;
 const ALLOWED_NODE_ENVS = new Set(["development", "test", "production"]);
 const ALLOWED_LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
+const DEFAULT_PRODUCTION_CORS_ORIGINS = Object.freeze([
+  "https://app.apexhq.online",
+  "https://concrete-ops-2.fly.dev",
+]);
 
 function parseInteger(value, fieldName, fallback) {
   if (value == null || value === "") {
@@ -71,6 +75,33 @@ function parseDirectory(value, fallback, fieldName) {
   return path.isAbsolute(normalized) ? normalized : path.join(rootDir, normalized);
 }
 
+function parseOriginList(value, fieldName, fallback = []) {
+  if (value == null || value === "") {
+    return fallback;
+  }
+
+  const origins = String(value)
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  for (const origin of origins) {
+    if (origin === "*") {
+      throw new Error(`${fieldName} must list explicit origins; wildcard CORS is not allowed.`);
+    }
+    try {
+      const parsed = new URL(origin);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        throw new Error("invalid protocol");
+      }
+    } catch {
+      throw new Error(`${fieldName} contains an invalid origin: ${origin}.`);
+    }
+  }
+
+  return Object.freeze([...new Set(origins)]);
+}
+
 function resolveBootstrapAdmin(env) {
   const email = String(env.BOOTSTRAP_ADMIN_EMAIL || "").trim().toLowerCase();
   const password = String(env.BOOTSTRAP_ADMIN_PASSWORD || "").trim();
@@ -116,6 +147,11 @@ export function createServerConfig(env = process.env) {
     false,
   );
   const bootstrapAdmin = resolveBootstrapAdmin(env);
+  const corsAllowedOrigins = parseOriginList(
+    env.CORS_ALLOWED_ORIGINS,
+    "CORS_ALLOWED_ORIGINS",
+    nodeEnv === "production" ? DEFAULT_PRODUCTION_CORS_ORIGINS : [],
+  );
 
   return Object.freeze({
     nodeEnv,
@@ -130,6 +166,7 @@ export function createServerConfig(env = process.env) {
     seedDemoDataRequested,
     publicEstimateRequestEnabled,
     publicSignupEnabled,
+    corsAllowedOrigins,
     bootstrapAdmin,
     sessionTtlHours,
     sessionTtlMs: sessionTtlHours * 60 * 60 * 1000,
