@@ -3274,6 +3274,21 @@ function uploadsDirectory() {
   return path.join(getDataPaths().dataDir, "uploads");
 }
 
+function resolveUploadStoragePath(storagePath) {
+  const normalizedStoragePath = String(storagePath || "").trim();
+  if (!normalizedStoragePath || path.isAbsolute(normalizedStoragePath)) return null;
+
+  const dataDirectory = path.resolve(getDataPaths().dataDir);
+  const uploadDirectory = path.resolve(uploadsDirectory());
+  const resolvedPath = path.resolve(dataDirectory, normalizedStoragePath);
+  const relativeToUploads = path.relative(uploadDirectory, resolvedPath);
+  if (!relativeToUploads || relativeToUploads.startsWith("..") || path.isAbsolute(relativeToUploads)) {
+    return null;
+  }
+
+  return resolvedPath;
+}
+
 async function ensureUploadsDirectory() {
   const directory = uploadsDirectory();
   await fs.mkdir(directory, { recursive: true });
@@ -9393,10 +9408,10 @@ app.get("/api/uploads/:id/content", requireAuth, asyncRoute(async (req, res) => 
     throw new ApiError(403, "You do not have permission to view that upload.");
   }
 
-  const absolutePath = path.join(getDataPaths().dataDir, upload.storagePath);
-  const fileBuffer = await fs.readFile(absolutePath).catch(() => null);
+  const absolutePath = resolveUploadStoragePath(upload.storagePath);
+  const fileBuffer = absolutePath ? await fs.readFile(absolutePath).catch(() => null) : null;
   if (!fileBuffer) {
-    if (!isDemoUploadRecord(upload)) {
+    if (!absolutePath || !isDemoUploadRecord(upload)) {
       throw new ApiError(404, "Uploaded file not found.");
     }
 

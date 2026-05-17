@@ -527,3 +527,114 @@ test("missing demo upload files return a placeholder while missing real upload f
     await fixture.stop();
   }
 });
+
+test("upload content reads are confined to managed upload storage paths", async () => {
+  const fixture = await startServer();
+  const outsideFilePath = path.join(path.dirname(fixture.tempDataDir), `apex-upload-secret-${Date.now()}.txt`);
+
+  try {
+    await fs.writeFile(outsideFilePath, "outside upload storage");
+    const officeLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    const now = new Date().toISOString();
+    insertUploadRecord(fixture.sqliteFile, {
+      id: "UPL-TRAVERSAL",
+      sortIndex: 1001,
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: null,
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: "U-001",
+      fileName: "secret.txt",
+      fileType: "text/plain",
+      fileSize: 12345,
+      storagePath: `../${path.basename(outsideFilePath)}`,
+      caption: "Traversal upload path",
+      notes: "Synthetic unsafe upload metadata.",
+      takenAt: now,
+      uploadedAt: now,
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Not requested",
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    });
+    insertUploadRecord(fixture.sqliteFile, {
+      id: "UPL-ABSOLUTE",
+      sortIndex: 1002,
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: null,
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: "U-001",
+      fileName: "absolute.txt",
+      fileType: "text/plain",
+      fileSize: 12345,
+      storagePath: outsideFilePath,
+      caption: "Absolute upload path",
+      notes: "Synthetic unsafe upload metadata.",
+      takenAt: now,
+      uploadedAt: now,
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Not requested",
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    });
+    insertUploadRecord(fixture.sqliteFile, {
+      id: "UPL-DEMO-TRAVERSAL",
+      sortIndex: 1003,
+      jobId: "J-2201",
+      customerId: "C-1001",
+      reportId: null,
+      incidentId: null,
+      changeOrderId: null,
+      toolChecklistItemId: null,
+      uploadedBy: "U-001",
+      fileName: "demo-traversal.jpg",
+      fileType: "image/jpeg",
+      fileSize: 12345,
+      storagePath: `uploads/../${path.basename(outsideFilePath)}`,
+      caption: "Unsafe demo placeholder path",
+      notes: "Synthetic unsafe demo upload metadata.",
+      takenAt: now,
+      uploadedAt: now,
+      latitude: null,
+      longitude: null,
+      locationAccuracy: null,
+      locationCapturedAt: null,
+      locationUnavailableReason: "Not requested",
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    });
+
+    for (const uploadId of ["UPL-TRAVERSAL", "UPL-ABSOLUTE", "UPL-DEMO-TRAVERSAL"]) {
+      const response = await fetch(`${fixture.baseUrl}/api/uploads/${uploadId}/content`, {
+        headers: {
+          Authorization: `Bearer ${officeLogin.token}`,
+        },
+      });
+      assert.equal(response.status, 404);
+      const responseText = await response.text();
+      assert.equal(responseText.includes("outside upload storage"), false);
+      assert.equal(responseText.includes("Demo Upload Placeholder"), false);
+    }
+  } finally {
+    await fs.rm(outsideFilePath, { force: true });
+    await fixture.stop();
+  }
+});
