@@ -436,6 +436,9 @@ const EMPTY_APP_STATE = {
     appHealth: {
       canView: false,
     },
+    support: {
+      canView: false,
+    },
     companies: {
       canSwitch: false,
       canViewAll: false,
@@ -711,6 +714,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
       appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, source.permissions?.appHealth || fallback.permissions?.appHealth),
+      support: mergePermissionScope(EMPTY_APP_STATE.permissions.support, source.permissions?.support || fallback.permissions?.support),
       companies: mergePermissionScope(EMPTY_APP_STATE.permissions.companies, source.permissions?.companies || fallback.permissions?.companies),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
       deliveryTickets: mergePermissionScope(EMPTY_APP_STATE.permissions.deliveryTickets, source.permissions?.deliveryTickets || fallback.permissions?.deliveryTickets),
@@ -21374,7 +21378,8 @@ function CopilotPagePolished({
   const [profileAiPlans, setProfileAiPlans] = useState({});
   const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
   const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
-  const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage ?? permissions?.leads?.canManage);
+  const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
+  const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage);
   const leadSourceOptions = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && String(source.status || "active").toLowerCase() !== "inactive");
   const profileOptions = normalizeObjectArray(opportunitySearchProfiles).filter((profile) => !profile.archivedAt && String(profile.status || "active").toLowerCase() !== "archived");
   const estimatorOptions = normalizeObjectArray(users).filter((user) => ["Owner", "Administrator", "Operations Manager", "Estimator"].includes(user.role) && String(user.status || "active").toLowerCase() === "active");
@@ -21585,7 +21590,7 @@ function CopilotPagePolished({
   }
 
   const aiKpis = [
-    {
+    canViewOpportunityScout ? {
       label: "Daily Job Finder",
       value: opportunityScout.stats.openFoundOpportunities || opportunityScout.stats.checksNeeded,
       helper: `${opportunityScout.stats.activeProfiles} profiles / ${opportunityScout.stats.activeSources} sources / ${opportunityScout.stats.dueBidOpportunities} bids due`,
@@ -21593,7 +21598,7 @@ function CopilotPagePolished({
       tone: opportunityScout.readiness.tone,
       actionLabel: "Open scout",
       onAction: () => openModule("copilot"),
-    },
+    } : null,
     {
       label: "AI Lead Review",
       value: newLeads.length + highPriorityLeads.length,
@@ -21621,10 +21626,10 @@ function CopilotPagePolished({
       actionLabel: "Open jobs",
       onAction: () => openModule("jobs"),
     },
-  ];
+  ].filter(Boolean);
 
   const workflowCards = [
-    {
+    canViewOpportunityScout ? {
       title: "Daily Job Finder",
       helper: "Use search profiles, source checks, and saved found opportunities to decide where the office should look for work today.",
       icon: "spark",
@@ -21632,7 +21637,7 @@ function CopilotPagePolished({
       tone: opportunityScout.readiness.tone,
       actionLabel: "Open scout",
       onAction: () => openModule("copilot"),
-    },
+    } : null,
     {
       title: "Apex Lead Assistant",
       helper: "Open the lead command board and use Apex HQ AI from the selected lead panel.",
@@ -21682,7 +21687,7 @@ function CopilotPagePolished({
       actionLabel: "Open dashboard",
       onAction: () => openModule("dashboard"),
     })),
-    ...opportunityScout.foundOpportunityQueue.slice(0, 3).map((opportunity) => ({
+    ...(canViewOpportunityScout ? opportunityScout.foundOpportunityQueue.slice(0, 3).map((opportunity) => ({
       id: `found-${opportunity.id}`,
       eyebrow: opportunity.statusLabel,
       title: opportunity.title,
@@ -21691,8 +21696,8 @@ function CopilotPagePolished({
       icon: "spark",
       actionLabel: "Review",
       onAction: () => openModule("copilot"),
-    })),
-    ...opportunityScout.sourceQueue.slice(0, 2).map((source) => ({
+    })) : []),
+    ...(canViewOpportunityScout ? opportunityScout.sourceQueue.slice(0, 2).map((source) => ({
       id: `source-${source.id}`,
       eyebrow: source.statusLabel,
       title: source.name,
@@ -21701,7 +21706,7 @@ function CopilotPagePolished({
       icon: "spark",
       actionLabel: "Open sources",
       onAction: () => openModule("leads"),
-    })),
+    })) : []),
     ...newLeads.slice(0, 2).map((lead) => ({
       id: `lead-${lead.id}`,
       eyebrow: "New lead",
@@ -21746,9 +21751,9 @@ function CopilotPagePolished({
 
   const reportPreview = visibleReports.find((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus));
   const nextActions = [
-    opportunityScout.stats.activeProfiles === 0 && opportunityScout.stats.activeSources === 0 ? { label: "Add search profile", action: () => openModule("copilot"), tone: "amber" } : null,
-    opportunityScout.stats.openFoundOpportunities ? { label: "Review found work", action: () => openModule("copilot"), tone: opportunityScout.readiness.tone } : null,
-    opportunityScout.stats.checksNeeded ? { label: "Run scout checks", action: () => openModule("copilot"), tone: opportunityScout.readiness.tone } : null,
+    canViewOpportunityScout && opportunityScout.stats.activeProfiles === 0 && opportunityScout.stats.activeSources === 0 ? { label: "Add search profile", action: () => openModule("copilot"), tone: "amber" } : null,
+    canViewOpportunityScout && opportunityScout.stats.openFoundOpportunities ? { label: "Review found work", action: () => openModule("copilot"), tone: opportunityScout.readiness.tone } : null,
+    canViewOpportunityScout && opportunityScout.stats.checksNeeded ? { label: "Run scout checks", action: () => openModule("copilot"), tone: opportunityScout.readiness.tone } : null,
     blockedQueueItems.length ? { label: "Clear blocked queue items", action: () => openModule("dashboard"), tone: "red" } : null,
     newLeads.length ? { label: "Assign first responses", action: () => openModule("leads"), tone: "orange" } : null,
     startupWatchJobs.length ? { label: "Review startup readiness", action: () => openModule("jobs"), tone: "amber" } : null,
@@ -21757,9 +21762,11 @@ function CopilotPagePolished({
   ].filter(Boolean);
 
   const snapshotRows = [
-    { label: "Scout Profiles", value: opportunityScout.stats.activeProfiles, helper: `${opportunityScout.stats.profilesDue} due` },
-    { label: "Found Work", value: opportunityScout.stats.openFoundOpportunities, helper: `${opportunityScout.stats.biddingOpportunities} bidding` },
-    { label: "Lead Sources", value: opportunityScout.stats.activeSources, helper: `${opportunityScout.stats.dueSourceChecks + opportunityScout.stats.overdueSourceChecks} checks due` },
+    ...(canViewOpportunityScout ? [
+      { label: "Scout Profiles", value: opportunityScout.stats.activeProfiles, helper: `${opportunityScout.stats.profilesDue} due` },
+      { label: "Found Work", value: opportunityScout.stats.openFoundOpportunities, helper: `${opportunityScout.stats.biddingOpportunities} bidding` },
+      { label: "Lead Sources", value: opportunityScout.stats.activeSources, helper: `${opportunityScout.stats.dueSourceChecks + opportunityScout.stats.overdueSourceChecks} checks due` },
+    ] : []),
     { label: "Leads", value: liveLeads.length, helper: `${approvedLeads.length} approved` },
     { label: "Jobs", value: liveJobs.length, helper: `${stats.activeJobs || 0} active` },
     { label: "Reports", value: visibleReports.length, helper: `${reportsNeedingReview} review` },
@@ -21821,6 +21828,7 @@ function CopilotPagePolished({
 
       <div className="co-ai-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="min-w-0 space-y-3">
+          {canViewOpportunityScout ? (
           <Card className="co-ai-main-board co-ai-scout-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -22268,6 +22276,22 @@ function CopilotPagePolished({
               ))}
             </div>
           </Card>
+          ) : (
+          <Card className="co-ai-main-board overflow-hidden">
+            <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h2>Lead Finder locked for this package</h2>
+                  <p>Premium AI Office keeps lead assistant and operations guidance available. Daily Job Finder and Opportunity Scout stay hidden unless the company package includes Lead Finder.</p>
+                </div>
+                <Badge tone="amber">Elite</Badge>
+              </div>
+            </div>
+            <div className="p-4">
+              <StateCard title="No scout tools shown" description="This prevents Premium users from seeing Elite-only lead finder controls that the API will reject." tone="slate" />
+            </div>
+          </Card>
+          )}
 
           <Card className="co-ai-main-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
@@ -22348,6 +22372,7 @@ function CopilotPagePolished({
             </div>
           </Card>
 
+          {canViewOpportunityScout ? (
           <Card className="co-ai-rail-card">
             <SectionHeader title="Daily Scout QA" description="Before found work becomes leads, these checks keep the office run clean." />
             <div className="co-ai-scout-quality-list">
@@ -22363,6 +22388,7 @@ function CopilotPagePolished({
               ))}
             </div>
           </Card>
+          ) : null}
 
           <Card className="co-ai-rail-card">
             <SectionHeader title="Workspace Snapshot" description="Current live record counts feeding the AI Office Preview view." />
@@ -23393,6 +23419,7 @@ function SettingsPagePolished({
     toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, permissions?.toolChecklist),
     settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, permissions?.settings),
     appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, permissions?.appHealth),
+    support: mergePermissionScope(EMPTY_APP_STATE.permissions.support, permissions?.support),
   };
   const canViewSettings = Boolean(safePermissions.settings?.canView);
   const canExportData = Boolean(safePermissions.settings?.canExport);
@@ -33448,7 +33475,7 @@ export default function App() {
   }
 
   async function handleCreateOpportunitySearchProfile(payload) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return false;
     setBusy(true);
     try {
       const nextState = await createOpportunitySearchProfile(sessionToken, payload);
@@ -33465,7 +33492,7 @@ export default function App() {
   }
 
   async function handleUpdateOpportunitySearchProfile(profileId, payload) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return false;
     setBusy(true);
     try {
       const nextState = await updateOpportunitySearchProfile(sessionToken, profileId, payload);
@@ -33482,7 +33509,7 @@ export default function App() {
   }
 
   async function handlePlanOpportunitySearchWithAi(profileId) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return { ok: false, message: "Not allowed." };
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
     try {
       const result = await planOpportunitySearchWithAi(sessionToken, profileId);
@@ -33498,7 +33525,7 @@ export default function App() {
   }
 
   async function handleCreateFoundOpportunity(payload) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return false;
     setBusy(true);
     try {
       const nextState = await createFoundOpportunity(sessionToken, payload);
@@ -33515,7 +33542,7 @@ export default function App() {
   }
 
   async function handleUpdateFoundOpportunity(opportunityId, payload) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return false;
     setBusy(true);
     try {
       const nextState = await updateFoundOpportunity(sessionToken, opportunityId, payload);
@@ -33532,7 +33559,7 @@ export default function App() {
   }
 
   async function handleConvertFoundOpportunityToLead(opportunityId) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return false;
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return false;
     setBusy(true);
     try {
       const nextState = await convertFoundOpportunityToLead(sessionToken, opportunityId);
@@ -33552,7 +33579,7 @@ export default function App() {
   }
 
   async function handleReviewFoundOpportunityWithAi(opportunityId) {
-    if (!sessionToken || !(appState.permissions.opportunityScout?.canManage ?? appState.permissions.leads.canManage)) return { ok: false, message: "Not allowed." };
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
     setBusy(true);
     try {
       const result = await reviewFoundOpportunityWithAi(sessionToken, opportunityId);

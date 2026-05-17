@@ -34,6 +34,7 @@ test("Basic includes core operations but not premium growth features", () => {
   assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.LEADS), true);
   assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.JOBS), true);
   assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.BASIC_ESTIMATES), true);
+  assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.SUPPORT_HELP), true);
   assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.GC_PACKETS), false);
   assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.WATCHTOWER), false);
   assert.equal(packageIncludesFeature(PACKAGE_IDS.BASIC, FEATURE_KEYS.WEBSITE_BUILDER_AGENT), false);

@@ -28,5 +28,8 @@ export function resolvePackageEntitlements({ hasFeature } = {}) {
     opportunityScout: {
       canUse: canUseFeature(FEATURE_KEYS.LEAD_JOB_FINDER),
     },
+    support: {
+      canUse: canUseFeature(FEATURE_KEYS.SUPPORT_HELP),
+    },
   };
 }

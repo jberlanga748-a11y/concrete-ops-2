@@ -60,11 +60,13 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
     jobDraftImports: { canView: false },
     aiOffice: { canView: false },
     appHealth: { canView: false },
+    support: { canView: true },
   };
   const premiumPermissions = {
     jobDraftImports: { canView: true },
     aiOffice: { canView: true },
     appHealth: { canView: true },
+    support: { canView: true },
   };
 
   assert.equal(canAccessModule("copilot", owner, { toolChecklistEnabled: true }), true);
@@ -80,6 +82,8 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.match(getWorkspaceModuleLock("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Imported Drafts/);
   assert.match(getWorkspaceModuleLock("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /App Health/);
   assert.equal(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), null);
+  assert.equal(getWorkspaceModuleLock("support", owner, { toolChecklistEnabled: true }, basicPermissions), null);
+  assert.match(getWorkspaceModuleLock("support", owner, { toolChecklistEnabled: true }, { support: { canView: false } })?.title || "", /Support/);
 
   assert.equal(
     getVisibleNavGroups(NAV_GROUPS, owner, { toolChecklistEnabled: true }, basicPermissions).flatMap((group) => group.items.map((item) => item.id)).includes("copilot"),
@@ -101,6 +105,7 @@ test("workspace module locks do not replace role protection for field users", ()
     jobDraftImports: { canView: false },
     aiOffice: { canView: false },
     appHealth: { canView: false },
+    support: { canView: true },
   };
 
   assert.equal(canAccessModule("copilot", employee, { toolChecklistEnabled: true }), false);

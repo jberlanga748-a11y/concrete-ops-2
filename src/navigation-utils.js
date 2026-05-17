@@ -22,6 +22,10 @@ function packageAllowsModule(moduleId, permissions = null) {
     return Boolean(permissionFlag(permissions, "appHealth.canView"));
   }
 
+  if (moduleId === "support") {
+    return Boolean(permissionFlag(permissions, "support.canView"));
+  }
+
   return true;
 }
 
@@ -51,6 +55,14 @@ const PACKAGE_LOCKED_MODULES = {
     title: "App Health is not included",
     description: "Owner app health, release safety, and operational readiness checks are available in Premium and Elite packages. Core contractor workflows stay available for this company.",
     badge: "Premium",
+    actionTitle: "Open your operating workspace",
+    actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
+  },
+  support: {
+    eyebrow: "Package Protected",
+    title: "Support is not included",
+    description: "Help and support handoff tools require the workspace support entitlement. Core route protection still keeps this page role-safe.",
+    badge: "Support",
     actionTitle: "Open your operating workspace",
     actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
   },

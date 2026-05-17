@@ -214,6 +214,7 @@ test("Basic package exposes core office permissions but blocks premium and elite
     assert.equal(bootstrap.permissions.jobDraftImports.canView, false);
     assert.equal(bootstrap.permissions.aiOffice.canView, false);
     assert.equal(bootstrap.permissions.appHealth.canView, false);
+    assert.equal(bootstrap.permissions.support.canView, true);
     assert.equal(bootstrap.permissions.opportunityScout.canView, false);
     assert.deepEqual(bootstrap.jobDraftImports, []);
     assert.deepEqual(bootstrap.opportunitySearchProfiles, []);
@@ -288,6 +289,7 @@ test("Premium package enables premium tools while keeping Elite Lead Finder lock
     assert.equal(bootstrap.permissions.aiOffice.canView, true);
     assert.equal(bootstrap.permissions.aiOffice.canUseLeadAssistant, true);
     assert.equal(bootstrap.permissions.appHealth.canView, true);
+    assert.equal(bootstrap.permissions.support.canView, true);
     assert.equal(bootstrap.permissions.opportunityScout.canView, false);
 
     const ownerHealth = await assertOk(fixture.baseUrl, "/api/owner-health", { headers });
@@ -353,6 +355,7 @@ test("Elite package enables Lead Finder and inherits Premium entitlements", asyn
     assert.equal(bootstrap.permissions.jobDraftImports.canView, true);
     assert.equal(bootstrap.permissions.aiOffice.canView, true);
     assert.equal(bootstrap.permissions.appHealth.canView, true);
+    assert.equal(bootstrap.permissions.support.canView, true);
     assert.equal(bootstrap.permissions.opportunityScout.canView, true);
     assert.ok(Array.isArray(bootstrap.opportunitySearchProfiles));
     assert.ok(Array.isArray(bootstrap.foundOpportunities));
@@ -397,6 +400,7 @@ test("Elite package does not grant field users office-only premium tools", async
     assert.equal(bootstrap.permissions.jobDraftImports.canView, false);
     assert.equal(bootstrap.permissions.aiOffice.canView, false);
     assert.equal(bootstrap.permissions.appHealth.canView, false);
+    assert.equal(bootstrap.permissions.support.canView, true);
     assert.equal(bootstrap.permissions.opportunityScout.canView, false);
     assert.deepEqual(bootstrap.leads, []);
     assert.deepEqual(bootstrap.estimates, []);

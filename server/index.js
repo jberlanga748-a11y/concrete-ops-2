@@ -5342,6 +5342,9 @@ function sanitizeBootstrap(state, user) {
       appHealth: {
         canView: packageEntitlements.appHealth.canUse && canViewSettings(user),
       },
+      support: {
+        canView: packageEntitlements.support.canUse && Boolean(user),
+      },
       watchtower: {
         canView: packageEntitlements.watchtower.canUse && canViewSettings(user),
       },

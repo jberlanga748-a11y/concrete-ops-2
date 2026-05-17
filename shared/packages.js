@@ -30,6 +30,7 @@ export const FEATURE_KEYS = Object.freeze({
   BASIC_ESTIMATES: "money.basicEstimates",
   BASIC_SCHEDULE: "ops.basicSchedule",
   BASIC_NOTIFICATIONS: "ops.basicNotifications",
+  SUPPORT_HELP: "support.help",
   PROPOSAL_TOOLS: "money.proposalTools",
   GC_PACKETS: "money.gcPackets",
   APP_HEALTH: "trust.appHealth",
@@ -75,6 +76,7 @@ export const PACKAGE_DEFINITIONS = Object.freeze({
       FEATURE_KEYS.BASIC_ESTIMATES,
       FEATURE_KEYS.BASIC_SCHEDULE,
       FEATURE_KEYS.BASIC_NOTIFICATIONS,
+      FEATURE_KEYS.SUPPORT_HELP,
     ]),
   }),
   [PACKAGE_IDS.PREMIUM]: Object.freeze({
