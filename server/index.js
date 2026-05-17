@@ -5436,7 +5436,6 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/ready", asyncRoute(async (_req, res) => {
   try {
     await ensureDb();
-    const { dataDir, sqliteFile } = getDataPaths();
 
     res.json({
       ok: true,
@@ -5444,8 +5443,6 @@ app.get("/api/ready", asyncRoute(async (_req, res) => {
       checks: {
         database: "ok",
       },
-      dataDir,
-      sqliteFile,
       timestamp: new Date().toISOString(),
       requestId: res.locals.requestId,
     });

@@ -184,6 +184,9 @@ async function run() {
     if (ready.status !== "ready" || ready.checks?.database !== "ok") {
       throw new Error("Expected /api/ready to confirm database readiness.");
     }
+    if ("dataDir" in ready || "sqliteFile" in ready || JSON.stringify(ready).includes(tempDataDir)) {
+      throw new Error("Expected /api/ready to avoid exposing internal filesystem paths.");
+    }
     const readyRequestId = readyResponse.headers.get("x-request-id");
     if (!readyRequestId || ready.requestId !== readyRequestId) {
       throw new Error("Expected /api/ready to return a matching request ID header and payload.");
