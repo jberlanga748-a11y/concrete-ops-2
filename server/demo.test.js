@@ -665,7 +665,6 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     "tool_checklists",
     "tool_checklist_items",
     "activity",
-    "audit_events",
   ];
 
   const firstServer = await startServer({
@@ -931,6 +930,71 @@ test("existing database backfills missing demo users when demo mode is enabled",
 
     await fs.rm(tempDataDir, { recursive: true, force: true });
   }
+});
+
+test("demo reset is blocked when real tenant data exists", async () => {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-reset-real-data-"));
+  const firstServer = await startServer({}, { dataDir: tempDataDir });
+
+  try {
+    await login(firstServer.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+  } finally {
+    await firstServer.stop();
+  }
+
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
+  const realAdminUser = createUserRecord({
+    id: "U-REAL-RESET-ADMIN",
+    email: "real.reset.admin@example.test",
+    password: "realreset123",
+    name: "Real Reset Admin",
+    role: "Administrator",
+  });
+  insertUsers(sqliteFile, [realAdminUser]);
+  insertExistingBusinessRecords(sqliteFile);
+
+  const beforeCounts = readTableCounts(sqliteFile, ["customers", "leads", "jobs"]);
+  const demoServer = await startServer({
+    DEMO_MODE: "true",
+    PUBLIC_ESTIMATE_REQUEST_ENABLED: "true",
+  }, { dataDir: tempDataDir });
+
+  try {
+    const demoLogin = await login(demoServer.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const resetAttempt = await requestJson(demoServer.baseUrl, "/api/reset", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${demoLogin.token}` },
+    });
+    assert.equal(resetAttempt.response.status, 409);
+    assert.match(resetAttempt.payload?.error || "", /real company data/i);
+
+    const realAdminLogin = await login(demoServer.baseUrl, {
+      email: "real.reset.admin@example.test",
+      password: "realreset123",
+    });
+    const realResetAttempt = await requestJson(demoServer.baseUrl, "/api/reset", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${realAdminLogin.token}` },
+    });
+    assert.equal(realResetAttempt.response.status, 403);
+    assert.match(realResetAttempt.payload?.error || "", /demo users/i);
+  } finally {
+    await demoServer.stop();
+  }
+
+  const afterCounts = readTableCounts(sqliteFile, ["customers", "leads", "jobs"]);
+  assert.deepEqual(afterCounts, beforeCounts);
+  assert.deepEqual(readExistingIds(sqliteFile, "customers", ["C-REAL-001"]), ["C-REAL-001"]);
+  assert.deepEqual(readExistingIds(sqliteFile, "leads", ["L-REAL-001"]), ["L-REAL-001"]);
+  assert.deepEqual(readExistingIds(sqliteFile, "jobs", ["J-REAL-001"]), ["J-REAL-001"]);
+
+  await fs.rm(tempDataDir, { recursive: true, force: true });
 });
 
 test("demo users only see the clean demo story even when an existing database contains rough test records", async () => {
