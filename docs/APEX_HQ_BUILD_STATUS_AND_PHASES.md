@@ -17,17 +17,17 @@ Current state:
 - First owner onboarding/support handoff: built, tested, released.
 - Field Ops Agent Phase 1 read-only summary: built, verified, released, and health-checked.
 - Advanced Reporting Prep Phase 2: built, verified, released, and health-checked.
-- Enterprise Trust Phase 2: built and verified locally, pending release.
+- Enterprise Trust Phase 2: built, verified, released, and health-checked.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `4648e70`
-- Message: `Add Apex HQ advanced reporting signals`
-- Fly release: `v492`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVMEDDX9ZYM7HC4T3DB777G`
+- Commit: `0da4e5e`
+- Message: `Add Apex HQ enterprise trust review packet`
+- Fly release: `v493`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVN8Z8YDVC3P51SY9CACDMT`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -62,6 +62,7 @@ Recent shipped phase stack:
 | `daedd6f` | `v490` | Mobile field demo date trust polish |
 | `666a2a6` | `v491` | Field Ops Agent Phase 1 read-only assistant |
 | `4648e70` | `v492` | Advanced Reporting Prep Phase 2 |
+| `0da4e5e` | `v493` | Enterprise Trust Phase 2 |
 
 ## Done / Do Not Rebuild
 
@@ -104,7 +105,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
 | Enterprise Trust Prep | Built and released | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
-| Enterprise Trust Phase 2 | Built / pending release | Owner/admin trust readiness now includes a copy-only pilot trust review packet, next trust actions, and explicit claims guardrails using existing audit/export/health/support data only. Field users remain blocked. |
+| Enterprise Trust Phase 2 | Built and released | Owner/admin trust readiness now includes a copy-only pilot trust review packet, next trust actions, and explicit claims guardrails using existing audit/export/health/support data only. Field users remain blocked. |
 | Guided Demo Launch Readiness | Rehearsed | Live v487 owner/admin and field browser rehearsal passed with no P0/P1 blockers, no console/API failures, no horizontal overflow, and role-safe field routes. |
 | Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
 | Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
@@ -145,7 +146,7 @@ Recent focused verification:
 - Mobile Field Trust Polish checks: `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:time`, `npm.cmd run build`, and `git diff --check` passed. Local and live mobile browser checks confirmed foreman field jobs show May 17 instead of stale April dates, no horizontal overflow, and no console/API failures. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-v490-live-field-date-1779030359039`. Released as Fly `v490`; both live ready endpoints returned `200`, ready, database ok.
 - Field Ops Agent Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run build`, focused browser owner/foreman desktop/mobile QA, and `git diff --check` passed. Browser screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-field-ops-shots-r3tygX`. Released as Fly `v491`; both live ready endpoints returned `200`, ready, database ok.
 - Advanced Reporting Prep Phase 2 checks: `npm.cmd run verify:daily-reports`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v492`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted a transient listening-address warning, but Fly status showed the machine started with `1 passing` check.
-- Enterprise Trust Phase 2 checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, and `git diff --check` passed locally. The first `verify:roles` run reported a shared permissions test-process failure without an assertion; rerunning `verify:roles` and `node --test --test-concurrency=1 shared\permissions.test.js` passed. Browser QA and release are still pending.
+- Enterprise Trust Phase 2 checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v493`; both live ready endpoints returned `200`, ready, database ok. The first local `verify:roles` run reported a shared permissions test-process failure without an assertion; rerunning `verify:roles` and `node --test --test-concurrency=1 shared\permissions.test.js` passed. Focused owner browser QA was not completed because the current local demo package gates App Health off.
 
 ## Current Loop Prevention Rules
 
@@ -189,46 +190,48 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Release Enterprise Trust Phase 2 - Next
+### Billing / Manual Upgrade Prep Planning - Next
 
 Why this is next:
 
-- Enterprise Trust Phase 2 is built and verified locally.
-- The next safe step is a focused release-manager pass: confirm changed files, optionally run focused owner trust browser QA, commit, push, deploy, and health-check.
+- Enterprise Trust Phase 2 is released and health-checked.
+- Package entitlement, locked states, plan readiness, and trust guardrails exist.
+- The next safe step is planning the manual upgrade path without starting Stripe, payments, invoices, or customer portal work.
 
 Scope:
 
-- Release the completed Enterprise Trust Phase 2 batch.
-- Preserve unrelated dirty docs unless explicitly included.
-- Health-check both production ready endpoints after deploy.
+- Define the support-led upgrade workflow for Basic, Premium, and Elite.
+- Identify owner/admin UX copy, support handoff, plan readiness, and route/package checks that need tightening.
+- Preserve all existing package gates and role protections.
 
 Do not include:
 
-- SOC 2 claims.
-- Enterprise SSO/MFA/SCIM.
-- Billing/payment processing.
+- Stripe/payment processing.
+- Self-serve checkout.
+- Billing automation.
+- Invoice/payment collection.
+- SOC 2 claims, enterprise SSO/MFA/SCIM.
 - Customer portal.
-- New observability vendor integrations.
-- Field access to owner/admin trust, export, billing, or settings data.
+- Field access to owner/admin plans, pricing, export, billing, or settings data.
 
 Suggested verification:
 
-- `git status --short`, `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, optional focused owner App Health/Settings browser QA, `git diff --check`, commit, push, deploy, and `/api/ready` health checks.
+- Plan-only at first: inspect package/plan readiness docs, `shared/packages.js`, `shared/featureEntitlements.js`, Settings plan UI, support handoff, and package tests. If implementation is approved, run `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check`.
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Release Enterprise Trust Phase 2 | Commit, push, deploy, and health-check the completed owner trust phase. | Low | Maybe. |
-| 2 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
+| 1 | Billing / Manual Upgrade Prep Planning | Plan the support-led upgrade path without Stripe, payments, or billing automation. | Medium | Yes. |
+| 2 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
 | 3 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
 | 4 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
 | 5 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
-| 6 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
-| 7 | Public Website / Sales Funnel Planning | Plan public marketing site and demo booking flow with no product auth/billing changes yet. | Medium | Yes. |
-| 8 | Pilot Feedback Capture Phase 1 | Add structured pilot feedback capture after demos begin, without changing core workflows. | Medium | Maybe. |
-| 9 | Customer Portal Phase 1 Manual Approval Preview | Only after planning checkpoint; manual customer-facing proposal/progress visibility. | High | Yes. |
-| 10 | Invite / Activation UX Polish | Improve invite and activation clarity without rebuilding auth. | Medium | Maybe. |
+| 6 | Public Website / Sales Funnel Planning | Plan public marketing site and demo booking flow with no product auth/billing changes yet. | Medium | Yes. |
+| 7 | Pilot Feedback Capture Phase 1 | Add structured pilot feedback capture after demos begin, without changing core workflows. | Medium | Maybe. |
+| 8 | Customer Portal Phase 1 Manual Approval Preview | Only after planning checkpoint; manual customer-facing proposal/progress visibility. | High | Yes. |
+| 9 | Invite / Activation UX Polish | Improve invite and activation clarity without rebuilding auth. | Medium | Maybe. |
+| 10 | Guided Demo Rehearsal Refresh | Re-run a focused owner/field demo walkthrough after the next product batch. | Low | Maybe. |
 
 ## Later / Do Not Build Yet
 

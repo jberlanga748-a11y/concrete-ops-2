@@ -437,11 +437,11 @@ Demo/customer separation:
 1. Keep source-of-truth docs current:
    - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
 
-2. Enterprise Trust Phase 2:
-   - Extend existing App Health, audit activity, exports, release safety, and support-readiness surfaces.
+2. Billing / Manual Upgrade Prep planning:
+   - Define the support-led upgrade path for Basic, Premium, and Elite without Stripe, checkout, or payment automation.
    - Owner/admin only.
-   - Avoid SOC 2, SSO, MFA, SLA, or compliance claims until verified and documented.
-   - Keep it a practical pilot-trust layer, not an enterprise compliance platform.
+   - Preserve existing package gates, role safety, and manual support handoff.
+   - Keep billing language practical and avoid claims that public self-serve billing is ready.
 
 3. Premium demo workspace decision:
    - Decide whether to create a controlled Premium demo workspace for AI Rough Notes, Field Ops Agent, Watchtower, and reporting demos.
@@ -465,15 +465,14 @@ Demo/customer separation:
 
 Product priorities:
 
-1. Enterprise Trust Phase 2.
-2. Billing / Manual Upgrade Prep planning, not Stripe build.
+1. Billing / Manual Upgrade Prep planning, not Stripe build.
+2. Premium Demo Workspace Prep.
 3. Customer Portal Planning Checkpoint.
 4. Assistant Material Planning Prep.
 5. Assistant Job Conversion Planning.
-6. Premium Demo Workspace Prep.
-7. Public Website / Sales Funnel Planning.
-8. Pilot Feedback Capture Phase 1.
-9. Invite / Activation UX Polish.
+6. Public Website / Sales Funnel Planning.
+7. Pilot Feedback Capture Phase 1.
+8. Invite / Activation UX Polish.
 
 Business priorities:
 
