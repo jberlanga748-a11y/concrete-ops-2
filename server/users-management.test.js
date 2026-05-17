@@ -386,6 +386,79 @@ test("user management and bootstrap payloads do not expose auth hashes or provis
   }
 });
 
+test("audit and activity payloads do not expose provisioning or password secrets", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-AUDIT-SECRETS",
+        email: "owner-audit-secrets@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Audit Secrets",
+        role: "Owner",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-audit-secrets@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const inviteCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Audit Invite Foreman",
+        email: "audit-invite-foreman@lastyard.test",
+        role: "Foreman",
+      }),
+    });
+    const activationToken = inviteCreated.provisionedUser?.activationToken;
+    assert.ok(activationToken);
+
+    const temporaryCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Audit Temporary Employee",
+        email: "audit-temporary-employee@lastyard.test",
+        role: "Employee",
+        provisioningMode: "temporary_password",
+      }),
+    });
+    const temporaryPassword = temporaryCreated.provisionedUser?.temporaryPassword;
+    const temporaryUser = temporaryCreated.users.find((user) => user.email === "audit-temporary-employee@lastyard.test");
+    assert.ok(temporaryPassword);
+    assert.ok(temporaryUser);
+
+    const replacementPassword = "newfield123";
+    await assertOk(fixture.baseUrl, `/api/users/${temporaryUser.id}`, {
+      method: "PATCH",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        password: replacementPassword,
+      }),
+    });
+
+    const ownerBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    const operationalHistory = {
+      activity: ownerBootstrap.activity,
+      auditEvents: ownerBootstrap.auditEvents,
+    };
+    assertNoAuthSecretFields(operationalHistory, "operational history");
+    assertSerializedPayloadExcludes(
+      operationalHistory,
+      [activationToken, temporaryPassword, replacementPassword],
+      "operational history",
+    );
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("user password updates revoke existing sessions and require the new password", async () => {
   const fixture = await startServer();
 
