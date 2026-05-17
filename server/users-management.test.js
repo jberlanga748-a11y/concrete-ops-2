@@ -300,6 +300,50 @@ test("only active owners can assign or manage owner access", async () => {
   }
 });
 
+test("explicit user passwords must meet the public SaaS password policy", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-PASSWORD-POLICY",
+        email: "owner-password-policy@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Password Policy",
+        role: "Owner",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-password-policy@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const weakCreate = await requestJson(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Weak Password Employee",
+        email: "weak-employee@lastyard.test",
+        role: "Employee",
+        password: "crewonly",
+      }),
+    });
+    assert.equal(weakCreate.response.status, 400);
+    assert.match(weakCreate.payload.error, /at least 10 characters|letter and one number/i);
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const matchingUsers = database.prepare("SELECT COUNT(*) AS count FROM users WHERE email = ?").get("weak-employee@lastyard.test");
+      assert.equal(matchingUsers.count, 0);
+    } finally {
+      database.close();
+    }
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("employee, foreman, and estimator cannot access user management while operations manager can", async () => {
   const fixture = await startServer();
 

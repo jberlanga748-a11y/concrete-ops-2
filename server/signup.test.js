@@ -235,6 +235,33 @@ test("public signup blocks duplicate emails without creating another company", a
   }
 });
 
+test("public signup rejects weak passwords without creating a company", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { response, payload } = await signup(fixture.baseUrl, {
+      companyName: "Weak Password Builders",
+      email: "weak-password@abcbuilder.test",
+      password: "password",
+    });
+
+    assert.equal(response.status, 400);
+    assert.match(payload.error, /at least 10 characters|letter and one number/i);
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const matchingUsers = database.prepare("SELECT COUNT(*) AS count FROM users WHERE email = ?").get("weak-password@abcbuilder.test");
+      const matchingCompanies = database.prepare("SELECT COUNT(*) AS count FROM companies WHERE name = ?").get("Weak Password Builders");
+      assert.equal(matchingUsers.count, 0);
+      assert.equal(matchingCompanies.count, 0);
+    } finally {
+      database.close();
+    }
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("public signup ignores privilege escalation and custom company IDs", async () => {
   const fixture = await startServer();
 

@@ -308,8 +308,11 @@ function normalizeLookup(value) {
 
 function requiredPassword(value, fieldName = "Password") {
   const normalized = requiredString(value, fieldName);
-  if (normalized.length < 8) {
-    throw new ApiError(400, `${fieldName} must be at least 8 characters.`);
+  if (normalized.length < 10) {
+    throw new ApiError(400, `${fieldName} must be at least 10 characters.`);
+  }
+  if (!/[A-Za-z]/.test(normalized) || !/\d/.test(normalized)) {
+    throw new ApiError(400, `${fieldName} must include at least one letter and one number.`);
   }
   return normalized;
 }
