@@ -562,6 +562,27 @@ test("deactivating users revokes pending invite and password reset credentials",
       }),
     });
     assert.equal(inactiveActivation.response.status, 400);
+
+    await assertOk(fixture.baseUrl, `/api/users/${inviteUser.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ status: "active" }),
+    });
+    await assertOk(fixture.baseUrl, `/api/users/${resetUser.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ status: "active" }),
+    });
+
+    const reactivatedActivation = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: inviteToken,
+        password: "validpass123",
+      }),
+    });
+    assert.equal(reactivatedActivation.response.status, 400);
   } finally {
     await fixture.stop();
   }
