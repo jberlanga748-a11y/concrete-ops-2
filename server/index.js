@@ -1246,6 +1246,14 @@ function assertSameCompanyRecords(primary, related, resourceName = "Linked recor
   }
 }
 
+function findSameCompanyLinkedRecord(records, id, ownerRecord) {
+  const recordId = optionalString(id, "");
+  if (!recordId || !ownerRecord) return null;
+  const record = (records || []).find((entry) => entry.id === recordId) || null;
+  if (!record) return null;
+  return normalizeCompanyId(record.companyId) === normalizeCompanyId(ownerRecord.companyId) ? record : null;
+}
+
 const DEMO_USER_ID_SET = new Set(DEMO_USERS.map((user) => user.id));
 const DEMO_USER_NAME_SET = new Set(DEMO_USERS.map((user) => user.name));
 const DEMO_CUSTOMER_NAME_SET = new Set(INITIAL_CUSTOMERS.map((customer) => customer.name));
@@ -2398,9 +2406,9 @@ function sanitizeEstimateItem(item) {
 function sanitizeEstimateForUser(estimate, state, user) {
   if (!user || !canViewEstimates(user)) return null;
 
-  const customer = estimate.customerId ? state.customers.find((entry) => entry.id === estimate.customerId) || null : null;
-  const lead = estimate.leadId ? state.leads.find((entry) => entry.id === estimate.leadId) || null : null;
-  const job = estimate.jobId ? state.jobs.find((entry) => entry.id === estimate.jobId) || null : null;
+  const customer = findSameCompanyLinkedRecord(state.customers || [], estimate.customerId, estimate);
+  const lead = findSameCompanyLinkedRecord(state.leads || [], estimate.leadId, estimate);
+  const job = findSameCompanyLinkedRecord(state.jobs || [], estimate.jobId, estimate);
   const createdByUser = findUserById(state, estimate.createdBy);
   const items = estimateItemsForEstimate(state, estimate.id).map((item) => sanitizeEstimateItem(item));
 

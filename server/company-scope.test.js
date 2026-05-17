@@ -329,6 +329,19 @@ function activeJobAssignmentsForJob(sqliteFile, jobId) {
   }
 }
 
+function setEstimateLinks(sqliteFile, estimateId, links = {}) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE estimates
+      SET customer_id = ?, lead_id = ?, job_id = ?
+      WHERE id = ?
+    `).run(links.customerId || "", links.leadId || "", links.jobId || "", estimateId);
+  } finally {
+    database.close();
+  }
+}
+
 test("bootstrap scopes existing users to the default company and hides future other-company lead data", async () => {
   const fixture = await startServer();
 
@@ -909,6 +922,83 @@ test("cross-company links are blocked on default-company mutations", async () =>
       method: "PATCH",
       body: { customerId: otherCustomer.id, title: "Should stay blocked" },
     });
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("estimate responses do not hydrate stale cross-company linked records", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = ownerLogin.token;
+    const headers = authHeaders(token);
+
+    const hiddenCustomerPayload = await postJson(fixture.baseUrl, "/api/customers", token, {
+      name: "Hidden Estimate Link Customer",
+      city: "Portland",
+      status: "Active",
+    });
+    const hiddenCustomer = findByName(hiddenCustomerPayload.customers, "Hidden Estimate Link Customer", "Customer");
+    const hiddenLeadPayload = await postJson(fixture.baseUrl, "/api/leads", token, {
+      customer: "Hidden Estimate Link Lead",
+      city: "Portland",
+      project: "Hidden estimate link project",
+      source: "Call-in",
+    });
+    const hiddenLead = findByName(hiddenLeadPayload.leads, "Hidden Estimate Link Lead", "Lead");
+    const hiddenJobPayload = await postJson(fixture.baseUrl, "/api/jobs", token, {
+      title: "Hidden Estimate Link Job",
+      customer: "Hidden Estimate Link Customer",
+      city: "Portland",
+      status: "scheduled",
+    });
+    const hiddenJob = findByName(hiddenJobPayload.jobs, "Hidden Estimate Link Job", "Job");
+    moveRecordsToOtherCompany(fixture.sqliteFile, {
+      customerId: hiddenCustomer.id,
+      leadId: hiddenLead.id,
+      jobId: hiddenJob.id,
+    });
+
+    const defaultCustomerPayload = await postJson(fixture.baseUrl, "/api/customers", token, {
+      name: "Visible Estimate Customer",
+      city: "Salem",
+      status: "Active",
+    });
+    const defaultCustomer = findByName(defaultCustomerPayload.customers, "Visible Estimate Customer", "Customer");
+    const estimatePayload = await postJson(fixture.baseUrl, "/api/estimates", token, {
+      customerId: defaultCustomer.id,
+      title: "Visible Estimate With Stale Links",
+      status: "draft",
+      items: [],
+    });
+    const estimate = findByName(estimatePayload.estimates, "Visible Estimate With Stale Links", "Estimate");
+    setEstimateLinks(fixture.sqliteFile, estimate.id, {
+      customerId: hiddenCustomer.id,
+      leadId: hiddenLead.id,
+      jobId: hiddenJob.id,
+    });
+
+    const estimatesResponse = await assertOk(fixture.baseUrl, "/api/estimates", { headers });
+    const responseEstimate = findByName(estimatesResponse.estimates, "Visible Estimate With Stale Links", "Estimate");
+    assert.equal(responseEstimate.customer, null);
+    assert.equal(responseEstimate.lead, null);
+    assert.equal(responseEstimate.job, null);
+    const serializedEstimates = JSON.stringify(estimatesResponse);
+    assert.equal(serializedEstimates.includes("Hidden Estimate Link Customer"), false);
+    assert.equal(serializedEstimates.includes("Hidden Estimate Link Lead"), false);
+    assert.equal(serializedEstimates.includes("Hidden estimate link project"), false);
+    assert.equal(serializedEstimates.includes("Hidden Estimate Link Job"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const bootstrapEstimate = findByName(bootstrap.estimates, "Visible Estimate With Stale Links", "Estimate");
+    assert.equal(bootstrapEstimate.customer, null);
+    assert.equal(bootstrapEstimate.lead, null);
+    assert.equal(bootstrapEstimate.job, null);
   } finally {
     await fixture.stop();
   }
