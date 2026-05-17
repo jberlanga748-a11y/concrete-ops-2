@@ -114,6 +114,14 @@ async function signup(baseUrl, body = {}) {
   });
 }
 
+async function login(baseUrl, body = {}) {
+  return assertOk(baseUrl, "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 async function activateInvite(baseUrl, body = {}) {
   return assertOk(baseUrl, "/api/auth/activate-invite", {
     method: "POST",
@@ -384,6 +392,48 @@ test("public signup owners cannot switch into demo or default workspaces", async
     });
     assert.equal(bootstrapAfterResetDenied.currentCompanyId, payload.currentCompanyId);
     assert.equal(bootstrapAfterResetDenied.currentCompany.name, "Real Contractor Workspace");
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("signup owners log back into their real workspace, not the default or demo workspace", async () => {
+  const fixture = await startServer({ demoMode: true });
+
+  try {
+    const { response, payload } = await signup(fixture.baseUrl, {
+      companyName: "Login Scoped Builders",
+      ownerName: "Login Scoped Owner",
+      email: "login-owner@abcbuilder.test",
+    });
+    assert.equal(response.status, 201);
+    assert.notEqual(payload.currentCompanyId, DEFAULT_COMPANY_ID);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "login-owner@abcbuilder.test",
+      password: "apexdemo123",
+    });
+    assert.ok(ownerLogin.token);
+    assert.equal(ownerLogin.user.email, "login-owner@abcbuilder.test");
+    assert.equal(ownerLogin.user.companyId, payload.currentCompanyId);
+
+    const ownerBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(ownerBootstrap.currentCompanyId, payload.currentCompanyId);
+    assert.equal(ownerBootstrap.currentWorkspaceId, payload.currentCompanyId);
+    assert.equal(ownerBootstrap.currentCompany.name, "Login Scoped Builders");
+    assert.equal(ownerBootstrap.companies.length, 1);
+    assert.equal(ownerBootstrap.companies[0].id, payload.currentCompanyId);
+    assert.equal(ownerBootstrap.leads.some((lead) => lead.companyId === DEFAULT_COMPANY_ID), false);
+    assert.equal(ownerBootstrap.permissions.companies.canSwitch, false);
+
+    const rows = readSignupRows(fixture.sqliteFile, {
+      companyId: payload.currentCompanyId,
+      email: "login-owner@abcbuilder.test",
+    });
+    assert.equal(rows.user.company_id, payload.currentCompanyId);
+    assert.equal(rows.session.current_company_id, payload.currentCompanyId);
   } finally {
     await fixture.stop();
   }
