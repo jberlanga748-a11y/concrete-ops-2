@@ -5079,6 +5079,9 @@ function sanitizeBootstrap(state, user) {
         canManageUsers: canManageUsers(user),
         canExport: canExportData(user),
       },
+      appHealth: {
+        canView: companyHasFeature(state, user, FEATURE_KEYS.APP_HEALTH) && canViewSettings(user),
+      },
       companies: {
         canSwitch: canManageCompanies(user),
         canViewAll: canManageCompanies(user),
@@ -5352,7 +5355,7 @@ app.get("/api/owner-health", requireAuth, asyncRoute(async (req, res) => {
   assertCanViewOwnerHealth(req.auth.user);
 
   const generatedAt = new Date().toISOString();
-  const state = await readDb();
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.APP_HEALTH, "Owner Health Status");
   const { dataDir, sqliteFile } = getDataPaths();
   const database = await checkOwnerHealthDatabase({ state, sqliteFile });
   const storageWithWarnings = await checkOwnerHealthStorage({ dataDir });

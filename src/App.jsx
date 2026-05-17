@@ -421,6 +421,9 @@ const EMPTY_APP_STATE = {
       canManageUsers: false,
       canExport: false,
     },
+    appHealth: {
+      canView: false,
+    },
     companies: {
       canSwitch: false,
       canViewAll: false,
@@ -694,6 +697,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
         calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
       toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
+      appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, source.permissions?.appHealth || fallback.permissions?.appHealth),
       companies: mergePermissionScope(EMPTY_APP_STATE.permissions.companies, source.permissions?.companies || fallback.permissions?.companies),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
       deliveryTickets: mergePermissionScope(EMPTY_APP_STATE.permissions.deliveryTickets, source.permissions?.deliveryTickets || fallback.permissions?.deliveryTickets),
@@ -13464,7 +13468,7 @@ function CommandCenterMorningFlowCard({ onOpenLeads, onOpenDrafts, onOpenJobs, o
           <div className="co-command-cockpit-actions">
             <Button type="button" size="sm" onClick={onOpenLeads}>Start Priority Work</Button>
             <Button type="button" size="sm" variant="secondary" onClick={onOpenJobs}>Open Jobs</Button>
-            <Button type="button" size="sm" variant="secondary" onClick={onOpenDrafts}>Draft Review</Button>
+            {typeof onOpenDrafts === "function" ? <Button type="button" size="sm" variant="secondary" onClick={onOpenDrafts}>Draft Review</Button> : null}
             <Button type="button" size="sm" variant="secondary" onClick={onOpenReports}>Reports / Photos</Button>
           </div>
         </div>
@@ -13549,6 +13553,7 @@ function CommandCenterPage({
   deliveryTickets,
   timeEntries,
   changeOrderRequests,
+  permissions,
   setActive,
   onSelectJob,
   onSelectImportedDraft,
@@ -13584,6 +13589,8 @@ function CommandCenterPage({
     if (draftId) onSelectImportedDraft?.(draftId);
   }
 
+  const canViewAppHealth = Boolean(permissions?.appHealth?.canView);
+  const canViewJobDraftImports = Boolean(permissions?.jobDraftImports?.canView);
   const timeIssueCount = commandCenter.stats.timeIssues;
   const reportsUploadsDue = commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + commandCenter.stats.jobsMissingPhotos;
   const priorityStatCards = [
@@ -13769,14 +13776,14 @@ function CommandCenterPage({
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Start Priority Work</Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Job Board</Button>
-            <Button type="button" size="sm" variant="secondary" onClick={() => openModule("settings")}><Icon name="settings" />Owner Health</Button>
+            {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={() => openModule("settings")}><Icon name="settings" />Owner Health</Button> : null}
           </div>
         </div>
       </div>
       <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
         <CommandCenterMorningFlowCard
           onOpenLeads={() => openModule("leads")}
-          onOpenDrafts={() => openModule("jobDraftImports")}
+          onOpenDrafts={canViewJobDraftImports ? () => openModule("jobDraftImports") : null}
           onOpenJobs={() => openModule("jobs")}
           onOpenReports={() => openModule("reports")}
           priorityCount={priorityRows.length}
@@ -13941,13 +13948,13 @@ function CommandCenterPage({
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
-            <CommandCenterOwnerHealthCard onOpenOwnerHealth={() => openModule("settings")} />
+            {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={() => openModule("settings")} /> : null}
 
             <Card className="co-command-card p-2.5">
               <SectionHeader title="Quick Actions" />
               <div className="grid gap-1">
                 <CommandCenterQuickAction icon="users" label="Open Follow-Up Queue" helper="Manual outreach work" onClick={() => openModule("leads")} />
-                <CommandCenterQuickAction icon="database" label="Review Imported Drafts" helper="Drafts and customer match" onClick={() => openModule("jobDraftImports")} />
+                {canViewJobDraftImports ? <CommandCenterQuickAction icon="database" label="Review Imported Drafts" helper="Drafts and customer match" onClick={() => openModule("jobDraftImports")} /> : null}
                 <CommandCenterQuickAction icon="briefcase" label="Open Jobs" helper="Startup, crews, and schedules" onClick={() => openModule("jobs")} />
                 <CommandCenterQuickAction icon="document" label="Open Reports" helper="Daily report review" onClick={() => openModule("reports")} />
               </div>
@@ -22861,6 +22868,7 @@ function SettingsCommandRailPolished({
   onReset,
   onNavigate,
   onJump,
+  canViewAppHealth = false,
 }) {
   const activeUsers = normalizeObjectArray(users).filter((entry) => (entry.status || "active") !== "inactive");
   const activeLeadSources = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && (source.status || "active") !== "inactive");
@@ -22913,10 +22921,10 @@ function SettingsCommandRailPolished({
               <span>Field modules / packet text</span>
               <Icon name="document" />
             </button>
-            <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
+            {canViewAppHealth ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
               <span>Backup / owner health</span>
               <Icon name="database" />
-            </button>
+            </button> : null}
           </div>
 
           <div className="co-settings-mobile-blocker-stack">
@@ -22998,10 +23006,10 @@ function SettingsCommandRailPolished({
             <span>Field modules / packet text</span>
             <Icon name="document" />
           </button>
-          <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
+          {canViewAppHealth ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
             <span>Backup / owner health</span>
             <Icon name="database" />
-          </button>
+          </button> : null}
         </div>
       </Card>
 
@@ -23077,8 +23085,10 @@ function SettingsPagePolished({
     ...(permissions || {}),
     toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, permissions?.toolChecklist),
     settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, permissions?.settings),
+    appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, permissions?.appHealth),
   };
   const canViewSettings = Boolean(safePermissions.settings?.canView);
+  const canViewAppHealth = Boolean(safePermissions.appHealth?.canView);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
   const demoResetAllowed = demoMode && DEMO_LOGIN_PRESETS.some((preset) => preset.email === String(user?.email || "").trim().toLowerCase());
@@ -23530,7 +23540,7 @@ function SettingsPagePolished({
             </div>
           </details>
 
-          <details id="settings-owner-health" className="co-settings-tools-drawer">
+          {canViewAppHealth ? <details id="settings-owner-health" className="co-settings-tools-drawer">
             <summary>
               <span>
                 <strong>Owner Health / Backup / App Setup</strong>
@@ -23539,12 +23549,12 @@ function SettingsPagePolished({
               <span>Owner tools</span>
             </summary>
             <div className="co-settings-tools-panel grid gap-3">
-              <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewSettings} />
-              <ReleaseSafetyRollbackPanel canView={canViewSettings} />
-              <PwaInstallGuidancePanel canView={canViewSettings} />
-              <UiStyleFoundationPanel canView={canViewSettings} />
+              <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} />
+              <ReleaseSafetyRollbackPanel canView={canViewAppHealth} />
+              <PwaInstallGuidancePanel canView={canViewAppHealth} />
+              <UiStyleFoundationPanel canView={canViewAppHealth} />
             </div>
-          </details>
+          </details> : null}
         </div>
 
         <SettingsCommandRailPolished
@@ -23563,6 +23573,7 @@ function SettingsPagePolished({
           onReset={onReset}
           onNavigate={setActive}
           onJump={jumpToSettingsSection}
+          canViewAppHealth={canViewAppHealth}
         />
       </div>
     </div>

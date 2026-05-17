@@ -8,6 +8,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 import { checkOwnerHealthStorage } from "./owner-health.js";
 import { createUserRecord } from "./store.js";
 
@@ -142,6 +143,18 @@ function tableCounts(sqliteFile) {
   }
 }
 
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
 test("owner health requires authentication and blocks field users", async () => {
   const fixture = await startServer();
 
@@ -180,6 +193,7 @@ test("owner health returns safe configured status without exposing secret values
   });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
@@ -211,6 +225,31 @@ test("owner health returns safe configured status without exposing secret values
   }
 });
 
+test("owner health requires the App Health package feature", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.BASIC);
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(bootstrap.permissions.appHealth.canView, false);
+
+    const denied = await requestJson(fixture.baseUrl, "/api/owner-health", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(denied.response.status, 403);
+    assert.match(denied.payload.error, /Owner Health Status/);
+    assert.match(denied.payload.error, /current Apex HQ package/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("owner health reports AI and website intake not configured when env vars are missing", async () => {
   const fixture = await startServer({
     OPENAI_API_KEY: "",
@@ -218,6 +257,7 @@ test("owner health reports AI and website intake not configured when env vars ar
   });
 
   try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.PREMIUM);
     const ownerLogin = await login(fixture.baseUrl, {
       email: "demo.ops@apexhq.app",
       password: "apexdemo123",
