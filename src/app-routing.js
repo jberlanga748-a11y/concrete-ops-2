@@ -1,6 +1,7 @@
 export const MODULE_PATHS = {
   dashboard: "/",
   commandCenter: "/command-center",
+  communications: "/communications",
   leads: "/leads",
   jobs: "/jobs",
   schedule: "/schedule",
@@ -36,6 +37,7 @@ const LEGACY_MODULE_PATHS = {
   "/prePour": "prePour",
   "/postPour": "postPour",
   "/toolChecklist": "toolChecklist",
+  "/communication-center": "communications",
 };
 
 export function normalizePathname(pathname = "/") {

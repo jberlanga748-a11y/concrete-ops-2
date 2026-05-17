@@ -5,6 +5,7 @@ import {
   contactFieldsFromEntity,
   contactHistoryTimeline,
   createContactHistoryDraft,
+  deriveCommunicationCenterState,
   deriveContactHistoryPanelState,
 } from "./contact-history-utils.js";
 
@@ -48,4 +49,33 @@ test("panel state and timeline include archived records only where requested", (
   assert.equal(panelState.records.length, 1);
   assert.equal(panelState.archivedRecords.length, 1);
   assert.equal(contactHistoryTimeline(records, "lead", "L-1").length, 2);
+});
+
+test("communication center state links manual records to office context", () => {
+  const state = deriveCommunicationCenterState({
+    leads: [{ id: "L-1", customer: "ABC Builders", project: "Warehouse slab", city: "Salem", status: "New" }],
+    customers: [{ id: "C-1", name: "ABC Builders", city: "Salem", status: "Active" }],
+    estimates: [{ id: "E-1", title: "Warehouse slab proposal", customerName: "ABC Builders", status: "Draft" }],
+    jobs: [{ id: "J-1", title: "Salem warehouse slab", customer: "ABC Builders", status: "Scheduled" }],
+    contactHistory: [
+      {
+        id: "CH-1",
+        entityType: "lead",
+        entityId: "L-1",
+        method: "Email",
+        outcome: "Waiting on Response",
+        subject: "Proposal follow-up",
+        messageDraft: "Following up on the warehouse slab.",
+        nextFollowUpDate: "2026-05-17",
+        contactedAt: "2026-05-16T12:00:00.000Z",
+      },
+    ],
+  }, { today: new Date("2026-05-17T12:00:00.000Z"), query: "warehouse" });
+
+  assert.equal(state.options.length, 4);
+  assert.equal(state.stats.dueToday, 1);
+  assert.equal(state.stats.waiting, 1);
+  assert.equal(state.stats.manualDrafts, 1);
+  assert.equal(state.filteredRecords.length, 1);
+  assert.equal(state.filteredRecords[0].entity.label, "ABC Builders");
 });

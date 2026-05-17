@@ -131,7 +131,7 @@ import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPa
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { deriveCommandCenterState } from "./command-center-utils";
-import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveContactHistoryPanelState } from "./contact-history-utils";
+import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveCommunicationCenterState, deriveContactHistoryPanelState } from "./contact-history-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
 import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
@@ -247,6 +247,7 @@ const NAV_GROUPS = [
     label: "Office",
     items: [
       { id: "commandCenter", label: "Command Center", icon: "grid" },
+      { id: "communications", label: "Communications", icon: "quote" },
       { id: "leads", label: "Leads", icon: "inbox" },
       { id: "customers", label: "Customers", icon: "users" },
       { id: "estimates", label: "Estimates", icon: "quote" },
@@ -17228,6 +17229,267 @@ function LeadCommandRail({
   );
 }
 
+function CommunicationCenterPage({
+  leads = [],
+  customers = [],
+  estimates = [],
+  jobs = [],
+  leadSources = [],
+  contactHistory = [],
+  permissions,
+  companyName,
+  user,
+  busy = false,
+  onCreateContactHistory = async () => false,
+  onUpdateContactHistory = async () => false,
+  onArchiveContactHistory = async () => false,
+  onRestoreContactHistory = async () => false,
+  onSelectLead = () => {},
+  onSelectCustomer = () => {},
+  onSelectJob = () => {},
+  onOpenEstimate = () => {},
+}) {
+  const canView = Boolean(permissions?.contactHistory?.canView);
+  const canManage = Boolean(permissions?.contactHistory?.canManage);
+  const [entityTypeFilter, setEntityTypeFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [selectedKey, setSelectedKey] = useState("");
+  const [draft, setDraft] = useState(() => createContactHistoryDraft({}, "lead", "Call"));
+  const [message, setMessage] = useState("");
+  const centerState = useMemo(() => deriveCommunicationCenterState({
+    leads,
+    customers,
+    estimates,
+    jobs,
+    contactHistory,
+  }, { entityType: entityTypeFilter, query }), [contactHistory, customers, entityTypeFilter, estimates, jobs, leads, query]);
+  const optionKeys = useMemo(() => centerState.options.map((option) => option.key).join("|"), [centerState.options]);
+  const selectedOption = useMemo(() => centerState.options.find((option) => option.key === selectedKey) || centerState.options[0] || null, [centerState.options, selectedKey]);
+
+  useEffect(() => {
+    if (!centerState.options.length) {
+      setSelectedKey("");
+      return;
+    }
+    if (!selectedKey || !centerState.options.some((option) => option.key === selectedKey)) {
+      setSelectedKey(centerState.options[0].key);
+    }
+  }, [centerState.options, optionKeys, selectedKey]);
+
+  useEffect(() => {
+    if (!selectedOption) {
+      setDraft(createContactHistoryDraft({}, "lead", "Call"));
+      return;
+    }
+    setDraft(createContactHistoryDraft(selectedOption.record, selectedOption.type, "Call"));
+    setMessage("");
+  }, [selectedOption?.key]);
+
+  if (!canView) {
+    return <AccessRestrictedPage active="communications" user={user} permissions={permissions} setActive={() => {}} />;
+  }
+
+  const stats = [
+    { label: "Logged", value: centerState.stats.total, tone: "blue", helper: "Manual records" },
+    { label: "Due Today", value: centerState.stats.dueToday, tone: centerState.stats.dueToday ? "amber" : "green", helper: "Follow-ups" },
+    { label: "Overdue", value: centerState.stats.overdue, tone: centerState.stats.overdue ? "red" : "green", helper: "Needs action" },
+    { label: "Waiting", value: centerState.stats.waiting, tone: centerState.stats.waiting ? "amber" : "slate", helper: "Customer replies" },
+  ];
+
+  function openRecord(record) {
+    const type = record?.entityType || record?.type;
+    const id = record?.entityId || record?.id;
+    if (!id) return;
+    if (type === "lead") onSelectLead(id);
+    else if (type === "customer") onSelectCustomer(id);
+    else if (type === "job") onSelectJob(id);
+    else if (type === "estimate") onOpenEstimate(id);
+  }
+
+  function setQuickMethod(method) {
+    setDraft((current) => ({
+      ...current,
+      method,
+      outcome: method === "Email" || method === "Text" ? "Sent" : "Follow-Up Needed",
+    }));
+  }
+
+  async function submitCommunication(event) {
+    event.preventDefault();
+    if (!canManage || !selectedOption) return;
+    const didSave = await onCreateContactHistory({
+      ...draft,
+      entityType: selectedOption.type,
+      entityId: selectedOption.id,
+    });
+    if (didSave) {
+      setMessage(`Communication logged for ${selectedOption.label}. No email or text was sent.`);
+      setDraft(createContactHistoryDraft(selectedOption.record, selectedOption.type, draft.method || "Call"));
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Office"
+        title="Communication Center"
+        description="Manual-first customer, lead, estimate, and job communication context. Nothing is emailed, texted, or called automatically."
+        actions={<Badge tone="blue">Manual Log</Badge>}
+      />
+
+      <div className="grid min-w-0 gap-4 px-5 pb-6 sm:px-6 lg:px-8">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <Card key={stat.label} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
+                  <p className="mt-2 text-3xl font-black text-slate-950">{stat.value}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{stat.helper}</p>
+                </div>
+                <Badge tone={stat.tone}>{stat.label}</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid min-w-0 gap-4">
+            <Card className="p-5">
+              <SectionHeader
+                title="Log communication"
+                description="Save calls, copied email/text drafts, meeting notes, and next follow-up dates against the right record."
+                action={<Badge tone={canManage ? "green" : "slate"}>{canManage ? "Can edit" : "Read only"}</Badge>}
+              />
+              {!centerState.options.length ? (
+                <StateCard title="No records available" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" />
+              ) : (
+                <form className="mt-4 grid gap-3" onSubmit={submitCommunication}>
+                  <SelectField label="Link communication to" value={selectedOption?.key || ""} onChange={(event) => setSelectedKey(event.target.value)} disabled={busy || !canManage}>
+                    {centerState.options.map((option) => (
+                      <option key={option.key} value={option.key}>{option.label} - {option.type}</option>
+                    ))}
+                  </SelectField>
+                  {selectedOption ? (
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-700">
+                      <strong className="text-slate-950">{selectedOption.label}</strong>
+                      {selectedOption.subtitle ? <span className="block text-xs font-bold text-slate-500">{selectedOption.subtitle}</span> : null}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {["Call", "Email", "Text", "In Person", "Other"].map((method) => (
+                      <Button key={method} type="button" size="sm" variant={draft.method === method ? "primary" : "secondary"} onClick={() => setQuickMethod(method)} disabled={busy || !canManage}>
+                        {method}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <InputField label="Contact name" value={draft.contactName} onChange={(event) => setDraft((current) => ({ ...current, contactName: event.target.value }))} disabled={busy || !canManage} />
+                    <InputField label="Email" value={draft.contactEmail} onChange={(event) => setDraft((current) => ({ ...current, contactEmail: event.target.value }))} disabled={busy || !canManage} />
+                    <InputField label="Phone" value={draft.contactPhone} onChange={(event) => setDraft((current) => ({ ...current, contactPhone: event.target.value }))} disabled={busy || !canManage} />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <SelectField label="Method" value={draft.method} onChange={(event) => setDraft((current) => ({ ...current, method: event.target.value }))} disabled={busy || !canManage}>
+                      {CONTACT_HISTORY_METHODS.map((method) => <option key={method}>{method}</option>)}
+                    </SelectField>
+                    <SelectField label="Direction" value={draft.direction} onChange={(event) => setDraft((current) => ({ ...current, direction: event.target.value }))} disabled={busy || !canManage}>
+                      {CONTACT_HISTORY_DIRECTIONS.map((direction) => <option key={direction} value={direction}>{direction === "outbound" ? "Outbound" : "Inbound"}</option>)}
+                    </SelectField>
+                    <SelectField label="Outcome" value={draft.outcome} onChange={(event) => setDraft((current) => ({ ...current, outcome: event.target.value }))} disabled={busy || !canManage}>
+                      {CONTACT_HISTORY_OUTCOMES.map((outcome) => <option key={outcome}>{outcome}</option>)}
+                    </SelectField>
+                    <InputField label="Next follow-up" type="date" value={draft.nextFollowUpDate} onChange={(event) => setDraft((current) => ({ ...current, nextFollowUpDate: event.target.value }))} disabled={busy || !canManage} />
+                  </div>
+                  <InputField label="Subject / short title" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} disabled={busy || !canManage} placeholder="Estimate follow-up, site visit, approval call" />
+                  <TextAreaField label="Draft message / script" value={draft.messageDraft} onChange={(event) => setDraft((current) => ({ ...current, messageDraft: event.target.value }))} disabled={busy || !canManage} placeholder="Manual email/SMS/call script. Stored only; Apex HQ does not send it." />
+                  <TextAreaField label="Outcome notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={busy || !canManage} placeholder="What happened, what the customer said, and what needs to happen next." />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button type="submit" disabled={busy || !canManage || !selectedOption}>Save communication</Button>
+                    <p className="text-sm font-bold text-slate-500">{message || "Manual-only: no email, text, or phone call is sent."}</p>
+                  </div>
+                </form>
+              )}
+            </Card>
+
+            <Card className="overflow-hidden">
+              <div className="border-b border-slate-200 p-4">
+                <SectionHeader title="Communication log" description="Search recent manual notes, drafts, follow-ups, and customer responses across office records." />
+                <div className="mt-3 grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+                  <SelectField label="Type" value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
+                    <option value="all">All records</option>
+                    <option value="lead">Leads</option>
+                    <option value="customer">Customers</option>
+                    <option value="estimate">Estimates</option>
+                    <option value="job">Jobs</option>
+                  </SelectField>
+                  <InputField label="Search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Customer, project, subject, outcome, or notes" />
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {centerState.filteredRecords.slice(0, 18).map((record) => (
+                  <div key={record.id} className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone={contactHistoryBadgeTone(record.method, "method")}>{record.method}</Badge>
+                        <Badge tone={contactHistoryBadgeTone(record.outcome)}>{record.outcome}</Badge>
+                        <Badge tone="slate">{record.entityType}</Badge>
+                        {record.nextFollowUpDate ? <Badge tone={record.nextFollowUpDate <= todayDateInputValue() ? "amber" : "blue"}>Next {record.nextFollowUpDate}</Badge> : null}
+                      </div>
+                      <p className="mt-2 break-words text-sm font-black text-slate-950">{record.subject || record.entity?.label || "Manual communication"}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{record.entity?.label || record.contactName || "Unlinked context"} {record.entity?.subtitle ? `- ${record.entity.subtitle}` : ""}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">{formatDateTime(record.contactedAt || record.createdAt)} by {record.createdByName || "Office"}</p>
+                      {record.messageDraft ? <p className="mt-3 line-clamp-3 whitespace-pre-wrap rounded-2xl bg-blue-50/60 p-3 text-sm leading-6 text-slate-700">{record.messageDraft}</p> : null}
+                      {record.notes ? <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{record.notes}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => openRecord(record)}>Open Context</Button>
+                      {canManage && record.outcome !== "Waiting on Response" ? <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateContactHistory(record.id, { outcome: "Waiting on Response" })} disabled={busy}>Mark waiting</Button> : null}
+                      {canManage ? <Button type="button" size="sm" variant="ghost" onClick={() => onArchiveContactHistory(record.id)} disabled={busy}>Archive</Button> : null}
+                    </div>
+                  </div>
+                ))}
+                {!centerState.filteredRecords.length ? (
+                  <div className="p-5"><StateCard title="No communication matches" description="Clear the filter or log the next manual customer touch." tone="slate" /></div>
+                ) : null}
+              </div>
+            </Card>
+          </div>
+
+          <aside className="grid min-w-0 gap-4 content-start">
+            <FollowUpQueuePanel
+              leads={leads}
+              customers={customers}
+              estimates={estimates}
+              leadSources={leadSources}
+              contactHistory={contactHistory}
+              permissions={permissions}
+              companyName={companyName}
+              user={user}
+              disabled={busy}
+              onOpenLead={onSelectLead}
+              onOpenCustomer={onSelectCustomer}
+              onOpenEstimate={onOpenEstimate}
+              onOpenLeads={() => onSelectLead(leads[0]?.id || "")}
+              onCreateContactHistory={onCreateContactHistory}
+              compact
+              maxItems={8}
+            />
+            <Card className="p-4">
+              <SectionHeader title="Manual communication rules" description="This phase is visibility and logging only." />
+              <div className="grid gap-2">
+                <div className="co-ai-boundary-row" data-state="manual"><span>Email/SMS</span><strong>Manual only</strong></div>
+                <div className="co-ai-boundary-row" data-state="safe"><span>Office data</span><strong>Role protected</strong></div>
+                <div className="co-ai-boundary-row" data-state="safe"><span>Company data</span><strong>Scoped server-side</strong></div>
+                <div className="co-ai-boundary-row" data-state="manual"><span>Automation</span><strong>Not included</strong></div>
+              </div>
+            </Card>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeadsPage({
   user,
   companyName,
@@ -32164,6 +32426,7 @@ function MainContent(props) {
   }
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "commandCenter") return <CommandCenterPage {...props} />;
+  if (active === "communications") return <CommunicationCenterPage {...props} />;
   if (active === "leads") {
     return (
       <LeadsPage

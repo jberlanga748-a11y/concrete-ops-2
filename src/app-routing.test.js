@@ -51,6 +51,19 @@ test("command center module route resolves directly", () => {
   });
 });
 
+test("communications module route resolves directly with legacy alias", () => {
+  assert.equal(getModulePath("communications"), "/communications");
+  assert.deepEqual(parseAppPath("/communications"), {
+    active: "communications",
+    leadId: "",
+    jobId: "",
+    customerId: "",
+    reportId: "",
+    importedDraftId: "",
+  });
+  assert.equal(parseAppPath("/communication-center").active, "communications");
+});
+
 test("report routes build and parse durable detail paths", () => {
   assert.equal(buildReportPath("R-1001"), "/reports/R-1001");
   assert.deepEqual(parseAppPath("/reports/R-1001"), {
