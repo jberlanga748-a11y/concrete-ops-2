@@ -9,10 +9,10 @@ This is the short agent handoff board. The full phase source of truth is `docs/A
 - Current repo: `jberlanga748-a11y/concrete-ops-2`
 - Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
 - Branch: `main`
-- Latest shipped app commit: `4cd51049ac2524df03d643437eb4b1c40623430e`
-- Latest shipped message: `Add Apex HQ watchtower missing work queue`
-- Latest Fly release: `v478`
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTTV1KNKJQQYHVY6KVB5XM9`
+- Latest shipped app commit: `f15262db5d1ba30aa3f173b8eadf224fe0c1e9e0`
+- Latest shipped message: `Add Apex HQ assistant shell`
+- Latest Fly release: `v479`
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTVVSC89JGH4NCWDNN670SJ`
 - Latest health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned ready with database ok.
 
 ## Current Product State
@@ -30,7 +30,9 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - Company isolation foundation and tests.
 - Demo-vs-real separation safeguards.
 - Basic/Premium/Elite package entitlement foundation.
+- Billing / Plans Readiness Prep.
 - Support/help page and package gate.
+- Customer Success / Guided Setup Phase 2.
 - Core field operations tightening phases.
 - Schedule/today work coordination.
 - Notifications/reminders foundation.
@@ -43,29 +45,32 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - Communication Center Phase 1.
 - App Health / Audit Activity Phase 1.
 - Watchtower / Missing Work Agent Phase 1.
+- Apex Assistant Shell Phase 1.
 
 ## Current Verified Checks
 
 - `npm.cmd run verify:signup`: passed 36/36.
 - `npm.cmd run verify:auth`: passed 24/24.
-- `npm.cmd run verify:packages`: passed 11/11.
-- `npm.cmd run verify:entitlements`: passed 32/32.
+- `npm.cmd run verify:packages`: passed 12/12.
+- `npm.cmd run verify:entitlements`: passed 33/33.
 - `npm.cmd run verify:roles`: passed 8/8.
+- Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed.
 - Latest Command Center release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
 - Watchtower / Missing Work Agent release checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v478` health-checked ready.
+- Apex Assistant Shell release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, browser owner desktop/mobile sanity QA, field role safety check, and `git diff --check` passed; release `v479` health-checked ready.
 
 ## Next Recommended Phase
 
-Apex Assistant Shell Phase 1.
+Public SaaS Signup UX Phase 2.
 
 Goal:
 
-- add a persistent in-app assistant shell with safe command prompts
-- reuse Watchtower recommendations as assistant context
-- route users to existing workflows without changing records automatically
-- keep human approval before send, schedule, pricing, job, crew, or customer actions
+- tighten the contractor-facing signup-to-first-login path
+- keep existing auth, company creation, and first-owner session behavior
+- improve guidance and copy only where the signup/onboarding flow is confusing
+- preserve demo separation, package safety, and field role protections
 
 Do not include:
 
@@ -74,20 +79,18 @@ Do not include:
 - customer portal
 - offline mode
 - AI autopilot
-- automatic email sending
-- automatic SMS/email sending
-- public customer messaging
-- AI autopilot or automatic task completion
+- new auth/signup architecture
+- field access to office/admin/pricing
 
 ## Next Phase After That
 
-Customer Success / Guided Setup Phase 2.
+Package Upgrade / Locked State Polish.
 
 Goal:
 
-- tighten the signup-to-setup path
-- guide the first owner into company profile, users, first estimate, and first job
-- keep onboarding package-aware and role-safe
+- make Basic / Premium / Elite locked states clearer where package gates already exist
+- keep upgrades manual until billing is built
+- preserve server-side feature enforcement
 
 ## Active Skills
 

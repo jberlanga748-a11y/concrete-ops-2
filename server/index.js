@@ -5198,6 +5198,20 @@ function sanitizeBootstrap(state, user) {
   const leadPermissions = leadPermissionsForUser(user);
   const userPermissions = userPermissionsForUser(user);
   const settings = companySettingsForState(state, user);
+  const canViewWorkspaceSettings = canViewSettings(user);
+  const bootstrapCompanySettings = canViewWorkspaceSettings
+    ? settings
+    : {
+      companyName: settings.companyName || "",
+      logoInitials: settings.logoInitials || "",
+      logoImageUrl: settings.logoImageUrl || "",
+      accentColor: settings.accentColor || "blue",
+      businessPhone: settings.businessPhone || "",
+      businessEmail: settings.businessEmail || "",
+      website: settings.website || "",
+      serviceArea: settings.serviceArea || "",
+      toolChecklistEnabled: settings.toolChecklistEnabled !== false,
+    };
   const companies = companiesForState(state);
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
@@ -5252,12 +5266,12 @@ function sanitizeBootstrap(state, user) {
     companies: accessibleCompanies,
     currentCompany: currentCompany ? {
       ...currentCompany,
-      packageId: currentCompanyPackage.id,
+      ...(canViewWorkspaceSettings ? { packageId: currentCompanyPackage.id } : {}),
     } : null,
     currentCompanyId,
     currentWorkspaceId: currentCompany?.workspaceId || currentCompanyId,
-    companyPackage: currentCompanyPackage,
-    companySettings: settings,
+    companyPackage: canViewWorkspaceSettings ? currentCompanyPackage : null,
+    companySettings: bootstrapCompanySettings,
     firstOwnerOnboarding,
     users,
     customers,

@@ -393,7 +393,14 @@ test("Elite package does not grant field users office-only premium tools", async
     const headers = authHeaders(loginResult.token);
     const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
 
-    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.ELITE);
+    assert.equal(bootstrap.companyPackage, null);
+    assert.equal(Object.prototype.hasOwnProperty.call(bootstrap.currentCompany, "packageId"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(bootstrap.companySettings, "packageId"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(bootstrap.companySettings, "managedSetupChecklist"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(bootstrap.companySettings, "managedSetupNotes"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(bootstrap.companySettings, "managedSetupStatus"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(bootstrap.companySettings, "printPacketFooter"), false);
+    assert.equal(bootstrap.companySettings.toolChecklistEnabled, true);
     assert.equal(bootstrap.permissions.estimates.canView, false);
     assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, false);
     assert.equal(bootstrap.permissions.estimates.canUseGcPackets, false);

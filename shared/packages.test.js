@@ -6,6 +6,7 @@ import {
   FEATURE_KEYS,
   PACKAGE_IDS,
   SECURITY_FEATURES,
+  packageReadinessSummary,
   featuresForPackage,
   normalizePackageId,
   packageIncludesFeature,
@@ -79,4 +80,23 @@ test("package summary returns immutable customer-facing plan metadata", () => {
   assert.match(summary.description, /Advanced operations/i);
   assert.equal(summary.features.includes(FEATURE_KEYS.COMPANY_ISOLATION), true);
   assert.equal(summary.features.includes(FEATURE_KEYS.GC_PACKETS), true);
+});
+
+test("package readiness summary supports manual billing prep without hiding security", () => {
+  const basicReadiness = packageReadinessSummary(PACKAGE_IDS.BASIC);
+
+  assert.equal(basicReadiness.currentPackage.id, PACKAGE_IDS.BASIC);
+  assert.equal(basicReadiness.nextPackage.id, PACKAGE_IDS.PREMIUM);
+  assert.equal(basicReadiness.billingMode, "manual");
+  assert.match(basicReadiness.billingDescription, /Stripe billing/i);
+  assert.equal(basicReadiness.securityFeatures.length, SECURITY_FEATURES.length);
+  assert.equal(basicReadiness.securityFeatures.every((feature) => feature.security), true);
+  assert.equal(basicReadiness.includedFeatures.some((feature) => feature.key === FEATURE_KEYS.COMPANY_ISOLATION), true);
+  assert.equal(basicReadiness.upgradeFeatures.some((feature) => feature.key === FEATURE_KEYS.GC_PACKETS), true);
+  assert.equal(basicReadiness.lockedFutureFeatures.some((feature) => feature.key === FEATURE_KEYS.LEAD_JOB_FINDER), true);
+
+  const eliteReadiness = packageReadinessSummary(PACKAGE_IDS.ELITE);
+  assert.equal(eliteReadiness.nextPackage, null);
+  assert.deepEqual(eliteReadiness.upgradeFeatures, []);
+  assert.deepEqual(eliteReadiness.lockedFutureFeatures, []);
 });

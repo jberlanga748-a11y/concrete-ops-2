@@ -162,6 +162,7 @@ import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
 import { deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
+import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
@@ -15075,6 +15076,9 @@ function DashboardPage(props) {
 function FirstOwnerOnboardingCard({ onboarding, onOpen, onOpenSupport }) {
   const steps = Array.isArray(onboarding?.steps) ? onboarding.steps : [];
   const nextStep = onboarding?.nextStep || steps.find((step) => !step.completed) || null;
+  const guidedPlan = onboarding?.guidedPlan || {};
+  const phases = Array.isArray(guidedPlan.phases) ? guidedPlan.phases : [];
+  const nextActions = Array.isArray(guidedPlan.nextActions) ? guidedPlan.nextActions : steps.filter((step) => !step.completed).slice(0, 3);
 
   return (
     <Card className="overflow-hidden border-orange-100 bg-white">
@@ -15095,6 +15099,43 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen, onOpenSupport }) {
               {nextStep.actionLabel || "Continue setup"}
             </Button>
           ) : null}
+        </div>
+      </div>
+      <div className="grid gap-3 border-b border-slate-100 bg-white p-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+          <Badge tone="blue">Guided path</Badge>
+          <h3 className="mt-2 break-words text-base font-black text-slate-950">{guidedPlan.headline || "Follow the setup path"}</h3>
+          <p className="mt-1 break-words text-sm font-bold leading-6 text-slate-600">{guidedPlan.description || "Move through profile, team, first work, and rollout readiness in order."}</p>
+          {nextActions.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {nextActions.map((step, index) => (
+                <Button key={step.key} type="button" size="sm" variant={index === 0 ? "primary" : "secondary"} onClick={() => onOpen?.(step)}>
+                  {index + 1}. {step.actionLabel || step.label}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">Setup is ready for managed use. Keep rollout readiness current before adding more users.</p>
+          )}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {phases.map((phase) => (
+            <button
+              key={phase.id}
+              type="button"
+              disabled={!phase.actionStep}
+              onClick={() => phase.actionStep ? onOpen?.(phase.actionStep) : null}
+              className={`rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 ${phase.completed ? "border-emerald-100 bg-emerald-50/80" : "border-slate-200 bg-slate-50 hover:border-orange-200 hover:bg-orange-50"} ${phase.actionStep ? "" : "cursor-default"}`}
+            >
+              <span className="flex items-start justify-between gap-2">
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-slate-950">{phase.label}</span>
+                  <span className="mt-1 block text-xs font-bold leading-4 text-slate-600">{phase.helper}</span>
+                </span>
+                <Badge tone={phase.completed ? "green" : "amber"}>{phase.completedCount}/{phase.totalCount}</Badge>
+              </span>
+            </button>
+          ))}
         </div>
       </div>
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-6">
@@ -15131,7 +15172,7 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen, onOpenSupport }) {
             variant="secondary"
             onClick={() => {
               if (typeof onOpenSupport === "function") {
-                onOpenSupport("Setup / onboarding");
+                onOpenSupport(guidedPlan.supportWorkflow || "Setup / onboarding");
                 return;
               }
               onOpen?.({ moduleId: "support" });
@@ -23141,6 +23182,68 @@ function ManagedCompanySetupPanel(props) {
   return <ManagedSetupPanelPolished {...props} />;
 }
 
+function PlanReadinessPanel({ packageReadiness }) {
+  const currentPackage = packageReadiness?.currentPackage || {};
+  const nextPackage = packageReadiness?.nextPackage || null;
+  const includedHighlights = (packageReadiness?.includedFeatures || []).filter((feature) => !feature.security).slice(0, 8);
+  const securityFeatures = (packageReadiness?.securityFeatures || []).slice(0, 6);
+  const upgradeHighlights = (packageReadiness?.upgradeFeatures || []).slice(0, 8);
+  const lockedHighlights = (packageReadiness?.lockedFutureFeatures || []).slice(0, 8);
+
+  function renderFeaturePills(features, tone = "slate") {
+    if (!features.length) {
+      return <p className="text-sm font-bold leading-6 text-slate-500">No additional gated features remain for this package.</p>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {features.map((feature) => (
+          <Badge key={feature.key} tone={tone}>{feature.label}</Badge>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="co-settings-console-card p-5">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="blue">{currentPackage.label || "Basic"}</Badge>
+            <Badge tone="amber">{packageReadiness?.billingStatus || "Manual billing only"}</Badge>
+          </div>
+          <h2 className="mt-3 break-words text-base font-black uppercase tracking-[0.04em] text-slate-950">Plan Readiness</h2>
+          <p className="mt-1 max-w-3xl break-words text-sm font-bold leading-6 text-slate-600">
+            {packageReadiness?.billingDescription || "Plan controls are read-only until billing and self-serve upgrades are intentionally built."}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+          {nextPackage ? `Next: ${nextPackage.label}` : "Top package"}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Included now" description={currentPackage.description || "Features included for the current workspace package."} />
+          {renderFeaturePills(includedHighlights, "green")}
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Security stays included" description="Auth, role protection, company isolation, demo safety, and health checks are never treated as premium-only features." />
+          {renderFeaturePills(securityFeatures, "blue")}
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title={nextPackage ? `${nextPackage.label} adds` : "Upgrade path"} description={nextPackage ? "These are the next package unlocks to explain before billing is built." : "This workspace already has every current package feature."} />
+          {renderFeaturePills(upgradeHighlights, "orange")}
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <SectionHeader title="Still gated" description="Locked features stay gated by both company package and user role permissions." />
+          {renderFeaturePills(lockedHighlights, "amber")}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function ManagedSetupPanelPolished({
   companySettings,
   users,
@@ -23958,6 +24061,10 @@ function SettingsCommandRailPolished({
               <span>Users / roles</span>
               <Icon name="users" />
             </button>
+            <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-plan-readiness")}>
+              <span>Plan readiness</span>
+              <Icon name="dollar" />
+            </button>
             <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-admin-controls")}>
               <span>Field modules / packet text</span>
               <Icon name="document" />
@@ -24042,6 +24149,10 @@ function SettingsCommandRailPolished({
           <button type="button" className="co-settings-action-row" onClick={() => onNavigate?.("employees")}>
             <span>Users / roles</span>
             <Icon name="users" />
+          </button>
+          <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-plan-readiness")}>
+            <span>Plan readiness</span>
+            <Icon name="dollar" />
           </button>
           <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-admin-controls")}>
             <span>Field modules / packet text</span>
@@ -24221,9 +24332,11 @@ function SettingsPagePolished({
     leadSources,
     jobs,
   }), [jobs, leadSources, safeCompanySettings, users]);
+  const packageReadiness = useMemo(() => packageReadinessSummary(safeCompanySettings.packageId), [safeCompanySettings.packageId]);
   const settingsKpis = [
     { label: "Readiness", value: settingsSetupState.percentComplete, helper: `${settingsSetupState.status} status`, icon: "settings", tone: setupStatusTone(settingsSetupState.status), actionLabel: "Review setup", onAction: () => jumpToSettingsSection("settings-managed-setup") },
     { label: "Checklist", value: settingsSetupState.completedCount, helper: `of ${settingsSetupState.totalCount} setup items`, icon: "clipboard", tone: "blue", actionLabel: "Open checklist", onAction: () => jumpToSettingsSection("settings-managed-setup") },
+    { label: "Package", value: packageReadiness.currentRank + 1, displayValue: packageReadiness.currentPackage.label, helper: packageReadiness.billingStatus, icon: "dollar", tone: "orange", actionLabel: "Review plan", onAction: () => jumpToSettingsSection("settings-plan-readiness") },
     { label: "Critical Missing", value: settingsSetupState.blockerCount, helper: "Must clear for rollout", icon: "alert", tone: settingsSetupState.blockerCount ? "amber" : "green", actionLabel: "View blockers", onAction: () => jumpToSettingsSection("settings-managed-setup") },
     { label: "Users", value: normalizeObjectArray(users).length, helper: "Workspace accounts", icon: "users", tone: "slate", actionLabel: "Open users", onAction: () => setActive?.("employees") },
     { label: "Field Tools", value: safeCompanySettings.toolChecklistEnabled !== false ? 1 : 0, helper: safeCompanySettings.toolChecklistEnabled !== false ? "Tool checklist enabled" : "Tool checklist disabled", icon: "briefcase", tone: safeCompanySettings.toolChecklistEnabled !== false ? "green" : "slate", actionLabel: "Manage module", onAction: () => jumpToSettingsSection("settings-admin-controls") },
@@ -24345,7 +24458,7 @@ function SettingsPagePolished({
         )}
       />
 
-      <div className="co-settings-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+      <div className="co-settings-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-3 xl:grid-cols-6 lg:px-6">
         {settingsKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
@@ -24362,6 +24475,19 @@ function SettingsPagePolished({
               onNavigate={setActive}
             />
           </section>
+
+          <details id="settings-plan-readiness" className="co-settings-tools-drawer">
+            <summary>
+              <span>
+                <strong>Plan / Package Readiness</strong>
+                <em>Review the current package, gated surfaces, and manual billing state before Stripe or self-serve upgrades are built.</em>
+              </span>
+              <span>{packageReadiness.currentPackage.label} / Manual</span>
+            </summary>
+            <div className="co-settings-tools-panel grid gap-3">
+              <PlanReadinessPanel packageReadiness={packageReadiness} />
+            </div>
+          </details>
 
           <details id="settings-company-profile" className="co-settings-tools-drawer">
             <summary>

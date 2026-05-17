@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `4cd51049ac2524df03d643437eb4b1c40623430e`
-- Message: `Add Apex HQ watchtower missing work queue`
-- Fly release: `v478`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTTV1KNKJQQYHVY6KVB5XM9`
+- Commit: `f15262db5d1ba30aa3f173b8eadf224fe0c1e9e0`
+- Message: `Add Apex HQ assistant shell`
+- Fly release: `v479`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTVVSC89JGH4NCWDNN670SJ`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -45,6 +45,7 @@ Recent shipped phase stack:
 | `931938b` | `v476` | Communication Center Phase 1 |
 | `e77e9ca` | `v477` | App Health / Audit Activity Phase 1 |
 | `4cd5104` | `v478` | Watchtower / Missing Work Agent Phase 1 |
+| `f15262d` | `v479` | Apex Assistant Shell Phase 1 |
 
 ## Done / Do Not Rebuild
 
@@ -61,7 +62,9 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Demo vs real separation | Built and tested | Demo reset protections exist. Preserve. |
 | Role permissions | Built and tested | Field users remain blocked from office/admin/pricing. Never loosen. |
 | Package entitlement foundation | Done and released | Basic/Premium/Elite feature map, backend checks, frontend nav gates started. |
+| Billing / Plans Readiness Prep | Built / pending release | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
+| Customer Success / Guided Setup Phase 2 | Built / pending release | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
 | Leads | Done/frozen | Do not redesign; only planned improvements or bugs. |
@@ -80,6 +83,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
 | Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
+| Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -89,14 +93,16 @@ Recent focused verification:
 
 - `npm.cmd run verify:signup`: passed 36/36.
 - `npm.cmd run verify:auth`: passed 24/24.
-- `npm.cmd run verify:packages`: passed 11/11.
-- `npm.cmd run verify:entitlements`: passed 32/32.
+- `npm.cmd run verify:packages`: passed 12/12.
+- `npm.cmd run verify:entitlements`: passed 33/33.
 - `npm.cmd run verify:roles`: passed 8/8.
+- Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed.
 - `npm.cmd run build`: passed before latest release.
 - Latest Command Center checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner/admin mobile/desktop QA, and field role safety QA passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
 - Watchtower / Missing Work Agent release checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v478` health-checked ready.
+- Apex Assistant Shell release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, browser owner desktop/mobile sanity QA, field role safety check, and `git diff --check` passed; release `v479` health-checked ready.
 
 ## Current Loop Prevention Rules
 
@@ -116,6 +122,9 @@ Do not start these phases again as if they are missing:
 - Communication Center Phase 1.
 - App Health / Audit Activity Phase 1.
 - Watchtower / Missing Work Agent Phase 1.
+- Apex Assistant Shell Phase 1.
+- Customer Success / Guided Setup Phase 2.
+- Billing / Plans Readiness Prep.
 
 If one of those areas comes up, first ask:
 
@@ -126,37 +135,35 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Apex Assistant Shell Phase 1
+### Public SaaS Signup UX Phase 2
 
 Why this is next:
 
-- Watchtower now gives Apex HQ a safe read-only source of operational recommendations.
-- Contractors need one persistent assistant surface that can explain what needs attention and route them to existing workflows.
-- This should be a shell and command/review surface only, not a full AI autopilot.
+- Apex HQ can now sign up a company, create the first owner, guide setup, and show plan readiness.
+- The next public-SaaS risk is first-login confusion, not missing auth infrastructure.
+- Signup UX should feel intentional without rebuilding the tested auth/session/company creation foundation.
 
 Scope:
 
-- Persistent assistant entry point for owner/admin workspaces where permitted.
-- Reuse Watchtower recommendations as assistant context.
-- Provide safe quick prompts/actions that route to existing modules.
-- Clearly label review-only/manual-first behavior.
-- No automatic customer contact, schedule changes, job updates, sending, pricing changes, or field data exposure.
+- Tighten copy and flow around public signup, first login, and first setup handoff.
+- Preserve existing `/api/signup/company`, first-owner session, default company settings, and support handoff.
+- Keep demo and real workspaces visually and operationally separated.
+- Add focused signup/onboarding tests only where behavior changes.
 
 Do not include:
 
 - Billing.
-- Automatic email sending.
-- Automatic SMS sending.
 - Customer portal.
 - AI autopilot or automatic task completion.
-- Full visual redesign.
-- Broad notification rebuild.
-- Pricing/margin exposure to field users.
+- New auth/signup architecture.
+- Package/billing enforcement changes.
+- Field access to office/admin/pricing.
 
 Suggested verification:
 
 - `npm.cmd run build`
-- `npm.cmd run verify:jobs`
+- `npm.cmd run verify:signup`
+- `npm.cmd run verify:users`
 - `npm.cmd run verify:roles`
 - `git diff --check`
 
@@ -164,16 +171,16 @@ Suggested verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Apex Assistant Shell Phase 1 | Persistent in-app assistant shell with safe commands and review-only mode. | High | Yes. |
-| 2 | Customer Success / Guided Setup Phase 2 | Turn first owner onboarding into a clearer guided setup checklist. | Medium | Maybe. |
-| 3 | Billing / Plans Readiness Prep | Prepare plan limits/admin controls before Stripe. | High | Yes before any billing. |
-| 4 | Public SaaS Signup UX Phase 2 | Tighten signup-to-setup path for real contractors without changing auth foundation. | Medium | Yes for onboarding expectations. |
-| 5 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
-| 6 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
-| 7 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
-| 8 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
-| 9 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
-| 10 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
+| 1 | Public SaaS Signup UX Phase 2 | Tighten signup-to-setup path for real contractors without changing auth foundation. | Medium | Yes for onboarding expectations. |
+| 2 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
+| 3 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
+| 4 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
+| 5 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
+| 6 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
+| 7 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
+| 8 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
+| 9 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
+| 10 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
 
 ## Later / Do Not Build Yet
 
@@ -241,46 +248,43 @@ Use this when ready to build the next phase:
 ```text
 You are entering:
 
-APEX HQ - APEX ASSISTANT SHELL PHASE 1
+APEX HQ - CUSTOMER SUCCESS / GUIDED SETUP PHASE 2
 
 Use skills:
 - apex-build-router
 - apex-product-system
-- apex-saas-hardening
 - apex-qa-engineer
 
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT redesign the app.
-Do NOT rebuild customers, leads, estimates, jobs, notifications, Watchtower, or field workflows.
+Do NOT rebuild auth, signup, settings, support, estimates, jobs, users, packages, or field workflows.
 Do NOT refactor architecture.
 Do NOT start billing, customer portal, offline mode, payroll, or AI autopilot.
-Do NOT add automatic email or SMS sending.
 Do NOT commit, push, or deploy.
 
 Goal:
-Create a persistent Apex Assistant shell that helps owners/admins understand what needs attention and route into existing workflows, using Watchtower as read-only context.
+Tighten the first-owner guided setup path so a new contractor owner understands exactly how to move from signup to usable workspace.
 
 Focus only on:
-- assistant entry point/shell
-- safe prompt suggestions
-- Watchtower context summary
-- route-to-existing-module actions
-- review-only/manual-first language
+- first-owner onboarding state
+- guided setup next actions
+- Dashboard onboarding card clarity
+- Settings managed setup continuity
+- Support handoff context
 - role-safe visibility
-- no automatic writes or sends
 
 Preserve:
 - existing customers/leads/estimates/jobs workflows
 - existing permissions and package gates
-- existing notifications/reminders
 - existing field restrictions
-- existing Watchtower derivation
+- existing signup/session/company scope
+- existing managed setup settings
 
 Verify:
 - build
-- verify:jobs
+- verify:users
 - verify:roles
 - git diff --check
 

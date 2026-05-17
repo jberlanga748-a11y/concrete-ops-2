@@ -58,11 +58,11 @@ Rules:
 
 Current product queue:
 
-1. Apex Assistant Shell Phase 1 - persistent assistant shell with review-only actions.
-2. Customer Success / Guided Setup Phase 2 - clearer signup-to-first-workflow path.
-3. Billing / Plans Readiness Prep - plan limits/admin controls before Stripe.
-4. Public SaaS Signup UX Phase 2 - onboarding polish without rebuilding auth.
-5. Package Upgrade / Locked State Polish - clear upgrade/locked states before billing.
+1. Public SaaS Signup UX Phase 2 - onboarding polish without rebuilding auth.
+2. Package Upgrade / Locked State Polish - clear upgrade/locked states before billing.
+3. Advanced Reporting Prep - define reporting surfaces before job-costing/payroll integrations.
+4. Enterprise Trust Prep - audit/export/admin trust surfaces without overbuilding compliance.
+5. Assistant Command Expansion Phase 2 - reviewed command flows after shell usage is proven.
 
 ## Track C - Safety, QA, Release Hardening
 

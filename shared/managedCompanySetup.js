@@ -337,6 +337,63 @@ function activeRecords(records = []) {
   return (Array.isArray(records) ? records : []).filter((record) => !record?.archivedAt);
 }
 
+function buildGuidedSetupPlan(steps = [], setupState = {}) {
+  const stepByKey = new Map(steps.map((step) => [step.key, step]));
+  const phaseDefinitions = [
+    {
+      id: "workspace",
+      label: "Workspace",
+      helper: "Profile and services",
+      stepKeys: ["company_profile", "service_setup"],
+    },
+    {
+      id: "team",
+      label: "Team",
+      helper: "Users and roles",
+      stepKeys: ["users"],
+    },
+    {
+      id: "first_work",
+      label: "First work",
+      helper: "Estimate and job",
+      stepKeys: ["first_estimate", "first_job"],
+    },
+    {
+      id: "rollout",
+      label: "Rollout",
+      helper: "Readiness review",
+      stepKeys: ["managed_setup"],
+    },
+  ];
+  const phases = phaseDefinitions.map((phase) => {
+    const phaseSteps = phase.stepKeys.map((key) => stepByKey.get(key)).filter(Boolean);
+    const firstOpenStep = phaseSteps.find((step) => !step.completed) || null;
+    return {
+      ...phase,
+      completed: phaseSteps.length > 0 && phaseSteps.every((step) => step.completed),
+      completedCount: phaseSteps.filter((step) => step.completed).length,
+      totalCount: phaseSteps.length,
+      actionStep: firstOpenStep,
+    };
+  });
+  const nextActions = steps.filter((step) => !step.completed).slice(0, 3);
+  const primaryAction = nextActions[0] || null;
+  const blockedBy = setupState.blockers?.[0] || null;
+
+  return {
+    headline: primaryAction ? `Next: ${primaryAction.label}` : "Setup is ready for managed use",
+    description: blockedBy
+      ? `Start by clearing ${blockedBy.label.toLowerCase()} so the workspace is ready for real operations.`
+      : primaryAction
+        ? "Follow this guided path from profile to first estimate, first job, and rollout readiness."
+        : "The owner setup path is complete. Keep the managed setup checklist current before broader rollout.",
+    phases,
+    nextActions,
+    primaryAction,
+    supportWorkflow: "Setup / onboarding",
+  };
+}
+
 export function deriveFirstOwnerOnboardingState({
   companySettings = {},
   users = [],
@@ -418,10 +475,12 @@ export function deriveFirstOwnerOnboardingState({
   const nextStep = steps.find((step) => !step.completed) || steps[steps.length - 1];
   const coreSteps = steps.filter((step) => step.key !== "managed_setup");
   const coreComplete = coreSteps.every((step) => step.completed);
+  const guidedPlan = buildGuidedSetupPlan(steps, setupState);
 
   return {
     steps,
     setupState,
+    guidedPlan,
     completedCount,
     totalCount: steps.length,
     percentComplete: steps.length ? Math.round((completedCount / steps.length) * 100) : 0,
