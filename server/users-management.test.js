@@ -606,6 +606,10 @@ test("user password updates revoke existing sessions and require the new passwor
         password: "oldfield123",
         name: "Employee Password Update",
         role: "Employee",
+        inviteTokenHash: "stale-invite-token-hash",
+        inviteExpiresAt: "2099-01-01T00:00:00.000Z",
+        resetTokenHash: "stale-reset-token-hash",
+        resetExpiresAt: "2099-01-01T00:00:00.000Z",
       }),
     ]);
 
@@ -627,6 +631,25 @@ test("user password updates revoke existing sessions and require the new passwor
       }),
     });
     assert.equal(updated.users.find((user) => user.id === "U-EMPLOYEE-PASSWORD-UPDATE")?.mustSetPassword, false);
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const row = database.prepare(`
+        SELECT
+          invite_token_hash AS inviteTokenHash,
+          invite_expires_at AS inviteExpiresAt,
+          reset_token_hash AS resetTokenHash,
+          reset_expires_at AS resetExpiresAt
+        FROM users
+        WHERE id = ?
+      `).get("U-EMPLOYEE-PASSWORD-UPDATE");
+      assert.equal(row.inviteTokenHash || "", "");
+      assert.equal(row.inviteExpiresAt || "", "");
+      assert.equal(row.resetTokenHash || "", "");
+      assert.equal(row.resetExpiresAt || "", "");
+    } finally {
+      database.close();
+    }
 
     const oldTokenBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
       headers: authHeaders(employeeLogin.token),

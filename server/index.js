@@ -10232,9 +10232,11 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
       });
       targetUser.passwordHash = replacement.passwordHash;
       targetUser.inviteTokenHash = "";
+      targetUser.inviteExpiresAt = "";
       targetUser.inviteAcceptedAt = targetUser.inviteAcceptedAt || changedAt;
       targetUser.mustSetPassword = false;
       targetUser.resetTokenHash = "";
+      targetUser.resetExpiresAt = "";
       targetUser.resetUsedAt = targetUser.resetUsedAt || changedAt;
       draft.sessions = (draft.sessions || []).filter((session) => session.userId !== targetUser.id);
       changedFields.push("sessions");
