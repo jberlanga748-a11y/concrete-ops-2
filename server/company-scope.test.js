@@ -897,6 +897,11 @@ test("proof, time, contact history, and queue records remain company-isolated", 
     const scopedContact = await assertOk(fixture.baseUrl, "/api/contact-history", { headers });
     assert.equal(scopedContact.contactHistory.some((record) => record.id === contact.id), false);
 
+    const crossCompanyUploadContent = await fetch(`${fixture.baseUrl}/api/uploads/${upload.id}/content`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(crossCompanyUploadContent.status, 404);
+
     await assertStatus(fixture.baseUrl, `/api/daily-reports/${report.id}`, token, 404, {
       method: "PATCH",
       body: { workPerformed: "Cross-company report edit" },

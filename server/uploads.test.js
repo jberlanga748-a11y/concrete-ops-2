@@ -332,6 +332,20 @@ test("uploads respect job-scoped field permissions, GPS-optional metadata, and p
     assert.equal(employeeUploads.uploads.some((upload) => upload.jobId === "J-2192"), false);
     assert.equal(employeeUploads.uploads.every((upload) => upload.jobId === "J-2201"), true);
 
+    const deniedForemanContent = await fetch(`${fixture.baseUrl}${officeUpload.contentUrl}`, {
+      headers: {
+        Authorization: `Bearer ${foremanLogin.token}`,
+      },
+    });
+    assert.equal(deniedForemanContent.status, 403);
+
+    const deniedEmployeeContent = await fetch(`${fixture.baseUrl}${officeUpload.contentUrl}`, {
+      headers: {
+        Authorization: `Bearer ${employeeLogin.token}`,
+      },
+    });
+    assert.equal(deniedEmployeeContent.status, 403);
+
     const contentResponse = await fetch(`${fixture.baseUrl}${foremanUpload.contentUrl}`, {
       headers: {
         Authorization: `Bearer ${foremanLogin.token}`,
