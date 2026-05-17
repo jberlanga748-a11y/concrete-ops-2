@@ -511,6 +511,72 @@ test("role changes take effect for existing sessions on the next request", async
   }
 });
 
+test("user management ignores operator and company-scope escalation fields", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-SCOPE-ESCALATION",
+        email: "owner-scope-escalation@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Scope Escalation",
+        role: "Owner",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-scope-escalation@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const created = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Escalation Attempt",
+        email: "scope-escalation-attempt@lastyard.test",
+        role: "Administrator",
+        password: "apexdemo123",
+        operatorAccess: true,
+        companyId: "COMPANY-ATTACKER",
+        currentCompanyId: "COMPANY-ATTACKER",
+      }),
+    });
+    const createdUser = created.users.find((user) => user.email === "scope-escalation-attempt@lastyard.test");
+    assert.ok(createdUser);
+    assert.equal(createdUser.operatorAccess, false);
+    assert.notEqual(createdUser.companyId, "COMPANY-ATTACKER");
+
+    const patched = await assertOk(fixture.baseUrl, `/api/users/${createdUser.id}`, {
+      method: "PATCH",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        phone: "503-555-0199",
+        operatorAccess: true,
+        companyId: "COMPANY-ATTACKER",
+        currentCompanyId: "COMPANY-ATTACKER",
+      }),
+    });
+    const patchedUser = patched.users.find((user) => user.id === createdUser.id);
+    assert.equal(patchedUser.operatorAccess, false);
+    assert.equal(patchedUser.companyId, createdUser.companyId);
+
+    const attemptedUserLogin = await login(fixture.baseUrl, {
+      email: "scope-escalation-attempt@lastyard.test",
+      password: "apexdemo123",
+    });
+    const switchAttempt = await requestJson(fixture.baseUrl, "/api/companies/select", {
+      method: "POST",
+      headers: authHeaders(attemptedUserLogin.token),
+      body: JSON.stringify({ companyId: "COMPANY-ATTACKER" }),
+    });
+    assert.equal(switchAttempt.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("only active owners can assign or manage owner access", async () => {
   const fixture = await startServer();
 
