@@ -153,7 +153,7 @@ import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
 import { deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
-import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, resolveDashboardShortcut } from "./navigation-utils";
+import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
@@ -31427,21 +31427,26 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   );
 }
 
-function AccessRestrictedPage({ user, companySettings, setActive }) {
+function AccessRestrictedPage({ active, user, companySettings, permissions, setActive }) {
   const defaultModuleId = getDefaultModuleId(user);
   const canOpenDefault = canAccessModule(defaultModuleId, user, companySettings);
+  const packageLock = getWorkspaceModuleLock(active, user, companySettings, permissions);
+  const isPackageLocked = Boolean(packageLock);
 
   return (
     <div className="co-access-restricted-page">
       <PageHeader
-        eyebrow="Role Protected"
-        title="Workspace unavailable"
-        description="This route is protected for your role. Apex HQ keeps office, admin, AI, and company setup data out of field workspaces."
-        actions={<Badge tone="slate">Access protected</Badge>}
+        eyebrow={packageLock?.eyebrow || "Role Protected"}
+        title={packageLock?.title || "Workspace unavailable"}
+        description={packageLock?.description || "This route is protected for your role. Apex HQ keeps office, admin, AI, and company setup data out of field workspaces."}
+        actions={<Badge tone={isPackageLocked ? "amber" : "slate"}>{packageLock?.badge || "Access protected"}</Badge>}
       />
       <div className="mx-auto grid w-full max-w-[960px] gap-4 px-5 sm:px-6 lg:px-8">
         <Card className="p-5">
-          <SectionHeader title="Open your allowed workspace" description="Use the workspace assigned to your role to continue without exposing restricted records." />
+          <SectionHeader
+            title={packageLock?.actionTitle || "Open your allowed workspace"}
+            description={packageLock?.actionDescription || "Use the workspace assigned to your role to continue without exposing restricted records."}
+          />
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" onClick={() => canOpenDefault && setActive?.(defaultModuleId)} disabled={!canOpenDefault}>
               Open workspace
@@ -31456,7 +31461,7 @@ function AccessRestrictedPage({ user, companySettings, setActive }) {
 function MainContent(props) {
   const { active } = props;
   if (!canAccessWorkspaceModule(active, props.user, props.companySettings, props.permissions)) {
-    return <AccessRestrictedPage user={props.user} companySettings={props.companySettings} setActive={props.setActive} />;
+    return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} />;
   }
   if (active === "dashboard") return <DashboardPage {...props} />;
   if (active === "commandCenter") return <CommandCenterPage {...props} />;

@@ -25,6 +25,39 @@ export function canAccessWorkspaceModule(moduleId, user, companySettings = DEFAU
   return canAccessModule(moduleId, user, companySettings) && packageAllowsModule(moduleId, permissions);
 }
 
+const PACKAGE_LOCKED_MODULES = {
+  jobDraftImports: {
+    eyebrow: "Package Protected",
+    title: "Imported Drafts are not included",
+    description: "Imported job draft review is available in Premium and Elite packages. Your current workspace can keep using core jobs, crews, reports, uploads, and schedules.",
+    badge: "Premium",
+    actionTitle: "Keep working in core operations",
+    actionDescription: "Open your default workspace and continue with the tools included for this company.",
+  },
+  copilot: {
+    eyebrow: "Package Protected",
+    title: "AI Office Preview is not included",
+    description: "Assistant and growth-agent tools are available in Premium and Elite packages. Core office and field workflows stay available without exposing AI-only data.",
+    badge: "Premium",
+    actionTitle: "Open your operating workspace",
+    actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
+  },
+};
+
+export function getWorkspaceModuleLock(moduleId, user, companySettings = DEFAULT_COMPANY_SETTINGS, permissions = null) {
+  if (!canAccessModule(moduleId, user, companySettings)) return null;
+  if (packageAllowsModule(moduleId, permissions)) return null;
+
+  return PACKAGE_LOCKED_MODULES[moduleId] || {
+    eyebrow: "Package Protected",
+    title: "This workspace is not included",
+    description: "This feature is not included in the current Apex HQ package for this company.",
+    badge: "Locked",
+    actionTitle: "Open your allowed workspace",
+    actionDescription: "Use the workspace assigned to your role and package to continue.",
+  };
+}
+
 const DASHBOARD_SHORTCUTS = {
   today: {
     id: "today",
