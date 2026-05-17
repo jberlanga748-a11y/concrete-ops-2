@@ -98,6 +98,51 @@ function authHeaders(token) {
   };
 }
 
+const AUTH_SECRET_FIELDS = new Set([
+  "passwordHash",
+  "inviteTokenHash",
+  "resetTokenHash",
+  "activationToken",
+  "activationUrl",
+  "resetToken",
+  "resetUrl",
+  "temporaryPassword",
+]);
+
+function assertNoAuthSecretFields(value, label = "payload") {
+  const leaks = [];
+
+  function visit(entry, pathName) {
+    if (!entry || typeof entry !== "object") return;
+    if (Array.isArray(entry)) {
+      entry.forEach((item, index) => visit(item, `${pathName}[${index}]`));
+      return;
+    }
+
+    for (const [key, child] of Object.entries(entry)) {
+      const childPath = `${pathName}.${key}`;
+      if (AUTH_SECRET_FIELDS.has(key)) {
+        leaks.push(childPath);
+      }
+      visit(child, childPath);
+    }
+  }
+
+  visit(value, label);
+  assert.deepEqual(leaks, []);
+}
+
+function assertSerializedPayloadExcludes(value, secrets, label = "payload") {
+  const serialized = JSON.stringify(value);
+  for (const secret of secrets.filter(Boolean)) {
+    assert.equal(
+      serialized.includes(secret),
+      false,
+      `${label} should not include provisioning secret ${secret}`,
+    );
+  }
+}
+
 function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -171,6 +216,31 @@ test("owner export returns scoped workspace data without auth secrets", async ()
       password: "apexdemo123",
     });
 
+    const inviteCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Export Invite Foreman",
+        email: "export-invite-foreman@apexhq.test",
+        role: "Foreman",
+      }),
+    });
+    const activationToken = inviteCreated.payload.provisionedUser?.activationToken;
+    assert.ok(activationToken);
+
+    const temporaryCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Export Temporary Employee",
+        email: "export-temporary-employee@apexhq.test",
+        role: "Employee",
+        provisioningMode: "temporary_password",
+      }),
+    });
+    const temporaryPassword = temporaryCreated.payload.provisionedUser?.temporaryPassword;
+    assert.ok(temporaryPassword);
+
     const { response, payload } = await assertOk(fixture.baseUrl, "/api/export/company", {
       headers: authHeaders(ownerLogin.token),
     });
@@ -183,6 +253,8 @@ test("owner export returns scoped workspace data without auth secrets", async ()
     assert.equal(payload.data.leads.some((lead) => lead.companyId === "COMPANY-OTHER"), false);
     assert.equal(payload.data.users.some((user) => "passwordHash" in user), false);
     assert.equal(payload.data.users.some((user) => "resetTokenHash" in user || "inviteTokenHash" in user), false);
+    assertNoAuthSecretFields(payload, "company export");
+    assertSerializedPayloadExcludes(payload, [activationToken, temporaryPassword], "company export");
     assert.equal(payload.data.auditEvents.some((event) => event.action === "data_exported"), true);
     assert.equal(payload.data.auditEvents.some((event) => event.action === "other_company_secret"), false);
   } finally {
