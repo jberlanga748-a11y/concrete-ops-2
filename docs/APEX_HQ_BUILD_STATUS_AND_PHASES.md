@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `cc6e59af95b62fcf779cbfc697dbd442d5d33c59`
-- Message: `Add Apex HQ assistant estimate draft commands`
-- Fly release: `v487`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV59YX0GWJ7FCJ2GJXY3J1T`
+- Commit: `9a5872d`
+- Message: `Add Apex HQ missing proof assistant summary`
+- Fly release: `v489`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV6NZE0DFTYV6Y33HQ9QK3G`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -54,6 +54,8 @@ Recent shipped phase stack:
 | `7276412` | `v485` | Demo pilot data cleanup |
 | `9cd3ac9` | `v486` | Remaining demo record cleanup |
 | `cc6e59a` | `v487` | Assistant estimate draft commands |
+| `925f157` | `v488` | Guided demo rehearsal record |
+| `9a5872d` | `v489` | Assistant missing proof summary |
 
 ## Done / Do Not Rebuild
 
@@ -100,6 +102,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
 | Assistant Command Expansion Phase 2 Scope Lock | Prepared | `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` defines allowed/later/never commands, role/package gates, first slice, and builder prompt. |
 | Assistant Command Expansion Phase 2A | Built and released | Lead/customer/rough-notes commands now hand off to clean reviewed estimate draft mode while preserving role/package gates and blocking unsafe automation. |
+| Assistant Missing Proof Summary | Built and released | Apex Assistant now summarizes read-only missing proof for visible office jobs and routes users to existing reports, uploads, ticket, checklist, safety, and tool workflows. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -127,6 +130,7 @@ Recent focused verification:
 - Apex Assistant Shell release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, browser owner desktop/mobile sanity QA, field role safety check, and `git diff --check` passed; release `v479` health-checked ready.
 - Assistant Command Expansion Phase 2A checks: `npm.cmd run build`, `npm.cmd run verify:estimates`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, and `git diff --check` passed. Local browser check confirmed the Basic demo workspace safely blocks Premium AI Rough Notes assistant commands without console/API failures. Released as Fly `v487`; both live ready endpoints returned `200`, ready, database ok.
 - Guided Demo Launch Readiness rehearsal: live browser QA checked owner/admin desktop Command Center, Schedule, Leads, Estimates, Jobs, Support; owner mobile Command Center; foreman mobile Dashboard, Jobs, Reports, Uploads, direct Estimates denial; employee mobile Dashboard, direct Command Center denial, and direct Estimates denial. Assistant shell opened and showed a safe Premium AI Rough Notes gate in the current Basic demo workspace. No P0/P1 blockers, no console/API failures, no horizontal overflow. Screenshot/report evidence: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-rehearsal-1779028554230` and assistant screenshot `C:\Users\jberl\AppData\Local\Temp\apex-assistant-live-check-1779028718708.png`. `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, and `git diff --check` passed.
+- Assistant Missing Proof Summary checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, and `git diff --check` passed. Browser sanity check confirmed owner/admin assistant missing-proof summary renders, action buttons route to existing workflows, no console/API failures, and no mobile horizontal overflow. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-missing-proof-assistant-1779029399936`. Released as Fly `v489`; both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -147,6 +151,7 @@ Do not start these phases again as if they are missing:
 - App Health / Audit Activity Phase 1.
 - Watchtower / Missing Work Agent Phase 1.
 - Apex Assistant Shell Phase 1.
+- Assistant Missing Proof Summary.
 - Customer Success / Guided Setup Phase 2.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
@@ -164,20 +169,20 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Assistant Missing Proof Summary
+### Mobile Field Trust Polish
 
 Why this is next:
 
-- Guided Demo Launch Readiness has been rehearsed and did not show P0/P1 blockers.
-- The next useful assistant step is read-only and operational: summarize missing proof for a selected job.
-- This continues the assistant vision without adding autonomous writes, customer communication, pricing approval, crew assignment, or material ordering.
+- Assistant Missing Proof Summary is now built, released, and health-checked.
+- The next safest product step is not another new system; it is a narrow field/mobile trust pass against proven friction only.
+- This keeps Apex HQ moving toward the premium finished vision without reopening frozen office pages or creating autonomous AI writes.
 
 Scope:
 
-- Add a reviewed/read-only assistant command or panel that explains missing proof for a selected/current job.
-- Use existing reports, uploads, delivery tickets, checklists, safety, and Watchtower data.
-- Route users to existing workflows for fixes.
-- Preserve field-safe visibility and office-only boundaries.
+- Review current mobile field flows for foreman/employee only where demo or pilot evidence shows friction.
+- Tighten spacing, safe-area padding, bottom-nav overlap, tap targets, or confusing copy only if observed.
+- Preserve working reports, uploads, delivery tickets, pre/post-pour, safety, tool checklist, time, and assigned-job flows.
+- Preserve field-safe visibility and existing role permissions.
 
 Do not include:
 
@@ -194,6 +199,8 @@ Do not include:
 - SOC 2 paperwork or public compliance claims.
 - New analytics warehouse or schema rewrite.
 - Field access to office/admin/pricing/trust controls.
+- Broad redesigns of Command Center, Leads, Customers, Estimates, or Jobs.
+- New assistant behavior or autonomous field actions.
 
 Suggested verification:
 
@@ -202,23 +209,27 @@ Suggested verification:
 - `npm.cmd run verify:daily-reports`
 - `npm.cmd run verify:uploads`
 - `npm.cmd run verify:delivery-tickets`
+- `npm.cmd run verify:safety`
+- `npm.cmd run verify:tool-checklist`
+- `npm.cmd run verify:time`
 - `npm.cmd run verify:roles`
+- focused mobile browser QA for foreman and employee
 - `git diff --check`
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Assistant Missing Proof Summary | Add reviewed/read-only proof gap summaries for selected jobs. | Medium | Maybe. |
-| 2 | Mobile Field Trust Polish | Fix only proven mobile field friction found during demo rehearsal or pilot use. | Medium | Maybe. |
-| 3 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
-| 4 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
-| 5 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
-| 6 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
-| 7 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
-| 8 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
-| 9 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
-| 10 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
+| 1 | Mobile Field Trust Polish | Fix only proven mobile field friction found during demo rehearsal or pilot use. | Medium | Maybe. |
+| 2 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
+| 3 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
+| 4 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
+| 5 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
+| 6 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
+| 7 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
+| 8 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
+| 9 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
+| 10 | Public Website / Sales Funnel Planning | Plan public marketing site and demo booking flow with no product auth/billing changes yet. | Medium | Yes. |
 
 ## Later / Do Not Build Yet
 
