@@ -103,6 +103,7 @@ import {
   packageIncludesFeature,
   packageSummary,
 } from "../shared/packages.js";
+import { resolvePackageEntitlements } from "../shared/packageEntitlements.js";
 import {
   buildOwnerHealthWarnings,
   checkOwnerHealthDatabase,
@@ -5136,25 +5137,22 @@ function sanitizeBootstrap(state, user) {
   const currentCompanyId = currentCompanyIdForRequestUser(state, user);
   const currentCompany = companies.find((company) => company.id === currentCompanyId) || companies[0] || null;
   const currentCompanyPackage = packageSummary(settings.packageId);
-  const canUseEstimateProposalTools = companyHasFeature(state, user, FEATURE_KEYS.PROPOSAL_TOOLS);
-  const canUseEstimateGcPackets = companyHasFeature(state, user, FEATURE_KEYS.GC_PACKETS);
-  const canUseJobDraftImports = companyHasFeature(state, user, FEATURE_KEYS.INTEGRATIONS);
-  const canUseAiOffice = companyHasFeature(state, user, FEATURE_KEYS.GROWTH_AGENT)
-    || companyHasFeature(state, user, FEATURE_KEYS.WATCHTOWER)
-    || companyHasFeature(state, user, FEATURE_KEYS.MARKETING_AGENT);
+  const packageEntitlements = resolvePackageEntitlements({
+    hasFeature: (featureKey) => companyHasFeature(state, user, featureKey),
+  });
   const accessibleCompanies = accessibleCompaniesForUser(state, user);
   const hydrationContext = getHydrationContext(state, user);
   const users = visibleUsers(state, user);
   const customers = visibleCustomersForUser(state, user);
   const leads = visibleLeadsForUser(state, user);
   const leadSources = visibleLeadSourcesForUser(state, user);
-  const canUseOpportunityScout = companyHasFeature(state, user, FEATURE_KEYS.LEAD_JOB_FINDER);
+  const canUseOpportunityScout = packageEntitlements.opportunityScout.canUse;
   const opportunitySearchProfiles = canUseOpportunityScout ? visibleOpportunitySearchProfilesForUser(state, user) : [];
   const foundOpportunities = canUseOpportunityScout ? visibleFoundOpportunitiesForUser(state, user) : [];
   const leadStatusHistory = visibleLeadStatusHistoryForUser(state, user);
   const contactHistory = visibleContactHistoryForUser(state, user);
   const estimates = visibleEstimatesForUser(state, user);
-  const jobDraftImports = canUseJobDraftImports ? visibleImportedJobDraftsForUser(state, user) : [];
+  const jobDraftImports = packageEntitlements.jobDraftImports.canUse ? visibleImportedJobDraftsForUser(state, user) : [];
   const jobs = visibleJobsForUser(state, user, hydrationContext);
   const safetyPolicies = visibleSafetyPoliciesForUser(state, user);
   const ppeItems = visiblePpeItemsForUser(state, user);
@@ -5239,17 +5237,17 @@ function sanitizeBootstrap(state, user) {
       estimates: {
         canView: canViewEstimates(user),
         canManage: canManageEstimates(user),
-        canUseAiRoughNotes: canUseEstimateProposalTools && canManageEstimates(user),
-        canUseGcPackets: canUseEstimateGcPackets && canManageEstimates(user),
+        canUseAiRoughNotes: packageEntitlements.estimates.canUseProposalTools && canManageEstimates(user),
+        canUseGcPackets: packageEntitlements.estimates.canUseGcPackets && canManageEstimates(user),
       },
       jobDraftImports: {
-        canView: canUseJobDraftImports && canCreateJobs(user),
-        canManage: canUseJobDraftImports && canCreateJobs(user),
-        canCreateJob: canUseJobDraftImports && canCreateJobs(user),
+        canView: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),
+        canManage: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),
+        canCreateJob: packageEntitlements.jobDraftImports.canUse && canCreateJobs(user),
       },
       aiOffice: {
-        canView: canUseAiOffice && canViewLeads(user),
-        canUseLeadAssistant: canUseAiOffice && canManageLeads(user),
+        canView: packageEntitlements.aiOffice.canUse && canViewLeads(user),
+        canUseLeadAssistant: packageEntitlements.aiOffice.canUseLeadAssistant && canManageLeads(user),
       },
       jobs: {
         canView: Boolean(user),
@@ -5277,7 +5275,7 @@ function sanitizeBootstrap(state, user) {
         canExport: canExportData(user),
       },
       appHealth: {
-        canView: companyHasFeature(state, user, FEATURE_KEYS.APP_HEALTH) && canViewSettings(user),
+        canView: packageEntitlements.appHealth.canUse && canViewSettings(user),
       },
       companies: {
         canSwitch: canManageCompanies(user),
