@@ -451,6 +451,66 @@ test("user password updates revoke existing sessions and require the new passwor
   }
 });
 
+test("role changes take effect for existing sessions on the next request", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-ROLE-SESSION",
+        email: "owner-role-session@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Role Session",
+        role: "Owner",
+      }),
+      createUserRecord({
+        id: "U-ADMIN-ROLE-SESSION",
+        email: "admin-role-session@lastyard.test",
+        password: "apexdemo123",
+        name: "Admin Role Session",
+        role: "Administrator",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-role-session@lastyard.test",
+      password: "apexdemo123",
+    });
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "admin-role-session@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const beforeChange = await assertOk(fixture.baseUrl, "/api/users", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(beforeChange.users.some((user) => user.email === "owner-role-session@lastyard.test"), true);
+
+    const downgraded = await assertOk(fixture.baseUrl, "/api/users/U-ADMIN-ROLE-SESSION", {
+      method: "PATCH",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        role: "Employee",
+      }),
+    });
+    assert.equal(downgraded.users.find((user) => user.id === "U-ADMIN-ROLE-SESSION")?.role, "Employee");
+
+    const staleAdminUsersRequest = await requestJson(fixture.baseUrl, "/api/users", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(staleAdminUsersRequest.response.status, 403);
+
+    const afterChangeBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(afterChangeBootstrap.user.role, "Employee");
+    assert.equal(afterChangeBootstrap.permissions.users.canView, false);
+    assert.deepEqual(afterChangeBootstrap.users.map((user) => user.email), ["admin-role-session@lastyard.test"]);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("only active owners can assign or manage owner access", async () => {
   const fixture = await startServer();
 
