@@ -9,6 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
 import { PACKAGE_IDS } from "../shared/packages.js";
+import { createUserRecord } from "./store.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -106,6 +107,31 @@ function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID
       INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
       VALUES (?, ?, ?, ?)
     `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
+function insertUser(sqliteFile, user) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+      user.phone || "",
+      user.status || "active",
+      user.companyId || DEFAULT_COMPANY_ID,
+      user.operatorAccess ? 1 : 0,
+      user.createdAt || new Date().toISOString(),
+      user.updatedAt || user.createdAt || new Date().toISOString(),
+      user.lastLoginAt || null,
+      user.passwordHash,
+    );
   } finally {
     database.close();
   }
@@ -240,6 +266,65 @@ test("Elite package enables Lead Finder and inherits Premium entitlements", asyn
     const scout = await assertOk(fixture.baseUrl, "/api/opportunity-scout", { headers });
     assert.ok(Array.isArray(scout.searchProfiles));
     assert.ok(Array.isArray(scout.foundOpportunities));
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Elite package does not grant field users office-only premium tools", async () => {
+  const fixture = await startServer();
+
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const fieldUser = createUserRecord({
+      id: "U-ENTITLEMENT-FIELD",
+      email: "entitlement-field@apexhq.test",
+      password: "apexdemo123",
+      name: "Entitlement Field",
+      role: "Employee",
+    });
+    insertUser(fixture.sqliteFile, fieldUser);
+
+    const loginResult = await assertOk(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: fieldUser.email,
+        password: "apexdemo123",
+      }),
+    });
+    const headers = authHeaders(loginResult.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.ELITE);
+    assert.equal(bootstrap.permissions.estimates.canView, false);
+    assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, false);
+    assert.equal(bootstrap.permissions.estimates.canUseGcPackets, false);
+    assert.equal(bootstrap.permissions.jobDraftImports.canView, false);
+    assert.equal(bootstrap.permissions.aiOffice.canView, false);
+    assert.equal(bootstrap.permissions.appHealth.canView, false);
+    assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+    assert.deepEqual(bootstrap.leads, []);
+    assert.deepEqual(bootstrap.estimates, []);
+    assert.deepEqual(bootstrap.jobDraftImports, []);
+    assert.deepEqual(bootstrap.opportunitySearchProfiles, []);
+    assert.deepEqual(bootstrap.foundOpportunities, []);
+
+    const deniedOwnerHealth = await requestJson(fixture.baseUrl, "/api/owner-health", { headers });
+    assert.equal(deniedOwnerHealth.response.status, 403);
+
+    const deniedDrafts = await requestJson(fixture.baseUrl, "/api/job-draft-imports", { headers });
+    assert.equal(deniedDrafts.response.status, 403);
+
+    const deniedRoughNotes = await requestJson(fixture.baseUrl, "/api/ai/estimates/rough-notes", {
+      method: "POST",
+      headers,
+      body: roughNotesBody(),
+    });
+    assert.equal(deniedRoughNotes.response.status, 403);
+
+    const deniedScout = await requestJson(fixture.baseUrl, "/api/opportunity-scout", { headers });
+    assert.equal(deniedScout.response.status, 403);
   } finally {
     await fixture.stop();
   }
