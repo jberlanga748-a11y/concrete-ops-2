@@ -85,6 +85,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Advanced Reporting Prep | Done and released | Premium owner/admin report prep panel and pure summary helper exist. Field users and Basic package workspaces do not see the advanced reporting panel. |
 | Advanced Reporting Prep Phase 2 | Built and released | Existing Premium owner/admin reporting panel now includes closeout readiness, owner review queue, delay/safety signals, and concrete yard reporting from current daily report data only. Field users and Basic package workspaces remain blocked. |
 | Billing / Plans Readiness Prep | Done and released | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
+| Billing / Manual Upgrade Prep Planning | Prepared | `docs/BILLING_MANUAL_UPGRADE_PREP.md` defines the support-led Basic/Premium/Elite upgrade path, no-Stripe boundaries, owner/admin visibility, field-role restrictions, and the next builder prompt. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
@@ -179,6 +180,7 @@ Do not start these phases again as if they are missing:
 - Advanced Reporting Prep Phase 2.
 - Enterprise Trust Prep.
 - Enterprise Trust Phase 2.
+- Billing / Manual Upgrade Prep Planning.
 - Demo pilot data cleanup.
 
 If one of those areas comes up, first ask:
@@ -190,18 +192,19 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Billing / Manual Upgrade Prep Planning - Next
+### Billing / Manual Upgrade Prep Phase 1 - Next
 
 Why this is next:
 
-- Enterprise Trust Phase 2 is released and health-checked.
-- Package entitlement, locked states, plan readiness, and trust guardrails exist.
-- The next safe step is planning the manual upgrade path without starting Stripe, payments, invoices, or customer portal work.
+- The manual upgrade planning checkpoint is prepared in `docs/BILLING_MANUAL_UPGRADE_PREP.md`.
+- Package entitlement, locked states, Plan Readiness, Support, and trust guardrails already exist.
+- The next safe implementation is copy-only/support-led UX, not billing automation.
 
 Scope:
 
-- Define the support-led upgrade workflow for Basic, Premium, and Elite.
-- Identify owner/admin UX copy, support handoff, plan readiness, and route/package checks that need tightening.
+- Tighten Settings Plan Readiness copy/actions.
+- Add or improve owner/admin copy-only support handoff for manual upgrade review.
+- Clarify package-locked route explanations.
 - Preserve all existing package gates and role protections.
 
 Do not include:
@@ -216,13 +219,13 @@ Do not include:
 
 Suggested verification:
 
-- Plan-only at first: inspect package/plan readiness docs, `shared/packages.js`, `shared/featureEntitlements.js`, Settings plan UI, support handoff, and package tests. If implementation is approved, run `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check`.
+- `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check`. Browser QA owner/admin Settings/Support and field-role direct route checks if UI changes are made.
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Billing / Manual Upgrade Prep Planning | Plan the support-led upgrade path without Stripe, payments, or billing automation. | Medium | Yes. |
+| 1 | Billing / Manual Upgrade Prep Phase 1 | Implement support-led upgrade review UX from `docs/BILLING_MANUAL_UPGRADE_PREP.md` without Stripe, payments, or billing automation. | Medium | Maybe. |
 | 2 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
 | 3 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
 | 4 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |

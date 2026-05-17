@@ -437,8 +437,9 @@ Demo/customer separation:
 1. Keep source-of-truth docs current:
    - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
 
-2. Billing / Manual Upgrade Prep planning:
-   - Define the support-led upgrade path for Basic, Premium, and Elite without Stripe, checkout, or payment automation.
+2. Billing / Manual Upgrade Prep Phase 1:
+   - Use `docs/BILLING_MANUAL_UPGRADE_PREP.md` as the scope lock.
+   - Implement support-led upgrade review UX for Basic, Premium, and Elite without Stripe, checkout, payment automation, invoices, or self-serve plan changes.
    - Owner/admin only.
    - Preserve existing package gates, role safety, and manual support handoff.
    - Keep billing language practical and avoid claims that public self-serve billing is ready.
@@ -465,7 +466,7 @@ Demo/customer separation:
 
 Product priorities:
 
-1. Billing / Manual Upgrade Prep planning, not Stripe build.
+1. Billing / Manual Upgrade Prep Phase 1, not Stripe build.
 2. Premium Demo Workspace Prep.
 3. Customer Portal Planning Checkpoint.
 4. Assistant Material Planning Prep.
