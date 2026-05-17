@@ -5794,6 +5794,19 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
     lastSeenAt: loginAt,
     expiresAt: nextSessionExpiry(),
   });
+  await updateDb((draft) => {
+    draft.auditEvents ||= [];
+    appendAuditEvent(draft, {
+      entityType: "auth",
+      entityId: user.id,
+      action: "logged_in",
+      summary: "User logged in",
+      detail: `${user.name} signed in to Apex HQ.`,
+      actor: user,
+      changedFields: ["lastLoginAt", "session"],
+    });
+    return draft;
+  });
   clearLoginRateLimit(req, email);
   routeProfiler.mark("sessionWriteMs");
 
@@ -5815,6 +5828,19 @@ app.get("/api/auth/me", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/auth/logout", requireAuth, asyncRoute(async (req, res) => {
+  await updateDb((draft) => {
+    draft.auditEvents ||= [];
+    appendAuditEvent(draft, {
+      entityType: "auth",
+      entityId: req.auth.user.id,
+      action: "logged_out",
+      summary: "User logged out",
+      detail: `${req.auth.user.name} signed out of Apex HQ.`,
+      actor: req.auth.user,
+      changedFields: ["session"],
+    });
+    return draft;
+  });
   await deleteSessionByTokenHash(req.auth.tokenHash);
 
   res.status(204).end();

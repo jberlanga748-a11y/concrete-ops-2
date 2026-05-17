@@ -75,6 +75,13 @@ async function requestJson(baseUrl, pathname, options = {}) {
   return { response, payload };
 }
 
+function authHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
 async function login(baseUrl, body = {}) {
   return requestJson(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -142,6 +149,47 @@ test("login rate limit blocks repeated bad credentials for the same target", asy
     });
     assert.equal(otherTarget.response.status, 200);
     assert.ok(otherTarget.payload.token);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("successful login and logout are written to the audit trail", async () => {
+  const fixture = await startServer();
+
+  try {
+    const firstLogin = await login(fixture.baseUrl);
+    assert.equal(firstLogin.response.status, 200);
+    assert.ok(firstLogin.payload.token);
+
+    const firstBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(firstLogin.payload.token),
+    });
+    assert.equal(firstBootstrap.response.status, 200);
+    assert.equal(firstBootstrap.payload.auditEvents.some((event) => (
+      event.entityType === "auth"
+        && event.action === "logged_in"
+        && event.entityId === firstBootstrap.payload.user.id
+    )), true);
+
+    const logout = await requestJson(fixture.baseUrl, "/api/auth/logout", {
+      method: "POST",
+      headers: authHeaders(firstLogin.payload.token),
+    });
+    assert.equal(logout.response.status, 204);
+
+    const secondLogin = await login(fixture.baseUrl);
+    assert.equal(secondLogin.response.status, 200);
+
+    const secondBootstrap = await requestJson(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(secondLogin.payload.token),
+    });
+    assert.equal(secondBootstrap.response.status, 200);
+    assert.equal(secondBootstrap.payload.auditEvents.some((event) => (
+      event.entityType === "auth"
+        && event.action === "logged_out"
+        && event.entityId === secondBootstrap.payload.user.id
+    )), true);
   } finally {
     await fixture.stop();
   }
