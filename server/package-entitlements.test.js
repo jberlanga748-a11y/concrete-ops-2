@@ -1,0 +1,246 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { spawn } from "node:child_process";
+import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
+
+import { DEFAULT_COMPANY_ID } from "../shared/companyScope.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createPort() {
+  return 17200 + Math.floor(Math.random() * 1000);
+}
+
+async function waitForServer(baseUrl, serverOutput) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/api/ready`);
+      if (response.ok) return;
+    } catch {
+      // Poll until ready.
+    }
+    await sleep(250);
+  }
+
+  throw new Error(`Package entitlement test server did not become ready.\n${serverOutput()}`);
+}
+
+async function startServer() {
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-entitlements-"));
+  const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
+  const port = createPort();
+  const baseUrl = `http://localhost:${port}`;
+  let output = "";
+  const server = spawn(process.execPath, ["server/index.js"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATA_DIR: tempDataDir,
+      LOG_LEVEL: "warn",
+      OPENAI_API_KEY: "",
+      CONCRETE_OPS_IMPORT_TOKEN: "entitlement-test-token",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  server.stdout.on("data", (chunk) => {
+    output += String(chunk);
+  });
+  server.stderr.on("data", (chunk) => {
+    output += String(chunk);
+  });
+
+  await waitForServer(baseUrl, () => output);
+
+  async function stop() {
+    server.kill("SIGTERM");
+    await new Promise((resolve) => server.once("exit", resolve));
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
+
+  return { baseUrl, sqliteFile, stop };
+}
+
+async function requestJson(baseUrl, pathname, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, options);
+  const payload = response.status === 204 ? null : await response.json().catch(() => null);
+  return { response, payload };
+}
+
+async function assertOk(baseUrl, pathname, options = {}) {
+  const { response, payload } = await requestJson(baseUrl, pathname, options);
+  assert.equal(response.ok, true, payload?.error || `Expected ${pathname} to succeed.`);
+  return payload;
+}
+
+async function login(baseUrl) {
+  return assertOk(baseUrl, "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    }),
+  });
+}
+
+function authHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function setCompanyPackage(sqliteFile, packageId, companyId = DEFAULT_COMPANY_ID) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      INSERT OR REPLACE INTO company_settings (company_id, key, value, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(companyId, "packageId", packageId, new Date().toISOString());
+  } finally {
+    database.close();
+  }
+}
+
+async function loginAndBootstrap(fixture, packageId) {
+  setCompanyPackage(fixture.sqliteFile, packageId);
+  const loginResult = await login(fixture.baseUrl);
+  const headers = authHeaders(loginResult.token);
+  const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+  return { headers, bootstrap };
+}
+
+function roughNotesBody() {
+  return JSON.stringify({
+    roughNotes: "Customer: ABC Builders\nProject: Salem slab\nScope: Pour 500 SF 4-inch broom finish slab. Exclude permits.",
+  });
+}
+
+test("Basic package exposes core office permissions but blocks premium and elite surfaces", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { headers, bootstrap } = await loginAndBootstrap(fixture, PACKAGE_IDS.BASIC);
+    const lead = bootstrap.leads[0];
+
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.BASIC);
+    assert.equal(bootstrap.permissions.estimates.canView, true);
+    assert.equal(bootstrap.permissions.estimates.canManage, true);
+    assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, false);
+    assert.equal(bootstrap.permissions.estimates.canUseGcPackets, false);
+    assert.equal(bootstrap.permissions.jobDraftImports.canView, false);
+    assert.equal(bootstrap.permissions.aiOffice.canView, false);
+    assert.equal(bootstrap.permissions.appHealth.canView, false);
+    assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+    assert.deepEqual(bootstrap.jobDraftImports, []);
+    assert.deepEqual(bootstrap.opportunitySearchProfiles, []);
+    assert.deepEqual(bootstrap.foundOpportunities, []);
+
+    const deniedOwnerHealth = await requestJson(fixture.baseUrl, "/api/owner-health", { headers });
+    assert.equal(deniedOwnerHealth.response.status, 403);
+    assert.match(deniedOwnerHealth.payload.error, /Owner Health Status/);
+
+    const deniedDrafts = await requestJson(fixture.baseUrl, "/api/job-draft-imports", { headers });
+    assert.equal(deniedDrafts.response.status, 403);
+    assert.match(deniedDrafts.payload.error, /Job Draft Imports/);
+
+    const deniedRoughNotes = await requestJson(fixture.baseUrl, "/api/ai/estimates/rough-notes", {
+      method: "POST",
+      headers,
+      body: roughNotesBody(),
+    });
+    assert.equal(deniedRoughNotes.response.status, 403);
+    assert.match(deniedRoughNotes.payload.error, /AI Rough Notes Helper/);
+
+    const deniedLeadAssistant = await requestJson(fixture.baseUrl, `/api/ai/leads/${lead.id}/assist`, {
+      method: "POST",
+      headers,
+    });
+    assert.equal(deniedLeadAssistant.response.status, 403);
+    assert.match(deniedLeadAssistant.payload.error, /Lead Assistant/);
+
+    const deniedScout = await requestJson(fixture.baseUrl, "/api/opportunity-scout", { headers });
+    assert.equal(deniedScout.response.status, 403);
+    assert.match(deniedScout.payload.error, /Opportunity Scout/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Premium package enables premium tools while keeping Elite Lead Finder locked", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { headers, bootstrap } = await loginAndBootstrap(fixture, PACKAGE_IDS.PREMIUM);
+    const lead = bootstrap.leads[0];
+
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.PREMIUM);
+    assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, true);
+    assert.equal(bootstrap.permissions.estimates.canUseGcPackets, true);
+    assert.equal(bootstrap.permissions.jobDraftImports.canView, true);
+    assert.equal(bootstrap.permissions.aiOffice.canView, true);
+    assert.equal(bootstrap.permissions.aiOffice.canUseLeadAssistant, true);
+    assert.equal(bootstrap.permissions.appHealth.canView, true);
+    assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+
+    const ownerHealth = await assertOk(fixture.baseUrl, "/api/owner-health", { headers });
+    assert.equal(ownerHealth.ok, true);
+
+    const drafts = await assertOk(fixture.baseUrl, "/api/job-draft-imports", { headers });
+    assert.ok(Array.isArray(drafts.jobDraftImports));
+
+    const roughNotes = await assertOk(fixture.baseUrl, "/api/ai/estimates/rough-notes", {
+      method: "POST",
+      headers,
+      body: roughNotesBody(),
+    });
+    assert.equal(roughNotes.ok, true);
+    assert.equal(roughNotes.configured, false);
+
+    const leadAssistant = await assertOk(fixture.baseUrl, `/api/ai/leads/${lead.id}/assist`, {
+      method: "POST",
+      headers,
+    });
+    assert.equal(leadAssistant.ok, true);
+    assert.equal(leadAssistant.configured, false);
+
+    const deniedScout = await requestJson(fixture.baseUrl, "/api/opportunity-scout", { headers });
+    assert.equal(deniedScout.response.status, 403);
+    assert.match(deniedScout.payload.error, /Opportunity Scout/);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Elite package enables Lead Finder and inherits Premium entitlements", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { headers, bootstrap } = await loginAndBootstrap(fixture, PACKAGE_IDS.ELITE);
+
+    assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.ELITE);
+    assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, true);
+    assert.equal(bootstrap.permissions.estimates.canUseGcPackets, true);
+    assert.equal(bootstrap.permissions.jobDraftImports.canView, true);
+    assert.equal(bootstrap.permissions.aiOffice.canView, true);
+    assert.equal(bootstrap.permissions.appHealth.canView, true);
+    assert.equal(bootstrap.permissions.opportunityScout.canView, true);
+    assert.ok(Array.isArray(bootstrap.opportunitySearchProfiles));
+    assert.ok(Array.isArray(bootstrap.foundOpportunities));
+
+    const scout = await assertOk(fixture.baseUrl, "/api/opportunity-scout", { headers });
+    assert.ok(Array.isArray(scout.searchProfiles));
+    assert.ok(Array.isArray(scout.foundOpportunities));
+  } finally {
+    await fixture.stop();
+  }
+});
