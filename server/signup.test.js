@@ -31,23 +31,29 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Signup test server did not become ready.\n${serverOutput()}`);
 }
 
-async function startServer({ publicSignupEnabled = true, demoMode = false } = {}) {
+async function startServer({ publicSignupEnabled = true, demoMode = false, nodeEnv = "" } = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-signup-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");
   const port = createPort();
   const baseUrl = `http://localhost:${port}`;
   let output = "";
+  const env = {
+    ...process.env,
+    PORT: String(port),
+    DATA_DIR: tempDataDir,
+    LOG_LEVEL: "warn",
+    PUBLIC_SIGNUP_ENABLED: publicSignupEnabled ? "true" : "false",
+    DEMO_MODE: demoMode ? "true" : "false",
+    SEED_DEMO_DATA: demoMode ? "true" : "false",
+  };
+
+  if (nodeEnv) {
+    env.NODE_ENV = nodeEnv;
+  }
+
   const server = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      PORT: String(port),
-      DATA_DIR: tempDataDir,
-      LOG_LEVEL: "warn",
-      PUBLIC_SIGNUP_ENABLED: publicSignupEnabled ? "true" : "false",
-      DEMO_MODE: demoMode ? "true" : "false",
-      SEED_DEMO_DATA: demoMode ? "true" : "false",
-    },
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -110,6 +116,22 @@ async function signup(baseUrl, body = {}) {
 
 async function activateInvite(baseUrl, body = {}) {
   return assertOk(baseUrl, "/api/auth/activate-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function requestPasswordReset(baseUrl, body = {}) {
+  return assertOk(baseUrl, "/api/auth/password-reset/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function completePasswordReset(baseUrl, body = {}) {
+  return assertOk(baseUrl, "/api/auth/password-reset/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -410,6 +432,74 @@ test("invited users activate into the signup workspace, not the default or demo 
     const rows = readSignupRows(fixture.sqliteFile, {
       companyId: payload.currentCompanyId,
       email: "scoped-foreman@abcbuilder.test",
+    });
+    assert.equal(rows.user.company_id, payload.currentCompanyId);
+    assert.equal(rows.session.current_company_id, payload.currentCompanyId);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("password reset completes into the signup workspace, not the default or demo workspace", async () => {
+  const fixture = await startServer({ demoMode: true, nodeEnv: "test" });
+
+  try {
+    const { response, payload } = await signup(fixture.baseUrl, {
+      companyName: "Reset Scoped Builders",
+      ownerName: "Reset Scoped Owner",
+      email: "reset-owner@abcbuilder.test",
+    });
+    assert.equal(response.status, 201);
+    assert.notEqual(payload.currentCompanyId, DEFAULT_COMPANY_ID);
+
+    const createdEmployee = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(payload.token),
+      body: JSON.stringify({
+        name: "Reset Scoped Employee",
+        email: "reset-scoped-employee@abcbuilder.test",
+        role: "Employee",
+        password: "oldfield123",
+      }),
+    });
+    const employee = createdEmployee.users.find((user) => user.email === "reset-scoped-employee@abcbuilder.test");
+    assert.ok(employee);
+    assert.equal(employee.companyId, payload.currentCompanyId);
+
+    const requested = await requestPasswordReset(fixture.baseUrl, {
+      email: "reset-scoped-employee@abcbuilder.test",
+    });
+    assert.match(requested.message, /if that email has access/i);
+    assert.ok(requested.resetToken);
+    assert.match(requested.resetUrl || "", /^\/reset-password\?token=/);
+
+    const completed = await completePasswordReset(fixture.baseUrl, {
+      token: requested.resetToken,
+      password: "newfield123",
+    });
+    assert.ok(completed.token);
+    assert.equal(completed.user.email, "reset-scoped-employee@abcbuilder.test");
+    assert.equal(completed.user.companyId, payload.currentCompanyId);
+    assert.equal(completed.currentCompanyId, payload.currentCompanyId);
+    assert.equal(completed.currentWorkspaceId, payload.currentCompanyId);
+    assert.equal(completed.companies.length, 1);
+    assert.equal(completed.companies[0].id, payload.currentCompanyId);
+    assert.equal(completed.leads.some((lead) => lead.companyId === DEFAULT_COMPANY_ID), false);
+    assert.deepEqual(completed.users.map((user) => user.email), ["reset-scoped-employee@abcbuilder.test"]);
+
+    const oldLogin = await requestJson(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "reset-scoped-employee@abcbuilder.test",
+        password: "oldfield123",
+      }),
+    });
+    assert.equal(oldLogin.response.status, 401);
+
+    const rows = readSignupRows(fixture.sqliteFile, {
+      companyId: payload.currentCompanyId,
+      email: "reset-scoped-employee@abcbuilder.test",
     });
     assert.equal(rows.user.company_id, payload.currentCompanyId);
     assert.equal(rows.session.current_company_id, payload.currentCompanyId);
