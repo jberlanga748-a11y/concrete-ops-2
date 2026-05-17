@@ -439,6 +439,43 @@ test("signup owners log back into their real workspace, not the default or demo 
   }
 });
 
+test("production-mode password reset request stays generic and does not expose reset tokens", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { response, payload } = await signup(fixture.baseUrl, {
+      companyName: "Reset Generic Builders",
+      ownerName: "Reset Generic Owner",
+      email: "reset-generic-owner@abcbuilder.test",
+    });
+    assert.equal(response.status, 201);
+
+    const requested = await requestPasswordReset(fixture.baseUrl, {
+      email: "reset-generic-owner@abcbuilder.test",
+    });
+    assert.match(requested.message, /if that email has access/i);
+    assert.equal(requested.resetToken, undefined);
+    assert.equal(requested.resetUrl, undefined);
+
+    const missing = await requestPasswordReset(fixture.baseUrl, {
+      email: "missing-reset-generic-owner@abcbuilder.test",
+    });
+    assert.match(missing.message, /if that email has access/i);
+    assert.equal(missing.resetToken, undefined);
+    assert.equal(missing.resetUrl, undefined);
+
+    const rows = readSignupRows(fixture.sqliteFile, {
+      companyId: payload.currentCompanyId,
+      email: "reset-generic-owner@abcbuilder.test",
+    });
+    assert.equal(rows.user.company_id, payload.currentCompanyId);
+    assert.equal(typeof rows.user.reset_token_hash === "string" && rows.user.reset_token_hash.length > 0, true);
+    assert.equal(rows.user.reset_expires_at.length > 0, true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("invited users activate into the signup workspace, not the default or demo workspace", async () => {
   const fixture = await startServer({ demoMode: true });
 
