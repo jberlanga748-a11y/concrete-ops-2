@@ -12,7 +12,9 @@ const CUSTOMER_MATCH_REVIEW_STATUSES = new Set(["not checked", "possible match",
 
 export function deriveCommandCenterState(source = {}, options = {}) {
   const todayKey = dateKey(options.today || new Date());
+  const tomorrowKey = addDaysKey(todayKey, 1);
   const jobs = asArray(source.jobs).filter(isLiveJob);
+  const estimates = asArray(source.estimates).filter((estimate) => !isArchived(estimate));
   const reports = asArray(source.dailyReports).filter((report) => !isArchived(report));
   const uploads = asArray(source.uploads).filter((upload) => !isArchived(upload));
   const prePourChecklists = asArray(source.prePourChecklists).filter((checklist) => !isArchived(checklist));
@@ -57,6 +59,8 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   const jobsReadyForField = startupJobs.filter((job) => job.startupStatus === "Ready for Field");
   const jobsMissingCrew = jobs.filter((job) => !hasCrewAssignment(job));
   const jobsMissingStartDate = jobs.filter((job) => !scheduledDateValue(job));
+  const scheduledTodayJobs = jobs.filter((job) => dateKey(scheduledDateValue(job)) === todayKey);
+  const scheduledTomorrowJobs = jobs.filter((job) => dateKey(scheduledDateValue(job)) === tomorrowKey);
   const jobsMissingCrewOrStartDate = uniqueById([...jobsMissingCrew, ...jobsMissingStartDate]).map((job) => ({
     ...job,
     missingCrew: !hasCrewAssignment(job),
@@ -86,6 +90,23 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   const timeEntriesWithoutJob = timeEntries.filter((entry) => !recordJobId(entry));
   const allTimeIssues = uniqueById([...activeTimeEntries, ...timeEntriesWithoutJob]);
   const openChangeOrders = changeOrderRequests.filter((request) => !CLOSED_CHANGE_ORDER_STATUSES.has(normalizeStatus(request.status)));
+  const jobsReadyToBill = jobs.filter((job) => normalizeStatus(job.status || job.stage) === "billing ready");
+  const approvedEstimatesReadyToConvert = estimates.filter((estimate) => normalizeStatus(estimate.status) === "approved" && !recordJobId(estimate));
+  const sentEstimatesWaiting = estimates.filter((estimate) => normalizeStatus(estimate.status) === "sent");
+  const draftEstimates = estimates.filter((estimate) => normalizeStatus(estimate.status) === "draft");
+  const fieldProofGaps = openDailyReports.length
+    + dailyReportsNeedingReview.length
+    + activeJobsMissingTodayReport.length
+    + jobsMissingPhotos.length
+    + pendingDeliveryTickets.length
+    + pendingPrePour.length
+    + pendingPostPour.length;
+  const reviewQueueItems = dailyReportsNeedingReview.length
+    + openChangeOrders.length
+    + importedDraftsNeedingReview.length
+    + allTimeIssues.length
+    + pendingPostPour.length;
+  const moneyReadyItems = jobsReadyToBill.length + approvedEstimatesReadyToConvert.length;
 
   const result = {
     generatedForDate: todayKey,
@@ -112,9 +133,22 @@ export function deriveCommandCenterState(source = {}, options = {}) {
       openChangeOrders: openChangeOrders.length,
       timeIssues: allTimeIssues.length,
       activeJobs: jobs.length,
+      jobsReadyToBill: jobsReadyToBill.length,
+      approvedEstimatesReadyToConvert: approvedEstimatesReadyToConvert.length,
+      sentEstimatesWaiting: sentEstimatesWaiting.length,
+      draftEstimates: draftEstimates.length,
+      fieldProofGaps,
+      reviewQueueItems,
+      moneyReadyItems,
+      scheduledTodayJobs: scheduledTodayJobs.length,
+      scheduledTomorrowJobs: scheduledTomorrowJobs.length,
     },
     importedDraftsNeedingReview,
     importedDraftsNeedingCustomerMatch,
+    schedule: {
+      scheduledTodayJobs,
+      scheduledTomorrowJobs,
+    },
     leadSourceChecks,
     followUpQueue,
     jobsNeedingStartupReview,
@@ -294,6 +328,14 @@ function dateKey(value) {
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function addDaysKey(value, days = 0) {
+  if (!value) return "";
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  parsed.setUTCDate(parsed.getUTCDate() + Number(days || 0));
   return parsed.toISOString().slice(0, 10);
 }
 

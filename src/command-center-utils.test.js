@@ -28,12 +28,19 @@ test("command center derives priority stats across existing concrete modules", (
       { id: "L-3", customer: "No contact lead", status: "New" },
       { id: "L-4", customer: "Waiting lead", status: "Contacted" },
     ],
+    estimates: [
+      { id: "E-1", title: "Approved estimate", status: "approved" },
+      { id: "E-2", title: "Converted estimate", status: "approved", linkedJobId: "J-2" },
+      { id: "E-3", title: "Sent estimate", status: "sent" },
+      { id: "E-4", title: "Draft estimate", status: "draft" },
+      { id: "E-5", title: "Archived draft", status: "draft", archivedAt: "2026-05-09" },
+    ],
     contactHistory: [
       { id: "CH-1", entityType: "lead", entityId: "L-4", outcome: "Waiting on Response", method: "Email", contactedAt: "2026-05-10T12:00:00.000Z" },
     ],
     jobs: [
       { id: "J-1", title: "Shop apron", status: "scheduled", customer: "Cascade Flatwork", startupStatus: "Not Started" },
-      { id: "J-2", title: "Driveway pour", status: "scheduled", customer: "North Ridge", scheduledStart: "2026-05-10T14:00:00.000Z", assignments: [{ userId: "U-1", roleOnJob: "foreman" }], startupStatus: "Ready for Field", startupChecklist: READY_STARTUP_CHECKLIST },
+      { id: "J-2", title: "Driveway pour", status: "billing_ready", customer: "North Ridge", scheduledStart: "2026-05-10T14:00:00.000Z", assignments: [{ userId: "U-1", roleOnJob: "foreman" }], startupStatus: "Ready for Field", startupChecklist: READY_STARTUP_CHECKLIST },
       { id: "J-3", title: "Old patio", status: "Completed", archivedAt: "" },
     ],
     dailyReports: [
@@ -86,6 +93,16 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.openChangeOrders, 1);
   assert.equal(result.stats.timeIssues, 2);
   assert.equal(result.stats.activeJobs, 2);
+  assert.equal(result.stats.jobsReadyToBill, 1);
+  assert.equal(result.stats.approvedEstimatesReadyToConvert, 1);
+  assert.equal(result.stats.sentEstimatesWaiting, 1);
+  assert.equal(result.stats.draftEstimates, 1);
+  assert.equal(result.stats.fieldProofGaps, 7);
+  assert.equal(result.stats.reviewQueueItems, 6);
+  assert.equal(result.stats.moneyReadyItems, 2);
+  assert.equal(result.stats.scheduledTodayJobs, 1);
+  assert.equal(result.stats.scheduledTomorrowJobs, 0);
+  assert.equal(result.schedule.scheduledTodayJobs.map((job) => job.id).join(","), "J-2");
   assert.deepEqual(result.leadSourceChecks.checksNeeded.map((source) => source.id), ["LS-1", "LS-2"]);
   assert.deepEqual(result.watchtowerActions.slice(0, 3).map((action) => action.id), [
     "overdue-follow-ups",

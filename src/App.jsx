@@ -13750,6 +13750,40 @@ function CommandCenterQuickAction({ icon, label, helper, onClick }) {
   );
 }
 
+function CommandCenterOpsPulseCard({ icon = "grid", title, value, helper, rows = [], tone = "orange", actionLabel = "Open", onAction }) {
+  const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  const canRunAction = typeof onAction === "function";
+
+  return (
+    <Card className="co-command-ops-card" data-tone={tone}>
+      <div className="co-command-ops-card-head">
+        <span className="co-command-ops-card-icon" aria-hidden="true">
+          <Icon name={icon} className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="co-command-ops-card-title">{title}</span>
+          <span className="co-command-ops-card-helper">{helper}</span>
+        </span>
+        <strong>{value}</strong>
+      </div>
+      <div className="co-command-ops-card-rows">
+        {safeRows.map((row) => (
+          <span key={row.label}>
+            <em>{row.label}</em>
+            <b>{row.value}</b>
+          </span>
+        ))}
+      </div>
+      {canRunAction ? (
+        <button type="button" onClick={onAction} className="co-command-ops-card-link co-focus-ring">
+          {actionLabel}
+          <span aria-hidden="true">-&gt;</span>
+        </button>
+      ) : null}
+    </Card>
+  );
+}
+
 function CommandCenterPage({
   companyName,
   leads,
@@ -13809,8 +13843,16 @@ function CommandCenterPage({
   const canViewAppHealth = Boolean(permissions?.appHealth?.canView);
   const canViewWatchtower = Boolean(permissions?.watchtower?.canView);
   const canViewJobDraftImports = Boolean(permissions?.jobDraftImports?.canView);
+  const canViewEstimates = Boolean(permissions?.estimates?.canView);
   const timeIssueCount = commandCenter.stats.timeIssues;
   const reportsUploadsDue = commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview + commandCenter.stats.jobsMissingPhotos;
+  const operatingPlanCount = commandCenter.stats.scheduledTodayJobs
+    + commandCenter.stats.scheduledTomorrowJobs
+    + commandCenter.stats.jobsMissingCrew
+    + commandCenter.stats.jobsMissingStartDate;
+  const reviewApprovalCount = commandCenter.stats.reviewQueueItems;
+  const billingReadinessCount = commandCenter.stats.jobsReadyToBill
+    + (canViewEstimates ? commandCenter.stats.approvedEstimatesReadyToConvert : 0);
   const priorityStatCards = [
     {
       label: "Follow-Ups Due",
@@ -13914,6 +13956,64 @@ function CommandCenterPage({
     commandCenter.stats.importedDraftsNeedingReview > 0 ? { id: "drafts", title: "Imported drafts", description: `${commandCenter.stats.importedDraftsNeedingReview} draft${commandCenter.stats.importedDraftsNeedingReview === 1 ? "" : "s"} waiting`, tone: "blue", action: () => openModule("jobDraftImports") } : null,
     timeIssueCount > 0 ? { id: "time", title: "Time issues", description: `${timeIssueCount} active or unassigned time ${timeIssueCount === 1 ? "entry" : "entries"}`, tone: "orange", action: () => openModule("time") } : null,
   ].filter(Boolean).slice(0, 5);
+  const operationsPulseCards = [
+    {
+      title: "Operating Plan",
+      value: operatingPlanCount,
+      helper: "Today, tomorrow, and assignment readiness",
+      icon: "briefcase",
+      tone: operatingPlanCount ? "blue" : "slate",
+      actionLabel: "Open schedule",
+      onAction: () => openModule("schedule"),
+      rows: [
+        { label: "Today", value: commandCenter.stats.scheduledTodayJobs },
+        { label: "Tomorrow", value: commandCenter.stats.scheduledTomorrowJobs },
+        { label: "Unassigned", value: commandCenter.stats.jobsMissingCrew },
+      ],
+    },
+    {
+      title: "Field Execution",
+      value: commandCenter.stats.fieldProofGaps,
+      helper: "Reports, photos, tickets, and checklist gaps",
+      icon: "upload",
+      tone: commandCenter.stats.fieldProofGaps ? "amber" : "green",
+      actionLabel: "Open reports",
+      onAction: () => openModule("reports"),
+      rows: [
+        { label: "Reports", value: commandCenter.stats.openDailyReports + commandCenter.stats.dailyReportsNeedingReview },
+        { label: "Photos", value: commandCenter.stats.jobsMissingPhotos },
+        { label: "Tickets", value: commandCenter.stats.pendingDeliveryTickets },
+      ],
+    },
+    {
+      title: "Review & Approve",
+      value: reviewApprovalCount,
+      helper: "Office decisions waiting before work moves forward",
+      icon: "alert",
+      tone: reviewApprovalCount ? "orange" : "green",
+      actionLabel: "Open queue",
+      onAction: () => openModule(commandCenter.stats.dailyReportsNeedingReview ? "reports" : "jobs"),
+      rows: [
+        { label: "Reports", value: commandCenter.stats.dailyReportsNeedingReview },
+        { label: "Changes", value: commandCenter.stats.openChangeOrders },
+        { label: "Time", value: commandCenter.stats.timeIssues },
+      ],
+    },
+    {
+      title: "Billing Readiness",
+      value: billingReadinessCount,
+      helper: "Work ready to convert or move toward billing",
+      icon: "check",
+      tone: billingReadinessCount ? "green" : "slate",
+      actionLabel: commandCenter.stats.jobsReadyToBill || !canViewEstimates ? "Open jobs" : "Open estimates",
+      onAction: () => openModule(commandCenter.stats.jobsReadyToBill || !canViewEstimates ? "jobs" : "estimates"),
+      rows: [
+        { label: "Ready to bill", value: commandCenter.stats.jobsReadyToBill },
+        canViewEstimates ? { label: "Approved", value: commandCenter.stats.approvedEstimatesReadyToConvert } : null,
+        canViewEstimates ? { label: "Sent", value: commandCenter.stats.sentEstimatesWaiting } : null,
+      ],
+    },
+  ];
   const leadById = new Map((leads || []).map((lead) => [lead.id, lead]));
   const customerById = new Map((customers || []).map((customer) => [customer.id, customer]));
   const estimateById = new Map((estimates || []).map((estimate) => [estimate.id, estimate]));
@@ -13946,6 +14046,8 @@ function CommandCenterPage({
   const jobSnapshotById = new Map();
   [
     ...commandCenter.jobsNeedingStartupReview,
+    ...commandCenter.schedule.scheduledTodayJobs,
+    ...commandCenter.schedule.scheduledTomorrowJobs,
     ...commandCenter.jobsMissingCrewOrStartDate,
     ...commandCenter.dailyReports.activeJobsMissingTodayReport,
     ...commandCenter.uploads.jobsMissingPhotos,
@@ -14009,6 +14111,11 @@ function CommandCenterPage({
           jobsNeedingReview={commandCenter.stats.jobsNeedingStartupReview + commandCenter.stats.jobsMissingCrew + commandCenter.stats.jobsMissingStartDate}
           reportsUploadsDue={reportsUploadsDue}
         />
+        <div className="co-command-ops-grid">
+          {operationsPulseCards.map((card) => (
+            <CommandCenterOpsPulseCard key={card.title} {...card} />
+          ))}
+        </div>
         <div className="co-command-kpi-grid grid grid-cols-2 gap-2.5 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />
