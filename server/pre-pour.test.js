@@ -123,6 +123,20 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function movePrePourItemToOtherCompany(sqliteFile, itemId) {
+  const database = new DatabaseSync(sqliteFile);
+  const now = new Date().toISOString();
+  try {
+    database.prepare(`
+      INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+    database.prepare("UPDATE pre_pour_checklist_items SET company_id = ? WHERE id = ?").run("COMPANY-LYF", itemId);
+  } finally {
+    database.close();
+  }
+}
+
 test("pre-pour permissions keep field access scoped while office can review lifecycle changes", async () => {
   const fixture = await startServer();
 
@@ -219,6 +233,22 @@ test("pre-pour permissions keep field access scoped while office can review life
     const formsUpdatedChecklist = formsUpdatedState.prePourChecklists.find((checklist) => checklist.id === createdChecklist.id);
     assert.equal(formsUpdatedChecklist.items.find((item) => item.id === formsItem.id).status, "checked");
 
+    const staleItem = createdChecklist.items.find((item) => item.key === "before_photos_taken");
+    assert.ok(staleItem);
+    movePrePourItemToOtherCompany(fixture.sqliteFile, staleItem.id);
+
+    const staleItemUpdateAttempt = await requestJson(fixture.baseUrl, `/api/pre-pour-checklists/${createdChecklist.id}/items/${staleItem.id}`, {
+      method: "PATCH",
+      headers: foremanHeaders,
+      body: JSON.stringify({ status: "checked", notes: "Wrong-company child item should not update." }),
+    });
+    assert.equal(staleItemUpdateAttempt.response.status, 404);
+
+    const foremanListAfterStaleMove = await assertOk(fixture.baseUrl, "/api/pre-pour-checklists", { headers: foremanHeaders });
+    const checklistAfterStaleMove = foremanListAfterStaleMove.prePourChecklists.find((checklist) => checklist.id === createdChecklist.id);
+    assert.ok(checklistAfterStaleMove);
+    assert.equal(checklistAfterStaleMove.items.some((item) => item.id === staleItem.id), false);
+
     const employeeEditAttempt = await requestJson(fixture.baseUrl, `/api/pre-pour-checklists/${createdChecklist.id}/items/${formsItem.id}`, {
       method: "PATCH",
       headers: employeeHeaders,
@@ -234,6 +264,7 @@ test("pre-pour permissions keep field access scoped while office can review life
     assert.equal(unrelatedView.prePourChecklists.length, 0);
 
     for (const item of createdChecklist.items) {
+      if (item.id === staleItem.id) continue;
       await assertOk(fixture.baseUrl, `/api/pre-pour-checklists/${createdChecklist.id}/items/${item.id}`, {
         method: "PATCH",
         headers: foremanHeaders,

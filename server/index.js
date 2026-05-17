@@ -2107,6 +2107,7 @@ function canViewPrePourChecklistRecord(user, checklist, job) {
 }
 
 function sanitizePrePourChecklistItemForUser(item, state, user, checklist, job, context = null) {
+  if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) return null;
   if (!canViewPrePourChecklistRecord(user, checklist, job)) return null;
   const checkedByUser = lookupUserById(state, item.checkedBy, context);
   return {
@@ -2151,6 +2152,7 @@ function sanitizePrePourChecklistForUser(checklist, state, user, context = null)
   const reviewedBy = lookupUserById(state, checklist.reviewedBy, hydrationContext);
   const reopenedBy = lookupUserById(state, checklist.reopenedBy, hydrationContext);
   const items = (hydrationContext?.prePourItemsByChecklistId?.get(checklist.id) || [])
+    .filter((item) => item.checklistId === checklist.id && normalizeCompanyId(item.companyId) === normalizeCompanyId(checklist.companyId))
     .map((item) => sanitizePrePourChecklistItemForUser(item, state, user, checklist, job, hydrationContext))
     .filter(Boolean);
   const incompleteItemCount = items.filter((item) => item.status === "unchecked").length;
@@ -2248,6 +2250,7 @@ function canViewPostPourChecklistRecord(user, checklist, job) {
 }
 
 function sanitizePostPourChecklistItemForUser(item, state, user, checklist, job, context = null) {
+  if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) return null;
   if (!canViewPostPourChecklistRecord(user, checklist, job)) return null;
   const checkedByUser = lookupUserById(state, item.checkedBy, context);
   return {
@@ -2292,6 +2295,7 @@ function sanitizePostPourChecklistForUser(checklist, state, user, context = null
   const reviewedBy = lookupUserById(state, checklist.reviewedBy, hydrationContext);
   const reopenedBy = lookupUserById(state, checklist.reopenedBy, hydrationContext);
   const items = (hydrationContext?.postPourItemsByChecklistId?.get(checklist.id) || [])
+    .filter((item) => item.checklistId === checklist.id && normalizeCompanyId(item.companyId) === normalizeCompanyId(checklist.companyId))
     .map((item) => sanitizePostPourChecklistItemForUser(item, state, user, checklist, job, hydrationContext))
     .filter(Boolean);
   const incompleteItemCount = items.filter((item) => item.status === "unchecked").length;
@@ -4308,6 +4312,12 @@ function findPrePourChecklistItem(state, itemId) {
   return findRequiredRecord(state.prePourChecklistItems || [], itemId, "Pre-pour checklist item");
 }
 
+function assertPrePourChecklistItemBelongsToChecklist(item, checklist) {
+  if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) {
+    throw new ApiError(404, "Pre-pour checklist item not found.");
+  }
+}
+
 function canCreatePrePourChecklistForJob(user, job) {
   if (!job || job.archivedAt) return false;
   if (isOfficeManager(user)) return true;
@@ -4335,9 +4345,9 @@ function canViewPrePourChecklistDetails(user, checklist, job) {
   return canViewPrePourChecklistRecord(user, checklist, job);
 }
 
-function checklistHasIncompleteRequiredItems(state, checklistId) {
+function checklistHasIncompleteRequiredItems(state, checklist) {
   return dedupeChecklistItems((state.prePourChecklistItems || [])
-    .filter((item) => item.checklistId === checklistId && !item.archivedAt))
+    .filter((item) => item.checklistId === checklist.id && normalizeCompanyId(item.companyId) === normalizeCompanyId(checklist.companyId) && !item.archivedAt))
     .some((item) => optionalPrePourItemStatus(item.status, "unchecked") === "unchecked");
 }
 
@@ -4372,6 +4382,12 @@ function findPostPourChecklistItem(state, itemId) {
   return findRequiredRecord(state.postPourChecklistItems || [], itemId, "Post-pour checklist item");
 }
 
+function assertPostPourChecklistItemBelongsToChecklist(item, checklist) {
+  if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) {
+    throw new ApiError(404, "Post-pour checklist item not found.");
+  }
+}
+
 function canCreatePostPourChecklistForJob(user, job) {
   if (!job || job.archivedAt) return false;
   if (isOfficeManager(user)) return true;
@@ -4399,9 +4415,9 @@ function canViewPostPourChecklistDetails(user, checklist, job) {
   return canViewPostPourChecklistRecord(user, checklist, job);
 }
 
-function postPourChecklistHasIncompleteRequiredItems(state, checklistId) {
+function postPourChecklistHasIncompleteRequiredItems(state, checklist) {
   return dedupeChecklistItems((state.postPourChecklistItems || [])
-    .filter((item) => item.checklistId === checklistId && !item.archivedAt))
+    .filter((item) => item.checklistId === checklist.id && normalizeCompanyId(item.companyId) === normalizeCompanyId(checklist.companyId) && !item.archivedAt))
     .some((item) => optionalPostPourItemStatus(item.status, "unchecked") === "unchecked");
 }
 
@@ -7016,9 +7032,7 @@ app.patch("/api/pre-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute(
       throw new ApiError(403, "You do not have permission to update pre-pour checklist items.");
     }
     const item = findPrePourChecklistItem(draft, itemId);
-    if (item.checklistId !== checklist.id) {
-      throw new ApiError(404, "Pre-pour checklist item not found.");
-    }
+    assertPrePourChecklistItemBelongsToChecklist(item, checklist);
 
     const nextStatus = payload.status == null ? item.status : optionalPrePourItemStatus(payload.status, item.status);
     const nextNotes = payload.notes == null ? item.notes || "" : optionalString(payload.notes, "");
@@ -7065,7 +7079,7 @@ app.post("/api/pre-pour-checklists/:id/complete", requireAuth, asyncRoute(async 
     if (!canCompletePrePourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to complete this pre-pour checklist.");
     }
-    if (checklistHasIncompleteRequiredItems(draft, checklist.id)) {
+    if (checklistHasIncompleteRequiredItems(draft, checklist)) {
       throw new ApiError(409, "Complete or mark not applicable for every pre-pour item before finishing the checklist.");
     }
 
@@ -7281,9 +7295,7 @@ app.patch("/api/post-pour-checklists/:id/items/:itemId", requireAuth, asyncRoute
       throw new ApiError(403, "You do not have permission to update post-pour checklist items.");
     }
     const item = findPostPourChecklistItem(draft, itemId);
-    if (item.checklistId !== checklist.id) {
-      throw new ApiError(404, "Post-pour checklist item not found.");
-    }
+    assertPostPourChecklistItemBelongsToChecklist(item, checklist);
 
     const nextStatus = payload.status == null ? item.status : optionalPostPourItemStatus(payload.status, item.status);
     const nextNotes = payload.notes == null ? item.notes || "" : optionalString(payload.notes, "");
@@ -7330,7 +7342,7 @@ app.post("/api/post-pour-checklists/:id/complete", requireAuth, asyncRoute(async
     if (!canCompletePostPourChecklist(req.auth.user, job, checklist)) {
       throw new ApiError(403, "You do not have permission to complete this post-pour checklist.");
     }
-    if (postPourChecklistHasIncompleteRequiredItems(draft, checklist.id)) {
+    if (postPourChecklistHasIncompleteRequiredItems(draft, checklist)) {
       throw new ApiError(409, "Complete or mark not applicable for every post-pour item before finishing the checklist.");
     }
 
