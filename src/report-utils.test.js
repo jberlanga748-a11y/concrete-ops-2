@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils.js";
+import { deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils.js";
 
 const REPORTS = [
   {
@@ -73,4 +73,35 @@ test("report helpers tolerate missing report arrays", () => {
   assert.deepEqual(state.jobOptions, []);
   assert.deepEqual(state.creatorOptions, []);
   assert.deepEqual(state.dateOptions, []);
+});
+
+test("derives advanced reporting prep summary from visible daily reports", () => {
+  const proofStateByReportId = new Map([
+    ["R-1", { gapCount: 2 }],
+    ["R-2", { gapCount: 0 }],
+  ]);
+  const summary = deriveAdvancedReportSummary(REPORTS, { proofStateByReportId });
+
+  assert.equal(summary.totalReports, 2);
+  assert.equal(summary.statusCounts.draft, 1);
+  assert.equal(summary.statusCounts.submitted, 1);
+  assert.equal(summary.fieldDrafts, 1);
+  assert.equal(summary.submittedForReview, 1);
+  assert.equal(summary.needsAttention, 2);
+  assert.equal(summary.missingBasics, 0);
+  assert.equal(summary.proofGaps, 1);
+  assert.equal(summary.closeoutReady, 0);
+  assert.equal(summary.dateRangeLabel, "2026-04-24 to 2026-04-25");
+  assert.deepEqual(summary.topJobs.map((item) => item.label), ["Jenkins Patio", "Martinez Front Walk"]);
+  assert.deepEqual(summary.topCreators.map((item) => item.label), ["Foreman One", "Foreman Two"]);
+});
+
+test("advanced reporting prep summary fails closed with empty input", () => {
+  const summary = deriveAdvancedReportSummary();
+
+  assert.equal(summary.totalReports, 0);
+  assert.equal(summary.needsAttention, 0);
+  assert.equal(summary.dateRangeLabel, "No report dates");
+  assert.deepEqual(summary.topJobs, []);
+  assert.deepEqual(summary.topCreators, []);
 });

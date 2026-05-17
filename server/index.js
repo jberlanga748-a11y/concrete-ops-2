@@ -5336,7 +5336,10 @@ function sanitizeBootstrap(state, user) {
         canManageAssignments: canViewAllJobs(user),
         canViewMoney: canViewJobMoney(user),
       },
-        reports: reportPermissionsForUser(user),
+        reports: {
+          ...reportPermissionsForUser(user),
+          canViewAdvanced: packageEntitlements.reporting.canUseAdvancedReporting && canManageReports(user),
+        },
         prePour: prePourPermissionsForUser(user),
         postPour: postPourPermissionsForUser(user),
         uploads: uploadPermissionsForUser(user),

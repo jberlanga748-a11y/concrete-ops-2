@@ -97,11 +97,12 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Keep guided setup and plan readiness stable; do not add Stripe until billing is explicitly approved.
 - Keep public signup UX stable; do not rebuild signup/auth unless a proven security bug is found.
 - Keep package locked states stable; do not add billing or expose package CTAs to field roles.
+- Keep Advanced Reporting Prep stable; do not turn it into job costing, payroll, billing, or broad analytics without a planned reporting phase.
 
 ### Next
 
-- Advanced reporting prep.
 - Enterprise trust layer.
+- Pilot browser QA checkpoint.
 
 ### Later
 
@@ -129,12 +130,12 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Advanced Reporting Prep.
-2. Enterprise trust layer.
-3. Pilot browser QA checkpoint.
-4. Mobile field trust polish.
-5. Assistant Command Expansion Phase 2.
-6. Field Ops Agent planning checkpoint.
+1. Enterprise trust layer.
+2. Pilot browser QA checkpoint.
+3. Mobile field trust polish.
+4. Assistant Command Expansion Phase 2.
+5. Field Ops Agent planning checkpoint.
+6. Advanced Reporting Prep Phase 2.
 7. Billing / manual upgrade prep.
 8. Customer Portal Planning Checkpoint.
 
@@ -146,6 +147,7 @@ Completed foundational phases that should not be restarted:
 - Company isolation hardening foundation.
 - Package entitlement foundation.
 - Package Upgrade / Locked State Polish.
+- Advanced Reporting Prep.
 - First owner onboarding/support handoff.
 - Customer Success / Guided Setup Phase 2.
 - Billing / Plans Readiness Prep.

@@ -167,7 +167,7 @@ import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDe
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
-import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
+import { deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { buildSupportPacket, createSupportDraft, SUPPORT_BLOCKER_OPTIONS, SUPPORT_WORKFLOW_OPTIONS } from "./support-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
@@ -387,6 +387,7 @@ const EMPTY_APP_STATE = {
       canCreate: false,
       canManageAll: false,
       canReview: false,
+      canViewAdvanced: false,
     },
     prePour: {
       canView: false,
@@ -7433,6 +7434,95 @@ function DailyReportsOperationsBoard({
   );
 }
 
+function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule }) {
+  if (!summary) return null;
+
+  const prepCards = [
+    {
+      label: "Needs attention",
+      value: summary.needsAttention,
+      helper: "Drafts, submitted reports, proof gaps, or missing basics",
+      icon: "alert",
+      tone: summary.needsAttention ? "amber" : "green",
+      actionLabel: summary.needsAttention ? "Open queue" : "Clear",
+      onAction: () => onSetFilter?.(summary.submittedForReview ? "Submitted" : summary.fieldDrafts ? "Draft" : "All"),
+      disabled: !summary.needsAttention,
+    },
+    {
+      label: "Closeout ready",
+      value: summary.closeoutReady,
+      helper: "Reviewed reports with required proof clear",
+      icon: "check",
+      tone: summary.closeoutReady ? "green" : "slate",
+      actionLabel: "View reviewed",
+      onAction: () => onSetFilter?.("Reviewed"),
+    },
+    {
+      label: "Proof gaps",
+      value: summary.proofGaps,
+      helper: "Reports missing photos, tickets, checklists, or core fields",
+      icon: "upload",
+      tone: summary.proofGaps ? "orange" : "green",
+      actionLabel: summary.proofGaps ? "Find gaps" : "No gaps",
+      onAction: () => onSetFilter?.("All"),
+      disabled: !summary.proofGaps,
+    },
+    {
+      label: "Report window",
+      value: summary.totalReports,
+      displayValue: summary.dateRangeLabel,
+      helper: "Filtered report range for owner review",
+      icon: "document",
+      tone: "blue",
+      actionLabel: "Open reports",
+      onAction: () => onOpenModule?.("reports"),
+    },
+  ];
+
+  const reportingQuestions = [
+    `${summary.submittedForReview} submitted report${summary.submittedForReview === 1 ? "" : "s"} waiting on office review`,
+    `${summary.fieldDrafts} draft or reopened report${summary.fieldDrafts === 1 ? "" : "s"} still in field completion`,
+    `${summary.missingBasics} report${summary.missingBasics === 1 ? "" : "s"} missing work, crew, or weather basics`,
+    `${summary.concreteReports} concrete report${summary.concreteReports === 1 ? "" : "s"} in the filtered view`,
+  ];
+
+  return (
+    <div className="co-reports-advanced-panel mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+      <Card className="co-reports-advanced-card overflow-hidden">
+        <div className="co-reports-advanced-head">
+          <div className="min-w-0">
+            <p className="co-reports-ops-eyebrow">Advanced reporting prep</p>
+            <h2>Owner reporting signals before job costing gets heavier</h2>
+            <p>This is a read-only reporting layer for office review. Field users do not see this panel.</p>
+          </div>
+          <Badge tone="orange">Premium reporting</Badge>
+        </div>
+        <div className="co-reports-advanced-grid">
+          {prepCards.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        </div>
+        <div className="co-reports-advanced-breakdowns">
+          <div>
+            <span>Top jobs in this report view</span>
+            {summary.topJobs.length ? summary.topJobs.map((item) => (
+              <p key={item.key}><strong>{item.label}</strong><em>{item.count}</em></p>
+            )) : <p><strong>No job report volume yet</strong><em>0</em></p>}
+          </div>
+          <div>
+            <span>Reporter volume</span>
+            {summary.topCreators.length ? summary.topCreators.map((item) => (
+              <p key={item.key}><strong>{item.label}</strong><em>{item.count}</em></p>
+            )) : <p><strong>No reporter volume yet</strong><em>0</em></p>}
+          </div>
+          <div>
+            <span>Questions this prepares</span>
+            {reportingQuestions.map((question) => <p key={question}><strong>{question}</strong></p>)}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function DailyReportsTablePolished({ rows, selectedId, onSelect, onOpenDetails, maxRows = 8, proofStateByReportId = new Map() }) {
   const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
   function handleMobileListToggle(event) {
@@ -12314,6 +12404,7 @@ function ReportsPagePolished({
   const canView = permissions.reports.canView;
   const canCreate = permissions.reports.canCreate;
   const isFieldReportWorkspace = canCreate && !permissions.reports.canManageAll;
+  const canViewAdvancedReporting = Boolean(permissions.reports.canManageAll && permissions.reports.canViewAdvanced);
   const [showReportTools, setShowReportTools] = useState(false);
   const [activeReportTool, setActiveReportTool] = useState("create");
   const reportToolsRef = useRef(null);
@@ -12355,6 +12446,9 @@ function ReportsPagePolished({
     return nextMap;
   }, [proofSource, reports]);
   const proofGapReports = visibleRows.filter((report) => (proofStateByReportId.get(report.id)?.gapCount || 0) > 0);
+  const advancedReportSummary = useMemo(() => deriveAdvancedReportSummary(visibleRows, {
+    proofStateByReportId,
+  }), [proofStateByReportId, visibleRows]);
   const selectedReportProofState = selectedReport ? proofStateByReportId.get(selectedReport.id) : null;
   const fieldFocusJob = liveReportJobs[0] || normalizeObjectArray(jobs).find((job) => !job.archivedAt) || null;
   const fieldFocusReport = (
@@ -12503,6 +12597,14 @@ function ReportsPagePolished({
           onSetDateFilter={setDateFilter}
           onOpenModule={openReportModule}
           proofStateByReportId={proofStateByReportId}
+        />
+      ) : null}
+
+      {canViewAdvancedReporting && !isFieldReportWorkspace ? (
+        <AdvancedReportsPrepPanel
+          summary={advancedReportSummary}
+          onSetFilter={setFilter}
+          onOpenModule={openReportModule}
         />
       ) : null}
 

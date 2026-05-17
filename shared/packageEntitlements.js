@@ -25,6 +25,9 @@ export function resolvePackageEntitlements({ hasFeature } = {}) {
     watchtower: {
       canUse: canUseWatchtower,
     },
+    reporting: {
+      canUseAdvancedReporting: canUseFeature(FEATURE_KEYS.ADVANCED_REPORTING),
+    },
     opportunityScout: {
       canUse: canUseFeature(FEATURE_KEYS.LEAD_JOB_FINDER),
     },

@@ -20,6 +20,7 @@ test("package entitlements fail closed without a feature resolver", () => {
   assert.equal(entitlements.appHealth.canUse, false);
   assert.equal(entitlements.support.canUse, false);
   assert.equal(entitlements.watchtower.canUse, false);
+  assert.equal(entitlements.reporting.canUseAdvancedReporting, false);
   assert.equal(entitlements.opportunityScout.canUse, false);
 });
 
@@ -33,6 +34,7 @@ test("Basic package keeps premium and elite operational surfaces locked", () => 
   assert.equal(entitlements.appHealth.canUse, false);
   assert.equal(entitlements.support.canUse, true);
   assert.equal(entitlements.watchtower.canUse, false);
+  assert.equal(entitlements.reporting.canUseAdvancedReporting, false);
   assert.equal(entitlements.opportunityScout.canUse, false);
 });
 
@@ -47,6 +49,7 @@ test("Premium package enables proposal, app health, integration, and assistant s
   assert.equal(entitlements.appHealth.canUse, true);
   assert.equal(entitlements.support.canUse, true);
   assert.equal(entitlements.watchtower.canUse, true);
+  assert.equal(entitlements.reporting.canUseAdvancedReporting, true);
   assert.equal(entitlements.opportunityScout.canUse, false);
 });
 
@@ -59,5 +62,6 @@ test("Elite package enables lead finder while inheriting premium surfaces", () =
   assert.equal(entitlements.appHealth.canUse, true);
   assert.equal(entitlements.support.canUse, true);
   assert.equal(entitlements.watchtower.canUse, true);
+  assert.equal(entitlements.reporting.canUseAdvancedReporting, true);
   assert.equal(entitlements.opportunityScout.canUse, true);
 });
