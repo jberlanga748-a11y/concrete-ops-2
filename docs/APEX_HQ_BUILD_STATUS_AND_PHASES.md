@@ -17,6 +17,7 @@ Current state:
 - First owner onboarding/support handoff: built, tested, released.
 - Field Ops Agent Phase 1 read-only summary: built, verified, released, and health-checked.
 - Advanced Reporting Prep Phase 2: built, verified, released, and health-checked.
+- Enterprise Trust Phase 2: built and verified locally, pending release.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
@@ -103,6 +104,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
 | Enterprise Trust Prep | Built and released | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
+| Enterprise Trust Phase 2 | Built / pending release | Owner/admin trust readiness now includes a copy-only pilot trust review packet, next trust actions, and explicit claims guardrails using existing audit/export/health/support data only. Field users remain blocked. |
 | Guided Demo Launch Readiness | Rehearsed | Live v487 owner/admin and field browser rehearsal passed with no P0/P1 blockers, no console/API failures, no horizontal overflow, and role-safe field routes. |
 | Watchtower / Missing Work Agent Phase 1 | Built and released | Read-only Command Center missing-work queue exists. Do not turn it into autopilot without explicit Assistant phase controls. |
 | Apex Assistant Shell Phase 1 | Built and released | Persistent review-only shell routes office users to existing workflows. Do not add autonomous writes without explicit Assistant command expansion phase controls. |
@@ -143,6 +145,7 @@ Recent focused verification:
 - Mobile Field Trust Polish checks: `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:time`, `npm.cmd run build`, and `git diff --check` passed. Local and live mobile browser checks confirmed foreman field jobs show May 17 instead of stale April dates, no horizontal overflow, and no console/API failures. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-v490-live-field-date-1779030359039`. Released as Fly `v490`; both live ready endpoints returned `200`, ready, database ok.
 - Field Ops Agent Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run build`, focused browser owner/foreman desktop/mobile QA, and `git diff --check` passed. Browser screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-field-ops-shots-r3tygX`. Released as Fly `v491`; both live ready endpoints returned `200`, ready, database ok.
 - Advanced Reporting Prep Phase 2 checks: `npm.cmd run verify:daily-reports`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v492`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted a transient listening-address warning, but Fly status showed the machine started with `1 passing` check.
+- Enterprise Trust Phase 2 checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, and `git diff --check` passed locally. The first `verify:roles` run reported a shared permissions test-process failure without an assertion; rerunning `verify:roles` and `node --test --test-concurrency=1 shared\permissions.test.js` passed. Browser QA and release are still pending.
 
 ## Current Loop Prevention Rules
 
@@ -174,6 +177,7 @@ Do not start these phases again as if they are missing:
 - Advanced Reporting Prep.
 - Advanced Reporting Prep Phase 2.
 - Enterprise Trust Prep.
+- Enterprise Trust Phase 2.
 - Demo pilot data cleanup.
 
 If one of those areas comes up, first ask:
@@ -185,20 +189,18 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Enterprise Trust Phase 2 - Next
+### Release Enterprise Trust Phase 2 - Next
 
 Why this is next:
 
-- App Health / Audit Activity and Enterprise Trust Prep already exist.
-- Reporting, Field Ops, Watchtower, and support handoff are now visible enough for guided pilots.
-- The next useful trust layer is to tighten owner/admin confidence around audit history, exports, release safety, and support-readiness without making enterprise compliance claims.
+- Enterprise Trust Phase 2 is built and verified locally.
+- The next safe step is a focused release-manager pass: confirm changed files, optionally run focused owner trust browser QA, commit, push, deploy, and health-check.
 
 Scope:
 
-- Extend existing trust/app-health/readiness surfaces only.
-- Keep it owner/admin-only.
-- Use current audit/activity/export/health data only.
-- Improve operational trust language and review flow without adding compliance promises.
+- Release the completed Enterprise Trust Phase 2 batch.
+- Preserve unrelated dirty docs unless explicitly included.
+- Health-check both production ready endpoints after deploy.
 
 Do not include:
 
@@ -211,13 +213,13 @@ Do not include:
 
 Suggested verification:
 
-- `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, focused owner App Health/Settings browser QA if UI changes, field role safety check, and `git diff --check`.
+- `git status --short`, `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, optional focused owner App Health/Settings browser QA, `git diff --check`, commit, push, deploy, and `/api/ready` health checks.
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
+| 1 | Release Enterprise Trust Phase 2 | Commit, push, deploy, and health-check the completed owner trust phase. | Low | Maybe. |
 | 2 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
 | 3 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
 | 4 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |

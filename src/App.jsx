@@ -154,7 +154,7 @@ import { deriveLeadInboxState, deriveLeadListState, relatedLeadActivity } from "
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
 import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
-import { buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
+import { buildEnterpriseTrustReviewPacket, buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
 import { canViewJob } from "../shared/permissions.js";
@@ -13893,7 +13893,10 @@ function EnterpriseTrustReadinessPanel({
   packageReadiness = null,
   onJump = null,
   onOpenSupport = null,
+  user = null,
+  companyName = "",
 }) {
+  const [trustCopyMessage, setTrustCopyMessage] = useState("");
   const trustReadiness = useMemo(() => deriveEnterpriseTrustReadinessState({
     auditEvents,
     activity,
@@ -13931,6 +13934,34 @@ function EnterpriseTrustReadinessPanel({
     { label: "Exports logged", value: trustReadiness.stats.exportEvents, helper: "Owner data exports", tone: trustReadiness.stats.exportEvents ? "green" : "slate" },
   ];
 
+  async function copyTrustReviewPacket() {
+    const packet = buildEnterpriseTrustReviewPacket(trustReadiness, {
+      companyName,
+      userName: user?.name || user?.email || "Owner/admin",
+    });
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(packet);
+      } else if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = packet;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } else {
+        throw new Error("Clipboard unavailable");
+      }
+      setTrustCopyMessage("Pilot trust review packet copied.");
+    } catch {
+      setTrustCopyMessage("Could not copy automatically. Review the visible trust summary instead.");
+    }
+  }
+
   return (
     <Card className="p-5">
       <SectionHeader
@@ -13948,11 +13979,13 @@ function EnterpriseTrustReadinessPanel({
           <p>Trust work is strongest when owners can inspect health, exports, audit activity, support context, and release safety from one place.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" onClick={copyTrustReviewPacket}><Icon name="clipboard" />Copy trust packet</Button>
           {canExportData ? <Button type="button" size="sm" variant="secondary" onClick={() => onJump?.("settings-workspace-identity")}><Icon name="document" />Export area</Button> : null}
           {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={() => onJump?.("settings-owner-health")}><Icon name="database" />Owner Health</Button> : null}
           {canViewSupport ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenSupport?.()}><Icon name="help" />Support</Button> : null}
         </div>
       </div>
+      {trustCopyMessage ? <p className="mt-3 text-sm font-bold text-emerald-700">{trustCopyMessage}</p> : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((stat) => (
@@ -13976,6 +14009,17 @@ function EnterpriseTrustReadinessPanel({
             <span>{check.detail}</span>
           </div>
         ))}
+      </div>
+
+      <div className="co-trust-next-actions mt-4">
+        <div>
+          <span>Next trust actions</span>
+          {trustReadiness.nextActions.slice(0, 4).map((action) => <p key={action}>{action}</p>)}
+        </div>
+        <div>
+          <span>Claims guardrail</span>
+          <p>Use this for guided pilot confidence only. Do not describe Apex HQ as SOC 2, SSO/MFA, SLA, or enterprise-compliance ready until those controls are actually built and verified.</p>
+        </div>
       </div>
 
       {trustReadiness.attentionChecks.length ? (
@@ -25308,6 +25352,8 @@ function SettingsPagePolished({
                 packageReadiness={packageReadiness}
                 onJump={jumpToSettingsSection}
                 onOpenSupport={() => setActive?.("support")}
+                user={user}
+                companyName={workspaceCompanyName}
               />
               <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
               <AppHealthAuditActivityPanel auditEvents={auditEvents} activity={activity} canView={canViewAppHealth} />

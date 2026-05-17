@@ -23188,6 +23188,38 @@ textarea {
   background: #f8fafc;
 }
 
+.co-trust-next-actions {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr);
+  gap: 0.85rem;
+}
+
+.co-trust-next-actions > div {
+  min-width: 0;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 1rem;
+  background: #ffffff;
+  padding: 0.9rem;
+}
+
+.co-trust-next-actions span {
+  display: block;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.co-trust-next-actions p {
+  margin-top: 0.55rem;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.42;
+}
+
 .co-settings-checklist-item {
   display: grid;
   min-width: 0;
@@ -23793,6 +23825,10 @@ textarea {
 
   .co-trust-readiness-hero {
     flex-direction: column;
+  }
+
+  .co-trust-next-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .co-trust-readiness-hero > div:last-child {
