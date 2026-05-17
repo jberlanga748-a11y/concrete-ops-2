@@ -1,6 +1,6 @@
 # Apex HQ Guided Demo Launch Readiness
 
-Status: ready for guided rehearsal after v486 demo cleanup
+Status: rehearsed on live v487; warm-demo ready with notes
 Owner: Apex HQ Master Coordinator
 Use with: `docs/SALES_DEMO_PLAYBOOK.md`, `docs/DEMO_LAUNCH_PACKET.md`, `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`, and `docs/DEMO_READY_CHECKLIST.md`
 
@@ -9,6 +9,27 @@ Use with: `docs/SALES_DEMO_PLAYBOOK.md`, `docs/DEMO_LAUNCH_PACKET.md`, `docs/FOU
 Apex HQ is ready for guided warm demos and founder-led pilot conversations.
 
 It is not yet positioned as public self-serve SaaS, enterprise-ready procurement software, or an autonomous AI platform.
+
+## Live Rehearsal Result
+
+Date: 2026-05-17
+Environment: `https://app.apexhq.online`
+Release: Fly `v487`
+Evidence: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-rehearsal-1779028554230`
+
+Result:
+
+- No P0/P1 blockers found.
+- No console errors found.
+- No failed API/network requests found.
+- No horizontal overflow found across checked desktop/mobile pages.
+- Field users remained blocked from office/admin/pricing/estimate surfaces through direct route checks.
+- Apex Assistant shell opened successfully and safely showed the Premium AI Rough Notes gate in the current Basic demo workspace.
+- `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, and `git diff --check` passed.
+
+Note:
+
+- The current live demo workspace blocks Premium AI Rough Notes assistant commands. That is correct package-gate behavior, but do not promise a live Premium assistant rough-notes demo from this Basic demo workspace unless a Premium demo workspace is prepared.
 
 The first demo goal is simple:
 

@@ -26,7 +26,10 @@ M2 Mini can be shown first only if the solo-owner path is clean.
 | No weird values like impossible hours or $0 test estimates |  |  |
 | No private production data visible |  |  |
 | Field user cannot access office/admin/pricing areas | Pass | `npm.cmd run verify:roles` passed during v486 cleanup verification. |
-| Owner/admin path is clear enough to narrate |  |  |
+| Owner/admin path is clear enough to narrate | Pass | v487 live rehearsal checked owner/admin Command Center, Schedule, Leads, Estimates, Jobs, and Support with no P0/P1 blockers. |
+| Field mobile path is clear enough to narrate | Pass | v487 live rehearsal checked foreman/employee mobile landing, jobs, reports, uploads, and direct office-route denial with no P0/P1 blockers. |
+| Console/API errors in guided path | Pass | v487 live rehearsal found 0 console issues and 0 failed/error network requests. |
+| Horizontal overflow in guided path | Pass | v487 live rehearsal found 0 horizontal overflow across 15 checked pages. |
 
 ## Pass Standard
 
