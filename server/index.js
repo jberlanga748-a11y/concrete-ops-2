@@ -4086,11 +4086,12 @@ function syncJobAssignmentAliases(state, job) {
   return { foremanAssignment, crewAssignments };
 }
 
-function createJobAssignmentRecord(jobId, userId, roleOnJob, actor, notes = "", assignedAt = new Date().toISOString()) {
+function createJobAssignmentRecord(job, userId, roleOnJob, actor, notes = "", assignedAt = new Date().toISOString()) {
+  const assignmentJob = typeof job === "object" && job ? job : { id: job, companyId: actor?.companyId };
   return {
     id: makeId("JA"),
-    companyId: normalizeCompanyId(actor?.companyId),
-    jobId,
+    companyId: normalizeCompanyId(assignmentJob.companyId),
+    jobId: assignmentJob.id,
     userId,
     roleOnJob: normalizeAssignmentRoleValue(roleOnJob),
     assignedBy: actor?.id || "",
@@ -4524,7 +4525,7 @@ function replaceForemanAssignment(state, job, userId, actor, changedAt, notes = 
     return { assignment: null, action };
   }
 
-  const assignment = createJobAssignmentRecord(job.id, userId, "foreman", actor, notes, changedAt);
+  const assignment = createJobAssignmentRecord(job, userId, "foreman", actor, notes, changedAt);
   state.jobAssignments.unshift(assignment);
   syncJobAssignments(state, job, changedAt);
   return { assignment, action };
@@ -4546,7 +4547,7 @@ function reconcileLegacyAssignmentAliases(state, job, actor, changedAt) {
       materializeAssignmentRecord(matchingCrew, actor, changedAt);
     }
     if (!matchingCrew) {
-      state.jobAssignments.unshift(createJobAssignmentRecord(job.id, job.assignedUserId, "crew", actor, "", changedAt));
+      state.jobAssignments.unshift(createJobAssignmentRecord(job, job.assignedUserId, "crew", actor, "", changedAt));
     }
     if (currentPrimaryCrew && currentPrimaryCrew.userId !== job.assignedUserId) {
       removeActiveAssignment(currentPrimaryCrew, changedAt);
@@ -11132,10 +11133,10 @@ app.post("/api/jobs", requireAuth, asyncRoute(async (req, res) => {
     newJob.customerId = customer.id;
     draft.jobs.unshift(newJob);
     if (newJob.assignedForemanId) {
-      draft.jobAssignments.unshift(createJobAssignmentRecord(newJob.id, newJob.assignedForemanId, "foreman", req.auth.user, "", createdAt));
+      draft.jobAssignments.unshift(createJobAssignmentRecord(newJob, newJob.assignedForemanId, "foreman", req.auth.user, "", createdAt));
     }
     if (newJob.assignedUserId) {
-      draft.jobAssignments.unshift(createJobAssignmentRecord(newJob.id, newJob.assignedUserId, "crew", req.auth.user, "", createdAt));
+      draft.jobAssignments.unshift(createJobAssignmentRecord(newJob, newJob.assignedUserId, "crew", req.auth.user, "", createdAt));
     }
     syncJobAssignments(draft, newJob, createdAt);
     appendActivity(draft, "Job created", `${newJob.title} added for ${newJob.customer}.`);
@@ -11429,7 +11430,7 @@ app.post("/api/jobs/:id/assignments", requireAuth, asyncRoute(async (req, res) =
     if (roleOnJob === "foreman") {
       ({ assignment, action } = replaceForemanAssignment(draft, job, userId, req.auth.user, changedAt, payload.notes));
     } else {
-      assignment = createJobAssignmentRecord(job.id, userId, roleOnJob, req.auth.user, payload.notes, changedAt);
+      assignment = createJobAssignmentRecord(job, userId, roleOnJob, req.auth.user, payload.notes, changedAt);
       draft.jobAssignments.unshift(assignment);
       syncJobAssignments(draft, job, changedAt);
     }

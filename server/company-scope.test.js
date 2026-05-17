@@ -315,6 +315,20 @@ function companyIdForRecord(sqliteFile, tableName, id) {
   }
 }
 
+function activeJobAssignmentsForJob(sqliteFile, jobId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    return database.prepare(`
+      SELECT company_id AS companyId, job_id AS jobId, user_id AS userId, role_on_job AS roleOnJob
+      FROM job_assignments
+      WHERE job_id = ? AND removed_at IS NULL
+      ORDER BY role_on_job, user_id
+    `).all(jobId);
+  } finally {
+    database.close();
+  }
+}
+
 test("bootstrap scopes existing users to the default company and hides future other-company lead data", async () => {
   const fixture = await startServer();
 
@@ -397,6 +411,82 @@ test("operator user can switch companies without leaking selected company access
       body: { companyId: "COMPANY-MISSING" },
     });
     assert.match(invalidSwitch.error, /not found/i);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("operator job assignments are stamped to the selected job company", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    enableOperatorAccess(fixture.sqliteFile);
+    const lyfForeman = createUserRecord({
+      id: "U-LYF-ASSIGN-FOREMAN",
+      email: "lyf-assign-foreman@lastyard.test",
+      password: "apexdemo123",
+      name: "LYF Assignment Foreman",
+      role: "Foreman",
+      companyId: "COMPANY-LYF",
+    });
+    const lyfEmployee = createUserRecord({
+      id: "U-LYF-ASSIGN-EMPLOYEE",
+      email: "lyf-assign-employee@lastyard.test",
+      password: "apexdemo123",
+      name: "LYF Assignment Employee",
+      role: "Employee",
+      companyId: "COMPANY-LYF",
+    });
+    insertUserRecord(fixture.sqliteFile, lyfForeman);
+    insertUserRecord(fixture.sqliteFile, lyfEmployee);
+
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    await postJson(fixture.baseUrl, "/api/companies/select", operatorLogin.token, {
+      companyId: "COMPANY-LYF",
+    });
+
+    const createdWithAssignments = await postJson(fixture.baseUrl, "/api/jobs", operatorLogin.token, {
+      title: "LYF Assigned On Create",
+      customer: "LYF Assignment Customer",
+      city: "Portland",
+      status: "scheduled",
+      assignedForemanId: lyfForeman.id,
+      assignedUserId: lyfEmployee.id,
+    });
+    const createJob = findByName(createdWithAssignments.jobs, "LYF Assigned On Create", "Job");
+    assert.equal(companyIdForRecord(fixture.sqliteFile, "jobs", createJob.id), "COMPANY-LYF");
+    assert.deepEqual(new Set(activeJobAssignmentsForJob(fixture.sqliteFile, createJob.id).map((assignment) => assignment.companyId)), new Set(["COMPANY-LYF"]));
+
+    const createdForRouteAssignment = await postJson(fixture.baseUrl, "/api/jobs", operatorLogin.token, {
+      title: "LYF Route Assignment",
+      customer: "LYF Assignment Customer",
+      city: "Portland",
+      status: "scheduled",
+    });
+    const routeJob = findByName(createdForRouteAssignment.jobs, "LYF Route Assignment", "Job");
+    await postJson(fixture.baseUrl, `/api/jobs/${routeJob.id}/assignments`, operatorLogin.token, {
+      userId: lyfEmployee.id,
+      roleOnJob: "crew",
+    });
+    assert.deepEqual(new Set(activeJobAssignmentsForJob(fixture.sqliteFile, routeJob.id).map((assignment) => assignment.companyId)), new Set(["COMPANY-LYF"]));
+
+    const createdForPatchAssignment = await postJson(fixture.baseUrl, "/api/jobs", operatorLogin.token, {
+      title: "LYF Patch Assignment",
+      customer: "LYF Assignment Customer",
+      city: "Portland",
+      status: "scheduled",
+    });
+    const patchJob = findByName(createdForPatchAssignment.jobs, "LYF Patch Assignment", "Job");
+    await assertOk(fixture.baseUrl, `/api/jobs/${patchJob.id}`, {
+      method: "PATCH",
+      headers: authHeaders(operatorLogin.token),
+      body: JSON.stringify({ assignedForemanId: lyfForeman.id }),
+    });
+    assert.deepEqual(new Set(activeJobAssignmentsForJob(fixture.sqliteFile, patchJob.id).map((assignment) => assignment.companyId)), new Set(["COMPANY-LYF"]));
   } finally {
     await fixture.stop();
   }
