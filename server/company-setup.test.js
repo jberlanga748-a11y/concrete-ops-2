@@ -223,6 +223,7 @@ test("field users cannot view or update managed company setup", async () => {
     assert.equal(bootstrap.permissions.settings.canView, false);
     assert.equal(bootstrap.permissions.leads.canView, false);
     assert.equal(bootstrap.permissions.estimates.canView, false);
+    assert.equal(bootstrap.firstOwnerOnboarding, null);
     assert.equal(bootstrap.leadSources.length, 0);
 
     const denied = await requestJson(fixture.baseUrl, "/api/settings/company", {

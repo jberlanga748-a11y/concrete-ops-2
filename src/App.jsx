@@ -290,6 +290,7 @@ const EMPTY_APP_STATE = {
     managedSetupNotes: "",
     managedSetupUpdatedAt: "",
   },
+  firstOwnerOnboarding: null,
   users: [],
   customers: [],
   leads: [],
@@ -647,6 +648,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       ...(fallback.companySettings || {}),
       ...(source.companySettings || {}),
     },
+    firstOwnerOnboarding: source.firstOwnerOnboarding || fallback.firstOwnerOnboarding || null,
     users: normalizeObjectArray(source.users, fallback.users),
     customers: normalizeObjectArray(source.customers, fallback.customers),
     leads: normalizeObjectArray(source.leads, fallback.leads),
@@ -15045,6 +15047,7 @@ function DashboardPagePolished({
   stats,
   dashboardMetrics,
   companySettings = {},
+  firstOwnerOnboarding: firstOwnerOnboardingFromServer = null,
   leads,
   leadSources = [],
   estimates = [],
@@ -15266,13 +15269,14 @@ function DashboardPagePolished({
     timeEntries,
     users,
   }), [dailyReports, deliveryTickets, jobs, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, users]);
-  const firstOwnerOnboarding = useMemo(() => deriveFirstOwnerOnboardingState({
+  const derivedFirstOwnerOnboarding = useMemo(() => deriveFirstOwnerOnboardingState({
     companySettings,
     users,
     leadSources,
     estimates,
     jobs,
   }), [companySettings, estimates, jobs, leadSources, users]);
+  const firstOwnerOnboarding = firstOwnerOnboardingFromServer || derivedFirstOwnerOnboarding;
   const showFirstOwnerOnboarding = Boolean(permissions?.settings?.canView && !firstOwnerOnboarding.coreComplete);
 
   function focusDashboardRef(ref) {
@@ -34389,6 +34393,7 @@ export default function App() {
                 sessionToken={sessionToken}
                 user={appState.user}
                 companySettings={appState.companySettings}
+                firstOwnerOnboarding={appState.firstOwnerOnboarding}
                 currentCompanyId={appState.currentCompanyId}
                 companyName={workspaceCompanyName}
                 companyProfile={workspacePrintProfile}

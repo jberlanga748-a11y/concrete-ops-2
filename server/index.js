@@ -93,7 +93,7 @@ import {
   recordBelongsToCompany,
   visibleRecordsForCompany,
 } from "../shared/companyScope.js";
-import { managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
+import { deriveFirstOwnerOnboardingState, managedSetupSettingsFromPayload } from "../shared/managedCompanySetup.js";
 import {
   FEATURE_KEYS,
   packageIncludesFeature,
@@ -4985,6 +4985,15 @@ function sanitizeBootstrap(state, user) {
   const queueItems = visibleQueueItemsForUser(state, user);
   const activity = visibleActivityForUser(state, user);
   const auditEvents = visibleAuditEventsForUser(state, user);
+  const firstOwnerOnboarding = canViewSettings(user)
+    ? deriveFirstOwnerOnboardingState({
+      companySettings: settings,
+      users,
+      leadSources,
+      jobs,
+      estimates,
+    })
+    : null;
   return {
     user: publicUser({
       ...user,
@@ -4999,6 +5008,7 @@ function sanitizeBootstrap(state, user) {
     currentWorkspaceId: currentCompany?.workspaceId || currentCompanyId,
     companyPackage: currentCompanyPackage,
     companySettings: settings,
+    firstOwnerOnboarding,
     users,
     customers,
     leads,
