@@ -259,6 +259,35 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /page-break-after: avoid/);
 });
 
+test("estimate print packet uses branded logo fallback safely", () => {
+  const packet = deriveEstimatePrintPacket({
+    companyName: "Builders Concrete Co.",
+    companyProfile: {
+      logoInitials: "BCC",
+      logoImageUrl: "javascript:alert(1)",
+      businessPhone: "(503) 555-0188",
+      businessEmail: "office@buildersconcrete.test",
+    },
+    estimate: {
+      id: "EST-BRAND-1",
+      title: "Salem Warehouse Slab",
+      status: "draft",
+      customer: { name: "ABC Builders" },
+      lead: { customer: "ABC Builders", project: "Warehouse slab" },
+      scopeSummary: "Scope of Work:\nPour 500 SF warehouse slab.",
+      items: [{ description: "Concrete slab", quantity: 500, unit: "SF", unitPrice: 12 }],
+    },
+  });
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.doesNotMatch(html, /javascript:alert/);
+  assert.doesNotMatch(html, /class="logo-image"/);
+  assert.match(html, /class="logo-mark">BCC/);
+  assert.match(html, /Builders Concrete Co\./);
+  assert.match(html, /office@buildersconcrete\.test/);
+  assert.match(html, /Salem Warehouse Slab/);
+});
+
 test("estimate print packet renders proposal text with readable summary bands and bullets", () => {
   const packet = deriveEstimatePrintPacket({
     companyName: "Apex HQ Demo",

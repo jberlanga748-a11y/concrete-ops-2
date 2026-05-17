@@ -32645,6 +32645,7 @@ export default function App() {
   );
   const workspacePrintProfile = useMemo(() => ({
     logoInitials: workspaceLogoInitials,
+    logoImageUrl: appState.companySettings?.logoImageUrl || "",
     businessPhone: appState.companySettings?.businessPhone || "",
     businessEmail: appState.companySettings?.businessEmail || "",
     website: appState.companySettings?.website || "",
