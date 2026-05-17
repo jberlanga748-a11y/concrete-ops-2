@@ -9,10 +9,10 @@ This is the short agent handoff board. The full phase source of truth is `docs/A
 - Current repo: `jberlanga748-a11y/concrete-ops-2`
 - Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
 - Branch: `main`
-- Latest shipped app commit: `a925b4101643a8d04729ac62138de01f754d8cb6`
-- Latest shipped message: `Add Apex HQ guided setup and plan readiness`
-- Latest Fly release: `v480`
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTX312T33TSW95S51QDNAZ2`
+- Latest shipped app commit: `d6153ae732d9d2eaf7e7ea384a18f26e94c14df2`
+- Latest shipped message: `Polish Apex HQ public signup UX`
+- Latest Fly release: `v481`
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTXYX6VJC3S60YQ542PB21F`
 - Latest health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned ready with database ok.
 
 ## Current Product State
@@ -31,6 +31,7 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - Company isolation foundation and tests.
 - Demo-vs-real separation safeguards.
 - Basic/Premium/Elite package entitlement foundation.
+- Package Upgrade / Locked State Polish.
 - Billing / Plans Readiness Prep.
 - Support/help page and package gate.
 - Customer Success / Guided Setup Phase 2.
@@ -55,6 +56,8 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - `npm.cmd run verify:packages`: passed 12/12.
 - `npm.cmd run verify:entitlements`: passed 33/33.
 - `npm.cmd run verify:roles`: passed 8/8.
+- Public SaaS Signup UX release checks: `npm.cmd run verify:signup`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser desktop/mobile signup QA, and `git diff --check` passed; release `v481` health-checked ready.
+- Package Upgrade / Locked State Polish checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, and `npm.cmd run verify:roles` passed.
 - Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v480` health-checked ready.
 - Latest Command Center release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
@@ -64,14 +67,14 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 
 ## Next Recommended Phase
 
-Package Upgrade / Locked State Polish.
+Advanced Reporting Prep.
 
 Goal:
 
-- make Basic / Premium / Elite locked states clearer where package gates already exist
-- keep upgrades manual until billing is built
-- preserve server-side feature enforcement
-- keep package copy role-safe and contractor-practical
+- define reporting surfaces before job-costing/payroll integrations
+- identify contractor KPIs that matter before building heavier reporting systems
+- preserve current operations workflows and package gates
+- keep field users away from pricing, margin, and owner-only reporting
 
 Do not include:
 
@@ -80,18 +83,18 @@ Do not include:
 - customer portal
 - offline mode
 - AI autopilot
-- new package/billing architecture
+- job costing/payroll automation
 - field access to office/admin/pricing
 
 ## Next Phase After That
 
-Advanced Reporting Prep.
+Enterprise Trust Prep.
 
 Goal:
 
-- define reporting surfaces before job-costing/payroll integrations
-- identify contractor KPIs that matter before building heavier reporting systems
-- preserve current operations workflows and package gates
+- prepare audit/export/admin trust surfaces without overbuilding compliance
+- keep security, role protection, and company isolation as included foundations
+- avoid SOC 2 paperwork or enterprise sales pages until core trust surfaces are clearer
 
 ## Active Skills
 

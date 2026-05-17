@@ -35,36 +35,44 @@ export function canAccessWorkspaceModule(moduleId, user, companySettings = DEFAU
 
 const PACKAGE_LOCKED_MODULES = {
   jobDraftImports: {
-    eyebrow: "Package Protected",
+    eyebrow: "Package Locked",
     title: "Imported Drafts are not included",
-    description: "Imported job draft review is available in Premium and Elite packages. Your current workspace can keep using core jobs, crews, reports, uploads, and schedules.",
-    badge: "Premium",
+    description: "Imported job draft review is available in Premium and Elite packages. This is a package boundary, not a broken page.",
+    badge: "Premium package",
     actionTitle: "Keep working in core operations",
     actionDescription: "Open your default workspace and continue with the tools included for this company.",
+    reviewActionLabel: "Review package readiness",
+    manualUpgradeNote: "Package changes are reviewed manually for now. Core jobs, crews, reports, uploads, and schedules remain available.",
   },
   copilot: {
-    eyebrow: "Package Protected",
+    eyebrow: "Package Locked",
     title: "AI Office Preview is not included",
-    description: "Assistant and growth-agent tools are available in Premium and Elite packages. Core office and field workflows stay available without exposing AI-only data.",
-    badge: "Premium",
+    description: "Assistant and growth-agent tools are available in Premium and Elite packages. This workspace can keep using core office and field workflows.",
+    badge: "Premium package",
     actionTitle: "Open your operating workspace",
     actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
+    reviewActionLabel: "Review package readiness",
+    manualUpgradeNote: "Package changes are reviewed manually for now. Apex HQ does not enable AI or automation upgrades without owner approval.",
   },
   appHealth: {
-    eyebrow: "Package Protected",
+    eyebrow: "Package Locked",
     title: "App Health is not included",
-    description: "Owner app health, release safety, and operational readiness checks are available in Premium and Elite packages. Core contractor workflows stay available for this company.",
-    badge: "Premium",
+    description: "Owner app health, release safety, and operational readiness checks are available in Premium and Elite packages.",
+    badge: "Premium package",
     actionTitle: "Open your operating workspace",
     actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
+    reviewActionLabel: "Review package readiness",
+    manualUpgradeNote: "Package changes are reviewed manually for now. Security, company isolation, and role protection stay included in every package.",
   },
   support: {
-    eyebrow: "Package Protected",
+    eyebrow: "Package Locked",
     title: "Support is not included",
     description: "Help and support handoff tools require the workspace support entitlement. Core route protection still keeps this page role-safe.",
     badge: "Support",
     actionTitle: "Open your operating workspace",
     actionDescription: "Continue with the role-safe Apex HQ tools included for this company.",
+    reviewActionLabel: "Review package readiness",
+    manualUpgradeNote: "Package changes are reviewed manually for now. Core protected routes remain available according to role and package.",
   },
 };
 
@@ -79,6 +87,8 @@ export function getWorkspaceModuleLock(moduleId, user, companySettings = DEFAULT
     badge: "Locked",
     actionTitle: "Open your allowed workspace",
     actionDescription: "Use the workspace assigned to your role and package to continue.",
+    reviewActionLabel: "Review package readiness",
+    manualUpgradeNote: "Package changes are reviewed manually for now. Core operations remain available.",
   };
 }
 

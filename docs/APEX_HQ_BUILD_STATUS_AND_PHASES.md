@@ -21,10 +21,10 @@ Current state:
 
 Latest release tracked in this file:
 
-- Commit: `a925b4101643a8d04729ac62138de01f754d8cb6`
-- Message: `Add Apex HQ guided setup and plan readiness`
-- Fly release: `v480`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTX312T33TSW95S51QDNAZ2`
+- Commit: `d6153ae732d9d2eaf7e7ea384a18f26e94c14df2`
+- Message: `Polish Apex HQ public signup UX`
+- Fly release: `v481`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRTXYX6VJC3S60YQ542PB21F`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -47,6 +47,7 @@ Recent shipped phase stack:
 | `4cd5104` | `v478` | Watchtower / Missing Work Agent Phase 1 |
 | `f15262d` | `v479` | Apex Assistant Shell Phase 1 |
 | `a925b41` | `v480` | Customer Success / Guided Setup Phase 2 and Billing / Plans Readiness Prep |
+| `d6153ae` | `v481` | Public SaaS Signup UX Phase 2 |
 
 ## Done / Do Not Rebuild
 
@@ -57,13 +58,14 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Auth/login/logout/session basics | Done | Existing routes in `server/index.js`; session scoping exists. |
 | Setup/bootstrap admin | Done | Preserve for private/empty installs. |
 | Public signup/company creation | Done and verified | `/api/signup/company` creates company, first owner, default settings, and scoped session. Do not rebuild. |
-| Public SaaS Signup UX Phase 2 | Built / pending release | Signup surface now clarifies first-owner setup, safe role rollout, setup handoff, and password requirements without changing auth. |
+| Public SaaS Signup UX Phase 2 | Done and released | Signup surface clarifies first-owner setup, safe role rollout, setup handoff, and password requirements without changing auth. |
 | First owner onboarding foundation | Done | First owner gets onboarding state and support handoff. Extend later, do not restart. |
 | User invite/activation/password reset | Built and verified | Token flow, expiry, single-use behavior, and company-scoped activation exist. Improve UX later only if needed. |
 | Company/workspace foundations | Done | `companies`, `company_id`, company scoping helpers, company switching rules exist. Keep hardening route by route. |
 | Demo vs real separation | Built and tested | Demo reset protections exist. Preserve. |
 | Role permissions | Built and tested | Field users remain blocked from office/admin/pricing. Never loosen. |
 | Package entitlement foundation | Done and released | Basic/Premium/Elite feature map, backend checks, frontend nav gates started. |
+| Package Upgrade / Locked State Polish | Built / pending release | Package-locked routes now explain manual upgrades and route owner/admin users to Plan Readiness without exposing field roles. |
 | Billing / Plans Readiness Prep | Done and released | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
@@ -98,6 +100,8 @@ Recent focused verification:
 - `npm.cmd run verify:packages`: passed 12/12.
 - `npm.cmd run verify:entitlements`: passed 33/33.
 - `npm.cmd run verify:roles`: passed 8/8.
+- Public SaaS Signup UX release checks: `npm.cmd run verify:signup`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser desktop/mobile signup QA, and `git diff --check` passed; release `v481` health-checked ready.
+- Package Upgrade / Locked State Polish checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, and `npm.cmd run verify:roles` passed.
 - Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v480` health-checked ready.
 - `npm.cmd run build`: passed before latest release.
 - Latest Command Center checks: `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner/admin mobile/desktop QA, and field role safety QA passed.
@@ -127,6 +131,8 @@ Do not start these phases again as if they are missing:
 - Apex Assistant Shell Phase 1.
 - Customer Success / Guided Setup Phase 2.
 - Billing / Plans Readiness Prep.
+- Public SaaS Signup UX Phase 2.
+- Package Upgrade / Locked State Polish.
 
 If one of those areas comes up, first ask:
 
@@ -137,35 +143,36 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Package Upgrade / Locked State Polish
+### Advanced Reporting Prep
 
 Why this is next:
 
-- Apex HQ has Basic/Premium/Elite package foundations and plan readiness copy.
-- The next buyer-facing risk is users seeing unavailable features without clear package context.
-- Locked states should feel intentional and manual-upgrade safe until billing is built.
+- Apex HQ has live operations, estimates, reports, proof, schedules, reminders, app health, and package foundations.
+- The next owner/admin risk is reporting clarity before heavier job costing, payroll, billing, or enterprise analytics.
+- Reporting should define contractor KPIs and role boundaries before new money systems are built.
 
 Scope:
 
-- Make Basic / Premium / Elite locked states clearer where package gates already exist.
-- Keep upgrade CTAs manual and support/contact based.
-- Preserve server-side feature checks, role checks, and field restrictions.
-- Improve package copy only where it helps contractors understand what is included.
+- Define and tighten reporting surfaces around jobs, reports, uploads, estimates, activity, and operational readiness.
+- Keep reports owner/admin safe.
+- Preserve field workflows and current data structures.
+- Add only small utilities/tests if needed to prove report summaries.
 
 Do not include:
 
 - Billing.
 - Customer portal.
 - AI autopilot or automatic task completion.
-- New package/billing architecture.
-- Stripe or payment flows.
+- Job costing/payroll automation.
+- New analytics warehouse or schema rewrite.
 - Field access to office/admin/pricing.
 
 Suggested verification:
 
 - `npm.cmd run build`
-- `npm.cmd run verify:packages`
-- `npm.cmd run verify:entitlements`
+- `npm.cmd run verify:jobs`
+- `npm.cmd run verify:daily-reports`
+- `npm.cmd run verify:uploads`
 - `npm.cmd run verify:roles`
 - `git diff --check`
 
@@ -173,16 +180,16 @@ Suggested verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Package Upgrade / Locked State Polish | Make Basic/Premium/Elite boundaries clearer without adding billing. | Medium | Yes for packaging copy. |
-| 2 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
-| 3 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
-| 4 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
-| 5 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
-| 6 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
-| 7 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
-| 8 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
-| 9 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
-| 10 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
+| 1 | Advanced Reporting Prep | Define reporting surfaces before job-costing/payroll integrations. | Medium | Yes for KPI priorities. |
+| 2 | Enterprise Trust Prep | Prepare audit/export/admin trust surfaces without overbuilding compliance. | Medium | No unless scope expands. |
+| 3 | Pilot Browser QA Checkpoint | Run focused live-style owner/field demo QA before broader selling. | Medium | No unless blockers are found. |
+| 4 | Mobile Field Trust Polish | Fix only proven mobile field friction found during QA. | Medium | Maybe. |
+| 5 | Assistant Command Expansion Phase 2 | Add reviewed command flows after the shell is proven safe. | High | Yes. |
+| 6 | Field Ops Agent planning checkpoint | Plan field-risk assistant behavior without hidden tracking. | High | Yes. |
+| 7 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
+| 8 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
+| 9 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
+| 10 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
 
 ## Later / Do Not Build Yet
 
@@ -250,7 +257,7 @@ Use this when ready to build the next phase:
 ```text
 You are entering:
 
-APEX HQ - PACKAGE UPGRADE / LOCKED STATE POLISH
+APEX HQ - ADVANCED REPORTING PREP
 
 Use skills:
 - apex-build-router
@@ -261,33 +268,34 @@ Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT redesign the app.
-Do NOT rebuild auth, signup, settings, support, estimates, jobs, users, packages, or field workflows.
+Do NOT rebuild auth, signup, settings, support, estimates, jobs, reports, uploads, packages, or field workflows.
 Do NOT refactor architecture.
-Do NOT start billing, Stripe, customer portal, offline mode, payroll, or AI autopilot.
+Do NOT start billing, Stripe, customer portal, offline mode, payroll, job costing automation, or AI autopilot.
 Do NOT commit, push, or deploy.
 
 Goal:
-Make existing Basic / Premium / Elite locked and upgrade states feel intentional before billing is built.
+Define and tighten owner/admin reporting surfaces before heavier job costing, payroll, billing, or analytics systems are built.
 
 Focus only on:
-- package-aware locked states
-- manual upgrade/support CTA copy
-- existing package feature labels
-- role-safe package visibility
-- clear no-billing-yet expectations
+- existing reports/operations data
+- owner/admin reporting summary clarity
+- job/report/upload/activity readiness indicators
+- role-safe reporting visibility
+- small reporting utilities/tests if needed
 - role-safe visibility
 
 Preserve:
 - existing customers/leads/estimates/jobs workflows
 - existing permissions and package gates
 - existing field restrictions
-- existing package entitlement helpers
-- existing server-side feature checks
+- existing report/upload/job workflows
+- existing server-side role checks
 
 Verify:
 - build
-- verify:packages
-- verify:entitlements
+- verify:jobs
+- verify:daily-reports
+- verify:uploads
 - verify:roles
 - git diff --check
 

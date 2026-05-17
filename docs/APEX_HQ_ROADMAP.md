@@ -96,11 +96,12 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Keep released Communication Center, App Health / Audit Activity, Watchtower, and Assistant Shell work stable.
 - Keep guided setup and plan readiness stable; do not add Stripe until billing is explicitly approved.
 - Keep public signup UX stable; do not rebuild signup/auth unless a proven security bug is found.
+- Keep package locked states stable; do not add billing or expose package CTAs to field roles.
 
 ### Next
 
-- Package upgrade and locked-state clarity.
 - Advanced reporting prep.
+- Enterprise trust layer.
 
 ### Later
 
@@ -128,14 +129,14 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Package Upgrade / Locked State Polish.
-2. Advanced Reporting Prep.
-3. Enterprise trust layer.
-4. Pilot browser QA checkpoint.
-5. Mobile field trust polish.
-6. Assistant Command Expansion Phase 2.
-7. Field Ops Agent planning checkpoint.
-8. Billing / manual upgrade prep.
+1. Advanced Reporting Prep.
+2. Enterprise trust layer.
+3. Pilot browser QA checkpoint.
+4. Mobile field trust polish.
+5. Assistant Command Expansion Phase 2.
+6. Field Ops Agent planning checkpoint.
+7. Billing / manual upgrade prep.
+8. Customer Portal Planning Checkpoint.
 
 Completed foundational phases that should not be restarted:
 
@@ -144,6 +145,7 @@ Completed foundational phases that should not be restarted:
 - Public SaaS Signup UX Phase 2.
 - Company isolation hardening foundation.
 - Package entitlement foundation.
+- Package Upgrade / Locked State Polish.
 - First owner onboarding/support handoff.
 - Customer Success / Guided Setup Phase 2.
 - Billing / Plans Readiness Prep.

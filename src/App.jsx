@@ -23253,6 +23253,26 @@ function PlanReadinessPanel({ packageReadiness }) {
         </div>
       </div>
 
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Current package</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">{currentPackage.label || "Basic"}</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-600">This workspace keeps the tools already included for the company and user role.</span>
+        </div>
+        <div className="rounded-2xl border border-orange-100 bg-orange-50/80 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">Next upgrade</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">{nextPackage ? nextPackage.label : "No higher package"}</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">
+            {nextPackage ? "Use this panel to explain what unlocks next before a manual package change." : "This workspace already has every current Apex HQ package feature."}
+          </span>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Billing state</p>
+          <strong className="mt-2 block text-lg font-black text-slate-950">Manual review</strong>
+          <span className="mt-1 block text-sm font-bold leading-6 text-slate-700">No self-serve plan changes or Stripe billing are active in this workspace.</span>
+        </div>
+      </div>
+
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <SectionHeader title="Included now" description={currentPackage.description || "Features included for the current workspace package."} />
@@ -32847,11 +32867,20 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   );
 }
 
-function AccessRestrictedPage({ active, user, companySettings, permissions, setActive }) {
+function AccessRestrictedPage({ active, user, companySettings, permissions, setActive, onOpenSettingsSection }) {
   const defaultModuleId = getDefaultModuleId(user);
   const canOpenDefault = canAccessModule(defaultModuleId, user, companySettings);
   const packageLock = getWorkspaceModuleLock(active, user, companySettings, permissions);
   const isPackageLocked = Boolean(packageLock);
+  const canReviewPackage = Boolean(isPackageLocked && canAccessWorkspaceModule("settings", user, companySettings, permissions));
+
+  function openPackageReadiness() {
+    if (typeof onOpenSettingsSection === "function") {
+      onOpenSettingsSection("settings-plan-readiness");
+      return;
+    }
+    setActive?.("settings");
+  }
 
   return (
     <div className="co-access-restricted-page">
@@ -32871,7 +32900,17 @@ function AccessRestrictedPage({ active, user, companySettings, permissions, setA
             <Button type="button" onClick={() => canOpenDefault && setActive?.(defaultModuleId)} disabled={!canOpenDefault}>
               Open workspace
             </Button>
+            {canReviewPackage ? (
+              <Button type="button" variant="secondary" onClick={openPackageReadiness}>
+                {packageLock?.reviewActionLabel || "Review package readiness"}
+              </Button>
+            ) : null}
           </div>
+          {isPackageLocked ? (
+            <p className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold leading-6 text-amber-800">
+              {packageLock?.manualUpgradeNote || "Package changes are reviewed manually for now. Core operations remain available."}
+            </p>
+          ) : null}
         </Card>
       </div>
     </div>
@@ -32881,7 +32920,7 @@ function AccessRestrictedPage({ active, user, companySettings, permissions, setA
 function MainContent(props) {
   const { active } = props;
   if (!canAccessWorkspaceModule(active, props.user, props.companySettings, props.permissions)) {
-    return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} />;
+    return <AccessRestrictedPage active={active} user={props.user} companySettings={props.companySettings} permissions={props.permissions} setActive={props.setActive} onOpenSettingsSection={props.onOpenSettingsSection} />;
   }
   if (active === "appHealth") {
     return (
@@ -33619,6 +33658,7 @@ export default function App() {
   useEffect(() => {
     if (authStatus !== "authenticated") return;
     if (canAccessWorkspaceModule(active, appState.user, appState.companySettings, appState.permissions)) return;
+    if (getWorkspaceModuleLock(active, appState.user, appState.companySettings, appState.permissions)) return;
     navigateTo(getModulePath(defaultModuleId), { replace: true });
   }, [active, appState.companySettings, appState.permissions, appState.user, authStatus, defaultModuleId]);
 

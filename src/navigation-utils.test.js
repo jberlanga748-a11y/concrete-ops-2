@@ -82,6 +82,9 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /AI Office Preview/);
   assert.match(getWorkspaceModuleLock("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Imported Drafts/);
   assert.match(getWorkspaceModuleLock("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /App Health/);
+  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.badge || "", /Premium package/);
+  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.reviewActionLabel || "", /Review package readiness/);
+  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.manualUpgradeNote || "", /reviewed manually/i);
   assert.equal(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), null);
   assert.equal(getWorkspaceModuleLock("support", owner, { toolChecklistEnabled: true }, basicPermissions), null);
   assert.match(getWorkspaceModuleLock("support", owner, { toolChecklistEnabled: true }, { support: { canView: false } })?.title || "", /Support/);
