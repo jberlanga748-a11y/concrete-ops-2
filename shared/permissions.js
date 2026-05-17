@@ -1,6 +1,7 @@
 export const DEFAULT_COMPANY_SETTINGS = {
   companyName: "",
   logoInitials: "",
+  logoImageUrl: "",
   accentColor: "blue",
   businessPhone: "",
   businessEmail: "",

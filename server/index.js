@@ -3945,6 +3945,22 @@ function optionalLogoInitials(value, fallback = "") {
   return String(value).trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
 }
 
+function optionalCompanyLogoImageUrl(value, fallback = "") {
+  if (value == null) return fallback;
+  const normalized = String(value).trim().slice(0, 500);
+  if (!normalized) return "";
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new ApiError(400, "Logo image URL must be a valid http or https URL.");
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new ApiError(400, "Logo image URL must use http or https.");
+  }
+  return parsed.href;
+}
+
 function optionalAccentColor(value, fallback = DEFAULT_COMPANY_SETTINGS.accentColor) {
   if (value == null || value === "") return fallback;
   const normalized = String(value).trim().toLowerCase();
@@ -6299,6 +6315,9 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
     const nextLogoInitials = payload.logoInitials == null
       ? draft.companySettings.logoInitials
       : optionalLogoInitials(payload.logoInitials, "");
+    const nextLogoImageUrl = payload.logoImageUrl == null
+      ? draft.companySettings.logoImageUrl
+      : optionalCompanyLogoImageUrl(payload.logoImageUrl, "");
     const nextAccentColor = payload.accentColor == null
       ? draft.companySettings.accentColor
       : optionalAccentColor(payload.accentColor, draft.companySettings.accentColor);
@@ -6351,6 +6370,11 @@ app.patch("/api/settings/company", requireAuth, asyncRoute(async (req, res) => {
       draft.companySettings.logoInitials = nextLogoInitials;
       brandingChangedFields.push("logoInitials");
       brandingChanges.push("logo initials");
+    }
+    if ((draft.companySettings.logoImageUrl || "") !== nextLogoImageUrl) {
+      draft.companySettings.logoImageUrl = nextLogoImageUrl;
+      brandingChangedFields.push("logoImageUrl");
+      brandingChanges.push("logo image");
     }
     if (draft.companySettings.accentColor !== nextAccentColor) {
       draft.companySettings.accentColor = nextAccentColor;

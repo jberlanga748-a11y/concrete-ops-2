@@ -282,6 +282,7 @@ const EMPTY_APP_STATE = {
   companySettings: {
     companyName: "",
     logoInitials: "",
+    logoImageUrl: "",
     accentColor: "blue",
     businessPhone: "",
     businessEmail: "",
@@ -23283,6 +23284,7 @@ function SettingsPagePolished({
   const [brandingDraft, setBrandingDraft] = useState(() => ({
     companyName: safeCompanySettings.companyName || "",
     logoInitials: safeCompanySettings.logoInitials || "",
+    logoImageUrl: safeCompanySettings.logoImageUrl || "",
     accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
   }));
   const [brandingNotice, setBrandingNotice] = useState("");
@@ -23307,9 +23309,10 @@ function SettingsPagePolished({
     setBrandingDraft({
       companyName: safeCompanySettings.companyName || "",
       logoInitials: safeCompanySettings.logoInitials || "",
+      logoImageUrl: safeCompanySettings.logoImageUrl || "",
       accentColor: normalizeAccentColor(safeCompanySettings.accentColor),
     });
-  }, [safeCompanySettings.accentColor, safeCompanySettings.companyName, safeCompanySettings.logoInitials]);
+  }, [safeCompanySettings.accentColor, safeCompanySettings.companyName, safeCompanySettings.logoImageUrl, safeCompanySettings.logoInitials]);
 
   useEffect(() => {
     setProfileDraft({
@@ -23345,6 +23348,7 @@ function SettingsPagePolished({
   });
   const brandingDirty = brandingDraft.companyName !== (safeCompanySettings.companyName || "")
     || sanitizeLogoInitials(brandingDraft.logoInitials) !== (safeCompanySettings.logoInitials || "")
+    || brandingDraft.logoImageUrl.trim() !== (safeCompanySettings.logoImageUrl || "")
     || previewAccentColor !== normalizeAccentColor(safeCompanySettings.accentColor);
   const profileDirty = profileDraft.businessPhone !== (safeCompanySettings.businessPhone || "")
     || profileDraft.businessEmail !== (safeCompanySettings.businessEmail || "")
@@ -23393,6 +23397,7 @@ function SettingsPagePolished({
     const saved = await onUpdateCompanySettings({
       companyName: brandingDraft.companyName.trim(),
       logoInitials: sanitizeLogoInitials(brandingDraft.logoInitials),
+      logoImageUrl: brandingDraft.logoImageUrl.trim(),
       accentColor: previewAccentColor,
     });
     setBrandingNotice(saved ? "Branding saved." : "Could not save branding. Please try again.");
@@ -23572,17 +23577,32 @@ function SettingsPagePolished({
                         ))}
                       </SelectField>
                     </div>
+                    <InputField
+                      label="Logo image URL"
+                      type="url"
+                      value={brandingDraft.logoImageUrl}
+                      onChange={(event) => {
+                        setBrandingDraft((current) => ({ ...current, logoImageUrl: event.target.value }));
+                        setBrandingNotice("");
+                      }}
+                      placeholder="https://yourcompany.com/logo.png"
+                      disabled={busy || typeof onUpdateCompanySettings !== "function"}
+                    />
                     <div className="flex flex-wrap items-center gap-3">
                       <Button type="submit" disabled={busy || !brandingDirty || typeof onUpdateCompanySettings !== "function"}>Save branding</Button>
-                      <p className="text-sm font-bold text-slate-500">{brandingNotice || "Accent preview saves here while the broader app styling stays unchanged."}</p>
+                      <p className="text-sm font-bold text-slate-500">{brandingNotice || "Logo URLs show in browser print packets. File upload storage comes later."}</p>
                     </div>
                   </form>
                   <div className="co-settings-brand-preview">
                     <p>Preview</p>
                     <div>
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black ${previewTheme.previewClassName}`}>
-                        {previewLogoInitials}
-                      </div>
+                      {brandingDraft.logoImageUrl.trim() ? (
+                        <img className="h-12 w-12 rounded-2xl border border-slate-200 bg-white object-contain p-1" src={brandingDraft.logoImageUrl.trim()} alt="" />
+                      ) : (
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black ${previewTheme.previewClassName}`}>
+                          {previewLogoInitials}
+                        </div>
+                      )}
                       <span>
                         <strong>{previewCompanyName}</strong>
                         <em>{BRANDING_ACCENT_OPTIONS.find((option) => option.value === previewAccentColor)?.label || "Blue"} accent</em>

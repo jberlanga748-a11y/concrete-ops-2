@@ -3463,6 +3463,9 @@ function normalizeCompanySettings(settings = {}) {
   const normalizedLogoInitials = typeof settings?.logoInitials === "string"
     ? settings.logoInitials.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3)
     : "";
+  const normalizedLogoImageUrl = typeof settings?.logoImageUrl === "string"
+    ? settings.logoImageUrl.trim().slice(0, 500)
+    : "";
   const normalizedAccentColor = typeof settings?.accentColor === "string" ? settings.accentColor.trim().toLowerCase() : "";
   const normalizeText = (value, limit) => (typeof value === "string" ? value.trim().slice(0, limit) : "");
   const managedSetup = normalizeManagedSetupSettings(settings);
@@ -3472,6 +3475,7 @@ function normalizeCompanySettings(settings = {}) {
     ...(settings || {}),
     companyName: normalizedCompanyName,
     logoInitials: normalizedLogoInitials,
+    logoImageUrl: /^https?:\/\//i.test(normalizedLogoImageUrl) ? normalizedLogoImageUrl : "",
     accentColor: new Set(["blue", "slate", "emerald", "amber", "orange"]).has(normalizedAccentColor)
       ? normalizedAccentColor
       : DEFAULT_COMPANY_SETTINGS.accentColor,
@@ -3494,6 +3498,7 @@ function companySettingsPairs(settings = {}) {
   return [
     ["companyName", normalized.companyName || ""],
     ["logoInitials", normalized.logoInitials || ""],
+    ["logoImageUrl", normalized.logoImageUrl || ""],
     ["accentColor", normalized.accentColor || DEFAULT_COMPANY_SETTINGS.accentColor],
     ["businessPhone", normalized.businessPhone || ""],
     ["businessEmail", normalized.businessEmail || ""],

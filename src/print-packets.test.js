@@ -134,6 +134,7 @@ test("estimate print packet includes customer-facing estimate details without in
     companyName: "Apex HQ Demo",
     companyProfile: {
       logoInitials: "COD",
+      logoImageUrl: "https://cdn.example.test/cod-logo.png",
       businessPhone: "(503) 555-0100",
       businessEmail: "office@apexhqdemo.com",
       website: "https://apexhqdemo.com",
@@ -205,6 +206,9 @@ test("estimate print packet includes customer-facing estimate details without in
   });
 
   const html = buildPrintDocumentHtml(packet);
+  assert.match(html, /class="logo-image"/);
+  assert.match(html, /https:\/\/cdn\.example\.test\/cod-logo\.png/);
+  assert.doesNotMatch(html, /class="logo-mark">COD/);
   assert.match(html, /Martinez Driveway Proposal/);
   assert.match(html, /Driveway replacement estimate/);
   assert.match(html, /Scope of Work/);
@@ -234,7 +238,7 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /Selected options total/);
   assert.match(html, /Total with selected options/);
   assert.match(html, /Estimate is valid for 30 days\./);
-  assert.match(html, /COD/);
+  assert.doesNotMatch(html, /class="logo-mark">COD/);
   assert.match(html, /\(503\) 555-0100/);
   assert.match(html, /office@apexhqdemo\.com/);
   assert.match(html, /https:\/\/apexhqdemo\.com/);
