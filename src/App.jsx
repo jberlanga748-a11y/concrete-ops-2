@@ -2361,6 +2361,11 @@ function LoginScreen({
   const isSetupMode = backendStatus === "online" && setupStatus.checked && setupStatus.needsSetup;
   const isSignupMode = !isSetupMode && showSignup && setupStatus.publicSignupEnabled;
   const canShowDemoCredentials = setupStatus.demoMode && setupStatus.demoUserExists && !isSetupMode;
+  const signupReadinessSteps = [
+    { label: "Workspace", detail: "Company, first owner, and scoped session are created together." },
+    { label: "Setup path", detail: "Apex HQ opens into profile, services, team, and first work setup." },
+    { label: "Safe rollout", detail: "Field users are invited later and stay out of office-only tools." },
+  ];
   const fillDemoCredentials = (preset) => {
     if (!canShowDemoCredentials || !preset?.email) return;
     setCredentials({
@@ -2406,17 +2411,38 @@ function LoginScreen({
           </div>
 
           <div className="co-login-form-intro">
-            <p>{isSetupMode ? "Set up workspace" : isSignupMode ? "Create company" : "Sign in"}</p>
+            <p>{isSetupMode ? "Set up workspace" : isSignupMode ? "Create Apex HQ workspace" : "Sign in"}</p>
             <span>
               {isSetupMode
                 ? "Create the first admin account for this workspace."
                 : isSignupMode
-                  ? "Create your workspace, then Apex HQ will guide you through services, your first team user, and your first estimate or job."
+                  ? "Start a real company workspace. You become the first owner, then Apex HQ guides you through setup before adding the crew."
                   : canShowDemoCredentials
                     ? "Use demo logins for demo data, or sign in with your own office account."
                     : "Enter the admin account for this workspace."}
             </span>
           </div>
+
+          {isSignupMode ? (
+            <div className="co-login-signup-brief" aria-label="Signup setup preview">
+              <div className="co-login-signup-brief-head">
+                <Badge tone="orange">Owner setup</Badge>
+                <strong>From signup to first job without guessing what comes next.</strong>
+                <span>No card is charged in this setup flow. Security, company isolation, and role protection stay included for every workspace.</span>
+              </div>
+              <div className="co-login-signup-steps">
+                {signupReadinessSteps.map((step, index) => (
+                  <div key={step.label}>
+                    <small>{index + 1}</small>
+                    <span>
+                      <strong>{step.label}</strong>
+                      <em>{step.detail}</em>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {isSetupMode ? (
             <form className="co-login-form" onSubmit={onSetupSubmit}>
@@ -2436,6 +2462,7 @@ function LoginScreen({
               <InputField label="Email" type="email" value={signupDraft.email} onChange={(event) => setSignupDraft((current) => ({ ...current, email: event.target.value }))} />
               <InputField label="Phone" type="tel" value={signupDraft.phone} onChange={(event) => setSignupDraft((current) => ({ ...current, phone: event.target.value }))} />
               <InputField label="Password" type="password" value={signupDraft.password} onChange={(event) => setSignupDraft((current) => ({ ...current, password: event.target.value }))} />
+              <p className="co-login-field-help">Use at least 10 characters with one letter and one number.</p>
               {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
               <Button type="submit" size="lg" disabled={loading} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
                 {loading ? "Creating workspace..." : "Create company workspace"}
@@ -2457,9 +2484,13 @@ function LoginScreen({
 
           <div className="co-login-support-grid">
             <div>
-              <p>Account help</p>
-              <span>Use the office account for this workspace, or the shared demo users when opening demo mode.</span>
-              {setupStatus.publicSignupEnabled && !isSetupMode ? (
+              <p>{isSignupMode ? "Already have a workspace?" : "Account help"}</p>
+              <span>
+                {isSignupMode
+                  ? "Return to sign in if your company already has an Apex HQ workspace."
+                  : "Use the office account for this workspace, or the shared demo users when opening demo mode."}
+              </span>
+              {setupStatus.publicSignupEnabled && !isSetupMode && !isSignupMode ? (
                 <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={() => setShowSignup(true)}>Create company</Button>
               ) : null}
               {!isSetupMode ? (

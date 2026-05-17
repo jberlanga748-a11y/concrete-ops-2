@@ -9,10 +9,10 @@ This is the short agent handoff board. The full phase source of truth is `docs/A
 - Current repo: `jberlanga748-a11y/concrete-ops-2`
 - Current local folder: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean`
 - Branch: `main`
-- Latest shipped app commit: `f15262db5d1ba30aa3f173b8eadf224fe0c1e9e0`
-- Latest shipped message: `Add Apex HQ assistant shell`
-- Latest Fly release: `v479`
-- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTVVSC89JGH4NCWDNN670SJ`
+- Latest shipped app commit: `a925b4101643a8d04729ac62138de01f754d8cb6`
+- Latest shipped message: `Add Apex HQ guided setup and plan readiness`
+- Latest Fly release: `v480`
+- Latest image: `registry.fly.io/concrete-ops-2:deployment-01KRTX312T33TSW95S51QDNAZ2`
 - Latest health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned ready with database ok.
 
 ## Current Product State
@@ -24,6 +24,7 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 ## Completed / Do Not Rebuild
 
 - Public signup/company creation.
+- Public SaaS Signup UX Phase 2.
 - First owner creation and scoped session.
 - First owner onboarding/support handoff.
 - Invite activation/password reset foundation.
@@ -54,7 +55,7 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 - `npm.cmd run verify:packages`: passed 12/12.
 - `npm.cmd run verify:entitlements`: passed 33/33.
 - `npm.cmd run verify:roles`: passed 8/8.
-- Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed.
+- Customer Success / Guided Setup and Plans Readiness checks: `npm.cmd run verify:users`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed; release `v480` health-checked ready.
 - Latest Command Center release checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Communication Center release checks: `npm.cmd run build`, `npm.cmd run verify:customers`, `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - App Health / Audit Activity release checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `node --test src\owner-health-utils.test.js`, `npm.cmd run build`, and `git diff --check` passed.
@@ -63,14 +64,14 @@ Do not position it as wide public self-serve SaaS yet, even though public signup
 
 ## Next Recommended Phase
 
-Public SaaS Signup UX Phase 2.
+Package Upgrade / Locked State Polish.
 
 Goal:
 
-- tighten the contractor-facing signup-to-first-login path
-- keep existing auth, company creation, and first-owner session behavior
-- improve guidance and copy only where the signup/onboarding flow is confusing
-- preserve demo separation, package safety, and field role protections
+- make Basic / Premium / Elite locked states clearer where package gates already exist
+- keep upgrades manual until billing is built
+- preserve server-side feature enforcement
+- keep package copy role-safe and contractor-practical
 
 Do not include:
 
@@ -79,18 +80,18 @@ Do not include:
 - customer portal
 - offline mode
 - AI autopilot
-- new auth/signup architecture
+- new package/billing architecture
 - field access to office/admin/pricing
 
 ## Next Phase After That
 
-Package Upgrade / Locked State Polish.
+Advanced Reporting Prep.
 
 Goal:
 
-- make Basic / Premium / Elite locked states clearer where package gates already exist
-- keep upgrades manual until billing is built
-- preserve server-side feature enforcement
+- define reporting surfaces before job-costing/payroll integrations
+- identify contractor KPIs that matter before building heavier reporting systems
+- preserve current operations workflows and package gates
 
 ## Active Skills
 

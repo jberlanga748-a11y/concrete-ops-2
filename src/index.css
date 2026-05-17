@@ -481,10 +481,102 @@ textarea {
     margin-top: 0.35rem;
   }
 
+  .co-login-signup-brief {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    border: 1px solid rgba(249, 115, 22, 0.32);
+    border-radius: 1rem;
+    background:
+      linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(15, 23, 42, 0.66)),
+      rgba(7, 17, 31, 0.72);
+    padding: 0.95rem;
+    box-shadow: 0 18px 40px -34px rgba(0, 0, 0, 0.88);
+  }
+
+  .co-login-signup-brief-head {
+    display: grid;
+    min-width: 0;
+    gap: 0.42rem;
+  }
+
+  .co-login-signup-brief-head strong {
+    overflow-wrap: anywhere;
+    color: #f8fafc;
+    font-size: 0.96rem;
+    font-weight: 950;
+    line-height: 1.25;
+  }
+
+  .co-login-signup-brief-head span,
+  .co-login-field-help {
+    color: rgba(203, 213, 225, 0.88);
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+
+  .co-login-signup-steps {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .co-login-signup-steps div {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 1.65rem minmax(0, 1fr);
+    gap: 0.6rem;
+    align-items: start;
+    border: 1px solid rgba(255, 247, 237, 0.12);
+    border-radius: 0.82rem;
+    background: rgba(255, 255, 255, 0.055);
+    padding: 0.66rem;
+  }
+
+  .co-login-signup-steps small {
+    display: grid;
+    height: 1.65rem;
+    width: 1.65rem;
+    place-items: center;
+    border: 1px solid rgba(249, 115, 22, 0.34);
+    border-radius: 999px;
+    background: rgba(249, 115, 22, 0.14);
+    color: #fdba74;
+    font-size: 0.72rem;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .co-login-signup-steps span {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+  }
+
+  .co-login-signup-steps strong {
+    color: #f8fafc;
+    font-size: 0.8rem;
+    font-weight: 950;
+    line-height: 1.15;
+  }
+
+  .co-login-signup-steps em {
+    overflow-wrap: anywhere;
+    color: rgba(203, 213, 225, 0.84);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1.35;
+  }
+
   .co-login-form {
     display: grid;
     gap: 0.9rem;
     margin-top: 1.05rem;
+  }
+
+  .co-login-field-help {
+    margin-top: -0.42rem;
   }
 
   .co-login-submit {
