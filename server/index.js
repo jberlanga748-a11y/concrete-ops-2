@@ -10243,6 +10243,13 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
 
     if (nextStatus !== "active") {
       draft.sessions = draft.sessions.filter((session) => session.userId !== targetUser.id);
+      if (targetUser.inviteTokenHash || targetUser.resetTokenHash) {
+        changedFields.push("authTokens");
+      }
+      targetUser.inviteTokenHash = "";
+      targetUser.inviteExpiresAt = "";
+      targetUser.resetTokenHash = "";
+      targetUser.resetExpiresAt = "";
     }
 
     appendActivity(draft, "User updated", `${targetUser.name} account details were updated.`);

@@ -459,6 +459,114 @@ test("audit and activity payloads do not expose provisioning or password secrets
   }
 });
 
+test("deactivating users revokes pending invite and password reset credentials", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-DEACTIVATE-TOKENS",
+        email: "owner-deactivate-tokens@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Deactivate Tokens",
+        role: "Owner",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-deactivate-tokens@lastyard.test",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(ownerLogin.token);
+
+    const inviteCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Invite Token Revoked",
+        email: "invite-token-revoked@lastyard.test",
+        role: "Employee",
+      }),
+    });
+    const inviteToken = inviteCreated.provisionedUser?.activationToken;
+    const inviteUser = inviteCreated.users.find((user) => user.email === "invite-token-revoked@lastyard.test");
+    assert.ok(inviteToken);
+    assert.ok(inviteUser);
+
+    const resetCreated = await assertOk(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Reset Token Revoked",
+        email: "reset-token-revoked@lastyard.test",
+        role: "Employee",
+        password: "oldfield123",
+      }),
+    });
+    const resetUser = resetCreated.users.find((user) => user.email === "reset-token-revoked@lastyard.test");
+    assert.ok(resetUser);
+
+    await assertOk(fixture.baseUrl, "/api/auth/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "reset-token-revoked@lastyard.test" }),
+    });
+
+    const beforeDeactivate = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const inviteRow = beforeDeactivate.prepare("SELECT invite_token_hash AS inviteTokenHash FROM users WHERE email = ?").get("invite-token-revoked@lastyard.test");
+      const resetRow = beforeDeactivate.prepare("SELECT reset_token_hash AS resetTokenHash FROM users WHERE email = ?").get("reset-token-revoked@lastyard.test");
+      assert.notEqual(inviteRow.inviteTokenHash || "", "");
+      assert.notEqual(resetRow.resetTokenHash || "", "");
+    } finally {
+      beforeDeactivate.close();
+    }
+
+    await assertOk(fixture.baseUrl, `/api/users/${inviteUser.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ status: "inactive" }),
+    });
+    await assertOk(fixture.baseUrl, `/api/users/${resetUser.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ status: "inactive" }),
+    });
+
+    const afterDeactivate = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const inviteRow = afterDeactivate.prepare(`
+        SELECT invite_token_hash AS inviteTokenHash, invite_expires_at AS inviteExpiresAt
+        FROM users
+        WHERE email = ?
+      `).get("invite-token-revoked@lastyard.test");
+      const resetRow = afterDeactivate.prepare(`
+        SELECT reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt
+        FROM users
+        WHERE email = ?
+      `).get("reset-token-revoked@lastyard.test");
+      assert.equal(inviteRow.inviteTokenHash || "", "");
+      assert.equal(inviteRow.inviteExpiresAt || "", "");
+      assert.equal(resetRow.resetTokenHash || "", "");
+      assert.equal(resetRow.resetExpiresAt || "", "");
+    } finally {
+      afterDeactivate.close();
+    }
+
+    const inactiveActivation = await requestJson(fixture.baseUrl, "/api/auth/activate-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: inviteToken,
+        password: "validpass123",
+      }),
+    });
+    assert.equal(inactiveActivation.response.status, 400);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("user password updates revoke existing sessions and require the new password", async () => {
   const fixture = await startServer();
 
