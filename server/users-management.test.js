@@ -910,10 +910,25 @@ test("explicit user passwords must meet the public SaaS password policy", async 
     assert.equal(weakCreate.response.status, 400);
     assert.match(weakCreate.payload.error, /at least 10 characters|letter and one number/i);
 
+    const invalidEmailCreate = await requestJson(fixture.baseUrl, "/api/users", {
+      method: "POST",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({
+        name: "Invalid Email Employee",
+        email: "not-an-email",
+        role: "Employee",
+        password: "crewlogin123",
+      }),
+    });
+    assert.equal(invalidEmailCreate.response.status, 400);
+    assert.match(invalidEmailCreate.payload.error, /valid email/i);
+
     const database = new DatabaseSync(fixture.sqliteFile);
     try {
       const matchingUsers = database.prepare("SELECT COUNT(*) AS count FROM users WHERE email = ?").get("weak-employee@lastyard.test");
       assert.equal(matchingUsers.count, 0);
+      const invalidEmailUsers = database.prepare("SELECT COUNT(*) AS count FROM users WHERE email = ?").get("not-an-email");
+      assert.equal(invalidEmailUsers.count, 0);
     } finally {
       database.close();
     }

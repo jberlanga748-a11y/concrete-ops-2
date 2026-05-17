@@ -5634,7 +5634,7 @@ app.post("/api/setup/bootstrap-admin", asyncRoute(async (req, res) => {
     throw new ApiError(409, "Initial admin setup is managed by environment configuration.");
   }
 
-  const email = requiredString(req.body?.email, "Email").toLowerCase();
+  const email = requiredEmail(req.body?.email, "Email");
   const password = requiredPassword(req.body?.password, "Password");
   const name = optionalString(req.body?.name, "Operations Admin");
   const role = optionalUserRole(req.body?.role, "Administrator");
@@ -5888,7 +5888,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/auth/password-reset/request", asyncRoute(async (req, res) => {
-  const email = requiredString(req.body?.email, "Email").toLowerCase();
+  const email = requiredEmail(req.body?.email, "Email");
   consumePasswordResetRequestRateLimit(req, email);
   const requestedAt = new Date().toISOString();
   const resetToken = generateToken();
@@ -5996,7 +5996,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   const routeProfiler = createRouteProfiler("POST /api/auth/login", res.locals.requestId);
   await cleanupExpiredSessions();
   routeProfiler.mark("sessionCleanupMs");
-  const email = requiredString(req.body?.email, "Email").toLowerCase();
+  const email = requiredEmail(req.body?.email, "Email");
   const password = requiredString(req.body?.password, "Password");
   assertLoginRateLimit(req, email);
   const user = await findUserAuthRecordByEmail(email);
@@ -10121,7 +10121,7 @@ app.post("/api/users", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageUsers(req.auth.user);
   const payload = req.body || {};
   const createdAt = new Date().toISOString();
-  const email = requiredString(payload.email, "Email").toLowerCase();
+  const email = requiredEmail(payload.email, "Email");
   const hasExplicitPassword = typeof payload.password === "string" && payload.password.trim().length > 0;
   const provisioningMode = optionalString(payload.provisioningMode, hasExplicitPassword ? "password" : "invite").toLowerCase();
   const useInviteActivation = !hasExplicitPassword && provisioningMode !== "temporary_password";
@@ -10189,7 +10189,7 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     const targetUser = findCompanyScopedRecord(draft.users, id, req.auth.user, draft, "User");
     const nextName = payload.name == null ? targetUser.name : requiredString(payload.name, "Name");
-    const nextEmail = payload.email == null ? targetUser.email : requiredString(payload.email, "Email").toLowerCase();
+    const nextEmail = payload.email == null ? targetUser.email : requiredEmail(payload.email, "Email");
     const nextPhone = payload.phone == null ? targetUser.phone || "" : optionalString(payload.phone, "");
     const nextRole = payload.role == null ? targetUser.role : optionalUserRole(payload.role, targetUser.role);
     const nextStatus = payload.status == null ? optionalUserStatus(targetUser.status, "active") : optionalUserStatus(payload.status, targetUser.status || "active");

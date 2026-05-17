@@ -221,6 +221,18 @@ test("public signup creates a company, first owner, default settings, and scoped
     assert.equal(bootstrap.permissions.companies.canSwitch, false);
     assert.deepEqual(bootstrap.leads, []);
     assert.equal(bootstrap.firstOwnerOnboarding.nextStep.key, "company_profile");
+
+    const normalizedLogin = await login(fixture.baseUrl, {
+      email: " OWNER@ABCBUILDER.TEST ",
+      password: "apexdemo123",
+    });
+    assert.equal(normalizedLogin.user.email, "owner@abcbuilder.test");
+    assert.equal(normalizedLogin.user.companyId, payload.currentCompanyId);
+
+    const normalizedLoginBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(normalizedLogin.token),
+    });
+    assert.equal(normalizedLoginBootstrap.currentCompanyId, payload.currentCompanyId);
   } finally {
     await fixture.stop();
   }
@@ -254,7 +266,7 @@ test("public signup blocks duplicate emails without creating another company", a
     const second = await signup(fixture.baseUrl, {
       companyName: "Duplicate Company",
       ownerName: "Duplicate Owner",
-      email: "DUPLICATE@ABCBuilder.test",
+      email: " DUPLICATE@ABCBuilder.test ",
     });
     assert.equal(second.response.status, 409);
     assert.match(second.payload.error, /already exists/i);
@@ -265,6 +277,32 @@ test("public signup blocks duplicate emails without creating another company", a
       const duplicateCompanies = database.prepare("SELECT COUNT(*) AS count FROM companies WHERE name = ?").get("Duplicate Company");
       assert.equal(matchingUsers.count, 1);
       assert.equal(duplicateCompanies.count, 0);
+    } finally {
+      database.close();
+    }
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("public signup rejects invalid email addresses before creating a company", async () => {
+  const fixture = await startServer();
+
+  try {
+    const { response, payload } = await signup(fixture.baseUrl, {
+      companyName: "Invalid Email Builders",
+      email: "not-an-email",
+    });
+
+    assert.equal(response.status, 400);
+    assert.match(payload.error, /valid email/i);
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const matchingUsers = database.prepare("SELECT COUNT(*) AS count FROM users WHERE email = ?").get("not-an-email");
+      const matchingCompanies = database.prepare("SELECT COUNT(*) AS count FROM companies WHERE name = ?").get("Invalid Email Builders");
+      assert.equal(matchingUsers.count, 0);
+      assert.equal(matchingCompanies.count, 0);
     } finally {
       database.close();
     }
