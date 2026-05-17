@@ -355,6 +355,21 @@ function setDeliveryTicketLinks(sqliteFile, ticketId, links = {}) {
   }
 }
 
+function setUploadLinks(sqliteFile, uploadId, links = {}) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE uploads
+      SET job_id = COALESCE(?, job_id),
+          customer_id = ?,
+          report_id = ?
+      WHERE id = ?
+    `).run(links.jobId ?? null, links.customerId || "", links.reportId || "", uploadId);
+  } finally {
+    database.close();
+  }
+}
+
 test("bootstrap scopes existing users to the default company and hides future other-company lead data", async () => {
   const fixture = await startServer();
 
@@ -1075,6 +1090,96 @@ test("delivery ticket responses do not hydrate stale cross-company linked record
     const bootstrapTicket = findByName(bootstrap.deliveryTickets, "VISIBLE-STALENESS-1", "Delivery ticket");
     assert.equal(bootstrapTicket.report, null);
     assert.equal(bootstrapTicket.ticketUpload, null);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("upload responses do not hydrate stale cross-company linked records", async () => {
+  const fixture = await startServer();
+
+  try {
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const token = ownerLogin.token;
+    const headers = authHeaders(token);
+    const initial = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+
+    const hiddenCustomerPayload = await postJson(fixture.baseUrl, "/api/customers", token, {
+      name: "Hidden Upload Link Customer",
+      city: "Portland",
+      status: "Active",
+    });
+    const hiddenCustomer = findByName(hiddenCustomerPayload.customers, "Hidden Upload Link Customer", "Customer");
+    const hiddenReportPayload = await postJson(fixture.baseUrl, "/api/daily-reports", token, {
+      jobId: "J-2201",
+      reportDate: "2035-07-19",
+      crewSummary: "Hidden upload report crew",
+      workPerformed: "Hidden upload report work.",
+    });
+    const hiddenReport = findAddedRecord(initial.dailyReports, hiddenReportPayload.dailyReports, "Daily report");
+    moveRecordsToOtherCompany(fixture.sqliteFile, {
+      customerId: hiddenCustomer.id,
+      dailyReportId: hiddenReport.id,
+    });
+
+    const visibleUploadPayload = await postJson(fixture.baseUrl, "/api/uploads", token, {
+      jobId: "J-2201",
+      fileName: "visible-upload-proof.png",
+      fileType: "image/png",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      caption: "Visible upload with stale linked records",
+    });
+    const visibleUpload = findAddedRecord(initial.uploads, visibleUploadPayload.uploads, "Upload");
+    setUploadLinks(fixture.sqliteFile, visibleUpload.id, {
+      customerId: hiddenCustomer.id,
+      reportId: hiddenReport.id,
+    });
+
+    const hiddenJobPayload = await postJson(fixture.baseUrl, "/api/jobs", token, {
+      title: "Hidden Upload Link Job",
+      customer: "Hidden Upload Link Job Customer",
+      address: "101 Hidden Upload Way",
+      city: "Eugene",
+      status: "scheduled",
+    });
+    const hiddenJob = findByName(hiddenJobPayload.jobs, "Hidden Upload Link Job", "Job");
+    moveRecordsToOtherCompany(fixture.sqliteFile, {
+      jobId: hiddenJob.id,
+      customerId: hiddenJob.customerId,
+    });
+    const staleJobUploadPayload = await postJson(fixture.baseUrl, "/api/uploads", token, {
+      jobId: "J-2201",
+      fileName: "visible-upload-stale-job-proof.png",
+      fileType: "image/png",
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      caption: "Visible upload with stale job",
+    });
+    const staleJobUpload = findAddedRecord(visibleUploadPayload.uploads, staleJobUploadPayload.uploads, "Upload");
+    setUploadLinks(fixture.sqliteFile, staleJobUpload.id, {
+      jobId: hiddenJob.id,
+      customerId: hiddenJob.customerId,
+    });
+
+    const uploadsResponse = await assertOk(fixture.baseUrl, "/api/uploads", { headers });
+    const responseUpload = findById(uploadsResponse.uploads, visibleUpload.id, "Upload");
+    assert.equal(responseUpload.customerName, "");
+    assert.equal(responseUpload.reportDate, "");
+    assert.equal(uploadsResponse.uploads.some((record) => record.id === staleJobUpload.id), false);
+    const serializedUploads = JSON.stringify(uploadsResponse.uploads);
+    assert.equal(serializedUploads.includes("Hidden Upload Link Customer"), false);
+    assert.equal(serializedUploads.includes("2035-07-19"), false);
+    assert.equal(serializedUploads.includes("Hidden Upload Link Job"), false);
+    assert.equal(serializedUploads.includes("Hidden Upload Link Job Customer"), false);
+    assert.equal(serializedUploads.includes("101 Hidden Upload Way"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const bootstrapUpload = findById(bootstrap.uploads, visibleUpload.id, "Upload");
+    assert.equal(bootstrapUpload.customerName, "");
+    assert.equal(bootstrapUpload.reportDate, "");
+    assert.equal(bootstrap.uploads.some((record) => record.id === staleJobUpload.id), false);
   } finally {
     await fixture.stop();
   }

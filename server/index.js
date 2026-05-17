@@ -2895,12 +2895,12 @@ function canSaveCalculatorResultForJob(user, job) {
 }
 
 function sanitizeUploadForUser(upload, state, user) {
-  const job = upload.jobId ? state.jobs.find((entry) => entry.id === upload.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], upload.jobId, upload);
   if (!job || !canViewJob(job, user)) return null;
 
   const uploader = findUserById(state, upload.uploadedBy);
-  const customer = upload.customerId ? state.customers.find((entry) => entry.id === upload.customerId) || null : null;
-  const report = upload.reportId ? state.dailyReports.find((entry) => entry.id === upload.reportId) || null : null;
+  const customer = findSameCompanyLinkedRecord(state.customers || [], upload.customerId, upload);
+  const report = findSameCompanyLinkedRecord(state.dailyReports || [], upload.reportId, upload);
 
   return {
     id: upload.id,
