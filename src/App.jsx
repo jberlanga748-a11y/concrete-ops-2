@@ -161,7 +161,7 @@ import { deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from 
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
-import { deriveDailyReportPrintPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
+import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import { buildSupportPacket, createSupportDraft, SUPPORT_BLOCKER_OPTIONS, SUPPORT_WORKFLOW_OPTIONS } from "./support-utils";
@@ -26943,6 +26943,7 @@ function EstimatesPagePolished({
   onSaveEstimate,
   onConvertEstimate,
   onPrintEstimate,
+  onPrintEstimateForemanHandoff,
   onSendEstimate,
   onGenerateEstimateRoughNotes,
   initialSelectedEstimateId = "",
@@ -27440,6 +27441,7 @@ function EstimatesPagePolished({
           onMarkApproved={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "approved" })}
           onConvert={handleConvertApprovedEstimate}
           onPrint={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)}
+          onPrintForemanHandoff={() => onPrintEstimateForemanHandoff?.(detailEstimatePreview, packetPrintSettings)}
           onSend={handleSendEstimate}
           onCopyEstimate={() => copyEstimateText(
             () => buildEstimateCopyText({ companyName, companyProfile, estimate: detailEstimatePreview }),
@@ -27717,6 +27719,7 @@ function EstimatesPagePolished({
                     <Button type="button" variant="secondary" onClick={() => copyEstimateText(() => buildEstimateCopyText({ companyName, companyProfile, estimate: detailEstimatePreview }), "Estimate copied.")} disabled={!detailEstimatePreview}>Copy estimate</Button>
                     <Button type="button" variant="secondary" onClick={() => copyEstimateText(() => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }), "Customer message copied.")} disabled={!detailEstimatePreview}>Copy customer message</Button>
                     <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)} disabled={!detailEstimatePreview}>Print proposal</Button>
+                    <Button type="button" variant="secondary" onClick={() => onPrintEstimateForemanHandoff?.(detailEstimatePreview, packetPrintSettings)} disabled={!detailEstimatePreview}>Print foreman handoff</Button>
                     <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>Send estimate</Button>
                   </div>
                   {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
@@ -28004,6 +28007,9 @@ function EstimatesPagePolished({
                       </Button>
                       <Button type="button" variant="secondary" onClick={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)} disabled={!detailEstimatePreview}>
                         Print proposal
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => onPrintEstimateForemanHandoff?.(detailEstimatePreview, packetPrintSettings)} disabled={!detailEstimatePreview}>
+                        Print foreman handoff
                       </Button>
                       <Button type="button" onClick={handleSendEstimate} disabled={!detailEstimatePreview || busy}>
                         Send estimate
@@ -32100,6 +32106,7 @@ function MainContent(props) {
           onSaveEstimate={props.onSaveEstimate}
           onConvertEstimate={props.onConvertEstimate}
           onPrintEstimate={props.onPrintEstimate}
+          onPrintEstimateForemanHandoff={props.onPrintEstimateForemanHandoff}
           onSendEstimate={props.onSendEstimate}
           onGenerateEstimateRoughNotes={props.onGenerateEstimateRoughNotes}
           initialSelectedEstimateId={props.estimateFocusId}
@@ -34301,6 +34308,25 @@ export default function App() {
     return opened;
   }
 
+  function handlePrintEstimateForemanHandoff(estimate, packetSettings = {}) {
+    if (!estimate || !appState.permissions?.estimates?.canView || !appState.permissions?.estimates?.canUseGcPackets) return false;
+    const packet = deriveEstimateForemanHandoffPacket({
+      companyName: workspaceCompanyName,
+      companyProfile: workspacePrintProfile,
+      printPacketFooter: workspacePrintPacketFooter,
+      printPacketDisclaimer: workspacePrintPacketDisclaimer,
+      estimate,
+      packetSettings,
+    });
+    const opened = openPrintDocument(packet);
+    if (!opened) {
+      setErrorMessage(PRINT_VIEW_ERROR_MESSAGE);
+    } else {
+      setErrorMessage("");
+    }
+    return opened;
+  }
+
   function handlePrintJobPacket(job = selectedJob) {
     if (!job) return false;
     const canPrint = appState.permissions.jobs.canManageAll || job.canManageField || appState.permissions.jobs.canViewMoney;
@@ -35231,6 +35257,7 @@ export default function App() {
                   onSaveEstimate={handleSaveEstimate}
                   onConvertEstimate={handleConvertEstimate}
                   onPrintEstimate={handlePrintEstimate}
+                  onPrintEstimateForemanHandoff={handlePrintEstimateForemanHandoff}
                   onSendEstimate={handleSendEstimate}
                   onGenerateEstimateRoughNotes={handleGenerateEstimateRoughNotes}
                   onCreateEstimateFromLead={handleCreateEstimateFromLead}

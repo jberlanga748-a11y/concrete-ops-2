@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPrintDocumentHtml, deriveDailyReportPrintPacket, deriveEstimatePrintPacket, deriveJobPrintPacket } from "./print-packets.js";
+import { buildPrintDocumentHtml, deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket } from "./print-packets.js";
 
 test("daily report print packet includes core report fields and related records", () => {
   const packet = deriveDailyReportPrintPacket({
@@ -257,6 +257,107 @@ test("estimate print packet includes customer-facing estimate details without in
   assert.match(html, /white-space: pre-line/);
   assert.match(html, /page-break-inside: avoid/);
   assert.match(html, /page-break-after: avoid/);
+});
+
+test("estimate foreman handoff packet includes field scope and quantities without pricing or office-only notes", () => {
+  const packet = deriveEstimateForemanHandoffPacket({
+    companyName: "Builders Concrete Co.",
+    companyProfile: {
+      logoInitials: "BCC",
+      logoImageUrl: "https://cdn.example.test/bcc-logo.png",
+      businessPhone: "(503) 555-0188",
+      businessEmail: "office@buildersconcrete.test",
+    },
+    printPacketFooter: "Field handoff footer.",
+    printPacketDisclaimer: "Review before field use.",
+    estimate: {
+      id: "EST-FIELD-1",
+      title: "Salem Warehouse Slab",
+      status: "approved",
+      createdAt: "2026-05-15T15:30:00Z",
+      scopeSummary: [
+        "Scope of Work:",
+        "Demo old concrete, prep base rock, pour 500 SF 4-inch broom finish slab, sawcut edges, cleanup.",
+        "",
+        "Inclusions:",
+        "Base rock, forms, concrete placement, broom finish, and cleanup.",
+        "",
+        "Exclusions:",
+        "Permits, engineering, unsuitable soils, and winter protection.",
+        "",
+        "Assumptions / Clarifications:",
+        "Truck access remains available during placement.",
+      ].join("\n"),
+      customerNotes: [
+        "Customer Notes / Terms:",
+        "Proposal is valid for 30 days.",
+        "",
+        "Alternates:",
+        "- [selected] Winter protection | Amount: $1,800.00",
+      ].join("\n"),
+      customer: { name: "ABC Builders" },
+      lead: { customer: "ABC Builders", project: "Salem warehouse slab" },
+      items: [
+        { description: "Demo and haul off", quantity: 1, unit: "LS", unitPrice: 2500 },
+        { description: "4-inch broom finish slab", quantity: 500, unit: "SF", unitPrice: 14.5 },
+      ],
+      internalNotes: [
+        "Office-only pricing note.",
+        "[Apex HQ GC Packet Lite]",
+        JSON.stringify({
+          scheduleNotes: "Coordinate pour window with superintendent.",
+          addendaRfiReferences: "Bluebeam takeoff from S2.1.",
+          gcReviewNotes: "Internal GC follow-up note.",
+          internalPacketNotes: "Private packet assembly note.",
+        }),
+        "[/Apex HQ GC Packet Lite]",
+        "[Apex HQ Estimate Backup]",
+        JSON.stringify({
+          sovRows: [{ section: "Concrete", description: "Slab placement", quantity: "500", unit: "SF", amount: "$7,250", notes: "Office SOV amount." }],
+          takeoffRows: [{ item: "Warehouse slab", quantity: "500", unit: "SF", source: "S2.1", estimatorNote: "Verify edge thickening allowance." }],
+          referenceRows: [{ fileName: "Bluebeam slab takeoff.png", referenceType: "Takeoff screenshot", url: "https://files.example.test/private/slab.png", source: "S2.1", notes: "Private marked-up file." }],
+          notes: "Private backup note.",
+        }),
+        "[/Apex HQ Estimate Backup]",
+      ].join("\n"),
+      taxRate: 0,
+      feesTotal: 125,
+    },
+  });
+
+  const html = buildPrintDocumentHtml(packet);
+  assert.equal(packet.packetMode, "field_safe");
+  assert.match(html, /Foreman Handoff Packet/);
+  assert.match(html, /ABC Builders/);
+  assert.match(html, /Salem warehouse slab/);
+  assert.match(html, /Demo old concrete/);
+  assert.match(html, /Permits, engineering, unsuitable soils, and winter protection\./);
+  assert.match(html, /Coordinate pour window with superintendent\./);
+  assert.match(html, /Field Quantities/);
+  assert.match(html, /4-inch broom finish slab/);
+  assert.match(html, /Qty 500/);
+  assert.match(html, /SF/);
+  assert.match(html, /Takeoff \/ Reference Attachments/);
+  assert.match(html, /Warehouse slab/);
+  assert.match(html, /Bluebeam slab takeoff\.png/);
+  assert.match(html, /Source S2\.1/);
+  assert.match(html, /class="logo-image"/);
+  assert.doesNotMatch(html, /Unit price/);
+  assert.doesNotMatch(html, /Line total/);
+  assert.doesNotMatch(html, /Base Estimate Total/);
+  assert.doesNotMatch(html, /Selected options total/);
+  assert.doesNotMatch(html, /\$7,250/);
+  assert.doesNotMatch(html, /\$1,800/);
+  assert.doesNotMatch(html, /Customer Notes \/ Terms/);
+  assert.doesNotMatch(html, /Proposal is valid for 30 days/);
+  assert.doesNotMatch(html, /Office-only pricing note/);
+  assert.doesNotMatch(html, /Internal GC follow-up note/);
+  assert.doesNotMatch(html, /Private packet assembly note/);
+  assert.doesNotMatch(html, /Private backup note/);
+  assert.doesNotMatch(html, /Office SOV amount/);
+  assert.doesNotMatch(html, /Verify edge thickening allowance/);
+  assert.doesNotMatch(html, /files\.example\.test\/private/);
+  assert.doesNotMatch(html, /Private marked-up file/);
 });
 
 test("estimate print packet uses branded logo fallback safely", () => {
