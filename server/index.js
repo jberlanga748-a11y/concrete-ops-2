@@ -249,10 +249,13 @@ const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_REQUEST_RATE_LIMIT_MAX = 5;
 const PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const PUBLIC_SIGNUP_RATE_LIMIT_MAX = 5;
+const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_RATE_LIMIT_MAX = 6;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
 const publicSignupRateLimit = new Map();
+const loginRateLimit = new Map();
 
 const app = express();
 
@@ -3742,6 +3745,39 @@ function consumePublicSignupRateLimit(req) {
   publicSignupRateLimit.set(ipKey, liveEntries);
 }
 
+function loginRateLimitKey(req, email) {
+  const ipKey = optionalString(req.ip, optionalString(req.headers["x-forwarded-for"], "unknown")).split(",")[0].trim() || "unknown";
+  return `${ipKey}:${normalizeLookup(email)}`;
+}
+
+function loginAttemptsForKey(key, now = Date.now()) {
+  const liveEntries = (loginRateLimit.get(key) || []).filter((timestamp) => now - timestamp < LOGIN_RATE_LIMIT_WINDOW_MS);
+  if (liveEntries.length > 0) {
+    loginRateLimit.set(key, liveEntries);
+  } else {
+    loginRateLimit.delete(key);
+  }
+  return liveEntries;
+}
+
+function assertLoginRateLimit(req, email) {
+  const attempts = loginAttemptsForKey(loginRateLimitKey(req, email));
+  if (attempts.length >= LOGIN_RATE_LIMIT_MAX) {
+    throw new ApiError(429, "Too many login attempts. Please wait and try again.");
+  }
+}
+
+function recordFailedLoginAttempt(req, email) {
+  const key = loginRateLimitKey(req, email);
+  const attempts = loginAttemptsForKey(key);
+  attempts.push(Date.now());
+  loginRateLimit.set(key, attempts);
+}
+
+function clearLoginRateLimit(req, email) {
+  loginRateLimit.delete(loginRateLimitKey(req, email));
+}
+
 function syncCustomerNameReferences(state, customer) {
   state.leads.forEach((lead) => {
     if (lead.customerId === customer.id) {
@@ -5730,12 +5766,14 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   routeProfiler.mark("sessionCleanupMs");
   const email = requiredString(req.body?.email, "Email").toLowerCase();
   const password = requiredString(req.body?.password, "Password");
+  assertLoginRateLimit(req, email);
   const user = await findUserAuthRecordByEmail(email);
   routeProfiler.mark("userLookupMs");
   const passwordValid = Boolean(user && verifyPassword(password, user.passwordHash));
   routeProfiler.mark("passwordVerifyMs");
 
   if (!passwordValid) {
+    recordFailedLoginAttempt(req, email);
     routeProfiler.log({ result: "invalid_credentials" });
     return jsonError(res, 401, "Invalid email or password.");
   }
@@ -5756,6 +5794,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
     lastSeenAt: loginAt,
     expiresAt: nextSessionExpiry(),
   });
+  clearLoginRateLimit(req, email);
   routeProfiler.mark("sessionWriteMs");
 
   const payload = {
