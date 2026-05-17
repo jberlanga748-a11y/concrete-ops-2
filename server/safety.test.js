@@ -125,6 +125,59 @@ function insertUsers(sqliteFile, users) {
   }
 }
 
+function ensureOtherCompany(database) {
+  const now = new Date().toISOString();
+  database.prepare(`
+    INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run("COMPANY-LYF", "COMPANY-LYF", "Live Your Future Construction", "active", now, now);
+}
+
+function moveJobAndCustomerToOtherCompany(sqliteFile, jobId, customerId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    ensureOtherCompany(database);
+    database.prepare("UPDATE jobs SET company_id = ? WHERE id = ?").run("COMPANY-LYF", jobId);
+    if (customerId) {
+      database.prepare("UPDATE customers SET company_id = ? WHERE id = ?").run("COMPANY-LYF", customerId);
+    }
+  } finally {
+    database.close();
+  }
+}
+
+function moveSafetyPolicyToOtherCompany(sqliteFile, policyId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    ensureOtherCompany(database);
+    database.prepare("UPDATE safety_policies SET company_id = ? WHERE id = ?").run("COMPANY-LYF", policyId);
+  } finally {
+    database.close();
+  }
+}
+
+function setSafetyIncidentJob(sqliteFile, incidentId, jobId) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare("UPDATE safety_incidents SET job_id = ? WHERE id = ?").run(jobId, incidentId);
+  } finally {
+    database.close();
+  }
+}
+
+function setSafetyAcknowledgmentLinks(sqliteFile, acknowledgmentId, links = {}) {
+  const database = new DatabaseSync(sqliteFile);
+  try {
+    database.prepare(`
+      UPDATE safety_acknowledgments
+      SET job_id = ?, policy_id = ?
+      WHERE id = ?
+    `).run(links.jobId || "", links.policyId || "", acknowledgmentId);
+  } finally {
+    database.close();
+  }
+}
+
 test("safety permissions keep office management while scoping field visibility", async () => {
   const fixture = await startServer();
 
@@ -306,6 +359,93 @@ test("safety permissions keep office management while scoping field visibility",
     });
     assert.equal(archivedState.safetyIncidents.some((incident) => incident.id === employeeIncident.id && incident.archivedAt), true);
     assert.equal(archivedState.auditEvents.some((event) => event.entityType === "safetyIncident"), true);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("safety responses fail closed on stale cross-company linked records", async () => {
+  const fixture = await startServer();
+
+  try {
+    const opsLogin = await login(fixture.baseUrl, { email: "demo.ops@apexhq.app", password: "apexdemo123" });
+    const officeHeaders = authHeaders(opsLogin.token);
+
+    const hiddenJobState = await assertOk(fixture.baseUrl, "/api/jobs", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        title: "Hidden Safety Job",
+        customer: "Hidden Safety Customer",
+        address: "44 Hidden Safety Road",
+        city: "Eugene",
+        status: "scheduled",
+      }),
+    });
+    const hiddenJob = hiddenJobState.jobs.find((entry) => entry.title === "Hidden Safety Job");
+    assert.ok(hiddenJob);
+    moveJobAndCustomerToOtherCompany(fixture.sqliteFile, hiddenJob.id, hiddenJob.customerId);
+
+    const hiddenPolicyState = await assertOk(fixture.baseUrl, "/api/safety/policies", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        title: "Hidden Safety Policy",
+        body: "Hidden policy guidance must not leak.",
+        category: "Hidden",
+      }),
+    });
+    const hiddenPolicy = hiddenPolicyState.safetyPolicies.find((entry) => entry.title === "Hidden Safety Policy");
+    assert.ok(hiddenPolicy);
+    moveSafetyPolicyToOtherCompany(fixture.sqliteFile, hiddenPolicy.id);
+
+    const incidentState = await assertOk(fixture.baseUrl, "/api/safety/incidents", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        type: "hazard",
+        severity: "medium",
+        title: "Visible safety incident with stale job",
+        description: "Visible incident should disappear if linked to a hidden job.",
+        immediateAction: "Logged for regression coverage.",
+      }),
+    });
+    const incident = incidentState.safetyIncidents.find((entry) => entry.title === "Visible safety incident with stale job");
+    assert.ok(incident);
+    setSafetyIncidentJob(fixture.sqliteFile, incident.id, hiddenJob.id);
+
+    const acknowledgmentState = await assertOk(fixture.baseUrl, "/api/safety/acknowledgments", {
+      method: "POST",
+      headers: officeHeaders,
+      body: JSON.stringify({
+        jobId: "J-2201",
+        notes: "Visible acknowledgment should disappear if linked to hidden safety records.",
+      }),
+    });
+    const acknowledgment = acknowledgmentState.safetyAcknowledgments.find((entry) => entry.notes === "Visible acknowledgment should disappear if linked to hidden safety records.");
+    assert.ok(acknowledgment);
+    setSafetyAcknowledgmentLinks(fixture.sqliteFile, acknowledgment.id, {
+      jobId: hiddenJob.id,
+      policyId: hiddenPolicy.id,
+    });
+
+    const safetyPayload = await assertOk(fixture.baseUrl, "/api/safety", { headers: officeHeaders });
+    assert.equal(safetyPayload.safetyIncidents.some((entry) => entry.id === incident.id), false);
+    assert.equal(safetyPayload.safetyAcknowledgments.some((entry) => entry.id === acknowledgment.id), false);
+    const serializedSafetyRecords = JSON.stringify({
+      safetyIncidents: safetyPayload.safetyIncidents,
+      safetyAcknowledgments: safetyPayload.safetyAcknowledgments,
+    });
+    assert.equal(serializedSafetyRecords.includes("Hidden Safety Job"), false);
+    assert.equal(serializedSafetyRecords.includes("Hidden Safety Customer"), false);
+    assert.equal(serializedSafetyRecords.includes("44 Hidden Safety Road"), false);
+    assert.equal(serializedSafetyRecords.includes("Hidden Safety Policy"), false);
+    assert.equal(serializedSafetyRecords.includes("Hidden policy guidance"), false);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers: officeHeaders });
+    assert.equal(bootstrap.safetyIncidents.some((entry) => entry.id === incident.id), false);
+    assert.equal(bootstrap.safetyAcknowledgments.some((entry) => entry.id === acknowledgment.id), false);
   } finally {
     await fixture.stop();
   }

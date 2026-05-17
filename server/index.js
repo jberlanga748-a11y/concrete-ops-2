@@ -1851,10 +1851,12 @@ function visibleSafetyAcknowledgmentsForUser(state, user) {
 
   return filterDemoRecordsForUser(state, user, companyScopedRecordsForUser(state, user, state.safetyAcknowledgments || [])
     .map((acknowledgment) => {
-      const job = acknowledgment.jobId ? state.jobs.find((entry) => entry.id === acknowledgment.jobId) || null : null;
+      const job = findSameCompanyLinkedRecord(state.jobs || [], acknowledgment.jobId, acknowledgment);
+      if (acknowledgment.jobId && !job) return null;
       if (!canViewSafetyAcknowledgment(user, job, acknowledgment.userId)) return null;
       const ackUser = findUserById(state, acknowledgment.userId);
-      const policy = acknowledgment.policyId ? state.safetyPolicies.find((entry) => entry.id === acknowledgment.policyId) || null : null;
+      const policy = findSameCompanyLinkedRecord(state.safetyPolicies || [], acknowledgment.policyId, acknowledgment);
+      if (acknowledgment.policyId && !policy) return null;
       return {
         id: acknowledgment.id,
         companyId: normalizeCompanyId(acknowledgment.companyId),
@@ -1888,7 +1890,8 @@ function canViewSafetyIncidentRecord(user, incident, job) {
 }
 
 function sanitizeSafetyIncidentForUser(incident, state, user) {
-  const job = incident.jobId ? state.jobs.find((entry) => entry.id === incident.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], incident.jobId, incident);
+  if (incident.jobId && !job) return null;
   if (!canViewSafetyIncidentRecord(user, incident, job)) return null;
   const submittedByUser = findUserById(state, incident.submittedBy);
   const reviewedByUser = findUserById(state, incident.reviewedBy);
