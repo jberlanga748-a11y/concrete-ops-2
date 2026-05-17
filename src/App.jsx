@@ -7541,7 +7541,7 @@ function DailyReportsOperationsBoard({
   );
 }
 
-function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule }) {
+function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule, onOpenReport }) {
   if (!summary) return null;
 
   const prepCards = [
@@ -7558,7 +7558,8 @@ function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule }) {
     {
       label: "Closeout ready",
       value: summary.closeoutReady,
-      helper: "Reviewed reports with required proof clear",
+      displayValue: `${summary.closeoutReadyRate || 0}%`,
+      helper: `${summary.closeoutReady} reviewed report${summary.closeoutReady === 1 ? "" : "s"} with proof clear`,
       icon: "check",
       tone: summary.closeoutReady ? "green" : "slate",
       actionLabel: "View reviewed",
@@ -7575,22 +7576,28 @@ function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule }) {
       disabled: !summary.proofGaps,
     },
     {
-      label: "Report window",
-      value: summary.totalReports,
-      displayValue: summary.dateRangeLabel,
-      helper: "Filtered report range for owner review",
+      label: "Field signals",
+      value: summary.reportsWithDelays + summary.reportsWithSafetyNotes,
+      displayValue: `${summary.reportsWithDelays}/${summary.reportsWithSafetyNotes}`,
+      helper: "Delay reports / safety-note reports",
       icon: "document",
-      tone: "blue",
-      actionLabel: "Open reports",
-      onAction: () => onOpenModule?.("reports"),
+      tone: summary.reportsWithDelays || summary.reportsWithSafetyNotes ? "amber" : "blue",
+      actionLabel: "Review signals",
+      onAction: () => onSetFilter?.("All"),
     },
   ];
 
-  const reportingQuestions = [
+  const readinessChecks = [
+    `${summary.totalReports} report${summary.totalReports === 1 ? "" : "s"} in ${summary.dateRangeLabel}`,
+    `${summary.closeoutReady} closeout-ready report${summary.closeoutReady === 1 ? "" : "s"}`,
+    `${summary.proofGaps} report${summary.proofGaps === 1 ? "" : "s"} with proof gaps`,
+    `${summary.missingBasics} report${summary.missingBasics === 1 ? "" : "s"} missing basics`,
+  ];
+  const fieldSignals = [
     `${summary.submittedForReview} submitted report${summary.submittedForReview === 1 ? "" : "s"} waiting on office review`,
     `${summary.fieldDrafts} draft or reopened report${summary.fieldDrafts === 1 ? "" : "s"} still in field completion`,
-    `${summary.missingBasics} report${summary.missingBasics === 1 ? "" : "s"} missing work, crew, or weather basics`,
-    `${summary.concreteReports} concrete report${summary.concreteReports === 1 ? "" : "s"} in the filtered view`,
+    `${summary.concreteReports} concrete report${summary.concreteReports === 1 ? "" : "s"} / ${summary.concreteYards} yd poured`,
+    `${summary.reportsWithDelays} delay note${summary.reportsWithDelays === 1 ? "" : "s"} and ${summary.reportsWithSafetyNotes} safety note${summary.reportsWithSafetyNotes === 1 ? "" : "s"}`,
   ];
 
   return (
@@ -7621,8 +7628,22 @@ function AdvancedReportsPrepPanel({ summary, onSetFilter, onOpenModule }) {
             )) : <p><strong>No reporter volume yet</strong><em>0</em></p>}
           </div>
           <div>
-            <span>Questions this prepares</span>
-            {reportingQuestions.map((question) => <p key={question}><strong>{question}</strong></p>)}
+            <span>Owner review queue</span>
+            {summary.reviewQueue.length ? summary.reviewQueue.map((item) => (
+              <button key={item.id} type="button" data-tone={item.tone} onClick={() => onOpenReport?.(item)}>
+                <strong>{item.label}</strong>
+                <small>{item.reason}</small>
+                <em>{item.date || "No date"}</em>
+              </button>
+            )) : <p><strong>No priority report queue in this view</strong><em>Clear</em></p>}
+          </div>
+          <div>
+            <span>Closeout readiness</span>
+            {readinessChecks.map((check) => <p key={check}><strong>{check}</strong></p>)}
+          </div>
+          <div>
+            <span>Field signals</span>
+            {fieldSignals.map((signal) => <p key={signal}><strong>{signal}</strong></p>)}
           </div>
         </div>
       </Card>
@@ -12617,6 +12638,17 @@ function ReportsPagePolished({
     openReportTool("details");
   }
 
+  function openAdvancedReportItem(item) {
+    if (item?.filter) {
+      setFilter(item.filter);
+    }
+    const targetReport = reports.find((report) => report.id === item?.id) || visibleRows.find((report) => report.id === item?.id);
+    if (targetReport?.id) {
+      onSelectReport(targetReport.id);
+    }
+    openReportTool("details");
+  }
+
   function openReportModule(moduleId) {
     if (typeof setActive === "function") {
       setActive(moduleId);
@@ -12712,6 +12744,7 @@ function ReportsPagePolished({
           summary={advancedReportSummary}
           onSetFilter={setFilter}
           onOpenModule={openReportModule}
+          onOpenReport={openAdvancedReportItem}
         />
       ) : null}
 

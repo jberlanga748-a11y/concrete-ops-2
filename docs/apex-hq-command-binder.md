@@ -1,0 +1,540 @@
+# Apex HQ Command Binder
+
+Last updated: 2026-05-17
+
+Purpose: this is the first file future Codex, Builder, QA, release, product, and business chats should read before making claims or changes. It keeps Apex HQ from drifting, looping, rebuilding completed systems, or overpromising before the product is ready.
+
+## 1. Current Product Status
+
+Apex HQ is a contractor growth and operations platform. It helps contractors get work, win work, run work, prove work, reduce risk, and get paid faster by keeping leads, estimates, jobs, crews, reports, photos, tickets, safety items, reminders, and follow-ups in one operating system.
+
+Current app stage:
+
+- Strong guided-pilot contractor operations platform.
+- Founder-led demo and controlled pilot ready.
+- Not yet positioned as wide public self-serve SaaS.
+- Not yet enterprise procurement ready.
+- Not an accounting, payroll, or guaranteed lead-generation replacement.
+
+Current launch stage:
+
+- Production app exists at `https://app.apexhq.online/`.
+- Fly production app is configured by `fly.toml` as `concrete-ops-2`.
+- Latest release tracked: `666a2a6 Add Apex HQ field ops read-only assistant`.
+- Fly release `v491` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` now tracks this release as the current app state.
+
+Usable now:
+
+- Login/session and setup/bootstrap admin.
+- Public signup/company creation foundation.
+- Company/workspace foundations.
+- Basic/Premium/Elite package entitlement foundation.
+- Owner/admin Command Center.
+- Customers, leads, estimates, jobs, crews/employees.
+- Estimates, AI Rough Notes, proposal/GC packet foundations.
+- Company branding/proposal identity.
+- Estimate options, reference attachments, and takeoff input foundation.
+- Foreman/employee mobile field workflows.
+- Time tracking, daily reports, uploads/photo evidence.
+- Delivery tickets, change orders, pre-pour, post-pour.
+- Safety, incidents, PPE, toolbox, tool checklist.
+- Notifications/reminders.
+- Communication Center.
+- App Health / Owner Health / audit activity foundations.
+- Watchtower / Missing Work Agent Phase 1.
+- Apex Assistant Shell Phase 1.
+- Assistant missing proof summary.
+- Field Ops Agent Phase 1 read-only summary.
+- Support/help handoff and guided setup foundations.
+- Demo mode and demo reset protections.
+- Backup/export tooling.
+- Health/readiness endpoints.
+
+Not ready yet:
+
+- Broad public self-serve SaaS claims.
+- Stripe billing or automatic plan upgrades.
+- Full customer portal.
+- Offline mode.
+- Payroll or accounting replacement.
+- Enterprise SSO/MFA/SCIM/SLA commitments.
+- Automatic AI sending, bidding, pricing, crew assignment, material ordering, or approvals.
+- Hidden GPS tracking or GPS distance flags.
+- Automated outbound email/SMS/ads.
+- Fully automated PDF/blueprint takeoff.
+
+## 2. Current Business Status
+
+Target customer:
+
+- Small to mid-size contractors, especially concrete first.
+- Good early fits: concrete, excavation, hardscape, small GCs with self-performed trade work, remodelers with crews, owner-led contractors with roughly 2 to 25 field workers.
+- Best pain: scattered leads, estimates, job handoff, photos, reports, tickets, change orders, and follow-ups.
+
+Go-to-market posture:
+
+- Founder-led demos and controlled pilots.
+- Warm demos and practical workflow pilots before public scale.
+- First demo should show one workflow: `lead/estimate -> job setup -> field handoff -> photo/report proof -> owner review -> follow-up`.
+- Do not try to sell every feature in the first demo.
+
+Pricing/package assumptions from docs:
+
+- `Basic`: core operations for small teams, likely `$99-$199/month` public range, lower founding pilot options.
+- `Premium`: proposal tools, app health, Watchtower, Field Ops Agent, reporting, integrations direction, AI assistant foundations, likely `$249-$499/month`.
+- `Elite`: growth partner services, website/ads/lead finder direction, advanced automation/analytics as they become real, likely `$799-$1,500/month` plus services.
+- Security, company isolation, permissions, and safe data handling are never premium-only features.
+
+Business claims to avoid:
+
+- Guaranteed leads, jobs, revenue, or payment speed.
+- Public self-serve SaaS unless the launch gate is truly ready.
+- Enterprise-ready, fully compliant, SOC 2 ready, or bank-level security unless verified and documented.
+- Replaces QuickBooks, accounting, payroll, Procore, ServiceTitan, Buildertrend, or any competitor.
+- AI runs the business, sends messages, prices jobs, approves work, or bids automatically.
+- Customer logos, testimonials, revenue, partnerships, or case studies unless real and permissioned.
+
+## 3. Locked Decisions
+
+- Product name: Apex HQ.
+- Production domain: `https://app.apexhq.online/`.
+- Production Fly app: `concrete-ops-2`.
+- Product category: contractor operations and growth platform / contractor command center.
+- Target market: small and mid-size contractors first, concrete first.
+- Launch mode: founder-led demos and controlled pilots.
+- AI mode: review-first assistant; human approval required for risky actions.
+- Field roles: field-safe only; no office/admin/pricing/margin/payroll data.
+- Security is included for every package.
+- Demo and real customer data must stay separated.
+- No guaranteed lead claims.
+- No public self-serve claim until public signup, onboarding, support, package gates, safety, and launch operations are ready.
+- No accounting/payroll replacement positioning.
+- No hidden GPS tracking.
+- No auto-send email/SMS or ad publishing without explicit approval and compliance prep.
+
+## 4. Source-Of-Truth Docs
+
+Read in this order for Apex HQ build work:
+
+1. `docs/apex-hq-command-binder.md` - this first-read binder.
+2. `AGENTS.md` - repo-level agent rules, source-of-truth order, phase report rules, and field role protection.
+3. `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` - current done/next/do-not-rebuild tracker.
+4. `docs/APEX_HQ_ROADMAP.md` - organized master coordinator roadmap.
+5. `APEX_HQ_MASTER_ROADMAP.md` - long-term historical/product roadmap.
+6. `APEX_HQ_MASTER_CHECKLIST.md` - historical/pilot checklist.
+7. `README.md` - runtime, deployment, env, health, storage, backup/export, CI overview.
+8. `DEPLOYMENT.md` - Fly production notes and release safety reminders.
+9. `CUSTOMER_PILOT_SETUP.md` - isolated customer pilot app/volume setup rules.
+10. `DEMO.md` - demo credentials, demo paths, demo safety.
+11. `docs/GUIDED_DEMO_LAUNCH_READINESS.md` - guided demo position and talk track.
+12. `docs/PUBLIC_CLAIMS_GUARDRAILS.md` - public claim limits.
+13. `docs/PRICING_PACKAGE_STRATEGY.md` - package/pricing assumptions.
+14. `docs/MARKETING_GROWTH_PLAN.md` - positioning, ICP, first customer approach.
+15. `docs/BUSINESS_PLAN_INDEX.md` - index for business planning docs.
+16. `docs/TRUST_COMPLIANCE_CHECKLIST.md` - trust, outreach, testimonial, data, SMS, AI, and launch gates.
+17. `docs/DO_NOT_BUILD_YET_LIST.md` - scope guardrails.
+18. `docs/ASSISTANT_COMMAND_EXPANSION_SCOPE.md` - assistant boundaries and command expansion scope.
+19. `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` - Field Ops Agent consent, GPS, role, and package boundaries.
+20. `.agents/APEX_WORKSTREAMS.md` and `.agents/APEX_STATUS.md` - older workstream/handoff material; verify against the build-status file before trusting.
+
+Important business docs:
+
+- `docs/SALES_DEMO_PLAYBOOK.md`
+- `docs/DEMO_LAUNCH_PACKET.md`
+- `docs/DEMO_READY_CHECKLIST.md`
+- `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`
+- `docs/FIRST_10_CUSTOMERS_PLAN.md`
+- `docs/OUTREACH_TRACKER.md`
+- `docs/OUTREACH_SEND_QUEUE.md`
+- `docs/CUSTOMER_SUCCESS_PLAYBOOK.md`
+- `docs/RISK_REWARD_MATRIX.md`
+- `docs/COMPETITOR_ANALYSIS.md`
+
+Missing docs to create later:
+
+- `docs/SECURITY_RELEASE_GATE.md` - explicit per-release security gate checklist.
+- `docs/ROLLBACK_RUNBOOK.md` - concrete rollback commands and release decision tree.
+- `docs/SUPABASE_MIGRATION_PLAN.md` - only if/when moving from SQLite/Fly volume to Supabase/Postgres.
+- `docs/RLS_MATRIX.md` - only if/when Supabase RLS exists.
+- `docs/AI_ASSISTANT_ACTIVITY_LOG_PLAN.md` - before expanding assistant actions.
+- `docs/CUSTOMER_DATA_POLICY_DRAFT.md` - before wider paid launch.
+- `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md` - before more pilots.
+
+## 5. Skill Routing
+
+Use these skills by default:
+
+- Build/general engineering: `$apex-build-router` + `$codex-mastery-system`.
+- Apex product/workflows: `$apex-hq-operating-standards`.
+- QA/release/go-no-go: `$apex-qa-engineer`.
+- Permissions, roles, authz, RLS, tenant isolation: `$apex-permission-safety`.
+- UI/mobile polish: `$codex-mobile-optimization` + `$codex-ui-polish-saas-quality`.
+- Database/Supabase/Postgres/RLS: `$codex-database-supabase-systems`.
+- Deployment/production safety: `$codex-production-safety` + `$codex-flyio-mastery` for current Fly deploys. Use `$codex-vercel-mastery` only if/when a Vercel surface is introduced.
+- Business/growth/marketing/sales/customer success: `$business-marketing-mastery-system` + `$apex-hq-growth-system`.
+- Claims/pricing/legal-adjacent copy: add `$business-risk-claims-system`.
+- Browser QA: add `$codex-browser-automation` or `playwright` only for focused app paths.
+
+Startup behavior:
+
+- Announce selected skills before work.
+- Inspect this binder and relevant source docs before claims.
+- Do not implement during audit/review unless the user approves a fix pass.
+- Use the smallest specialist set that owns the risk.
+
+## 6. Do-Not-Break Workflows
+
+Do not rebuild these from scratch. Extend or fix only with clear scope and verification.
+
+- Login/session:
+  - `server/index.js`
+  - `/api/setup/status`
+  - `/api/setup/bootstrap-admin`
+  - `/api/auth/login`
+  - `/api/auth/me`
+  - `/api/auth/logout`
+  - `/api/bootstrap`
+
+- Workspace/company selection:
+  - `companies` / `company_id` foundations
+  - `/api/companies/select`
+  - `shared/companyScope.js`
+  - `server/company-scope.test.js`
+
+- Owner dashboard / Command Center:
+  - `/command-center`
+  - `src/command-center-utils.js`
+  - owner/admin operational overview
+
+- Admin workflows:
+  - employees/users
+  - company settings
+  - support/help
+  - owner health/app health
+  - exports/backup
+
+- Foreman mobile field workflow:
+  - assigned jobs
+  - clock/time
+  - reports
+  - uploads
+  - delivery tickets
+  - pre/post-pour
+  - safety/tool workflows
+  - field-only navigation
+
+- Employee assigned work:
+  - assigned job visibility only
+  - clock/time
+  - upload photo
+  - allowed safety/checklist tools
+  - no office data
+
+- Lead pipeline:
+  - leads
+  - lead sources
+  - website lead intake
+  - public estimate request
+  - contact history
+  - lead scoring/missing info/AI lead assistant
+
+- Estimate/proposal flow:
+  - estimates
+  - AI Rough Notes
+  - company branding
+  - options
+  - attachments/takeoff inputs
+  - GC packet
+  - print/manual-send
+  - convert estimate to job
+
+- Job setup and field handoff:
+  - jobs
+  - crew assignments
+  - startup checklist
+  - foreman handoff packet
+  - schedule/today's work
+
+- Photo/report proof:
+  - uploads/photo evidence
+  - daily reports
+  - delivery tickets
+  - pre/post-pour
+  - tool checklist
+  - safety/incidents
+
+- Role/permission safety:
+  - `shared/permissions.js`
+  - `src/navigation-utils.js`
+  - `server/role-permissions.test.js`
+  - field users must not see leads, estimates, pricing, margins, payroll, admin settings, company setup, billing, AI Office, or unrelated jobs.
+
+- Tenant isolation:
+  - company-scoped queries and writes must derive company from trusted session/server context.
+  - Do not trust client-provided `company_id` unless validated.
+  - Current repo uses SQLite and company-scope helpers; no `supabase/` directory was found during this binder inspection.
+
+## 7. Current Risks
+
+Confirmed facts:
+
+- Current source-of-truth docs say Apex HQ is guided-pilot ready, not public self-serve SaaS ready.
+- Current repo uses SQLite persistence under `data/app-data.sqlite` by default and Fly volume storage in production.
+- No `supabase/` directory was found in this repo during inspection.
+- `fly.toml` is production and sets `SEED_DEMO_DATA=false`.
+- `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
+- CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
+- Existing docs warn not to stage unrelated docs during app releases.
+- Current working tree at inspection had unrelated uncommitted business docs: `docs/AGENT_DAILY_GTM_BRIEF.md`, `docs/FIRST_10_DEMO_TARGETS.md`, and `docs/OUTREACH_TRACKER.md`.
+- Build status tracker now identifies Field Ops Agent Phase 1 as built, released, and health-checked.
+
+Assumptions / needs confirmation:
+
+- Production v491 is tracked from prior release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
+- Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
+- Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
+- Email provider config exists in `.env.example`, but automatic sending should not be promised or enabled without a scoped compliance/release phase.
+
+## 8. Verification Commands
+
+Install:
+
+```powershell
+npm.cmd ci
+```
+
+Dev/local:
+
+```powershell
+npm.cmd run dev
+npm.cmd run dev:server
+npm.cmd run dev:client
+npm.cmd run serve
+npm.cmd run preview
+```
+
+Build:
+
+```powershell
+npm.cmd run build
+```
+
+No dedicated `lint` or `typecheck` script was found in `package.json` during this inspection.
+
+Core safety:
+
+```powershell
+npm.cmd run verify:server
+npm.cmd run verify:auth
+npm.cmd run verify:signup
+npm.cmd run verify:users
+npm.cmd run verify:roles
+npm.cmd run verify:packages
+npm.cmd run verify:entitlements
+npm.cmd run verify:public-request
+npm.cmd run verify:demo
+git diff --check
+```
+
+Core workflows:
+
+```powershell
+npm.cmd run verify:customers
+npm.cmd run verify:leads
+npm.cmd run verify:estimates
+npm.cmd run verify:print-packets
+npm.cmd run verify:jobs
+npm.cmd run verify:crew
+npm.cmd run verify:field-workspaces
+npm.cmd run verify:time
+npm.cmd run verify:daily-reports
+npm.cmd run verify:uploads
+npm.cmd run verify:delivery-tickets
+npm.cmd run verify:pre-pour
+npm.cmd run verify:post-pour
+npm.cmd run verify:safety
+npm.cmd run verify:tool-checklist
+npm.cmd run verify:change-orders
+npm.cmd run verify:calculator
+npm.cmd run verify:job-draft-imports
+```
+
+Backup/export:
+
+```powershell
+npm.cmd run backup:data
+npm.cmd run verify:backup
+npm.cmd run verify:exports
+```
+
+Browser/Playwright:
+
+```powershell
+npm.cmd run audit:demo-desktop
+```
+
+For focused browser QA, use Playwright or the Codex in-app browser against the exact route/role under test. Capture:
+
+- desktop screenshot
+- mobile screenshot
+- console errors
+- failed network requests
+- horizontal overflow
+- direct-route role denial where relevant
+
+Supabase checks:
+
+- No Supabase project files were found in this repo.
+- If Supabase is introduced later, use `$codex-database-supabase-systems` and add explicit Supabase CLI/RLS checks to this binder.
+
+## 9. Production / Release Notes
+
+Current deploy setup:
+
+- Provider: Fly.io.
+- Production config: `fly.toml`.
+- Production app: `concrete-ops-2`.
+- Production URL: `https://app.apexhq.online/`.
+- Fly URL: `https://concrete-ops-2.fly.dev/`.
+- Region: `sjc`.
+- Runtime data path: `/app/data`.
+- SQLite file: `/app/data/app-data.sqlite`.
+- Health/readiness endpoint: `GET /api/ready`.
+- Liveness endpoint: `GET /api/health`.
+- Dockerfile builds Vite frontend, copies `dist`, `server`, and `shared`, and runs `npm run serve`.
+
+Release gates:
+
+- Confirm `git status --short`.
+- Do not stage unrelated dirty files.
+- Run focused verification for the changed surface plus role/package checks when relevant.
+- Always run `npm.cmd run build` and `git diff --check` before release.
+- For permission, auth, company, package, demo, public intake, or field role changes, include the matching negative tests.
+- Commit with a focused message.
+- Push to `main`.
+- Deploy with `fly deploy`.
+- Health-check:
+  - `https://app.apexhq.online/api/ready`
+  - `https://concrete-ops-2.fly.dev/api/ready`
+- Report commit hash, Fly release version/image, live URLs, health check results, and warnings.
+
+Rollback requirements:
+
+- Know the previous Fly release before deploy.
+- Use `fly releases -a concrete-ops-2 --json` to inspect releases.
+- If a deployment breaks, roll back to the last known good Fly release and report the rollback result.
+- Do not touch production data, secrets, volumes, or database files during normal feature work.
+
+Demo/customer separation:
+
+- `fly.toml` is production only and must keep demo seeding disabled.
+- `fly.demo.toml` is demo only and must never be used for real contractor data.
+- Customer pilots need separate Fly apps and separate Fly volumes per `CUSTOMER_PILOT_SETUP.md`.
+
+## 10. Next 7 Days
+
+1. Keep source-of-truth docs current:
+   - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
+
+2. Advanced Reporting Prep Phase 2:
+   - Use existing data only.
+   - Owner/admin only.
+   - Package-gated.
+   - No payroll, job costing, billing, or fake metrics.
+
+3. Premium demo workspace decision:
+   - Decide whether to create a controlled Premium demo workspace for AI Rough Notes, Field Ops Agent, Watchtower, and reporting demos.
+   - Keep it separate from production and real pilots.
+
+4. Guided demo rehearsal refresh:
+   - Rehearse owner/admin desktop, owner mobile, foreman mobile, employee safety, estimates/proposals, and support/trust.
+
+5. Business execution:
+   - Use `docs/FIRST_10_DEMO_TARGETS.md` and `docs/OUTREACH_TRACKER.md`.
+   - Book warm founder-led demos.
+   - Do not publish/send without approval.
+
+6. Trust docs:
+   - Draft pilot terms/support policy and customer data handling summary before taking more paid pilots.
+
+7. Keep phase control:
+   - Do not start billing, customer portal, offline mode, payroll, integrations, or AI autopilot until the relevant planning checkpoint is approved.
+
+## 11. Next 30 Days
+
+Product priorities:
+
+1. Advanced Reporting Prep Phase 2.
+2. Enterprise Trust Phase 2.
+3. Billing / Manual Upgrade Prep planning, not Stripe build.
+4. Customer Portal Planning Checkpoint.
+5. Assistant Material Planning Prep.
+6. Assistant Job Conversion Planning.
+7. Premium Demo Workspace Prep.
+8. Public Website / Sales Funnel Planning.
+9. Pilot Feedback Capture Phase 1.
+
+Business priorities:
+
+1. Run founder-led demos with real contractors.
+2. Convert 1-3 controlled pilots around one workflow each.
+3. Capture objections and update `docs/REAL_OBJECTION_BANK.md`.
+4. Capture proof and testimonials only with permission.
+5. Keep claims conservative and contractor-practical.
+6. Refine Basic/Premium/Elite pricing after real demo/pilot feedback.
+7. Build the public website/sales funnel only after demo positioning is stable.
+
+Operational priorities:
+
+1. Keep role/permission safety green.
+2. Keep demo/real separation green.
+3. Keep health checks green.
+4. Keep roadmap/status docs current after every release.
+5. Keep one current phase at a time.
+
+## 12. Standard Builder Startup Prompt
+
+Copy/paste this at the start of future Builder chats:
+
+```text
+Use $apex-build-router as the operating system for this Apex HQ task.
+
+Repo:
+C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
+
+Do NOT use:
+C:\Users\jberl\Documents\Codex\concrete-ops-rebuild\concrete-ops-ai-starter
+
+First read:
+1. docs/apex-hq-command-binder.md
+2. AGENTS.md
+3. docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md
+4. docs/APEX_HQ_ROADMAP.md
+
+Route skills automatically:
+- build/general engineering -> $apex-build-router + $codex-mastery-system
+- Apex product/workflows -> $apex-hq-operating-standards
+- QA/release -> $apex-qa-engineer
+- permissions/RLS/tenant isolation -> $apex-permission-safety
+- UI/mobile -> $codex-mobile-optimization + $codex-ui-polish-saas-quality
+- database/Supabase -> $codex-database-supabase-systems
+- deployment -> $codex-production-safety + $codex-flyio-mastery
+- business/growth -> $business-marketing-mastery-system + $apex-hq-growth-system
+
+Before doing work:
+- Tell me which skills you selected and why.
+- Inspect the repo and relevant docs before making claims.
+- Confirm the current phase from docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md.
+- Do not rebuild completed systems.
+- Do not touch unrelated files.
+- Do not loosen field role permissions.
+- Do not make production, database, secret, billing, SMS/email, GPS/location, destructive, or customer-data changes without calling out the risk first.
+- If I ask for an audit or review, do not implement fixes until I approve the plan.
+
+For implementation:
+- Keep changes small and phase-scoped.
+- Preserve existing routes, handlers, permissions, package gates, and field workflows.
+- Verify with relevant package scripts, build, git diff --check, and focused browser checks when UI is touched.
+- If release is requested, commit, push, deploy with fly deploy, health-check both live ready endpoints, and report commit hash, release version, live URLs, warnings, and rollback notes.
+```

@@ -15,17 +15,18 @@ Current state:
 - Multi-company safety: built and heavily tested, but still needs periodic route sweeps as new workflows are added.
 - Package entitlement foundation: built, tested, released.
 - First owner onboarding/support handoff: built, tested, released.
-- Field Ops Agent Phase 1 read-only summary: built and verified locally, pending release.
+- Field Ops Agent Phase 1 read-only summary: built, verified, released, and health-checked.
+- Advanced Reporting Prep Phase 2: built and verified locally, pending release.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `daedd6f`
-- Message: `Refresh Apex HQ demo field dates`
-- Fly release: `v490`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRV7C14286DXFHDRB0R16797`
+- Commit: `666a2a6`
+- Message: `Add Apex HQ field ops read-only assistant`
+- Fly release: `v491`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVKEKNNTTFQ9PFDFJ1AMKZ6`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -58,6 +59,7 @@ Recent shipped phase stack:
 | `925f157` | `v488` | Guided demo rehearsal record |
 | `9a5872d` | `v489` | Assistant missing proof summary |
 | `daedd6f` | `v490` | Mobile field demo date trust polish |
+| `666a2a6` | `v491` | Field Ops Agent Phase 1 read-only assistant |
 
 ## Done / Do Not Rebuild
 
@@ -78,6 +80,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Package entitlement foundation | Done and released | Basic/Premium/Elite feature map, backend checks, frontend nav gates started. |
 | Package Upgrade / Locked State Polish | Done and released | Package-locked routes now explain manual upgrades and route owner/admin users to Plan Readiness without exposing field roles. |
 | Advanced Reporting Prep | Done and released | Premium owner/admin report prep panel and pure summary helper exist. Field users and Basic package workspaces do not see the advanced reporting panel. |
+| Advanced Reporting Prep Phase 2 | Built / pending release | Existing Premium owner/admin reporting panel now includes closeout readiness, owner review queue, delay/safety signals, and concrete yard reporting from current daily report data only. Field users and Basic package workspaces remain blocked. |
 | Billing / Plans Readiness Prep | Done and released | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
@@ -107,7 +110,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Assistant Missing Proof Summary | Built and released | Apex Assistant now summarizes read-only missing proof for visible office jobs and routes users to existing reports, uploads, ticket, checklist, safety, and tool workflows. |
 | Mobile Field Trust Polish | Built and released | Demo field job dates now freshen for demo users so mobile foreman/employee views feel current without mutating real company data. |
 | Field Ops Agent Planning Checkpoint | Prepared | `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` defines read-only phase 1 scope, GPS/location consent boundaries, role visibility, package policy, QA plan, and a builder prompt. Implementation requires approval. |
-| Field Ops Agent Phase 1 read-only summary | Built / pending release | Premium owner/admin users see company-wide read-only field accountability; Premium/Elite foremen/employees see assigned-scope reminders only. No hidden GPS tracking, no automatic messages, no payroll, discipline, or autonomous actions. |
+| Field Ops Agent Phase 1 read-only summary | Built and released | Premium owner/admin users see company-wide read-only field accountability; Premium/Elite foremen/employees see assigned-scope reminders only. No hidden GPS tracking, no automatic messages, no payroll, discipline, or autonomous actions. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -137,7 +140,8 @@ Recent focused verification:
 - Guided Demo Launch Readiness rehearsal: live browser QA checked owner/admin desktop Command Center, Schedule, Leads, Estimates, Jobs, Support; owner mobile Command Center; foreman mobile Dashboard, Jobs, Reports, Uploads, direct Estimates denial; employee mobile Dashboard, direct Command Center denial, and direct Estimates denial. Assistant shell opened and showed a safe Premium AI Rough Notes gate in the current Basic demo workspace. No P0/P1 blockers, no console/API failures, no horizontal overflow. Screenshot/report evidence: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-rehearsal-1779028554230` and assistant screenshot `C:\Users\jberl\AppData\Local\Temp\apex-assistant-live-check-1779028718708.png`. `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Assistant Missing Proof Summary checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, and `git diff --check` passed. Browser sanity check confirmed owner/admin assistant missing-proof summary renders, action buttons route to existing workflows, no console/API failures, and no mobile horizontal overflow. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-missing-proof-assistant-1779029399936`. Released as Fly `v489`; both live ready endpoints returned `200`, ready, database ok.
 - Mobile Field Trust Polish checks: `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:time`, `npm.cmd run build`, and `git diff --check` passed. Local and live mobile browser checks confirmed foreman field jobs show May 17 instead of stale April dates, no horizontal overflow, and no console/API failures. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-v490-live-field-date-1779030359039`. Released as Fly `v490`; both live ready endpoints returned `200`, ready, database ok.
-- Field Ops Agent Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run build`, focused browser owner/foreman desktop/mobile QA, and `git diff --check` passed. Browser screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-field-ops-shots-r3tygX`.
+- Field Ops Agent Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run build`, focused browser owner/foreman desktop/mobile QA, and `git diff --check` passed. Browser screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-field-ops-shots-r3tygX`. Released as Fly `v491`; both live ready endpoints returned `200`, ready, database ok.
+- Advanced Reporting Prep Phase 2 checks: `npm.cmd run verify:daily-reports`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, and `git diff --check` passed locally. Browser QA and release are still pending.
 
 ## Current Loop Prevention Rules
 
@@ -167,6 +171,7 @@ Do not start these phases again as if they are missing:
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
 - Advanced Reporting Prep.
+- Advanced Reporting Prep Phase 2.
 - Enterprise Trust Prep.
 - Demo pilot data cleanup.
 
@@ -179,19 +184,18 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Advanced Reporting Prep Phase 2 - Next
+### Release Advanced Reporting Prep Phase 2 - Next
 
 Why this is next:
 
-- Field Ops Agent Phase 1 is now built as a read-only, role-safe field accountability summary.
-- Reporting is the next useful premium surface after proof, field risk, app health, and reminders are visible.
-- This should stay focused on owner/admin operational clarity and avoid payroll, billing, job costing, or broad analytics.
+- Advanced Reporting Prep Phase 2 is built and verified locally.
+- The next safe step is a focused release-manager pass: confirm changed files, optionally run focused checks, commit, push, deploy, and health-check.
 
 Scope:
 
-- Expand existing Advanced Reporting Prep using current data only.
-- Keep reports owner/admin-only and package-gated.
-- Surface operational summaries that help demos and pilots without creating fake enterprise metrics.
+- Release the completed Advanced Reporting Prep Phase 2 batch.
+- Preserve unrelated dirty docs unless explicitly included.
+- Health-check both production ready endpoints after deploy.
 
 Do not include:
 
@@ -204,13 +208,13 @@ Do not include:
 
 Suggested verification:
 
-- `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, focused owner browser QA, field role safety check, and `git diff --check`.
+- `git status --short`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, optional focused owner browser QA, `git diff --check`, commit, push, deploy, and `/api/ready` health checks.
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
+| 1 | Release Advanced Reporting Prep Phase 2 | Commit, push, deploy, and health-check the completed reporting phase. | Low | Maybe. |
 | 2 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
 | 3 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
 | 4 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |

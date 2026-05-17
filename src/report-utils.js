@@ -99,9 +99,82 @@ function reportNeedsOfficeAttention(report = {}, proofState = null) {
     || Number(proofState?.gapCount || 0) > 0;
 }
 
+function reportDelayText(report = {}) {
+  return String(report.delays || report.delayNotes || report.blockers || "").trim();
+}
+
+function reportSafetyText(report = {}) {
+  return String(report.safetyNotes || report.safety || report.incidents || "").trim();
+}
+
+function reportJobLabel(report = {}) {
+  return jobTitle(report.job) || report.jobName || report.jobTitle || report.jobId || "Unassigned job";
+}
+
+function reportPriorityItem(report = {}, proofState = null) {
+  const status = normalizeReportStatus(report.status);
+  const missingBasics = isReportMissingBasics(report);
+  const gapCount = Number(proofState?.gapCount || 0);
+
+  if (status === "submitted") {
+    return {
+      id: report.id,
+      label: reportJobLabel(report),
+      date: report.reportDate || "",
+      creator: report.createdByName || report.createdBy || "Field user",
+      reason: "Submitted for office review",
+      tone: "orange",
+      filter: "Submitted",
+      priority: 1,
+    };
+  }
+
+  if (gapCount > 0) {
+    return {
+      id: report.id,
+      label: reportJobLabel(report),
+      date: report.reportDate || "",
+      creator: report.createdByName || report.createdBy || "Field user",
+      reason: `${gapCount} proof gap${gapCount === 1 ? "" : "s"} before closeout`,
+      tone: "amber",
+      filter: "All",
+      priority: 2,
+    };
+  }
+
+  if (status === "draft" || status === "reopened") {
+    return {
+      id: report.id,
+      label: reportJobLabel(report),
+      date: report.reportDate || "",
+      creator: report.createdByName || report.createdBy || "Field user",
+      reason: status === "reopened" ? "Reopened for field follow-up" : "Draft still in field completion",
+      tone: "amber",
+      filter: status === "reopened" ? "Reopened" : "Draft",
+      priority: 3,
+    };
+  }
+
+  if (missingBasics) {
+    return {
+      id: report.id,
+      label: reportJobLabel(report),
+      date: report.reportDate || "",
+      creator: report.createdByName || report.createdBy || "Field user",
+      reason: "Missing work, crew, or weather basics",
+      tone: "amber",
+      filter: "All",
+      priority: 4,
+    };
+  }
+
+  return null;
+}
+
 export function deriveAdvancedReportSummary(reports, {
   proofStateByReportId = new Map(),
   maxBreakdownRows = 3,
+  maxReviewQueue = 5,
 } = {}) {
   const visibleReports = (reports || []).filter((report) => !isArchivedReport(report));
   const statusCounts = {
@@ -118,17 +191,28 @@ export function deriveAdvancedReportSummary(reports, {
   let missingBasics = 0;
   let proofGaps = 0;
   let closeoutReady = 0;
+  let reportsWithDelays = 0;
+  let reportsWithSafetyNotes = 0;
+  let concreteYards = 0;
+  const reviewQueue = [];
 
   visibleReports.forEach((report) => {
     const status = normalizeReportStatus(report.status);
     if (Object.prototype.hasOwnProperty.call(statusCounts, status)) statusCounts[status] += 1;
-    if (report.concretePoured) concreteReports += 1;
+    if (report.concretePoured) {
+      concreteReports += 1;
+      concreteYards += Number(report.yardsPoured || 0);
+    }
+    if (reportDelayText(report)) reportsWithDelays += 1;
+    if (reportSafetyText(report)) reportsWithSafetyNotes += 1;
     if (isReportMissingBasics(report)) missingBasics += 1;
     const proofState = proofStateByReportId?.get?.(report.id) || null;
     const gapCount = Number(proofState?.gapCount || 0);
     if (gapCount > 0) proofGaps += 1;
     if (status === "reviewed" && !isReportMissingBasics(report) && gapCount === 0) closeoutReady += 1;
     if (reportNeedsOfficeAttention(report, proofState)) attentionIds.add(report.id);
+    const priorityItem = reportPriorityItem(report, proofState);
+    if (priorityItem) reviewQueue.push(priorityItem);
     if (report.reportDate) dateKeys.push(report.reportDate);
     incrementBreakdown(jobBreakdown, report.jobId || report.job?.id, jobTitle(report.job));
     incrementBreakdown(creatorBreakdown, report.createdBy, report.createdByName || report.createdBy || "Unassigned");
@@ -145,13 +229,20 @@ export function deriveAdvancedReportSummary(reports, {
     fieldDrafts: statusCounts.draft + statusCounts.reopened,
     reviewedReports: statusCounts.reviewed,
     concreteReports,
+    concreteYards,
     missingBasics,
     proofGaps,
     closeoutReady,
+    closeoutReadyRate: visibleReports.length ? Math.round((closeoutReady / visibleReports.length) * 100) : 0,
     needsAttention: attentionIds.size,
+    reportsWithDelays,
+    reportsWithSafetyNotes,
     dateRangeLabel: firstDate && lastDate
       ? firstDate === lastDate ? firstDate : `${firstDate} to ${lastDate}`
       : "No report dates",
+    reviewQueue: reviewQueue
+      .sort((left, right) => left.priority - right.priority || String(right.date || "").localeCompare(String(left.date || "")) || left.label.localeCompare(right.label))
+      .slice(0, maxReviewQueue),
     topJobs: topBreakdown(jobBreakdown, maxBreakdownRows),
     topCreators: topBreakdown(creatorBreakdown, maxBreakdownRows),
   };

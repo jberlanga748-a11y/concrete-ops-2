@@ -27,6 +27,10 @@ const REPORTS = [
     workPerformed: "Finished patio edges",
     crewSummary: "Foreman + 3",
     weather: "Sunny",
+    concretePoured: true,
+    yardsPoured: "12.5",
+    delays: "Waiting on pump truck",
+    safetyNotes: "Reviewed access around finish area",
     job: { title: "Jenkins Patio", customer: "Rob Jenkins" },
     archivedAt: null,
   },
@@ -91,7 +95,14 @@ test("derives advanced reporting prep summary from visible daily reports", () =>
   assert.equal(summary.missingBasics, 0);
   assert.equal(summary.proofGaps, 1);
   assert.equal(summary.closeoutReady, 0);
+  assert.equal(summary.closeoutReadyRate, 0);
+  assert.equal(summary.concreteYards, 12.5);
+  assert.equal(summary.reportsWithDelays, 1);
+  assert.equal(summary.reportsWithSafetyNotes, 1);
   assert.equal(summary.dateRangeLabel, "2026-04-24 to 2026-04-25");
+  assert.deepEqual(summary.reviewQueue.map((item) => item.id), ["R-2", "R-1"]);
+  assert.equal(summary.reviewQueue[0].reason, "Submitted for office review");
+  assert.equal(summary.reviewQueue[1].reason, "2 proof gaps before closeout");
   assert.deepEqual(summary.topJobs.map((item) => item.label), ["Jenkins Patio", "Martinez Front Walk"]);
   assert.deepEqual(summary.topCreators.map((item) => item.label), ["Foreman One", "Foreman Two"]);
 });
@@ -101,7 +112,10 @@ test("advanced reporting prep summary fails closed with empty input", () => {
 
   assert.equal(summary.totalReports, 0);
   assert.equal(summary.needsAttention, 0);
+  assert.equal(summary.closeoutReadyRate, 0);
+  assert.equal(summary.concreteYards, 0);
   assert.equal(summary.dateRangeLabel, "No report dates");
+  assert.deepEqual(summary.reviewQueue, []);
   assert.deepEqual(summary.topJobs, []);
   assert.deepEqual(summary.topCreators, []);
 });
