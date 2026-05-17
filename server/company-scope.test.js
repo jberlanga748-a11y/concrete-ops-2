@@ -457,6 +457,59 @@ test("operator user can switch companies without leaking selected company access
   }
 });
 
+test("activity feed writes stay scoped to the selected company", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertOtherCompanyLeadData(fixture.sqliteFile);
+    enableOperatorAccess(fixture.sqliteFile);
+
+    const operatorLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    await postJson(fixture.baseUrl, "/api/companies/select", operatorLogin.token, {
+      companyId: "COMPANY-LYF",
+    });
+    await postJson(fixture.baseUrl, "/api/queue-items", operatorLogin.token, {
+      title: "LYF scoped activity task",
+      meta: "Activity must stay in the LYF workspace.",
+      status: "Due today",
+    });
+
+    const lyfBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(lyfBootstrap.currentCompanyId, "COMPANY-LYF");
+    assert.equal(lyfBootstrap.activity.some((entry) => entry.title === "Queue item added" && entry.detail === "LYF scoped activity task"), true);
+    assert.ok(lyfBootstrap.activity.every((entry) => entry.companyId === "COMPANY-LYF"));
+
+    await postJson(fixture.baseUrl, "/api/companies/select", operatorLogin.token, {
+      companyId: DEFAULT_COMPANY_ID,
+    });
+    const defaultBootstrapBeforeCreate = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(defaultBootstrapBeforeCreate.currentCompanyId, DEFAULT_COMPANY_ID);
+    assert.equal(defaultBootstrapBeforeCreate.activity.some((entry) => entry.detail === "LYF scoped activity task"), false);
+
+    await postJson(fixture.baseUrl, "/api/queue-items", operatorLogin.token, {
+      title: "Default scoped activity task",
+      meta: "Activity must stay in the default workspace.",
+      status: "Due today",
+    });
+    const defaultBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: authHeaders(operatorLogin.token),
+    });
+    assert.equal(defaultBootstrap.activity.some((entry) => entry.title === "Queue item added" && entry.detail === "Default scoped activity task"), true);
+    assert.equal(defaultBootstrap.activity.some((entry) => entry.detail === "LYF scoped activity task"), false);
+    assert.ok(defaultBootstrap.activity.every((entry) => entry.companyId === DEFAULT_COMPANY_ID));
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("operator job assignments are stamped to the selected job company", async () => {
   const fixture = await startServer();
 

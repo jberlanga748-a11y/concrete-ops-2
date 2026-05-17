@@ -1076,8 +1076,7 @@ function normalizeCalculatorResultType(value) {
 
 function sanitizeCalculatorResultForUser(result, state, user) {
   if (!result || result.visibility !== "internal") return null;
-  const job = result.jobId ? state.jobs.find((entry) => entry.id === result.jobId) || null : null;
-  if (job && normalizeCompanyId(result.companyId) !== normalizeCompanyId(job.companyId)) return null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], result.jobId, result);
   if (!job || !canViewJob(job, user)) return null;
   const createdByUser = findUserById(state, result.createdBy);
 
@@ -2019,7 +2018,7 @@ function assertToolChecklistItemBelongsToChecklist(item, checklist) {
 }
 
 function sanitizeToolChecklistItemForUser(item, state, user, checklist, settings) {
-  const job = checklist?.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], checklist?.jobId, checklist);
   if (!item || !checklist || item.checklistId !== checklist.id || normalizeCompanyId(item.companyId) !== normalizeCompanyId(checklist.companyId)) return null;
   if (!canViewToolChecklistRecord(user, checklist, job, settings)) return null;
   if (item.archivedAt && !canViewAllToolChecklists(user)) return null;
@@ -2046,7 +2045,7 @@ function sanitizeToolChecklistItemForUser(item, state, user, checklist, settings
 }
 
 function sanitizeToolChecklistForUser(checklist, state, user, settings = companySettingsForState(state)) {
-  const job = checklist.jobId ? state.jobs.find((entry) => entry.id === checklist.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], checklist.jobId, checklist);
   if (!canViewToolChecklistRecord(user, checklist, job, settings)) return null;
   if (checklist.archivedAt && !canViewAllToolChecklists(user)) return null;
   const createdBy = findUserById(state, checklist.createdBy);
@@ -2132,7 +2131,7 @@ function sanitizePrePourChecklistForUser(checklist, state, user, context = null)
   if (hydrationContext?.sanitizedPrePourChecklistsById?.has(checklist.id)) {
     return hydrationContext.sanitizedPrePourChecklistsById.get(checklist.id);
   }
-  const job = lookupJobById(state, checklist.jobId, hydrationContext);
+  const job = findSameCompanyLinkedRecord(state.jobs || [], checklist.jobId, checklist);
   const canViewChecklist = canViewPrePourChecklistRecord(user, checklist, job);
   const isArchivedHidden = checklist.archivedAt && !isOfficeManager(user);
   if (!canViewChecklist || isArchivedHidden) {
@@ -2275,7 +2274,7 @@ function sanitizePostPourChecklistForUser(checklist, state, user, context = null
   if (hydrationContext?.sanitizedPostPourChecklistsById?.has(checklist.id)) {
     return hydrationContext.sanitizedPostPourChecklistsById.get(checklist.id);
   }
-  const job = lookupJobById(state, checklist.jobId, hydrationContext);
+  const job = findSameCompanyLinkedRecord(state.jobs || [], checklist.jobId, checklist);
   const canViewChecklist = canViewPostPourChecklistRecord(user, checklist, job);
   const isArchivedHidden = checklist.archivedAt && !isOfficeManager(user);
   if (!canViewChecklist || isArchivedHidden) {
@@ -2736,7 +2735,7 @@ function canEditDeliveryTicketRecord(user, ticket, job) {
 }
 
 function sanitizeDeliveryTicketForUser(ticket, state, user) {
-  const job = ticket.jobId ? state.jobs.find((entry) => entry.id === ticket.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], ticket.jobId, ticket);
   if (!canViewDeliveryTicketRecord(user, ticket, job)) return null;
   if (ticket.archivedAt && !canManageDeliveryTickets(user)) return null;
 
@@ -3510,7 +3509,7 @@ function findRequiredTimeEntry(state, entryId, user = null) {
 }
 
 function sanitizeTimeEntry(entry, state, user) {
-  const job = entry.jobId ? state.jobs.find((item) => item.id === entry.jobId) || null : null;
+  const job = findSameCompanyLinkedRecord(state.jobs || [], entry.jobId, entry);
   const entryUser = findUserById(state, entry.userId);
   const fieldSafeJob = job ? sanitizeJobForUser(job, user, state) : null;
   const normalizedJob = job ? normalizeJobRecord(job) : null;
@@ -3552,7 +3551,7 @@ function visibleTimeEntriesForUser(state, user) {
     entries = companyScopedRecordsForUser(state, user, state.timeEntries || []).filter((entry) => {
       if (entry.userId === user.id) return true;
       if (!entry.jobId) return false;
-      const job = state.jobs.find((item) => item.id === entry.jobId);
+      const job = findSameCompanyLinkedRecord(state.jobs || [], entry.jobId, entry);
       return job && canViewJob(job, user);
     });
   } else if (canManageOwnTime(user)) {
@@ -5008,7 +5007,14 @@ function appendActivity(state, title, detail, options = {}) {
     createdAt,
     updatedAt: createdAt,
   });
-  state.activity = state.activity.slice(0, 12);
+  const retainedByCompany = new Map();
+  state.activity = state.activity.filter((entry) => {
+    const companyId = normalizeCompanyId(entry.companyId);
+    const retainedCount = retainedByCompany.get(companyId) || 0;
+    if (retainedCount >= 12) return false;
+    retainedByCompany.set(companyId, retainedCount + 1);
+    return true;
+  });
 }
 
 function statsFromState(state) {
@@ -8576,7 +8582,7 @@ app.post("/api/opportunity-scout/search-profiles", requireAuth, asyncRoute(async
     });
     assignCompanyIdForCreate(profile, req.auth.user, draft);
     draft.opportunitySearchProfiles.unshift(profile);
-    appendActivity(draft, "Opportunity search profile added", `${req.auth.user.name} added ${profile.name}.`);
+    appendActivity(draft, "Opportunity search profile added", `${req.auth.user.name} added ${profile.name}.`, { companyId: profile.companyId });
     appendAuditEvent(draft, {
       entityType: "opportunitySearchProfile",
       entityId: profile.id,
@@ -8618,7 +8624,7 @@ app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(
       createdAt: profile.createdAt || normalized.createdAt,
       updatedAt: changedAt,
     });
-    appendActivity(draft, "Opportunity search profile updated", `${req.auth.user.name} updated ${profile.name}.`);
+    appendActivity(draft, "Opportunity search profile updated", `${req.auth.user.name} updated ${profile.name}.`, { companyId: profile.companyId });
     appendAuditEvent(draft, {
       entityType: "opportunitySearchProfile",
       entityId: profile.id,
@@ -8670,7 +8676,7 @@ app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(a
     assignCompanyIdForCreate(opportunity, req.auth.user, draft);
     validateOpportunityScoutLinks(draft, opportunity, req.auth.user);
     draft.foundOpportunities.unshift(opportunity);
-    appendActivity(draft, "Opportunity found", `${req.auth.user.name} added ${opportunity.title}.`);
+    appendActivity(draft, "Opportunity found", `${req.auth.user.name} added ${opportunity.title}.`, { companyId: opportunity.companyId });
     appendAuditEvent(draft, {
       entityType: "foundOpportunity",
       entityId: opportunity.id,
@@ -8713,7 +8719,7 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
       createdAt: opportunity.createdAt || normalized.createdAt,
       updatedAt: changedAt,
     });
-    appendActivity(draft, "Opportunity updated", `${req.auth.user.name} updated ${opportunity.title}.`);
+    appendActivity(draft, "Opportunity updated", `${req.auth.user.name} updated ${opportunity.title}.`, { companyId: opportunity.companyId });
     appendAuditEvent(draft, {
       entityType: "foundOpportunity",
       entityId: opportunity.id,
@@ -8824,7 +8830,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
       createdAt: changedAt,
       updatedAt: changedAt,
     }, req.auth.user, draft));
-    appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`);
+    appendActivity(draft, "Opportunity converted to lead", `${opportunity.title} was converted into ${newLead.customer}.`, { companyId: newLead.companyId });
     appendAuditEvent(draft, {
       entityType: "foundOpportunity",
       entityId: opportunity.id,
@@ -9700,7 +9706,7 @@ app.post("/api/calculator-results", requireAuth, asyncRoute(async (req, res) => 
 
     draft.calculatorResults.unshift(calculatorResult);
     const title = normalizeJobRecord(job).title;
-    appendActivity(draft, "Calculator result saved", `${req.auth.user.name} saved an internal calculator result for ${title}.`);
+    appendActivity(draft, "Calculator result saved", `${req.auth.user.name} saved an internal calculator result for ${title}.`, { companyId: calculatorResult.companyId });
     appendAuditEvent(draft, {
       entityType: "calculatorResult",
       entityId: calculatorResult.id,
@@ -9732,7 +9738,7 @@ app.post("/api/daily-reports", requireAuth, asyncRoute(async (req, res) => {
     report.companyId = job.companyId;
 
     draft.dailyReports.unshift(report);
-    appendActivity(draft, "Daily report created", `${req.auth.user.name} created a draft report for ${normalizeJobRecord(job).title}.`);
+    appendActivity(draft, "Daily report created", `${req.auth.user.name} created a draft report for ${normalizeJobRecord(job).title}.`, { companyId: report.companyId });
     appendAuditEvent(draft, {
       entityType: "dailyReport",
       entityId: report.id,
@@ -9796,7 +9802,7 @@ app.patch("/api/daily-reports/:id", requireAuth, asyncRoute(async (req, res) => 
 
     if (changedFields.length > 0) {
       markUpdated(report, changedAt);
-      appendActivity(draft, "Daily report updated", `${req.auth.user.name} updated a report for ${normalizeJobRecord(nextJob).title}.`);
+      appendActivity(draft, "Daily report updated", `${req.auth.user.name} updated a report for ${normalizeJobRecord(nextJob).title}.`, { companyId: report.companyId });
       appendAuditEvent(draft, {
         entityType: "dailyReport",
         entityId: report.id,
@@ -9835,7 +9841,7 @@ app.post("/api/daily-reports/:id/submit", requireAuth, asyncRoute(async (req, re
     report.submittedBy = req.auth.user.id;
     report.submittedAt = changedAt;
     markUpdated(report, changedAt);
-    appendActivity(draft, "Daily report submitted", `${req.auth.user.name} submitted a report for ${normalizeJobRecord(job).title}.`);
+    appendActivity(draft, "Daily report submitted", `${req.auth.user.name} submitted a report for ${normalizeJobRecord(job).title}.`, { companyId: report.companyId });
     appendAuditEvent(draft, {
       entityType: "dailyReport",
       entityId: report.id,
@@ -9868,7 +9874,7 @@ app.post("/api/daily-reports/:id/review", requireAuth, asyncRoute(async (req, re
     report.reviewedBy = req.auth.user.id;
     report.reviewedAt = changedAt;
     markUpdated(report, changedAt);
-    appendActivity(draft, "Daily report reviewed", `${req.auth.user.name} reviewed a report for ${normalizeJobRecord(job).title}.`);
+    appendActivity(draft, "Daily report reviewed", `${req.auth.user.name} reviewed a report for ${normalizeJobRecord(job).title}.`, { companyId: report.companyId });
     appendAuditEvent(draft, {
       entityType: "dailyReport",
       entityId: report.id,
@@ -9900,7 +9906,7 @@ app.post("/api/daily-reports/:id/reopen", requireAuth, asyncRoute(async (req, re
     report.status = "reopened";
     report.reopenedAt = changedAt;
     markUpdated(report, changedAt);
-    appendActivity(draft, "Daily report reopened", `${req.auth.user.name} reopened a report for ${normalizeJobRecord(job).title}.`);
+    appendActivity(draft, "Daily report reopened", `${req.auth.user.name} reopened a report for ${normalizeJobRecord(job).title}.`, { companyId: report.companyId });
     appendAuditEvent(draft, {
       entityType: "dailyReport",
       entityId: report.id,
@@ -9931,7 +9937,7 @@ app.post("/api/daily-reports/:id/archive", requireAuth, asyncRoute(async (req, r
     report.archivedAt = changedAt;
     report.status = "archived";
     markUpdated(report, changedAt);
-    appendActivity(draft, "Daily report archived", `${req.auth.user.name} archived a report for ${normalizeJobRecord(job).title}.`);
+    appendActivity(draft, "Daily report archived", `${req.auth.user.name} archived a report for ${normalizeJobRecord(job).title}.`, { companyId: report.companyId });
     appendAuditEvent(draft, {
       entityType: "dailyReport",
       entityId: report.id,
@@ -9992,7 +9998,7 @@ app.post("/api/time-entries/clock-in", requireAuth, asyncRoute(async (req, res) 
     });
 
     draft.timeEntries.unshift(entry);
-    appendActivity(draft, "Time clocked in", `${req.auth.user.name} clocked in to ${job ? normalizeJobRecord(job).title : workCategory.replaceAll("_", " ")}.`);
+    appendActivity(draft, "Time clocked in", `${req.auth.user.name} clocked in to ${job ? normalizeJobRecord(job).title : workCategory.replaceAll("_", " ")}.`, { companyId: entry.companyId });
     appendAuditEvent(draft, {
       entityType: "timeEntry",
       entityId: entry.id,
@@ -10031,8 +10037,8 @@ app.post("/api/time-entries/:id/break-start", requireAuth, asyncRoute(async (req
     entry.updatedAt = changedAt;
     applyTimeEntryTotals(entry);
 
-    const job = draft.jobs.find((item) => item.id === entry.jobId);
-    appendActivity(draft, "Break started", `${req.auth.user.name} started break on ${job ? normalizeJobRecord(job).title : "assigned work"}.`);
+    const job = findSameCompanyLinkedRecord(draft.jobs || [], entry.jobId, entry);
+    appendActivity(draft, "Break started", `${req.auth.user.name} started break on ${job ? normalizeJobRecord(job).title : "assigned work"}.`, { companyId: entry.companyId });
     appendAuditEvent(draft, {
       entityType: "timeEntry",
       entityId: entry.id,
@@ -10067,7 +10073,7 @@ app.post("/api/time-entries/:id/break-end", requireAuth, asyncRoute(async (req, 
     entry.updatedAt = changedAt;
     applyTimeEntryTotals(entry);
 
-    appendActivity(draft, "Break ended", `${req.auth.user.name} ended break.`);
+    appendActivity(draft, "Break ended", `${req.auth.user.name} ended break.`, { companyId: entry.companyId });
     appendAuditEvent(draft, {
       entityType: "timeEntry",
       entityId: entry.id,
@@ -10106,8 +10112,8 @@ app.post("/api/time-entries/:id/clock-out", requireAuth, asyncRoute(async (req, 
     entry.updatedAt = changedAt;
     applyTimeEntryTotals(entry);
 
-    const job = draft.jobs.find((item) => item.id === entry.jobId);
-    appendActivity(draft, "Time clocked out", `${req.auth.user.name} clocked out of ${job ? normalizeJobRecord(job).title : "assigned work"}.`);
+    const job = findSameCompanyLinkedRecord(draft.jobs || [], entry.jobId, entry);
+    appendActivity(draft, "Time clocked out", `${req.auth.user.name} clocked out of ${job ? normalizeJobRecord(job).title : "assigned work"}.`, { companyId: entry.companyId });
     appendAuditEvent(draft, {
       entityType: "timeEntry",
       entityId: entry.id,
@@ -11630,7 +11636,7 @@ app.post("/api/queue-items", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     assignCompanyIdForCreate(newTask, req.auth.user, draft);
     draft.queueItems.unshift(newTask);
-    appendActivity(draft, "Queue item added", newTask.title);
+    appendActivity(draft, "Queue item added", newTask.title, { companyId: newTask.companyId });
     appendAuditEvent(draft, {
       entityType: "queueItem",
       entityId: newTask.id,
@@ -11653,7 +11659,7 @@ app.post("/api/queue-items/:id/archive", requireAuth, asyncRoute(async (req, res
     const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     task.archivedAt = changedAt;
     markUpdated(task, changedAt);
-    appendActivity(draft, "Queue item archived", task.title);
+    appendActivity(draft, "Queue item archived", task.title, { companyId: task.companyId });
     appendAuditEvent(draft, {
       entityType: "queueItem",
       entityId: task.id,
@@ -11677,7 +11683,7 @@ app.post("/api/queue-items/:id/restore", requireAuth, asyncRoute(async (req, res
     const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     task.archivedAt = null;
     markUpdated(task, changedAt);
-    appendActivity(draft, "Queue item restored", task.title);
+    appendActivity(draft, "Queue item restored", task.title, { companyId: task.companyId });
     appendAuditEvent(draft, {
       entityType: "queueItem",
       entityId: task.id,
@@ -11701,7 +11707,7 @@ app.patch("/api/queue-items/:id/toggle", requireAuth, asyncRoute(async (req, res
     const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     task.done = !task.done;
     markUpdated(task, changedAt);
-    appendActivity(draft, task.done ? "Queue item completed" : "Queue item reopened", task.title);
+    appendActivity(draft, task.done ? "Queue item completed" : "Queue item reopened", task.title, { companyId: task.companyId });
     appendAuditEvent(draft, {
       entityType: "queueItem",
       entityId: task.id,
@@ -11723,8 +11729,8 @@ app.delete("/api/queue-items/:id", requireAuth, asyncRoute(async (req, res) => {
   const nextState = await updateDb((draft) => {
     const task = findCompanyScopedRecord(draft.queueItems, id, req.auth.user, draft, "Queue item");
     assertArchived(task, "Queue item");
-    draft.queueItems = draft.queueItems.filter((entry) => entry.id !== id);
-    appendActivity(draft, "Queue item deleted", task.title);
+    draft.queueItems = draft.queueItems.filter((entry) => entry.id !== id || normalizeCompanyId(entry.companyId) !== normalizeCompanyId(task.companyId));
+    appendActivity(draft, "Queue item deleted", task.title, { companyId: task.companyId });
     appendAuditEvent(draft, {
       entityType: "queueItem",
       entityId: task.id,

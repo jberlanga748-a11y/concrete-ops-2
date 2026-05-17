@@ -155,8 +155,8 @@ function insertUsers(sqliteFile, users) {
   const database = new DatabaseSync(sqliteFile);
   try {
     const insertUser = database.prepare(`
-      INSERT INTO users (id, email, name, role, phone, status, created_at, updated_at, last_login_at, password_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, created_at, updated_at, last_login_at, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const user of users) {
@@ -167,12 +167,27 @@ function insertUsers(sqliteFile, users) {
         user.role,
         user.phone || "",
         user.status || "active",
+        user.companyId || "COMPANY-DEFAULT",
+        user.operatorAccess ? 1 : 0,
         user.createdAt || new Date().toISOString(),
         user.updatedAt || user.createdAt || new Date().toISOString(),
         user.lastLoginAt || null,
         user.passwordHash,
       );
     }
+  } finally {
+    database.close();
+  }
+}
+
+function insertCompany(sqliteFile, companyId, name) {
+  const database = new DatabaseSync(sqliteFile);
+  const now = new Date().toISOString();
+  try {
+    database.prepare(`
+      INSERT OR IGNORE INTO companies (id, workspace_id, name, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(companyId, companyId, name, "active", now, now);
   } finally {
     database.close();
   }
@@ -837,6 +852,61 @@ test("user management ignores operator and company-scope escalation fields", asy
       body: JSON.stringify({ companyId: "COMPANY-ATTACKER" }),
     });
     assert.equal(switchAttempt.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("user management excludes and blocks mutations for other-company users", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertCompany(fixture.sqliteFile, "COMPANY-LYF", "Live Your Future Construction");
+    insertUsers(fixture.sqliteFile, [
+      createUserRecord({
+        id: "U-OWNER-COMPANY-SCOPE",
+        email: "owner-company-scope@lastyard.test",
+        password: "apexdemo123",
+        name: "Owner Company Scope",
+        role: "Owner",
+      }),
+      createUserRecord({
+        id: "U-LYF-COMPANY-SCOPE",
+        email: "lyf-company-scope@lastyard.test",
+        password: "apexdemo123",
+        name: "LYF Company Scope",
+        role: "Administrator",
+        companyId: "COMPANY-LYF",
+      }),
+    ]);
+
+    const ownerLogin = await login(fixture.baseUrl, {
+      email: "owner-company-scope@lastyard.test",
+      password: "apexdemo123",
+    });
+
+    const usersPayload = await assertOk(fixture.baseUrl, "/api/users", {
+      headers: authHeaders(ownerLogin.token),
+    });
+    assert.equal(usersPayload.users.some((user) => user.id === "U-LYF-COMPANY-SCOPE"), false);
+    assert.equal(usersPayload.users.some((user) => user.email === "lyf-company-scope@lastyard.test"), false);
+
+    const patchOtherCompanyUser = await requestJson(fixture.baseUrl, "/api/users/U-LYF-COMPANY-SCOPE", {
+      method: "PATCH",
+      headers: authHeaders(ownerLogin.token),
+      body: JSON.stringify({ phone: "503-555-0199" }),
+    });
+    assert.equal(patchOtherCompanyUser.response.status, 404);
+
+    const otherCompanyLogin = await login(fixture.baseUrl, {
+      email: "lyf-company-scope@lastyard.test",
+      password: "apexdemo123",
+    });
+    const otherCompanyUsers = await assertOk(fixture.baseUrl, "/api/users", {
+      headers: authHeaders(otherCompanyLogin.token),
+    });
+    assert.equal(otherCompanyUsers.users.some((user) => user.id === "U-LYF-COMPANY-SCOPE"), true);
+    assert.equal(otherCompanyUsers.users.some((user) => user.id === "U-OWNER-COMPANY-SCOPE"), false);
   } finally {
     await fixture.stop();
   }
