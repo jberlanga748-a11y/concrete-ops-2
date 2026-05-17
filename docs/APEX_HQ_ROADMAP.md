@@ -61,7 +61,7 @@ Existing app foundations:
 | Core Operations | leads, estimates, jobs, crews, reports, photos, tickets, safety, checklists, closeout | Now |
 | App Health Monitoring | crashes, failed API calls, uptime, health checks, troubleshooting guidance | Built / expand later |
 | Watchtower / Autopilot Agent | missing reports/photos/follow-ups, startup blockers, recommendations | Built / expand later |
-| Field Ops Agent | clock issues, missing field proof, weather/GPS risk with consent | Later |
+| Field Ops Agent | clock issues, missing field proof, weather/GPS risk with consent | Phase 1 built / expand later |
 | Growth Agent | stale estimates, lead targeting, close-rate recommendations | Later |
 | Lead / Job Finder Agent | finds opportunities, scores fit, drafts outreach with approval | Later |
 | Marketing Agent | manual-first campaigns, emails, texts, scripts, review asks | Later |
@@ -99,16 +99,16 @@ Security is never a paid feature. All packages get safe auth, company separation
 - Keep package locked states stable; do not add billing or expose package CTAs to field roles.
 - Keep Advanced Reporting Prep stable; do not turn it into job costing, payroll, billing, or broad analytics without a planned reporting phase.
 - Enterprise Trust Prep is built and released; do not expand it into SOC 2, SSO, MFA, SCIM, or compliance claims without a scoped trust phase.
-- Field Ops Agent planning is documented; do not build GPS/location risk behavior without explicit consent, settings, and approval boundaries.
+- Field Ops Agent Phase 1 is read-only and role-safe; do not build GPS/location risk behavior without explicit consent, settings, and approval boundaries.
 
 ### Next
 
-- Field Ops Agent Phase 1 read-only risk summary, only after approving `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md`.
 - Advanced Reporting Prep Phase 2 after KPI priorities are confirmed.
+- Enterprise Trust Phase 2 after reporting scope is stable.
 
 ### Later
 
-- Field Ops Agent.
+- Field Ops Agent advanced GPS/weather/time risk behavior.
 - Growth Agent.
 - Lead/Job Finder Agent.
 - Marketing Agent.
@@ -132,14 +132,14 @@ Security is never a paid feature. All packages get safe auth, company separation
 
 ## Recommended Build Order
 
-1. Field Ops Agent Phase 1 read-only risk summary, if approved.
-2. Advanced Reporting Prep Phase 2.
-3. Enterprise Trust Phase 2.
-4. Billing / manual upgrade prep.
-5. Customer Portal Planning Checkpoint.
-6. Assistant material planning prep.
-7. Assistant job conversion planning.
-8. Premium demo workspace prep.
+1. Advanced Reporting Prep Phase 2.
+2. Enterprise Trust Phase 2.
+3. Billing / manual upgrade prep.
+4. Customer Portal Planning Checkpoint.
+5. Assistant material planning prep.
+6. Assistant job conversion planning.
+7. Premium demo workspace prep.
+8. Public website / sales funnel planning.
 
 Completed foundational phases that should not be restarted:
 
@@ -165,6 +165,7 @@ Completed foundational phases that should not be restarted:
 - Assistant Missing Proof Summary.
 - Mobile Field Trust Polish.
 - Field Ops Agent Planning Checkpoint.
+- Field Ops Agent Phase 1 read-only summary.
 
 ## Freeze Policy
 

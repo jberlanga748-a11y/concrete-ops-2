@@ -144,6 +144,7 @@ import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, buildEstimateLineItemsFromRoughNotes, applyEstimateTemplateStarter } from "./estimate-template-utils";
+import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
 import { deriveJobListState, jobNextStep, jobScheduleLabel, jobStatusLabel, jobTitle, normalizeJobStatus } from "./job-utils";
@@ -446,6 +447,10 @@ const EMPTY_APP_STATE = {
     support: {
       canView: false,
     },
+    fieldOps: {
+      canView: false,
+      canViewCompanyWide: false,
+    },
     companies: {
       canSwitch: false,
       canViewAll: false,
@@ -722,6 +727,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
       appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, source.permissions?.appHealth || fallback.permissions?.appHealth),
       support: mergePermissionScope(EMPTY_APP_STATE.permissions.support, source.permissions?.support || fallback.permissions?.support),
+      fieldOps: mergePermissionScope(EMPTY_APP_STATE.permissions.fieldOps, source.permissions?.fieldOps || fallback.permissions?.fieldOps),
       companies: mergePermissionScope(EMPTY_APP_STATE.permissions.companies, source.permissions?.companies || fallback.permissions?.companies),
       changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
       deliveryTickets: mergePermissionScope(EMPTY_APP_STATE.permissions.deliveryTickets, source.permissions?.deliveryTickets || fallback.permissions?.deliveryTickets),
@@ -5617,6 +5623,7 @@ function FieldWorkspacePagePolished({
   workspace,
   focusJob,
   permissions,
+  fieldOpsAgent,
   setActive,
   timeWorkspace,
   onSelectJob,
@@ -5673,6 +5680,11 @@ function FieldWorkspacePagePolished({
             onEndBreak={onEndBreak}
           />
         </div>
+        {fieldOpsAgent?.canView ? (
+          <div className="co-field-required-wrap">
+            <FieldOpsAgentSummaryCard state={fieldOpsAgent} onOpenModule={setActive} compact />
+          </div>
+        ) : null}
       </div>
       <FieldWorkspaceKpisPolished workspace={workspace} timeWorkspace={timeWorkspace} focusJob={focusJob} role={role} />
       <div className="co-field-command-layout mx-auto grid w-full max-w-[1400px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_376px] lg:px-6">
@@ -5777,12 +5789,28 @@ function deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob, { i
   return workspace?.nextAssignedJob || workspace?.primaryJob || allowedJobs[0] || null;
 }
 
-function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
+function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, onJobFieldChange, onAcknowledgeAssignmentNotice, busy, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveForemanWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fieldJobs = useMemo(() => fieldWorkspaceJobList(workspace, { includeUpcoming: true }), [workspace]);
   const focusJob = useMemo(() => deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob, { includeUpcoming: true }), [selectedJob, selectedJobId, workspace]);
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, fieldJobs, user?.id, permissions.time.allowedCategories || []), [fieldJobs, permissions.time.allowedCategories, timeEntries, user?.id]);
+  const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
+    currentCompanyId,
+    jobs: fieldJobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+  }, {
+    companyId: currentCompanyId,
+    permissions,
+    user,
+  }), [currentCompanyId, dailyReports, deliveryTickets, fieldJobs, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
 
   return (
     <FieldWorkspacePagePolished
@@ -5790,6 +5818,7 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
       workspace={workspace}
       focusJob={focusJob}
       permissions={permissions}
+      fieldOpsAgent={fieldOpsAgent}
       setActive={setActive}
       timeWorkspace={timeWorkspace}
       onSelectJob={onSelectJob}
@@ -5804,11 +5833,27 @@ function ForemanWorkspacePage({ rows, user, selectedJobId, onSelectJob, selected
   );
 }
 
-function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
+function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selectedJob, permissions, setActive, timeEntries, dailyReports, uploads, deliveryTickets, prePourChecklists, postPourChecklists, safetyIncidents, toolChecklists, currentCompanyId, onClockIn, onClockOut, onStartBreak, onEndBreak, onAcknowledgeAssignmentNotice, busy }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const workspace = useMemo(() => deriveEmployeeWorkspace(safeRows, user?.id), [safeRows, user?.id]);
   const fallbackJob = useMemo(() => deriveFieldWorkspaceFocusJob(workspace, selectedJobId, selectedJob), [selectedJob, selectedJobId, workspace]);
   const timeWorkspace = useMemo(() => deriveTimeWorkspace(timeEntries, workspace.assignedJobs, user?.id, permissions.time.allowedCategories || []), [permissions.time.allowedCategories, timeEntries, user?.id, workspace.assignedJobs]);
+  const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
+    currentCompanyId,
+    jobs: workspace.assignedJobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+  }, {
+    companyId: currentCompanyId,
+    permissions,
+    user,
+  }), [currentCompanyId, dailyReports, deliveryTickets, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user, workspace.assignedJobs]);
 
   return (
     <FieldWorkspacePagePolished
@@ -5816,6 +5861,7 @@ function EmployeeWorkspacePage({ rows, user, selectedJobId, onSelectJob, selecte
       workspace={workspace}
       focusJob={fallbackJob}
       permissions={permissions}
+      fieldOpsAgent={fieldOpsAgent}
       setActive={setActive}
       timeWorkspace={timeWorkspace}
       onSelectJob={onSelectJob}
@@ -14393,7 +14439,68 @@ function CommandCenterOpsPulseCard({ icon = "grid", title, value, helper, rows =
   );
 }
 
+function FieldOpsAgentSummaryCard({ state, onOpenModule, compact = false }) {
+  if (!state?.canView) return null;
+  const items = Array.isArray(state.items) ? state.items.slice(0, compact ? 3 : 5) : [];
+  const stats = state.stats || {};
+  const hasRisk = Number(stats.total || 0) > 0;
+  const openModule = (moduleId) => {
+    if (!moduleId || typeof onOpenModule !== "function") return;
+    onOpenModule(moduleId);
+  };
+
+  return (
+    <Card className={`co-command-card ${compact ? "p-3" : "p-3.5"}`}>
+      <SectionHeader
+        title="Field Ops Agent"
+        description={compact ? "Read-only assigned-work reminders." : "Read-only field risk summary with human review only."}
+        action={<Badge tone={hasRisk ? "amber" : "green"}>{state.modeLabel || "Read-only"}</Badge>}
+      />
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Review</p>
+          <strong className="mt-1 block text-xl font-black text-slate-950">{stats.total || 0}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Jobs</p>
+          <strong className="mt-1 block text-xl font-black text-slate-950">{stats.visibleJobs || 0}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Clocks</p>
+          <strong className="mt-1 block text-xl font-black text-slate-950">{stats.activeClocks || 0}</strong>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-1.5">
+        {items.length ? items.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            onClick={() => openModule(item.moduleId)}
+            className="co-focus-ring grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-orange-200 hover:bg-orange-50"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black text-slate-950">{item.title}</span>
+              <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-600">{item.description}</span>
+              <span className="mt-1 block text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{item.dueLabel || state.roleScope}</span>
+            </span>
+            <Badge tone={item.severity === "critical" ? "red" : item.severity === "warning" ? "amber" : "blue"}>{item.actionLabel || "Open"}</Badge>
+          </button>
+        )) : (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold leading-6 text-emerald-800">
+            Field Ops Agent does not see missing reports, proof, tickets, checklists, incidents, or active clock reviews for this scope.
+          </div>
+        )}
+      </div>
+      <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-600">
+        {state.privacyLabel || "No hidden GPS tracking, no automatic messages, no payroll or discipline actions."}
+      </p>
+    </Card>
+  );
+}
+
 function CommandCenterPage({
+  user,
+  currentCompanyId,
   companyName,
   leads,
   customers,
@@ -14436,6 +14543,22 @@ function CommandCenterPage({
     timeEntries,
     changeOrderRequests,
   }), [changeOrderRequests, contactHistory, customers, dailyReports, deliveryTickets, estimates, jobDraftImports, jobs, leadSources, leads, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads]);
+  const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
+    currentCompanyId,
+    jobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+  }, {
+    companyId: currentCompanyId,
+    permissions,
+    user,
+  }), [currentCompanyId, dailyReports, deliveryTickets, jobs, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
 
   function openModule(moduleId) {
     setActive?.(moduleId);
@@ -14886,6 +15009,7 @@ function CommandCenterPage({
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
+            <FieldOpsAgentSummaryCard state={fieldOpsAgent} onOpenModule={openModule} />
             {canViewWatchtower ? <CommandCenterWatchtowerCard actions={commandCenter.watchtowerActions} queue={commandCenter.watchtowerQueue} onOpenModule={openModule} /> : null}
             {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={openOwnerHealth} /> : null}
 
@@ -18804,6 +18928,14 @@ function JobsPagePolished({
   permissions,
   setActive,
   timeEntries,
+  dailyReports,
+  uploads,
+  deliveryTickets,
+  prePourChecklists,
+  postPourChecklists,
+  safetyIncidents,
+  toolChecklists,
+  currentCompanyId,
   onClockIn,
   onClockOut,
   onStartBreak,
@@ -18825,6 +18957,14 @@ function JobsPagePolished({
         permissions={permissions}
         setActive={setActive}
         timeEntries={timeEntries}
+        dailyReports={dailyReports}
+        uploads={uploads}
+        deliveryTickets={deliveryTickets}
+        prePourChecklists={prePourChecklists}
+        postPourChecklists={postPourChecklists}
+        safetyIncidents={safetyIncidents}
+        toolChecklists={toolChecklists}
+        currentCompanyId={currentCompanyId}
         onClockIn={onClockIn}
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}
@@ -18845,6 +18985,14 @@ function JobsPagePolished({
         permissions={permissions}
         setActive={setActive}
         timeEntries={timeEntries}
+        dailyReports={dailyReports}
+        uploads={uploads}
+        deliveryTickets={deliveryTickets}
+        prePourChecklists={prePourChecklists}
+        postPourChecklists={postPourChecklists}
+        safetyIncidents={safetyIncidents}
+        toolChecklists={toolChecklists}
+        currentCompanyId={currentCompanyId}
         onClockIn={onClockIn}
         onClockOut={onClockOut}
         onStartBreak={onStartBreak}

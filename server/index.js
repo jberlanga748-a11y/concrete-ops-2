@@ -5368,6 +5368,7 @@ function sanitizeBootstrap(state, user) {
       estimates,
     })
     : null;
+  const canViewFieldOpsAgent = packageEntitlements.fieldOps.canUse && Boolean(user) && (canViewAllJobs(user) || isForeman(user) || isEmployee(user));
   return {
     user: publicUser({
       ...user,
@@ -5474,6 +5475,10 @@ function sanitizeBootstrap(state, user) {
       },
       watchtower: {
         canView: packageEntitlements.watchtower.canUse && canViewSettings(user),
+      },
+      fieldOps: {
+        canView: canViewFieldOpsAgent,
+        canViewCompanyWide: canViewFieldOpsAgent && canViewAllJobs(user),
       },
       companies: {
         canSwitch: canManageCompanies(user),

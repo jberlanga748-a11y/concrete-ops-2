@@ -15,6 +15,7 @@ Current state:
 - Multi-company safety: built and heavily tested, but still needs periodic route sweeps as new workflows are added.
 - Package entitlement foundation: built, tested, released.
 - First owner onboarding/support handoff: built, tested, released.
+- Field Ops Agent Phase 1 read-only summary: built and verified locally, pending release.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
@@ -106,6 +107,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Assistant Missing Proof Summary | Built and released | Apex Assistant now summarizes read-only missing proof for visible office jobs and routes users to existing reports, uploads, ticket, checklist, safety, and tool workflows. |
 | Mobile Field Trust Polish | Built and released | Demo field job dates now freshen for demo users so mobile foreman/employee views feel current without mutating real company data. |
 | Field Ops Agent Planning Checkpoint | Prepared | `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md` defines read-only phase 1 scope, GPS/location consent boundaries, role visibility, package policy, QA plan, and a builder prompt. Implementation requires approval. |
+| Field Ops Agent Phase 1 read-only summary | Built / pending release | Premium owner/admin users see company-wide read-only field accountability; Premium/Elite foremen/employees see assigned-scope reminders only. No hidden GPS tracking, no automatic messages, no payroll, discipline, or autonomous actions. |
 | Opportunity Scout foundation | Built and package-gated | Elite-only Lead Finder surfaces should stay gated. |
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 
@@ -135,6 +137,7 @@ Recent focused verification:
 - Guided Demo Launch Readiness rehearsal: live browser QA checked owner/admin desktop Command Center, Schedule, Leads, Estimates, Jobs, Support; owner mobile Command Center; foreman mobile Dashboard, Jobs, Reports, Uploads, direct Estimates denial; employee mobile Dashboard, direct Command Center denial, and direct Estimates denial. Assistant shell opened and showed a safe Premium AI Rough Notes gate in the current Basic demo workspace. No P0/P1 blockers, no console/API failures, no horizontal overflow. Screenshot/report evidence: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-rehearsal-1779028554230` and assistant screenshot `C:\Users\jberl\AppData\Local\Temp\apex-assistant-live-check-1779028718708.png`. `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 - Assistant Missing Proof Summary checks: `npm.cmd run build`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, and `git diff --check` passed. Browser sanity check confirmed owner/admin assistant missing-proof summary renders, action buttons route to existing workflows, no console/API failures, and no mobile horizontal overflow. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-missing-proof-assistant-1779029399936`. Released as Fly `v489`; both live ready endpoints returned `200`, ready, database ok.
 - Mobile Field Trust Polish checks: `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:time`, `npm.cmd run build`, and `git diff --check` passed. Local and live mobile browser checks confirmed foreman field jobs show May 17 instead of stale April dates, no horizontal overflow, and no console/API failures. Screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-v490-live-field-date-1779030359039`. Released as Fly `v490`; both live ready endpoints returned `200`, ready, database ok.
+- Field Ops Agent Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run build`, focused browser owner/foreman desktop/mobile QA, and `git diff --check` passed. Browser screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-field-ops-shots-r3tygX`.
 
 ## Current Loop Prevention Rules
 
@@ -158,6 +161,7 @@ Do not start these phases again as if they are missing:
 - Assistant Missing Proof Summary.
 - Mobile Field Trust Polish.
 - Field Ops Agent Planning Checkpoint.
+- Field Ops Agent Phase 1 read-only summary.
 - Customer Success / Guided Setup Phase 2.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
@@ -175,63 +179,47 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Field Ops Agent Phase 1 Read-Only Risk Summary - Awaiting Approval
+### Advanced Reporting Prep Phase 2 - Next
 
 Why this is next:
 
-- Field Ops Agent Planning Checkpoint is documented in `docs/FIELD_OPS_AGENT_PLANNING_CHECKPOINT.md`.
-- The approved-safe first build slice is read-only field execution risk visibility.
-- This still touches employee accountability, so implementation should start only after the user approves the boundaries in the planning checkpoint.
+- Field Ops Agent Phase 1 is now built as a read-only, role-safe field accountability summary.
+- Reporting is the next useful premium surface after proof, field risk, app health, and reminders are visible.
+- This should stay focused on owner/admin operational clarity and avoid payroll, billing, job costing, or broad analytics.
 
 Scope:
 
-- Owner/admin company-level field execution risk summary.
-- Foreman assigned-job reminders only.
-- Employee personal assigned-task reminders only.
-- Links to existing workflows.
-- Existing upload GPS evidence status labels only, with no distance or location judgment.
+- Expand existing Advanced Reporting Prep using current data only.
+- Keep reports owner/admin-only and package-gated.
+- Surface operational summaries that help demos and pilots without creating fake enterprise metrics.
 
 Do not include:
 
-- Billing.
-- Customer portal.
-- AI autopilot or automatic task completion.
-- Automatic email/SMS sending.
-- Automatic pricing approval.
-- Automatic crew assignment without owner/admin review.
-- Automatic material ordering.
-- Direct customer communication.
-- Job conversion.
-- Enterprise SSO/MFA/SCIM.
-- SOC 2 paperwork or public compliance claims.
-- New analytics warehouse or schema rewrite.
-- Field access to office/admin/pricing/trust controls.
-- Broad redesigns of Command Center, Leads, Customers, Estimates, or Jobs.
-- Autonomous field actions.
-- Hidden GPS tracking.
-- Automatic discipline, payroll, HR, legal, or punitive monitoring.
-- Automatic employee messages or warnings.
-- GPS distance flags before consent/settings/audit trail are approved and built.
+- Payroll or labor cost reports.
+- Billing/payment reports.
+- Enterprise analytics warehouse.
+- Customer portal reporting.
+- AI-generated claims or auto-summaries sent outside the app.
+- Field access to office/admin/pricing/reporting data.
 
 Suggested verification:
 
-- No-code planning checkpoint first.
-- If approved later: `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:safety`, mobile browser QA, and `git diff --check`.
+- `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, focused owner browser QA, field role safety check, and `git diff --check`.
 
 ## Next 10 Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Field Ops Agent Phase 1 read-only risk summary | Build only the approved read-only field-risk assistant slice. | High | Yes. |
-| 2 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
-| 3 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
-| 4 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
-| 5 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
-| 6 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
-| 7 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
-| 8 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
-| 9 | Public Website / Sales Funnel Planning | Plan public marketing site and demo booking flow with no product auth/billing changes yet. | Medium | Yes. |
-| 10 | Pilot Feedback Capture Phase 1 | Add structured pilot feedback capture after demos begin, without changing core workflows. | Medium | Maybe. |
+| 1 | Advanced Reporting Prep Phase 2 | Expand only after KPI priorities are confirmed. | Medium | Yes. |
+| 2 | Enterprise Trust Phase 2 | Continue trust work after audit/export/admin foundations are proven. | Medium | Maybe. |
+| 3 | Billing / Manual Upgrade Prep | Plan Stripe/customer billing only after package UX and trust gates are clearer. | High | Yes. |
+| 4 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
+| 5 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
+| 6 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
+| 7 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
+| 8 | Public Website / Sales Funnel Planning | Plan public marketing site and demo booking flow with no product auth/billing changes yet. | Medium | Yes. |
+| 9 | Pilot Feedback Capture Phase 1 | Add structured pilot feedback capture after demos begin, without changing core workflows. | Medium | Maybe. |
+| 10 | Customer Portal Phase 1 Manual Approval Preview | Only after planning checkpoint; manual customer-facing proposal/progress visibility. | High | Yes. |
 
 ## Later / Do Not Build Yet
 

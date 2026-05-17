@@ -25,6 +25,9 @@ export function resolvePackageEntitlements({ hasFeature } = {}) {
     watchtower: {
       canUse: canUseWatchtower,
     },
+    fieldOps: {
+      canUse: canUseFeature(FEATURE_KEYS.FIELD_OPS_AGENT),
+    },
     reporting: {
       canUseAdvancedReporting: canUseFeature(FEATURE_KEYS.ADVANCED_REPORTING),
     },
