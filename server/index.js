@@ -5853,6 +5853,10 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
     targetUser.inviteExpiresAt = "";
     targetUser.inviteAcceptedAt = activatedAt;
     targetUser.mustSetPassword = false;
+    targetUser.resetTokenHash = "";
+    targetUser.resetRequestedAt = "";
+    targetUser.resetExpiresAt = "";
+    targetUser.resetUsedAt = "";
     targetUser.updatedAt = activatedAt;
 
     appendActivity(draft, "Invite accepted", `${targetUser.name} activated their Apex HQ login.`);
@@ -5863,7 +5867,7 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
       summary: "Invite accepted",
       detail: `${targetUser.name} activated their login.`,
       actor: targetUser,
-      changedFields: ["password", "inviteAcceptedAt", "inviteExpiresAt", "mustSetPassword"],
+      changedFields: ["password", "inviteAcceptedAt", "inviteExpiresAt", "reset", "mustSetPassword"],
     });
     return draft;
   });

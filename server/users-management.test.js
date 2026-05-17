@@ -225,6 +225,23 @@ test("owner and admin can create role-based users and inactive users cannot log 
     assert.equal(foremanUser.mustSetPassword, true);
     assert.equal(foremanUser.inviteStatus, "pending");
 
+    const beforeActivationDatabase = new DatabaseSync(fixture.sqliteFile);
+    try {
+      beforeActivationDatabase.prepare(`
+        UPDATE users
+        SET reset_token_hash = ?, reset_requested_at = ?, reset_expires_at = ?, reset_used_at = ?
+        WHERE email = ?
+      `).run(
+        "stale-reset-token-hash",
+        "2026-01-01T00:00:00.000Z",
+        "2026-01-02T00:00:00.000Z",
+        "2026-01-03T00:00:00.000Z",
+        "freya@lastyard.test",
+      );
+    } finally {
+      beforeActivationDatabase.close();
+    }
+
     const foremanActivation = await activateInvite(fixture.baseUrl, {
       token: createForeman.provisionedUser.activationToken,
       password: "foremanpass123",
@@ -235,12 +252,22 @@ test("owner and admin can create role-based users and inactive users cannot log 
     const afterActivationDatabase = new DatabaseSync(fixture.sqliteFile);
     try {
       const activatedRow = afterActivationDatabase.prepare(`
-        SELECT invite_token_hash AS inviteTokenHash, invite_expires_at AS inviteExpiresAt
+        SELECT
+          invite_token_hash AS inviteTokenHash,
+          invite_expires_at AS inviteExpiresAt,
+          reset_token_hash AS resetTokenHash,
+          reset_requested_at AS resetRequestedAt,
+          reset_expires_at AS resetExpiresAt,
+          reset_used_at AS resetUsedAt
         FROM users
         WHERE email = ?
       `).get("freya@lastyard.test");
       assert.equal(activatedRow.inviteTokenHash || "", "");
       assert.equal(activatedRow.inviteExpiresAt || "", "");
+      assert.equal(activatedRow.resetTokenHash || "", "");
+      assert.equal(activatedRow.resetRequestedAt || "", "");
+      assert.equal(activatedRow.resetExpiresAt || "", "");
+      assert.equal(activatedRow.resetUsedAt || "", "");
     } finally {
       afterActivationDatabase.close();
     }
