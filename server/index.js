@@ -5909,6 +5909,8 @@ app.post("/api/auth/password-reset/request", asyncRoute(async (req, res) => {
     targetUser.resetRequestedAt = requestedAt;
     targetUser.resetExpiresAt = passwordResetExpiresAt();
     targetUser.resetUsedAt = "";
+    targetUser.inviteTokenHash = "";
+    targetUser.inviteExpiresAt = "";
     targetUser.updatedAt = requestedAt;
     tokenCreated = true;
 
@@ -5919,7 +5921,7 @@ app.post("/api/auth/password-reset/request", asyncRoute(async (req, res) => {
       summary: "Password reset requested",
       detail: "A password reset was requested for this user.",
       actor: targetUser,
-      changedFields: ["resetTokenHash", "resetExpiresAt"],
+      changedFields: ["resetTokenHash", "resetRequestedAt", "resetExpiresAt", "invite"],
     });
     return draft;
   });

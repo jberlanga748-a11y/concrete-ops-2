@@ -323,6 +323,59 @@ test("password reset request is generic and reset completion is single-use", asy
   }
 });
 
+test("password reset request revokes pending invite credentials", async () => {
+  const fixture = await startServer();
+
+  try {
+    insertUser(fixture.sqliteFile, createUserRecord({
+      id: "U-AUTH-RESET-INVITE",
+      email: "auth-reset-invite@apexhq.test",
+      password: "oldpass123",
+      name: "Auth Reset Invite",
+      role: "Foreman",
+      mustSetPassword: true,
+    }));
+
+    const database = new DatabaseSync(fixture.sqliteFile);
+    try {
+      database.prepare(`
+        UPDATE users
+        SET invite_token_hash = ?, invite_expires_at = ?, must_set_password = 1
+        WHERE email = ?
+      `).run("pending-invite-token-hash", "2099-01-01T00:00:00.000Z", "auth-reset-invite@apexhq.test");
+    } finally {
+      database.close();
+    }
+
+    const requested = await assertOk(fixture.baseUrl, "/api/auth/password-reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "auth-reset-invite@apexhq.test" }),
+    });
+    assert.match(requested.message, /if that email has access/i);
+    assert.ok(requested.resetToken);
+
+    const afterRequestDatabase = new DatabaseSync(fixture.sqliteFile);
+    try {
+      const row = afterRequestDatabase.prepare(`
+        SELECT
+          invite_token_hash AS inviteTokenHash,
+          invite_expires_at AS inviteExpiresAt,
+          reset_token_hash AS resetTokenHash
+        FROM users
+        WHERE email = ?
+      `).get("auth-reset-invite@apexhq.test");
+      assert.equal(row.inviteTokenHash || "", "");
+      assert.equal(row.inviteExpiresAt || "", "");
+      assert.notEqual(row.resetTokenHash || "", "");
+    } finally {
+      afterRequestDatabase.close();
+    }
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("password reset completion rejects expired tokens without changing the password", async () => {
   const fixture = await startServer();
 
