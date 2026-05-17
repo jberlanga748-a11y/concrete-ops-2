@@ -51,6 +51,14 @@ export function activateInvite(payload) {
   return request("/api/auth/activate-invite", { method: "POST", body: payload });
 }
 
+export function requestPasswordReset(payload) {
+  return request("/api/auth/password-reset/request", { method: "POST", body: payload });
+}
+
+export function completePasswordReset(payload) {
+  return request("/api/auth/password-reset/complete", { method: "POST", body: payload });
+}
+
 export function getSetupStatus() {
   return request("/api/setup/status");
 }

@@ -87,6 +87,10 @@ export function createUserRecord({
   inviteExpiresAt = "",
   inviteAcceptedAt = "",
   mustSetPassword = false,
+  resetTokenHash = "",
+  resetRequestedAt = "",
+  resetExpiresAt = "",
+  resetUsedAt = "",
   createdAt = isoNow(),
   updatedAt = createdAt,
   lastLoginAt = null,
@@ -109,6 +113,10 @@ export function createUserRecord({
     inviteExpiresAt: String(inviteExpiresAt || "").trim(),
     inviteAcceptedAt: String(inviteAcceptedAt || "").trim(),
     mustSetPassword: mustSetPassword === true,
+    resetTokenHash: String(resetTokenHash || "").trim(),
+    resetRequestedAt: String(resetRequestedAt || "").trim(),
+    resetExpiresAt: String(resetExpiresAt || "").trim(),
+    resetUsedAt: String(resetUsedAt || "").trim(),
     createdAt,
     updatedAt,
     lastLoginAt,
@@ -5425,6 +5433,43 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 47,
+      description: "Persist password reset token state.",
+      up(database) {
+        if (!columnExists(database, "users", "reset_token_hash")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN reset_token_hash TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "reset_requested_at")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN reset_requested_at TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "reset_expires_at")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN reset_expires_at TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        if (!columnExists(database, "users", "reset_used_at")) {
+          database.exec(`
+            ALTER TABLE users
+            ADD COLUMN reset_used_at TEXT NOT NULL DEFAULT '';
+          `);
+        }
+
+        database.exec(`
+          CREATE INDEX IF NOT EXISTS idx_users_reset_token_hash ON users(reset_token_hash);
+        `);
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5464,8 +5509,8 @@ function writeStateToDb(state) {
   `);
 
   const insertUser = database.prepare(`
-    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, notification_state, invite_token_hash, invite_sent_at, invite_expires_at, invite_accepted_at, must_set_password, created_at, updated_at, last_login_at, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, role, phone, status, company_id, operator_access, notification_state, invite_token_hash, invite_sent_at, invite_expires_at, invite_accepted_at, must_set_password, reset_token_hash, reset_requested_at, reset_expires_at, reset_used_at, created_at, updated_at, last_login_at, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertCompanySetting = database.prepare(`
@@ -5719,6 +5764,10 @@ function writeStateToDb(state) {
         user.inviteExpiresAt || "",
         user.inviteAcceptedAt || "",
         user.mustSetPassword === true ? 1 : 0,
+        user.resetTokenHash || "",
+        user.resetRequestedAt || "",
+        user.resetExpiresAt || "",
+        user.resetUsedAt || "",
         user.createdAt || isoNow(),
         user.updatedAt || user.createdAt || isoNow(),
         user.lastLoginAt || null,
@@ -6512,7 +6561,9 @@ function readTableState() {
   const users = database.prepare(`
     SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState,
            invite_token_hash AS inviteTokenHash, invite_sent_at AS inviteSentAt, invite_expires_at AS inviteExpiresAt, invite_accepted_at AS inviteAcceptedAt,
-           must_set_password AS mustSetPassword, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
+           must_set_password AS mustSetPassword, reset_token_hash AS resetTokenHash, reset_requested_at AS resetRequestedAt,
+           reset_expires_at AS resetExpiresAt, reset_used_at AS resetUsedAt, created_at AS createdAt, updated_at AS updatedAt,
+           last_login_at AS lastLoginAt, password_hash AS passwordHash
     FROM users
     ORDER BY email
   `).all().map((user) => ({
@@ -6958,6 +7009,10 @@ function mapUserRecord(row) {
     inviteExpiresAt: row.inviteExpiresAt || "",
     inviteAcceptedAt: row.inviteAcceptedAt || "",
     mustSetPassword: Boolean(row.mustSetPassword),
+    resetTokenHash: row.resetTokenHash || "",
+    resetRequestedAt: row.resetRequestedAt || "",
+    resetExpiresAt: row.resetExpiresAt || "",
+    resetUsedAt: row.resetUsedAt || "",
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     lastLoginAt: row.lastLoginAt || null,
@@ -7246,7 +7301,9 @@ export async function findUserAuthRecordByEmail(email) {
   const row = database.prepare(`
       SELECT id, email, name, phone, role, status, company_id AS companyId, operator_access AS operatorAccess, notification_state AS notificationState,
              invite_token_hash AS inviteTokenHash, invite_sent_at AS inviteSentAt, invite_expires_at AS inviteExpiresAt, invite_accepted_at AS inviteAcceptedAt,
-             must_set_password AS mustSetPassword, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_hash AS passwordHash
+             must_set_password AS mustSetPassword, reset_token_hash AS resetTokenHash, reset_requested_at AS resetRequestedAt,
+             reset_expires_at AS resetExpiresAt, reset_used_at AS resetUsedAt, created_at AS createdAt, updated_at AS updatedAt,
+             last_login_at AS lastLoginAt, password_hash AS passwordHash
       FROM users
       WHERE email = ?
       LIMIT 1
@@ -7282,6 +7339,10 @@ export async function findSessionAuthRecordByTokenHash(tokenHash) {
         u.invite_expires_at AS inviteExpiresAt,
         u.invite_accepted_at AS inviteAcceptedAt,
         u.must_set_password AS mustSetPassword,
+        u.reset_token_hash AS resetTokenHash,
+        u.reset_requested_at AS resetRequestedAt,
+        u.reset_expires_at AS resetExpiresAt,
+        u.reset_used_at AS resetUsedAt,
         u.created_at AS createdAt,
         u.updated_at AS updatedAt,
         u.last_login_at AS lastLoginAt,

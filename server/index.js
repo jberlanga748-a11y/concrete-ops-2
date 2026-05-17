@@ -581,6 +581,8 @@ function temporaryPassword() {
 }
 
 const INVITE_ACTIVATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+const PASSWORD_RESET_GENERIC_MESSAGE = "If that email has access to Apex HQ, the reset request was accepted. Contact your workspace owner if a reset link is not delivered.";
 
 function inviteActivationExpiresAt(nowMs = Date.now()) {
   return new Date(nowMs + INVITE_ACTIVATION_TTL_MS).toISOString();
@@ -590,8 +592,21 @@ function activationOpenPath(token) {
   return `/activate-invite?token=${encodeURIComponent(token)}`;
 }
 
+function passwordResetExpiresAt(nowMs = Date.now()) {
+  return new Date(nowMs + PASSWORD_RESET_TTL_MS).toISOString();
+}
+
+function passwordResetOpenPath(token) {
+  return `/reset-password?token=${encodeURIComponent(token)}`;
+}
+
 function inviteIsExpired(user, nowMs = Date.now()) {
   const expiresAtMs = new Date(user?.inviteExpiresAt || "").getTime();
+  return !Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs;
+}
+
+function passwordResetIsExpired(user, nowMs = Date.now()) {
+  const expiresAtMs = new Date(user?.resetExpiresAt || "").getTime();
   return !Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs;
 }
 
@@ -5833,6 +5848,109 @@ app.post("/api/auth/activate-invite", asyncRoute(async (req, res) => {
   });
 }));
 
+app.post("/api/auth/password-reset/request", asyncRoute(async (req, res) => {
+  const email = requiredString(req.body?.email, "Email").toLowerCase();
+  const requestedAt = new Date().toISOString();
+  const resetToken = generateToken();
+  let tokenCreated = false;
+
+  await updateDb((draft) => {
+    const targetUser = findUserByEmail(draft, email);
+    if (!targetUser || optionalUserStatus(targetUser.status, "active") !== "active") {
+      return draft;
+    }
+
+    targetUser.resetTokenHash = hashToken(resetToken);
+    targetUser.resetRequestedAt = requestedAt;
+    targetUser.resetExpiresAt = passwordResetExpiresAt();
+    targetUser.resetUsedAt = "";
+    targetUser.updatedAt = requestedAt;
+    tokenCreated = true;
+
+    appendAuditEvent(draft, {
+      entityType: "auth",
+      entityId: targetUser.id,
+      action: "password_reset_requested",
+      summary: "Password reset requested",
+      detail: "A password reset was requested for this user.",
+      actor: targetUser,
+      changedFields: ["resetTokenHash", "resetExpiresAt"],
+    });
+    return draft;
+  });
+
+  const payload = {
+    message: PASSWORD_RESET_GENERIC_MESSAGE,
+  };
+
+  if (serverConfig.nodeEnv === "test" && tokenCreated) {
+    payload.resetToken = resetToken;
+    payload.resetUrl = passwordResetOpenPath(resetToken);
+  }
+
+  return res.json(payload);
+}));
+
+app.post("/api/auth/password-reset/complete", asyncRoute(async (req, res) => {
+  await cleanupExpiredSessions();
+  const token = requiredString(req.body?.token, "Reset token");
+  const password = requiredPassword(req.body?.password, "Password");
+  const tokenHash = hashToken(token);
+  const completedAt = new Date().toISOString();
+  let resetUserId = "";
+
+  const nextState = await updateDb((draft) => {
+    const targetUser = (draft.users || []).find((user) => user.resetTokenHash === tokenHash);
+    if (!targetUser || targetUser.resetUsedAt || passwordResetIsExpired(targetUser)) {
+      throw new ApiError(400, "Password reset link is invalid or expired.");
+    }
+    if (optionalUserStatus(targetUser.status, "active") !== "active") {
+      throw new ApiError(403, "Account inactive.");
+    }
+
+    resetUserId = targetUser.id;
+    targetUser.passwordHash = hashPassword(password);
+    targetUser.resetTokenHash = "";
+    targetUser.resetUsedAt = completedAt;
+    targetUser.mustSetPassword = false;
+    targetUser.inviteTokenHash = "";
+    targetUser.inviteAcceptedAt = targetUser.inviteAcceptedAt || completedAt;
+    targetUser.updatedAt = completedAt;
+    draft.sessions = (draft.sessions || []).filter((session) => session.userId !== targetUser.id);
+
+    appendActivity(draft, "Password reset", `${targetUser.name} reset their Apex HQ password.`);
+    appendAuditEvent(draft, {
+      entityType: "auth",
+      entityId: targetUser.id,
+      action: "password_reset_completed",
+      summary: "Password reset completed",
+      detail: `${targetUser.name} reset their password.`,
+      actor: targetUser,
+      changedFields: ["password", "resetUsedAt", "sessions"],
+    });
+    return draft;
+  });
+
+  const resetUser = nextState.users.find((user) => user.id === resetUserId);
+  if (!resetUser) {
+    throw new ApiError(500, "Reset user was not found.");
+  }
+
+  const sessionToken = generateToken();
+  await replaceSessionForUser(resetUser.id, {
+    tokenHash: hashToken(sessionToken),
+    currentCompanyId: resetUser.companyId,
+    createdAt: completedAt,
+    lastSeenAt: completedAt,
+    expiresAt: nextSessionExpiry(),
+  });
+
+  return res.json({
+    token: sessionToken,
+    ...sanitizeBootstrap(nextState, resetUser),
+  });
+}));
+
 app.post("/api/auth/login", asyncRoute(async (req, res) => {
   const routeProfiler = createRouteProfiler("POST /api/auth/login", res.locals.requestId);
   await cleanupExpiredSessions();
@@ -10037,6 +10155,8 @@ app.patch("/api/users/:id", requireAuth, asyncRoute(async (req, res) => {
       targetUser.inviteTokenHash = "";
       targetUser.inviteAcceptedAt = targetUser.inviteAcceptedAt || changedAt;
       targetUser.mustSetPassword = false;
+      targetUser.resetTokenHash = "";
+      targetUser.resetUsedAt = targetUser.resetUsedAt || changedAt;
       changedFields.push("invite");
     }
 

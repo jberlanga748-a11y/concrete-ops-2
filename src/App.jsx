@@ -25,6 +25,7 @@ import {
   assistEstimateRoughNotes as assistEstimateRoughNotesRequest,
   assistLead as assistLeadRequest,
   bootstrapAdminAccount,
+  completePasswordReset,
   convertEstimateToJob,
   convertLead,
   convertLeadToCustomer,
@@ -67,6 +68,7 @@ import {
   markLeadSourceChecked,
   planOpportunitySearchWithAi,
   resetWorkspace,
+  requestPasswordReset,
   reviewDailyReport,
   reviewToolChecklist,
   reopenDailyReport,
@@ -191,6 +193,7 @@ const DEMO_LOGIN_PRESETS = [
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
 const INVITE_ACTIVATION_PATH = "/activate-invite";
+const PASSWORD_RESET_PATH = "/reset-password";
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
 const APEX_PUBLIC_REQUEST_URL = `https://app.apexhq.online${PUBLIC_ESTIMATE_REQUEST_PATH}`;
 const LEAD_SOURCE_OPTIONS = ["Website", "Referral", "Call-in", "Drive-by", "Repeat Customer", "Partner", "Lead Finder", "Opportunity Scout", "public_request_form"];
@@ -1136,6 +1139,12 @@ const INITIAL_PUBLIC_SIGNUP_FORM = {
 };
 
 const INITIAL_INVITE_ACTIVATION_FORM = {
+  password: "",
+  confirmPassword: "",
+};
+
+const INITIAL_PASSWORD_RESET_FORM = {
+  email: "",
   password: "",
   confirmPassword: "",
 };
@@ -2294,6 +2303,7 @@ function LoginScreen({
   onSignupSubmit,
   showSignup,
   setShowSignup,
+  onOpenPasswordReset,
   onOpenPublicEstimateRequest,
 }) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
@@ -2402,6 +2412,9 @@ function LoginScreen({
               {setupStatus.publicSignupEnabled && !isSetupMode ? (
                 <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={() => setShowSignup(true)}>Create company</Button>
               ) : null}
+              {!isSetupMode ? (
+                <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={onOpenPasswordReset}>Reset password</Button>
+              ) : null}
             </div>
             {setupStatus.publicEstimateRequestEnabled ? (
               <div>
@@ -2492,6 +2505,68 @@ function InviteActivationScreen({
             {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
             <Button type="submit" size="lg" disabled={loading || !tokenPresent} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
               {loading ? "Activating..." : "Activate and enter workspace"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={onBackToLogin}>
+              Back to sign in
+            </Button>
+          </form>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function PasswordResetScreen({
+  draft,
+  setDraft,
+  onRequestReset,
+  onCompleteReset,
+  onBackToLogin,
+  loading,
+  error,
+  successMessage,
+  tokenPresent,
+}) {
+  const isCompleteMode = tokenPresent;
+  return (
+    <div className="co-login-screen">
+      <div className="co-login-shell">
+        <section className="co-login-hero" aria-label="Apex HQ password reset brand">
+          <img className="co-login-hero-art" src={APEX_BRAND_ASSETS.loginLogo} alt="" />
+          <div className="co-login-hero-shade" aria-hidden="true" />
+        </section>
+        <section className="co-login-panel" aria-label="Reset Apex HQ password">
+          <div className="co-login-panel-head">
+            <div className="co-login-icon-tile">
+              <img src={APEX_BRAND_ASSETS.loginIcon} alt="" />
+            </div>
+            <div className="min-w-0">
+              <img className="co-login-wordmark-transparent" src={APEX_BRAND_ASSETS.wordmarkTransparent} alt={APP_NAME} />
+            </div>
+          </div>
+
+          <div className="co-login-form-intro">
+            <p>{isCompleteMode ? "Set new password" : "Reset password"}</p>
+            <span>
+              {isCompleteMode
+                ? "Choose a new password for your Apex HQ login."
+                : "Enter your account email. If it has access, Apex HQ will accept the reset request."}
+            </span>
+          </div>
+
+          <form className="co-login-form" onSubmit={isCompleteMode ? onCompleteReset : onRequestReset}>
+            {isCompleteMode ? (
+              <>
+                <InputField label="New password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} />
+                <InputField label="Confirm password" type="password" value={draft.confirmPassword} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} />
+              </>
+            ) : (
+              <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} />
+            )}
+            {successMessage ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{successMessage}</p> : null}
+            {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
+            <Button type="submit" size="lg" disabled={loading} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
+              {loading ? "Working..." : isCompleteMode ? "Reset and enter workspace" : "Prepare reset link"}
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={onBackToLogin}>
               Back to sign in
@@ -31749,6 +31824,9 @@ export default function App() {
   const [showPublicSignup, setShowPublicSignup] = useState(false);
   const [inviteActivationDraft, setInviteActivationDraft] = useState(INITIAL_INVITE_ACTIVATION_FORM);
   const [inviteActivationError, setInviteActivationError] = useState("");
+  const [passwordResetDraft, setPasswordResetDraft] = useState(INITIAL_PASSWORD_RESET_FORM);
+  const [passwordResetError, setPasswordResetError] = useState("");
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState("");
   const [publicEstimateRequestDraft, setPublicEstimateRequestDraft] = useState(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
   const [publicEstimateRequestError, setPublicEstimateRequestError] = useState("");
   const [publicEstimateRequestSuccess, setPublicEstimateRequestSuccess] = useState("");
@@ -31807,10 +31885,15 @@ export default function App() {
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const publicEstimateRequestRoute = pathname === PUBLIC_ESTIMATE_REQUEST_PATH;
   const inviteActivationRoute = pathname === INVITE_ACTIVATION_PATH;
+  const passwordResetRoute = pathname === PASSWORD_RESET_PATH;
   const inviteActivationToken = useMemo(() => {
     if (!inviteActivationRoute) return "";
     return new URLSearchParams(window.location.search).get("token") || "";
   }, [inviteActivationRoute, pathname]);
+  const passwordResetToken = useMemo(() => {
+    if (!passwordResetRoute) return "";
+    return new URLSearchParams(window.location.search).get("token") || "";
+  }, [passwordResetRoute, pathname]);
   const routeState = useMemo(() => parseAppPath(pathname), [pathname]);
   const active = routeState.active;
   const previousActiveRef = useRef(active);
@@ -31885,6 +31968,13 @@ export default function App() {
     setPublicEstimateRequestError("");
     setPublicEstimateRequestSuccess("");
     navigateTo(PUBLIC_ESTIMATE_REQUEST_PATH);
+  }
+
+  function openPasswordReset() {
+    setPasswordResetError("");
+    setPasswordResetSuccess("");
+    setPasswordResetDraft(INITIAL_PASSWORD_RESET_FORM);
+    navigateTo(PASSWORD_RESET_PATH);
   }
 
   function navigateToLoginScreen() {
@@ -32559,6 +32649,63 @@ export default function App() {
         setBackendStatus("offline");
       }
       setInviteActivationError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePasswordResetRequest(event) {
+    event.preventDefault();
+    setBusy(true);
+    setPasswordResetError("");
+    setPasswordResetSuccess("");
+
+    try {
+      const result = await requestPasswordReset({ email: passwordResetDraft.email });
+      setBackendStatus("online");
+      setPasswordResetSuccess(result?.message || "If that email has access to Apex HQ, the reset request was accepted. Contact your workspace owner if a reset link is not delivered.");
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setPasswordResetError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePasswordResetComplete(event) {
+    event.preventDefault();
+    setBusy(true);
+    setPasswordResetError("");
+    setPasswordResetSuccess("");
+
+    if (passwordResetDraft.password !== passwordResetDraft.confirmPassword) {
+      setPasswordResetError("Passwords do not match.");
+      setBusy(false);
+      return;
+    }
+
+    try {
+      const result = await completePasswordReset({
+        token: passwordResetToken,
+        password: passwordResetDraft.password,
+      });
+      setBackendStatus("online");
+      applyBootstrap(result);
+      window.localStorage.setItem(SESSION_TOKEN_KEY, result.token);
+      setSessionToken(result.token);
+      setStartupError("");
+      setAuthStatus("authenticated");
+      setPasswordResetDraft(INITIAL_PASSWORD_RESET_FORM);
+      setPasswordResetError("");
+      setPasswordResetSuccess("");
+      navigateTo("/", { replace: true });
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setPasswordResetError(error.message);
     } finally {
       setBusy(false);
     }
@@ -34425,6 +34572,22 @@ export default function App() {
     );
   }
 
+  if (passwordResetRoute) {
+    return (
+      <PasswordResetScreen
+        draft={passwordResetDraft}
+        setDraft={setPasswordResetDraft}
+        onRequestReset={handlePasswordResetRequest}
+        onCompleteReset={handlePasswordResetComplete}
+        onBackToLogin={navigateToLoginScreen}
+        loading={busy}
+        error={passwordResetError}
+        successMessage={passwordResetSuccess}
+        tokenPresent={Boolean(passwordResetToken)}
+      />
+    );
+  }
+
   if (publicEstimateRequestRoute) {
     return (
       <PublicEstimateRequestPage
@@ -34468,6 +34631,7 @@ export default function App() {
         onSignupSubmit={handlePublicSignup}
         showSignup={showPublicSignup}
         setShowSignup={setShowPublicSignup}
+        onOpenPasswordReset={openPasswordReset}
         onOpenPublicEstimateRequest={openPublicEstimateRequest}
       />
     );
