@@ -144,6 +144,7 @@ import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
 import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, buildEstimateLineItemsFromRoughNotes, applyEstimateTemplateStarter } from "./estimate-template-utils";
+import { buildCustomerPortalPreviewPacket, deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
 import { deriveEmployeeWorkspace, deriveForemanWorkspace } from "./field-workspace-utils";
 import { deriveFollowUpQueueState, filterFollowUpQueueItems, FOLLOW_UP_QUEUE_GROUPS, FOLLOW_UP_QUEUE_TYPE_FILTERS } from "./follow-up-queue-utils";
@@ -157,7 +158,7 @@ import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from ".
 import { buildEnterpriseTrustReviewPacket, buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
-import { canRequestPackageReview, canViewJob } from "../shared/permissions.js";
+import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "../shared/permissions.js";
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
@@ -170,7 +171,17 @@ import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourCheck
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
-import { buildSupportPacket, createSupportDraft, SUPPORT_BLOCKER_OPTIONS, SUPPORT_WORKFLOW_OPTIONS } from "./support-utils";
+import {
+  buildPilotFeedbackPacket,
+  buildSupportPacket,
+  createSupportDraft,
+  getSupportWorkflowOptionsForUser,
+  PILOT_FEEDBACK_STAGE_OPTIONS,
+  PILOT_NEXT_ACTION_OPTIONS,
+  PILOT_WORKFLOW_FIT_OPTIONS,
+  SUPPORT_BLOCKER_OPTIONS,
+  SUPPORT_PILOT_FEEDBACK_WORKFLOW,
+} from "./support-utils";
 import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
@@ -355,6 +366,9 @@ const EMPTY_APP_STATE = {
     opportunityScout: {
       canView: false,
       canManage: false,
+    },
+    customerPortal: {
+      canPreview: false,
     },
     contactHistory: {
       canView: false,
@@ -24588,6 +24602,151 @@ function UiStyleFoundationPanel({ canView = false }) {
   );
 }
 
+function CustomerPortalManualPreviewPanel({
+  canPreview = false,
+  state,
+  user,
+  packageReadiness,
+  onOpenSupport,
+}) {
+  const [copyNotice, setCopyNotice] = useState("");
+  const preview = state?.preview || {};
+  const packet = useMemo(() => buildCustomerPortalPreviewPacket({ state, user }), [state, user]);
+
+  async function copyPreviewPacket() {
+    if (!canPreview) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(packet);
+      } else if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = packet;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } else {
+        throw new Error("Clipboard unavailable");
+      }
+      setCopyNotice("Internal preview packet copied for owner/admin review.");
+    } catch {
+      setCopyNotice("Could not copy automatically. Select the preview text and copy it manually.");
+    }
+  }
+
+  if (!canPreview) {
+    const currentPackage = packageReadiness?.currentPackage?.label || "Current package";
+    const canRequestReview = typeof onOpenSupport === "function";
+
+    return (
+      <Card className="co-settings-console-card p-5">
+        <SectionHeader
+          title="Customer portal manual preview"
+          description="Elite owner/admin preview is locked for this workspace. No customer access, links, approvals, or notifications exist here."
+          action={<Badge tone="amber">Elite locked</Badge>}
+        />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <StateCard
+            title={`${currentPackage} workspace`}
+            description="Customer portal remains an Elite future feature. Basic and Premium workspaces keep proposal, job, and proof workflows internal until a manual package review is approved."
+            tone="slate"
+          />
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+            <p className="text-sm font-black text-amber-900">Locked boundary</p>
+            <p className="mt-2 text-sm font-bold leading-6 text-amber-800">No customer login, share link, self-serve approval, payment, invoice, checkout, or automatic notification was added.</p>
+            {canRequestReview ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                onClick={() => onOpenSupport({
+                  workflow: "Upgrade / package review",
+                  blockerLevel: "Not a blocker",
+                  currentPackage,
+                  requestedPackage: "Elite",
+                  requestedFeature: "Customer portal manual approval preview",
+                  upgradeReason: "Review Elite access for an owner/admin internal preview of customer-facing proposal and progress content. No customer auth, share links, self-serve approvals, payments, invoices, or notifications.",
+                  summary: "Please review whether Elite customer portal preview access is appropriate for this workspace.",
+                  expected: "Founder/operator reviews manually before any package change or customer-facing portal work.",
+                  workaround: "Keep using existing estimates, jobs, reports, uploads, and manual print/share workflows.",
+                })}
+              >
+                <Icon name="help" />Request manual review
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="co-settings-console-card p-5">
+      <SectionHeader
+        title="Customer portal manual preview"
+        description="Owner/admin internal preview only. Review what could become customer-facing before any future sharing model exists."
+        action={<Badge tone="green">Elite preview</Badge>}
+      />
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatCard title="Customer" value={preview.customer || "Customer pending"} detail="Customer-facing label candidate." />
+            <StatCard title="Proposal" value={preview.estimateStatus || "Pending"} detail={`${preview.estimateTitle || "Approved proposal pending"} / ${preview.estimateTotal || "$0"}`} />
+            <StatCard title="Job progress" value={preview.jobStatus || "Pending"} detail={preview.jobTitle || "Job pending"} />
+            <StatCard title="Proof ready" value={preview.proofPhotoCount || 0} detail={`${preview.progressUpdateCount || 0} progress update(s), ${preview.reviewedChangeOrderCount || 0} reviewed change order(s).`} />
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Customer-facing content candidate</p>
+            <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-700">
+              <p><strong>Scope:</strong> {preview.scopeSummary || "Approved scope summary pending."}</p>
+              <p><strong>Exclusions:</strong> {preview.exclusions || "Exclusions pending owner/admin review."}</p>
+              <p><strong>Schedule:</strong> {preview.scheduleExpectation || "Schedule pending"}</p>
+              <p><strong>Next step:</strong> {preview.nextStep || "Next step pending owner/admin review"}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Manual readiness</p>
+            <div className="mt-3 grid gap-2">
+              {(state?.readiness || []).map((item) => (
+                <div key={item.id} className="co-settings-blocker-row">
+                  <span>{item.label}</span>
+                  <Badge tone={item.ready ? "green" : "amber"}>{item.ready ? "Ready" : "Review"}</Badge>
+                  <em>{item.detail}</em>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Hard boundaries</p>
+            <div className="mt-3 grid gap-2">
+              {(state?.boundaries || []).map((boundary) => (
+                <div key={boundary} className="co-ai-boundary-row" data-state="manual">
+                  <span>{boundary}</span>
+                  <strong>Manual</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="secondary" onClick={copyPreviewPacket}>
+              <Icon name="clipboard" />Copy internal preview
+            </Button>
+            <p className="text-sm font-bold text-slate-500">{copyNotice || "Copy-only. Apex HQ does not send, publish, approve, or create a customer portal from this preview."}</p>
+          </div>
+        </div>
+      </div>
+      <pre className="mt-4 max-h-80 overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">{packet}</pre>
+    </Card>
+  );
+}
+
 function SettingsCommandRailPolished({
   workspaceCompanyName,
   user,
@@ -24605,6 +24764,7 @@ function SettingsCommandRailPolished({
   onNavigate,
   onJump,
   canViewAppHealth = false,
+  canViewCustomerPortalPreview = false,
 }) {
   const activeUsers = normalizeObjectArray(users).filter((entry) => (entry.status || "active") !== "inactive");
   const activeLeadSources = normalizeObjectArray(leadSources).filter((source) => !source.archivedAt && (source.status || "active") !== "inactive");
@@ -24664,6 +24824,10 @@ function SettingsCommandRailPolished({
             {canViewAppHealth ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-owner-health")}>
               <span>Backup / owner health</span>
               <Icon name="database" />
+            </button> : null}
+            {canViewCustomerPortalPreview ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-customer-portal-preview")}>
+              <span>Customer portal preview</span>
+              <Icon name="document" />
             </button> : null}
           </div>
 
@@ -24754,6 +24918,10 @@ function SettingsCommandRailPolished({
             <span>Backup / owner health</span>
             <Icon name="database" />
           </button> : null}
+          {canViewCustomerPortalPreview ? <button type="button" className="co-settings-action-row" onClick={() => onJump?.("settings-customer-portal-preview")}>
+            <span>Customer portal preview</span>
+            <Icon name="document" />
+          </button> : null}
         </div>
       </Card>
 
@@ -24811,6 +24979,10 @@ function SettingsPagePolished({
   users,
   leadSources,
   jobs,
+  estimates,
+  uploads,
+  dailyReports,
+  changeOrderRequests,
   permissions,
   onUpdateCompanySettings,
   setActive,
@@ -24835,11 +25007,13 @@ function SettingsPagePolished({
     settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, permissions?.settings),
     appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, permissions?.appHealth),
     support: mergePermissionScope(EMPTY_APP_STATE.permissions.support, permissions?.support),
+    customerPortal: mergePermissionScope(EMPTY_APP_STATE.permissions.customerPortal, permissions?.customerPortal),
   };
   const canViewSettings = Boolean(safePermissions.settings?.canView);
   const canExportData = Boolean(safePermissions.settings?.canExport);
   const canViewAppHealth = Boolean(safePermissions.appHealth?.canView);
   const canViewSupport = Boolean(safePermissions.support?.canView);
+  const canViewCustomerPortalPreview = Boolean(safePermissions.customerPortal?.canPreview);
   const canToggleToolChecklist = Boolean(safePermissions.toolChecklist?.canToggle);
   const showPublicEstimateRequestStatus = typeof publicEstimateRequestEnabled === "boolean";
   const demoResetAllowed = demoMode && DEMO_LOGIN_PRESETS.some((preset) => preset.email === String(user?.email || "").trim().toLowerCase());
@@ -24927,6 +25101,14 @@ function SettingsPagePolished({
     jobs,
   }), [jobs, leadSources, safeCompanySettings, users]);
   const packageReadiness = useMemo(() => packageReadinessSummary(safeCompanySettings.packageId), [safeCompanySettings.packageId]);
+  const customerPortalPreviewState = useMemo(() => deriveCustomerPortalPreviewState({
+    estimates,
+    jobs,
+    uploads,
+    dailyReports,
+    changeOrderRequests,
+    companySettings: safeCompanySettings,
+  }), [changeOrderRequests, dailyReports, estimates, jobs, safeCompanySettings, uploads]);
   const settingsKpis = [
     { label: "Readiness", value: settingsSetupState.percentComplete, helper: `${settingsSetupState.status} status`, icon: "settings", tone: setupStatusTone(settingsSetupState.status), actionLabel: "Review setup", onAction: () => jumpToSettingsSection("settings-managed-setup") },
     { label: "Checklist", value: settingsSetupState.completedCount, helper: `of ${settingsSetupState.totalCount} setup items`, icon: "clipboard", tone: "blue", actionLabel: "Open checklist", onAction: () => jumpToSettingsSection("settings-managed-setup") },
@@ -25082,6 +25264,27 @@ function SettingsPagePolished({
               <PlanReadinessPanel packageReadiness={packageReadiness} onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null} />
             </div>
           </details>
+
+          {canRequestPackageReview(user) ? (
+            <details id="settings-customer-portal-preview" className="co-settings-tools-drawer">
+              <summary>
+                <span>
+                  <strong>Customer Portal Manual Preview</strong>
+                  <em>Internal owner/admin preview for future customer-facing proposal and progress content.</em>
+                </span>
+                <span>{canViewCustomerPortalPreview ? "Elite preview" : "Elite locked"}</span>
+              </summary>
+              <div className="co-settings-tools-panel grid gap-3">
+                <CustomerPortalManualPreviewPanel
+                  canPreview={canViewCustomerPortalPreview}
+                  state={customerPortalPreviewState}
+                  user={user}
+                  packageReadiness={packageReadiness}
+                  onOpenSupport={canViewSupport && canRequestPackageReview(user) ? onOpenSupport : null}
+                />
+              </div>
+            </details>
+          ) : null}
 
           <details id="settings-company-profile" className="co-settings-tools-drawer">
             <summary>
@@ -25426,6 +25629,7 @@ function SettingsPagePolished({
           onNavigate={setActive}
           onJump={jumpToSettingsSection}
           canViewAppHealth={canViewAppHealth}
+          canViewCustomerPortalPreview={canRequestPackageReview(user)}
         />
       </div>
     </div>
@@ -33315,22 +33519,32 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
   const [copyMessage, setCopyMessage] = useState("");
   const isOfficeUser = Boolean(permissions?.settings?.canView || permissions?.users?.canView || permissions?.audit?.canView);
   const canRequestUpgradeReview = canRequestPackageReview(user);
-  const supportWorkflowOptions = SUPPORT_WORKFLOW_OPTIONS.filter((option) => canRequestUpgradeReview || option !== "Upgrade / package review");
+  const canCaptureFeedback = canCapturePilotFeedback(user);
+  const supportWorkflowOptions = getSupportWorkflowOptionsForUser(user);
+  const selectedWorkflow = supportWorkflowOptions.includes(draft.workflow) ? draft.workflow : "General workspace";
+  const isUpgradeReview = canRequestUpgradeReview && selectedWorkflow === "Upgrade / package review";
+  const isPilotFeedback = canCaptureFeedback && selectedWorkflow === SUPPORT_PILOT_FEEDBACK_WORKFLOW;
   useEffect(() => {
     if (!supportDraftSeed?.nonce) return;
     const { nonce, ...seed } = supportDraftSeed;
-    setDraft((current) => createSupportDraft({ ...current, ...seed, workflow: seed.workflow || current.workflow }));
+    const allowedWorkflows = getSupportWorkflowOptionsForUser(user);
+    setDraft((current) => createSupportDraft({
+      ...current,
+      ...seed,
+      workflow: seed.workflow && allowedWorkflows.includes(seed.workflow) ? seed.workflow : current.workflow,
+    }));
     setCopyMessage("");
-  }, [supportDraftSeed?.nonce, supportDraftSeed?.workflow]);
-  const supportPacket = buildSupportPacket({
-    draft,
+  }, [supportDraftSeed?.nonce, supportDraftSeed?.workflow, user]);
+  const packetContext = {
     user,
     companyName,
     currentCompanyId,
     activeModule: active,
     path: typeof window !== "undefined" ? window.location.pathname : "/support",
-  });
-  const isUpgradeReview = canRequestUpgradeReview && draft.workflow === "Upgrade / package review";
+  };
+  const supportPacket = isPilotFeedback
+    ? buildPilotFeedbackPacket({ ...packetContext, draft: draft.pilotFeedback })
+    : buildSupportPacket({ ...packetContext, draft: { ...draft, workflow: selectedWorkflow } });
   const quickActions = [
     { label: "My work", helper: "Open assigned jobs and field tasks.", moduleId: "jobs", icon: "briefcase", show: true },
     { label: "Clock", helper: "Open time tracking.", moduleId: "time", icon: "clock", show: true },
@@ -33341,6 +33555,17 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
 
   function updateDraft(field, value) {
     setDraft((current) => ({ ...current, [field]: value }));
+    setCopyMessage("");
+  }
+
+  function updatePilotFeedback(field, value) {
+    setDraft((current) => createSupportDraft({
+      ...current,
+      pilotFeedback: {
+        ...(current.pilotFeedback || {}),
+        [field]: value,
+      },
+    }));
     setCopyMessage("");
   }
 
@@ -33361,7 +33586,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
       } else {
         throw new Error("Clipboard unavailable");
       }
-      setCopyMessage("Support request copied. Paste it into your support message with any screenshot.");
+      setCopyMessage(isPilotFeedback ? "Feedback packet copied. Paste it into your founder review notes." : "Support request copied. Paste it into your support message with any screenshot.");
     } catch {
       setCopyMessage("Could not copy automatically. Select the preview text and copy it manually.");
     }
@@ -33378,40 +33603,88 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
         <div className="grid gap-4">
           <Card className="p-5">
-            <SectionHeader title="Create a support request" description="Apex HQ does not send this automatically. Copy the packet, add a screenshot if useful, and send it through your normal support channel." />
+            <SectionHeader
+              title={isPilotFeedback ? "Capture pilot feedback" : "Create a support request"}
+              description={isPilotFeedback ? "Owner/admin internal notes for founder-led demos and controlled pilots. Copy the packet for manual review." : "Apex HQ does not send this automatically. Copy the packet, add a screenshot if useful, and send it through your normal support channel."}
+            />
             <div className="grid gap-3 md:grid-cols-2">
-              <SelectField label="Workflow / page" value={draft.workflow} onChange={(event) => updateDraft("workflow", event.target.value)}>
+              <SelectField label="Workflow / page" value={selectedWorkflow} onChange={(event) => updateDraft("workflow", event.target.value)}>
                 {supportWorkflowOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </SelectField>
-              <SelectField label="Blocker level" value={draft.blockerLevel} onChange={(event) => updateDraft("blockerLevel", event.target.value)}>
-                {SUPPORT_BLOCKER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-              </SelectField>
+              {isPilotFeedback ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 px-3 py-2 text-sm font-bold leading-6 text-blue-900">
+                  Internal only. This does not send surveys, publish testimonials, update outreach, or change customer data.
+                </div>
+              ) : (
+                <SelectField label="Blocker level" value={draft.blockerLevel} onChange={(event) => updateDraft("blockerLevel", event.target.value)}>
+                  {SUPPORT_BLOCKER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </SelectField>
+              )}
             </div>
-            {isUpgradeReview ? (
-              <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
-                <SectionHeader title="Manual upgrade context" description="Owner/admin context only. This does not change packages, collect payment, create invoices, or start checkout." />
+            {isPilotFeedback ? (
+              <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <InputField label="Current package" value={draft.currentPackage} onChange={(event) => updateDraft("currentPackage", event.target.value)} placeholder="Basic" />
-                  <InputField label="Requested package" value={draft.requestedPackage} onChange={(event) => updateDraft("requestedPackage", event.target.value)} placeholder="Premium or Elite" />
-                  <InputField label="Requested feature" value={draft.requestedFeature} onChange={(event) => updateDraft("requestedFeature", event.target.value)} placeholder="App Health, Watchtower, Lead Finder..." />
-                  <InputField label="Reason / use case" value={draft.upgradeReason} onChange={(event) => updateDraft("upgradeReason", event.target.value)} placeholder="What workflow needs review?" />
+                  <InputField label="Contractor / company" value={draft.pilotFeedback.contractorCompany} onChange={(event) => updatePilotFeedback("contractorCompany", event.target.value)} placeholder="ABC Concrete" />
+                  <InputField label="Contact name" value={draft.pilotFeedback.contactName} onChange={(event) => updatePilotFeedback("contactName", event.target.value)} placeholder="Jordan Owner" />
+                  <InputField label="Contact role" value={draft.pilotFeedback.contactRole} onChange={(event) => updatePilotFeedback("contactRole", event.target.value)} placeholder="Owner, admin, foreman..." />
+                  <InputField label="Primary workflow" value={draft.pilotFeedback.primaryWorkflow} onChange={(event) => updatePilotFeedback("primaryWorkflow", event.target.value)} placeholder="Lead to estimate to field handoff" />
+                  <SelectField label="Stage" value={draft.pilotFeedback.stage} onChange={(event) => updatePilotFeedback("stage", event.target.value)}>
+                    {PILOT_FEEDBACK_STAGE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Workflow fit" value={draft.pilotFeedback.workflowFit} onChange={(event) => updatePilotFeedback("workflowFit", event.target.value)}>
+                    {PILOT_WORKFLOW_FIT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Next action" value={draft.pilotFeedback.nextAction} onChange={(event) => updatePilotFeedback("nextAction", event.target.value)}>
+                    {PILOT_NEXT_ACTION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </SelectField>
+                  <InputField label="Follow-up owner" value={draft.pilotFeedback.followUpOwner} onChange={(event) => updatePilotFeedback("followUpOwner", event.target.value)} placeholder="Founder, admin, sales owner..." />
+                  <InputField label="Follow-up date" type="date" value={draft.pilotFeedback.followUpDate} onChange={(event) => updatePilotFeedback("followUpDate", event.target.value)} />
+                  <SelectField label="Permission to use quote" value={draft.pilotFeedback.permissionToUseQuote} onChange={(event) => updatePilotFeedback("permissionToUseQuote", event.target.value)}>
+                    {["No", "Yes later", "Yes approved"].map((option) => <option key={option} value={option}>{option}</option>)}
+                  </SelectField>
+                  <SelectField label="Testimonial candidate" value={draft.pilotFeedback.testimonialCandidate} onChange={(event) => updatePilotFeedback("testimonialCandidate", event.target.value)}>
+                    {["No", "Maybe", "Yes, needs permission"].map((option) => <option key={option} value={option}>{option}</option>)}
+                  </SelectField>
+                </div>
+                <div className="mt-3 grid gap-3">
+                  <TextAreaField label="Top pain / workflow gap" value={draft.pilotFeedback.topPain} onChange={(event) => updatePilotFeedback("topPain", event.target.value)} placeholder="What did they say is costing time, money, or trust?" />
+                  <TextAreaField label="Objections / buying friction" value={draft.pilotFeedback.objections} onChange={(event) => updatePilotFeedback("objections", event.target.value)} placeholder="Price, setup time, team adoption, missing feature, trust concern..." />
+                  <TextAreaField label="Field / admin friction" value={draft.pilotFeedback.fieldAdminFriction} onChange={(event) => updatePilotFeedback("fieldAdminFriction", event.target.value)} placeholder="Where did office, foreman, or employee workflow feel hard?" />
+                  <TextAreaField label="Private founder notes" value={draft.pilotFeedback.privateNotes} onChange={(event) => updatePilotFeedback("privateNotes", event.target.value)} placeholder="Internal notes only. Do not publish without explicit permission." />
                 </div>
               </div>
-            ) : null}
-            <div className="mt-3 grid gap-3">
-              <InputField label="Follow-up needed" value={draft.followUpNeeded} onChange={(event) => updateDraft("followUpNeeded", event.target.value)} placeholder="Example: Today before 3 PM, tomorrow morning, or not urgent." />
-              <TextAreaField label="What happened?" value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} placeholder="Example: I tapped Upload Photo and nothing happened." />
-              <TextAreaField label="What should have happened?" value={draft.expected} onChange={(event) => updateDraft("expected", event.target.value)} placeholder="Example: The camera/photo picker should open." />
-              <TextAreaField label="Workaround / urgency" value={draft.workaround} onChange={(event) => updateDraft("workaround", event.target.value)} placeholder="Example: Texted the photo to the office. Blocking today's report." />
-            </div>
+            ) : (
+              <>
+                {isUpgradeReview ? (
+                  <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+                    <SectionHeader title="Manual upgrade context" description="Owner/admin context only. This does not change packages, collect payment, create invoices, or start checkout." />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <InputField label="Current package" value={draft.currentPackage} onChange={(event) => updateDraft("currentPackage", event.target.value)} placeholder="Basic" />
+                      <InputField label="Requested package" value={draft.requestedPackage} onChange={(event) => updateDraft("requestedPackage", event.target.value)} placeholder="Premium or Elite" />
+                      <InputField label="Requested feature" value={draft.requestedFeature} onChange={(event) => updateDraft("requestedFeature", event.target.value)} placeholder="App Health, Watchtower, Lead Finder..." />
+                      <InputField label="Reason / use case" value={draft.upgradeReason} onChange={(event) => updateDraft("upgradeReason", event.target.value)} placeholder="What workflow needs review?" />
+                    </div>
+                  </div>
+                ) : null}
+                <div className="mt-3 grid gap-3">
+                  <InputField label="Follow-up needed" value={draft.followUpNeeded} onChange={(event) => updateDraft("followUpNeeded", event.target.value)} placeholder="Example: Today before 3 PM, tomorrow morning, or not urgent." />
+                  <TextAreaField label="What happened?" value={draft.summary} onChange={(event) => updateDraft("summary", event.target.value)} placeholder="Example: I tapped Upload Photo and nothing happened." />
+                  <TextAreaField label="What should have happened?" value={draft.expected} onChange={(event) => updateDraft("expected", event.target.value)} placeholder="Example: The camera/photo picker should open." />
+                  <TextAreaField label="Workaround / urgency" value={draft.workaround} onChange={(event) => updateDraft("workaround", event.target.value)} placeholder="Example: Texted the photo to the office. Blocking today's report." />
+                </div>
+              </>
+            )}
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button type="button" onClick={copySupportRequest}><Icon name="clipboard" />Copy support request</Button>
-              <p className="text-sm font-bold text-slate-500">{copyMessage || "Copy-only keeps support safe: no email, text, upload, or ticket is created automatically."}</p>
+              <Button type="button" onClick={copySupportRequest}><Icon name="clipboard" />{isPilotFeedback ? "Copy feedback packet" : "Copy support request"}</Button>
+              <p className="text-sm font-bold text-slate-500">{copyMessage || (isPilotFeedback ? "Copy-only keeps feedback safe: no survey, outreach, testimonial, or automation is created." : "Copy-only keeps support safe: no email, text, upload, or ticket is created automatically.")}</p>
             </div>
           </Card>
 
           <Card className="p-5">
-            <SectionHeader title="Support packet preview" description="Review before sending. Add a screenshot or screen recording outside Apex HQ when useful." />
+            <SectionHeader
+              title={isPilotFeedback ? "Feedback packet preview" : "Support packet preview"}
+              description={isPilotFeedback ? "Review before saving in founder notes. Nothing is sent, published, or written to customer records." : "Review before sending. Add a screenshot or screen recording outside Apex HQ when useful."}
+            />
             <pre className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700">{supportPacket}</pre>
           </Card>
         </div>
@@ -33448,6 +33721,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
               <div className="co-ai-boundary-row" data-state="manual"><span>Sending</span><strong>Manual only</strong></div>
               <div className="co-ai-boundary-row" data-state="safe"><span>Field data</span><strong>Role safe</strong></div>
               <div className="co-ai-boundary-row" data-state="safe"><span>Secrets</span><strong>Not included</strong></div>
+              <div className="co-ai-boundary-row" data-state="manual"><span>Feedback</span><strong>Internal only</strong></div>
               <div className="co-ai-boundary-row" data-state="manual"><span>Custom builds</span><strong>Not promised</strong></div>
             </div>
           </Card>

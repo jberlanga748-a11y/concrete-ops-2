@@ -34,6 +34,9 @@ export function resolvePackageEntitlements({ hasFeature } = {}) {
     opportunityScout: {
       canUse: canUseFeature(FEATURE_KEYS.LEAD_JOB_FINDER),
     },
+    customerPortal: {
+      canUsePreview: canUseFeature(FEATURE_KEYS.CUSTOMER_PORTAL),
+    },
     support: {
       canUse: canUseFeature(FEATURE_KEYS.SUPPORT_HELP),
     },

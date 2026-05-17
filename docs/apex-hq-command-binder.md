@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `4648e70 Add Apex HQ advanced reporting signals`.
-- Fly release `v492` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `f604949 Add manual upgrade review handoff`.
+- Fly release `v494` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 
 Usable now:
 
@@ -45,6 +45,9 @@ Usable now:
 - Apex Assistant Shell Phase 1.
 - Assistant missing proof summary.
 - Field Ops Agent Phase 1 read-only summary.
+- Billing / Manual Upgrade Prep Phase 1 support-led upgrade review handoff.
+- Pilot Feedback Capture Phase 1 owner/admin copy-only feedback packet.
+- Customer Portal Phase 1 Manual Approval Preview owner/admin internal preview.
 - Support/help handoff and guided setup foundations.
 - Demo mode and demo reset protections.
 - Backup/export tooling.
@@ -437,43 +440,32 @@ Demo/customer separation:
 1. Keep source-of-truth docs current:
    - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
 
-2. Billing / Manual Upgrade Prep Phase 1:
-   - Use `docs/BILLING_MANUAL_UPGRADE_PREP.md` as the scope lock.
-   - Implement support-led upgrade review UX for Basic, Premium, and Elite without Stripe, checkout, payment automation, invoices, or self-serve plan changes.
-   - Owner/admin only.
-   - Preserve existing package gates, role safety, and manual support handoff.
-   - Keep billing language practical and avoid claims that public self-serve billing is ready.
+2. Invite / Activation UX Polish:
+   - Improve owner/admin invite and activation clarity without rebuilding auth/session/token behavior.
+   - Keep token expiry, single-use activation, company scoping, and password rules intact.
+   - Keep automatic email/SMS sending, new roles, public signup changes, and permission broadening out of scope.
+   - Preserve role safety and field-user blocking from admin/user-management surfaces.
 
-3. Premium demo workspace decision:
-   - Decide whether to create a controlled Premium demo workspace for AI Rough Notes, Field Ops Agent, Watchtower, and reporting demos.
-   - Keep it separate from production and real pilots.
+3. Guided demo rehearsal refresh:
+   - Rehearse owner/admin desktop, owner mobile, foreman mobile, employee safety, estimates/proposals, support/trust, and package upgrade review paths after Premium demo prep.
 
-4. Guided demo rehearsal refresh:
-   - Rehearse owner/admin desktop, owner mobile, foreman mobile, employee safety, estimates/proposals, and support/trust.
-
-5. Business execution:
+4. Business execution:
    - Use `docs/FIRST_10_DEMO_TARGETS.md` and `docs/OUTREACH_TRACKER.md`.
    - Book warm founder-led demos.
    - Do not publish/send without approval.
 
-6. Trust docs:
+5. Trust docs:
    - Draft pilot terms/support policy and customer data handling summary before taking more paid pilots.
 
-7. Keep phase control:
+6. Keep phase control:
    - Do not start billing, customer portal, offline mode, payroll, integrations, or AI autopilot until the relevant planning checkpoint is approved.
 
 ## 11. Next 30 Days
 
 Product priorities:
 
-1. Billing / Manual Upgrade Prep Phase 1, not Stripe build.
-2. Premium Demo Workspace Prep.
-3. Customer Portal Planning Checkpoint.
-4. Assistant Material Planning Prep.
-5. Assistant Job Conversion Planning.
-6. Public Website / Sales Funnel Planning.
-7. Pilot Feedback Capture Phase 1.
-8. Invite / Activation UX Polish.
+1. Invite / Activation UX Polish.
+2. Guided Demo Rehearsal Refresh.
 
 Business priorities:
 

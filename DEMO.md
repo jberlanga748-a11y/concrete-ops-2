@@ -12,6 +12,18 @@ Demo logins:
 Public estimate request:
 - Public estimate request form: [https://app.apexhq.online/request-estimate](https://app.apexhq.online/request-estimate)
 
+## Demo package profile
+
+The primary sales demo should run as a controlled Premium workspace:
+
+- `DEMO_MODE=true`
+- `SEED_DEMO_DATA=true`
+- `DEMO_PACKAGE_ID=premium`
+
+This keeps the separate demo Fly app on Premium so owner/admin users can show AI Rough Notes, GC packets, App Health, Watchtower/Field Ops foundations, and advanced reporting without enabling Elite-only lead-finder or customer-portal surfaces.
+
+To show Basic package locks, use `DEMO_PACKAGE_ID=basic` on a throwaway demo volume or a separate Basic demo environment. Do not switch a real production app or real pilot workspace into demo mode.
+
 ## Main sales message
 
 Apex HQ helps contractors manage the full workflow from lead to job completion.
@@ -130,6 +142,7 @@ Best modules to show in order:
 - Recommended real app: Apex HQ production
 - Do not point demo mode at a real customer pilot workspace.
 - Demo reset should only be used when `DEMO_MODE=true`.
+- `DEMO_PACKAGE_ID` accepts `basic`, `premium`, or `elite`; use `premium` for the main sales demo and `basic` only when intentionally demonstrating locked-package states.
 - Public estimate requests can be disabled with `PUBLIC_ESTIMATE_REQUEST_ENABLED=false`.
 - On an existing database, demo backfill should be additive only: demo users and demo-prefixed records may be added, but real users and real contractor records must not be overwritten.
 

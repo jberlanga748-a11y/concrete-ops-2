@@ -329,6 +329,14 @@ export function canRequestPackageReview(user) {
   return isOwner(user) || isAdministrator(user);
 }
 
+export function canCapturePilotFeedback(user) {
+  return isOwner(user) || isAdministrator(user);
+}
+
+export function canPreviewCustomerPortal(user) {
+  return isOwner(user) || isAdministrator(user);
+}
+
 export function canViewAudit(user) {
   return isOfficeManager(user);
 }

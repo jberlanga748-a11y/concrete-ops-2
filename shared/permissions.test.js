@@ -7,6 +7,7 @@ import {
   canCreateDeliveryTickets,
   canCreateJobs,
   canCreateUploads,
+  canCapturePilotFeedback,
   canManageContactHistory,
   canManageCustomers,
   canManageDeliveryTickets,
@@ -21,6 +22,7 @@ import {
   canManageSafety,
   canManageUploads,
   canManageUsers,
+  canPreviewCustomerPortal,
   canRequestPackageReview,
   canReviewReports,
   canReviewSafetyIncidents,
@@ -245,6 +247,24 @@ test("administrators can request package review without broad operator access", 
 
   assert.equal(canRequestPackageReview(administrator), true);
   assert.equal(canManageCompanies(administrator), false);
+});
+
+test("owner and admin can capture internal pilot feedback while field users stay blocked", () => {
+  assert.equal(canCapturePilotFeedback({ role: "Owner" }), true);
+  assert.equal(canCapturePilotFeedback({ role: "Administrator" }), true);
+  assert.equal(canCapturePilotFeedback({ role: "Operations Manager" }), false);
+  assert.equal(canCapturePilotFeedback({ role: "Estimator" }), false);
+  assert.equal(canCapturePilotFeedback({ role: "Foreman" }), false);
+  assert.equal(canCapturePilotFeedback({ role: "Employee" }), false);
+});
+
+test("owner and admin can preview manual customer portal packets while field users stay blocked", () => {
+  assert.equal(canPreviewCustomerPortal({ role: "Owner" }), true);
+  assert.equal(canPreviewCustomerPortal({ role: "Administrator" }), true);
+  assert.equal(canPreviewCustomerPortal({ role: "Operations Manager" }), false);
+  assert.equal(canPreviewCustomerPortal({ role: "Estimator" }), false);
+  assert.equal(canPreviewCustomerPortal({ role: "Foreman" }), false);
+  assert.equal(canPreviewCustomerPortal({ role: "Employee" }), false);
 });
 
 test("office can still access tool checklist records while the field module is disabled", () => {

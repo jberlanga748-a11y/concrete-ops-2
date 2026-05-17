@@ -11,7 +11,9 @@ primary_region = "sjc"
   DATA_DIR = "/app/data"
   LOG_LEVEL = "info"
   # Demo seeding is intentional here only.
+  DEMO_MODE = "true"
   SEED_DEMO_DATA = "true"
+  DEMO_PACKAGE_ID = "premium"
 
 [http_service]
   internal_port = 4000

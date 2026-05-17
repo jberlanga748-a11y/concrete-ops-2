@@ -2,6 +2,8 @@ import "dotenv/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { PACKAGE_IDS, PACKAGE_ORDER } from "../shared/packages.js";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 const DEFAULT_DATA_DIR = path.join(rootDir, "data");
@@ -73,6 +75,19 @@ function parseBoolean(value, fieldName, fallback) {
   }
 
   throw new Error(`${fieldName} must be true or false.`);
+}
+
+function parseDemoPackageId(value) {
+  if (value == null || value === "") {
+    return PACKAGE_IDS.PREMIUM;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!PACKAGE_ORDER.includes(normalized)) {
+    throw new Error(`DEMO_PACKAGE_ID must be one of: ${PACKAGE_ORDER.join(", ")}.`);
+  }
+
+  return normalized;
 }
 
 function parseDirectory(value, fallback, fieldName) {
@@ -151,6 +166,7 @@ export function createServerConfig(env = process.env) {
   );
   const logLevel = parseChoice(env.LOG_LEVEL, "LOG_LEVEL", ALLOWED_LOG_LEVELS, "info");
   const demoMode = parseBoolean(env.DEMO_MODE, "DEMO_MODE", false);
+  const demoPackageId = parseDemoPackageId(env.DEMO_PACKAGE_ID);
   const seedWorkspaceData = nodeEnv !== "production";
   const seedDemoDataRequested = parseBoolean(env.SEED_DEMO_DATA, "SEED_DEMO_DATA", demoMode);
   const seedDemoData = demoMode || (seedDemoDataRequested && nodeEnv !== "production");
@@ -179,6 +195,7 @@ export function createServerConfig(env = process.env) {
     dataDir: parseDirectory(env.DATA_DIR, DEFAULT_DATA_DIR, "DATA_DIR"),
     backupDir: parseDirectory(env.BACKUP_DIR, DEFAULT_BACKUP_DIR, "BACKUP_DIR"),
     demoMode,
+    demoPackageId,
     seedWorkspaceData,
     seedDemoData,
     seedDemoDataRequested,

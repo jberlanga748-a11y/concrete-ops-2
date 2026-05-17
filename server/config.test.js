@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createServerConfig } from "./config.js";
+import { PACKAGE_IDS } from "../shared/packages.js";
 
 function baseEnv(overrides = {}) {
   return {
@@ -80,5 +81,20 @@ test("trusted proxy hop config is explicit and non-negative", () => {
   assert.throws(
     () => createServerConfig(baseEnv({ TRUST_PROXY_HOPS: "abc" })),
     /non-negative integer/i,
+  );
+});
+
+test("demo package config defaults to Premium and validates package ids", () => {
+  assert.equal(createServerConfig(baseEnv()).demoPackageId, PACKAGE_IDS.PREMIUM);
+  assert.equal(createServerConfig(baseEnv({
+    NODE_ENV: "production",
+    DEMO_MODE: "true",
+  })).demoPackageId, PACKAGE_IDS.PREMIUM);
+  assert.equal(createServerConfig(baseEnv({ DEMO_PACKAGE_ID: "basic" })).demoPackageId, PACKAGE_IDS.BASIC);
+  assert.equal(createServerConfig(baseEnv({ DEMO_PACKAGE_ID: "Elite" })).demoPackageId, PACKAGE_IDS.ELITE);
+
+  assert.throws(
+    () => createServerConfig(baseEnv({ DEMO_PACKAGE_ID: "enterprise" })),
+    /DEMO_PACKAGE_ID must be one of/i,
   );
 });

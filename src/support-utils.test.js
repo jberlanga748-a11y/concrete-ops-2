@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSupportPacket, createSupportDraft, SUPPORT_BLOCKER_OPTIONS, SUPPORT_WORKFLOW_OPTIONS } from "./support-utils.js";
+import {
+  buildPilotFeedbackPacket,
+  buildSupportPacket,
+  createPilotFeedbackDraft,
+  createSupportDraft,
+  getSupportWorkflowOptionsForUser,
+  PILOT_FEEDBACK_STAGE_OPTIONS,
+  PILOT_NEXT_ACTION_OPTIONS,
+  PILOT_WORKFLOW_FIT_OPTIONS,
+  SUPPORT_BLOCKER_OPTIONS,
+  SUPPORT_PILOT_FEEDBACK_WORKFLOW,
+  SUPPORT_WORKFLOW_OPTIONS,
+} from "./support-utils.js";
 
 test("support draft starts as a copy-only general support request", () => {
   const draft = createSupportDraft();
@@ -12,9 +24,13 @@ test("support draft starts as a copy-only general support request", () => {
   assert.equal(draft.followUpNeeded, "");
   assert.equal(draft.currentPackage, "");
   assert.equal(draft.requestedPackage, "");
+  assert.equal(draft.pilotFeedback.stage, "Demo completed");
+  assert.equal(draft.pilotFeedback.workflowFit, "Unknown");
+  assert.equal(draft.pilotFeedback.nextAction, "No action yet");
   assert.equal(SUPPORT_BLOCKER_OPTIONS.includes(draft.blockerLevel), true);
   assert.equal(SUPPORT_WORKFLOW_OPTIONS.includes(draft.workflow), true);
   assert.equal(SUPPORT_WORKFLOW_OPTIONS.includes("Upgrade / package review"), true);
+  assert.equal(SUPPORT_WORKFLOW_OPTIONS.includes(SUPPORT_PILOT_FEEDBACK_WORKFLOW), true);
   assert.equal(SUPPORT_WORKFLOW_OPTIONS.includes("Setup / onboarding"), true);
 });
 
@@ -23,6 +39,42 @@ test("support draft can start with a setup workflow context", () => {
 
   assert.equal(draft.workflow, "Setup / onboarding");
   assert.equal(draft.blockerLevel, "Not a blocker");
+});
+
+test("support workflow options hide upgrade and pilot feedback from field users", () => {
+  const ownerOptions = getSupportWorkflowOptionsForUser({ role: "Owner" });
+  const adminOptions = getSupportWorkflowOptionsForUser({ role: "Administrator" });
+  const operationsOptions = getSupportWorkflowOptionsForUser({ role: "Operations Manager" });
+  const foremanOptions = getSupportWorkflowOptionsForUser({ role: "Foreman" });
+  const employeeOptions = getSupportWorkflowOptionsForUser({ role: "Employee" });
+
+  assert.equal(ownerOptions.includes("Upgrade / package review"), true);
+  assert.equal(ownerOptions.includes(SUPPORT_PILOT_FEEDBACK_WORKFLOW), true);
+  assert.equal(adminOptions.includes("Upgrade / package review"), true);
+  assert.equal(adminOptions.includes(SUPPORT_PILOT_FEEDBACK_WORKFLOW), true);
+  assert.equal(operationsOptions.includes("Upgrade / package review"), false);
+  assert.equal(operationsOptions.includes(SUPPORT_PILOT_FEEDBACK_WORKFLOW), false);
+  assert.equal(foremanOptions.includes("Upgrade / package review"), false);
+  assert.equal(foremanOptions.includes(SUPPORT_PILOT_FEEDBACK_WORKFLOW), false);
+  assert.equal(employeeOptions.includes("Upgrade / package review"), false);
+  assert.equal(employeeOptions.includes(SUPPORT_PILOT_FEEDBACK_WORKFLOW), false);
+  assert.equal(foremanOptions.includes("Photos / uploads"), true);
+  assert.equal(employeeOptions.includes("Safety / tools"), true);
+});
+
+test("pilot feedback draft uses controlled manual-review options", () => {
+  const draft = createPilotFeedbackDraft({
+    feedbackStage: "Pilot kickoff",
+    workflowFit: "Strong fit",
+    nextAction: "Offer pilot",
+  });
+
+  assert.equal(draft.stage, "Pilot kickoff");
+  assert.equal(draft.workflowFit, "Strong fit");
+  assert.equal(draft.nextAction, "Offer pilot");
+  assert.equal(PILOT_FEEDBACK_STAGE_OPTIONS.includes(draft.stage), true);
+  assert.equal(PILOT_WORKFLOW_FIT_OPTIONS.includes(draft.workflowFit), true);
+  assert.equal(PILOT_NEXT_ACTION_OPTIONS.includes(draft.nextAction), true);
 });
 
 test("support packet captures role-safe issue context without sending anything", () => {
@@ -91,4 +143,53 @@ test("support packet can carry manual upgrade review context without changing bi
   assert.match(packet, /create an invoice/);
   assert.match(packet, /start checkout/);
   assert.equal(packet.includes("secret-session-token"), false);
+});
+
+test("pilot feedback packet captures internal context without outreach or public proof automation", () => {
+  const packet = buildPilotFeedbackPacket({
+    draft: createPilotFeedbackDraft({
+      contractorCompany: "ABC Builders",
+      contactName: "Jordan Owner",
+      contactRole: "Owner",
+      stage: "Pilot day 3",
+      workflowFit: "Strong fit",
+      primaryWorkflow: "Lead to estimate to field handoff",
+      topPain: "Photos and job notes are scattered across texts.",
+      objections: "Needs to know the foreman will actually use it.",
+      fieldAdminFriction: "Admin wants cleaner daily report proof before invoicing.",
+      nextAction: "Schedule check-in",
+      followUpOwner: "Founder",
+      followUpDate: "2026-05-20",
+      permissionToUseQuote: "No",
+      testimonialCandidate: "Maybe",
+      privateNotes: "Pilot is promising if setup is done manually.",
+    }),
+    user: {
+      name: "Owner Ops",
+      role: "Owner",
+      token: "secret-session-token",
+    },
+    companyName: "Apex HQ Demo Company",
+    currentCompanyId: "DEMO-COMPANY",
+    activeModule: "support",
+    path: "/support",
+    generatedAt: "2026-05-17T11:00:00.000Z",
+  });
+
+  assert.match(packet, /Apex HQ Pilot Feedback Capture/);
+  assert.match(packet, /Contractor company: ABC Builders/);
+  assert.match(packet, /Contact: Jordan Owner - Owner/);
+  assert.match(packet, /Stage: Pilot day 3/);
+  assert.match(packet, /Workflow fit: Strong fit/);
+  assert.match(packet, /Photos and job notes are scattered/);
+  assert.match(packet, /Schedule check-in/);
+  assert.match(packet, /Permission to use quote publicly: No/);
+  assert.match(packet, /Copy-only internal note/);
+  assert.match(packet, /did not send a survey/);
+  assert.match(packet, /publish a testimonial/);
+  assert.match(packet, /create outreach/);
+  assert.match(packet, /change customer data/);
+  assert.match(packet, /start automation/);
+  assert.equal(packet.includes("secret-session-token"), false);
+  assert.equal(packet.includes("NPS"), false);
 });

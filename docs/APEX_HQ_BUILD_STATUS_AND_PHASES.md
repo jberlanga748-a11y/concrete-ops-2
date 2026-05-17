@@ -18,16 +18,19 @@ Current state:
 - Field Ops Agent Phase 1 read-only summary: built, verified, released, and health-checked.
 - Advanced Reporting Prep Phase 2: built, verified, released, and health-checked.
 - Enterprise Trust Phase 2: built, verified, released, and health-checked.
+- Billing / Manual Upgrade Prep Phase 1: built, verified, released, and health-checked.
+- Pilot Feedback Capture Phase 1: built locally, not released.
+- Customer Portal Phase 1 Manual Approval Preview: built locally, not released.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `0da4e5e`
-- Message: `Add Apex HQ enterprise trust review packet`
-- Fly release: `v493`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVN8Z8YDVC3P51SY9CACDMT`
+- Commit: `f604949`
+- Message: `Add manual upgrade review handoff`
+- Fly release: `v494`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVPC8WKQ4ATDVBF1WATD9GN`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -63,6 +66,7 @@ Recent shipped phase stack:
 | `666a2a6` | `v491` | Field Ops Agent Phase 1 read-only assistant |
 | `4648e70` | `v492` | Advanced Reporting Prep Phase 2 |
 | `0da4e5e` | `v493` | Enterprise Trust Phase 2 |
+| `f604949` | `v494` | Billing / Manual Upgrade Prep Phase 1 |
 
 ## Done / Do Not Rebuild
 
@@ -85,7 +89,15 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Advanced Reporting Prep | Done and released | Premium owner/admin report prep panel and pure summary helper exist. Field users and Basic package workspaces do not see the advanced reporting panel. |
 | Advanced Reporting Prep Phase 2 | Built and released | Existing Premium owner/admin reporting panel now includes closeout readiness, owner review queue, delay/safety signals, and concrete yard reporting from current daily report data only. Field users and Basic package workspaces remain blocked. |
 | Billing / Plans Readiness Prep | Done and released | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
-| Billing / Manual Upgrade Prep Planning | Prepared | `docs/BILLING_MANUAL_UPGRADE_PREP.md` defines the support-led Basic/Premium/Elite upgrade path, no-Stripe boundaries, owner/admin visibility, field-role restrictions, and the next builder prompt. |
+| Billing / Manual Upgrade Prep Planning | Done and released | `docs/BILLING_MANUAL_UPGRADE_PREP.md` defined the support-led Basic/Premium/Elite upgrade path, no-Stripe boundaries, owner/admin visibility, and field-role restrictions. |
+| Billing / Manual Upgrade Prep Phase 1 | Built and released | Owner/admin Plan Readiness and package-locked states now route to copy-only manual upgrade review context in Support. Foremen/employees remain blocked from billing, package management, pricing, Settings, estimates, AI Office, App Health, and office modules. No Stripe, checkout, invoices, payment collection, or self-serve plan changes were added. |
+| Pilot Feedback Capture Phase 1 | Built locally, not released | Owner/admin Support now includes a copy-only pilot feedback packet for founder-led demos and controlled pilots, capturing pain, objections, workflow fit, field/admin friction, next action, follow-up, proof permission, and private notes. Field users do not see the feedback workflow. No surveys, outreach, testimonials, customer data changes, or automation were added. |
+| Customer Portal Phase 1 Manual Approval Preview | Built locally, not released | Elite owner/admin Settings now includes an internal manual preview of customer-facing proposal/progress content using existing approved estimates, related jobs, proof counts, progress counts, and reviewed change order counts. Basic/Premium owners see only a locked manual-review explanation. Field users remain blocked from Settings and portal preview. No customer login, share links, self-serve approvals, public portal, payments, invoices, customer notifications, or customer data mutation were added. |
+| Premium Demo Workspace Prep Phase 1 | Built locally, not released | Demo package selection is config-controlled with Premium as the main demo profile, Basic as a lock-state fallback, and additive-only existing database behavior. `fly.demo.toml` now explicitly enables demo mode and Premium demo package config. |
+| Customer Portal Planning Checkpoint | Prepared locally | `docs/CUSTOMER_PORTAL_PLANNING_CHECKPOINT.md` defines the no-build decision, Elite package boundary, owner/admin manual approval preview direction, field/customer/support restrictions, customer-visible content rules, auth/data/audit requirements, and a future implementation prompt. |
+| Assistant Material Planning Prep | Prepared locally | `docs/ASSISTANT_MATERIAL_PLANNING_PREP.md` defines the reviewed material planning assistant boundary, Premium-and-up package policy, allowed source data, role restrictions, audit requirements, negative tests, and no-ordering/no-pricing/no-job-conversion rules. |
+| Assistant Job Conversion Planning | Prepared locally | `docs/ASSISTANT_JOB_CONVERSION_PLANNING.md` defines the reviewed estimate-to-job assistant handoff boundary, Premium-and-up package policy, approved-estimate source rules, role restrictions, audit requirements, negative tests, and no-automatic-job-creation/scheduling/crew-assignment rules. |
+| Public Website / Sales Funnel Planning | Prepared locally | `docs/PUBLIC_WEBSITE_SALES_FUNNEL_PLANNING.md` defines the claims-safe public website and founder-led demo funnel boundary, manual demo-interest capture, no-self-serve signup/billing/package-management rules, auth separation, follow-up limits, and future implementation prompt. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
@@ -127,7 +139,7 @@ Recent focused verification:
 - `npm.cmd run verify:auth`: passed 24/24.
 - `npm.cmd run verify:packages`: passed 12/12.
 - `npm.cmd run verify:entitlements`: passed 33/33.
-- `npm.cmd run verify:roles`: passed 8/8.
+- `npm.cmd run verify:roles`: passed 10/10.
 - Public SaaS Signup UX release checks: `npm.cmd run verify:signup`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser desktop/mobile signup QA, and `git diff --check` passed; release `v481` health-checked ready.
 - Package Upgrade / Locked State Polish checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, browser owner desktop/mobile package lock QA, field role safety check, and `git diff --check` passed; release `v482` health-checked ready.
 - Advanced Reporting Prep checks: `npm.cmd run verify:packages`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, browser owner desktop/mobile reporting prep QA, field role safety check, and `git diff --check` passed; release `v483` health-checked ready.
@@ -148,6 +160,9 @@ Recent focused verification:
 - Field Ops Agent Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:time`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run build`, focused browser owner/foreman desktop/mobile QA, and `git diff --check` passed. Browser screenshot evidence: `C:\Users\jberl\AppData\Local\Temp\apex-field-ops-shots-r3tygX`. Released as Fly `v491`; both live ready endpoints returned `200`, ready, database ok.
 - Advanced Reporting Prep Phase 2 checks: `npm.cmd run verify:daily-reports`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:uploads`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v492`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted a transient listening-address warning, but Fly status showed the machine started with `1 passing` check.
 - Enterprise Trust Phase 2 checks: `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run verify:users`, `npm.cmd run verify:exports`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v493`; both live ready endpoints returned `200`, ready, database ok. The first local `verify:roles` run reported a shared permissions test-process failure without an assertion; rerunning `verify:roles` and `node --test --test-concurrency=1 shared\permissions.test.js` passed. Focused owner browser QA was not completed because the current local demo package gates App Health off.
+- Billing / Manual Upgrade Prep Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v494`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted a listening-address warning, but Fly status showed the machine started with `1 passing` check.
+- Pilot Feedback Capture Phase 1 local checks: `node --test --test-concurrency=1 src\support-utils.test.js shared\permissions.test.js`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Not released.
+- Customer Portal Phase 1 Manual Approval Preview local checks: `node --test --test-concurrency=1 src\customer-portal-preview-utils.test.js shared\packageEntitlements.test.js shared\permissions.test.js`, `node --test --test-concurrency=1 server\package-entitlements.test.js`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. The first `verify:packages` attempt exited with a Windows test-process crash and no assertion output; rerun passed 12/12. Not released.
 
 ## Current Loop Prevention Rules
 
@@ -181,6 +196,9 @@ Do not start these phases again as if they are missing:
 - Enterprise Trust Prep.
 - Enterprise Trust Phase 2.
 - Billing / Manual Upgrade Prep Planning.
+- Billing / Manual Upgrade Prep Phase 1.
+- Pilot Feedback Capture Phase 1.
+- Customer Portal Phase 1 Manual Approval Preview.
 - Demo pilot data cleanup.
 
 If one of those areas comes up, first ask:
@@ -192,20 +210,25 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Billing / Manual Upgrade Prep Phase 1 - Next
+### Invite / Activation UX Polish - Next
 
 Why this is next:
 
-- The manual upgrade planning checkpoint is prepared in `docs/BILLING_MANUAL_UPGRADE_PREP.md`.
-- Package entitlement, locked states, Plan Readiness, Support, and trust guardrails already exist.
-- The next safe implementation is copy-only/support-led UX, not billing automation.
+- Premium Demo Workspace Prep Phase 1 is built locally and ready for review/release.
+- Pilot Feedback Capture Phase 1 is built locally and ready for review/release.
+- Customer Portal Phase 1 Manual Approval Preview is built locally and ready for review/release.
+- Assistant Material Planning Prep is prepared locally and should not move to implementation until explicitly approved.
+- Assistant Job Conversion Planning is prepared locally and should not move to implementation until explicitly approved.
+- Public Website / Sales Funnel Planning is prepared locally and should not move to implementation until explicitly approved.
+- The next safest app polish loop is invite and activation clarity without rebuilding auth/session systems.
+- This can reduce pilot onboarding friction while preserving the existing token, role, and company-scope foundations.
 
 Scope:
 
-- Tighten Settings Plan Readiness copy/actions.
-- Add or improve owner/admin copy-only support handoff for manual upgrade review.
-- Clarify package-locked route explanations.
-- Preserve all existing package gates and role protections.
+- Improve invite/activation copy, empty states, and handoff clarity.
+- Preserve existing invite, activation, password reset, role, and company-scope logic.
+- Keep owner/admin user-management visibility role-safe.
+- Add tests for field-user restrictions and activation safety only where touched.
 
 Do not include:
 
@@ -214,27 +237,43 @@ Do not include:
 - Billing automation.
 - Invoice/payment collection.
 - SOC 2 claims, enterprise SSO/MFA/SCIM.
-- Customer portal.
+- Public customer portal implementation.
+- Public customer authentication.
+- Customer self-serve approvals.
+- Share links.
+- Customer login.
+- Autonomous material ordering.
+- Vendor checkout, purchasing, payment, or purchase orders.
+- Autonomous pricing, bid approval, job conversion, scheduling, crew assignment, or customer messaging.
+- Public self-serve signup or billing.
+- Public pricing checkout or package management.
+- Unsupported AI, compliance, portal, integration, or automation claims.
+- Automatic survey sending.
+- Public testimonial publishing.
+- NPS/review automation.
+- Automatic customer notifications.
+- Real customer data mutation.
+- Broad demo data rewrites.
 - Field access to owner/admin plans, pricing, export, billing, or settings data.
+- Auth/session rewrites.
+- Public signup changes.
+- Invite email automation.
+- New roles or permission broadening.
 
 Suggested verification:
 
-- `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check`. Browser QA owner/admin Settings/Support and field-role direct route checks if UI changes are made.
+- `npm.cmd run build`
+- `npm.cmd run verify:packages`
+- `npm.cmd run verify:entitlements`
+- `npm.cmd run verify:roles`
+- `git diff --check`
 
-## Next 10 Build Phases
+## Next Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Billing / Manual Upgrade Prep Phase 1 | Implement support-led upgrade review UX from `docs/BILLING_MANUAL_UPGRADE_PREP.md` without Stripe, payments, or billing automation. | Medium | Maybe. |
-| 2 | Premium Demo Workspace Prep | Prepare a controlled Premium demo workspace if AI Rough Notes assistant commands need to be shown live. | Medium | Maybe. |
-| 3 | Customer Portal Planning Checkpoint | Scope customer-facing approval/progress surfaces after reporting and trust are clearer. | High | Yes. |
-| 4 | Assistant Material Planning Prep | Plan reviewed material calculations without autonomous pricing or ordering. | High | Yes. |
-| 5 | Assistant Job Conversion Planning | Scope reviewed estimate-to-job assistant handoff without auto-assigning crews or ordering materials. | High | Yes. |
-| 6 | Public Website / Sales Funnel Planning | Plan public marketing site and demo booking flow with no product auth/billing changes yet. | Medium | Yes. |
-| 7 | Pilot Feedback Capture Phase 1 | Add structured pilot feedback capture after demos begin, without changing core workflows. | Medium | Maybe. |
-| 8 | Customer Portal Phase 1 Manual Approval Preview | Only after planning checkpoint; manual customer-facing proposal/progress visibility. | High | Yes. |
-| 9 | Invite / Activation UX Polish | Improve invite and activation clarity without rebuilding auth. | Medium | Maybe. |
-| 10 | Guided Demo Rehearsal Refresh | Re-run a focused owner/field demo walkthrough after the next product batch. | Low | Maybe. |
+| 1 | Invite / Activation UX Polish | Improve invite and activation clarity without rebuilding auth. | Medium | Maybe. |
+| 2 | Guided Demo Rehearsal Refresh | Re-run a focused owner/field demo walkthrough after the next product batch. | Low | Maybe. |
 
 ## Later / Do Not Build Yet
 
@@ -302,55 +341,52 @@ Use this when ready to build the next product slice:
 ```text
 You are entering:
 
-APEX HQ - ASSISTANT COMMAND EXPANSION PHASE 2A
+APEX HQ - INVITE / ACTIVATION UX POLISH
 
 Use skills:
 - apex-build-router
 - apex-product-system
+- apex-permission-safety
 - apex-qa-engineer
-- apex-estimate-proposal-system
 
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
 Do NOT redesign the app.
-Do NOT rebuild the assistant shell, estimates, leads, jobs, field workflows, permissions, packages, or navigation.
+Do NOT rebuild demo mode, package entitlements, permissions, field workflows, estimates, jobs, reporting, App Health, Watchtower, Field Ops Agent, pilot feedback capture, customer portal preview, material planning, job conversion planning, or public website planning.
 Do NOT refactor architecture.
-Do NOT add automatic email/SMS sending.
-Do NOT add autonomous job creation, autonomous pricing approval, automatic crew assignment, material ordering, billing, Stripe, customer portal, offline mode, payroll, or AI autopilot.
+Do NOT add Stripe, checkout, payment collection, invoices, self-serve plan changes, public customer portal implementation, customer login, share links, customer self-serve approvals, offline mode, payroll, hidden GPS tracking, automatic email/SMS sending, autonomous bidding, autonomous pricing approval, automatic crew assignment, material ordering, vendor purchasing, automatic job conversion, public signup changes, automatic survey sending, testimonial publishing, AI autopilot, new roles, or auth/session rewrites.
+Do NOT mutate real customer data.
+Do NOT loosen field-role permissions.
 Do NOT commit, push, or deploy.
 
 Goal:
-Build the first reviewed assistant command: lead/customer/rough-notes to clean estimate draft handoff.
+Polish invite and activation clarity without rebuilding auth, tokens, sessions, roles, or company scoping.
 
 Focus only on:
-- assistant command parsing for lead/customer/estimate-draft intent
-- visible lead/customer match handling
-- review-before-save behavior
-- existing AI Rough Notes handoff
-- clean Estimates new-draft mode
-- role/package safety
+- owner/admin user invite copy and handoff clarity
+- activation/password setup instructions and error states
+- role-safe activation expectations
+- existing token expiry/single-use/company-scope behavior
+- tests proving field users remain blocked from user-management/admin surfaces
 
 Preserve:
-- existing Assistant Shell Phase 1
-- existing lead/estimate/job workflows
-- existing permissions and package gates
-- existing field restrictions
-- existing manual-send behavior
+- existing package entitlement helpers
+- existing role and field protections
+- existing invite, activation, password reset, session, and company-scope logic
+- existing production data separation
 
 Verify:
 - npm.cmd run build
-- npm.cmd run verify:estimates
-- npm.cmd run verify:leads
-- verify:roles
-- npm.cmd run verify:packages
+- npm.cmd run verify:users
+- npm.cmd run verify:auth
+- npm.cmd run verify:roles
 - git diff --check
 
 Report:
-- root cause/gap addressed
 - files changed
-- exact behavior added
-- role/package safety
+- exact invite/activation UX changes
+- role/auth/company-scope safety
 - verification results
 - safe to release yes/no
 ```

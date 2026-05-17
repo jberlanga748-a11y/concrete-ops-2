@@ -180,6 +180,7 @@ import {
   canManageToolChecklist,
   canManageUploads,
   canManageUsers,
+  canPreviewCustomerPortal,
   canRequestChangeOrders,
   canReviewReports,
   canReviewPrePour,
@@ -5422,6 +5423,9 @@ function sanitizeBootstrap(state, user) {
       opportunityScout: {
         canView: canUseOpportunityScout && canViewLeads(user),
         canManage: canUseOpportunityScout && canManageLeads(user),
+      },
+      customerPortal: {
+        canPreview: packageEntitlements.customerPortal.canUsePreview && canPreviewCustomerPortal(user),
       },
       contactHistory: contactHistoryPermissionsForUser(user),
       estimates: {

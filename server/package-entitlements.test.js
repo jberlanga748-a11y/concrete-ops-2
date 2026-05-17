@@ -218,6 +218,7 @@ test("Basic package exposes core office permissions but blocks premium and elite
     assert.equal(bootstrap.permissions.fieldOps.canView, false);
     assert.equal(bootstrap.permissions.reports.canViewAdvanced, false);
     assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+    assert.equal(bootstrap.permissions.customerPortal.canPreview, false);
     assert.deepEqual(bootstrap.jobDraftImports, []);
     assert.deepEqual(bootstrap.opportunitySearchProfiles, []);
     assert.deepEqual(bootstrap.foundOpportunities, []);
@@ -296,6 +297,7 @@ test("Premium package enables premium tools while keeping Elite Lead Finder lock
     assert.equal(bootstrap.permissions.fieldOps.canViewCompanyWide, true);
     assert.equal(bootstrap.permissions.reports.canViewAdvanced, true);
     assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+    assert.equal(bootstrap.permissions.customerPortal.canPreview, false);
 
     const ownerHealth = await assertOk(fixture.baseUrl, "/api/owner-health", { headers });
     assert.equal(ownerHealth.ok, true);
@@ -352,7 +354,25 @@ test("Elite package enables Lead Finder and inherits Premium entitlements", asyn
   const fixture = await startServer();
 
   try {
-    const { headers, bootstrap } = await loginAndBootstrap(fixture, PACKAGE_IDS.ELITE);
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const ownerUser = createUserRecord({
+      id: "U-ENTITLEMENT-OWNER",
+      email: "entitlement-owner@apexhq.test",
+      password: "apexdemo123",
+      name: "Entitlement Owner",
+      role: "Owner",
+    });
+    insertUser(fixture.sqliteFile, ownerUser);
+    const loginResult = await assertOk(fixture.baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: ownerUser.email,
+        password: "apexdemo123",
+      }),
+    });
+    const headers = authHeaders(loginResult.token);
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
 
     assert.equal(bootstrap.companyPackage.id, PACKAGE_IDS.ELITE);
     assert.equal(bootstrap.permissions.estimates.canUseAiRoughNotes, true);
@@ -365,6 +385,7 @@ test("Elite package enables Lead Finder and inherits Premium entitlements", asyn
     assert.equal(bootstrap.permissions.fieldOps.canViewCompanyWide, true);
     assert.equal(bootstrap.permissions.reports.canViewAdvanced, true);
     assert.equal(bootstrap.permissions.opportunityScout.canView, true);
+    assert.equal(bootstrap.permissions.customerPortal.canPreview, true);
     assert.ok(Array.isArray(bootstrap.opportunitySearchProfiles));
     assert.ok(Array.isArray(bootstrap.foundOpportunities));
 
@@ -420,6 +441,7 @@ test("Elite package does not grant field users office-only premium tools", async
     assert.equal(bootstrap.permissions.fieldOps.canViewCompanyWide, false);
     assert.equal(bootstrap.permissions.reports.canViewAdvanced, false);
     assert.equal(bootstrap.permissions.opportunityScout.canView, false);
+    assert.equal(bootstrap.permissions.customerPortal.canPreview, false);
     assert.deepEqual(bootstrap.leads, []);
     assert.deepEqual(bootstrap.estimates, []);
     assert.deepEqual(bootstrap.jobDraftImports, []);
