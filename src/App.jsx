@@ -2597,13 +2597,14 @@ function InviteActivationScreen({
 
           <div className="co-login-form-intro">
             <p>Activate login</p>
-            <span>Create your password to enter the Apex HQ workspace your office invited you to.</span>
+            <span>Use the full invite link from your owner or admin, then create your own password for this company workspace.</span>
           </div>
 
           <form className="co-login-form" onSubmit={onSubmit}>
-            <InputField label="New password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} />
-            <InputField label="Confirm password" type="password" value={draft.confirmPassword} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} />
-            {!tokenPresent ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">This activation link is missing its invite token.</p> : null}
+            <InputField label="New password" type="password" autoComplete="new-password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} />
+            <InputField label="Confirm password" type="password" autoComplete="new-password" value={draft.confirmPassword} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} />
+            <p className="text-xs font-bold leading-5 text-slate-500">Invite links are one-time setup links. If this link is missing, expired, or already used, ask an owner/admin to reissue it from Employees.</p>
+            {!tokenPresent ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">This activation link is missing its invite token. Open the full link from your owner/admin or request a new invite.</p> : null}
             {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p> : null}
             <Button type="submit" size="lg" disabled={loading || !tokenPresent} className={`co-login-submit ${loading ? "opacity-70" : ""}`}>
               {loading ? "Activating..." : "Activate and enter workspace"}
@@ -20995,9 +20996,10 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
   const activationCopyValue = provisionedNotice?.activationUrl
     ? `${typeof window !== "undefined" ? window.location.origin : ""}${provisionedNotice.activationUrl}`
     : provisionedNotice?.temporaryPassword || "";
+  const inviteExpiresAt = provisionedNotice?.inviteExpiresAt ? formatDateTime(provisionedNotice.inviteExpiresAt) : "";
   return (
     <Card className="co-employees-form-card p-4">
-      <SectionHeader title="Create User" description="Create a real login for office, foreman, or employee access." />
+      <SectionHeader title="Create User" description="Create office or field access with the current role boundaries. Leave password blank for a manual activation link." />
       {provisionedNotice ? (
         <div className="co-employees-temp-password mb-4">
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -21005,6 +21007,7 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
               <span>{provisionedNotice.activationToken ? "Activation invite ready" : "Temporary password ready"}</span>
               <strong>{provisionedNotice.email}</strong>
               <code>{activationCopyValue}</code>
+              <p>{provisionedNotice.activationToken ? `Copy and send this one-time activation link manually. It expires${inviteExpiresAt ? ` ${inviteExpiresAt}` : ""}.` : "Share this temporary password manually and have the user change it after sign-in."}</p>
             </div>
             <div className="grid gap-2 sm:flex sm:shrink-0">
               <Button type="button" size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText?.(activationCopyValue)}>
@@ -21028,6 +21031,7 @@ function UserCreatePanelPolished({ draft, setDraft, onCreateUser, disabled, prov
           <option value="inactive">Inactive</option>
         </SelectField>
         <InputField label="Password" type="password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Leave blank to create an activation invite" />
+        <p className="text-xs font-bold leading-5 text-slate-500 md:col-span-2">Field roles still receive field-safe access only. Apex HQ does not send invite email or SMS automatically from this screen.</p>
         <div className="md:col-span-2">
           <Button type="submit" disabled={disabled}>
             <Icon name="plus" />
@@ -21063,6 +21067,7 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, onResendIn
     ? `${typeof window !== "undefined" ? window.location.origin : ""}${provisionedNotice.activationUrl}`
     : "";
   const showProvisionedNotice = provisionedNotice?.id === user.id && activationCopyValue;
+  const inviteExpiresAt = provisionedNotice?.inviteExpiresAt ? formatDateTime(provisionedNotice.inviteExpiresAt) : "";
 
   return (
     <Card className="co-employees-form-card p-4">
@@ -21080,6 +21085,7 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, onResendIn
               <span>Activation invite ready</span>
               <strong>{provisionedNotice.email}</strong>
               <code>{activationCopyValue}</code>
+              <p>{`Copy and send this one-time activation link manually${inviteExpiresAt ? ` before ${inviteExpiresAt}` : ""}. If it expires, reissue a new invite here.`}</p>
             </div>
             <div className="grid gap-2 sm:flex sm:shrink-0">
               <Button type="button" size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText?.(activationCopyValue)}>
@@ -21110,7 +21116,7 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, onResendIn
       <div className="co-employees-note-panel">
         <span>Last login</span>
         <p>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}</p>
-        {user.inviteStatus ? <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Invite: {user.inviteStatus}</p> : null}
+        {user.inviteStatus ? <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Invite: {user.inviteStatus}. Pending and expired invites can be reissued without changing the user's role.</p> : null}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button onClick={onSaveUser} disabled={!canEditUser || busy}>Save user</Button>

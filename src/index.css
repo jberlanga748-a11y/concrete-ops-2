@@ -20553,6 +20553,14 @@ textarea {
   font-weight: 850;
 }
 
+.co-employees-temp-password p {
+  margin-top: 0.45rem;
+  color: #047857;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
 .co-employees-owner-lock {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

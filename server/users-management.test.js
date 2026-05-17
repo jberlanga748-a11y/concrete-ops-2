@@ -1289,10 +1289,42 @@ test("employee, foreman, and estimator cannot access user management while opera
       { email: "employee-users@lastyard.test", password: "apexdemo123" },
     ]) {
       const session = await login(fixture.baseUrl, credentials);
+      const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+        headers: authHeaders(session.token),
+      });
+      assert.equal(bootstrap.permissions.users.canView, false);
+      assert.equal(bootstrap.permissions.users.canManage, false);
+
       const denied = await requestJson(fixture.baseUrl, "/api/users", {
         headers: authHeaders(session.token),
       });
       assert.equal(denied.response.status, 403);
+
+      const deniedCreate = await requestJson(fixture.baseUrl, "/api/users", {
+        method: "POST",
+        headers: authHeaders(session.token),
+        body: JSON.stringify({
+          name: "Blocked Invite",
+          email: `blocked-${credentials.email}`,
+          role: "Employee",
+        }),
+      });
+      assert.equal(deniedCreate.response.status, 403);
+
+      const deniedUpdate = await requestJson(fixture.baseUrl, "/api/users/U-OPS-USERS", {
+        method: "PATCH",
+        headers: authHeaders(session.token),
+        body: JSON.stringify({
+          role: "Owner",
+        }),
+      });
+      assert.equal(deniedUpdate.response.status, 403);
+
+      const deniedInvite = await requestJson(fixture.baseUrl, "/api/users/U-OPS-USERS/invite", {
+        method: "POST",
+        headers: authHeaders(session.token),
+      });
+      assert.equal(deniedInvite.response.status, 403);
     }
   } finally {
     await fixture.stop();

@@ -19,18 +19,19 @@ Current state:
 - Advanced Reporting Prep Phase 2: built, verified, released, and health-checked.
 - Enterprise Trust Phase 2: built, verified, released, and health-checked.
 - Billing / Manual Upgrade Prep Phase 1: built, verified, released, and health-checked.
-- Pilot Feedback Capture Phase 1: built locally, not released.
-- Customer Portal Phase 1 Manual Approval Preview: built locally, not released.
+- Pilot Feedback Capture Phase 1: built, verified, released, and health-checked.
+- Customer Portal Phase 1 Manual Approval Preview: built, verified, released, and health-checked.
+- Invite / Activation UX Polish: built locally, not released.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `f604949`
-- Message: `Add manual upgrade review handoff`
-- Fly release: `v494`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVPC8WKQ4ATDVBF1WATD9GN`
+- Commit: `c1e66f0`
+- Message: `Add pilot readiness preview batch`
+- Fly release: `v495`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVS86NP8K4J3QNT3XCN8RPF`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
@@ -67,6 +68,7 @@ Recent shipped phase stack:
 | `4648e70` | `v492` | Advanced Reporting Prep Phase 2 |
 | `0da4e5e` | `v493` | Enterprise Trust Phase 2 |
 | `f604949` | `v494` | Billing / Manual Upgrade Prep Phase 1 |
+| `c1e66f0` | `v495` | Pilot readiness preview batch |
 
 ## Done / Do Not Rebuild
 
@@ -91,13 +93,14 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Billing / Plans Readiness Prep | Done and released | Read-only Settings plan readiness, manual billing guardrails, feature labels, and field-safe bootstrap package redaction. |
 | Billing / Manual Upgrade Prep Planning | Done and released | `docs/BILLING_MANUAL_UPGRADE_PREP.md` defined the support-led Basic/Premium/Elite upgrade path, no-Stripe boundaries, owner/admin visibility, and field-role restrictions. |
 | Billing / Manual Upgrade Prep Phase 1 | Built and released | Owner/admin Plan Readiness and package-locked states now route to copy-only manual upgrade review context in Support. Foremen/employees remain blocked from billing, package management, pricing, Settings, estimates, AI Office, App Health, and office modules. No Stripe, checkout, invoices, payment collection, or self-serve plan changes were added. |
-| Pilot Feedback Capture Phase 1 | Built locally, not released | Owner/admin Support now includes a copy-only pilot feedback packet for founder-led demos and controlled pilots, capturing pain, objections, workflow fit, field/admin friction, next action, follow-up, proof permission, and private notes. Field users do not see the feedback workflow. No surveys, outreach, testimonials, customer data changes, or automation were added. |
-| Customer Portal Phase 1 Manual Approval Preview | Built locally, not released | Elite owner/admin Settings now includes an internal manual preview of customer-facing proposal/progress content using existing approved estimates, related jobs, proof counts, progress counts, and reviewed change order counts. Basic/Premium owners see only a locked manual-review explanation. Field users remain blocked from Settings and portal preview. No customer login, share links, self-serve approvals, public portal, payments, invoices, customer notifications, or customer data mutation were added. |
-| Premium Demo Workspace Prep Phase 1 | Built locally, not released | Demo package selection is config-controlled with Premium as the main demo profile, Basic as a lock-state fallback, and additive-only existing database behavior. `fly.demo.toml` now explicitly enables demo mode and Premium demo package config. |
-| Customer Portal Planning Checkpoint | Prepared locally | `docs/CUSTOMER_PORTAL_PLANNING_CHECKPOINT.md` defines the no-build decision, Elite package boundary, owner/admin manual approval preview direction, field/customer/support restrictions, customer-visible content rules, auth/data/audit requirements, and a future implementation prompt. |
-| Assistant Material Planning Prep | Prepared locally | `docs/ASSISTANT_MATERIAL_PLANNING_PREP.md` defines the reviewed material planning assistant boundary, Premium-and-up package policy, allowed source data, role restrictions, audit requirements, negative tests, and no-ordering/no-pricing/no-job-conversion rules. |
-| Assistant Job Conversion Planning | Prepared locally | `docs/ASSISTANT_JOB_CONVERSION_PLANNING.md` defines the reviewed estimate-to-job assistant handoff boundary, Premium-and-up package policy, approved-estimate source rules, role restrictions, audit requirements, negative tests, and no-automatic-job-creation/scheduling/crew-assignment rules. |
-| Public Website / Sales Funnel Planning | Prepared locally | `docs/PUBLIC_WEBSITE_SALES_FUNNEL_PLANNING.md` defines the claims-safe public website and founder-led demo funnel boundary, manual demo-interest capture, no-self-serve signup/billing/package-management rules, auth separation, follow-up limits, and future implementation prompt. |
+| Pilot Feedback Capture Phase 1 | Built and released | Owner/admin Support now includes a copy-only pilot feedback packet for founder-led demos and controlled pilots, capturing pain, objections, workflow fit, field/admin friction, next action, follow-up, proof permission, and private notes. Field users do not see the feedback workflow. No surveys, outreach, testimonials, customer data changes, or automation were added. |
+| Customer Portal Phase 1 Manual Approval Preview | Built and released | Elite owner/admin Settings now includes an internal manual preview of customer-facing proposal/progress content using existing approved estimates, related jobs, proof counts, progress counts, and reviewed change order counts. Basic/Premium owners see only a locked manual-review explanation. Field users remain blocked from Settings and portal preview. No customer login, share links, self-serve approvals, public portal, payments, invoices, customer notifications, or customer data mutation were added. |
+| Premium Demo Workspace Prep Phase 1 | Built and released | Demo package selection is config-controlled with Premium as the main demo profile, Basic as a lock-state fallback, and additive-only existing database behavior. `fly.demo.toml` now explicitly enables demo mode and Premium demo package config. |
+| Customer Portal Planning Checkpoint | Prepared and released | `docs/CUSTOMER_PORTAL_PLANNING_CHECKPOINT.md` defines the no-build decision, Elite package boundary, owner/admin manual approval preview direction, field/customer/support restrictions, customer-visible content rules, auth/data/audit requirements, and a future implementation prompt. |
+| Assistant Material Planning Prep | Prepared and released | `docs/ASSISTANT_MATERIAL_PLANNING_PREP.md` defines the reviewed material planning assistant boundary, Premium-and-up package policy, allowed source data, role restrictions, negative tests, and no-ordering/no-pricing/no-job-conversion rules. |
+| Assistant Job Conversion Planning | Prepared and released | `docs/ASSISTANT_JOB_CONVERSION_PLANNING.md` defines the reviewed estimate-to-job assistant handoff boundary, Premium-and-up package policy, approved-estimate source rules, role restrictions, negative tests, and no-automatic-job-creation/scheduling/crew-assignment rules. |
+| Public Website / Sales Funnel Planning | Prepared and released | `docs/PUBLIC_WEBSITE_SALES_FUNNEL_PLANNING.md` defines the claims-safe public website and founder-led demo funnel boundary, manual demo-interest capture, no-self-serve signup/billing/package-management rules, auth separation, follow-up limits, and future implementation prompt. |
+| Invite / Activation UX Polish | Built locally, not released | Owner/admin Employees now clarifies manual activation handoff, one-time invite links, expiry/reissue expectations, and field-safe role boundaries. Activation setup explains missing/expired/used invite links without changing token, session, password, role, or company-scope behavior. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
@@ -163,6 +166,8 @@ Recent focused verification:
 - Billing / Manual Upgrade Prep Phase 1 checks: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v494`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted a listening-address warning, but Fly status showed the machine started with `1 passing` check.
 - Pilot Feedback Capture Phase 1 local checks: `node --test --test-concurrency=1 src\support-utils.test.js shared\permissions.test.js`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Not released.
 - Customer Portal Phase 1 Manual Approval Preview local checks: `node --test --test-concurrency=1 src\customer-portal-preview-utils.test.js shared\packageEntitlements.test.js shared\permissions.test.js`, `node --test --test-concurrency=1 server\package-entitlements.test.js`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. The first `verify:packages` attempt exited with a Windows test-process crash and no assertion output; rerun passed 12/12. Not released.
+- Pilot readiness preview batch release checks: `npm.cmd run verify:demo`, focused support/customer-portal/permissions/package tests, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Released as Fly `v495`; both live ready endpoints returned `200`, ready, database ok. Deploy emitted the usual listening-address warning, but Fly status showed the machine started with `1 passing` check.
+- Invite / Activation UX Polish local focused checks: `node --test --test-concurrency=1 server\users-management.test.js src\navigation-utils.test.js` passed. Not released.
 
 ## Current Loop Prevention Rules
 
@@ -210,25 +215,20 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Invite / Activation UX Polish - Next
+### Invite / Activation UX Polish - Built Locally, Release Pending
 
-Why this is next:
+Why this is current:
 
-- Premium Demo Workspace Prep Phase 1 is built locally and ready for review/release.
-- Pilot Feedback Capture Phase 1 is built locally and ready for review/release.
-- Customer Portal Phase 1 Manual Approval Preview is built locally and ready for review/release.
-- Assistant Material Planning Prep is prepared locally and should not move to implementation until explicitly approved.
-- Assistant Job Conversion Planning is prepared locally and should not move to implementation until explicitly approved.
-- Public Website / Sales Funnel Planning is prepared locally and should not move to implementation until explicitly approved.
-- The next safest app polish loop is invite and activation clarity without rebuilding auth/session systems.
-- This can reduce pilot onboarding friction while preserving the existing token, role, and company-scope foundations.
+- Premium Demo Workspace Prep Phase 1, Pilot Feedback Capture Phase 1, Customer Portal Phase 1 Manual Approval Preview, and related planning docs were released in Fly `v495`.
+- Invite / Activation UX Polish is now built locally and should be verified fully before release.
+- The next app phase after release is a guided demo rehearsal refresh.
 
-Scope:
+Scope completed locally:
 
-- Improve invite/activation copy, empty states, and handoff clarity.
-- Preserve existing invite, activation, password reset, role, and company-scope logic.
-- Keep owner/admin user-management visibility role-safe.
-- Add tests for field-user restrictions and activation safety only where touched.
+- Improved invite/activation copy, empty states, and handoff clarity.
+- Preserved existing invite, activation, password reset, role, and company-scope logic.
+- Kept owner/admin user-management visibility role-safe.
+- Added direct API tests for field-user restrictions on user-management and invite actions.
 
 Do not include:
 
@@ -263,8 +263,8 @@ Do not include:
 Suggested verification:
 
 - `npm.cmd run build`
-- `npm.cmd run verify:packages`
-- `npm.cmd run verify:entitlements`
+- `npm.cmd run verify:users`
+- `npm.cmd run verify:auth`
 - `npm.cmd run verify:roles`
 - `git diff --check`
 
@@ -272,7 +272,7 @@ Suggested verification:
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Invite / Activation UX Polish | Improve invite and activation clarity without rebuilding auth. | Medium | Maybe. |
+| 1 | Invite / Activation UX Polish release | Release the built local invite/activation polish after full verification. | Medium | Yes, release approval. |
 | 2 | Guided Demo Rehearsal Refresh | Re-run a focused owner/field demo walkthrough after the next product batch. | Low | Maybe. |
 
 ## Later / Do Not Build Yet
@@ -334,14 +334,20 @@ Before each release:
 - Do not deploy if verification fails.
 - Report commit hash, release/version, live URLs, health checks, and warnings.
 
-## Recommended Next Prompt
+## Recommended Release Prompt
 
-Use this when ready to build the next product slice:
+Use this when ready to release the built local invite/activation polish:
+
+```text
+release
+```
+
+After this release is health-checked, the next product prompt should be:
 
 ```text
 You are entering:
 
-APEX HQ - INVITE / ACTIVATION UX POLISH
+APEX HQ - GUIDED DEMO REHEARSAL REFRESH
 
 Use skills:
 - apex-build-router
@@ -352,41 +358,32 @@ Use skills:
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
-Do NOT redesign the app.
-Do NOT rebuild demo mode, package entitlements, permissions, field workflows, estimates, jobs, reporting, App Health, Watchtower, Field Ops Agent, pilot feedback capture, customer portal preview, material planning, job conversion planning, or public website planning.
-Do NOT refactor architecture.
-Do NOT add Stripe, checkout, payment collection, invoices, self-serve plan changes, public customer portal implementation, customer login, share links, customer self-serve approvals, offline mode, payroll, hidden GPS tracking, automatic email/SMS sending, autonomous bidding, autonomous pricing approval, automatic crew assignment, material ordering, vendor purchasing, automatic job conversion, public signup changes, automatic survey sending, testimonial publishing, AI autopilot, new roles, or auth/session rewrites.
-Do NOT mutate real customer data.
-Do NOT loosen field-role permissions.
 Do NOT commit, push, or deploy.
 
 Goal:
-Polish invite and activation clarity without rebuilding auth, tokens, sessions, roles, or company scoping.
+Rehearse the current guided demo path after the latest product batch and invite/activation polish.
 
 Focus only on:
-- owner/admin user invite copy and handoff clarity
-- activation/password setup instructions and error states
-- role-safe activation expectations
-- existing token expiry/single-use/company-scope behavior
-- tests proving field users remain blocked from user-management/admin surfaces
+- owner/admin desktop guided demo path
+- owner mobile sanity path
+- foreman and employee mobile role-safety checks
+- estimates/proposals, support/trust, package upgrade, and invite activation handoff checks
+- console/network/horizontal-overflow review
 
 Preserve:
-- existing package entitlement helpers
-- existing role and field protections
-- existing invite, activation, password reset, session, and company-scope logic
-- existing production data separation
+- existing app behavior and data
+- existing auth/session/package/role logic
+- no production data mutation
 
 Verify:
-- npm.cmd run build
-- npm.cmd run verify:users
-- npm.cmd run verify:auth
 - npm.cmd run verify:roles
+- npm.cmd run verify:demo
 - git diff --check
 
 Report:
-- files changed
-- exact invite/activation UX changes
-- role/auth/company-scope safety
-- verification results
-- safe to release yes/no
+- demo paths checked
+- role-safety result
+- console/network/overflow result
+- blockers
+- release/no-release recommendation
 ```
