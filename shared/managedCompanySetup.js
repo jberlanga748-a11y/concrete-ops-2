@@ -353,16 +353,30 @@ export function deriveFirstOwnerOnboardingState({
     companySettings.companyName,
     companySettings.businessPhone,
     companySettings.businessEmail,
-    companySettings.serviceArea,
   ].every(hasText);
+  const setupItemsByKey = new Map(setupState.items.map((item) => [item.key, item]));
+  const hasServiceSetup = Boolean(
+    hasText(companySettings.serviceArea)
+      || setupItemsByKey.get("services_offered")?.completed
+      || setupItemsByKey.get("target_work_types")?.completed
+      || setupItemsByKey.get("contractor_mode")?.completed
+  );
   const steps = [
     {
       key: "company_profile",
-      label: "Finish company profile",
-      description: "Add phone, email, service area, and workspace identity for proposals and job packets.",
+      label: "Confirm company profile",
+      description: "Confirm company name, phone, email, and workspace identity for proposals and job packets.",
       completed: hasCompanyProfile,
       moduleId: "settings",
       actionLabel: "Open profile",
+    },
+    {
+      key: "service_setup",
+      label: "Set service area",
+      description: "Add service area or work-type notes so leads, estimates, and assistant context fit the contractor.",
+      completed: hasServiceSetup,
+      moduleId: "settings",
+      actionLabel: "Open services",
     },
     {
       key: "users",

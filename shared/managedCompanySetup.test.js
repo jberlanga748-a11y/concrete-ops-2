@@ -132,12 +132,13 @@ test("first owner onboarding highlights signup workspace next steps", () => {
 
   assert.equal(state.complete, false);
   assert.equal(state.coreComplete, false);
-  assert.equal(state.completedCount, 0);
-  assert.equal(state.steps.find((step) => step.key === "company_profile")?.completed, false);
+  assert.equal(state.completedCount, 1);
+  assert.equal(state.steps.find((step) => step.key === "company_profile")?.completed, true);
+  assert.equal(state.steps.find((step) => step.key === "service_setup")?.completed, false);
   assert.equal(state.steps.find((step) => step.key === "users")?.completed, false);
   assert.equal(state.steps.find((step) => step.key === "first_estimate")?.completed, false);
   assert.equal(state.steps.find((step) => step.key === "first_job")?.completed, false);
-  assert.equal(state.nextStep.key, "company_profile");
+  assert.equal(state.nextStep.key, "service_setup");
 });
 
 test("first owner onboarding completes users, estimate, and job steps without counting archived work", () => {
@@ -168,10 +169,13 @@ test("first owner onboarding completes users, estimate, and job steps without co
   });
 
   assert.equal(state.steps.find((step) => step.key === "company_profile")?.completed, true);
+  assert.equal(state.steps.find((step) => step.key === "service_setup")?.completed, true);
   assert.equal(state.steps.find((step) => step.key === "users")?.completed, true);
   assert.equal(state.steps.find((step) => step.key === "first_estimate")?.completed, true);
   assert.equal(state.steps.find((step) => step.key === "first_job")?.completed, true);
   assert.equal(state.coreComplete, true);
+  assert.equal(state.complete, false);
+  assert.equal(state.nextStep.key, "managed_setup");
   assert.ok(state.completedCount >= 4);
 });
 
@@ -191,4 +195,22 @@ test("first owner onboarding ignores unknown active roles for team user readines
   });
 
   assert.equal(state.steps.find((step) => step.key === "users")?.completed, false);
+});
+
+test("first owner onboarding accepts managed service notes before a service area is saved", () => {
+  const state = deriveFirstOwnerOnboardingState({
+    companySettings: {
+      companyName: "ABC Builders",
+      businessEmail: "owner@abc.test",
+      businessPhone: "503-555-0199",
+      managedSetupChecklist: [
+        { key: "services_offered", completed: true },
+      ],
+    },
+    users: [{ role: "Owner", status: "active" }],
+  });
+
+  assert.equal(state.steps.find((step) => step.key === "company_profile")?.completed, true);
+  assert.equal(state.steps.find((step) => step.key === "service_setup")?.completed, true);
+  assert.equal(state.nextStep.key, "users");
 });

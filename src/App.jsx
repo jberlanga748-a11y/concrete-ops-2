@@ -14596,8 +14596,10 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
           ) : null}
         </div>
       </div>
-      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
-        {steps.map((step) => (
+      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-6">
+        {steps.map((step) => {
+          const isNextStep = nextStep?.key === step.key && !step.completed;
+          return (
           <button
             key={step.key}
             type="button"
@@ -14610,11 +14612,12 @@ function FirstOwnerOnboardingCard({ onboarding, onOpen }) {
           >
             <span className="mb-2 flex items-center justify-between gap-2">
               <span className="text-sm font-black text-slate-950">{step.label}</span>
-              <Badge tone={step.completed ? "green" : "amber"}>{step.completed ? "Done" : "Next"}</Badge>
+              <Badge tone={step.completed ? "green" : isNextStep ? "amber" : "slate"}>{step.completed ? "Done" : isNextStep ? "Next" : "To do"}</Badge>
             </span>
             <span className="block text-xs font-bold leading-5 text-slate-600">{step.description}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
@@ -15409,7 +15412,7 @@ function DashboardPagePolished({
     jobs,
   }), [companySettings, estimates, jobs, leadSources, users]);
   const firstOwnerOnboarding = firstOwnerOnboardingFromServer || derivedFirstOwnerOnboarding;
-  const showFirstOwnerOnboarding = Boolean(permissions?.settings?.canView && !firstOwnerOnboarding.coreComplete);
+  const showFirstOwnerOnboarding = Boolean(permissions?.settings?.canView && !firstOwnerOnboarding.complete);
 
   function focusDashboardRef(ref) {
     ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });

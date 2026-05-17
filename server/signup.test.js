@@ -196,7 +196,8 @@ test("public signup creates a company, first owner, default settings, and scoped
     assert.deepEqual(payload.customers, []);
     assert.deepEqual(payload.jobs, []);
     assert.equal(payload.firstOwnerOnboarding.coreComplete, false);
-    assert.equal(payload.firstOwnerOnboarding.nextStep.key, "company_profile");
+    assert.equal(payload.firstOwnerOnboarding.nextStep.key, "service_setup");
+    assert.equal(payload.firstOwnerOnboarding.steps.some((step) => step.key === "service_setup" && step.completed === false), true);
     assert.equal(payload.firstOwnerOnboarding.steps.some((step) => step.key === "users" && step.completed === false), true);
     assert.equal(payload.firstOwnerOnboarding.steps.some((step) => step.key === "first_estimate" && step.completed === false), true);
 
@@ -220,7 +221,7 @@ test("public signup creates a company, first owner, default settings, and scoped
     assert.equal(bootstrap.companyPackage.id, "basic");
     assert.equal(bootstrap.permissions.companies.canSwitch, false);
     assert.deepEqual(bootstrap.leads, []);
-    assert.equal(bootstrap.firstOwnerOnboarding.nextStep.key, "company_profile");
+    assert.equal(bootstrap.firstOwnerOnboarding.nextStep.key, "service_setup");
 
     const normalizedLogin = await login(fixture.baseUrl, {
       email: " OWNER@ABCBUILDER.TEST ",
