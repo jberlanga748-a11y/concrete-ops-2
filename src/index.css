@@ -34104,3 +34104,138 @@ textarea {
     padding: 0.78rem !important;
   }
 }
+
+.co-employees-page {
+  --co-employees-rail-line: rgba(148, 163, 184, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .co-employees-page .co-page-header {
+    margin-bottom: 0.72rem !important;
+    padding-top: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-employees-command-deck {
+    grid-template-columns: minmax(0, 1fr) minmax(21rem, 23rem) !important;
+    gap: 0.72rem !important;
+  }
+
+  .co-employees-hero-card,
+  .co-employees-priority-card,
+  .co-employees-main-board {
+    border-radius: 0.78rem !important;
+  }
+
+  .co-employees-hero-card {
+    min-height: 0 !important;
+    padding: 0.82rem !important;
+  }
+
+  .co-employees-summary-grid {
+    gap: 0.44rem !important;
+    margin-top: 0.62rem !important;
+  }
+
+  .co-employees-summary-grid button {
+    min-height: 3.9rem;
+    padding: 0.48rem !important;
+  }
+
+  .co-employees-priority-card {
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.16), transparent 13rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%) !important;
+    border-color: var(--co-employees-rail-line) !important;
+    box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9) !important;
+  }
+
+  .co-employees-priority-card .co-section-accent h2 {
+    color: #07111f !important;
+  }
+
+  .co-employees-priority-card .co-section-accent p {
+    color: #64748b !important;
+  }
+
+  .co-employees-priority-list button {
+    border-color: rgba(148, 163, 184, 0.18) !important;
+    background: rgba(255, 255, 255, 0.955) !important;
+    min-height: 5.45rem !important;
+  }
+
+  .co-employees-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21rem, 23rem) !important;
+    gap: 0.72rem !important;
+  }
+
+  .co-employees-command-assistant {
+    max-height: none !important;
+    overflow: visible !important;
+    border-radius: 0.55rem !important;
+    padding: 0.62rem !important;
+  }
+
+  .co-employees-command-assistant > .co-employees-rail-card,
+  .co-employees-command-assistant > .co-employees-assistant-card {
+    background: rgba(15, 23, 42, 0.78) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-employees-priority-card,
+  .co-employees-advanced-filters {
+    display: block !important;
+  }
+
+  .co-employees-priority-card {
+    margin-top: 0 !important;
+  }
+
+  .co-employees-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.62rem !important;
+  }
+
+  .co-employees-summary-grid button,
+  .co-employees-access-tabs button,
+  .co-employees-mobile-card-action,
+  .co-employees-mobile-list-toggle,
+  .co-employees-tools-drawer > summary,
+  .co-employees-tool-tabs button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-employees-mobile-list {
+    gap: 0.72rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-employees-mobile-card {
+    border-radius: 0.9rem !important;
+    padding: 0.78rem !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .co-employees-list-scroll {
+    display: none !important;
+  }
+
+  .co-employees-mobile-list {
+    display: grid !important;
+    gap: 0.72rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-employees-mobile-card {
+    border-radius: 0.9rem !important;
+  }
+
+  .co-employees-mobile-card-action,
+  .co-employees-mobile-list-toggle,
+  .co-employees-access-tabs button,
+  .co-employees-advanced-filters > summary {
+    min-height: 2.75rem !important;
+  }
+}
