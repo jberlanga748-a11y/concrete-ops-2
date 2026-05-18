@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `649c8e6 Polish command KPI card height`.
-- Fly release `v528` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `603e06b Polish dashboard today work row fit`.
+- Fly release `v529` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -32,6 +32,7 @@ Usable now:
 - Basic/Premium/Elite package entitlement foundation.
 - Owner/admin Operations Command.
 - Dashboard cockpit status badge clipping polish for dense owner/admin command rows with field-role redirects preserved.
+- Dashboard Today Work Coordination row fit polish for unclipped desktop job/proof/action rows.
 - Premium Finished SaaS Polish Phase 1 Operations Command visual system: dark premium app top bar, Operations Command label, reference-style metric strip, tighter cockpit/cards, and field-role denial preserved.
 - Premium Finished SaaS Polish Phase 2 Field Mode mobile visual system: dark Field Mode header, dark/orange operator hero, compact required-item rows, tighter action tiles, and field-role denial preserved.
 - Premium Finished SaaS Polish Phase 3 Estimate Studio visual system: Estimate Studio label, dark premium header, selected-total spotlight, tighter estimate rail, darker tools drawer, denser mobile estimate cards, and field-role denial preserved.
