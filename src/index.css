@@ -33999,3 +33999,108 @@ textarea {
     border-radius: 0.84rem !important;
   }
 }
+
+.co-customers-page {
+  --co-customers-rail-line: rgba(148, 163, 184, 0.2);
+  --co-customers-rail-panel: rgba(255, 255, 255, 0.965);
+}
+
+@media (min-width: 1024px) {
+  .co-customers-page .co-page-header {
+    margin-bottom: 0.72rem !important;
+    padding-top: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi {
+    min-height: 5.05rem !important;
+  }
+
+  .co-customers-pulse-card {
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-customers-pulse-inner {
+    border-radius: 0.72rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-customers-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21rem, 23rem) !important;
+    gap: 0.72rem !important;
+  }
+
+  .co-customers-main-board {
+    border-radius: 0.78rem !important;
+  }
+
+  .co-customers-right-rail {
+    max-height: none !important;
+    overflow: visible !important;
+    border: 1px solid var(--co-customers-rail-line);
+    border-radius: 0.55rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.16), transparent 13rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    padding: 0.62rem !important;
+    box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9);
+  }
+
+  .co-customers-rail-card,
+  .co-customers-rail-details,
+  .co-customers-tools-drawer > summary {
+    border-color: rgba(203, 213, 225, 0.88) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-customers-rail-panel) !important;
+    background-color: var(--co-customers-rail-panel) !important;
+    box-shadow: none !important;
+  }
+
+  .co-customers-right-rail .co-card,
+  .co-customers-right-rail .co-state-card,
+  .co-customers-right-rail .co-office-list-card {
+    box-shadow: none !important;
+  }
+
+  .co-customers-rail-card button,
+  .co-customers-related-row,
+  .co-customers-rail-details > summary {
+    min-height: 2.36rem !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-customers-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
+    overflow: visible !important;
+    padding-inline: 1rem !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-customers-kpi-grid .co-command-kpi {
+    flex: initial !important;
+    min-width: 0 !important;
+    min-height: 5.7rem !important;
+    padding: 0.66rem !important;
+  }
+
+  .co-customers-pulse-actions button,
+  .co-customers-tools-drawer > summary,
+  .co-customers-rail-card button,
+  .co-customers-related-row,
+  .co-customers-rail-details > summary {
+    min-height: 2.75rem !important;
+  }
+
+  .co-customers-mobile-list {
+    gap: 0.72rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-customers-mobile-card {
+    border-radius: 0.9rem !important;
+    padding: 0.78rem !important;
+  }
+}
