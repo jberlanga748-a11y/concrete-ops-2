@@ -32732,7 +32732,7 @@ function DeliveryTicketsFieldOperatorPanel({
               {hasTicket
                 ? `${ticket.job?.title || "Assigned job"} / ${ticket.supplier || "Supplier pending"} / ${deliveryTicketYardsLabel(ticket)}`
                 : canCreate
-                  ? `Record truck, ticket, supplier, and delivered yards for ${currentJobLabel || "an assigned job"} without exposing pricing or billing.`
+                  ? `Record truck, ticket, supplier, and delivered yards for ${currentJobLabel || "an assigned job"} with job-safe delivery context.`
                   : "Review assigned ticket records and linked evidence without office-only controls."}
             </p>
             <div className="co-field-operator-address">
@@ -32874,7 +32874,7 @@ function DeliveryTicketCreatePanelPolished({
   return (
     <Card className="co-delivery-form-card co-delivery-create-card overflow-hidden">
       <div className="co-delivery-create-header border-b border-slate-200 bg-white p-4">
-        <SectionHeader title="New Delivery Ticket" description="Record truck, ticket, mix, and linked evidence without adding pricing or billing data." />
+        <SectionHeader title="New Delivery Ticket" description="Record truck, ticket, mix, and linked evidence for office closeout." />
       </div>
       <div className="co-delivery-create-shell p-4">
         <div className="co-delivery-create-target">
