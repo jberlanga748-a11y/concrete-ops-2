@@ -19761,11 +19761,19 @@ function JobsPagePolished({
   const visibleJobRowCap = 8;
   const mobileJobPreviewCap = 3;
   const mobileVisibleJobRowCap = showAllMobileJobs ? visibleJobRowCap : mobileJobPreviewCap;
+  const startupReviewCount = visibleRows.filter(jobStartupNeedsReview).length;
+  const missingCrewCount = visibleRows.filter(jobMissingCrew).length;
+  const missingStartCount = visibleRows.filter(jobMissingStart).length;
+  const activeFieldCount = visibleRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length;
+  const canManageJobReadiness = Boolean(permissions?.jobs?.canManageAll);
+  const canManageJobAssignments = Boolean(permissions?.jobs?.canManageAssignments);
+  const crewActionLabel = canManageJobAssignments ? "Assign crew" : "Review crew";
+  const startActionLabel = canManageJobReadiness ? "Set start" : "Review dates";
   const jobKpis = [
     { label: "Jobs", value: visibleRows.length, helper: "Matching current filters", icon: "briefcase", tone: "blue", actionLabel: "View jobs", onAction: () => setFilter("All") },
-    { label: "Startup Review", value: visibleRows.filter(jobStartupNeedsReview).length, helper: "Needs office or field prep", icon: "alert", tone: "orange", actionLabel: "Review startup", onAction: () => setStartupFilter("Needs Review") },
-    { label: "Missing Crew", value: visibleRows.filter(jobMissingCrew).length, helper: "No foreman or lead assigned", icon: "users", tone: "amber", actionLabel: "Assign crew", onAction: () => setForemanFilter("All foremen") },
-    { label: "Missing Start", value: visibleRows.filter(jobMissingStart).length, helper: "Date not set", icon: "clock", tone: "red", actionLabel: "View unscheduled", onAction: () => setDateFilter("Unscheduled") },
+    { label: "Startup Review", value: startupReviewCount, helper: "Needs office or field prep", icon: "alert", tone: "orange", actionLabel: "Review startup", onAction: () => setStartupFilter("Needs Review") },
+    { label: "Missing Crew", value: missingCrewCount, helper: "No foreman or lead assigned", icon: "users", tone: "amber", actionLabel: crewActionLabel, onAction: () => setForemanFilter("All foremen") },
+    { label: "Missing Start", value: missingStartCount, helper: "Date not set", icon: "clock", tone: "red", actionLabel: "View unscheduled", onAction: () => setDateFilter("Unscheduled") },
     { label: "Ready to Bill", value: readyToBillRows.length, helper: "Manual closeout review", icon: "document", tone: "green", actionLabel: "Open queue", onAction: () => setFilter("Billing Ready") },
   ];
   const jobToolTabs = [
@@ -19781,6 +19789,16 @@ function JobsPagePolished({
     window.setTimeout(() => jobToolsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
   }
 
+  function openMatchingJob(matchJob, toolId = "details") {
+    const target = visibleRows.find(matchJob) || liveJobRows.find(matchJob);
+    if (target?.id) {
+      onSelectJob(target.id);
+      openJobTool(toolId);
+      return;
+    }
+    jumpToJobSection("jobs-operations-board");
+  }
+
   function jumpToJobSection(sectionId) {
     if (typeof document === "undefined") return;
     requestAnimationFrame(() => {
@@ -19791,6 +19809,69 @@ function JobsPagePolished({
   function focusNewJob() {
     openJobTool("create");
   }
+
+  const jobsCommandItems = [
+    {
+      label: "Startup review",
+      value: startupReviewCount,
+      helper: startupReviewCount ? "Jobs need office or field prep review" : "Startup queue is clear",
+      tone: startupReviewCount ? "orange" : "green",
+      action: startupReviewCount ? "Review startup" : "Clear",
+      onClick: () => startupReviewCount ? openMatchingJob(jobStartupNeedsReview, canManageJobReadiness ? "startup" : "details") : jumpToJobSection("jobs-operations-board"),
+    },
+    {
+      label: "Missing crew",
+      value: missingCrewCount,
+      helper: missingCrewCount ? "Foreman or lead assignment needed" : "Crew assignment looks ready",
+      tone: missingCrewCount ? "amber" : "green",
+      action: missingCrewCount ? crewActionLabel : "Clear",
+      onClick: () => missingCrewCount ? openMatchingJob(jobMissingCrew, canManageJobAssignments ? "crew" : "details") : jumpToJobSection("jobs-operations-board"),
+    },
+    {
+      label: "Missing start",
+      value: missingStartCount,
+      helper: missingStartCount ? "Jobs need a scheduled start" : "Scheduled starts are set",
+      tone: missingStartCount ? "amber" : "green",
+      action: missingStartCount ? startActionLabel : "Clear",
+      onClick: () => {
+        if (missingStartCount) {
+          setDateFilter("Unscheduled");
+          openMatchingJob(jobMissingStart, "details");
+          return;
+        }
+        jumpToJobSection("jobs-operations-board");
+      },
+    },
+    {
+      label: "Active field work",
+      value: activeFieldCount,
+      helper: activeFieldCount ? "Jobs currently moving in field" : "No in-progress jobs in view",
+      tone: activeFieldCount ? "green" : "slate",
+      action: activeFieldCount ? "View active" : "View board",
+      onClick: () => {
+        if (activeFieldCount) setFilter("In Progress");
+        jumpToJobSection("jobs-operations-board");
+      },
+    },
+  ];
+  const jobsNextAction = missingCrewCount
+    ? `${canManageJobAssignments ? "Assign" : "Review"} crew before release`
+    : missingStartCount
+      ? `${canManageJobReadiness ? "Set" : "Review"} missing job start dates`
+      : startupReviewCount
+        ? "Review startup readiness"
+        : activeFieldCount
+          ? "Check active field work"
+          : "Jobs board is clear";
+  const jobsNextDetail = missingCrewCount
+    ? `${missingCrewCount} job${missingCrewCount === 1 ? "" : "s"} need foreman or lead assignment.`
+    : missingStartCount
+      ? `${missingStartCount} job${missingStartCount === 1 ? "" : "s"} need scheduled starts before the field handoff.`
+      : startupReviewCount
+        ? `${startupReviewCount} job${startupReviewCount === 1 ? "" : "s"} need startup review.`
+        : activeFieldCount
+          ? `${activeFieldCount} job${activeFieldCount === 1 ? " is" : "s are"} in progress.`
+          : "No urgent job setup blockers in the current view.";
 
   return (
     <div className="co-office-page co-jobs-page" data-money-view={isReadyToBillView ? "true" : undefined}>
@@ -19807,6 +19888,88 @@ function JobsPagePolished({
           </div>
         }
       />
+      {!isReadyToBillView ? (
+        <div className="co-jobs-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+          <Card className="co-jobs-ops-card overflow-hidden">
+            <div className="co-jobs-ops-shell">
+              <div className="co-jobs-ops-main">
+                <div className="co-jobs-ops-header">
+                  <div className="min-w-0">
+                    <p className="co-jobs-ops-eyebrow">Job command</p>
+                    <h2>Schedule, crew, startup, and field readiness in one pass</h2>
+                    <p>Use this command view to see what keeps a job from being ready for tomorrow&apos;s field handoff.</p>
+                  </div>
+                  <div className="co-jobs-ops-actions">
+                    <Button type="button" variant="secondary" onClick={() => jumpToJobSection("jobs-operations-board")}>Open board</Button>
+                    <Button type="button" variant="secondary" onClick={() => setFilter("In Progress")}>Active field</Button>
+                    {permissions.jobs.canCreate ? <Button type="button" onClick={focusNewJob}>Create job</Button> : null}
+                  </div>
+                </div>
+                <div className="co-jobs-ops-metrics">
+                  <button type="button" className="co-focus-ring" onClick={() => setFilter("All")} data-tone="orange">
+                    <span>Visible jobs</span>
+                    <strong>{visibleRows.length}</strong>
+                    <em>Current operations board</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" onClick={() => startupReviewCount ? openMatchingJob(jobStartupNeedsReview, "startup") : jumpToJobSection("jobs-operations-board")} data-tone={startupReviewCount ? "orange" : "green"}>
+                    <span>Startup review</span>
+                    <strong>{startupReviewCount}</strong>
+                    <em>Needs office or field prep</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" onClick={() => missingCrewCount ? openMatchingJob(jobMissingCrew, "crew") : jumpToJobSection("jobs-operations-board")} data-tone={missingCrewCount ? "amber" : "green"}>
+                    <span>Missing crew</span>
+                    <strong>{missingCrewCount}</strong>
+                    <em>Foreman or lead assignment</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" onClick={() => { if (activeFieldCount) setFilter("In Progress"); jumpToJobSection("jobs-operations-board"); }} data-tone={activeFieldCount ? "green" : "slate"}>
+                    <span>Active field</span>
+                    <strong>{activeFieldCount}</strong>
+                    <em>In-progress job count</em>
+                  </button>
+                </div>
+                <div className="co-jobs-ops-queues">
+                  {jobsCommandItems.slice(0, 3).map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <aside className="co-jobs-ops-rail" aria-label="Jobs readiness assistant">
+                <div className="co-jobs-ops-rail-head">
+                  <span><Icon name="briefcase" /></span>
+                  <div className="min-w-0">
+                    <strong>Job Assistant</strong>
+                    <p>Manual readiness review</p>
+                  </div>
+                </div>
+                <div className="co-jobs-ops-rail-priority">
+                  <span>Next best action</span>
+                  <strong>{jobsNextAction}</strong>
+                  <p>{jobsNextDetail}</p>
+                </div>
+                <div className="co-jobs-ops-rail-list">
+                  {jobsCommandItems.map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+                <div className="co-jobs-ops-rail-actions">
+                  {permissions.jobs.canCreate ? <button type="button" className="co-focus-ring" onClick={focusNewJob}><Icon name="plus" />Create job</button> : null}
+                  <button type="button" className="co-focus-ring" onClick={() => jumpToJobSection("jobs-operations-board")}><Icon name="check" />Review board</button>
+                </div>
+              </aside>
+            </div>
+          </Card>
+        </div>
+      ) : null}
       <div className="co-jobs-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {jobKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
