@@ -35756,17 +35756,17 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
         </div>
 
         <aside className="co-support-rail grid h-fit gap-4">
-          <Card className="p-4">
+          <div className="co-support-rail-card p-4">
             <SectionHeader title="Quick help" description="Common support info to capture before a call or message." />
             <div className="grid gap-2 text-sm leading-6 text-slate-700">
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Company</strong><br />{companyName || "Apex HQ Workspace"}</div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Role</strong><br />{user?.role || "Unknown"}</div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Current page</strong><br />{typeof window !== "undefined" ? window.location.pathname : "/support"}</div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3"><strong>Priority</strong><br />Blocker, workaround, and expected result matter most.</div>
+              <div className="co-support-context-tile"><strong>Company</strong><br />{companyName || "Apex HQ Workspace"}</div>
+              <div className="co-support-context-tile"><strong>Role</strong><br />{user?.role || "Unknown"}</div>
+              <div className="co-support-context-tile"><strong>Current page</strong><br />{typeof window !== "undefined" ? window.location.pathname : "/support"}</div>
+              <div className="co-support-context-tile"><strong>Priority</strong><br />Blocker, workaround, and expected result matter most.</div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="p-4">
+          <div className="co-support-rail-card p-4">
             <SectionHeader title="Open workspace" description="Jump back to the screen involved in the issue." />
             <div className="grid gap-2">
               {quickActions.map((action) => (
@@ -35779,9 +35779,9 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
                 </button>
               ))}
             </div>
-          </Card>
+          </div>
 
-          <Card className="p-4">
+          <div className="co-support-rail-card p-4">
             <SectionHeader title="Support rules" description="What Apex HQ will not do from this page." />
             <div className="grid gap-2">
               <div className="co-ai-boundary-row" data-state="manual"><span>Sending</span><strong>Manual only</strong></div>
@@ -35790,13 +35790,13 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
               <div className="co-ai-boundary-row" data-state="manual"><span>Feedback</span><strong>Internal only</strong></div>
               <div className="co-ai-boundary-row" data-state="manual"><span>Custom builds</span><strong>Not promised</strong></div>
             </div>
-          </Card>
+          </div>
 
           {isOfficeUser ? (
-            <Card className="p-4">
+            <div className="co-support-rail-card p-4">
               <SectionHeader title="Owner tools" description="Office roles can open setup and health tools when included." />
               <Button type="button" size="sm" variant="secondary" onClick={() => setActive?.("settings")}>Open Settings</Button>
-            </Card>
+            </div>
           ) : null}
         </aside>
       </div>
