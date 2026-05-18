@@ -47,6 +47,7 @@ Usable now:
 - Delivery Tickets Support Handoff Phase 1 copy-only support context with field-safe ticket scope preserved.
 - Pre-Pour Support Handoff Phase 1 copy-only support context with field-safe checklist scope preserved.
 - Post-Pour Support Handoff Phase 1 copy-only support context with field-safe checklist scope preserved.
+- Safety / Incidents Support Handoff Phase 1 role-scoped copy-only support context with field-safe incident scope preserved.
 - Delivery tickets, change orders, pre-pour, post-pour.
 - Safety, incidents, PPE, toolbox, tool checklist.
 - Notifications/reminders.

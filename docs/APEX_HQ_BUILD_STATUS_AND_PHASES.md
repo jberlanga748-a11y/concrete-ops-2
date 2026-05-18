@@ -162,6 +162,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Delivery tickets | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Pre-Pour Support Handoff Phase 1 | Built and released | Pre-Pour can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible checklist counts, selected checklist status, owner/date references, item readiness counts, filter state, and completed/open/reopened review gaps without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation. Field Pre-Pour rows remain scoped to assigned/visible jobs, and Support access is not created where the role/package does not already have it. |
 | Post-Pour Support Handoff Phase 1 | Built and released | Post-Pour can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible checklist counts, selected checklist status, owner/date references, closeout item counts, filter state, and completed/open/reopened closeout review gaps without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation. Field Post-Pour rows remain scoped to assigned/visible jobs, and Support access is not created where the role/package does not already have it. |
+| Safety / Incidents Support Handoff Phase 1 | Built and verified | Safety / Incidents can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible incident counts, selected incident context, current filters, high/open/reviewed/resolved counts, missing immediate-action status, and manual review queue without exposing pricing, margins, payroll, office-only job notes, hidden users, unrelated jobs, customer notifications, automation, billing, checkout, invoices, or package controls. Field incident rows remain scoped to assigned/submitted visible incidents. |
 | Pre-pour/post-pour | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
@@ -232,6 +233,7 @@ Recent focused verification:
 - Premium Finished SaaS Polish Phase 3 release checks: focused estimate/design/navigation tests, `npm.cmd run verify:roles`, `npm.cmd run verify:estimates`, `npm.cmd run build`, Playwright browser QA for admin desktop/mobile `/estimates` plus foreman/employee direct `/estimates` denial with no estimate/pricing copy, no horizontal overflow, no console errors, no failed requests, dark Estimate Studio header, and dark selected-total spotlight; `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v506` with image `registry.fly.io/concrete-ops-2:deployment-01KRWEK79KNPT6R3VD2ZM8H8W7`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Premium Finished SaaS final visual system sync release checks: final-polish brief was copied into `docs/apex-hq-final-polish-visual-brief.md`, reread against the current app pass, verified, committed, pushed, released as Fly `v507` with image `registry.fly.io/concrete-ops-2:deployment-01KRWGZ0VMSTM14GBKRMN0KY5C`, and both live ready endpoints returned `200`, ready, database ok.
 - Premium Finished SaaS Polish Phase 4 release checks: `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:entitlements`, `node --test src\apex-assistant-shell-utils.test.js src\navigation-utils.test.js`, `npm.cmd run build`, Playwright browser QA for desktop/tablet/mobile assistant shell with no assistant overflow, no console/network errors, no mobile bottom-nav overlap, and `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v508` with image `registry.fly.io/concrete-ops-2:deployment-01KRWK4D314QFNF3QZSYKEQ7YR`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Safety / Incidents Support Handoff Phase 1 release-candidate checks: `node --test --test-concurrency=1 src\safety-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:roles`, `npm.cmd run verify:safety`, `npm.cmd run build`, Playwright/MS Edge browser QA for admin desktop Safety-to-Support, employee mobile Safety-to-Support, and employee direct `/settings` denial with no upgrade/billing context, no console errors, no failed requests, plus `git diff --check` passed with only LF-to-CRLF working-copy warnings.
 
 ## Current Loop Prevention Rules
 
@@ -290,14 +292,14 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Safety / Incidents Support Handoff Phase 1 - Next
+### Safety / Incidents Support Handoff Phase 1 - Built / Release Candidate
 
 Why this is current:
 
 - Premium Finished SaaS Polish Phase 4 is now built, verified, released, and health-checked.
-- The remaining support-handoff gap in the current field operations set is Safety / Incidents.
-- Safety issues are high-trust operational records, so support handoff must stay role-scoped, copy-only, and manual.
-- This is a narrow workflow completion pass, not a Support redesign and not a safety system rebuild.
+- The remaining support-handoff gap in the current field operations set was Safety / Incidents.
+- Safety / Incidents Support Handoff Phase 1 is now built and verified as a release candidate.
+- After release, do not restart this phase as missing; choose the next task from the remaining backlog.
 
 Scope:
 

@@ -179,7 +179,7 @@ import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePo
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
-import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
+import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import {
   buildPilotFeedbackPacket,
   buildSupportPacket,
@@ -220,6 +220,7 @@ const DEMO_LOGIN_PRESETS = [
   { role: "Employee", email: "demo.employee@apexhq.app", helper: "Mobile crew view: assigned work, clock, uploads, checklists." },
 ];
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
+const SUPPORT_DRAFT_SESSION_KEY = "apex-hq/support-draft-seed";
 const AUTOSAVE_DELAY_MS = 700;
 const PUBLIC_WEBSITE_PATH = "/founder-pilot";
 const INVITE_ACTIVATION_PATH = "/activate-invite";
@@ -10295,6 +10296,10 @@ function SafetyIncidentsMobileFocusPanel({
 }
 
 function SafetyIncidentsPagePolished({
+  user,
+  companySettings,
+  permissions,
+  setActive,
   canManage,
   canSubmitIncidents,
   canReview,
@@ -10336,6 +10341,7 @@ function SafetyIncidentsPagePolished({
   const highSeverity = visibleIncidents.filter((incident) => ["high", "critical"].includes(String(incident.severity || "").toLowerCase())).length;
   const reviewNeeded = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "open").length;
   const resolvedCount = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "resolved").length;
+  const canOpenSafetySupport = canAccessWorkspaceModule("support", user, companySettings, permissions);
   const incidentKpis = [
     { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "orange" },
     { label: "Open Follow-Up", value: visibleOpen, helper: "Needs safety action", icon: "clock", tone: visibleOpen ? "amber" : "green", actionLabel: "Open", onAction: () => setIncidentStatusFilter("open") },
@@ -10400,6 +10406,37 @@ function SafetyIncidentsPagePolished({
     openTools(options.tool || "detail");
   }
 
+  function openSafetySupport() {
+    const context = buildSafetyIncidentSupportContext({
+      user,
+      permissions,
+      visibleRows: visibleIncidents,
+      selectedIncident,
+      filters: {
+        status: incidentStatusFilter,
+        type: incidentTypeFilter,
+        severity: incidentSeverityFilter,
+        jobId: incidentJobFilter,
+        submittedBy: incidentReporterFilter,
+        archived: incidentArchiveFilter,
+        query: incidentSearch,
+      },
+      visibleJobs: allowedJobs,
+    });
+    if (typeof onOpenSupport === "function") {
+      onOpenSupport(context);
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(SUPPORT_DRAFT_SESSION_KEY, JSON.stringify({ ...context, nonce: Date.now() }));
+      if (typeof setActive === "function") {
+        setActive("support");
+      } else {
+        window.location.assign(getModulePath("support"));
+      }
+    }
+  }
+
   const severeIncident = visibleIncidents.find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()))
     || (allIncidents || []).find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()));
   const openResponsePriorityCard = {
@@ -10455,6 +10492,7 @@ function SafetyIncidentsPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setIncidentArchiveFilter("Active only")}>{visibleIncidents.length} visible</Button>
+            {canOpenSafetySupport ? <Button type="button" variant="secondary" onClick={openSafetySupport}>Support Review</Button> : null}
             {canSubmitIncidents ? <Button type="button" onClick={() => openTools("submit")}>Submit Incident</Button> : null}
           </div>
         }
@@ -11953,7 +11991,9 @@ function PpeChecklistPagePolished({
 
 function SafetyPage({
   active,
+  setActive,
   user,
+  companySettings,
   permissions,
   jobs,
   safetyPolicies,
@@ -11973,6 +12013,7 @@ function SafetyPage({
   onReviewSafetyIncident,
   onResolveSafetyIncident,
   onArchiveSafetyIncident,
+  onOpenSupport,
 }) {
   const incidentFocused = active === "incidents";
   const toolboxFocused = active === "toolbox";
@@ -12147,6 +12188,10 @@ function SafetyPage({
   if (incidentFocused) {
     return (
       <SafetyIncidentsPagePolished
+        user={user}
+        companySettings={companySettings}
+        permissions={permissions}
+        setActive={setActive}
         canManage={canManage}
         canSubmitIncidents={canSubmitIncidents}
         canReview={canReview}
@@ -12178,6 +12223,7 @@ function SafetyPage({
         onReviewSafetyIncident={onReviewSafetyIncident}
         onResolveSafetyIncident={onResolveSafetyIncident}
         onArchiveSafetyIncident={onArchiveSafetyIncident}
+        onOpenSupport={onOpenSupport}
       />
     );
   }
@@ -34014,6 +34060,26 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
     }));
     setCopyMessage("");
   }, [supportDraftSeed?.nonce, supportDraftSeed?.workflow, user]);
+  useEffect(() => {
+    if (supportDraftSeed?.nonce || typeof window === "undefined") return;
+    const rawSeed = window.sessionStorage.getItem(SUPPORT_DRAFT_SESSION_KEY);
+    if (!rawSeed) return;
+    window.sessionStorage.removeItem(SUPPORT_DRAFT_SESSION_KEY);
+    let seed = null;
+    try {
+      seed = JSON.parse(rawSeed);
+    } catch {
+      seed = null;
+    }
+    if (!seed) return;
+    const allowedWorkflows = getSupportWorkflowOptionsForUser(user);
+    setDraft((current) => createSupportDraft({
+      ...current,
+      ...seed,
+      workflow: seed.workflow && allowedWorkflows.includes(seed.workflow) ? seed.workflow : current.workflow,
+    }));
+    setCopyMessage("");
+  }, [supportDraftSeed?.nonce, user]);
   const packetContext = {
     user,
     companyName,
@@ -34547,7 +34613,7 @@ function MainContent(props) {
       );
     }
     if (active === "ppe" || active === "incidents" || active === "toolbox") {
-      return <SafetyPage {...props} />;
+      return <SafetyPage {...props} onOpenSupport={props.onOpenSafetySupport || props.onOpenSupport} />;
     }
   if (active === "toolChecklist") {
     return <ToolChecklistPage {...props} toolChecklists={props.toolChecklists} />;
@@ -37618,6 +37684,7 @@ export default function App() {
                 onSettingsSectionFocused={() => setSettingsFocusSection(null)}
                 supportDraftSeed={supportDraftSeed}
                 onOpenSupport={openSupportWorkflow}
+                onOpenSafetySupport={openSupportWorkflow}
                 currentCompanyId={appState.currentCompanyId}
                 companyName={workspaceCompanyName}
                 companyProfile={workspacePrintProfile}

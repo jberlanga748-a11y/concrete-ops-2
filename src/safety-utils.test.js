@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildSafetyIncidentSupportContext,
   deriveAcknowledgmentState,
   deriveActivePpeItems,
   deriveSafetyIncidentListState,
@@ -60,4 +61,104 @@ test("deriveAcknowledgmentState reports latest acknowledgment for the current us
   assert.equal(state.hasAcknowledged, true);
   assert.equal(state.count, 1);
   assert.equal(state.latest?.id, "A-2");
+});
+
+test("buildSafetyIncidentSupportContext summarizes owner admin incident scope without automation", () => {
+  const context = buildSafetyIncidentSupportContext({
+    user: { name: "Office Admin", role: "Administrator" },
+    permissions: { safety: { canManage: true, canReviewIncidents: true } },
+    visibleRows: [
+      {
+        id: "SI-1",
+        title: "Truck backing spotter view blocked",
+        status: "open",
+        severity: "high",
+        type: "near_miss",
+        submittedByName: "Field Lead",
+        immediateAction: "Stopped backing and reset the truck path.",
+        job: { title: "Westview Warehouse" },
+        updatedAt: "2026-05-18T08:00:00.000Z",
+      },
+      {
+        id: "SI-2",
+        title: "Rebar caps replaced",
+        status: "resolved",
+        severity: "low",
+        type: "concern",
+        submittedByName: "Crew Member",
+        immediateAction: "Caps replaced.",
+        job: { title: "Maple Ridge" },
+      },
+    ],
+    selectedIncident: {
+      id: "SI-1",
+      title: "Truck backing spotter view blocked",
+      status: "open",
+      severity: "high",
+      type: "near_miss",
+      submittedByName: "Field Lead",
+      immediateAction: "Stopped backing and reset the truck path.",
+      job: { title: "Westview Warehouse" },
+      updatedAt: "2026-05-18T08:00:00.000Z",
+    },
+    filters: { status: "open", severity: "high", archived: "Active only", query: "truck" },
+    visibleJobs: [{ id: "J-1" }, { id: "J-2" }],
+  });
+
+  assert.equal(context.workflow, "Safety / tools");
+  assert.equal(context.blockerLevel, "Blocking field work");
+  assert.match(context.followUpNeeded, /Manual safety incident review/);
+  assert.match(context.summary, /Scope: all visible company safety incidents/);
+  assert.match(context.summary, /Visible incidents: 2/);
+  assert.match(context.summary, /high or critical severity: 1/);
+  assert.match(context.summary, /Selected incident: Truck backing spotter view blocked/);
+  assert.match(context.expected, /without exposing pricing, margin, payroll/);
+  assert.match(context.expected, /customer notifications, or automation/);
+  assert.match(context.workaround, /Visible job options: 2 jobs/);
+});
+
+test("buildSafetyIncidentSupportContext keeps field support context limited to visible rows", () => {
+  const context = buildSafetyIncidentSupportContext({
+    user: { name: "Field Employee", role: "Employee", token: "secret-token" },
+    permissions: { safety: { canSubmitIncidents: true, canReviewIncidents: false } },
+    visibleRows: [
+      {
+        id: "SI-VISIBLE",
+        title: "Wet slab edge barricade",
+        status: "open",
+        severity: "medium",
+        type: "hazard",
+        submittedByName: "Field Employee",
+        job: { title: "Sunset Office Slab", customer: "Sunset Office" },
+        payRate: 44,
+        grossPay: 352,
+        margin: 0.38,
+        value: 12000,
+        storagePath: "companies/hidden/photos/private.jpg",
+      },
+    ],
+    selectedIncident: {
+      id: "SI-VISIBLE",
+      title: "Wet slab edge barricade",
+      status: "open",
+      severity: "medium",
+      type: "hazard",
+      submittedByName: "Field Employee",
+      job: { title: "Sunset Office Slab" },
+    },
+    filters: { status: "All", submittedBy: "U-EMPLOYEE" },
+    visibleJobs: [{ id: "J-1" }],
+  });
+
+  assert.match(context.summary, /Scope: assigned or submitted field safety incidents/);
+  assert.match(context.summary, /Visible incidents: 1/);
+  assert.match(context.summary, /Selected incident: Wet slab edge barricade/);
+  assert.equal(context.summary.includes("Other Company"), false);
+  assert.equal(context.summary.includes("secret-token"), false);
+  assert.equal(context.summary.includes("payRate"), false);
+  assert.equal(context.summary.includes("grossPay"), false);
+  assert.equal(context.summary.includes("margin"), false);
+  assert.equal(context.summary.includes("12000"), false);
+  assert.equal(context.summary.includes("storagePath"), false);
+  assert.equal(context.workaround.includes("private.jpg"), false);
 });
