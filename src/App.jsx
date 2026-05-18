@@ -214,10 +214,10 @@ const APEX_BRAND_ASSETS = {
 };
 const DEMO_LOGIN_PASSWORD = "apexdemo123";
 const DEMO_LOGIN_PRESETS = [
-  { role: "Owner / Ops", email: "demo.ops@apexhq.app", helper: "Company walkthrough: dashboard, schedule, jobs, reminders." },
-  { role: "Admin", email: "demo.admin@apexhq.app", helper: "Office setup: leads, estimates, settings, users." },
-  { role: "Foreman", email: "demo.foreman@apexhq.app", helper: "Mobile field lead: today's job, crew, reports, photos." },
-  { role: "Employee", email: "demo.employee@apexhq.app", helper: "Mobile crew view: assigned work, clock, uploads, checklists." },
+  { role: "Owner / Ops", email: "demo.ops@apexhq.app", helper: "Company walkthrough: dashboard, schedule, jobs, reminders.", startsAt: "Start at Command Center" },
+  { role: "Admin", email: "demo.admin@apexhq.app", helper: "Office setup: leads, estimates, settings, users.", startsAt: "Start in office workflows" },
+  { role: "Foreman", email: "demo.foreman@apexhq.app", helper: "Mobile field lead: today's job, crew, reports, photos.", startsAt: "Start in Field Mode" },
+  { role: "Employee", email: "demo.employee@apexhq.app", helper: "Mobile crew view: assigned work, clock, uploads, checklists.", startsAt: "Start with assigned work" },
 ];
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const SUPPORT_DRAFT_SESSION_KEY = "apex-hq/support-draft-seed";
@@ -2422,6 +2422,35 @@ function LoginScreen({
         <section className="co-login-hero" aria-label="Apex HQ login brand">
           <img className="co-login-hero-art" src={APEX_BRAND_ASSETS.loginLogo} alt="" />
           <div className="co-login-hero-shade" aria-hidden="true" />
+          <div className="co-login-hero-copy">
+            <div className="co-login-hero-kicker">
+              <span>Founder-led demo workspace</span>
+              <strong>Guided pilot ready</strong>
+            </div>
+            <h1>Apex HQ demo command</h1>
+            <p>Open the workspace as office leadership or step into field roles to preview the same job day from the crew side.</p>
+            <div className="co-login-hero-metrics" aria-label="Demo workflow preview">
+              <div>
+                <span>Office</span>
+                <strong>Command center, leads, estimates</strong>
+              </div>
+              <div>
+                <span>Field</span>
+                <strong>Jobs, reports, photos, safety</strong>
+              </div>
+              <div>
+                <span>Review</span>
+                <strong>Proof, approvals, ready-to-bill</strong>
+              </div>
+            </div>
+            <div className="co-login-workflow-strip" aria-label="Demo path">
+              <span>Lead</span>
+              <span>Estimate</span>
+              <span>Job</span>
+              <span>Field proof</span>
+              <span>Owner review</span>
+            </div>
+          </div>
         </section>
         <section className="co-login-panel" aria-label={isSetupMode ? "Workspace setup" : "Workspace sign in"}>
           <div className="co-login-panel-head">
@@ -2547,8 +2576,13 @@ function LoginScreen({
 
           {canShowDemoCredentials ? (
             <div className="co-login-demo-card">
-              <p>Demo users</p>
-              <span>Pick the role you want to preview. The button fills the demo login for that workspace.</span>
+              <div className="co-login-demo-card-head">
+                <div>
+                  <p>Demo users</p>
+                  <span>Pick the role you want to preview. The button fills the demo login for that workspace.</span>
+                </div>
+                <Badge tone="orange">No auto-login</Badge>
+              </div>
               <div className="co-login-demo-actions" aria-label="Demo login presets">
                 {DEMO_LOGIN_PRESETS.map((preset) => (
                   <button
@@ -2557,7 +2591,10 @@ function LoginScreen({
                     className="co-login-demo-preset"
                     onClick={() => fillDemoCredentials(preset)}
                   >
-                    <strong>{preset.role}</strong>
+                    <span className="co-login-demo-role-row">
+                      <strong>{preset.role}</strong>
+                      <em>{preset.startsAt}</em>
+                    </span>
                     <span>{preset.email}</span>
                     <small>{preset.helper}</small>
                   </button>
