@@ -24118,6 +24118,10 @@ textarea {
   padding: 0.88rem;
 }
 
+.co-settings-account-panel > .grid > div {
+  min-width: 0;
+}
+
 .co-settings-progress-label {
   display: flex;
   align-items: center;
@@ -24626,6 +24630,7 @@ textarea {
 .co-settings-module-row span {
   display: block;
   margin-top: 0.2rem;
+  overflow-wrap: anywhere;
   color: #64748b;
   font-size: 0.76rem;
   font-style: normal;
