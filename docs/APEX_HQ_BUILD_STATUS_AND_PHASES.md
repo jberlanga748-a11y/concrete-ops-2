@@ -64,6 +64,7 @@ Current state:
 - Targeted Command Center metric helper polish: built, verified, released, and health-checked so the owner/admin Operations Command header metric helper copy wraps inside KPI cards instead of clipping on phone-width layouts while field-role redirects remain intact.
 - Targeted Apex Assistant launcher overlap polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer covers Toolbox/PPE right-rail action buttons while the assistant panel, safety field scope, and office-route redirects remain intact.
 - Targeted Delivery Tickets assistant clearance polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer touches the owner/admin Delivery Tickets right-rail action row while field-role delivery scope remains intact.
+- Visual polish route audit tooling: built, verified, and pushed so the repo has a repeatable local Playwright sweep for desktop, tablet, mobile, console/network, overflow, assistant overlap, clipped content, and field-role exposure checks. This was not deployed because it is local verification tooling only.
 
 ## Latest Released App State
 
@@ -75,9 +76,17 @@ Latest release tracked in this file:
 - Image: `registry.fly.io/concrete-ops-2:deployment-01KRX53FTHRP3B0W2FSZVWN08A`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
+Latest source-control tooling state:
+
+- Commit: `decdcc8`
+- Message: `Harden visual polish route audit`
+- Deployment: not deployed; local verification tooling only.
+- Verification: `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium` checked 78 role/viewport/routes with 0 failures; `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium --roles=admin,employee --viewports=tablet` checked 52 tablet routes with 0 failures; `npm.cmd run verify:roles`, `npm.cmd run build`, `node --check scripts\visual-polish-route-audit.mjs`, and `git diff --check` passed.
+
 Known working tree note:
 
 - Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
+- Post-release tooling commits `56a81f0` and `decdcc8` added and hardened `npm.cmd run audit:visual-polish`; they do not change shipped app runtime behavior.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -465,6 +474,7 @@ Suggested verification:
 - `npm.cmd run build`
 - `git diff --check`
 - Browser QA for the touched route across the relevant desktop/tablet/mobile viewport and role matrix.
+- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally; add `--viewports=tablet --roles=admin,employee` for a tablet-specific sweep.
 
 ## Next Build Phases
 

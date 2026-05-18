@@ -20,6 +20,7 @@ The demo account is available by default in development. In production, demo dat
 - `npm run build` builds the frontend
 - `npm run serve` serves the built app with the Node server
 - `npm run audit:demo-desktop` logs into the demo Fly app and captures desktop screenshots for UI review
+- `npm run audit:visual-polish` logs into the local app and checks route-wide visual polish, overflow, assistant overlap, console/network failures, and field-role exposure
 
 If you open only the static frontend without the Node server, login will not work because authentication depends on the local `/api` backend.
 
@@ -38,6 +39,29 @@ npm run audit:demo-desktop -- --roles=admin --viewports=1440x900
 ```
 
 Screenshots are saved under `ui-audit/demo-desktop/<timestamp>/` and are ignored by git. The script only signs in, navigates, and captures screenshots for the configured routes.
+
+## Visual polish route audit
+
+Use the local Playwright-based route audit when checking Apex HQ against the north-star visual system. Start the local app first, then run:
+
+```bash
+npm run audit:visual-polish
+```
+
+The default sweep checks admin desktop, admin phone, and employee phone across the app route list. For tablet coverage, run:
+
+```bash
+npm run audit:visual-polish -- --viewports=tablet --roles=admin,employee
+```
+
+Useful focused options:
+
+```bash
+npm run audit:visual-polish -- --routes=/,/estimates,/jobs --viewports=desktop,tablet
+npm run audit:visual-polish -- --browser=chromium
+```
+
+Audit manifests and failure screenshots are saved under `ui-audit/visual-polish/<timestamp>/` and are ignored by git. The audit is read-only: it logs in, navigates, checks route health and layout signals, and writes local evidence only.
 
 ## Docker
 

@@ -22,6 +22,7 @@ Current launch stage:
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
 - Latest runtime release tracked: `d0801e3 Polish delivery assistant clearance`.
 - Fly release `v534` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest source-control tooling commit tracked: `decdcc8 Harden visual polish route audit`; this was not deployed because it only changes local verification tooling.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -92,6 +93,7 @@ Usable now:
 - Demo mode and demo reset protections.
 - Backup/export tooling.
 - Health/readiness endpoints.
+- Route-wide visual polish audit tooling for local desktop, tablet, mobile, console/network, overflow, assistant overlap, and field-role exposure checks.
 
 Not ready yet:
 
@@ -423,14 +425,22 @@ Browser/Playwright:
 
 ```powershell
 npm.cmd run audit:demo-desktop
+npm.cmd run audit:visual-polish
 npm.cmd run audit:public-site
 npm.cmd run brief:founder-demo
 npm.cmd run verify:founder-demo
 ```
 
+For tablet-specific final polish checks:
+
+```powershell
+npm.cmd run audit:visual-polish -- --viewports=tablet --roles=admin,employee
+```
+
 For focused browser QA, use Playwright or the Codex in-app browser against the exact route/role under test. Capture:
 
 - desktop screenshot
+- tablet screenshot when estimate, schedule, or workbench behavior is relevant
 - mobile screenshot
 - console errors
 - failed network requests
