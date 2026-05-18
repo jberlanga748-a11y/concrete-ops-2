@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `05a1031 Polish employees priority actions`.
-- Fly release `v531` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `5f31e01 Polish command metric helpers`.
+- Fly release `v532` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -31,6 +31,7 @@ Usable now:
 - Company/workspace foundations.
 - Basic/Premium/Elite package entitlement foundation.
 - Owner/admin Operations Command.
+- Operations Command header metric helper polish for unclipped owner/admin KPI helper copy on phone-width layouts.
 - Dashboard cockpit status badge clipping polish for dense owner/admin command rows with field-role redirects preserved.
 - Dashboard Today Work Coordination row fit polish for unclipped desktop job/proof/action rows.
 - Premium Finished SaaS Polish Phase 1 Operations Command visual system: dark premium app top bar, Operations Command label, reference-style metric strip, tighter cockpit/cards, and field-role denial preserved.
@@ -333,12 +334,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree after runtime release `v531` was clean before the post-release source-of-truth sync.
-- Build status tracker now identifies the Employees priority action polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted north-star visual/workflow polish only when there is a confirmed visible route or demo blocker.
+- Current working tree after runtime release `v532` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the Command metric helper polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted north-star visual/workflow polish only when there is a confirmed visible route or demo blocker.
 
 Assumptions / needs confirmation:
 
-- Production `v531` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v532` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
