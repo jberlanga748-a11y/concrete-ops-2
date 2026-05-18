@@ -26329,7 +26329,7 @@ textarea {
 .co-today-work-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(14rem, 1fr) minmax(24rem, 1.3fr) minmax(14rem, 0.85fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 1.18fr) minmax(11rem, 0.82fr);
   align-items: center;
   gap: 0.58rem;
   border: 1px solid rgba(226, 232, 240, 0.96);
