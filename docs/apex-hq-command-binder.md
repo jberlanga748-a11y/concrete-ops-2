@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `117d040 Polish mobile communication nav label`.
-- Fly release `v525` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `0d7817c Polish tablet mobile nav labels`.
+- Fly release `v526` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -67,6 +67,7 @@ Usable now:
 - Notifications/reminders.
 - Communication Center.
 - Communications mobile bottom-nav label polish for unclipped owner/admin phone navigation with full accessible label preserved.
+- Tablet/mobile bottom-nav label polish for unclipped long owner/admin module labels with full accessible labels preserved.
 - App Health / Owner Health / audit activity foundations.
 - Watchtower / Missing Work Agent Phase 1.
 - Apex Assistant Shell Phase 1.
