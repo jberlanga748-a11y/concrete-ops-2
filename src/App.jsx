@@ -19278,6 +19278,7 @@ function JobsTablePolished({ rows, selectedId, onSelect, maxRows = 8, mobileMaxR
 function JobCommandRailPolished({
   job,
   permissions,
+  billingMode = false,
   disabled,
   saveState,
   onArchive,
@@ -19306,6 +19307,7 @@ function JobCommandRailPolished({
   const missingCrew = jobMissingCrew(job);
   const missingStart = jobMissingStart(job);
   const startupNeedsReview = jobStartupNeedsReview(job);
+  const isBillingReadyJob = normalizeJobStatus(job.status || job.stage) === "billing_ready";
 
   return (
     <div className="co-jobs-right-rail space-y-4">
@@ -19344,6 +19346,13 @@ function JobCommandRailPolished({
           <div><span style={{ width: `${progressValue}%` }} /></div>
           <p>{jobNextStep(job)}</p>
         </div>
+        {billingMode || isBillingReadyJob ? (
+          <div className="co-jobs-money-panel">
+            <span>Ready-to-bill review</span>
+            <strong>{isBillingReadyJob ? "Manual closeout queue" : "Closeout context"}</strong>
+            <p>Confirm reports, photo evidence, delivery tickets, and office notes before finance takes the next step outside Apex HQ. This panel is readiness context only.</p>
+          </div>
+        ) : null}
         <div className="co-jobs-release-pills">
           <span data-state={missingCrew ? "needs" : "ready"}>Crew <strong>{missingCrew ? "Needs" : "OK"}</strong></span>
           <span data-state={missingStart ? "needs" : "ready"}>Start <strong>{missingStart ? "Needs" : "OK"}</strong></span>
@@ -19550,6 +19559,28 @@ function JobsPagePolished({
     date: dateFilter,
   }, users), [customerFilter, dateFilter, filter, foremanFilter, rows, search, users]);
   const visibleRows = jobListState.filteredJobs.filter((job) => startupFilter === "All startup" || (job.startupStatus || "Not Started") === startupFilter);
+  const isReadyToBillView = filter === "Billing Ready";
+  const liveJobRows = normalizeObjectArray(rows).filter((job) => !job.archivedAt);
+  const readyToBillRows = liveJobRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "billing_ready");
+  const visibleJobIds = new Set(visibleRows.map((job) => job.id).filter(Boolean));
+  const visibleReports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt && visibleJobIds.has(dailyReportRecordJobId(report)));
+  const visibleUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt && visibleJobIds.has(dailyReportRecordJobId(upload)));
+  const visibleTickets = normalizeObjectArray(deliveryTickets).filter((ticket) => !ticket.archivedAt && visibleJobIds.has(dailyReportRecordJobId(ticket)));
+  const visibleReportJobIds = new Set(visibleReports.map(dailyReportRecordJobId).filter(Boolean));
+  const visibleUploadJobIds = new Set(visibleUploads.map(dailyReportRecordJobId).filter(Boolean));
+  const visibleTicketJobIds = new Set(visibleTickets.map(dailyReportRecordJobId).filter(Boolean));
+  const visibleProofBlockers = visibleRows.filter((job) => (
+    !visibleReportJobIds.has(job.id)
+    || !visibleUploadJobIds.has(job.id)
+    || !visibleTicketJobIds.has(job.id)
+  ));
+  const readyToBillSummaryCards = [
+    { label: "Ready jobs", value: visibleRows.length, helper: "Filtered manual closeout queue", icon: "briefcase", tone: "green" },
+    { label: "Daily reports", value: visibleReports.length, helper: `${visibleReportJobIds.size} job${visibleReportJobIds.size === 1 ? "" : "s"} with report evidence`, icon: "document", tone: visibleReports.length ? "blue" : "amber" },
+    { label: "Photo evidence", value: visibleUploads.length, helper: `${visibleUploadJobIds.size} job${visibleUploadJobIds.size === 1 ? "" : "s"} with uploaded proof`, icon: "upload", tone: visibleUploads.length ? "green" : "amber" },
+    { label: "Delivery tickets", value: visibleTickets.length, helper: `${visibleTicketJobIds.size} job${visibleTicketJobIds.size === 1 ? "" : "s"} with ticket records`, icon: "clipboard", tone: visibleTickets.length ? "blue" : "amber" },
+    { label: "Proof blockers", value: visibleProofBlockers.length, helper: visibleProofBlockers.length ? "Missing at least one closeout record" : "No proof gaps in this filtered view", icon: visibleProofBlockers.length ? "alert" : "check", tone: visibleProofBlockers.length ? "orange" : "green" },
+  ];
   const visibleJobRowCap = 8;
   const mobileJobPreviewCap = 3;
   const mobileVisibleJobRowCap = showAllMobileJobs ? visibleJobRowCap : mobileJobPreviewCap;
@@ -19558,7 +19589,7 @@ function JobsPagePolished({
     { label: "Startup Review", value: visibleRows.filter(jobStartupNeedsReview).length, helper: "Needs office or field prep", icon: "alert", tone: "orange", actionLabel: "Review startup", onAction: () => setStartupFilter("Needs Review") },
     { label: "Missing Crew", value: visibleRows.filter(jobMissingCrew).length, helper: "No foreman or lead assigned", icon: "users", tone: "amber", actionLabel: "Assign crew", onAction: () => setForemanFilter("All foremen") },
     { label: "Missing Start", value: visibleRows.filter(jobMissingStart).length, helper: "Date not set", icon: "clock", tone: "red", actionLabel: "View unscheduled", onAction: () => setDateFilter("Unscheduled") },
-    { label: "In Progress", value: visibleRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length, helper: "Active field work", icon: "clock", tone: "green", actionLabel: "View active", onAction: () => setFilter("In Progress") },
+    { label: "Ready to Bill", value: readyToBillRows.length, helper: "Manual closeout review", icon: "document", tone: "green", actionLabel: "Open queue", onAction: () => setFilter("Billing Ready") },
   ];
   const jobToolTabs = [
     { id: "create", label: "Create Job", count: permissions.jobs.canCreate ? 1 : 0 },
@@ -19585,11 +19616,13 @@ function JobsPagePolished({
   }
 
   return (
-    <div className="co-office-page co-jobs-page">
+    <div className="co-office-page co-jobs-page" data-money-view={isReadyToBillView ? "true" : undefined}>
       <PageHeader
         eyebrow={pageEyebrow}
         title={pageTitle}
-        description={`Manage active jobs, startup readiness, crews, schedules, and field visibility from one ${roleLabel} command view.`}
+        description={isReadyToBillView
+          ? "Review billing-ready jobs, proof records, delivery tickets, and closeout blockers before any external billing step."
+          : `Manage active jobs, startup readiness, crews, schedules, and field visibility from one ${roleLabel} command view.`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => jumpToJobSection("jobs-operations-board")}>{visibleRows.length} visible jobs</Button>
@@ -19601,18 +19634,37 @@ function JobsPagePolished({
         {jobKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
+      {isReadyToBillView ? (
+        <div className="co-jobs-money-strip mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
+          {readyToBillSummaryCards.map((card) => (
+            <div key={card.label} className="co-jobs-money-card" data-tone={card.tone}>
+              <span className="co-jobs-money-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <strong>{card.value}</strong>
+                <span>{card.label}</span>
+                <p>{card.helper}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="co-jobs-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-jobs-left-stack min-w-0 space-y-3">
           <Card id="jobs-operations-board" className="co-jobs-main-board overflow-hidden">
             <div className="co-jobs-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Job Operations Board</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter jobs, select a record, and keep schedule, crew, and startup readiness in the right rail.</p>
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">{isReadyToBillView ? "Ready To Bill Queue" : "Job Operations Board"}</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                    {isReadyToBillView
+                      ? "Use this as a manual closeout queue only. Apex HQ keeps money readiness internal, support-led, and separate from finance systems."
+                      : "Filter jobs, select a record, and keep schedule, crew, and startup readiness in the right rail."}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All jobs</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setStartupFilter("Needs Review")}>Startup review</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => isReadyToBillView ? setActive("reports") : setStartupFilter("Needs Review")}>{isReadyToBillView ? "Open reports" : "Startup review"}</Button>
                   {permissions.jobs.canCreate ? <Button type="button" size="sm" onClick={focusNewJob}>Create Job</Button> : null}
                 </div>
               </div>
@@ -19673,6 +19725,7 @@ function JobsPagePolished({
         <JobCommandRailPolished
           job={selectedJob}
           permissions={permissions}
+          billingMode={isReadyToBillView}
           disabled={busy}
           saveState={jobSaveState}
           onArchive={onArchiveJob}
