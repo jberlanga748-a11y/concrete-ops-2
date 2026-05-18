@@ -22,6 +22,7 @@ Current launch stage:
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
 - Latest release tracked: `19d7fd2 Polish invite activation handoff`.
 - Fly release `v496` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
 
@@ -50,6 +51,7 @@ Usable now:
 - Pilot Feedback Capture Phase 1 owner/admin copy-only feedback packet.
 - Customer Portal Phase 1 Manual Approval Preview owner/admin internal preview.
 - Invite / Activation UX Polish.
+- Public founder-pilot website route `/founder-pilot` built locally with manual guided walkthrough interest capture as owner/admin review leads plus office queue cues.
 - Support/help handoff and guided setup foundations.
 - Demo mode and demo reset protections.
 - Backup/export tooling.
@@ -67,6 +69,7 @@ Not ready yet:
 - Hidden GPS tracking or GPS distance flags.
 - Automated outbound email/SMS/ads.
 - Fully automated PDF/blueprint takeoff.
+- Public Apex HQ demo-interest review is still manual; owner/admin office queue cues are review reminders only, and no automatic email/SMS/calendar outreach is connected.
 
 ## 2. Current Business Status
 
@@ -150,6 +153,10 @@ Important business docs:
 - `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`
 - `docs/FIRST_10_CUSTOMERS_PLAN.md`
 - `docs/OUTREACH_TRACKER.md`
+- `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md`
+- `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md`
+- `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md`
+- `docs/PUBLIC_WEBSITE_SALES_FUNNEL_PLANNING.md`
 - `docs/OUTREACH_SEND_QUEUE.md`
 - `docs/CUSTOMER_SUCCESS_PLAYBOOK.md`
 - `docs/RISK_REWARD_MATRIX.md`
@@ -162,8 +169,11 @@ Missing docs to create later:
 - `docs/SUPABASE_MIGRATION_PLAN.md` - only if/when moving from SQLite/Fly volume to Supabase/Postgres.
 - `docs/RLS_MATRIX.md` - only if/when Supabase RLS exists.
 - `docs/AI_ASSISTANT_ACTIVITY_LOG_PLAN.md` - before expanding assistant actions.
-- `docs/CUSTOMER_DATA_POLICY_DRAFT.md` - before wider paid launch.
-- `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md` - before more pilots.
+
+Trust docs now drafted:
+
+- `docs/CUSTOMER_DATA_POLICY_DRAFT.md` - draft customer data handling summary for controlled pilots; not legal advice.
+- `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md` - draft pilot terms/support policy for founder-led pilots; not legal advice.
 
 ## 5. Skill Routing
 
@@ -377,6 +387,8 @@ Browser/Playwright:
 
 ```powershell
 npm.cmd run audit:demo-desktop
+npm.cmd run audit:public-site
+npm.cmd run verify:founder-demo
 ```
 
 For focused browser QA, use Playwright or the Codex in-app browser against the exact route/role under test. Capture:
@@ -448,15 +460,22 @@ Demo/customer separation:
    - Keep automatic email/SMS sending, new roles, public signup changes, and permission broadening out of scope.
 
 3. Guided demo rehearsal refresh:
-   - Rehearse owner/admin desktop, owner mobile, foreman mobile, employee safety, estimates/proposals, support/trust, and package upgrade review paths after Premium demo prep.
+   - Completed after Invite / Activation UX Polish and demo app refresh.
+   - Use the live app for owner/admin and field rehearsal evidence, and use the separate demo app only after checking `https://concrete-ops-demo.fly.dev/api/ready`.
 
 4. Business execution:
    - Use `docs/FIRST_10_DEMO_TARGETS.md` and `docs/OUTREACH_TRACKER.md`.
+   - Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` to run demos and log objections.
+   - Use `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md` before sending any post-demo follow-up.
+   - Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` when a strong-fit demo becomes a controlled pilot.
+   - Run `npm.cmd run verify:founder-demo` before a scheduled walkthrough so docs, tracker state, manual-only boundaries, and live production/demo readiness are checked together.
+   - Review `/founder-pilot` demo-interest as manual Leads with owner/admin office queue cues only; do not auto-send follow-up, create workspaces, create accounts, or change packages from public requests.
    - Book warm founder-led demos.
    - Do not publish/send without approval.
 
 5. Trust docs:
-   - Draft pilot terms/support policy and customer data handling summary before taking more paid pilots.
+   - Drafted `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md` and `docs/CUSTOMER_DATA_POLICY_DRAFT.md`.
+   - Have counsel review before wider paid launch, public self-serve launch, enterprise procurement, or regulated-data claims.
 
 6. Keep phase control:
    - Do not start billing, customer portal, offline mode, payroll, integrations, or AI autopilot until the relevant planning checkpoint is approved.
@@ -465,17 +484,19 @@ Demo/customer separation:
 
 Product priorities:
 
-1. Guided Demo Rehearsal Refresh.
+1. Hold app builds unless a guided demo or pilot exposes a blocker, permission issue, demo data problem, or narrow workflow gap.
+2. Release `/founder-pilot` and public demo-interest capture only after confirming the current diff excludes unrelated docs and the standard release checks stay green.
 
 Business priorities:
 
 1. Run founder-led demos with real contractors.
 2. Convert 1-3 controlled pilots around one workflow each.
 3. Capture objections and update `docs/REAL_OBJECTION_BANK.md`.
-4. Capture proof and testimonials only with permission.
-5. Keep claims conservative and contractor-practical.
-6. Refine Basic/Premium/Elite pricing after real demo/pilot feedback.
-7. Build the public website/sales funnel only after demo positioning is stable.
+4. Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` to run kickoff, day-3 check-in, and day-10 value review.
+5. Capture proof and testimonials only with permission.
+6. Keep claims conservative and contractor-practical.
+7. Refine Basic/Premium/Elite pricing after real demo/pilot feedback.
+8. Build the public website/sales funnel only after demo positioning is stable.
 
 Operational priorities:
 

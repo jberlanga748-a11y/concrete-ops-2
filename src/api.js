@@ -75,6 +75,10 @@ export function submitPublicEstimateRequest(payload) {
   return request("/api/public/estimate-request", { method: "POST", body: payload });
 }
 
+export function submitPublicDemoInterest(payload) {
+  return request("/api/public/demo-interest", { method: "POST", body: payload });
+}
+
 export function logout(token) {
   return request("/api/auth/logout", { method: "POST", token });
 }

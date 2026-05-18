@@ -1,6 +1,6 @@
 # Public Website / Sales Funnel Planning
 
-Status: planning complete / implementation requires approval
+Status: Phase 2 built locally / release pending
 
 ## Decision
 
@@ -9,6 +9,54 @@ Do not build or launch a public self-serve SaaS website yet.
 The safe next public surface is a claims-safe marketing website and founder-led demo funnel. Its job is to explain Apex HQ, qualify good-fit contractors, capture demo interest, and route prospects into a manual founder-led sales process. It must not create production workspaces, sell packages, collect payments, expose package controls, promise unsupported automation, or imply a fully public launch.
 
 The website should point prospects toward a guided walkthrough and controlled founder pilot, not toward checkout or unsupervised product access.
+
+## Phase 1 Implementation Status
+
+Built locally:
+
+- public founder-pilot route: `/founder-pilot`
+- claims-safe homepage/founder-pilot/workflow public sections in one page
+- manual walkthrough request form
+- prepared request summary for copy/email/manual follow-up
+- login link back to the product workspace
+
+Phase 1 intentionally does not:
+
+- create accounts
+- create workspaces
+- collect payments
+- expose package selection
+- submit public demo interest to the database
+- send email or SMS automatically
+- add customer portal access
+- change product auth, package gates, or field permissions
+
+## Phase 2 Implementation Status
+
+Built locally:
+
+- backend `POST /api/public/demo-interest`
+- `/founder-pilot` form now saves guided walkthrough interest as a manual review lead
+- explicit manual founder follow-up consent is required
+- honeypot and per-connection rate limiting are in place
+- exact duplicate retries return the existing manual review lead instead of creating another lead
+- first-time captures create one owner/admin office queue item for manual review; duplicate retries do not add another queue item
+- request notes preserve the manual-only boundary
+- client-supplied company/workspace targets are ignored; requests route only to the Apex HQ default company
+- owner/admin office users can review the lead through existing lead permissions and the office queue
+- field users remain blocked from leads, office queue items, and demo-interest review data
+
+Phase 2 intentionally does not:
+
+- create customer records
+- create jobs or estimates
+- create users, accounts, workspaces, or field invites
+- change public signup
+- collect payment details
+- expose package selection or package controls
+- send email, SMS, calendar invites, surveys, or outreach automatically
+- add customer portal access
+- change product auth, package gates, or field permissions
 
 ## Funnel Shape
 
@@ -137,6 +185,7 @@ Allowed:
 - best workflow to clean up
 - requested demo/pilot interest
 - consent checkbox for founder follow-up
+- server-side manual review lead creation
 
 Not allowed:
 
@@ -179,8 +228,7 @@ First follow-up should be manual and founder-led.
 
 Allowed:
 
-- notify John or add a manual sales task in a later approved implementation
-- route demo requests into a simple internal review list
+- route demo requests into existing Leads as manual review records
 - use approved outreach copy after manual review
 - track demo status and objections
 
@@ -211,32 +259,45 @@ Avoid optimizing for vanity traffic before the founder-led demo process is conve
 
 ## Future Implementation Prompt
 
-Use only after this checkpoint is approved:
+Phase 2 is built locally. Use this only for a future manual operations polish phase after the capture path is released and real demo-interest requests are reviewed:
 
 ```text
-APEX HQ - PUBLIC WEBSITE / SALES FUNNEL PHASE 1
+APEX HQ - PUBLIC WEBSITE / SALES FUNNEL PHASE 3 REVIEW OPS POLISH
 
 Goal:
-Build a claims-safe public marketing website and manual demo-interest funnel for Apex HQ.
+Tighten the internal owner/admin review workflow for captured founder-pilot demo interest after the public capture path is released and used.
 
 Do not add public signup changes, Stripe, checkout, payment collection, package management, customer portal, automatic email/SMS, paid ads, account creation, or production workspace creation.
 
 Focus:
-- public homepage / founder pilot / workflow / FAQ
-- guided walkthrough CTA
-- manual demo-interest form
-- claims-safe copy
+- make captured demo-interest leads easier to identify and process
+- improve manual review next steps beyond the existing office queue cue if real requests show confusion
+- keep follow-up manual
+- keep owner/admin-only visibility
+- keep field users blocked from leads and demo-interest review
+- keep claims-safe copy
 - no unsupported AI, billing, compliance, portal, integration, or automation claims
 - no changes to product auth, package gates, or field permissions
 ```
 
 ## Verification For This Checkpoint
 
-Planning checkpoint verification:
+Phase 2 verification:
 
 ```powershell
+node --test --test-concurrency=1 src\public-website-utils.test.js
+npm.cmd run verify:public-request
 npm.cmd run verify:packages
 npm.cmd run verify:entitlements
 npm.cmd run verify:roles
+npm.cmd run build
+npm.cmd run audit:public-site
+git diff --check
+```
+
+Additional focused checks:
+
+```powershell
+node --test --test-concurrency=1 server\public-demo-interest.test.js src\public-website-utils.test.js
 git diff --check
 ```

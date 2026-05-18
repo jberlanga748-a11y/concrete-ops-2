@@ -25,6 +25,7 @@
     "verify:signup": "node --test --test-concurrency=1 server/signup.test.js server/company-scope.test.js shared/companyScope.test.js",
     "verify:packages": "node --test --test-concurrency=1 shared/packages.test.js shared/packageEntitlements.test.js",
     "verify:entitlements": "node --test --test-concurrency=1 server/package-entitlements.test.js shared/packages.test.js shared/packageEntitlements.test.js src/navigation-utils.test.js",
+    "verify:founder-demo": "node scripts/founder-demo-readiness.mjs",
     "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js",
     "verify:time": "node --test --test-concurrency=1 server/time-tracking.test.js src/time-utils.test.js",
     "verify:daily-reports": "node --test --test-concurrency=1 server/daily-reports.test.js src/report-utils.test.js src/app-routing.test.js",
@@ -38,9 +39,10 @@
     "verify:delivery-tickets": "node --test --test-concurrency=1 server/delivery-tickets.test.js src/delivery-ticket-utils.test.js",
     "verify:estimates": "node --test --test-concurrency=1 server/estimates.test.js server/estimate-pdf.test.js server/ai-estimate-rough-notes.test.js shared/estimatePrint.test.js shared/estimateRoughNotesAi.test.js src/estimate-utils.test.js src/estimate-template-utils.test.js src/estimate-backup-utils.test.js src/estimate-snapshot-utils.test.js src/estimate-gc-packet-utils.test.js src/app-routing.test.js shared/permissions.test.js",
     "verify:demo": "node --test --test-concurrency=1 server/demo.test.js",
-    "verify:public-request": "node --test --test-concurrency=1 server/public-request.test.js",
+    "verify:public-request": "node --test --test-concurrency=1 server/public-request.test.js server/public-demo-interest.test.js",
     "verify:print-packets": "node --test --test-concurrency=1 shared/estimatePrint.test.js src/print-packets.test.js",
-    "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs"
+    "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
+    "audit:public-site": "node scripts/public-site-ui-audit.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

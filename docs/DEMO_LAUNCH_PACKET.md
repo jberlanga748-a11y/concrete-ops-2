@@ -1,7 +1,7 @@
 # Apex HQ Demo Launch Packet
 
-Status: guided-demo ready after v486 cleanup; rehearse once before cold demos
-Use for: the first clean guided demos after v486 live confirmation
+Status: guided-demo ready after live v496 rehearsal and demo app v71 refresh
+Use for: the first founder-led demos and controlled pilot conversations
 
 ## Launch Position
 
@@ -54,7 +54,7 @@ I am showing it to a small group first, not opening it wide yet. Would you be op
 ```text
 I am getting the demo cleaned up so I can show it without wasting your time. For where you are at being solo, I would focus on the simple version: leads, estimates/proposals, job info, website lead flow, and AI help with rough notes.
 
-Once it is cleaned up, I can show you what the $99/month founder pilot would include. No contract. Just a simple test to see if it actually helps.
+The demo path is clean now, so I can show you what the $99/month founder pilot would include. No contract. Just a simple test to see if it actually helps.
 ```
 
 ### Cold Contractor Text
@@ -164,6 +164,7 @@ After reply:
 After demo:
 
 - send recap and pilot-fit message
+- if pilot fit is strong, move to `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md`
 
 ## Cold Contact Send Order
 
@@ -227,10 +228,11 @@ The goal is to help contractors find opportunities, follow up faster, organize j
 
 ## Best First Move
 
-Demo cleanup is now live-confirmed through v486.
+Demo readiness is live-confirmed through production v496 and the separate demo app v71.
 
 Next move:
 
-1. Rehearse the guided demo path in `docs/GUIDED_DEMO_LAUNCH_READINESS.md`.
-2. Send M2 Mini the follow-up text first. He already asked price, uses Wix, is solo, and is a real-world fit for the $99/month Basic founder pilot.
-3. Keep the first demo focused on one useful workflow, not the whole product.
+1. Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` before each guided demo.
+2. Send only manually approved outreach or follow-up messages.
+3. Start with M2 Mini if John is ready, because he already asked price, uses Wix, is solo, and is a real-world fit for the $99/month Basic founder pilot.
+4. Keep the first demo focused on one useful workflow, not the whole product.

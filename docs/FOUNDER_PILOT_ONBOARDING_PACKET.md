@@ -75,6 +75,8 @@ Estimate or job setup -> crew/field handoff -> photo/report/proof -> owner revie
 
 ## Pilot Timeline
 
+Internal operator templates: use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` for kickoff intake, day-3 check-in, day-10 value review, support issue capture, and continue/adjust/stop decisions.
+
 | Day | Step | Goal |
 | --- | --- | --- |
 | Day 0 | Kickoff/setup | pick workflow and set up users/job |

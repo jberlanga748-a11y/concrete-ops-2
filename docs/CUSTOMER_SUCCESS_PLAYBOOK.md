@@ -14,6 +14,8 @@ First success should be simple:
 
 ## Onboarding Flow
 
+Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` for the detailed kickoff, day-3 check-in, day-10 value review, support capture, and continue/adjust/stop templates.
+
 Step 1: Fit check.
 
 - trade

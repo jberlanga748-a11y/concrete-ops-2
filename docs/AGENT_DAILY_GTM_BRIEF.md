@@ -1,15 +1,13 @@
 # Apex HQ Daily GTM Brief
 
-Date: 2026-05-17
-Status: manual prep brief before automation begins
+Date: 2026-05-18
+Status: next-day founder-led GTM action brief (manual send only)
 
 ## What Changed
 
-- Business email is working.
-- Autonomous daily GTM prep automation is active.
-- Public claims guardrails are documented.
-- First 10 demo target list now has real researched candidates.
-- Demo should still wait until builder confirms the clean path is ready.
+- Verified public website contact details for the top 3 targets (M2 Mini, LME Concrete, Catt Hardscape) on 2026-05-17.
+- Outreach Tracker now has “ready” contact info placeholders for tomorrow (manual sends only).
+- Demo should still wait until builder confirms the clean guided path is ready.
 
 ## Today's Best Use Of Time
 
@@ -17,13 +15,13 @@ Do not start broad cold outreach yet.
 
 Best use of time right now:
 
-1. Confirm builder/demo cleanup status.
-2. Prepare M2 Mini follow-up.
-3. Verify contact info for the top 4 local prospects.
-4. Pick 3 warm contractors John already knows.
-5. Prepare tomorrow morning's call/text block.
+1. Confirm builder/demo cleanup status (clean guided path: yes/no).
+2. Get M2 Mini booked first (warm + already price-aware).
+3. Send 1 cold local touch (LME) + 1 cold local touch (Catt) only after John approves wording.
+4. Log every manual send + reply in `OUTREACH_TRACKER.md`.
+5. Capture objections and update the demo script questions after any reply/call.
 
-## Top 3 Targets Today
+## Top 3 Targets Tomorrow
 
 ### 1. M2 Mini LLC
 
@@ -34,17 +32,32 @@ Why:
 - solo contractor using Wix
 - clear Basic founder pilot fit
 
-Do now:
+Verified facts (2026-05-17 website check):
+
+- Owner listed: Joseph Madesh
+- Phone: 541-990-7365
+- Email: M2minicase@gmail.com
+- Licensed/bonded/insured; License #242728
+Source: https://www.m2mini.com/
+
+Inference / angle:
+
+- Keep it “solo Basic”: leads + estimates/proposals + job info + follow-up + rough notes (review-first).
+
+Do tomorrow:
 
 - wait for clean demo confirmation
-- send short follow-up once demo is ready
+- send the follow-up text once the demo is clean
+- propose 2 time slots immediately in the same thread
 
-Draft:
+Draft (text):
 
 ```text
-I got the demo cleaned up so I can show it without wasting your time. For where you are at being solo, I would focus on the simple version: leads, estimates/proposals, job info, website lead flow, and AI help with rough notes.
+I got the demo cleaned up so I can show it without wasting your time. For where you are at being solo, I would keep it simple: leads, estimates/proposals, job info, follow-up, and rough notes (with you reviewing everything).
 
-If it looks useful, I'd keep you on the Basic founder pilot at $99/month. No long contract. Just a simple test to see if it actually helps.
+If it looks useful, I’d keep you on the Basic founder pilot at $99/month. No long contract. Just a simple test to see if it actually helps.
+
+Would tomorrow morning or tomorrow afternoon work better for a quick 20-minute walkthrough?
 ```
 
 ### 2. LME Concrete
@@ -55,19 +68,37 @@ Why:
 - residential/commercial flatwork fit
 - likely estimate and follow-up workflow pain
 
-Do now:
+Verified facts (2026-05-17 website check):
 
-- verify best contact method
-- prepare manual first touch
+- Phones: 503-270-1575 (Spanish) and 503-420-6286 (English)
+- Email: lopez@lmeconcrete.com
+- Address: 3959 Stanley Lane South, Salem, OR 97302
+- CCB#235123; founded 2021 (per website)
+Source: https://www.lmeconcretellc.com/
 
-Draft:
+Inference / angle:
+
+- Ask about “estimate-to-job handoff + photos/proof + follow-up on open bids” because they likely run a lot of residential jobs.
+
+Do tomorrow:
+
+- use email first (more compliant/less intrusive than cold text), then call only if John wants to
+- do not claim local familiarity; keep it simple and truthful
+
+Draft (short cold email):
 
 ```text
-Hey [Name], this is John with Apex HQ. I have 15 years in concrete and I am building a contractor operations platform for leads, estimates, jobs, photos, reports, and follow-ups.
+Subject: Quick contractor ops demo
 
-I saw LME does concrete work around Salem, and that estimate-to-job workflow is exactly the kind of thing I am showing a few contractors first.
+Hey — this is John with Apex HQ. I have 15 years in concrete and I’m building a contractor operations platform to keep leads, estimates, job info, photos/proof, and follow-ups organized in one place.
 
-Would a quick guided walkthrough be worth looking at?
+I saw LME does concrete work around Salem, and the estimate-to-job handoff + photos/proof + follow-up workflow is exactly what I’m showing a few contractors first.
+
+Would a quick 15–20 minute guided walkthrough be worth looking at?
+
+John Berlanga
+Apex HQ
+541-971-2741
 ```
 
 ### 3. Catt Hardscape Construction
@@ -78,19 +109,36 @@ Why:
 - pavers, walls, and flagstone are visual, multi-step, photo-heavy jobs
 - good fit for estimate, project photo, and follow-up workflow
 
-Do now:
+Verified facts (2026-05-17 website check):
 
-- verify owner/contact channel
-- prepare first touch after M2 Mini
+- Phone: 541-908-7787
+- Email: info@catthardscape.com
+- Licensed/bonded/insured; CCB#234909
+- Service area listed: Albany, Corvallis, Lebanon, Philomath, Millersburg, Sweet Home, Salem
+Source: https://catthardscape.com/ and https://catthardscape.com/contact-us/
 
-Draft:
+Inference / angle:
+
+- Lead with “bid/estimate tracking + design changes + photos tied to job + follow-up” rather than generic “software”.
+
+Do tomorrow:
+
+- send email first; call only if John wants to
+- keep language “founder-led demo / controlled pilot” (no public self-serve)
+
+Draft (short cold email):
 
 ```text
-Hey [Name], this is John with Apex HQ. I saw Catt Hardscape handles pavers, walls, and flagstone around Albany, Corvallis, Lebanon, and Salem.
+Subject: Quick hardscape ops walkthrough
 
-I am showing a few contractors a guided workflow for keeping leads, estimates, job notes, photos, reports, and follow-ups organized in one place.
+Hey — this is John with Apex HQ. I’m building a contractor operations platform to keep leads, estimates, job notes, photos/proof, and follow-ups organized in one place.
 
-Would a quick walkthrough be worth looking at?
+I saw you focus on pavers/walls/flagstone, and that “estimate -> job -> photos/proof -> follow-up” workflow is exactly what I’m showing a small group first (founder-led demos, controlled pilots).
+
+Would a quick 15–20 minute walkthrough be worth looking at?
+
+John Berlanga
+541-971-2741
 ```
 
 ## Drafts Ready For John To Approve
@@ -98,8 +146,8 @@ Would a quick walkthrough be worth looking at?
 Ready after clean demo:
 
 1. M2 Mini text.
-2. LME first touch.
-3. Catt Hardscape first touch.
+2. LME first-touch email.
+3. Catt first-touch email.
 
 Hold until verified:
 
@@ -126,18 +174,18 @@ The goal is to help contractors organize opportunities, follow up faster, clean 
 
 ## Manual Actions John Should Take
 
-### If Builder Says Demo Is Clean
+### If Builder Says Demo Is Clean (2026-05-18)
 
 1. Send M2 Mini text.
-2. Offer two walkthrough times.
+2. Offer two walkthrough times in the same message thread.
 3. Log reply in `OUTREACH_TRACKER.md`.
-4. Do not send cold outreach until M2 Mini response is handled.
+4. After M2 Mini is handled, send 1 LME email + 1 Catt email (only after approving the exact drafts).
 
-### If Builder Is Not Done Yet
+### If Builder Is Not Done Yet (2026-05-18)
 
-1. Build warm list of 3 contractors John knows.
-2. Verify contact info for LME, Catt, and Rosewood.
-3. Do not send demo invites yet.
+1. Do not send any invites yet.
+2. Build the warm list of 3 contractors John knows (Tier 1).
+3. Prepare “two time slots” text replies so booking is instant when demo is clean.
 
 ## What The Builder/App Chat Must Handle
 
@@ -149,13 +197,13 @@ The goal is to help contractors organize opportunities, follow up faster, clean 
 
 ## What To Measure
 
-Today:
+Tomorrow:
 
 - demo clean confirmation: yes/no
 - M2 Mini text sent: yes/no
 - M2 Mini reply: yes/no
-- warm targets added: count
-- verified contacts added: count
+- LME email approved + sent: yes/no
+- Catt email approved + sent: yes/no
 
 This week:
 

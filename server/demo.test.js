@@ -504,6 +504,10 @@ function readExistingIds(sqliteFile, tableName, ids) {
 
 const STALE_DEMO_WALKTHROUGH_TIMESTAMP = "2026-04-25T19:17:00.000Z";
 
+function localDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function ageDemoWalkthroughDates(sqliteFile) {
   const database = new DatabaseSync(sqliteFile);
   try {
@@ -860,7 +864,7 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     const refreshedIncident = bootstrap.safetyIncidents.find((incident) => incident.id === "DEMO-SI-DEMO-001");
     const refreshedToolChecklist = bootstrap.toolChecklists.find((checklist) => checklist.id === "DEMO-TC-DEMO-001");
     const refreshedFieldJob = bootstrap.jobs.find((job) => job.title === "Martinez Driveway Replacement");
-    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayKey = localDateKey();
     assert.ok(refreshedSafetyPolicy);
     assert.ok(refreshedPpeItem);
     assert.ok(refreshedAcknowledgment);

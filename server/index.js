@@ -254,6 +254,8 @@ const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
 const CALCULATOR_RESULT_TYPES = new Set(["slab", "footing", "wall", "round_column", "roundColumn", "multi_section"]);
 const PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_REQUEST_RATE_LIMIT_MAX = 5;
+const PUBLIC_DEMO_INTEREST_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const PUBLIC_DEMO_INTEREST_RATE_LIMIT_MAX = 5;
 const PUBLIC_SIGNUP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const PUBLIC_SIGNUP_RATE_LIMIT_MAX = 5;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
@@ -265,6 +267,7 @@ const AUTH_TOKEN_RATE_LIMIT_MAX = 12;
 const SESSION_TOUCH_INTERVAL_MS = 60 * 1000;
 const serverStartedAt = Date.now();
 const publicEstimateRequestRateLimit = new Map();
+const publicDemoInterestRateLimit = new Map();
 const publicSignupRateLimit = new Map();
 const loginRateLimit = new Map();
 const passwordResetRequestRateLimit = new Map();
@@ -454,6 +457,14 @@ function requiredContactChannel(phone, email) {
   };
 }
 
+function optionalValidatedEmail(value, fieldName = "Email") {
+  const normalized = optionalEmail(value, "");
+  if (normalized && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new ApiError(400, `${fieldName} must be a valid email address.`);
+  }
+  return normalized;
+}
+
 function extractCityFromProjectAddress(projectAddress) {
   const normalized = optionalString(projectAddress, "");
   if (!normalized) return "";
@@ -468,6 +479,15 @@ function publicRequestActor(companyId = "") {
   return {
     id: "",
     name: "Public request",
+    role: "Public",
+    ...(companyId ? { companyId: normalizeCompanyId(companyId) } : {}),
+  };
+}
+
+function publicDemoInterestActor(companyId = "") {
+  return {
+    id: "",
+    name: "Apex HQ founder-pilot website",
     role: "Public",
     ...(companyId ? { companyId: normalizeCompanyId(companyId) } : {}),
   };
@@ -3964,6 +3984,91 @@ function buildPublicRequestLeadNotes({
   return lines.join("\n");
 }
 
+const PUBLIC_DEMO_INTEREST_WORKFLOWS = new Set([
+  "Lead and estimate follow-up",
+  "Estimate to job handoff",
+  "Job setup and crew handoff",
+  "Field photos and daily reports",
+  "Owner review and follow-up",
+  "Not sure yet",
+]);
+
+function optionalPublicDemoWorkflow(value) {
+  const normalized = optionalString(value, "");
+  return PUBLIC_DEMO_INTEREST_WORKFLOWS.has(normalized) ? normalized : "Not sure yet";
+}
+
+function buildPublicDemoInterestLeadNotes({
+  contactName,
+  company,
+  email,
+  phone,
+  trade,
+  location,
+  workflow,
+  message,
+}) {
+  const lines = [
+    "Source: Apex HQ founder-pilot website",
+    "Request type: guided walkthrough / founder pilot review",
+    `Company: ${sanitizeFreeformTextForNotes(company)}`,
+    `Contact: ${sanitizeFreeformTextForNotes(contactName)}`,
+    email ? `Email: ${sanitizeFreeformTextForNotes(email)}` : "",
+    phone ? `Phone: ${sanitizeFreeformTextForNotes(phone)}` : "",
+    trade ? `Trade/type of work: ${sanitizeFreeformTextForNotes(trade)}` : "",
+    location ? `Location/service area: ${sanitizeFreeformTextForNotes(location)}` : "",
+    `Workflow to clean up: ${sanitizeFreeformTextForNotes(workflow)}`,
+    "Consent: manual founder follow-up only.",
+    "Automation boundary: no automatic email, SMS, account creation, billing, package change, customer portal access, or workspace creation was triggered.",
+    message ? `Message: ${sanitizeFreeformTextForNotes(message)}` : "",
+  ];
+
+  return lines.filter(Boolean).join("\n");
+}
+
+function publicDemoInterestComparable(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function publicDemoInterestPhoneDigits(value = "") {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function publicDemoInterestEmailsFromNotes(notes = "") {
+  return String(notes || "").slice(0, 10000).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+}
+
+function publicDemoInterestPhonesFromNotes(notes = "") {
+  return String(notes || "").slice(0, 10000).match(/(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}/g) || [];
+}
+
+function findPublicDemoInterestDuplicate(leads = [], { company, email, phone, companyId }) {
+  const normalizedCompany = publicDemoInterestComparable(company);
+  const normalizedEmail = optionalEmail(email, "");
+  const normalizedPhone = publicDemoInterestPhoneDigits(phone);
+  const normalizedCompanyId = normalizeCompanyId(companyId);
+
+  if (!normalizedCompany || (!normalizedEmail && !normalizedPhone)) {
+    return null;
+  }
+
+  return (leads || []).find((lead) => {
+    if (!lead || lead.archivedAt) return false;
+    if (normalizeCompanyId(lead.companyId) !== normalizedCompanyId) return false;
+    if (lead.source !== "Website") return false;
+    const notes = String(lead.notes || "");
+    if (!notes.includes("Source: Apex HQ founder-pilot website")) return false;
+    if (publicDemoInterestComparable(lead.customer) !== normalizedCompany) return false;
+
+    const emailMatches = normalizedEmail
+      && publicDemoInterestEmailsFromNotes(notes).some((candidate) => optionalEmail(candidate, "") === normalizedEmail);
+    const phoneMatches = normalizedPhone
+      && publicDemoInterestPhonesFromNotes(notes).some((candidate) => publicDemoInterestPhoneDigits(candidate) === normalizedPhone);
+
+    return Boolean(emailMatches || phoneMatches);
+  }) || null;
+}
+
 function assertPublicEstimateRequestEnabled() {
   if (!serverConfig.publicEstimateRequestEnabled) {
     throw new ApiError(404, "Public estimate requests are not enabled.");
@@ -4002,6 +4107,16 @@ function consumePublicEstimateRequestRateLimit(req) {
     PUBLIC_REQUEST_RATE_LIMIT_WINDOW_MS,
     PUBLIC_REQUEST_RATE_LIMIT_MAX,
     "Too many estimate requests from this connection. Please wait and try again.",
+  );
+}
+
+function consumePublicDemoInterestRateLimit(req) {
+  consumeRateLimitBucket(
+    publicDemoInterestRateLimit,
+    requestIpKey(req),
+    PUBLIC_DEMO_INTEREST_RATE_LIMIT_WINDOW_MS,
+    PUBLIC_DEMO_INTEREST_RATE_LIMIT_MAX,
+    "Too many walkthrough requests from this connection. Please wait and try again.",
   );
 }
 
@@ -5906,6 +6021,152 @@ app.post("/api/public/estimate-request", asyncRoute(async (req, res) => {
   return res.status(201).json({
     ok: true,
     message: "Request received. Our team will follow up shortly.",
+    requestId: res.locals.requestId,
+  });
+}));
+
+app.post("/api/public/demo-interest", asyncRoute(async (req, res) => {
+  const payload = req.body || {};
+  const honeypotValue = optionalString(payload.companyWebsite || payload.website || payload.honeypot, "");
+  if (honeypotValue) {
+    return res.status(202).json({
+      ok: true,
+      message: "Request received.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  consumePublicDemoInterestRateLimit(req);
+
+  const contactName = requiredString(payload.name, "Name").slice(0, 120);
+  const company = requiredString(payload.company, "Company").slice(0, 160);
+  const phone = optionalString(payload.phone, "").slice(0, 80);
+  const email = optionalValidatedEmail(payload.email, "Email");
+  if (!phone && !email) {
+    throw new ApiError(400, "Phone or email is required.");
+  }
+  if (payload.consentToManualFollowUp !== true) {
+    throw new ApiError(400, "Manual founder follow-up consent is required.");
+  }
+
+  const trade = optionalString(payload.trade, "").slice(0, 120);
+  const location = optionalString(payload.location, "").slice(0, 160);
+  const workflow = optionalPublicDemoWorkflow(payload.workflow);
+  const message = optionalString(payload.message, "").slice(0, 1200);
+  const createdAt = new Date().toISOString();
+
+  let savedLead = null;
+  let duplicateLead = null;
+  await updateDb((draft) => {
+    const targetCompany = companiesForState(draft)
+      .find((companyRecord) => normalizeCompanyId(companyRecord.id) === normalizeCompanyId(DEFAULT_COMPANY_ID)
+        && String(companyRecord.status || "active").toLowerCase() !== "inactive");
+
+    if (!targetCompany) {
+      throw new ApiError(503, "Founder-pilot requests are unavailable until the Apex HQ workspace is set up.");
+    }
+
+    const owner = resolveIntegrationLeadOwnerForCompany(draft, targetCompany.id);
+    if (!owner) {
+      throw new ApiError(503, "Founder-pilot requests are unavailable until an office lead manager is available.");
+    }
+
+    duplicateLead = findPublicDemoInterestDuplicate(draft.leads || [], {
+      company,
+      email,
+      phone,
+      companyId: targetCompany.id,
+    });
+    if (duplicateLead) {
+      savedLead = duplicateLead;
+      return draft;
+    }
+
+    const publicActor = publicDemoInterestActor(targetCompany.id);
+    savedLead = {
+      id: makeId("L"),
+      companyId: targetCompany.id,
+      customerId: "",
+      customer: company,
+      city: location,
+      project: `Apex HQ founder pilot - ${workflow}`,
+      status: "New",
+      priority: "Normal",
+      value: 0,
+      owner: owner.name,
+      ownerId: owner.id,
+      source: "Website",
+      followUpDueAt: "",
+      age: "Just now",
+      nextStep: "Review guided walkthrough request",
+      notes: buildPublicDemoInterestLeadNotes({
+        contactName,
+        company,
+        email,
+        phone,
+        trade,
+        location,
+        workflow,
+        message,
+      }),
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+    };
+
+    draft.leads.unshift(savedLead);
+    appendLeadStatusHistory(draft, {
+      leadId: savedLead.id,
+      fromStatus: null,
+      toStatus: savedLead.status,
+      actor: publicActor,
+      note: "Lead created from the public founder-pilot website for manual review.",
+      createdAt,
+    });
+    draft.queueItems ||= [];
+    draft.queueItems.unshift({
+      id: makeId("Q"),
+      companyId: targetCompany.id,
+      title: "Review founder-pilot request",
+      meta: `${company} - ${workflow}`,
+      status: "Due today",
+      done: false,
+      createdAt,
+      updatedAt: createdAt,
+      archivedAt: null,
+    });
+    appendActivity(draft, "Founder-pilot walkthrough request received", `${company} requested a guided walkthrough.`, { companyId: targetCompany.id });
+    appendAuditEvent(draft, {
+      entityType: "lead",
+      entityId: savedLead.id,
+      action: "public_demo_interest_created",
+      summary: "Founder-pilot walkthrough request received",
+      detail: `${company} requested a manual founder-led walkthrough. No customer, job, estimate, user, workspace, package, billing, or message automation was created.`,
+      actor: publicActor,
+      changedFields: ["companyId", "status", "source", "notes"],
+    });
+    return draft;
+  });
+
+  if (duplicateLead) {
+    return res.status(200).json({
+      ok: true,
+      leadId: duplicateLead.id,
+      duplicate: true,
+      reviewRequired: false,
+      openPath: leadOpenPath(duplicateLead.id),
+      message: "Walkthrough request already exists for manual founder review. No duplicate lead was created.",
+      requestId: res.locals.requestId,
+    });
+  }
+
+  return res.status(201).json({
+    ok: true,
+    leadId: savedLead?.id || "",
+    duplicate: false,
+    reviewRequired: true,
+    openPath: savedLead?.id ? leadOpenPath(savedLead.id) : "",
+    message: "Walkthrough request received for manual founder review. No automatic email or SMS was sent.",
     requestId: res.locals.requestId,
   });
 }));

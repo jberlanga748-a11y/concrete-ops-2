@@ -28,15 +28,15 @@ Sending: manual only until business email/texting tools are approved
 - Not a Fit
 - Do Not Contact
 
-## First 20 Tracker
+## First 23 Tracker
 
 | # | Company | Contact | Channel | Status | Last Touch | Next Touch | Pain/Angle | Objection | Demo Date | Pilot Fit | Follow-Up Needed | Notes |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | RDL Built |  | Email + call | Ready for Outreach |  | Day 1 | concrete plus GC workflow |  |  | High | first email/call |  |
 | 2 | Exclusive Concrete Construction |  | Email + call/SMS | Ready for Outreach |  | Day 1 | concrete, paving, excavation, larger jobs |  |  | High | first email/call |  |
-| 3 | LME Concrete |  | SMS + email | Ready for Outreach |  | Day 1 | residential/commercial concrete |  |  | High | first SMS/email |  |
+| 3 | LME Concrete | Phone: 503-270-1575 / 503-420-6286; Email: lopez@lmeconcrete.com | SMS + email | Ready for Outreach |  | 2026-05-18 | residential/commercial concrete |  |  | High | first SMS/email | verified website contact 2026-05-17 |
 | 4 | Rosewood Concrete |  | SMS + email | Ready for Outreach |  | Day 1 | concrete, pavers, retaining walls |  |  | High | first SMS/email |  |
-| 5 | M2 Mini LLC |  | SMS + email | Ready for Outreach |  | Day 1 | owner-led concrete/excavation |  |  | High | first SMS/email |  |
+| 5 | M2 Mini LLC | Phone: 541-990-7365; Email: M2minicase@gmail.com | SMS + email | Ready for Outreach |  | 2026-05-18 | owner-led concrete/excavation |  |  | High | first SMS/email | verified website contact 2026-05-17 |
 | 6 | A.B. Concrete & Construction |  | SMS + email | Ready for Outreach |  | Day 2 | concrete, excavation, remodel |  |  | High | first SMS/email |  |
 | 7 | OR Concrete Inc. |  | Email + call | Ready for Outreach |  | Day 2 | Bend concrete, residential/commercial |  |  | High | first email/call |  |
 | 8 | HD Construction & Excavation |  | Email + call | Ready for Outreach |  | Day 2 | excavation and concrete |  |  | High | first email/call |  |
@@ -52,6 +52,9 @@ Sending: manual only until business email/texting tools are approved
 | 18 | NorthCore USA |  | Call/contact form | Ready for Outreach |  | Day 4 | siteworks/civil ops |  |  | Medium | find ops contact |  |
 | 19 | Greenworks Landcare |  | Email + call | Ready for Outreach |  | Day 4 | project and service workflow |  |  | Medium | first email/call |  |
 | 20 | A To Z Excavation |  | Call + email | Ready for Outreach |  | Day 4 | smaller excavation jobs |  |  | Medium | first call/email |  |
+| 21 | Catt Hardscape Construction | Phone: 541-908-7787; Email: info@catthardscape.com | Call + email | Ready for Outreach |  | 2026-05-18 | pavers/walls/flagstone bids, photos, follow-up |  |  | High | first call/email | verified website contact 2026-05-17 |
+| 22 | RT Concrete |  | Call + website | Ready for Outreach |  | Day 5 | residential concrete, estimate-to-job handoff |  |  | Medium | verify owner/contact |  |
+| 23 | C&A Concrete Construction |  | Email + call | Ready for Outreach |  | Day 5 | multi-service workflow, scattered ops |  |  | Medium | verify owner/contact |  |
 
 ## Call Notes Template
 

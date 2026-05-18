@@ -102,8 +102,8 @@ These are research-backed candidates, not claimed customers.
 
 | # | Company | Trade | Relationship | Likely Plan | Verified Facts | Inference / First Pain To Ask About | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | M2 Mini LLC | concrete / excavation | warm | Basic pilot | Albany-based; serves Linn County and surrounding communities; does concrete, excavation, slabs, patios, sidewalks, driveways, small/medium commercial, subcontracting; website says on-site quotes | solo owner using Wix; ask about handwritten estimates, website leads, follow-up, and rough notes | price asked / wait for clean demo |
-| 2 | LME Concrete | concrete | cold/local, prior draft exists | Basic/Premium | Salem concrete contractor; says founded in 2021; family-owned; over 20 years expertise; driveways, walkways, patios | likely estimate-heavy residential flatwork; ask how leads, estimates, photos, and follow-up are tracked | verify contact before send |
+| 1 | M2 Mini LLC | concrete / excavation | warm | Basic pilot | Website lists: home base Albany, OR; serves Linn County + surrounding areas; services include residential + small/medium commercial concrete + excavation; specialties include slabs/patios, sidewalks/driveways, general dirt excavation; owner listed as Joseph Madesh; phone 541-990-7365; email M2minicase@gmail.com; license #242728; PO Box 1337 Albany, OR 97321 | likely solo owner-op; ask: how leads come in (website/calls), how estimates are written, what gets lost between estimate -> job setup -> photos/proof -> follow-up | price asked / wait for clean demo |
+| 2 | LME Concrete | concrete | cold/local, prior draft exists | Basic/Premium | Website lists: Salem, OR; founded 2021; family-owned; phone 503-270-1575 (Spanish) and 503-420-6286 (English); email lopez@lmeconcrete.com; address 3959 Stanley Lane South, Salem, OR 97302; “Speaks Spanish”; CCB#235123 | likely estimate-heavy residential flatwork; ask what they use for leads, estimates, job notes/photos, and follow-up; confirm decision-maker name before demo | verified contact; ready for outreach once demo path is clean |
 | 3 | Rosewood Concrete | concrete / hardscape | cold/local, prior draft exists | Premium | licensed contractor; residential and commercial concrete, pavers, retaining walls; has multi-step quote form; Salem/Portland area | strong fit for job proof, photos, proposals, and handoff; possibly more organized already | verify owner/contact |
 | 4 | RT Concrete | concrete | cold/local | Basic/Premium | Salem / Greater Willamette Valley; full-service concrete contractor; residential driveways, sidewalks, patios, stairs, fire pits, pads | likely photo-heavy residential work; ask about estimate-to-job handoff and follow-up | verify contact |
 | 5 | C&A Concrete Construction | concrete / fencing / siding | cold/local | Basic/Premium | Salem area; insured, bonded, family/locally owned; services include concrete, slabs, fencing, sidewalks, stamped concrete, patios, stairs, repair, siding | broad trade mix may create scattered lead/job tracking; ask what tools handle multiple service types | verify contact |
@@ -111,7 +111,7 @@ These are research-backed candidates, not claimed customers.
 | 7 | Gelco Construction | commercial concrete / civil / utilities | cold/local, prior draft exists | Later/Elite feedback only | commercial subcontractor serving Willamette Valley and Central Coast; concrete, excavation, grading, utilities; named department contacts | likely too large for first pilot, useful for commercial workflow feedback later | lower priority |
 | 8 | River City Hardscapes | hardscape | cold/local | Basic/Premium | family-owned/operated; hardscaping services from Portland to Salem/coast; patios, walkways, firepits, retaining walls; founder James Mitchell | visual job/photos/proof workflow likely; ask about estimates, project photos, and customer updates | verify email/contact |
 | 9 | Big Leaf Landscapes | landscape / hardscape | cold/local | Premium | family-owned full-service landscape company serving Corvallis and Albany; hardscapes, irrigation, lighting, planting, woodwork, design; founder Sam Levine listed | multi-service work may need estimates, schedule, photos, handoff, follow-up; may be more organized | verify fit |
-| 10 | Catt Hardscape Construction | hardscape | cold/local | Basic/Premium | professional hardscape contractor serving Albany, Corvallis, Lebanon, Philomath, Millersburg, Sweet Home, Salem; pavers, walls, flagstone | strong local hardscape fit; ask how estimates, photos, and job notes are managed | verify contact |
+| 10 | Catt Hardscape Construction | hardscape | cold/local | Basic/Premium | Website lists: professional hardscape contractor serving Albany, Corvallis, Lebanon, Philomath, Millersburg, Sweet Home, Salem; specializes in pavers, walls, flagstone; phone 541-908-7787; email info@catthardscape.com; “Licensed • Bonded • Insured”; CCB#234909; hours Mon–Fri 8am–5pm | strong local hardscape fit; ask how they price/estimate, track design changes, manage photos, and follow up on open bids | verified contact; ready for outreach once demo path is clean |
 
 ## Source Notes
 
@@ -127,6 +127,8 @@ Use these only as research notes. Refresh before public claims.
 - River City Hardscapes: https://www.rivercityhardscapes.com/
 - Big Leaf Landscapes: https://www.bigleaflandscapes.com/
 - Catt Hardscape Construction: https://catthardscape.com/
+
+Last refreshed: 2026-05-17 (website checks only; no outreach sent)
 
 ## First Contact Priority
 

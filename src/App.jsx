@@ -94,6 +94,7 @@ import {
   scoreLead as scoreLeadRequest,
   selectCompany,
   signupCompany,
+  submitPublicDemoInterest,
   submitDailyReport,
   submitPublicEstimateRequest,
   startBreak,
@@ -131,6 +132,14 @@ import {
   sendEstimate,
   submitToolChecklist,
 } from "./api";
+import {
+  PUBLIC_DEMO_WORKFLOW_OPTIONS,
+  buildPublicDemoInterestSummary,
+  buildPublicDemoInterestPayload,
+  buildPublicDemoMailtoHref,
+  createPublicDemoInterestDraft,
+  validatePublicDemoInterestDraft,
+} from "./public-website-utils";
 import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
@@ -212,6 +221,7 @@ const DEMO_LOGIN_PRESETS = [
 ];
 const SESSION_TOKEN_KEY = "apex-hq/session-token";
 const AUTOSAVE_DELAY_MS = 700;
+const PUBLIC_WEBSITE_PATH = "/founder-pilot";
 const INVITE_ACTIVATION_PATH = "/activate-invite";
 const PASSWORD_RESET_PATH = "/reset-password";
 const PUBLIC_ESTIMATE_REQUEST_PATH = "/request-estimate";
@@ -1197,6 +1207,7 @@ const INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM = {
   preferredContactTime: "",
   honeypot: "",
 };
+const INITIAL_PUBLIC_DEMO_INTEREST_FORM = createPublicDemoInterestDraft();
 const PUBLIC_REQUEST_PROJECT_TYPES = [
   "Driveway / flatwork",
   "Patio / outdoor living",
@@ -2375,6 +2386,7 @@ function LoginScreen({
   showSignup,
   setShowSignup,
   onOpenPasswordReset,
+  onOpenPublicWebsite,
   onOpenPublicEstimateRequest,
 }) {
   const backendTone = backendStatus === "online" ? "green" : backendStatus === "offline" ? "red" : "amber";
@@ -2504,6 +2516,11 @@ function LoginScreen({
           )}
 
           <div className="co-login-support-grid">
+            <div>
+              <p>Founder-led demo</p>
+              <span>See the public founder-pilot page before signing in. Demo requests stay manual and do not create accounts.</span>
+              <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onOpenPublicWebsite}>View founder pilot</Button>
+            </div>
             <div>
               <p>{isSignupMode ? "Already have a workspace?" : "Account help"}</p>
               <span>
@@ -2677,6 +2694,187 @@ function PasswordResetScreen({
           </form>
         </section>
       </div>
+    </div>
+  );
+}
+
+function PublicWebsitePage({
+  draft,
+  setDraft,
+  onSubmit,
+  onCopyRequest,
+  onBackToLogin,
+  loading,
+  error,
+  successMessage,
+  preparedSummary,
+  mailtoHref,
+  copyNotice,
+}) {
+  const workflowSteps = [
+    ["Lead or estimate", "Keep the opportunity, scope notes, and follow-up visible."],
+    ["Job setup", "Turn the work into a cleaner handoff for the office and field."],
+    ["Field proof", "Connect photos, reports, tickets, and updates to the job."],
+    ["Owner review", "See what is missing, what is ready, and what needs follow-up."],
+  ];
+  const fitItems = [
+    "Concrete, hardscape, excavation, remodel, and small GC teams",
+    "Owner-led contractors with active leads, estimates, jobs, or crews",
+    "Companies tired of job details living in texts, paper, phones, and memory",
+  ];
+  const boundaryItems = [
+    "No lead guarantees",
+    "No accounting or payroll replacement",
+    "No automatic email or text sending",
+    "No custom build promise before the workflow proves useful",
+  ];
+
+  return (
+    <div className="co-public-site">
+      <header className="co-public-site-nav">
+        <button type="button" className="co-public-site-brand" onClick={onBackToLogin}>
+          <img src={APEX_BRAND_ASSETS.appLogo} alt={APP_NAME} />
+        </button>
+        <nav aria-label="Public site navigation">
+          <a href="#workflow">Workflow</a>
+          <a href="#pilot">Founder pilot</a>
+          <a href="#demo-interest">Walkthrough</a>
+          <button type="button" onClick={onBackToLogin}>Login</button>
+        </nav>
+      </header>
+
+      <main>
+        <section className="co-public-site-hero">
+          <img className="co-public-site-hero-art" src={APEX_BRAND_ASSETS.splash} alt="" />
+          <div className="co-public-site-hero-shade" aria-hidden="true" />
+          <div className="co-public-site-hero-copy">
+            <div className="co-public-site-badges">
+              <Badge tone="orange">Founder-led demos</Badge>
+              <Badge tone="blue">Controlled pilots</Badge>
+            </div>
+            <h1>Stop chasing job details.</h1>
+            <p>
+              Apex HQ keeps estimates, jobs, crews, photos, reports, and follow-ups organized in one contractor command center.
+            </p>
+            <span>Built from 15 years of concrete field and business experience.</span>
+            <div className="co-public-site-actions">
+              <a href="#demo-interest" className="co-public-site-primary-action">Book a guided walkthrough</a>
+              <a href="#pilot" className="co-public-site-secondary-action">Ask about the founder pilot</a>
+            </div>
+          </div>
+        </section>
+
+        <section className="co-public-site-section co-public-site-problem">
+          <div>
+            <Badge tone="slate">Contractor operations</Badge>
+            <h2>Your jobs should not live in texts and memory.</h2>
+          </div>
+          <p>
+            Most contractors have leads in one place, estimates in another, job photos on phones, crew notes in texts, reports missing, and follow-ups sitting in somebody's head.
+          </p>
+        </section>
+
+        <section id="workflow" className="co-public-site-section">
+          <div className="co-public-site-section-head">
+            <Badge tone="blue">One workflow first</Badge>
+            <h2>Built around the way contractor work actually moves.</h2>
+            <p>Lead/estimate -&gt; job setup -&gt; field handoff -&gt; photo/report proof -&gt; owner review -&gt; follow-up.</p>
+          </div>
+          <div className="co-public-site-workflow-grid">
+            {workflowSteps.map(([title, detail], index) => (
+              <article key={title}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{title}</strong>
+                <p>{detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="pilot" className="co-public-site-section co-public-site-split">
+          <div>
+            <Badge tone="orange">14-day founder pilot</Badge>
+            <h2>Test Apex HQ on one real contractor workflow.</h2>
+            <p>
+              The pilot is not a full company switch. We pick one workflow, set it up, check in around day 3, and decide around day 10 if it is worth continuing.
+            </p>
+            <div className="co-public-site-pilot-list">
+              {["One kickoff call", "One selected workflow", "Owner/admin setup help", "One field action if needed", "Day-3 check-in", "Day-10 value review"].map((item) => (
+                <span key={item}><Icon name="check" />{item}</span>
+              ))}
+            </div>
+          </div>
+          <div className="co-public-site-fit-panel">
+            <h3>Good first fit</h3>
+            {fitItems.map((item) => <p key={item}>{item}</p>)}
+            <h3>Not promised</h3>
+            {boundaryItems.map((item) => <p key={item}>{item}</p>)}
+          </div>
+        </section>
+
+        <section id="demo-interest" className="co-public-site-section co-public-site-demo">
+          <div className="co-public-site-section-head">
+            <Badge tone="green">Manual follow-up</Badge>
+            <h2>Want to see if Apex HQ fits your workflow?</h2>
+            <p>Send a short walkthrough request for manual founder review. Apex HQ does not send automatic email or SMS.</p>
+          </div>
+
+          <form className="co-public-site-form" onSubmit={onSubmit}>
+            <div className="sr-only">
+              <label htmlFor="public-demo-company-website">Company website</label>
+              <input
+                id="public-demo-company-website"
+                autoComplete="off"
+                tabIndex={-1}
+                value={draft.honeypot}
+                onChange={(event) => setDraft((current) => ({ ...current, honeypot: event.target.value }))}
+              />
+            </div>
+            <div className="co-public-site-form-grid">
+              <InputField label="Name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} disabled={loading} />
+              <InputField label="Company" value={draft.company} onChange={(event) => setDraft((current) => ({ ...current, company: event.target.value }))} disabled={loading} />
+              <InputField label="Email" type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} disabled={loading} />
+              <InputField label="Phone" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} disabled={loading} />
+              <InputField label="Trade / type of work" value={draft.trade} onChange={(event) => setDraft((current) => ({ ...current, trade: event.target.value }))} disabled={loading} />
+              <InputField label="Location / service area" value={draft.location} onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} disabled={loading} />
+            </div>
+            <SelectField label="Workflow to clean up first" value={draft.workflow} onChange={(event) => setDraft((current) => ({ ...current, workflow: event.target.value }))} disabled={loading}>
+              {PUBLIC_DEMO_WORKFLOW_OPTIONS.map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <TextAreaField label="What is scattered today?" value={draft.message} onChange={(event) => setDraft((current) => ({ ...current, message: event.target.value }))} disabled={loading} />
+            <label className="co-public-site-consent">
+              <input
+                type="checkbox"
+                checked={draft.consentToManualFollowUp}
+                onChange={(event) => setDraft((current) => ({ ...current, consentToManualFollowUp: event.target.checked }))}
+                disabled={loading}
+              />
+              <span>I am asking for manual founder follow-up about Apex HQ. I understand this does not create an account, send automatic texts/emails, or start billing.</span>
+            </label>
+            {error ? <p className="co-public-site-error">{error}</p> : null}
+            {successMessage ? <p className="co-public-site-success">{successMessage}</p> : null}
+            <div className="co-public-site-form-actions">
+              <Button type="submit" size="lg" disabled={loading}>{loading ? "Saving request..." : "Submit walkthrough request"}</Button>
+              <a className="co-public-site-call-link" href="tel:+15419712741">Call John</a>
+            </div>
+          </form>
+
+          {preparedSummary ? (
+            <div className="co-public-site-prepared">
+              <div>
+                <Badge tone="green">Saved for manual review</Badge>
+                <p>This was saved as a manual review lead. You can still copy the request for a call, text, or email.</p>
+              </div>
+              <textarea readOnly value={preparedSummary} />
+              <div className="co-public-site-form-actions">
+                <Button type="button" variant="secondary" onClick={onCopyRequest}>Copy request</Button>
+                <a className="co-public-site-call-link" href={mailtoHref}>Open email draft</a>
+              </div>
+              {copyNotice ? <p className="co-public-site-copy-notice">{copyNotice}</p> : null}
+            </div>
+          ) : null}
+        </section>
+      </main>
     </div>
   );
 }
@@ -34091,6 +34289,11 @@ export default function App() {
   const [publicEstimateRequestDraft, setPublicEstimateRequestDraft] = useState(INITIAL_PUBLIC_ESTIMATE_REQUEST_FORM);
   const [publicEstimateRequestError, setPublicEstimateRequestError] = useState("");
   const [publicEstimateRequestSuccess, setPublicEstimateRequestSuccess] = useState("");
+  const [publicDemoInterestDraft, setPublicDemoInterestDraft] = useState(INITIAL_PUBLIC_DEMO_INTEREST_FORM);
+  const [publicDemoInterestError, setPublicDemoInterestError] = useState("");
+  const [publicDemoInterestSuccess, setPublicDemoInterestSuccess] = useState("");
+  const [publicDemoInterestSummary, setPublicDemoInterestSummary] = useState("");
+  const [publicDemoInterestCopyNotice, setPublicDemoInterestCopyNotice] = useState("");
   const [customerFilter, setCustomerFilter] = useState("All");
   const [customerSearch, setCustomerSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("All roles");
@@ -34148,6 +34351,7 @@ export default function App() {
   const autosaveVersionsRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const pendingAutosavePatchesRef = useRef({ customer: new Map(), lead: new Map(), job: new Map() });
   const publicEstimateRequestRoute = pathname === PUBLIC_ESTIMATE_REQUEST_PATH;
+  const publicWebsiteRoute = pathname === PUBLIC_WEBSITE_PATH;
   const inviteActivationRoute = pathname === INVITE_ACTIVATION_PATH;
   const passwordResetRoute = pathname === PASSWORD_RESET_PATH;
   const inviteActivationToken = useMemo(() => {
@@ -34267,6 +34471,13 @@ export default function App() {
     setPublicEstimateRequestError("");
     setPublicEstimateRequestSuccess("");
     navigateTo(PUBLIC_ESTIMATE_REQUEST_PATH);
+  }
+
+  function openPublicWebsite() {
+    setPublicDemoInterestError("");
+    setPublicDemoInterestSuccess("");
+    setPublicDemoInterestCopyNotice("");
+    navigateTo(PUBLIC_WEBSITE_PATH);
   }
 
   function openPasswordReset() {
@@ -35034,6 +35245,50 @@ export default function App() {
       setPublicEstimateRequestError(error.message || "Could not submit the estimate request.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handlePublicDemoInterest(event) {
+    event.preventDefault();
+    setBusy(true);
+    setPublicDemoInterestError("");
+    setPublicDemoInterestSuccess("");
+    setPublicDemoInterestCopyNotice("");
+
+    try {
+      const validation = validatePublicDemoInterestDraft(publicDemoInterestDraft);
+      if (validation.ignored) {
+        setPublicDemoInterestDraft(INITIAL_PUBLIC_DEMO_INTEREST_FORM);
+        setPublicDemoInterestSummary("");
+        setPublicDemoInterestSuccess("Request prepared.");
+        return;
+      }
+      if (!validation.ok) {
+        setPublicDemoInterestError(validation.errors.join(" "));
+        return;
+      }
+      const summary = buildPublicDemoInterestSummary(publicDemoInterestDraft);
+      const result = await submitPublicDemoInterest(buildPublicDemoInterestPayload(publicDemoInterestDraft));
+      setPublicDemoInterestSummary(summary);
+      setBackendStatus("online");
+      setPublicDemoInterestSuccess(result?.message || "Walkthrough request received for manual founder review. No automatic email or SMS was sent.");
+    } catch (error) {
+      if (error.code === "BACKEND_UNAVAILABLE" || error.status === 0) {
+        setBackendStatus("offline");
+      }
+      setPublicDemoInterestError(error.message || "Could not submit the walkthrough request.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyPublicDemoInterestSummary() {
+    if (!publicDemoInterestSummary) return;
+    try {
+      await navigator.clipboard.writeText(publicDemoInterestSummary);
+      setPublicDemoInterestCopyNotice("Request copied.");
+    } catch {
+      setPublicDemoInterestCopyNotice("Copy unavailable. Select the prepared request text manually.");
     }
   }
 
@@ -36922,6 +37177,24 @@ export default function App() {
     );
   }
 
+  if (publicWebsiteRoute) {
+    return (
+      <PublicWebsitePage
+        draft={publicDemoInterestDraft}
+        setDraft={setPublicDemoInterestDraft}
+        onSubmit={handlePublicDemoInterest}
+        onCopyRequest={copyPublicDemoInterestSummary}
+        onBackToLogin={navigateToLoginScreen}
+        loading={busy}
+        error={publicDemoInterestError}
+        successMessage={publicDemoInterestSuccess}
+        preparedSummary={publicDemoInterestSummary}
+        mailtoHref={buildPublicDemoMailtoHref(publicDemoInterestDraft)}
+        copyNotice={publicDemoInterestCopyNotice}
+      />
+    );
+  }
+
   if (publicEstimateRequestRoute) {
     return (
       <PublicEstimateRequestPage
@@ -36966,6 +37239,7 @@ export default function App() {
         showSignup={showPublicSignup}
         setShowSignup={setShowPublicSignup}
         onOpenPasswordReset={openPasswordReset}
+        onOpenPublicWebsite={openPublicWebsite}
         onOpenPublicEstimateRequest={openPublicEstimateRequest}
       />
     );

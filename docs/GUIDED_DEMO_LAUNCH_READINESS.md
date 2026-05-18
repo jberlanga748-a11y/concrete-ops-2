@@ -1,8 +1,8 @@
 # Apex HQ Guided Demo Launch Readiness
 
-Status: rehearsed on live v487; warm-demo ready with notes
+Status: refreshed after live v496 and demo app v71; warm-demo ready with notes
 Owner: Apex HQ Master Coordinator
-Use with: `docs/SALES_DEMO_PLAYBOOK.md`, `docs/DEMO_LAUNCH_PACKET.md`, `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`, and `docs/DEMO_READY_CHECKLIST.md`
+Use with: `docs/SALES_DEMO_PLAYBOOK.md`, `docs/DEMO_LAUNCH_PACKET.md`, `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`, `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md`, and `docs/DEMO_READY_CHECKLIST.md`
 
 ## Current Verdict
 
@@ -14,8 +14,11 @@ It is not yet positioned as public self-serve SaaS, enterprise-ready procurement
 
 Date: 2026-05-17
 Environment: `https://app.apexhq.online`
-Release: Fly `v487`
-Evidence: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-rehearsal-1779028554230`
+Release: Fly `v496`
+Evidence:
+
+- Desktop audit manifest: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-v496-live-desktop\2026-05-17T22-46-05-531Z\manifest.json`
+- Focused route/mobile results: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-v496-live-focused\2026-05-17T22-47-30-393Z\focused-results.json`
 
 Result:
 
@@ -24,12 +27,13 @@ Result:
 - No failed API/network requests found.
 - No horizontal overflow found across checked desktop/mobile pages.
 - Field users remained blocked from office/admin/pricing/estimate surfaces through direct route checks.
-- Apex Assistant shell opened successfully and safely showed the Premium AI Rough Notes gate in the current Basic demo workspace.
 - `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, and `git diff --check` passed.
 
 Note:
 
-- The current live demo workspace blocks Premium AI Rough Notes assistant commands. That is correct package-gate behavior, but do not promise a live Premium assistant rough-notes demo from this Basic demo workspace unless a Premium demo workspace is prepared.
+- The separate demo app at `https://concrete-ops-demo.fly.dev/` was refreshed to Fly `v71` after rehearsal found the documented demo password was rejected there.
+- Demo app release `v71` restored documented demo authentication for `demo.ops@apexhq.app`, `demo.admin@apexhq.app`, `demo.foreman@apexhq.app`, and `demo.employee@apexhq.app`.
+- Check `https://concrete-ops-demo.fly.dev/api/ready` before using the separate demo app for a guided walkthrough.
 
 The first demo goal is simple:
 
@@ -196,6 +200,8 @@ Capture:
 - day-10 value review date
 - success criteria in plain language
 
+Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` once a good-fit contractor agrees to the 14-day pilot.
+
 ## Demo Go / No-Go
 
 Go for warm demos if:
@@ -216,28 +222,23 @@ No-go if:
 
 ## Next Product Gate
 
-After guided demo readiness, the next product-heavy phase is:
+After the refreshed guided demo, the next gate is business execution, not another app build:
 
 ```text
-Assistant Command Expansion Phase 2 Scope Lock
+Founder-led demo execution and controlled pilot feedback
 ```
 
-That phase should define the first reviewed assistant commands before coding.
+Use:
 
-Allowed first command candidates:
+- `docs/FIRST_10_DEMO_TARGETS.md`
+- `docs/OUTREACH_TRACKER.md`
+- `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md`
+- `docs/CUSTOMER_DATA_POLICY_DRAFT.md`
 
-- open this lead
-- start an estimate from this lead
-- draft proposal language from rough notes
-- create a reviewed draft job from an accepted estimate
-- prepare a field handoff checklist
-- summarize missing proof for a job
+Only start another app phase when a guided demo or pilot exposes:
 
-Not allowed yet:
-
-- automatic sending
-- automatic pricing approval
-- automatic crew assignment without review
-- automatic customer communication
-- automatic purchasing
-- hidden GPS or tracking behavior
+- a blocker in the first workflow
+- a role/permission issue
+- visible demo data problem
+- mobile field workflow problem
+- narrow missing workflow needed to convert a real pilot
