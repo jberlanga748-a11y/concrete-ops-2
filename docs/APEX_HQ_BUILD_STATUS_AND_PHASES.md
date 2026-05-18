@@ -51,20 +51,21 @@ Current state:
 - Targeted Estimate Studio text wrapping polish: built, verified, released, and health-checked so long estimate, customer, lead, and job labels wrap cleanly without horizontal overflow.
 - Targeted Pre/Post-Pour action header polish: built, verified, released, and health-checked so the shared checklist table action column no longer clips on desktop while mobile card layouts and field-safe views remain intact.
 - Targeted Leads follow-up header polish: built, verified, released, and health-checked so the Leads command table `Follow-Up` header no longer clips on desktop while mobile cards and field-role redirects remain intact.
+- Targeted Jobs progress header polish: built, verified, released, and health-checked so the Jobs command table `Progress` header no longer clips on desktop while mobile cards and field-role Field Mode behavior remain intact.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `6b431d6`
-- Message: `Fix leads follow up header width`
-- Fly release: `v521`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWVNB5NVTYPMPVBSBQK9P3Y`
+- Commit: `5b2383e`
+- Message: `Fix jobs progress header width`
+- Fly release: `v522`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWW3SXWMFVASPYTM2NR10T4`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v521` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v522` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -123,6 +124,7 @@ Recent shipped phase stack:
 | `428cdb5` | `v519` | Estimate Studio text wrapping polish |
 | `dc95b66` | `v520` | Pre/Post-Pour action header polish |
 | `6b431d6` | `v521` | Leads follow-up header polish |
+| `5b2383e` | `v522` | Jobs progress header polish |
 
 ## Done / Do Not Rebuild
 
@@ -282,6 +284,7 @@ Recent focused verification:
 - Estimate Studio text wrapping polish release checks: targeted route sweep found desktop `/estimates` long proposal titles clipping in fixed command-table cells. `npm.cmd run verify:estimates`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/estimates` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop estimate/customer and lead/job context wrapping with `overflow-wrap:anywhere`, mobile estimate cards still replacing the table, and employee mobile direct `/estimates` still landing in Field Mode without estimate studio, pricing, proposal, or total signals. Released as Fly `v519` with image `registry.fly.io/concrete-ops-2:deployment-01KRWTRD5KPD7N5H8AB0CPGDZY`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Pre/Post-Pour action header polish release checks: targeted route sweep found desktop `/pre-pour` and `/post-pour` shared checklist table `Actions` headers clipping in the fixed action column. `npm.cmd run verify:pre-pour`, `npm.cmd run verify:post-pour`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/pre-pour` and `/post-pour` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop `Actions` headers no longer clipped, mobile card layouts still replacing the table, and employee mobile direct views stayed field-safe without office, settings, upgrade, pricing, or billing signals. Released as Fly `v520` with image `registry.fly.io/concrete-ops-2:deployment-01KRWV8BX4HKXW6WHV9102C18Q`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Leads follow-up header polish release checks: targeted route sweep found desktop `/leads` `Follow-Up` header clipping in the fixed Leads command table. `npm.cmd run verify:leads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/leads` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop `Follow-Up` header no longer clipped, owner mobile lead cards still replacing the table, and employee mobile direct `/leads` redirected to Field Mode without leads, office, settings, upgrade, pricing, billing, or AI Office signals. Released as Fly `v521` with image `registry.fly.io/concrete-ops-2:deployment-01KRWVNB5NVTYPMPVBSBQK9P3Y`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
+- Jobs progress header polish release checks: targeted route sweep found desktop `/jobs` `Progress` header clipping in the fixed Jobs command table. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/jobs` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop `Progress` header no longer clipped, owner mobile job cards still replacing the table, and employee mobile direct `/jobs` stayed in Field Mode without office, settings, upgrade, pricing, billing, AI Office, or App Health signals. Released as Fly `v522` with image `registry.fly.io/concrete-ops-2:deployment-01KRWW3SXWMFVASPYTM2NR10T4`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -331,6 +334,7 @@ Do not start these phases again as if they are missing:
 - Estimate Studio text wrapping polish.
 - Pre/Post-Pour action header polish.
 - Leads follow-up header polish.
+- Jobs progress header polish.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
