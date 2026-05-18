@@ -34450,7 +34450,7 @@ textarea {
 
 .co-customers-page {
   --co-customers-rail-line: rgba(148, 163, 184, 0.2);
-  --co-customers-rail-panel: rgba(255, 255, 255, 0.965);
+  --co-customers-rail-panel: rgba(15, 23, 42, 0.82);
 }
 
 @media (min-width: 1024px) {
@@ -34483,8 +34483,10 @@ textarea {
   }
 
   .co-customers-right-rail {
-    max-height: none !important;
-    overflow: visible !important;
+    position: sticky !important;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.72rem) !important;
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 1.15rem) !important;
+    overflow-y: auto !important;
     border: 1px solid var(--co-customers-rail-line);
     border-radius: 0.55rem;
     background:
@@ -34492,28 +34494,138 @@ textarea {
       linear-gradient(180deg, #0d1523 0%, #07111f 100%);
     padding: 0.62rem !important;
     box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9);
+    scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+  }
+
+  .co-office-page .co-customers-right-rail {
+    padding: 0.62rem !important;
   }
 
   .co-customers-rail-card,
   .co-customers-rail-details,
   .co-customers-tools-drawer > summary {
-    border-color: rgba(203, 213, 225, 0.88) !important;
+    border-color: var(--co-customers-rail-line) !important;
     border-left-color: rgba(249, 115, 22, 0.72) !important;
     background: var(--co-customers-rail-panel) !important;
     background-color: var(--co-customers-rail-panel) !important;
     box-shadow: none !important;
+    color: #e5edf6 !important;
+  }
+
+  .co-customers-right-rail > .co-customers-rail-card,
+  .co-customers-right-rail > .co-customers-rail-details,
+  .co-customers-right-rail .co-customers-contact-editor,
+  .co-customers-right-rail .co-customers-contact-editor > .co-card {
+    border-color: var(--co-customers-rail-line) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-customers-rail-panel) !important;
+    background-color: var(--co-customers-rail-panel) !important;
+    color: #e5edf6 !important;
+  }
+
+  .co-module-frame:not(.co-module-commandCenter) .co-office-page.co-customers-page .co-customers-right-rail > .co-customers-rail-card.co-card,
+  .co-module-frame:not(.co-module-commandCenter) .co-office-page.co-customers-page .co-customers-right-rail .co-customers-contact-editor > .co-card {
+    border-color: var(--co-customers-rail-line) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-customers-rail-panel) !important;
+    background-color: var(--co-customers-rail-panel) !important;
+    color: #e5edf6 !important;
   }
 
   .co-customers-right-rail .co-card,
   .co-customers-right-rail .co-state-card,
   .co-customers-right-rail .co-office-list-card {
+    background-color: transparent !important;
     box-shadow: none !important;
+  }
+
+  .co-customers-right-rail .co-section-accent::before {
+    background: #fb923c !important;
+  }
+
+  .co-customers-right-rail .co-section-accent h2,
+  .co-customers-right-rail h3,
+  .co-customers-right-rail strong,
+  .co-customers-right-rail .co-customers-rail-details > summary span:first-child,
+  .co-customers-right-rail .co-customers-mini-stat p,
+  .co-customers-right-rail .co-customers-related-row strong,
+  .co-customers-right-rail .text-slate-950 {
+    color: #f8fafc !important;
+  }
+
+  .co-customers-right-rail .co-section-accent p,
+  .co-customers-right-rail .text-slate-400,
+  .co-customers-right-rail .text-slate-500,
+  .co-customers-right-rail .text-slate-600,
+  .co-customers-right-rail .text-slate-700,
+  .co-customers-right-rail .co-customers-mini-stat span,
+  .co-customers-right-rail .co-customers-related-row small,
+  .co-customers-rail-details > summary span:last-child {
+    color: #cbd5e1 !important;
+  }
+
+  .co-customers-right-rail .co-customers-mini-stat,
+  .co-customers-right-rail .co-customers-related-row,
+  .co-customers-right-rail .rounded-xl,
+  .co-customers-right-rail .co-state-card,
+  .co-customers-rail-details > summary {
+    border-color: rgba(148, 163, 184, 0.2) !important;
+    background: rgba(255, 255, 255, 0.055) !important;
+    background-color: rgba(255, 255, 255, 0.055) !important;
+  }
+
+  .co-customers-right-rail .co-customers-related-row:hover {
+    border-color: rgba(249, 115, 22, 0.34) !important;
+    background: rgba(249, 115, 22, 0.12) !important;
+  }
+
+  .co-customers-right-rail .field-input,
+  .co-customers-right-rail input,
+  .co-customers-right-rail select,
+  .co-customers-right-rail textarea {
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: #07111f !important;
+  }
+
+  .co-customers-right-rail .co-button-secondary {
+    border-color: rgba(148, 163, 184, 0.24) !important;
+    background: rgba(255, 255, 255, 0.075) !important;
+    color: #f8fafc !important;
+  }
+
+  .co-customers-right-rail .co-button-secondary:disabled,
+  .co-customers-right-rail button:disabled {
+    opacity: 0.78 !important;
   }
 
   .co-customers-rail-card button,
   .co-customers-related-row,
   .co-customers-rail-details > summary {
     min-height: 2.36rem !important;
+  }
+
+  .co-customers-command-table td:nth-child(1) p,
+  .co-customers-command-table td:nth-child(3) p {
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .co-customers-tools-drawer > summary {
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.14), transparent 13rem),
+      linear-gradient(180deg, #1e293b 0%, #111827 100%) !important;
+    color: #f8fafc !important;
+  }
+
+  .co-customers-tools-drawer > summary strong {
+    color: #f8fafc !important;
+  }
+
+  .co-customers-tools-drawer > summary em,
+  .co-customers-tools-drawer > summary > span:last-child {
+    color: #cbd5e1 !important;
   }
 }
 
