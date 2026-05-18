@@ -3704,7 +3704,7 @@ function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows 
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-lg font-black text-slate-950">{row.customer || "Unnamed lead"}</p>
-                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
+                  <p className="mt-1 break-words text-xs font-bold text-slate-500">{row.id} / {row.city}</p>
                 </div>
                 <div className="shrink-0">
                   <StatusBadge status={row.status} />
@@ -3773,7 +3773,7 @@ function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows 
               <tr key={row.id} onClick={() => onSelect(row.id)} className={`co-leads-command-row cursor-pointer transition hover:bg-orange-50/45 ${selected ? "is-selected bg-orange-50/70" : ""} ${followUpDue ? "is-due" : ""} ${readyForEstimate ? "is-ready" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{row.customer}</p>
-                  <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
+                  <p className="text-xs font-bold text-slate-500">{row.id} / {row.city}</p>
                 </td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-700"><span className="line-clamp-2">{row.project || "No project yet"}</span></td>
                 <td className="px-4 py-3 text-sm font-bold text-slate-600"><span className="truncate">{row.city || "No city"}</span></td>
@@ -4175,7 +4175,7 @@ function LeadDetailPanel({
     <Card className="p-5">
       <SectionHeader
         title={lead.customer}
-        description={`${lead.id} · ${lead.city}`}
+        description={`${lead.id} / ${lead.city}`}
         action={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {!canManage ? <Badge tone="slate">Read only</Badge> : null}

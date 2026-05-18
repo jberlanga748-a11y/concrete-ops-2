@@ -33738,7 +33738,8 @@ textarea {
   }
 
   .co-leads-command-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(21.5rem, 23rem) !important;
+    grid-template-columns: minmax(0, 1fr) minmax(22.5rem, 24.5rem) !important;
+    gap: 0.78rem !important;
   }
 
   .co-leads-right-rail {
@@ -33747,7 +33748,7 @@ textarea {
     background:
       radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.16), transparent 13rem),
       linear-gradient(180deg, #0d1523 0%, #07111f 100%);
-    padding: 0.62rem 4.2rem 0.62rem 0.62rem !important;
+    padding: 0.62rem !important;
     box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9);
   }
 
@@ -33791,6 +33792,11 @@ textarea {
     border-color: rgba(148, 163, 184, 0.28) !important;
     background: rgba(255, 255, 255, 0.08) !important;
     color: #f8fafc !important;
+  }
+
+  .co-leads-right-rail .co-leads-rail-card button,
+  .co-leads-right-rail .co-leads-rail-details button {
+    min-height: 2.45rem;
   }
 }
 
@@ -33866,9 +33872,19 @@ textarea {
 
   .co-leads-tool-tabs button {
     min-width: 0;
+    min-height: 2.75rem;
     width: 100%;
     justify-content: space-between;
     white-space: normal;
+  }
+
+  .co-leads-icon-button,
+  .co-leads-row-action,
+  .co-leads-advanced-filters > summary,
+  .co-leads-tool-disclosure > summary,
+  .co-leads-rail-details > summary,
+  .co-leads-tools-drawer > summary {
+    min-height: 2.75rem !important;
   }
 }
 
