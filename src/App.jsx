@@ -6937,6 +6937,12 @@ function TimePage({
     { label: "Week", value: formatMinutes(boardSummary.totalMinutes || 0) },
   ];
   const canOpenTimeSupport = Boolean(permissions?.support?.canView && typeof onOpenSupport === "function");
+  const clockHeroRef = useRef(null);
+  const timeBoardRef = useRef(null);
+
+  function jumpToTimeSection(ref) {
+    window.setTimeout(() => ref.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  }
 
   function requestTimeSupportReview() {
     if (!canOpenTimeSupport) return;
@@ -6948,6 +6954,57 @@ function TimePage({
       boardSummary,
     }));
   }
+
+  const timeCommandItems = [
+    {
+      label: "Clocked in",
+      value: clockedInCount,
+      helper: clockedInCount ? "Active field time is running" : "No visible active time",
+      tone: clockedInCount ? "green" : "slate",
+      action: "Open board",
+      onClick: () => jumpToTimeSection(timeBoardRef),
+    },
+    {
+      label: "On break",
+      value: onBreakCount,
+      helper: onBreakCount ? "Break timer needs visibility" : "No active breaks",
+      tone: onBreakCount ? "amber" : "green",
+      action: "Review breaks",
+      onClick: () => jumpToTimeSection(timeBoardRef),
+    },
+    {
+      label: "Visible week",
+      value: formatMinutes(boardSummary.totalMinutes || 0),
+      helper: `${boardRows.length} role-scoped entries`,
+      tone: boardSummary.totalMinutes ? "orange" : "slate",
+      action: "Open details",
+      onClick: () => jumpToTimeSection(timeBoardRef),
+    },
+    {
+      label: "My clock",
+      value: workspace.activeEntry ? "Active" : "Ready",
+      helper: permissions.time.canManageOwn
+        ? workspace.activeEntry ? "Your own timer is running" : "Ready for a clean clock-in"
+        : "Clock controls are role-scoped",
+      tone: workspace.activeEntry ? "green" : permissions.time.canManageOwn ? "orange" : "slate",
+      action: permissions.time.canManageOwn ? "Open clock" : "Review board",
+      onClick: () => jumpToTimeSection(permissions.time.canManageOwn ? clockHeroRef : timeBoardRef),
+    },
+  ];
+  const timeNextAction = onBreakCount
+    ? "Review active breaks"
+    : clockedInCount
+      ? "Watch active field time"
+      : permissions.time.canManageOwn
+        ? "Clock into the right job"
+        : "Time board is clear";
+  const timeNextDetail = onBreakCount
+    ? `${onBreakCount} visible entr${onBreakCount === 1 ? "y is" : "ies are"} currently on break.`
+    : clockedInCount
+      ? `${clockedInCount} visible entr${clockedInCount === 1 ? "y is" : "ies are"} active or on break.`
+      : permissions.time.canManageOwn
+        ? "Use the clock card to start clean job-linked time."
+        : "No active visible time needs office attention.";
 
   return (
     <div className="co-office-page co-time-page">
@@ -6970,7 +7027,7 @@ function TimePage({
       />
 
       {permissions.time.canManageOwn ? (
-        <div className="co-time-clock-hero mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+        <div ref={clockHeroRef} className="co-time-clock-hero mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
           <ActiveTimeCard
             activeEntry={workspace.activeEntry}
             availableJobs={workspace.availableJobs}
@@ -6984,6 +7041,89 @@ function TimePage({
             compactMobile
             heroClock
           />
+        </div>
+      ) : null}
+
+      {canViewAll ? (
+        <div className="co-time-command-band mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+          <Card className="co-time-command-card overflow-hidden">
+            <div className="co-time-command-shell">
+              <div className="co-time-command-main">
+                <div className="co-time-command-header">
+                  <div className="min-w-0">
+                    <p className="co-time-command-eyebrow">Time command</p>
+                    <h2>Active crews, breaks, and weekly time in one office pass</h2>
+                    <p>Keep field time readable for operations without exposing rates, pricing, or payroll controls.</p>
+                  </div>
+                  <div className="co-time-command-actions">
+                    <Button type="button" variant="secondary" onClick={() => jumpToTimeSection(timeBoardRef)}>Open board</Button>
+                    {permissions.time.canManageOwn ? <Button type="button" variant="secondary" onClick={() => jumpToTimeSection(clockHeroRef)}>Open clock</Button> : null}
+                    {canOpenTimeSupport ? <Button type="button" onClick={requestTimeSupportReview}>Time support</Button> : null}
+                  </div>
+                </div>
+                <div className="co-time-command-metrics">
+                  <button type="button" className="co-focus-ring" data-tone="orange" onClick={() => jumpToTimeSection(timeBoardRef)}>
+                    <span>Visible entries</span>
+                    <strong>{boardRows.length}</strong>
+                    <em>Role-scoped time board</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" data-tone={clockedInCount ? "green" : "slate"} onClick={() => jumpToTimeSection(timeBoardRef)}>
+                    <span>Clocked in</span>
+                    <strong>{clockedInCount}</strong>
+                    <em>Active or on break now</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" data-tone={onBreakCount ? "amber" : "green"} onClick={() => jumpToTimeSection(timeBoardRef)}>
+                    <span>On break</span>
+                    <strong>{onBreakCount}</strong>
+                    <em>Break timers visible</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" data-tone={completedCount ? "green" : "slate"} onClick={() => jumpToTimeSection(timeBoardRef)}>
+                    <span>Completed</span>
+                    <strong>{completedCount}</strong>
+                    <em>Closed visible entries</em>
+                  </button>
+                </div>
+                <div className="co-time-command-queues">
+                  {timeCommandItems.slice(0, 3).map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <aside className="co-time-command-rail" aria-label="Time assistant">
+                <div className="co-time-command-rail-head">
+                  <span><Icon name="clock" /></span>
+                  <div className="min-w-0">
+                    <strong>Time Assistant</strong>
+                    <p>Manual time review</p>
+                  </div>
+                </div>
+                <div className="co-time-command-priority">
+                  <span>Next best action</span>
+                  <strong>{timeNextAction}</strong>
+                  <p>{timeNextDetail}</p>
+                </div>
+                <div className="co-time-command-list">
+                  {timeCommandItems.map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+                <div className="co-time-command-rail-actions">
+                  <button type="button" className="co-focus-ring" onClick={() => jumpToTimeSection(timeBoardRef)}><Icon name="check" />Review board</button>
+                  {permissions.time.canManageOwn ? <button type="button" className="co-focus-ring" onClick={() => jumpToTimeSection(clockHeroRef)}><Icon name="clock" />Open clock</button> : null}
+                </div>
+              </aside>
+            </div>
+          </Card>
         </div>
       ) : null}
 
@@ -7002,6 +7142,7 @@ function TimePage({
 
       <div className="co-time-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-time-left-stack min-w-0 space-y-3">
+          <div ref={timeBoardRef}>
           <Card className="co-time-main-board overflow-hidden">
             <div className="co-time-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -7028,6 +7169,7 @@ function TimePage({
               <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{permissions.time.canCorrect ? "Corrections enabled" : "Read-only time view"}</p>
             </div>
           </Card>
+          </div>
 
           <details className="co-time-tools-drawer">
             <summary>
