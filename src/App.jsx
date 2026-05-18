@@ -18507,7 +18507,7 @@ function CommunicationCenterPage({
   }
 
   return (
-    <div>
+    <div className="co-office-page co-communications-page">
       <PageHeader
         eyebrow="Office"
         title="Communication Center"
@@ -33988,6 +33988,32 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
     { label: "Reports", helper: "Open daily reports if your role can use them.", moduleId: "reports", icon: "document", show: Boolean(permissions?.reports?.canView) },
     { label: "Settings", helper: "Open owner/admin setup tools.", moduleId: "settings", icon: "settings", show: Boolean(permissions?.settings?.canView) },
   ].filter((item) => item.show);
+  const supportStatusCards = [
+    {
+      label: "Support mode",
+      value: isPilotFeedback ? "Pilot notes" : isUpgradeReview ? "Upgrade review" : "Manual request",
+      helper: "Copy-only handoff",
+      tone: isUpgradeReview ? "orange" : isPilotFeedback ? "blue" : "green",
+    },
+    {
+      label: "Workspace",
+      value: companyName || "Apex HQ",
+      helper: currentCompanyId ? `ID ${currentCompanyId}` : "Current company",
+      tone: "slate",
+    },
+    {
+      label: "Role",
+      value: user?.role || "Unknown",
+      helper: isOfficeUser ? "Office tools available" : "Field-safe view",
+      tone: isOfficeUser ? "blue" : "amber",
+    },
+    {
+      label: "Current page",
+      value: typeof window !== "undefined" ? window.location.pathname : "/support",
+      helper: "Included in packet",
+      tone: "slate",
+    },
+  ];
 
   function updateDraft(field, value) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -34029,16 +34055,30 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
   }
 
   return (
-    <div>
+    <div className="co-office-page co-support-page">
       <PageHeader
         eyebrow="Support"
         title="Help / Support"
         description="Copy a clear issue report, find the right workspace, and keep support manual until messaging automation is ready."
         actions={<Badge tone="green">Basic included</Badge>}
       />
-      <div className="grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
+      <div className="co-support-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-8">
+        {supportStatusCards.map((stat) => (
+          <Card key={stat.label} className="co-support-kpi-card p-4">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
+                <p className="mt-2 break-words text-2xl font-black leading-tight text-slate-950">{stat.value}</p>
+                <p className="mt-1 break-words text-xs font-bold text-slate-500">{stat.helper}</p>
+              </div>
+              <Badge tone={stat.tone}>{stat.label}</Badge>
+            </div>
+          </Card>
+        ))}
+      </div>
+      <div className="co-support-command-layout grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
         <div className="grid gap-4">
-          <Card className="p-5">
+          <Card className="co-support-request-card p-5">
             <SectionHeader
               title={isPilotFeedback ? "Capture pilot feedback" : "Create a support request"}
               description={isPilotFeedback ? "Owner/admin internal notes for founder-led demos and controlled pilots. Copy the packet for manual review." : "Apex HQ does not send this automatically. Copy the packet, add a screenshot if useful, and send it through your normal support channel."}
@@ -34130,7 +34170,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
             </div>
           </Card>
 
-          <Card className="p-5">
+          <Card className="co-support-preview-card p-5">
             <SectionHeader
               title={isPilotFeedback ? "Feedback packet preview" : "Support packet preview"}
               description={isPilotFeedback ? "Review before saving in founder notes. Nothing is sent, published, or written to customer records." : "Review before sending. Add a screenshot or screen recording outside Apex HQ when useful."}
@@ -34139,7 +34179,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
           </Card>
         </div>
 
-        <aside className="grid h-fit gap-4">
+        <aside className="co-support-rail grid h-fit gap-4">
           <Card className="p-4">
             <SectionHeader title="Quick help" description="Common support info to capture before a call or message." />
             <div className="grid gap-2 text-sm leading-6 text-slate-700">
@@ -34198,7 +34238,7 @@ function GenericPage({ active, queueItems, selectedLead, selectedJob }) {
   ];
 
   return (
-    <div>
+    <div className="co-office-page co-generic-page">
       <PageHeader eyebrow="Workspace" title={item?.label || "Workspace"} description="This area keeps the Apex HQ command-board shell active while workspace access is being resolved." actions={<Badge tone="slate">Workspace</Badge>} />
       <div className="grid min-w-0 gap-4 px-5 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <Card className="p-5">
@@ -34249,7 +34289,7 @@ function AccessRestrictedPage({ active, user, companySettings, permissions, setA
   }
 
   return (
-    <div className="co-access-restricted-page">
+    <div className="co-office-page co-access-restricted-page">
       <PageHeader
         eyebrow={packageLock?.eyebrow || "Role Protected"}
         title={packageLock?.title || "Workspace unavailable"}
