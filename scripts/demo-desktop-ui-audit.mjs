@@ -50,8 +50,8 @@ const ROLE_CONFIGS = {
     email: "demo.foreman@apexhq.app",
     label: "foreman",
     pages: [
-      { slug: "dashboard", path: "/", heading: /dashboard|foreman workspace|my jobs/i },
-      { slug: "jobs", path: "/jobs", heading: "Jobs" },
+      { slug: "dashboard", path: "/", heading: /field mode|dashboard|foreman workspace|my jobs/i },
+      { slug: "jobs", path: "/jobs", heading: /field mode|jobs/i },
       { slug: "time", path: "/time", heading: "Time" },
       { slug: "reports", path: "/reports", heading: "Daily Reports" },
       { slug: "pre-pour", path: "/prePour", heading: /pre-pour|pre-pour checklist/i },
@@ -65,8 +65,8 @@ const ROLE_CONFIGS = {
     email: "demo.employee@apexhq.app",
     label: "employee",
     pages: [
-      { slug: "workspace", path: "/", heading: /dashboard|employee workspace|my job/i },
-      { slug: "assigned-job", path: "/jobs", heading: /jobs|my job/i },
+      { slug: "workspace", path: "/", heading: /field mode|dashboard|employee workspace|my job/i },
+      { slug: "assigned-job", path: "/jobs", heading: /field mode|jobs|my job/i },
       { slug: "time", path: "/time", heading: "Time" },
       { slug: "uploads", path: "/uploads", heading: /uploads|photo evidence/i },
       { slug: "ppe", path: "/ppe", heading: /ppe checklist|safety & ppe/i },
@@ -308,6 +308,7 @@ async function capturePage(page, role, viewportName, spec, outputDir, baseUrl, m
         slug: spec.slug,
         path: spec.path,
         status: readyState.status,
+        optional: Boolean(spec.optional),
         reason: readyState.reason,
         screenshotPath: savedDiagnostic ? screenshotPath : undefined,
       });
@@ -323,6 +324,7 @@ async function capturePage(page, role, viewportName, spec, outputDir, baseUrl, m
         slug: spec.slug,
         path: spec.path,
         status: spec.optional ? "skipped" : "missing_button",
+        optional: Boolean(spec.optional),
         reason: "Expected button was not visible.",
       });
       return;
@@ -353,6 +355,7 @@ async function capturePage(page, role, viewportName, spec, outputDir, baseUrl, m
       slug: spec.slug,
       path: spec.path,
       status: "captured",
+      optional: Boolean(spec.optional),
       captureMode,
       screenshotPath,
     });
@@ -364,6 +367,7 @@ async function capturePage(page, role, viewportName, spec, outputDir, baseUrl, m
       slug: spec.slug,
       path: spec.path,
       status: "error",
+      optional: Boolean(spec.optional),
       reason: error instanceof Error ? error.message : String(error),
     });
     console.warn(`[skip] ${role} ${viewportName} ${spec.slug}: ${error instanceof Error ? error.message : error}`);
@@ -397,6 +401,7 @@ async function run() {
           slug: "login",
           path: "/",
           status: "error",
+          optional: false,
           reason: error instanceof Error ? error.message : String(error),
         });
         console.warn(`[skip] ${role} login: ${error instanceof Error ? error.message : error}`);
@@ -449,8 +454,17 @@ async function run() {
   console.log(`Screenshots: ${runDir}`);
   console.log(`Manifest: ${manifestPath}`);
 
+  const failedRequiredCaptures = manifest.filter((entry) => !entry.optional && !["captured"].includes(entry.status));
+  console.log(`Required capture failures: ${failedRequiredCaptures.length}`);
+  for (const failure of failedRequiredCaptures.slice(0, 12)) {
+    console.log(`- ${failure.role} ${failure.viewport} ${failure.slug}: ${failure.reason || failure.status}`);
+  }
+
   if (fatalError) {
     throw fatalError;
+  }
+  if (failedRequiredCaptures.length > 0) {
+    process.exitCode = 1;
   }
 }
 

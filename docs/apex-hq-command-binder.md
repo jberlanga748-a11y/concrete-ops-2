@@ -444,6 +444,7 @@ For focused browser QA, use Playwright or the Codex in-app browser against the e
 - desktop screenshot
 - tablet screenshot when estimate, schedule, or workbench behavior is relevant
 - mobile screenshot
+- demo screenshot manifest evidence with `npm.cmd run audit:demo-desktop` when demo walkthrough surfaces are touched
 - console errors
 - failed network requests
 - horizontal overflow

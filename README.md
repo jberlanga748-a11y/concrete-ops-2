@@ -41,7 +41,7 @@ Optional filters:
 npm run audit:demo-desktop -- --roles=admin --viewports=1440x900
 ```
 
-Screenshots are saved under `ui-audit/demo-desktop/<timestamp>/` and are ignored by git. The script only signs in, navigates, and captures screenshots for the configured routes.
+Screenshots are saved under `ui-audit/demo-desktop/<timestamp>/` and are ignored by git. The script only signs in, navigates, and captures screenshots for the configured routes. Required capture failures make the command exit non-zero so broken demo pages do not pass silently.
 
 ## Visual polish route audit
 

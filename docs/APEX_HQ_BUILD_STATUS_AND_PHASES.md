@@ -65,6 +65,7 @@ Current state:
 - Targeted Apex Assistant launcher overlap polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer covers Toolbox/PPE right-rail action buttons while the assistant panel, safety field scope, and office-route redirects remain intact.
 - Targeted Delivery Tickets assistant clearance polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer touches the owner/admin Delivery Tickets right-rail action row while field-role delivery scope remains intact.
 - Visual polish route audit tooling: built, verified, and pushed so the repo has a repeatable local Playwright sweep for desktop, tablet, mobile, console/network, overflow, assistant overlap, clipped content, and field-role exposure checks. This was not deployed because it is local verification tooling only.
+- Demo desktop screenshot audit hardening: built, verified, and pushed so field-mode demo headings match the current app and required screenshot capture failures no longer pass silently. This was not deployed because it is local verification tooling only.
 
 ## Latest Released App State
 
@@ -474,7 +475,7 @@ Suggested verification:
 - `npm.cmd run build`
 - `git diff --check`
 - Browser QA for the touched route across the relevant desktop/tablet/mobile viewport and role matrix.
-- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage. Use `npm.cmd run audit:public-site` when public `/founder-pilot` copy or UI is touched; it covers desktop, tablet, and phone.
+- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage. Use `npm.cmd run audit:public-site` when public `/founder-pilot` copy or UI is touched; it covers desktop, tablet, and phone. Use `npm.cmd run audit:demo-desktop` when demo walkthrough screenshot evidence is needed.
 
 ## Next Build Phases
 
