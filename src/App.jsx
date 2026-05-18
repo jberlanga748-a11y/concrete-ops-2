@@ -23081,10 +23081,54 @@ function CalculatorInputPanelPolished({
   );
 }
 
-function CalculatorResultRailPolished({ result, calculatorMode, takeoffSections }) {
+function CalculatorResultRailPolished({ result, calculatorMode, takeoffSections, resultCopied, onFocusInput, onCopyResult, onSaveResult, onStartTakeoff }) {
   const ready = result.status === "ready";
+  const assistantPriorities = [
+    {
+      label: ready ? `${formatCubicYards(result.cubicYardsWithWaste)} is ready with waste` : "Enter valid dimensions before using the field total",
+      tone: ready ? "ready" : "warn",
+    },
+    {
+      label: calculatorMode === "multi_section" ? `${takeoffSections.length} takeoff section${takeoffSections.length === 1 ? "" : "s"} in progress` : "Single pour mode is active",
+      tone: calculatorMode === "multi_section" && takeoffSections.length ? "ready" : "default",
+    },
+    {
+      label: ready ? "Copy text and job save are available" : "Copy and save stay locked until the result is safe",
+      tone: ready ? "ready" : "default",
+    },
+  ];
+  const assistantActions = [
+    { label: ready ? (resultCopied ? "Result copied" : "Copy field total") : "Enter dimensions", icon: ready ? "clipboard" : "calculator", onClick: ready ? onCopyResult : onFocusInput },
+    { label: ready ? "Save to job" : "Prepare job save", icon: "briefcase", onClick: ready ? onSaveResult : onFocusInput },
+    { label: calculatorMode === "multi_section" ? "Add takeoff section" : "Build takeoff", icon: "plus", onClick: onStartTakeoff },
+  ];
+
   return (
-    <div className="co-toolbox-right-rail space-y-4">
+    <div className="co-toolbox-right-rail co-calculator-office-assistant space-y-4">
+      <div className="co-prepour-assistant-card co-calculator-assistant-card p-0">
+        <div className="co-prepour-assistant-topbar">
+          <span><Icon name="spark" /></span>
+          <strong>Apex Assistant</strong>
+          <em>Calc</em>
+        </div>
+        <div className="co-prepour-assistant-body">
+          <p className="co-prepour-assistant-kicker">Yield command</p>
+          <h3>{ready ? `${formatCubicYards(result.cubicYardsWithWaste)} ready to use` : "Build a safe field total."}</h3>
+          <p>{ready ? (result.summary || "The concrete yield is ready to copy or save internally.") : "Fill the required dimensions and keep the calculator blank until the math is valid."}</p>
+          <div className="co-prepour-assistant-priorities">
+            {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+          </div>
+          <div className="co-prepour-assistant-actions">
+            {assistantActions.map((item) => (
+              <button key={item.label} type="button" onClick={item.onClick}>
+                <Icon name={item.icon} />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <Card className="co-toolbox-rail-card overflow-hidden">
         <div className="bg-slate-950 p-5 text-white">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-200">Live Result</p>
@@ -23155,7 +23199,7 @@ function CalculatorFieldCommandRailPolished({
         <div className="co-calculator-field-rail-result-head">
           <p>Live Field Total</p>
           <h2>{ready ? `${resultValue} yd^3` : "Waiting on dims"}</h2>
-          <span>{ready ? (result.summary || "Ready to copy or save internally.") : "Fill the required dimensions to unlock copy and save."}</span>
+          <span>{ready ? (result.summary || "Ready to copy or save to an allowed job.") : "Fill the required dimensions to unlock copy and save."}</span>
         </div>
         <div className="co-calculator-field-rail-actions">
           <Button type="button" onClick={ready ? onCopyResult : onFocusInput}>
@@ -23199,14 +23243,14 @@ function CalculatorFieldCommandRailPolished({
           <div><span>Mode</span><strong>{calculatorMode === "multi_section" ? "Takeoff" : "Single"}</strong></div>
           <div><span>Sections</span><strong>{calculatorMode === "multi_section" ? takeoffSections.length : "Single"}</strong></div>
           <div><span>Job saves</span><strong>{allowedJobs.length}</strong></div>
-          <div><span>Visibility</span><strong>Internal</strong></div>
+          <div><span>Scope</span><strong>Job-safe</strong></div>
         </div>
       </Card>
     </div>
   );
 }
 
-function CalculatorSavePanelPolished({ savePanelOpen, allowedJobs, saveDraft, setSaveDraft, handleSaveResult, busy, setSavePanelOpen, saveMessage }) {
+function CalculatorSavePanelPolished({ savePanelOpen, allowedJobs, saveDraft, setSaveDraft, handleSaveResult, busy, setSavePanelOpen, saveMessage, isFieldTool = false }) {
   if (!savePanelOpen && !saveMessage) return null;
 
   return (
@@ -23216,11 +23260,11 @@ function CalculatorSavePanelPolished({ savePanelOpen, allowedJobs, saveDraft, se
           <StateCard title="No available job to save this calculation" description="Assigned or visible jobs will appear here when there is somewhere safe to store the result." tone="slate" />
         ) : (
           <div className="grid gap-3">
-            <SectionHeader title="Save to Job" description="This creates an internal-only company record. Customers do not see it." />
+            <SectionHeader title="Save to Job" description={isFieldTool ? "This stores the calculation on an allowed job for the team." : "This creates an internal-only company record. Customers do not see it."} />
             <SelectField label="Job" value={saveDraft.jobId} onChange={(event) => setSaveDraft((current) => ({ ...current, jobId: event.target.value }))}>
               {allowedJobs.map((job) => <option key={job.id} value={job.id}>{jobTitle(job)}</option>)}
             </SelectField>
-            <TextAreaField label="Internal note" value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional internal note for the crew or office." />
+            <TextAreaField label={isFieldTool ? "Job note" : "Internal note"} value={saveDraft.notes} onChange={(event) => setSaveDraft((current) => ({ ...current, notes: event.target.value }))} placeholder={isFieldTool ? "Optional note for this job calculation." : "Optional internal note for the crew or office."} />
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={handleSaveResult} disabled={busy || !saveDraft.jobId}>Save</Button>
               <Button type="button" variant="secondary" onClick={() => setSavePanelOpen(false)} disabled={busy}>Cancel</Button>
@@ -23319,7 +23363,7 @@ function CalculatorFieldOperatorPanel({ calculatorMode, calculatorType, activeFi
               <Badge tone={resultReady ? "green" : "amber"}>{resultReady ? "Result ready" : "Needs dimensions"}</Badge>
             </div>
             <h2>{resultReady ? `${resultValue} yd^3 with waste` : "Calculator ready"}</h2>
-            <p>{resultReady ? result.summary : "Enter dimensions, then copy a field-ready total or save the internal calculation to an allowed job."}</p>
+            <p>{resultReady ? result.summary : "Enter dimensions, then copy a field-ready total or save this calculation to an allowed job."}</p>
             <div className="co-field-operator-address">
               <Icon name="calculator" />
               <span>{calculatorTypeLabel(calculatorType)} / {activeFields.length} required dimension{activeFields.length === 1 ? "" : "s"}</span>
@@ -23438,8 +23482,8 @@ function CalculatorMobileFocusPanel({
   const shapeLabel = calculatorTypeLabel(calculatorType);
   const focusTitle = resultReady ? `${resultValue} yd^3 ready` : "Pour calculator ready";
   const focusCopy = resultReady
-    ? (result.summary || "Copy the field total or save the internal calculation to an allowed job.")
-    : "Enter dimensions first, then copy a field-ready total or save the internal calculation to an allowed job.";
+    ? (result.summary || "Copy the field total or save this calculation to an allowed job.")
+    : "Enter dimensions first, then copy a field-ready total or save this calculation to an allowed job.";
   const metricItems = [
     { label: "Shape", value: shapeLabel, tone: "orange", onClick: onFocusInput },
     { label: "Dims", value: `${enteredDimensionCount}/${activeFields.length}`, tone: enteredDimensionCount === activeFields.length ? "green" : "amber", onClick: onFocusInput },
@@ -23720,7 +23764,7 @@ function CalculatorPagePolished({
             setSavePanelOpen={setSavePanelOpen}
             setSaveMessage={setSaveMessage}
           />
-          <CalculatorSavePanelPolished savePanelOpen={savePanelOpen} allowedJobs={allowedJobs} saveDraft={saveDraft} setSaveDraft={setSaveDraft} handleSaveResult={handleSaveResult} busy={busy} setSavePanelOpen={setSavePanelOpen} saveMessage={saveMessage} />
+          <CalculatorSavePanelPolished savePanelOpen={savePanelOpen} allowedJobs={allowedJobs} saveDraft={saveDraft} setSaveDraft={setSaveDraft} handleSaveResult={handleSaveResult} busy={busy} setSavePanelOpen={setSavePanelOpen} saveMessage={saveMessage} isFieldTool={isFieldTool} />
           <CalculatorTakeoffSectionsPolished calculatorMode={calculatorMode} takeoffSections={takeoffSections} editSection={editSection} duplicateSection={duplicateSection} removeSection={removeSection} />
           <CalculatorSummaryPanelPolished result={result} calculatorMode={calculatorMode} />
         </div>
@@ -23738,7 +23782,7 @@ function CalculatorPagePolished({
             onStartTakeoff={startTakeoffMode}
           />
         ) : (
-          <CalculatorResultRailPolished result={result} calculatorMode={calculatorMode} takeoffSections={takeoffSections} />
+          <CalculatorResultRailPolished result={result} calculatorMode={calculatorMode} takeoffSections={takeoffSections} resultCopied={resultCopied} onFocusInput={focusCalculatorInput} onCopyResult={copyFromPriority} onSaveResult={openSaveFromPriority} onStartTakeoff={startTakeoffMode} />
         )}
       </div>
     </div>
