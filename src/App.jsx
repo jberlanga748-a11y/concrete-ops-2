@@ -32389,6 +32389,58 @@ function DeliveryTicketsPagePolished({
     : filteredRows.length === 0 && canCreate
     ? [createTicketPriorityCard, missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard]
     : [missingPhotoPriorityCard, linkedReportPriorityCard, basicsPriorityCard, latestPriorityCard];
+  const deliveryCommandItems = [
+    {
+      label: "Ticket photo",
+      value: missingPhotoCount,
+      helper: missingPhotoCount ? "Tickets without linked photo evidence" : "Visible tickets have photo evidence",
+      tone: missingPhotoCount ? "orange" : "green",
+      action: missingPhotoCount ? "Open missing" : "Clear",
+      onClick: () => missingPhotoCount ? openPriorityTicket((ticket) => !ticket.ticketUploadId, { archiveFilter: "Active" }) : jumpToBoard(),
+    },
+    {
+      label: "Report link",
+      value: missingReportCount,
+      helper: missingReportCount ? "Connect tickets to daily reports" : "Report links are set",
+      tone: missingReportCount ? "amber" : "green",
+      action: missingReportCount ? "Find gaps" : "Clear",
+      onClick: () => missingReportCount ? openPriorityTicket((ticket) => !ticket.reportId, { archiveFilter: "Active" }) : jumpToBoard(),
+    },
+    {
+      label: "Basics",
+      value: incompleteBasicsCount,
+      helper: "Supplier, truck, ticket number, yardage",
+      tone: incompleteBasicsCount ? "amber" : "green",
+      action: incompleteBasicsCount ? "Complete" : "Ready",
+      onClick: () => incompleteBasicsCount ? openPriorityTicket((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0), { archiveFilter: "Active" }) : jumpToBoard(),
+    },
+    {
+      label: "Latest delivery",
+      value: latestTicket ? deliveryTicketYardsLabel(latestTicket) : "None",
+      helper: latestTicket ? `${latestTicket.job?.title || "Assigned job"} / ${latestTicket.supplier || "Supplier pending"}` : "No visible delivery in this view",
+      tone: latestTicket ? "orange" : "slate",
+      action: latestTicket ? "Open latest" : "No ticket",
+      onClick: () => latestTicket ? openPriorityTicket((ticket) => ticket.id === latestTicket.id, { archiveFilter: "Active" }) : jumpToBoard(),
+    },
+  ];
+  const deliveryNextAction = missingPhotoCount
+    ? "Attach ticket photo evidence"
+    : missingReportCount
+      ? "Link delivery to daily report"
+      : incompleteBasicsCount
+        ? "Complete truck and yardage basics"
+        : latestTicket
+          ? "Review latest delivery"
+          : "Delivery board is clear";
+  const deliveryNextDetail = missingPhotoCount
+    ? `${missingPhotoCount} ticket${missingPhotoCount === 1 ? "" : "s"} need photo evidence before closeout.`
+    : missingReportCount
+      ? `${missingReportCount} ticket${missingReportCount === 1 ? "" : "s"} need daily report context.`
+      : incompleteBasicsCount
+        ? `${incompleteBasicsCount} ticket${incompleteBasicsCount === 1 ? "" : "s"} need supplier, truck, ticket number, or yardage.`
+        : latestTicket
+          ? `${deliveryTicketTitle(latestTicket)} / ${deliveryTicketYardsLabel(latestTicket)} / ${formatDateTime(deliveryTicketPrimaryTime(latestTicket))}`
+          : "No delivery issues in the current view.";
 
   if (!permissions.deliveryTickets.canView) {
     return (
@@ -32406,7 +32458,7 @@ function DeliveryTicketsPagePolished({
       <PageHeader
         eyebrow={canManageAll ? "Field Ops" : "Field Workspace"}
         title="Delivery Tickets"
-        description={canManageAll ? "Review concrete truck and ticket records across every job without exposing pricing or billing." : "Capture field-ready concrete delivery ticket details for visible jobs without exposing money or payroll data."}
+        description={canManageAll ? "Review concrete truck and ticket records across every job with field evidence and daily report context." : "Capture field-ready concrete delivery ticket details for visible jobs with job-safe context only."}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setArchiveFilter("Active")}>{filteredRows.length} visible</Button>
@@ -32461,23 +32513,108 @@ function DeliveryTicketsPagePolished({
         />
       ) : null}
 
+      {canManageAll ? (
+        <div className="co-delivery-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+          <Card className="co-delivery-ops-card overflow-hidden">
+            <div className="co-delivery-ops-shell">
+              <div className="co-delivery-ops-main">
+                <div className="co-delivery-ops-header">
+                  <div className="min-w-0">
+                    <p className="co-delivery-ops-eyebrow">Delivery command</p>
+                    <h2>Truck tickets, photo proof, and report links in one lane</h2>
+                    <p>Use this command view to see which deliveries are ready for closeout and which still need field evidence.</p>
+                  </div>
+                  <div className="co-delivery-ops-actions">
+                    <Button type="button" variant="secondary" onClick={openTodayTickets}>Today</Button>
+                    <Button type="button" variant="secondary" onClick={() => setArchiveFilter("Active")}>Active tickets</Button>
+                    {canCreate ? <Button type="button" onClick={() => openTool("create")}>New ticket</Button> : null}
+                  </div>
+                </div>
+                <div className="co-delivery-ops-metrics">
+                  <button type="button" className="co-focus-ring" onClick={() => setArchiveFilter("Active")} data-tone="orange">
+                    <span>Visible tickets</span>
+                    <strong>{filteredRows.length}</strong>
+                    <em>Current delivery board</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" onClick={openTodayTickets} data-tone={todayTicketCount ? "orange" : "slate"}>
+                    <span>Today</span>
+                    <strong>{todayTicketCount}</strong>
+                    <em>Truck tickets today</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" onClick={openCurrentJobTickets} data-tone={currentJobTicketCount ? "green" : "slate"}>
+                    <span>Current job</span>
+                    <strong>{currentJobTicketCount}</strong>
+                    <em>{currentDeliveryJobLabel}</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" onClick={() => { setArchiveFilter("Active"); jumpToBoard(); }} data-tone={yardsLogged ? "green" : "slate"}>
+                    <span>Yards logged</span>
+                    <strong>{deliveryTicketYardsLabel({ yardsDelivered: yardsLogged })}</strong>
+                    <em>Delivered yards in view</em>
+                  </button>
+                </div>
+                <div className="co-delivery-ops-queues">
+                  {deliveryCommandItems.slice(0, 3).map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <aside className="co-delivery-ops-rail" aria-label="Delivery ticket closeout assistant">
+                <div className="co-delivery-ops-rail-head">
+                  <span><Icon name="clipboard" /></span>
+                  <div className="min-w-0">
+                    <strong>Delivery Assistant</strong>
+                    <p>Manual evidence review</p>
+                  </div>
+                </div>
+                <div className="co-delivery-ops-rail-priority">
+                  <span>Next best action</span>
+                  <strong>{deliveryNextAction}</strong>
+                  <p>{deliveryNextDetail}</p>
+                </div>
+                <div className="co-delivery-ops-rail-list">
+                  {deliveryCommandItems.map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+                <div className="co-delivery-ops-rail-actions">
+                  {canCreate ? <button type="button" className="co-focus-ring" onClick={() => openTool("create")}><Icon name="plus" />New ticket</button> : null}
+                  <button type="button" className="co-focus-ring" onClick={() => (missingPhotoCount || missingReportCount) ? openPriorityTicket((ticket) => !ticket.ticketUploadId || !ticket.reportId, { archiveFilter: "Active" }) : jumpToBoard()}><Icon name="check" />Review gaps</button>
+                </div>
+              </aside>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
       <div className="co-delivery-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
         {ticketKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
-      <div className="co-delivery-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
-        {deliveryPriorityCards.map((card) => (
-          <button key={card.label} type="button" className="co-delivery-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === createTicketPriorityCard && canCreate ? "true" : undefined} onClick={card.onAction}>
-            <span className="co-delivery-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
-            <span className="min-w-0">
-              <span className="co-delivery-priority-value">{card.value}</span>
-              <span className="co-delivery-priority-label">{card.label}</span>
-              <span className="co-delivery-priority-helper">{card.helper}</span>
-            </span>
-            <span className="co-delivery-priority-action">{card.actionLabel} -&gt;</span>
-          </button>
-        ))}
-      </div>
+      {!canManageAll ? (
+        <div className="co-delivery-priority-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
+          {deliveryPriorityCards.map((card) => (
+            <button key={card.label} type="button" className="co-delivery-priority-card co-focus-ring" data-tone={card.tone} data-primary={card === createTicketPriorityCard && canCreate ? "true" : undefined} onClick={card.onAction}>
+              <span className="co-delivery-priority-icon"><Icon name={card.icon} className="h-4 w-4" /></span>
+              <span className="min-w-0">
+                <span className="co-delivery-priority-value">{card.value}</span>
+                <span className="co-delivery-priority-label">{card.label}</span>
+                <span className="co-delivery-priority-helper">{card.helper}</span>
+              </span>
+              <span className="co-delivery-priority-action">{card.actionLabel} -&gt;</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="co-delivery-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div ref={boardRef}>
