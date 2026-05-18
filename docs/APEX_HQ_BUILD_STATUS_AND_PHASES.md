@@ -45,20 +45,21 @@ Current state:
 - Targeted Daily Reports text wrapping polish: built, verified, released, and health-checked so long field notes, weather, proof, concrete summaries, and report IDs wrap cleanly without horizontal overflow.
 - Targeted Photo Evidence text wrapping polish: built, verified, released, and health-checked so long evidence labels, job/customer labels, and upload notes wrap cleanly without horizontal overflow.
 - Targeted Delivery Tickets text wrapping polish: built, verified, released, and health-checked so long ticket, job, and customer labels wrap cleanly without horizontal overflow.
+- Targeted Safety / Incidents text wrapping polish: built, verified, released, and health-checked so long incident and job labels wrap cleanly without horizontal overflow.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `81f9558`
-- Message: `Fix delivery tickets table text wrapping`
-- Fly release: `v515`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWRQRPQZB2M0N1DVBY2G0K4`
+- Commit: `f0491d4`
+- Message: `Fix incident table text wrapping`
+- Fly release: `v516`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWS5937ZWQX48FXTQ2R5B5H`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v515` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v516` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -111,6 +112,7 @@ Recent shipped phase stack:
 | `cc57505` | `v513` | Daily Reports text wrapping polish |
 | `2f9699d` | `v514` | Photo Evidence text wrapping polish |
 | `81f9558` | `v515` | Delivery Tickets text wrapping polish |
+| `f0491d4` | `v516` | Safety / Incidents text wrapping polish |
 
 ## Done / Do Not Rebuild
 
@@ -181,6 +183,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Pre-Pour Support Handoff Phase 1 | Built and released | Pre-Pour can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible checklist counts, selected checklist status, owner/date references, item readiness counts, filter state, and completed/open/reopened review gaps without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation. Field Pre-Pour rows remain scoped to assigned/visible jobs, and Support access is not created where the role/package does not already have it. |
 | Post-Pour Support Handoff Phase 1 | Built and released | Post-Pour can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible checklist counts, selected checklist status, owner/date references, closeout item counts, filter state, and completed/open/reopened closeout review gaps without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation. Field Post-Pour rows remain scoped to assigned/visible jobs, and Support access is not created where the role/package does not already have it. |
 | Safety / Incidents Support Handoff Phase 1 | Built and released | Safety / Incidents can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible incident counts, selected incident context, current filters, high/open/reviewed/resolved counts, missing immediate-action status, and manual review queue without exposing pricing, margins, payroll, office-only job notes, hidden users, unrelated jobs, customer notifications, automation, billing, checkout, invoices, or package controls. Field incident rows remain scoped to assigned/submitted visible incidents. |
+| Safety / Incidents text wrapping polish | Built and released | Long incident and job labels now wrap inside fixed command-table cells instead of clipping; mobile incident cards, field-safe safety scope, and role gates were preserved. |
 | Pre-pour/post-pour | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | Toolbox / PPE text wrapping polish | Built and released | Long toolbox talk guidance and PPE descriptions now wrap inside fixed command cells instead of clipping; mobile card layouts, field-safe safety scope, and role gates were preserved. |
@@ -260,6 +263,7 @@ Recent focused verification:
 - Daily Reports text wrapping polish release checks: targeted route sweep found desktop `/reports` long field notes, weather, proof, concrete summary, and report ID text clipping in fixed command-table cells. `npm.cmd run verify:daily-reports`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/reports` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop report context wrapping with `overflow-wrap:anywhere`, and mobile report cards still replacing the table. Released as Fly `v513` with image `registry.fly.io/concrete-ops-2:deployment-01KRWQPRQCG9ATSC226MFVEHQE`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
 - Photo Evidence text wrapping polish release checks: targeted route sweep found desktop `/uploads` long evidence labels, job/customer labels, and upload notes clipping in fixed command-table cells. `npm.cmd run verify:uploads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/uploads` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop upload context wrapping with `overflow-wrap:anywhere`, and mobile upload cards still replacing the table. Released as Fly `v514` with image `registry.fly.io/concrete-ops-2:deployment-01KRWRCK7PY5EXFBQRAJSS12WX`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Delivery Tickets text wrapping polish release checks: targeted route sweep found desktop `/delivery-tickets` long ticket, job, and customer labels clipping in fixed command-table cells. `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/delivery-tickets` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop ticket context wrapping with `overflow-wrap:anywhere`, and mobile ticket cards still replacing the table. Released as Fly `v515` with image `registry.fly.io/concrete-ops-2:deployment-01KRWRQRPQZB2M0N1DVBY2G0K4`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
+- Safety / Incidents text wrapping polish release checks: targeted route sweep found desktop `/incidents` long incident and job labels clipping in fixed command-table cells. `npm.cmd run verify:safety`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/incidents` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop incident context wrapping with `overflow-wrap:anywhere`, and mobile incident cards still replacing the table. Released as Fly `v516` with image `registry.fly.io/concrete-ops-2:deployment-01KRWS5937ZWQX48FXTQ2R5B5H`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -303,6 +307,7 @@ Do not start these phases again as if they are missing:
 - Daily Reports text wrapping polish.
 - Photo Evidence text wrapping polish.
 - Delivery Tickets text wrapping polish.
+- Safety / Incidents text wrapping polish.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
