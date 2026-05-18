@@ -22435,6 +22435,17 @@ textarea {
 }
 
 @media (min-width: 1024px) {
+  .co-office-page [class*="-right-rail"] {
+    padding-right: 4.2rem !important;
+    scroll-padding-bottom: 4.6rem;
+  }
+
+  .co-office-page [class*="-right-rail"] > .co-card,
+  .co-office-page [class*="-right-rail"] > details,
+  .co-office-page [class*="-right-rail"] > section {
+    max-width: 100%;
+  }
+
   .co-delivery-rail-actions {
     padding-right: 4.2rem;
   }
