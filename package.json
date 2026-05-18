@@ -43,6 +43,7 @@
     "verify:public-request": "node --test --test-concurrency=1 server/public-request.test.js server/public-demo-interest.test.js",
     "verify:print-packets": "node --test --test-concurrency=1 shared/estimatePrint.test.js src/print-packets.test.js",
     "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
+    "audit:visual-polish": "node scripts/visual-polish-route-audit.mjs",
     "audit:public-site": "node scripts/public-site-ui-audit.mjs"
   },
   "dependencies": {
