@@ -1980,13 +1980,12 @@ textarea {
 
   .co-command-header-metric-helper {
     margin-top: 0.25rem;
-    overflow: hidden;
+    overflow-wrap: anywhere;
     color: #64748b;
     font-size: 0.69rem;
     font-weight: 850;
-    line-height: 1.12;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.2;
+    white-space: normal;
   }
 
   @media (max-width: 1180px) {
