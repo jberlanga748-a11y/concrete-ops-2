@@ -12,6 +12,12 @@ const PAGE_SETTLE_DELAY_MS = 650;
 const NETWORK_IDLE_TIMEOUT_MS = 3500;
 const LOGIN_READY_DELAY_MS = 900;
 const LOGIN_BUTTON_NAME = /enter workspace/i;
+const LOGIN_TIMEOUT_MS = 20000;
+const ROUTE_AUDIT_TIMEOUT_MS = 20000;
+const BROWSER_LAUNCH_OPTIONS = [
+  { label: "chromium", options: {} },
+  { label: "msedge", options: { channel: "msedge" } },
+];
 
 const VIEWPORTS = {
   desktop: { width: 1440, height: 900 },
@@ -57,6 +63,7 @@ Optional flags:
   --roles=admin,employee
   --viewports=desktop,phone
   --routes=/,/jobs,/delivery-tickets
+  --browser=auto|chromium|msedge
   --output-dir=ui-audit/visual-polish
   --headed
   --help
@@ -70,6 +77,7 @@ function parseArgs(argv) {
     roles: Object.keys(ROLE_CONFIGS),
     viewports: [],
     routes: [],
+    browser: "auto",
     headed: false,
   };
 
@@ -98,6 +106,10 @@ function parseArgs(argv) {
       options.routes = arg.split("=")[1].split(",").map((value) => value.trim()).filter(Boolean);
       continue;
     }
+    if (arg.startsWith("--browser=")) {
+      options.browser = arg.split("=")[1].trim();
+      continue;
+    }
     if (arg.startsWith("--output-dir=")) {
       options.outputRoot = path.resolve(process.cwd(), arg.split("=")[1]);
     }
@@ -113,6 +125,9 @@ function parseArgs(argv) {
   const invalidViewports = options.viewports.filter((viewport) => !VIEWPORTS[viewport]);
   if (invalidViewports.length > 0) {
     throw new Error(`Unknown viewports: ${invalidViewports.join(", ")}`);
+  }
+  if (!["auto", ...BROWSER_LAUNCH_OPTIONS.map((candidate) => candidate.label)].includes(options.browser)) {
+    throw new Error(`Unknown browser: ${options.browser}`);
   }
 
   return options;
@@ -144,22 +159,36 @@ async function settlePage(page) {
   await page.waitForLoadState("networkidle", { timeout: NETWORK_IDLE_TIMEOUT_MS }).catch(() => {});
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 async function login(browser, options, role, viewportName) {
   const context = await browser.newContext({
     baseURL: options.baseUrl,
     viewport: VIEWPORTS[viewportName],
   });
-  const page = await context.newPage();
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await settlePage(page);
-  await page.getByLabel("Email").first().fill(ROLE_CONFIGS[role].email);
-  await page.getByLabel("Password").first().fill(DEMO_PASSWORD);
-  await page.getByRole("button", { name: LOGIN_BUTTON_NAME }).click();
-  await page.waitForTimeout(LOGIN_READY_DELAY_MS);
-  await settlePage(page);
-  const storageState = await context.storageState();
-  await context.close();
-  return storageState;
+  context.setDefaultTimeout(10000);
+  context.setDefaultNavigationTimeout(15000);
+  try {
+    return await withTimeout((async () => {
+      const page = await context.newPage();
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await settlePage(page);
+      await page.getByLabel("Email").first().fill(ROLE_CONFIGS[role].email);
+      await page.getByLabel("Password").first().fill(DEMO_PASSWORD);
+      await page.getByRole("button", { name: LOGIN_BUTTON_NAME }).click();
+      await page.waitForTimeout(LOGIN_READY_DELAY_MS);
+      await settlePage(page);
+      return context.storageState();
+    })(), LOGIN_TIMEOUT_MS, `${role} login`);
+  } finally {
+    await context.close().catch(() => {});
+  }
 }
 
 function intersects(a, b) {
@@ -279,6 +308,8 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
     storageState,
     viewport: VIEWPORTS[viewportName],
   });
+  context.setDefaultTimeout(10000);
+  context.setDefaultNavigationTimeout(15000);
   const page = await context.newPage();
   const consoleMessages = [];
   const failedRequests = [];
@@ -291,10 +322,20 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
     failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || "failed"}`);
   });
 
-  await page.goto(spec.path, { waitUntil: "domcontentloaded" });
-  await settlePage(page);
-  const inspection = await inspectPage(page, role);
+  let inspection = { pathname: "", h1: "", bodyOverflow: false, assistantOverlaps: [], clipped: [], forbiddenText: [] };
+  let auditError = "";
+  try {
+    await withTimeout((async () => {
+      await page.goto(spec.path, { waitUntil: "domcontentloaded" });
+      await settlePage(page);
+      inspection = await inspectPage(page, role);
+    })(), ROUTE_AUDIT_TIMEOUT_MS, `${role} ${viewportName} ${spec.path} audit`);
+  } catch (error) {
+    auditError = error?.message || String(error);
+  }
+
   const failures = [
+    auditError ? `Route audit failed: ${auditError}` : "",
     inspection.bodyOverflow ? "Horizontal page overflow detected." : "",
     ...inspection.assistantOverlaps.map((entry) => `Assistant overlaps visible control: ${summarizeIssue(entry)}`),
     ...inspection.clipped.map((entry) => `Visible content may be clipped: ${summarizeIssue(entry)} (${entry.client} client, ${entry.scroll} scroll)`),
@@ -311,7 +352,7 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
     await page.screenshot({ path: screenshotPath, fullPage: false, animations: "disabled", caret: "hide" }).catch(() => {});
   }
 
-  await context.close();
+  await context.close().catch(() => {});
   return {
     role,
     viewport: viewportName,
@@ -325,6 +366,23 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
   };
 }
 
+async function launchBrowser(options) {
+  let lastError;
+  const candidates = options.browser === "auto"
+    ? BROWSER_LAUNCH_OPTIONS
+    : BROWSER_LAUNCH_OPTIONS.filter((candidate) => candidate.label === options.browser);
+  for (const candidate of candidates) {
+    try {
+      const browser = await chromium.launch({ ...candidate.options, headless: !options.headed });
+      return { browser, browserName: candidate.label };
+    } catch (error) {
+      lastError = error;
+      console.warn(`Could not launch ${candidate.label}; trying next browser candidate.`);
+    }
+  }
+  throw lastError;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -335,25 +393,26 @@ async function main() {
   const runDir = path.join(options.outputRoot, timestampSlug());
   await ensureDirectory(runDir);
 
-  const browser = await chromium.launch({ channel: "msedge", headless: !options.headed });
   const specs = routeSpecs(options);
   const results = [];
 
-  try {
-    for (const role of options.roles) {
-      const viewports = options.viewports.length > 0 ? options.viewports : ROLE_CONFIGS[role].viewports;
-      const storageState = await login(browser, options, role, viewports[0] || "desktop");
-      for (const viewportName of viewports) {
+  for (const role of options.roles) {
+    const viewports = options.viewports.length > 0 ? options.viewports : ROLE_CONFIGS[role].viewports;
+    for (const viewportName of viewports) {
+      const { browser, browserName } = await launchBrowser(options);
+      console.log(`Browser: ${browserName} (${role} ${viewportName})`);
+      try {
+        const storageState = await login(browser, options, role, viewportName);
         for (const spec of specs) {
           const result = await auditRoute(browser, storageState, options, role, viewportName, spec, runDir);
           results.push(result);
           const marker = result.status === "passed" ? "pass" : "fail";
           console.log(`[${marker}] ${role} ${viewportName} ${spec.path}`);
         }
+      } finally {
+        await browser.close().catch(() => {});
       }
     }
-  } finally {
-    await browser.close();
   }
 
   const manifestPath = path.join(runDir, "manifest.json");
