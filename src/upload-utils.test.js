@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildUploadSupportContext,
   deriveAllowedUploadJobs,
   deriveSelectedPhotoTakenAt,
   deriveUploadDraftFromSelection,
@@ -151,4 +152,99 @@ test("findSelectedUpload tolerates missing arrays and falls back safely", () => 
 
   const upload = { id: "UPL-1", caption: "Selected" };
   assert.deepEqual(findSelectedUpload([], [upload], "UPL-1"), upload);
+});
+
+test("upload support context summarizes visible office evidence without file or financial data", () => {
+  const uploads = [
+    {
+      id: "UPL-1",
+      jobId: "J-1",
+      uploadedBy: "U-1",
+      uploadedByName: "Ava",
+      uploadedAt: "2026-04-25T10:00:00.000Z",
+      caption: "Forms ready",
+      notes: "North edge",
+      fileName: "forms-ready.png",
+      fileType: "image/png",
+      job: { title: "Driveway", customer: "Carter", estimateTotal: 12000, margin: 0.4 },
+      latitude: 44.9,
+      longitude: -123.0,
+      storagePath: "uploads/private/forms-ready.png",
+      contentUrl: "/api/uploads/UPL-1/content",
+      dataUrl: "data:image/png;base64,secret",
+      internalCost: 2400,
+    },
+    {
+      id: "UPL-2",
+      jobId: "J-2",
+      uploadedBy: "U-2",
+      uploadedByName: "Ben",
+      uploadedAt: "2026-04-24T10:00:00.000Z",
+      caption: "",
+      notes: "",
+      fileName: "no-caption.jpg",
+      fileType: "image/jpeg",
+      job: { title: "Patio", customer: "Nguyen" },
+      locationUnavailableReason: "Location permission denied by user.",
+    },
+  ];
+  const context = buildUploadSupportContext({
+    user: { id: "U-ADMIN", name: "Office Admin", role: "Administrator" },
+    permissions: { uploads: { canManageAll: true, canCreate: true } },
+    visibleRows: uploads,
+    selectedUpload: uploads[0],
+    filters: { archived: "Active only", jobId: "All jobs", uploaderId: "All uploaders", date: "All dates", gps: "All locations", query: "forms" },
+    allowedJobs: [{ id: "J-1" }, { id: "J-2" }],
+  });
+
+  assert.equal(context.workflow, "Photos / uploads");
+  assert.equal(context.blockerLevel, "Slowing work down");
+  assert.match(context.summary, /Scope: all visible company photo evidence/);
+  assert.match(context.summary, /Visible uploads: 2/);
+  assert.match(context.summary, /GPS captured: 1/);
+  assert.match(context.summary, /missing captions or notes: 1/);
+  assert.match(context.summary, /Selected upload: Forms ready for Driveway; uploaded by Ava on 2026-04-25; GPS status: Location captured/);
+  assert.match(context.workaround, /no-caption\.jpg: Caption or notes missing/);
+  assert.equal(JSON.stringify(context).includes("storagePath"), false);
+  assert.equal(JSON.stringify(context).includes("contentUrl"), false);
+  assert.equal(JSON.stringify(context).includes("data:image"), false);
+  assert.equal(JSON.stringify(context).includes("44.9"), false);
+  assert.equal(JSON.stringify(context).includes("-123"), false);
+  assert.equal(JSON.stringify(context).includes("estimateTotal"), false);
+  assert.equal(JSON.stringify(context).includes("internalCost"), false);
+  assert.match(context.expected, /without exposing file contents, storage paths, content URLs, GPS coordinates, pricing, margin, payroll, hidden users, or unrelated jobs/);
+});
+
+test("upload support context stays limited to field-visible upload rows", () => {
+  const fieldUpload = {
+    id: "UPL-FIELD",
+    jobId: "J-FIELD",
+    uploadedBy: "U-FOREMAN",
+    uploadedByName: "Field Foreman",
+    uploadedAt: "2026-04-25T12:00:00.000Z",
+    caption: "Progress photo",
+    fileName: "progress.png",
+    fileType: "image/png",
+    job: { title: "Assigned Walkway" },
+  };
+  const hiddenUpload = {
+    id: "UPL-HIDDEN",
+    jobId: "J-HIDDEN",
+    caption: "Hidden office upload",
+    job: { title: "Hidden Office Job" },
+  };
+  const context = buildUploadSupportContext({
+    user: { id: "U-FOREMAN", name: "Field Foreman", role: "Foreman" },
+    permissions: { uploads: { canManageAll: false, canCreate: true } },
+    visibleRows: [fieldUpload],
+    selectedUpload: fieldUpload,
+    allowedJobs: [{ id: "J-FIELD" }],
+  });
+
+  assert.match(context.summary, /Scope: assigned job photo evidence/);
+  assert.match(context.summary, /Visible uploads: 1/);
+  assert.match(context.summary, /Assigned Walkway/);
+  assert.equal(JSON.stringify(context).includes(hiddenUpload.job.title), false);
+  assert.equal(context.summary.includes("pricing"), false);
+  assert.equal(context.summary.includes("payRate"), false);
 });

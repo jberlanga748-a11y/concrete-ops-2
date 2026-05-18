@@ -132,3 +132,89 @@ export function deriveUploadListState(uploads) {
     dateOptions,
   };
 }
+
+function pluralize(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function hasGps(upload = {}) {
+  return upload?.hasGps === true || (upload?.latitude != null && upload?.longitude != null);
+}
+
+function uploadDateLabel(upload = {}) {
+  return String(upload?.uploadedAt || upload?.takenAt || upload?.createdAt || "").slice(0, 10) || "No date";
+}
+
+function uploadSupportScopeLabel(user = {}, permissions = {}) {
+  if (permissions?.uploads?.canManageAll) return "all visible company photo evidence";
+  if (permissions?.uploads?.canCreate) return "assigned job photo evidence";
+  return `${String(user?.role || "role").trim() || "role"} visible photo evidence`;
+}
+
+function uploadSupportPriorityItems(uploads = [], limit = 3) {
+  return (Array.isArray(uploads) ? uploads : [])
+    .filter((upload) => !upload?.archivedAt)
+    .map((upload) => {
+      if (!String(upload?.caption || upload?.notes || "").trim()) {
+        return { label: uploadTitle(upload), reason: "Caption or notes missing", priority: 1 };
+      }
+      if (!hasGps(upload)) {
+        return { label: uploadTitle(upload), reason: gpsStatusLabel(upload), priority: 2 };
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.priority - right.priority || left.label.localeCompare(right.label))
+    .slice(0, limit);
+}
+
+export function buildUploadSupportContext({
+  user = {},
+  permissions = {},
+  visibleRows = [],
+  selectedUpload = null,
+  filters = {},
+  allowedJobs = [],
+} = {}) {
+  const safeRows = Array.isArray(visibleRows) ? visibleRows : [];
+  const activeRows = safeRows.filter((upload) => !upload?.archivedAt);
+  const imageCount = safeRows.filter((upload) => String(upload?.fileType || "").startsWith("image/")).length;
+  const gpsCount = safeRows.filter(hasGps).length;
+  const missingGpsCount = safeRows.filter((upload) => !hasGps(upload)).length;
+  const missingCaptionCount = safeRows.filter((upload) => !String(upload?.caption || upload?.notes || "").trim()).length;
+  const archivedCount = safeRows.filter((upload) => upload?.archivedAt).length;
+  const selectedText = selectedUpload
+    ? [
+      `${uploadTitle(selectedUpload)} for ${uploadJobLabel(selectedUpload)}`,
+      `uploaded by ${uploadUploaderLabel(selectedUpload)} on ${uploadDateLabel(selectedUpload)}`,
+      `GPS status: ${gpsStatusLabel(selectedUpload)}`,
+    ].join("; ")
+    : "No upload selected.";
+  const priorityItems = uploadSupportPriorityItems(activeRows);
+  const priorityText = priorityItems.length
+    ? priorityItems.map((item) => `${item.label}: ${item.reason}`).join("; ")
+    : "No visible upload has a caption or GPS follow-up flag in this view.";
+  const filterText = [
+    `archive ${filters.archived || "Active only"}`,
+    `job ${filters.jobId || "All jobs"}`,
+    `uploader ${filters.uploaderId || "All uploaders"}`,
+    `date ${filters.date || "All dates"}`,
+    `GPS ${filters.gps || "All locations"}`,
+    filters.query ? `search "${filters.query}"` : "",
+  ].filter(Boolean).join("; ");
+
+  return {
+    workflow: "Photos / uploads",
+    blockerLevel: missingCaptionCount || missingGpsCount ? "Slowing work down" : "Not a blocker",
+    followUpNeeded: missingCaptionCount || missingGpsCount ? "Manual photo evidence review" : "Photo evidence workflow question",
+    summary: [
+      `Photo Evidence support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
+      `Scope: ${uploadSupportScopeLabel(user, permissions)}.`,
+      `Current filters: ${filterText}.`,
+      `Visible uploads: ${safeRows.length}; active: ${activeRows.length}; images: ${imageCount}; GPS captured: ${gpsCount}; missing GPS: ${missingGpsCount}; missing captions or notes: ${missingCaptionCount}; archived in view: ${archivedCount}.`,
+      `Selected upload: ${selectedText}`,
+    ].join(" "),
+    expected: "Keep photo evidence tied to visible jobs only, without exposing file contents, storage paths, content URLs, GPS coordinates, pricing, margin, payroll, hidden users, or unrelated jobs.",
+    workaround: `Visible job options: ${pluralize(Array.isArray(allowedJobs) ? allowedJobs.length : 0, "job")}. Review queue in this view: ${priorityText}`,
+  };
+}

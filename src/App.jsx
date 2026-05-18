@@ -193,7 +193,7 @@ import {
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
-import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
+import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
@@ -9153,7 +9153,7 @@ function UploadsMobileFocusPanel({
   );
 }
 
-function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload }) {
+function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload, onOpenSupport }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("All jobs");
@@ -9183,6 +9183,7 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
   const selectedUpload = useMemo(() => findSelectedUpload(visibleRows, safeUploads, selectedUploadId), [safeUploads, selectedUploadId, visibleRows]);
   const canCreate = permissions.uploads.canCreate;
   const canManage = permissions.uploads.canManageAll;
+  const canOpenUploadSupport = Boolean(permissions?.support?.canView && typeof onOpenSupport === "function");
   const imageCount = visibleRows.filter((upload) => String(upload.fileType || "").startsWith("image/")).length;
   const gpsCount = visibleRows.filter((upload) => Number.isFinite(Number(upload.latitude)) && Number.isFinite(Number(upload.longitude))).length;
   const missingGpsCount = visibleRows.filter((upload) => !upload.hasGps).length;
@@ -9417,6 +9418,25 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     setGpsFilter("All locations");
   }
 
+  function requestUploadSupportReview() {
+    if (!canOpenUploadSupport) return;
+    onOpenSupport(buildUploadSupportContext({
+      user,
+      permissions,
+      visibleRows,
+      selectedUpload,
+      filters: {
+        archived: filter,
+        query: search,
+        jobId: jobFilter,
+        uploaderId: uploaderFilter,
+        date: dateFilter,
+        gps: gpsFilter,
+      },
+      allowedJobs,
+    }));
+  }
+
   const missingGpsPriorityCard = {
     label: "Review missing GPS",
     value: missingGpsCount,
@@ -9472,6 +9492,11 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setFilter("Active only")}>{visibleRows.length} visible</Button>
+            {canOpenUploadSupport ? (
+              <Button type="button" size="sm" variant="secondary" onClick={requestUploadSupportReview}>
+                <Icon name="help" />Photo Support
+              </Button>
+            ) : null}
             {canCreate ? <Button type="button" onClick={() => openTool("upload")}>Upload Photo</Button> : null}
           </div>
         }
