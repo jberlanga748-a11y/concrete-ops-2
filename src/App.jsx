@@ -11900,10 +11900,64 @@ function PpeChecklistTablePolished({ items, selectedId, onSelect, mobileMaxRows 
   );
 }
 
-function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitIncidents, acknowledgmentState, policies, incidents, onOpenTool, onSelectItem }) {
+function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitIncidents, acknowledgmentState, policies, incidents, onOpenTool, onSelectItem, isOfficeWorkspace = false }) {
+  const ppePolicies = policies.filter((policy) => String(policy.category || "").toLowerCase().includes("ppe") || `${policy.title || ""} ${policy.body || ""}`.toLowerCase().includes("ppe"));
+  const openIncidents = incidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || ""))).length;
+  const railClassName = `co-toolbox-right-rail space-y-4${isOfficeWorkspace ? " co-ppe-office-assistant" : ""}`;
+  const assistantPriorities = item ? [
+    {
+      label: item.requiredByDefault ? "Required PPE is surfaced before work starts" : "This PPE item is marked as-needed",
+      tone: item.requiredByDefault ? "ready" : "default",
+    },
+    {
+      label: acknowledgmentState.hasAcknowledged ? "Crew PPE acknowledgment is captured" : "Crew PPE acknowledgment still needs action",
+      tone: acknowledgmentState.hasAcknowledged ? "ready" : "warn",
+    },
+    {
+      label: openIncidents ? `${openIncidents} visible safety watch item${openIncidents === 1 ? "" : "s"} open` : "Safety watch is clear for this scope",
+      tone: openIncidents ? "warn" : "ready",
+    },
+  ] : [
+    { label: "Select a PPE item to load field expectations", tone: "default" },
+    { label: "Required protection should be visible before work starts", tone: "warn" },
+    { label: "Safety watch stays close without field office controls", tone: "ready" },
+  ];
+  const assistantActions = [
+    { label: item ? "Open PPE setup" : "Prepare PPE setup", icon: "hardhat", onClick: () => onOpenTool("ppe"), show: Boolean(canManage) },
+    { label: "Acknowledge PPE", icon: "check", onClick: () => onOpenTool("ack"), show: Boolean(canAcknowledge) },
+    { label: "Review safety watch", icon: "alert", onClick: () => onOpenTool("incident"), show: Boolean(canSubmitIncidents) },
+  ].filter((entry) => entry.show);
+
   if (!item) {
     return (
-      <div className="co-toolbox-right-rail space-y-4">
+      <div className={railClassName}>
+        {isOfficeWorkspace ? (
+          <Card className="co-prepour-assistant-card p-0">
+            <div className="co-prepour-assistant-topbar">
+              <span><Icon name="spark" /></span>
+              <strong>Apex Assistant</strong>
+              <em>PPE</em>
+            </div>
+            <div className="co-prepour-assistant-body">
+              <p className="co-prepour-assistant-kicker">PPE command</p>
+              <h3>Select protection before work starts.</h3>
+              <p>Pick a PPE row to see required gear, acknowledgment status, linked guidance, and safety watch context.</p>
+              <div className="co-prepour-assistant-priorities">
+                {assistantPriorities.map((entry) => <span key={entry.label} data-tone={entry.tone}>{entry.label}</span>)}
+              </div>
+              {assistantActions.length ? (
+                <div className="co-prepour-assistant-actions">
+                  {assistantActions.map((entry) => (
+                    <button key={entry.label} type="button" onClick={entry.onClick}>
+                      <Icon name={entry.icon} />
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
         <Card className="co-toolbox-rail-card p-4">
           <SectionHeader title="PPE Console" description="Select an item to review field-ready equipment expectations." />
           <div className="co-toolbox-empty-rail">
@@ -11917,12 +11971,37 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
     );
   }
 
-  const ppePolicies = policies.filter((policy) => String(policy.category || "").toLowerCase().includes("ppe") || `${policy.title || ""} ${policy.body || ""}`.toLowerCase().includes("ppe"));
-  const openIncidents = incidents.filter((incident) => !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || ""))).length;
   const actionCount = [canAcknowledge, canManage, canSubmitIncidents].filter(Boolean).length;
 
   return (
-    <div className="co-toolbox-right-rail space-y-4">
+    <div className={railClassName}>
+      {isOfficeWorkspace ? (
+        <Card className="co-prepour-assistant-card p-0">
+          <div className="co-prepour-assistant-topbar">
+            <span><Icon name="spark" /></span>
+            <strong>Apex Assistant</strong>
+            <em>PPE</em>
+          </div>
+          <div className="co-prepour-assistant-body">
+            <p className="co-prepour-assistant-kicker">PPE command</p>
+            <h3>{item.label || "Selected PPE item"}</h3>
+            <p>{ppeItemRequirementLabel(item)} / Updated {formatDateTime(ppeItemUpdatedAt(item)) || "No date"} / {ppePolicies.length} guidance link{ppePolicies.length === 1 ? "" : "s"}</p>
+            <div className="co-prepour-assistant-priorities">
+              {assistantPriorities.map((entry) => <span key={entry.label} data-tone={entry.tone}>{entry.label}</span>)}
+            </div>
+            {assistantActions.length ? (
+              <div className="co-prepour-assistant-actions">
+                {assistantActions.map((entry) => (
+                  <button key={entry.label} type="button" onClick={entry.onClick}>
+                    <Icon name={entry.icon} />
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
       <Card className="co-toolbox-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -12195,7 +12274,7 @@ function PpePolicyPanelPolished({ canManage, visiblePolicies, selectedPolicy, se
     <Card className="co-toolbox-form-card p-4">
       <SectionHeader title="Safety Guidance" description={canManage ? "Policy guidance remains available here for office/admin edits." : "Field-safe guidance remains visible without office-only information."} />
       {visiblePolicies.length === 0 ? (
-        <StateCard title="No safety policies yet" description="Safety guidance will appear here after office/admin creates it." tone="slate" />
+        <StateCard title="No safety policies yet" description={canManage ? "Safety guidance will appear here after office/admin creates it." : "Safety guidance will appear here when it is available for the crew."} tone="slate" />
       ) : (
         <div className="co-toolbox-ppe-list">
           {visiblePolicies.map((policy) => (
@@ -12422,11 +12501,11 @@ function PpeChecklistPagePolished({
       : [requiredGearPriorityCard, crewAcknowledgmentPriorityCard, safetyWatchPriorityCard, ppeSetupPriorityCard];
 
   return (
-    <div className={`co-office-page co-toolbox-page co-ppe-page ${canManage ? "" : "co-field-tool-page"}`}>
+    <div className={`co-office-page co-toolbox-page co-ppe-page ${canManage ? "" : "co-field-tool-page"}`} data-field-workspace={canManage ? "false" : "true"}>
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title="PPE Checklist"
-        description="Review required jobsite protection, acknowledge current safety expectations, and keep PPE management close but uncluttered."
+        description={canManage ? "Review required jobsite protection, acknowledge current safety expectations, and keep PPE management close but uncluttered." : "Review required jobsite protection, acknowledge current safety expectations, and keep field concerns close."}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={jumpToBoard}>{filteredPpeItems.length} visible</Button>
@@ -12504,7 +12583,7 @@ function PpeChecklistPagePolished({
               <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search PPE gear..." />
             </div>
             {filteredPpeItems.length === 0 ? (
-              <div className="p-5"><StateCard title={activePpeItems.length === 0 ? "No PPE items yet" : "No PPE items match these filters"} description={activePpeItems.length === 0 ? "Office/admin can add the first PPE item from the management drawer." : "Clear the filter or search another equipment requirement."} tone="slate" /></div>
+              <div className="p-5"><StateCard title={activePpeItems.length === 0 ? "No PPE items yet" : "No PPE items match these filters"} description={activePpeItems.length === 0 ? (canManage ? "Office/admin can add the first PPE item from the management drawer." : "PPE requirements will show here when they are available for the crew.") : "Clear the filter or search another equipment requirement."} tone="slate" /></div>
             ) : (
               <PpeChecklistTablePolished items={filteredPpeItems} selectedId={selectedItem?.id} onSelect={setSelectedPpeId} mobileMaxRows={mobileVisiblePpeCap} />
             )}
@@ -12556,17 +12635,20 @@ function PpeChecklistPagePolished({
           </details>
         </div>
 
-        <PpeCommandRailPolished
-          item={selectedItem}
-          canManage={canManage}
-          canAcknowledge={canAcknowledge}
-          canSubmitIncidents={canSubmitIncidents}
-          acknowledgmentState={acknowledgmentState}
-          policies={ppePolicies}
-          incidents={visibleIncidents}
-          onOpenTool={openTools}
-          onSelectItem={setSelectedPpeId}
-        />
+        {canManage ? (
+          <PpeCommandRailPolished
+            item={selectedItem}
+            canManage={canManage}
+            canAcknowledge={canAcknowledge}
+            canSubmitIncidents={canSubmitIncidents}
+            acknowledgmentState={acknowledgmentState}
+            policies={ppePolicies}
+            incidents={visibleIncidents}
+            onOpenTool={openTools}
+            onSelectItem={setSelectedPpeId}
+            isOfficeWorkspace={canManage}
+          />
+        ) : null}
       </div>
     </div>
   );
