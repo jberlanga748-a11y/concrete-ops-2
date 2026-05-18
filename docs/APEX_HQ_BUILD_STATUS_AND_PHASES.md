@@ -60,20 +60,21 @@ Current state:
 - Targeted command KPI card height polish: built, verified, released, and health-checked so Leads, Jobs, Customers, Estimate Studio, and Settings KPI cards show their helper/action text without vertical clipping while field-role redirects remain intact.
 - Targeted Dashboard today-work row fit polish: built, verified, released, and health-checked so the desktop Today Work Coordination rows fit inside the Dashboard card without hidden horizontal clipping while tablet/mobile and field-role redirects remain intact.
 - Targeted Communication Center compact follow-up filter polish: built, verified, released, and health-checked so the owner/admin compact follow-up filter drawer stacks safely inside its card without clipping while the full queue layout, tablet/mobile, and field-role redirects remain intact.
+- Targeted Employees priority action polish: built, verified, released, and health-checked so the owner/admin Employees Priority Moves rail uses a readable vertical action queue with unclipped helper copy while tablet/mobile and field-role redirects remain intact.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `2b07176`
-- Message: `Polish communication follow-up filters`
-- Fly release: `v530`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRX15XZ2X0B1VSPG16WQZV3W`
+- Commit: `05a1031`
+- Message: `Polish employees priority actions`
+- Fly release: `v531`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRX1XH02QRA5ND5PR7KM8K62`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v530` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v531` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -141,6 +142,7 @@ Recent shipped phase stack:
 | `649c8e6` | `v528` | Command KPI card height polish |
 | `603e06b` | `v529` | Dashboard today-work row fit polish |
 | `2b07176` | `v530` | Communication follow-up filter polish |
+| `05a1031` | `v531` | Employees priority action polish |
 
 ## Done / Do Not Rebuild
 
@@ -185,6 +187,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
 | Communications mobile nav label polish | Built and released | Owner/admin mobile Communication Center bottom nav now shows `Comms` in the compact bar so the active label does not clip; the button keeps `Communications` as its accessible label and field roles remain redirected to Field Mode. |
 | Communication follow-up filter polish | Built and released | Communication Center compact follow-up filter drawer now stacks its search/type/status controls inside the owner/admin card instead of clipping on desktop. The full queue layout, tablet/mobile rendering, and field-role redirects were preserved. |
+| Employees priority action polish | Built and released | Employees Priority Moves now uses a vertical action queue with wrapping helper copy so owner/admin users can read each access task without clipped text. Tablet/mobile rendering and field-role redirects were preserved. |
 | Tablet mobile nav label polish | Built and released | Owner/admin tablet/mobile bottom navigation now uses compact labels for Operations Command, Photo Evidence, Delivery Tickets, Imported Drafts, Change Orders, Toolbox Talks, and Tool Checklist in the primary bar while preserving full accessible labels and unchanged route behavior. |
 | Settings account text wrapping polish | Built and released | App Health/Settings account panel now lets signed-in user email text wrap inside the card instead of clipping on narrow desktop account columns. Field roles remain redirected to Field Mode. |
 | Command KPI card height polish | Built and released | Shared office command KPI cards now size to their real helper/action text for Leads, Jobs, Customers, Estimate Studio, and Settings, removing hidden bottom action copy while preserving compact grids and field-role redirects. |
@@ -316,6 +319,7 @@ Recent focused verification:
 - Command KPI card height polish release checks: browser QA found shared office KPI cards clipping bottom helper/action text on `/leads`, `/jobs`, `/customers`, `/estimates`, and `/settings` across desktop/tablet/phone. CSS-only patch removes the forced short height for those office KPI grids while keeping compact responsive columns. `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:customers`, `npm.cmd run verify:estimates`, `npm.cmd run verify:roles`, `npm.cmd run verify:server`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed no KPI text clipping, no horizontal overflow, no console errors, no failed requests, and employee direct office routes redirected to Field Mode without office KPI grids. Released as Fly `v528` with image `registry.fly.io/concrete-ops-2:deployment-01KRWZTXPT5RQ7MB0KW6F6MT6R`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Dashboard today-work row fit polish release checks: browser QA found desktop Dashboard Today Work Coordination rows measuring wider than the card because the three-column row grid minimums exceeded the available card width. CSS-only patch tightens the desktop row grid minimums while preserving the existing tablet/mobile stack. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed the Dashboard today-work board, list, and rows had no horizontal clipping, no page overflow, no console errors, no failed requests, and employee direct `/` still redirected to Field Mode. Released as Fly `v529` with image `registry.fly.io/concrete-ops-2:deployment-01KRX0GPCRSZD9VK15QDY9ACAW`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Communication follow-up filter polish release checks: browser QA found the owner/admin desktop Communication Center compact follow-up filter drawer using three fixed columns inside a narrow card, which clipped the filter controls. Scoped CSS stacks only the compact drawer filters while preserving the full follow-up board filter grid. `npm.cmd run verify:leads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed the compact filter grid no longer clips, `/communications` has no page-level horizontal overflow, no console errors, no failed requests, and employee direct `/communications` redirects to `/jobs` Field Mode without office nav. Released as Fly `v530` with image `registry.fly.io/concrete-ops-2:deployment-01KRX15XZ2X0B1VSPG16WQZV3W`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Employees priority action polish release checks: browser QA found desktop `/employees` Priority Moves helper copy clipped because the rail forced four long action helpers into a narrow two-column grid with `nowrap` text. CSS-only patch converts that rail to a vertical action queue and lets helper copy wrap. `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed Employees priority helper copy no longer clips, `/employees` has no page-level horizontal overflow, no console errors, no failed requests, and employee direct `/employees` redirects to `/jobs` Field Mode without office nav. Released as Fly `v531` with image `registry.fly.io/concrete-ops-2:deployment-01KRX1XH02QRA5ND5PR7KM8K62`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 

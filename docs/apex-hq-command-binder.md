@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `2b07176 Polish communication follow-up filters`.
-- Fly release `v530` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `05a1031 Polish employees priority actions`.
+- Fly release `v531` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -40,6 +40,7 @@ Usable now:
 - Customers, leads, estimates, jobs, crews/employees.
 - Leads command table follow-up header polish for unclipped desktop `Follow-Up` headers with mobile cards and field-role redirects preserved.
 - Shared command KPI card height polish for unclipped helper/action text on Leads, Jobs, Customers, Estimate Studio, and Settings.
+- Employees Priority Moves action rail polish for readable owner/admin access tasks with unclipped helper copy and field-role redirects preserved.
 - Jobs command table text wrapping polish for long job IDs, job names, and assigned/needed crew counts.
 - Jobs command table progress header polish for unclipped desktop `Progress` headers with mobile cards and field-role Field Mode behavior preserved.
 - Customers command table text wrapping polish for long emails and service areas.
@@ -332,12 +333,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree after runtime release `v530` was clean before the post-release source-of-truth sync.
-- Build status tracker now identifies the Communication Center compact follow-up filter polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted north-star visual/workflow polish only when there is a confirmed visible route or demo blocker.
+- Current working tree after runtime release `v531` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the Employees priority action polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted north-star visual/workflow polish only when there is a confirmed visible route or demo blocker.
 
 Assumptions / needs confirmation:
 
-- Production `v530` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v531` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
