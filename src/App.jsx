@@ -14956,6 +14956,7 @@ function CommandCenterPage({
   user,
   currentCompanyId,
   companyName,
+  demoMode,
   leads,
   customers,
   estimates,
@@ -15234,6 +15235,14 @@ function CommandCenterPage({
       icon: "check",
     },
   ];
+  const demoPathSteps = [
+    { label: "Command", helper: "Owner view", icon: "grid", moduleId: "commandCenter", enabled: true },
+    { label: "Schedule", helper: "Today crew", icon: "calendar", moduleId: "schedule", enabled: true },
+    { label: "Leads", helper: "Follow-up", icon: "users", moduleId: "leads", enabled: true },
+    { label: "Estimates", helper: "Packet path", icon: "quote", moduleId: "estimates", enabled: canViewEstimates },
+    { label: "Jobs", helper: "Field handoff", icon: "briefcase", moduleId: "jobs", enabled: true },
+    { label: "Reports", helper: "Proof review", icon: "document", moduleId: "reports", enabled: true },
+  ].filter((step) => step.enabled);
   const leadById = new Map((leads || []).map((lead) => [lead.id, lead]));
   const customerById = new Map((customers || []).map((customer) => [customer.id, customer]));
   const estimateById = new Map((estimates || []).map((estimate) => [estimate.id, estimate]));
@@ -15333,6 +15342,31 @@ function CommandCenterPage({
             </div>
           ))}
         </div>
+        {demoMode ? (
+          <div className="co-command-demo-path mt-3" aria-label="Guided demo path">
+            <div className="co-command-demo-path-copy">
+              <strong className="co-command-demo-path-label">Demo path</strong>
+              <span>Walk the first demo from owner command to field proof without jumping into unrelated setup.</span>
+            </div>
+            <div className="co-command-demo-path-actions">
+              {demoPathSteps.map((step) => (
+                <button
+                  key={step.moduleId}
+                  type="button"
+                  className="co-command-demo-path-step co-focus-ring"
+                  onClick={() => openModule(step.moduleId)}
+                  aria-label={`Open ${step.label} demo step`}
+                >
+                  <Icon name={step.icon} className="h-4 w-4" />
+                  <span>
+                    <strong>{step.label}</strong>
+                    <small>{step.helper}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
       <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
         <CommandCenterMorningFlowCard

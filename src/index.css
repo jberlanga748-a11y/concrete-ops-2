@@ -2131,6 +2131,135 @@ textarea {
     }
   }
 
+  .co-command-demo-path {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.3fr);
+    gap: 0.75rem;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(7, 17, 31, 0.12);
+    border-radius: 0.62rem;
+    background:
+      linear-gradient(135deg, rgba(7, 17, 31, 0.96), rgba(15, 23, 42, 0.94)),
+      radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.22), transparent 16rem);
+    padding: 0.78rem;
+    box-shadow: 0 20px 48px -38px rgba(7, 17, 31, 0.72);
+  }
+
+  .co-command-demo-path-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.38rem;
+  }
+
+  .co-command-demo-path-label {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    border: 1px solid rgba(249, 115, 22, 0.38);
+    border-radius: 999px;
+    background: rgba(249, 115, 22, 0.16);
+    color: #fdba74;
+    font-size: 0.68rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    overflow-wrap: anywhere;
+    padding: 0.42rem 0.58rem;
+    text-transform: uppercase;
+  }
+
+  .co-command-demo-path-copy span {
+    overflow-wrap: anywhere;
+    color: rgba(226, 232, 240, 0.9);
+    font-size: 0.8rem;
+    font-weight: 850;
+    line-height: 1.35;
+  }
+
+  .co-command-demo-path-actions {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .co-command-demo-path-step {
+    display: grid;
+    min-width: 0;
+    min-height: 3.7rem;
+    grid-template-columns: 1.45rem minmax(0, 1fr);
+    gap: 0.45rem;
+    align-items: center;
+    border: 1px solid rgba(255, 247, 237, 0.12);
+    border-radius: 0.54rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(248, 250, 252, 0.94);
+    padding: 0.55rem;
+    text-align: left;
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+  }
+
+  .co-command-demo-path-step:hover,
+  .co-command-demo-path-step:focus-visible {
+    border-color: rgba(249, 115, 22, 0.54);
+    background: rgba(249, 115, 22, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .co-command-demo-path-step svg {
+    color: #fdba74;
+  }
+
+  .co-command-demo-path-step span {
+    display: grid;
+    min-width: 0;
+    gap: 0.18rem;
+  }
+
+  .co-command-demo-path-step strong {
+    overflow: hidden;
+    font-size: 0.74rem;
+    font-weight: 950;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .co-command-demo-path-step small {
+    overflow-wrap: anywhere;
+    color: rgba(203, 213, 225, 0.82);
+    font-size: 0.62rem;
+    font-weight: 850;
+    line-height: 1.12;
+  }
+
+  @media (max-width: 1180px) {
+    .co-command-demo-path {
+      grid-template-columns: 1fr;
+    }
+
+    .co-command-demo-path-actions {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .co-command-demo-path {
+      padding: 0.68rem;
+    }
+
+    .co-command-demo-path-actions {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .co-command-demo-path-step {
+      min-height: 3.45rem;
+    }
+  }
+
   .co-command-card {
     position: relative;
     overflow: hidden;
