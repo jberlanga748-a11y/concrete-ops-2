@@ -4897,6 +4897,10 @@ const FIELD_MOBILE_NAV_ORDER = [
   { id: "support", label: "Help", icon: "help" },
 ];
 
+const MOBILE_NAV_COMPACT_LABELS = {
+  communications: "Comms",
+};
+
 function getFieldMobileNavItems(visibleNavItems) {
   const visibleById = new Map((visibleNavItems || []).map((item) => [item.id, item]));
   const orderedItems = FIELD_MOBILE_NAV_ORDER
@@ -4951,16 +4955,18 @@ function FieldMobileQuickNav({ items, active, onOpen }) {
       <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {primaryItems.map((item) => {
           const isActive = active === item.id;
+          const mobileLabel = MOBILE_NAV_COMPACT_LABELS[item.id] || item.label;
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => handleOpen(item.id)}
+              aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
               className={`co-mobile-bottom-nav-button flex min-w-[74px] shrink-0 flex-col items-center justify-center rounded-2xl border px-3 py-2 text-[11px] font-black transition ${isActive ? "is-active border-blue-700 bg-blue-700 text-white shadow-panel" : "border-blue-100 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"}`}
             >
               <Icon name={item.icon || "grid"} className="h-4 w-4" />
-              <span className="mt-1 block max-w-[68px] truncate">{item.label}</span>
+              <span className="mt-1 block max-w-[68px] truncate">{mobileLabel}</span>
             </button>
           );
         })}
