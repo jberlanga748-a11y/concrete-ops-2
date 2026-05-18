@@ -81,14 +81,16 @@ Latest release tracked in this file:
 
 Latest source-control tooling state:
 
+- Commit: `c071cbe`
+- Message: `Harden visual polish audit shortcuts`
 - State: visual polish audit, bounded stable Chromium/tablet shortcuts, public-site tablet coverage, hardened demo desktop audit, canonical demo routes, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling are tracked in source.
 - Deployment: not deployed; local verification tooling only.
-- Verification: `npm.cmd run audit:visual-polish:chromium` checked 78 desktop/phone role-routes with 0 failures; `npm.cmd run audit:visual-polish:tablet` checks owner/admin and field-role tablet routes; `npm.cmd run audit:demo-desktop:local` captures 28 local demo route screenshots with 0 required failures; `node --check scripts\visual-polish-route-audit.mjs`, `node --check scripts\demo-desktop-ui-audit.mjs`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` are the current tooling verification gate.
+- Verification: `npm.cmd run audit:visual-polish:chromium` checked 78 desktop/phone role-routes with 0 failures; `npm.cmd run audit:visual-polish:tablet` checked 52 owner/admin and field-role tablet routes with 0 failures; `npm.cmd run audit:demo-desktop:local` captured 28 local demo route screenshots with 0 required failures; `npm.cmd run audit:public-site` checked `/founder-pilot` desktop/tablet/phone with 0 failures; `node --check scripts\visual-polish-route-audit.mjs`, `node --check scripts\demo-desktop-ui-audit.mjs`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` are the current tooling verification gate.
 
 Known working tree note:
 
 - Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
-- Post-release tooling commits `56a81f0`, `decdcc8`, `9e9eb92`, `ad0da7e`, `41622e2`, `2e90585`, and `09f02c7` added visual/demo/public audit coverage and canonical demo route handling; they do not change shipped app runtime behavior.
+- Post-release tooling commits `56a81f0`, `decdcc8`, `9e9eb92`, `ad0da7e`, `41622e2`, `2e90585`, `09f02c7`, `20e55e1`, and `c071cbe` added visual/demo/public audit coverage, canonical demo route handling, local demo audit shortcuts, and redirect-safe bounded visual audit handling; they do not change shipped app runtime behavior.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 

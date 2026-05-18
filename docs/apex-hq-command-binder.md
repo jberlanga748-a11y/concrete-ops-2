@@ -22,7 +22,7 @@ Current launch stage:
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
 - Latest runtime release tracked: `d0801e3 Polish delivery assistant clearance`.
 - Fly release `v534` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
-- Latest source-control tooling tracked: visual polish audit, bounded stable Chromium/tablet shortcuts, demo desktop canonical route cleanup, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling. These were not deployed because they only change local verification tooling and docs.
+- Latest source-control tooling commit tracked: `c071cbe Harden visual polish audit shortcuts`. This tracks visual polish audit coverage, bounded stable Chromium/tablet shortcuts, demo desktop canonical route cleanup, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling. It was not deployed because it only changes local verification tooling and docs.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
