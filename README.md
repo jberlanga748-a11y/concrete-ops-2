@@ -20,6 +20,7 @@ The demo account is available by default in development. In production, demo dat
 - `npm run build` builds the frontend
 - `npm run serve` serves the built app with the Node server
 - `npm run audit:demo-desktop` logs into the demo Fly app and captures desktop screenshots for UI review
+- `npm run audit:demo-desktop:local` logs into the local app and captures 1440px desktop demo screenshots for fast local UI review
 - `npm run audit:visual-polish` logs into the local app and checks route-wide visual polish, overflow, assistant overlap, console/network failures, and field-role exposure
 - `npm run audit:visual-polish:chromium` runs the same sweep with bundled Chromium for stable local QA
 - `npm run audit:visual-polish:tablet` runs the tablet owner/admin and field-role route sweep
@@ -35,10 +36,16 @@ Use the Playwright-based audit runner to capture desktop screenshots from the li
 npm run audit:demo-desktop
 ```
 
+For local app evidence, start the app on port 4000 and run the one-viewport shortcut:
+
+```bash
+npm run audit:demo-desktop:local
+```
+
 Optional filters:
 
 ```bash
-npm run audit:demo-desktop -- --roles=admin --viewports=1440x900
+npm run audit:demo-desktop:local -- --roles=admin
 ```
 
 Screenshots are saved under `ui-audit/demo-desktop/<timestamp>/` and are ignored by git. The script only signs in, navigates, and captures screenshots for the configured routes. Required capture failures make the command exit non-zero so broken demo pages do not pass silently.

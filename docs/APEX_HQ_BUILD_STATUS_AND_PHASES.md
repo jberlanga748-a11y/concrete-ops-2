@@ -66,6 +66,7 @@ Current state:
 - Targeted Delivery Tickets assistant clearance polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer touches the owner/admin Delivery Tickets right-rail action row while field-role delivery scope remains intact.
 - Visual polish route audit tooling: built, verified, and pushed so the repo has a repeatable local Playwright sweep for desktop, tablet, mobile, console/network, overflow, assistant overlap, clipped content, and field-role exposure checks. This was not deployed because it is local verification tooling only.
 - Demo desktop screenshot audit hardening: built, verified, and pushed so field-mode demo headings match the current app and required screenshot capture failures no longer pass silently. This was not deployed because it is local verification tooling only.
+- Demo desktop local audit shortcut: built so local 1440px demo walkthrough screenshots can be captured with `npm.cmd run audit:demo-desktop:local` instead of repeating the local base URL and viewport flags. This was not deployed because it is local verification tooling only.
 
 ## Latest Released App State
 
@@ -79,15 +80,15 @@ Latest release tracked in this file:
 
 Latest source-control tooling state:
 
-- Commit: `decdcc8`
-- Message: `Harden visual polish route audit`
+- Commit: `09f02c7`
+- Message: `Use canonical routes in demo audit`
 - Deployment: not deployed; local verification tooling only.
-- Verification: `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium` checked 78 role/viewport/routes with 0 failures; `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium --roles=admin,employee --viewports=tablet` checked 52 tablet routes with 0 failures; `npm.cmd run verify:roles`, `npm.cmd run build`, `node --check scripts\visual-polish-route-audit.mjs`, and `git diff --check` passed. Shortcut scripts `npm.cmd run audit:visual-polish:chromium` and `npm.cmd run audit:visual-polish:tablet` now wrap those common checks.
+- Verification: `npm.cmd run audit:demo-desktop -- --base-url=http://127.0.0.1:4000/ --roles=admin,foreman,employee --viewports=1440x900` captured 28 local demo route screenshots with 0 required failures; focused canonical route coverage for toolbox talks, tool checklist, pre-pour, post-pour, delivery tickets, jobs, and uploads also passed; `node --check scripts\demo-desktop-ui-audit.mjs`, `node --test --test-concurrency=1 src\app-routing.test.js`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Shortcut scripts `npm.cmd run audit:visual-polish:chromium`, `npm.cmd run audit:visual-polish:tablet`, and `npm.cmd run audit:demo-desktop:local` now wrap common local checks.
 
 Known working tree note:
 
 - Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
-- Post-release tooling commits `56a81f0` and `decdcc8` added and hardened `npm.cmd run audit:visual-polish`; they do not change shipped app runtime behavior.
+- Post-release tooling commits `56a81f0`, `decdcc8`, `9e9eb92`, `ad0da7e`, `41622e2`, `2e90585`, and `09f02c7` added visual/demo/public audit coverage and canonical demo route handling; they do not change shipped app runtime behavior.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -475,7 +476,7 @@ Suggested verification:
 - `npm.cmd run build`
 - `git diff --check`
 - Browser QA for the touched route across the relevant desktop/tablet/mobile viewport and role matrix.
-- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage. Use `npm.cmd run audit:public-site` when public `/founder-pilot` copy or UI is touched; it covers desktop, tablet, and phone. Use `npm.cmd run audit:demo-desktop` when demo walkthrough screenshot evidence is needed.
+- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage. Use `npm.cmd run audit:public-site` when public `/founder-pilot` copy or UI is touched; it covers desktop, tablet, and phone. Use `npm.cmd run audit:demo-desktop` when live demo walkthrough screenshot evidence is needed, or `npm.cmd run audit:demo-desktop:local` when validating local demo walkthrough UI at 1440px before release.
 
 ## Next Build Phases
 

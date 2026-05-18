@@ -22,7 +22,7 @@ Current launch stage:
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
 - Latest runtime release tracked: `d0801e3 Polish delivery assistant clearance`.
 - Fly release `v534` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
-- Latest source-control tooling commit tracked: `decdcc8 Harden visual polish route audit`; this was not deployed because it only changes local verification tooling.
+- Latest source-control tooling commits tracked: visual polish audit through `decdcc8 Harden visual polish route audit`, demo desktop canonical route cleanup through `09f02c7 Use canonical routes in demo audit`, and a local demo audit shortcut in the current tooling docs batch. These were not deployed because they only change local verification tooling and docs.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -94,6 +94,7 @@ Usable now:
 - Backup/export tooling.
 - Health/readiness endpoints.
 - Route-wide visual polish audit tooling for local desktop, tablet, mobile, console/network, overflow, assistant overlap, and field-role exposure checks.
+- Demo desktop audit tooling for live demo walkthrough screenshots plus a local 1440px shortcut for fast app evidence.
 
 Not ready yet:
 
@@ -425,6 +426,7 @@ Browser/Playwright:
 
 ```powershell
 npm.cmd run audit:demo-desktop
+npm.cmd run audit:demo-desktop:local
 npm.cmd run audit:visual-polish
 npm.cmd run audit:visual-polish:chromium
 npm.cmd run audit:visual-polish:tablet
@@ -444,7 +446,8 @@ For focused browser QA, use Playwright or the Codex in-app browser against the e
 - desktop screenshot
 - tablet screenshot when estimate, schedule, or workbench behavior is relevant
 - mobile screenshot
-- demo screenshot manifest evidence with `npm.cmd run audit:demo-desktop` when demo walkthrough surfaces are touched
+- demo screenshot manifest evidence with `npm.cmd run audit:demo-desktop` when live demo walkthrough surfaces are touched
+- local demo screenshot manifest evidence with `npm.cmd run audit:demo-desktop:local` when validating local UI changes before release
 - console errors
 - failed network requests
 - horizontal overflow
