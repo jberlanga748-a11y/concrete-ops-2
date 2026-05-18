@@ -33725,3 +33725,111 @@ textarea {
     white-space: normal;
   }
 }
+
+.co-schedule-page {
+  --co-schedule-rail-panel: rgba(15, 23, 42, 0.9);
+  --co-schedule-rail-line: rgba(148, 163, 184, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .co-schedule-page .co-page-header {
+    margin-bottom: 0.72rem !important;
+    padding-top: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-schedule-kpi-grid .co-command-kpi {
+    height: auto !important;
+    min-height: 5.05rem !important;
+  }
+
+  .co-schedule-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 22.5rem) !important;
+  }
+
+  .co-schedule-rail {
+    border: 1px solid var(--co-schedule-rail-line);
+    border-radius: 0.5rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.16), transparent 13rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    padding: 0.62rem 4.2rem 0.62rem 0.62rem !important;
+    box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9);
+  }
+
+  .co-schedule-rail-card {
+    border-color: var(--co-schedule-rail-line) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-schedule-rail-panel) !important;
+    background-color: var(--co-schedule-rail-panel) !important;
+    box-shadow: none !important;
+  }
+
+  .co-schedule-rail-card .co-section-accent h2,
+  .co-schedule-rail-card .co-schedule-prep-list strong,
+  .co-schedule-rail-card .co-schedule-rail-metrics strong {
+    color: #07111f !important;
+  }
+
+  .co-schedule-rail-card .co-section-accent p,
+  .co-schedule-rail-card .co-schedule-prep-list span,
+  .co-schedule-rail-card .co-schedule-prep-list p,
+  .co-schedule-rail-card .co-schedule-rail-metrics em {
+    color: #64748b !important;
+  }
+
+  .co-schedule-rail-metrics span,
+  .co-schedule-quick-moves button,
+  .co-schedule-prep-list button {
+    border-color: rgba(148, 163, 184, 0.2) !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #07111f !important;
+  }
+
+  .co-schedule-quick-moves button:hover,
+  .co-schedule-prep-list button:hover {
+    border-color: rgba(249, 115, 22, 0.42) !important;
+    background: rgba(249, 115, 22, 0.12) !important;
+    color: #fff7ed !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-schedule-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
+    padding-inline: 1rem !important;
+  }
+
+  .co-schedule-kpi-grid .co-command-kpi {
+    min-height: 5.7rem !important;
+    padding: 0.66rem !important;
+  }
+
+  .co-schedule-job-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem !important;
+  }
+
+  .co-schedule-job-actions > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .co-schedule-job-actions .btn,
+  .co-schedule-job-actions button,
+  .co-schedule-map-link {
+    min-height: 2.42rem !important;
+  }
+
+  .co-schedule-section-list {
+    gap: 0.72rem;
+    padding: 0.72rem;
+  }
+
+  .co-schedule-job-card {
+    border-radius: 0.9rem !important;
+    padding: 0.72rem !important;
+  }
+}
