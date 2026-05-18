@@ -24532,6 +24532,13 @@ textarea {
   white-space: nowrap;
 }
 
+.co-imports-command-table td:nth-child(1) p,
+.co-imports-command-table td:nth-child(5) p {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .co-imports-command-table tbody tr:hover td {
   background: rgba(255, 247, 237, 0.48);
 }
@@ -33442,6 +33449,59 @@ textarea {
   border-color: rgba(148, 163, 184, 0.22) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   color: #f8fafc !important;
+}
+
+@media (min-width: 1400px) {
+  .co-imports-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 24rem) !important;
+    gap: 0.78rem !important;
+  }
+
+  .co-imports-right-rail,
+  .co-imports-office-assistant {
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0.72rem !important;
+  }
+
+  .co-imports-command-table {
+    min-width: 800px !important;
+  }
+
+  .co-imports-icon-button {
+    height: 2rem;
+    min-width: 2rem;
+    width: 2rem;
+  }
+
+  .co-imports-icon-button svg {
+    height: 0.9rem;
+    width: 0.9rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-imports-mobile-focus-actions button,
+  .co-imports-mobile-focus-metrics button,
+  .co-imports-main-board .co-filter-bar > div:first-child button,
+  .co-imports-advanced-filters > summary,
+  .co-imports-tools-drawer > summary,
+  .co-imports-file-button,
+  .co-imports-office-assistant .co-imports-rail-card button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-imports-page .co-toolbox-priority-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow: visible !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-imports-page .co-toolbox-priority-card {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
 }
 
 .co-support-page {
