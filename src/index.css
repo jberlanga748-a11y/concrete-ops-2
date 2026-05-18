@@ -28825,6 +28825,166 @@ textarea {
   background: #fff7f7 !important;
 }
 
+.co-app-health-page {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(241, 245, 249, 0.82)),
+    #f8fafc;
+}
+
+.co-app-health-page .co-page-header {
+  border-bottom: 1px solid rgba(203, 213, 225, 0.72);
+  background:
+    linear-gradient(90deg, rgba(7, 17, 31, 0.04), rgba(249, 115, 22, 0.06)),
+    #ffffff;
+}
+
+.co-app-health-page .co-page-header h1 {
+  letter-spacing: 0 !important;
+}
+
+.co-app-health-page .co-settings-kpi-grid .co-command-kpi {
+  border-color: rgba(203, 213, 225, 0.9) !important;
+  box-shadow: 0 18px 40px -36px rgba(7, 17, 31, 0.66) !important;
+}
+
+.co-app-health-page .co-settings-command-layout {
+  grid-template-columns: minmax(0, 1fr) 340px !important;
+}
+
+.co-app-health-page .co-settings-left-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.co-app-health-page #settings-owner-health {
+  order: -10;
+  border-left-width: 4px;
+  border-left-color: var(--color-brand-orange) !important;
+  box-shadow: 0 22px 54px -40px rgba(7, 17, 31, 0.72);
+}
+
+.co-app-health-page #settings-owner-health > summary {
+  min-height: 4.1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background:
+    linear-gradient(90deg, rgba(7, 17, 31, 0.96), rgba(15, 23, 42, 0.94)),
+    #07111f;
+  color: #ffffff;
+}
+
+.co-app-health-page #settings-owner-health > summary strong {
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.co-app-health-page #settings-owner-health > summary em {
+  color: rgba(226, 232, 240, 0.84);
+}
+
+.co-app-health-page #settings-owner-health > summary > span:last-child {
+  border: 1px solid rgba(249, 115, 22, 0.36);
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.12);
+  color: #fed7aa;
+  padding: 0.36rem 0.55rem;
+}
+
+.co-app-health-page #settings-owner-health > summary::after {
+  border-color: rgba(249, 115, 22, 0.42);
+  background: rgba(249, 115, 22, 0.16);
+  color: #fed7aa;
+}
+
+.co-app-health-page #settings-owner-health .co-settings-tools-panel {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.92)),
+    #f8fafc;
+  padding: 0.95rem;
+}
+
+.co-app-health-page #settings-owner-health .co-card {
+  border-radius: 0.86rem !important;
+  border-color: rgba(203, 213, 225, 0.9) !important;
+  box-shadow: 0 18px 42px -36px rgba(7, 17, 31, 0.64) !important;
+}
+
+.co-app-health-page #settings-owner-health .co-section-header h2,
+.co-app-health-page #settings-owner-health .co-section-header h3 {
+  color: #07111f !important;
+}
+
+.co-app-health-page .co-trust-readiness-hero {
+  border-color: rgba(249, 115, 22, 0.24);
+  border-radius: 0.86rem;
+  background:
+    linear-gradient(135deg, rgba(255, 247, 237, 0.92), rgba(239, 246, 255, 0.72)),
+    #ffffff;
+  box-shadow: inset 4px 0 0 rgba(249, 115, 22, 0.72);
+}
+
+.co-app-health-page .co-trust-stat-card,
+.co-app-health-page .co-trust-check-card {
+  border-radius: 0.78rem;
+}
+
+.co-app-health-page .co-settings-right-rail {
+  border: 1px solid rgba(30, 41, 59, 0.82);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(180deg, rgba(7, 17, 31, 0.98), rgba(15, 23, 42, 0.96)),
+    #07111f;
+  padding: 0.72rem;
+  box-shadow: 0 22px 52px -38px rgba(2, 6, 23, 0.86);
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-rail-card {
+  border-color: rgba(51, 65, 85, 0.88) !important;
+  border-left-color: rgba(249, 115, 22, 0.78) !important;
+  background: rgba(15, 23, 42, 0.78) !important;
+  box-shadow: none !important;
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-rail-card h3,
+.co-app-health-page .co-settings-right-rail .co-settings-rail-card h2,
+.co-app-health-page .co-settings-right-rail .co-settings-rail-card p,
+.co-app-health-page .co-settings-right-rail .co-section-header h2,
+.co-app-health-page .co-settings-right-rail .co-section-header h3 {
+  color: #f8fafc !important;
+}
+
+.co-app-health-page .co-settings-right-rail .co-section-header p,
+.co-app-health-page .co-settings-right-rail .co-settings-rail-card .text-slate-500 {
+  color: rgba(203, 213, 225, 0.74) !important;
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-rail-row,
+.co-app-health-page .co-settings-right-rail .co-settings-action-row,
+.co-app-health-page .co-settings-right-rail .co-settings-blocker-row,
+.co-app-health-page .co-settings-right-rail .co-settings-count-grid > div {
+  border-color: rgba(51, 65, 85, 0.88);
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fafc;
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-rail-row span,
+.co-app-health-page .co-settings-right-rail .co-settings-action-row span,
+.co-app-health-page .co-settings-right-rail .co-settings-blocker-row span,
+.co-app-health-page .co-settings-right-rail .co-settings-count-grid span {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-rail-row strong,
+.co-app-health-page .co-settings-right-rail .co-settings-count-grid strong {
+  color: #ffffff;
+}
+
+.co-app-health-page .co-settings-right-rail .co-settings-action-row:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  background: rgba(249, 115, 22, 0.14);
+  color: #fed7aa;
+}
+
 @media (min-width: 1024px) and (max-width: 1439px) {
   .co-settings-command-layout {
     grid-template-columns: minmax(0, 1fr) !important;

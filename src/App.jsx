@@ -26483,6 +26483,7 @@ function SettingsPagePolished({
   settingsFocusSection,
   onSettingsSectionFocused,
   onOpenSupport,
+  appHealthRouteMode = false,
 }) {
   const safeCompanySettings = {
     ...EMPTY_APP_STATE.companySettings,
@@ -26602,6 +26603,7 @@ function SettingsPagePolished({
     changeOrderRequests,
     companySettings: safeCompanySettings,
   }), [changeOrderRequests, dailyReports, estimates, jobs, safeCompanySettings, uploads]);
+  const appHealthAuditState = useMemo(() => deriveAppHealthAuditState({ auditEvents, activity }), [activity, auditEvents]);
   const settingsKpis = [
     { label: "Readiness", value: settingsSetupState.percentComplete, helper: `${settingsSetupState.status} status`, icon: "settings", tone: setupStatusTone(settingsSetupState.status), actionLabel: "Review setup", onAction: () => jumpToSettingsSection("settings-managed-setup") },
     { label: "Checklist", value: settingsSetupState.completedCount, helper: `of ${settingsSetupState.totalCount} setup items`, icon: "clipboard", tone: "blue", actionLabel: "Open checklist", onAction: () => jumpToSettingsSection("settings-managed-setup") },
@@ -26609,6 +26611,14 @@ function SettingsPagePolished({
     { label: "Critical Missing", value: settingsSetupState.blockerCount, helper: "Must clear for rollout", icon: "alert", tone: settingsSetupState.blockerCount ? "amber" : "green", actionLabel: "View blockers", onAction: () => jumpToSettingsSection("settings-managed-setup") },
     { label: "Users", value: normalizeObjectArray(users).length, helper: "Workspace accounts", icon: "users", tone: "slate", actionLabel: "Open users", onAction: () => setActive?.("employees") },
     { label: "Field Tools", value: safeCompanySettings.toolChecklistEnabled !== false ? 1 : 0, helper: safeCompanySettings.toolChecklistEnabled !== false ? "Tool checklist enabled" : "Tool checklist disabled", icon: "briefcase", tone: safeCompanySettings.toolChecklistEnabled !== false ? "green" : "slate", actionLabel: "Manage module", onAction: () => jumpToSettingsSection("settings-admin-controls") },
+  ];
+  const appHealthKpis = [
+    { label: "Owner Health", value: 1, displayValue: "Open", helper: "Backup, app, storage, release", icon: "database", tone: "blue", actionLabel: "Review health", onAction: () => jumpToSettingsSection("settings-owner-health") },
+    { label: "Audit Events", value: appHealthAuditState.stats.auditEvents, helper: "Workspace change history", icon: "document", tone: appHealthAuditState.stats.auditEvents ? "blue" : "amber", actionLabel: "Open audit", onAction: () => jumpToSettingsSection("settings-owner-health") },
+    { label: "Sensitive", value: appHealthAuditState.stats.sensitiveAuditEvents, helper: "Users, roles, exports", icon: "alert", tone: appHealthAuditState.stats.sensitiveAuditEvents ? "amber" : "green", actionLabel: "Review sensitive", onAction: () => jumpToSettingsSection("settings-owner-health") },
+    { label: "Activity", value: appHealthAuditState.stats.activity, helper: "Operational feed records", icon: "clipboard", tone: "slate", actionLabel: "Open activity", onAction: () => jumpToSettingsSection("settings-owner-health") },
+    { label: "Package", value: packageReadiness.currentRank + 1, displayValue: packageReadiness.currentPackage.label, helper: "Manual package state", icon: "dollar", tone: "orange", actionLabel: "Review plan", onAction: () => jumpToSettingsSection("settings-plan-readiness") },
+    { label: "Support", value: canViewSupport ? 1 : 0, displayValue: canViewSupport ? "Ready" : "Limited", helper: "Copy-safe diagnostics", icon: "help", tone: canViewSupport ? "green" : "slate", actionLabel: "Open support", onAction: () => (canViewSupport ? setActive?.("support") : jumpToSettingsSection("settings-owner-health")) },
   ];
 
   function jumpToSettingsSection(sectionId) {
@@ -26713,26 +26723,77 @@ function SettingsPagePolished({
     );
   }
 
+  const headerCopy = appHealthRouteMode
+    ? {
+        eyebrow: demoMode ? "Demo Trust Console" : "Owner Trust Console",
+        title: "App Health",
+        description: "Owner/admin health surface for backup status, release safety, audit activity, install guidance, and support-ready diagnostics.",
+        primaryAction: "Review Health",
+        secondaryAction: "Open Settings",
+      }
+    : {
+        eyebrow: demoMode ? "Demo Admin" : "Admin Console",
+        title: "Settings",
+        description: demoMode ? "Manage demo access, workspace details, setup readiness, and field tools from one operator setup console." : "Manage workspace details, setup readiness, admin access, and field tools from one operator setup console.",
+        primaryAction: "Review Setup",
+        secondaryAction: "Update Company Profile",
+      };
+  const visibleKpis = appHealthRouteMode ? appHealthKpis : settingsKpis;
+  const ownerHealthDrawer = canViewAppHealth ? (
+    <details id="settings-owner-health" className="co-settings-tools-drawer co-app-health-owner-drawer" open={appHealthRouteMode ? true : undefined}>
+      <summary>
+        <span>
+          <strong>{appHealthRouteMode ? "App Health / Trust Review" : "Owner Health / Backup / App Setup"}</strong>
+          <em>{appHealthRouteMode ? "Backup status, release safety, audit activity, install guidance, and support context stay together for owner review." : "Backup status, release safety, install guidance, and UI foundation stay available without cluttering setup."}</em>
+        </span>
+        <span>{appHealthRouteMode ? "Owner/admin only" : "Owner tools"}</span>
+      </summary>
+      <div className="co-settings-tools-panel grid gap-3">
+        <EnterpriseTrustReadinessPanel
+          auditEvents={auditEvents}
+          activity={activity}
+          canView={canViewAppHealth}
+          canViewSettings={canViewSettings}
+          canExportData={canExportData}
+          canViewAppHealth={canViewAppHealth}
+          canViewSupport={canViewSupport}
+          packageReadiness={packageReadiness}
+          onJump={jumpToSettingsSection}
+          onOpenSupport={() => setActive?.("support")}
+          user={user}
+          companyName={workspaceCompanyName}
+        />
+        <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
+        <AppHealthAuditActivityPanel auditEvents={auditEvents} activity={activity} canView={canViewAppHealth} />
+        <ReleaseSafetyRollbackPanel canView={canViewAppHealth} />
+        <PwaInstallGuidancePanel canView={canViewAppHealth} />
+        <UiStyleFoundationPanel canView={canViewAppHealth} />
+      </div>
+    </details>
+  ) : null;
+
   return (
-    <div className="co-office-page co-settings-page">
+    <div className={`co-office-page co-settings-page${appHealthRouteMode ? " co-app-health-page" : ""}`}>
       <PageHeader
-        eyebrow={demoMode ? "Demo Admin" : "Admin Console"}
-        title="Settings"
-        description={demoMode ? "Manage demo access, workspace details, setup readiness, and field tools from one operator setup console." : "Manage workspace details, setup readiness, admin access, and field tools from one operator setup console."}
+        eyebrow={headerCopy.eyebrow}
+        title={headerCopy.title}
+        description={headerCopy.description}
         actions={(
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => jumpToSettingsSection("settings-company-profile")}>Update Company Profile</Button>
-            <Button type="button" onClick={() => jumpToSettingsSection("settings-managed-setup")}>Review Setup</Button>
+            <Button type="button" variant="secondary" onClick={() => appHealthRouteMode ? setActive?.("settings") : jumpToSettingsSection("settings-company-profile")}>{headerCopy.secondaryAction}</Button>
+            <Button type="button" onClick={() => jumpToSettingsSection(appHealthRouteMode ? "settings-owner-health" : "settings-managed-setup")}>{headerCopy.primaryAction}</Button>
           </div>
         )}
       />
 
       <div className="co-settings-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-3 xl:grid-cols-6 lg:px-6">
-        {settingsKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
+        {visibleKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
       <div className="co-settings-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-settings-left-stack min-w-0 space-y-3">
+          {appHealthRouteMode ? ownerHealthDrawer : null}
+
           <section id="settings-managed-setup">
             <ManagedCompanySetupPanel
               companySettings={safeCompanySettings}
@@ -27074,36 +27135,7 @@ function SettingsPagePolished({
             </div>
           </details>
 
-          {canViewAppHealth ? <details id="settings-owner-health" className="co-settings-tools-drawer">
-            <summary>
-              <span>
-                <strong>Owner Health / Backup / App Setup</strong>
-                <em>Backup status, release safety, install guidance, and UI foundation stay available without cluttering setup.</em>
-              </span>
-              <span>Owner tools</span>
-            </summary>
-            <div className="co-settings-tools-panel grid gap-3">
-              <EnterpriseTrustReadinessPanel
-                auditEvents={auditEvents}
-                activity={activity}
-                canView={canViewAppHealth}
-                canViewSettings={canViewSettings}
-                canExportData={canExportData}
-                canViewAppHealth={canViewAppHealth}
-                canViewSupport={canViewSupport}
-                packageReadiness={packageReadiness}
-                onJump={jumpToSettingsSection}
-                onOpenSupport={() => setActive?.("support")}
-                user={user}
-                companyName={workspaceCompanyName}
-              />
-              <OwnerHealthStatusPanel sessionToken={sessionToken} canView={canViewAppHealth} user={user} companyName={workspaceCompanyName} />
-              <AppHealthAuditActivityPanel auditEvents={auditEvents} activity={activity} canView={canViewAppHealth} />
-              <ReleaseSafetyRollbackPanel canView={canViewAppHealth} />
-              <PwaInstallGuidancePanel canView={canViewAppHealth} />
-              <UiStyleFoundationPanel canView={canViewAppHealth} />
-            </div>
-          </details> : null}
+          {appHealthRouteMode ? null : ownerHealthDrawer}
         </div>
 
         <SettingsCommandRailPolished
@@ -35913,6 +35945,7 @@ function MainContent(props) {
     return (
       <SettingsPage
         {...props}
+        appHealthRouteMode
         settingsFocusSection={props.settingsFocusSection || { id: "settings-owner-health", nonce: "app-health-route" }}
       />
     );
