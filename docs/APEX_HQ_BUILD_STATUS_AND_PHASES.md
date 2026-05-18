@@ -38,20 +38,21 @@ Current state:
 - Premium Finished SaaS Polish Phase 2: built, verified, released, and health-checked for Field Mode mobile polish.
 - Premium Finished SaaS Polish Phase 3: built, verified, released, and health-checked for Estimate Studio polish.
 - Premium Finished SaaS Polish Phase 4: built, verified, released, and health-checked for Apex Assistant shell and assistant entry-point polish.
+- Safety / Incidents Support Handoff Phase 1: built, verified, released, and health-checked with field-safe incident scope preserved.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `b2395a1`
-- Message: `Polish Apex Assistant command surfaces`
-- Fly release: `v508`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWK4D314QFNF3QZSYKEQ7YR`
+- Commit: `0494eb8`
+- Message: `Add safety incident support handoff`
+- Fly release: `v509`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWNFDS918W7G17XTGC87V1N`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v508` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v509` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -97,6 +98,7 @@ Recent shipped phase stack:
 | `9cf753a` | `v506` | Premium Finished SaaS Polish Phase 3 |
 | `8c4c9e4` | `v507` | Premium Finished SaaS final visual system sync |
 | `b2395a1` | `v508` | Premium Finished SaaS Polish Phase 4 |
+| `0494eb8` | `v509` | Safety / Incidents support handoff |
 
 ## Done / Do Not Rebuild
 
@@ -270,6 +272,7 @@ Do not start these phases again as if they are missing:
 - Premium Finished SaaS Polish Phase 2.
 - Premium Finished SaaS Polish Phase 3.
 - Premium Finished SaaS Polish Phase 4.
+- Safety / Incidents Support Handoff Phase 1.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
@@ -292,23 +295,22 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Safety / Incidents Support Handoff Phase 1 - Built And Released
+### Targeted Visual / Workflow Polish Triage
 
 Why this is current:
 
-- Premium Finished SaaS Polish Phase 4 is now built, verified, released, and health-checked.
-- The remaining support-handoff gap in the current field operations set was Safety / Incidents.
-- Safety / Incidents Support Handoff Phase 1 is now built, verified, released, and health-checked.
-- After release, do not restart this phase as missing; choose the next task from the remaining backlog.
+- Premium Finished SaaS Polish Phases 1-4 are built, verified, released, and health-checked for the canonical Operations Command, Field Mode, Estimate Studio, and Apex Assistant surfaces.
+- The current support-handoff set is complete through Safety / Incidents and should not be restarted as missing.
+- Founder-Led Demo Execution Support is already built and released; real outreach/demo decisions need user/customer input before more demo-support code is justified.
+- The next buildable product work should be a narrow visual or workflow polish item only when it fixes a visible demo blocker, an unfinished non-frozen route, or a role-safe usability issue found in browser QA.
 
 Scope:
 
-- Add or tighten a role-scoped copy-only support context from existing Safety / Incidents data.
-- Preserve owner/admin visibility into visible company safety context.
-- Preserve foreman/employee field-safe scope; field users must not gain office/admin/pricing/billing/package visibility.
-- Use existing safety incident data, selected incident context, filters, counts, review/resolution status, and current route permissions only.
-- Route into the existing Support workflow only where the role/package already has Support access.
-- Verify owner/admin Safety-to-Support, field-safe direct route behavior, and no unrelated job/user data leakage.
+- Inspect the current route/page inventory against `docs/apex-hq-final-polish-visual-brief.md`.
+- Pick one non-frozen page or workflow with a visible issue; do not re-polish canonical pages without a concrete defect.
+- Keep shared visual language aligned with the dark shell, light operational canvas, Apex orange actions, dense contractor cards/tables, and field-first mobile behavior.
+- Preserve existing role/package gates and direct-route denials.
+- Verify desktop, tablet/mobile where relevant, console/network, text overflow, and role-aware navigation for the touched route.
 
 Do not include:
 
@@ -343,23 +345,24 @@ Do not include:
 - Sending outreach, email, SMS, DMs, ads, or public posts without explicit approval.
 - Whole-app redesign.
 - Rebuilding Settings, Support, Safety, Leads, Customers, Jobs, or core field workflows from scratch.
+- Broad final-polish loops without a specific visible route/workflow problem.
 
 Suggested verification:
 
-- Focused tests for safety and support utilities touched.
-- `npm.cmd run verify:roles`
-- `npm.cmd run verify:safety`
+- Focused tests for the page/workflow touched.
+- `npm.cmd run verify:roles` if route visibility, navigation, package gates, or field-safe behavior are touched.
+- The matching workflow verify script for the touched route.
 - `npm.cmd run build`
 - `git diff --check`
-- Browser QA for owner/admin Safety-to-Support and foreman/employee field-safe behavior where relevant.
+- Browser QA for the touched route across the relevant desktop/tablet/mobile viewport and role matrix.
 
 ## Next Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Safety / Incidents Support Handoff Phase 1 | Add role-scoped copy-only support context from Safety/Incidents to Support without broadening field visibility, creating customer notifications, or adding automation. | Low | No, if support handoffs are still desired. |
-| 2 | Founder-Led Demo Execution Support | Run demos, capture objections, and only build narrow blockers discovered from real demo/pilot use. | Low | Yes, for outreach/demo decisions. |
-| 3 | Next targeted visual/workflow polish | Pick one non-frozen page only if it has a visible workflow problem or demo blocker. | Medium | Maybe, if the target page is unclear. |
+| 1 | Next targeted visual/workflow polish | Pick one non-frozen page only if browser QA or demo review shows a visible workflow problem, unfinished state, or role-safe usability blocker. | Medium | Maybe, if the target page is unclear. |
+| 2 | Founder-led demo blocker follow-up | After real demos/pilots, build only the narrow blockers proven by recorded objections or pilot-fit notes. | Medium | Yes, needs demo/pilot evidence. |
+| 3 | Route sweep / visual QA refresh | Periodic route sweep for text overflow, mobile issues, console/network failures, and stale tracker drift. Fix only confirmed issues. | Low | No. |
 
 ## Later / Do Not Build Yet
 
