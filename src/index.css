@@ -1590,16 +1590,18 @@ textarea {
   }
 
   .co-topbar {
-    background: var(--color-topbar);
-    border-bottom: 1px solid rgba(203, 213, 225, 0.9);
-    box-shadow: var(--shadow-topbar);
+    background:
+      radial-gradient(circle at 15% 0%, rgba(249, 115, 22, 0.18), transparent 18rem),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.99), #07111f);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: 0 18px 44px -30px rgba(7, 17, 31, 0.9);
     backdrop-filter: blur(18px) saturate(1.18);
   }
 
   .co-topbar-pill {
-    border: 1px solid rgba(203, 213, 225, 0.92);
-    background: rgba(255, 255, 255, 0.84);
-    box-shadow: 0 14px 34px -30px rgba(7, 17, 31, 0.46);
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: 0 14px 34px -30px rgba(7, 17, 31, 0.8);
   }
 
   .co-topbar-actions {
@@ -1626,6 +1628,7 @@ textarea {
     border-radius: 999px !important;
     padding-inline: 0.85rem !important;
     line-height: 1.1 !important;
+    color: #f8fafc !important;
   }
 
   .field-label {
@@ -1897,11 +1900,106 @@ textarea {
       linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
   }
 
+  .co-command-header-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.62rem;
+  }
+
+  .co-command-header-metric {
+    --co-command-header-tone: #f4510b;
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 2.45rem minmax(0, 1fr);
+    gap: 0.7rem;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.94);
+    border-radius: 0.55rem;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)),
+      radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--co-command-header-tone) 12%, transparent), transparent 9rem);
+    padding: 0.68rem 0.75rem;
+    box-shadow: 0 18px 45px -38px rgba(7, 17, 31, 0.52);
+  }
+
+  .co-command-header-metric[data-tone="blue"] {
+    --co-command-header-tone: #1459d9;
+  }
+
+  .co-command-header-metric[data-tone="green"] {
+    --co-command-header-tone: #109344;
+  }
+
+  .co-command-header-metric[data-tone="amber"] {
+    --co-command-header-tone: #f59e0b;
+  }
+
+  .co-command-header-metric[data-tone="slate"] {
+    --co-command-header-tone: #64748b;
+  }
+
+  .co-command-header-metric-icon {
+    display: inline-flex;
+    height: 2.35rem;
+    width: 2.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.48rem;
+    background: color-mix(in srgb, var(--co-command-header-tone) 12%, white);
+    color: var(--co-command-header-tone);
+  }
+
+  .co-command-header-metric-label,
+  .co-command-header-metric-helper {
+    display: block;
+    min-width: 0;
+  }
+
+  .co-command-header-metric-label {
+    overflow: hidden;
+    color: #475569;
+    font-size: 0.58rem;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .co-command-header-metric strong {
+    display: block;
+    margin-top: 0.2rem;
+    color: #07111f;
+    font-size: 1.42rem;
+    font-weight: 950;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+  }
+
+  .co-command-header-metric-helper {
+    margin-top: 0.25rem;
+    overflow: hidden;
+    color: #64748b;
+    font-size: 0.69rem;
+    font-weight: 850;
+    line-height: 1.12;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1180px) {
+    .co-command-header-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .co-command-card {
     position: relative;
     overflow: hidden;
     border-color: rgba(203, 213, 225, 0.92);
-    border-radius: 0.7rem !important;
+    border-radius: 0.5rem !important;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 18px 45px -36px rgba(7, 17, 31, 0.5);
   }
@@ -1926,7 +2024,7 @@ textarea {
     overflow: hidden;
     min-height: 6.65rem;
     border-color: rgba(203, 213, 225, 0.94);
-    border-radius: 0.7rem !important;
+    border-radius: 0.5rem !important;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 18px 45px -36px rgba(7, 17, 31, 0.5);
     transition:
@@ -2231,8 +2329,11 @@ textarea {
     min-width: 0;
     gap: 0.65rem;
     border-color: rgba(203, 213, 225, 0.94) !important;
-    border-radius: 0.74rem !important;
+    border-radius: 0.5rem !important;
     padding: 0.86rem;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)),
+      radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--co-command-ops-tone) 10%, transparent), transparent 8rem) !important;
   }
 
   .co-command-ops-card[data-tone="red"],
@@ -2689,9 +2790,10 @@ textarea {
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(15, 23, 42, 0.36);
-    border-radius: 0.9rem !important;
+    border-radius: 0.5rem !important;
     background:
       radial-gradient(circle at 85% 8%, rgba(249, 115, 22, 0.36), transparent 18rem),
+      radial-gradient(circle at 4% 100%, rgba(20, 89, 217, 0.22), transparent 16rem),
       linear-gradient(135deg, #07111f 0%, #101827 56%, #18283a 100%) !important;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -2715,7 +2817,7 @@ textarea {
     align-items: center;
     gap: 0.55rem;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.65rem;
+    border-radius: 0.5rem;
     background: rgba(255, 255, 255, 0.07);
     padding: 0.52rem 0.62rem;
     color: #f8fafc;
@@ -2743,7 +2845,7 @@ textarea {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 0.75rem;
+    border-radius: 0.5rem;
     background: rgba(255, 255, 255, 0.08);
   }
 
@@ -2780,6 +2882,10 @@ textarea {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
+  }
+
+  .co-command-cockpit-actions button {
+    border-radius: 0.5rem !important;
   }
 
   .co-section-accent {

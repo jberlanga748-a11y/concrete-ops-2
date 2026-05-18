@@ -273,7 +273,7 @@ const NAV_GROUPS = [
   {
     label: "Office",
     items: [
-      { id: "commandCenter", label: "Command Center", icon: "grid" },
+      { id: "commandCenter", label: "Operations Command", icon: "grid" },
       { id: "communications", label: "Communications", icon: "quote" },
       { id: "leads", label: "Leads", icon: "inbox" },
       { id: "customers", label: "Customers", icon: "users" },
@@ -3131,8 +3131,8 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           </div>
         </div>
         <div className="hidden min-w-0 md:block">
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-700">{companyName || APP_NAME}</p>
-          <p className="truncate text-base font-black text-slate-950">{current?.label || "Dashboard"}</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-200">{companyName || APP_NAME}</p>
+          <p className="truncate text-base font-black text-white">{current?.label || "Dashboard"}</p>
         </div>
         <div className="co-topbar-actions hidden items-center gap-2 md:flex">
           <NotificationCenterButton
@@ -3148,13 +3148,13 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
           {permissions?.leads?.canView ? <Badge tone="blue">{stats.newLeads} new leads</Badge> : null}
           <Badge tone="amber">{stats.reportsDue} reports due</Badge>
           {canSwitchCompanies ? (
-            <label className="co-topbar-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-orange-700">
+            <label className="co-topbar-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-orange-200">
               Company
               <select
                 value={currentCompanyId}
                 onChange={(event) => onSelectCompany?.(event.target.value)}
                 disabled={syncing}
-                className="max-w-[220px] bg-transparent text-xs font-black normal-case tracking-normal text-slate-950 outline-none"
+                className="max-w-[220px] bg-transparent text-xs font-black normal-case tracking-normal text-white outline-none"
               >
                 {companies.map((company) => (
                   <option key={company.id} value={company.id}>
@@ -3164,7 +3164,7 @@ function TopBar({ active, setActive, stats, user, onLogout, syncing, saveSummary
               </select>
             </label>
           ) : null}
-          <div className="co-topbar-pill co-topbar-user-pill rounded-full px-3 py-2 text-xs font-black text-slate-700">{user?.name || "User"}</div>
+          <div className="co-topbar-pill co-topbar-user-pill rounded-full px-3 py-2 text-xs font-black text-slate-100">{user?.name || "User"}</div>
           <Button className="co-topbar-logout" variant="ghost" size="sm" onClick={onLogout}>
             Log out
           </Button>
@@ -15108,6 +15108,36 @@ function CommandCenterPage({
       ],
     },
   ];
+  const commandHeaderMetrics = [
+    {
+      label: "Active Jobs",
+      value: commandCenter.stats.activeJobs,
+      helper: "Live job load",
+      tone: "blue",
+      icon: "briefcase",
+    },
+    {
+      label: "Scheduled Today",
+      value: commandCenter.stats.scheduledTodayJobs,
+      helper: "Crew-ready work",
+      tone: "green",
+      icon: "calendar",
+    },
+    {
+      label: "Reports / Photos",
+      value: reportsUploadsDue,
+      helper: "Evidence to review",
+      tone: reportsUploadsDue ? "amber" : "slate",
+      icon: "upload",
+    },
+    {
+      label: "Money Ready",
+      value: billingReadinessCount,
+      helper: "Jobs or estimates ready",
+      tone: billingReadinessCount ? "green" : "slate",
+      icon: "check",
+    },
+  ];
   const leadById = new Map((leads || []).map((lead) => [lead.id, lead]));
   const customerById = new Map((customers || []).map((customer) => [customer.id, customer]));
   const estimateById = new Map((estimates || []).map((estimate) => [estimate.id, estimate]));
@@ -15184,14 +15214,28 @@ function CommandCenterPage({
         <div className="flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || DEFAULT_COMPANY_NAME}</p>
-            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Command Center</h1>
-            <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's priority view for leads, follow-ups, jobs, reports, and owner actions.</p>
+            <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Operations Command</h1>
+            <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's owner/admin view for jobs, crews, field proof, follow-ups, and office review.</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Start Priority Work</Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Job Board</Button>
             {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={openOwnerHealth}><Icon name="database" />App Health</Button> : null}
           </div>
+        </div>
+        <div className="co-command-header-metrics mt-3">
+          {commandHeaderMetrics.map((metric) => (
+            <div key={metric.label} className="co-command-header-metric" data-tone={metric.tone}>
+              <span className="co-command-header-metric-icon" aria-hidden="true">
+                <Icon name={metric.icon} className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="co-command-header-metric-label">{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <span className="co-command-header-metric-helper">{metric.helper}</span>
+              </span>
+            </div>
+          ))}
         </div>
       </div>
       <div className="grid w-full gap-2.5 px-5 pb-8 sm:px-6 lg:px-7">
