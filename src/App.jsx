@@ -16589,7 +16589,7 @@ function SchedulePage({
         <div className="co-schedule-main-stack min-w-0">
           <div className="co-schedule-day-grid">
             <ScheduleSection
-              title="Today"
+              title="Today's Operating Plan"
               description={`${scheduleDateLabel(scheduleState.todayKey)} / field execution`}
               rows={scheduleState.todayRows}
               emptyTitle="No work scheduled today"
@@ -16602,7 +16602,7 @@ function SchedulePage({
               limit={4}
             />
             <ScheduleSection
-              title="Tomorrow"
+              title="Tomorrow Prep"
               description={`${scheduleDateLabel(scheduleState.tomorrowKey)} / prep view`}
               rows={scheduleState.tomorrowRows}
               emptyTitle="No work scheduled tomorrow"
@@ -16617,7 +16617,7 @@ function SchedulePage({
           </div>
 
           <ScheduleSection
-            title="This Week"
+            title="Week Lookahead"
             description={`Scheduled work through ${scheduleDateLabel(scheduleState.weekEndKey)}`}
             rows={scheduleState.weekRows}
             emptyTitle="No scheduled work this week"

@@ -27047,6 +27047,34 @@ textarea {
   gap: 0.78rem;
 }
 
+@media (min-width: 1280px) {
+  .co-schedule-main-stack > .co-schedule-day-grid:first-child {
+    grid-template-columns: minmax(0, 1.42fr) minmax(18rem, 0.82fr);
+  }
+
+  .co-schedule-main-stack > .co-schedule-day-grid:first-child .co-schedule-section:first-child .co-schedule-section-header {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .co-schedule-main-stack > .co-schedule-day-grid:first-child .co-schedule-section:first-child .co-schedule-job-card-compact .co-schedule-job-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .co-schedule-main-stack > .co-schedule-day-grid:first-child .co-schedule-section:first-child .co-schedule-job-card-compact .co-schedule-job-badges {
+    justify-content: flex-end;
+  }
+
+  .co-schedule-main-stack > .co-schedule-day-grid:first-child .co-schedule-section:first-child .co-schedule-job-card-compact .co-schedule-job-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .co-schedule-main-stack > .co-schedule-day-grid:first-child .co-schedule-section:nth-child(2) .co-schedule-section-header {
+    min-height: 4.08rem;
+  }
+}
+
 .co-schedule-section {
   border-top-color: rgba(249, 115, 22, 0.7) !important;
   background: #ffffff !important;
