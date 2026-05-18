@@ -34599,11 +34599,11 @@ textarea {
   }
 
   .co-employees-priority-card .co-section-accent h2 {
-    color: #07111f !important;
+    color: #f8fafc !important;
   }
 
   .co-employees-priority-card .co-section-accent p {
-    color: #64748b !important;
+    color: #cbd5e1 !important;
   }
 
   .co-employees-priority-list button {
@@ -34646,11 +34646,17 @@ textarea {
   }
 
   .co-employees-summary-grid button,
+  .co-employees-page button,
+  .co-employees-page .co-page-header button,
   .co-employees-access-tabs button,
+  .co-employees-board-footer button,
   .co-employees-mobile-card-action,
   .co-employees-mobile-list-toggle,
   .co-employees-tools-drawer > summary,
-  .co-employees-tool-tabs button {
+  .co-employees-tool-tabs button,
+  .co-employees-form-card button,
+  .co-employees-tools-panel button,
+  .co-employees-right-rail button {
     min-height: 2.75rem !important;
   }
 
@@ -34686,4 +34692,13 @@ textarea {
   .co-employees-advanced-filters > summary {
     min-height: 2.75rem !important;
   }
+}
+
+.co-employees-command-table td:nth-child(1) p,
+.co-employees-command-table td:nth-child(3),
+.co-employees-command-table td:nth-child(4),
+.co-employees-command-table td:nth-child(6) {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
