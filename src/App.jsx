@@ -17700,7 +17700,7 @@ function FollowUpQueuePanel({
             <span>Search and queue filters</span>
             <span>{visibleItems.length} matching records</span>
           </summary>
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <div className="co-leads-followup-filter-grid mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
             <input
               className="field-input"
               value={query}
@@ -17753,7 +17753,7 @@ function FollowUpQueuePanel({
           onClose={() => setDraftItemId("")}
           onAction={runQueueAction}
         />
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+        <div className="co-leads-followup-filter-grid mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
           <input
             className="field-input"
             value={query}

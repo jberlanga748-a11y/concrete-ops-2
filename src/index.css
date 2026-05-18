@@ -3744,6 +3744,10 @@ textarea {
     display: none !important;
   }
 
+  .co-leads-followup-compact .co-leads-followup-filter-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
   .co-leads-followup-stat {
     min-width: 0;
     border: 1px solid rgba(226, 232, 240, 0.96);
