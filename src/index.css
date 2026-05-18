@@ -25722,6 +25722,12 @@ textarea {
     box-shadow 150ms ease;
 }
 
+.co-dashboard-focus-row > .inline-flex,
+.co-today-work-job > .inline-flex {
+  flex: 0 0 auto;
+  max-width: none;
+}
+
 .co-dashboard-focus-row:hover,
 .co-dashboard-focus-row.is-selected {
   border-color: rgba(249, 115, 22, 0.46);
