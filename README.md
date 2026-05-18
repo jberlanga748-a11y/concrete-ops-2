@@ -21,6 +21,8 @@ The demo account is available by default in development. In production, demo dat
 - `npm run serve` serves the built app with the Node server
 - `npm run audit:demo-desktop` logs into the demo Fly app and captures desktop screenshots for UI review
 - `npm run audit:visual-polish` logs into the local app and checks route-wide visual polish, overflow, assistant overlap, console/network failures, and field-role exposure
+- `npm run audit:visual-polish:chromium` runs the same sweep with bundled Chromium for stable local QA
+- `npm run audit:visual-polish:tablet` runs the tablet owner/admin and field-role route sweep
 
 If you open only the static frontend without the Node server, login will not work because authentication depends on the local `/api` backend.
 
@@ -51,14 +53,14 @@ npm run audit:visual-polish
 The default sweep checks admin desktop, admin phone, and employee phone across the app route list. For tablet coverage, run:
 
 ```bash
-npm run audit:visual-polish -- --viewports=tablet --roles=admin,employee
+npm run audit:visual-polish:tablet
 ```
 
 Useful focused options:
 
 ```bash
-npm run audit:visual-polish -- --routes=/,/estimates,/jobs --viewports=desktop,tablet
-npm run audit:visual-polish -- --browser=chromium
+npm run audit:visual-polish:chromium -- --routes=/,/estimates,/jobs --viewports=desktop,tablet
+npm run audit:visual-polish:tablet -- --routes=/,/estimates,/jobs
 ```
 
 Audit manifests and failure screenshots are saved under `ui-audit/visual-polish/<timestamp>/` and are ignored by git. The audit is read-only: it logs in, navigates, checks route health and layout signals, and writes local evidence only.

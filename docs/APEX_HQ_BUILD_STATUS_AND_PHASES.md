@@ -81,7 +81,7 @@ Latest source-control tooling state:
 - Commit: `decdcc8`
 - Message: `Harden visual polish route audit`
 - Deployment: not deployed; local verification tooling only.
-- Verification: `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium` checked 78 role/viewport/routes with 0 failures; `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium --roles=admin,employee --viewports=tablet` checked 52 tablet routes with 0 failures; `npm.cmd run verify:roles`, `npm.cmd run build`, `node --check scripts\visual-polish-route-audit.mjs`, and `git diff --check` passed.
+- Verification: `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium` checked 78 role/viewport/routes with 0 failures; `npm.cmd run audit:visual-polish -- --base-url=http://127.0.0.1:4000/ --browser=chromium --roles=admin,employee --viewports=tablet` checked 52 tablet routes with 0 failures; `npm.cmd run verify:roles`, `npm.cmd run build`, `node --check scripts\visual-polish-route-audit.mjs`, and `git diff --check` passed. Shortcut scripts `npm.cmd run audit:visual-polish:chromium` and `npm.cmd run audit:visual-polish:tablet` now wrap those common checks.
 
 Known working tree note:
 
@@ -474,7 +474,7 @@ Suggested verification:
 - `npm.cmd run build`
 - `git diff --check`
 - Browser QA for the touched route across the relevant desktop/tablet/mobile viewport and role matrix.
-- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally; add `--viewports=tablet --roles=admin,employee` for a tablet-specific sweep.
+- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage.
 
 ## Next Build Phases
 

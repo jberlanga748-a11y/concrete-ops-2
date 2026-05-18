@@ -44,6 +44,8 @@
     "verify:print-packets": "node --test --test-concurrency=1 shared/estimatePrint.test.js src/print-packets.test.js",
     "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
     "audit:visual-polish": "node scripts/visual-polish-route-audit.mjs",
+    "audit:visual-polish:chromium": "node scripts/visual-polish-route-audit.mjs --browser=chromium",
+    "audit:visual-polish:tablet": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=admin,employee --viewports=tablet",
     "audit:public-site": "node scripts/public-site-ui-audit.mjs"
   },
   "dependencies": {

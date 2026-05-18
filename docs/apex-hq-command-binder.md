@@ -426,6 +426,8 @@ Browser/Playwright:
 ```powershell
 npm.cmd run audit:demo-desktop
 npm.cmd run audit:visual-polish
+npm.cmd run audit:visual-polish:chromium
+npm.cmd run audit:visual-polish:tablet
 npm.cmd run audit:public-site
 npm.cmd run brief:founder-demo
 npm.cmd run verify:founder-demo
@@ -434,7 +436,7 @@ npm.cmd run verify:founder-demo
 For tablet-specific final polish checks:
 
 ```powershell
-npm.cmd run audit:visual-polish -- --viewports=tablet --roles=admin,employee
+npm.cmd run audit:visual-polish:tablet
 ```
 
 For focused browser QA, use Playwright or the Codex in-app browser against the exact route/role under test. Capture:
