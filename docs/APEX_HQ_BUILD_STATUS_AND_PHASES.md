@@ -43,20 +43,21 @@ Current state:
 - Targeted Tool Checklist text wrapping polish: built, verified, released, and health-checked so long checklist titles, notes, job labels, and foreman context wrap cleanly without horizontal overflow.
 - Targeted Toolbox / PPE text wrapping polish: built, verified, released, and health-checked so long safety guidance and PPE descriptions wrap cleanly without horizontal overflow.
 - Targeted Daily Reports text wrapping polish: built, verified, released, and health-checked so long field notes, weather, proof, concrete summaries, and report IDs wrap cleanly without horizontal overflow.
+- Targeted Photo Evidence text wrapping polish: built, verified, released, and health-checked so long evidence labels, job/customer labels, and upload notes wrap cleanly without horizontal overflow.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `cc57505`
-- Message: `Fix daily reports table text wrapping`
-- Fly release: `v513`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWQPRQCG9ATSC226MFVEHQE`
+- Commit: `2f9699d`
+- Message: `Fix photo evidence table text wrapping`
+- Fly release: `v514`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWRCK7PY5EXFBQRAJSS12WX`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v513` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v514` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -107,6 +108,7 @@ Recent shipped phase stack:
 | `7d10ce1` | `v511` | Tool Checklist text wrapping polish |
 | `7773dc8` | `v512` | Toolbox / PPE text wrapping polish |
 | `cc57505` | `v513` | Daily Reports text wrapping polish |
+| `2f9699d` | `v514` | Photo Evidence text wrapping polish |
 
 ## Done / Do Not Rebuild
 
@@ -169,6 +171,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Daily Reports text wrapping polish | Built and released | Long field notes, weather, proof summaries, concrete summaries, and report IDs now wrap inside fixed command-table cells instead of clipping; mobile report cards and role gates were preserved. |
 | Daily reports | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Photo Evidence Support Handoff Phase 1 | Built and released | Photo Evidence can open Support with a copy-only support request for owner/admin users with Support access. The packet summarizes visible upload counts, selected evidence label, GPS status, filter state, and caption/GPS review gaps without exposing file contents, storage paths, content URLs, GPS coordinates, pricing, margin values, payroll, hidden users, unrelated jobs, automatic messages, or customer data mutation. Field upload routes remain scoped to assigned jobs and do not gain new Support access when the role does not already have it. |
+| Photo Evidence text wrapping polish | Built and released | Long evidence labels, job/customer labels, and upload notes now wrap inside fixed command-table cells instead of clipping; mobile upload cards and role gates were preserved. |
 | Uploads/photo evidence | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Delivery Tickets Support Handoff Phase 1 | Built and released | Delivery Tickets can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible ticket counts, selected ticket label, supplier/time references, linked photo/report status, filter state, yardage totals, and missing basics/photo/report review gaps without exposing linked upload file contents, storage paths, content URLs, GPS coordinates, pricing, margin values, payroll, hidden users, unrelated jobs, automatic messages, or customer data mutation. Field ticket routes remain scoped to assigned/visible jobs and do not gain new Support access when the role/package does not already have it. |
 | Delivery tickets | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
@@ -252,6 +255,7 @@ Recent focused verification:
 - Tool Checklist text wrapping polish release checks: targeted route sweep found desktop Tool Checklist long checklist titles, notes, and job/foreman context clipping in fixed command table cells. `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/tool-checklist` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, and long checklist text wrapping with `overflow-wrap:anywhere`. Released as Fly `v511` with image `registry.fly.io/concrete-ops-2:deployment-01KRWPVD5DCT2YBX2QKKRNCEKA`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Toolbox / PPE text wrapping polish release checks: targeted route sweep found desktop `/toolbox-talks` and `/ppe` long safety guidance clipping in the shared toolbox command table. `npm.cmd run verify:safety`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile browser QA for `/toolbox-talks` and `/ppe` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop first-column guidance wrapping with `overflow-wrap:anywhere`, and mobile card layouts still replacing the table. Released as Fly `v512` with image `registry.fly.io/concrete-ops-2:deployment-01KRWQANHDRDKWE9HH67NKFK11`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Daily Reports text wrapping polish release checks: targeted route sweep found desktop `/reports` long field notes, weather, proof, concrete summary, and report ID text clipping in fixed command-table cells. `npm.cmd run verify:daily-reports`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/reports` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop report context wrapping with `overflow-wrap:anywhere`, and mobile report cards still replacing the table. Released as Fly `v513` with image `registry.fly.io/concrete-ops-2:deployment-01KRWQPRQCG9ATSC226MFVEHQE`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
+- Photo Evidence text wrapping polish release checks: targeted route sweep found desktop `/uploads` long evidence labels, job/customer labels, and upload notes clipping in fixed command-table cells. `npm.cmd run verify:uploads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/uploads` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop upload context wrapping with `overflow-wrap:anywhere`, and mobile upload cards still replacing the table. Released as Fly `v514` with image `registry.fly.io/concrete-ops-2:deployment-01KRWRCK7PY5EXFBQRAJSS12WX`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -293,6 +297,7 @@ Do not start these phases again as if they are missing:
 - Tool Checklist text wrapping polish.
 - Toolbox / PPE text wrapping polish.
 - Daily Reports text wrapping polish.
+- Photo Evidence text wrapping polish.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
