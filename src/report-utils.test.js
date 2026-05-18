@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils.js";
+import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils.js";
 
 const REPORTS = [
   {
@@ -118,4 +118,73 @@ test("advanced reporting prep summary fails closed with empty input", () => {
   assert.deepEqual(summary.reviewQueue, []);
   assert.deepEqual(summary.topJobs, []);
   assert.deepEqual(summary.topCreators, []);
+});
+
+test("daily reports support context summarizes visible office report scope only", () => {
+  const proofStateByReportId = new Map([
+    ["R-1", { photoCount: 0, ticketCount: 0, gapCount: 2 }],
+    ["R-2", { photoCount: 3, ticketCount: 1, gapCount: 0 }],
+  ]);
+  const context = buildDailyReportsSupportContext({
+    user: { id: "U-ADMIN", name: "Office Admin", role: "Administrator" },
+    permissions: { reports: { canManageAll: true, canReview: true, canCreate: true } },
+    visibleRows: REPORTS,
+    selectedReport: {
+      ...REPORTS[1],
+      payRate: 100,
+      grossPay: 500,
+      internalCost: 2500,
+      job: {
+        ...REPORTS[1].job,
+        estimateTotal: 12000,
+        margin: 0.4,
+      },
+    },
+    filters: { status: "Submitted", jobId: "All jobs", createdBy: "All creators", date: "2026-04-25", query: "pump" },
+    proofStateByReportId,
+  });
+
+  assert.equal(context.workflow, "Daily reports");
+  assert.equal(context.blockerLevel, "Slowing work down");
+  assert.match(context.summary, /Scope: all visible company daily reports/);
+  assert.match(context.summary, /submitted for review: 1/);
+  assert.match(context.summary, /reports with proof gaps: 1/);
+  assert.match(context.summary, /Selected report: Jenkins Patio on 2026-04-25; Submitted by Foreman Two; proof 3 photos, 1 ticket, 0 gaps/);
+  assert.match(context.workaround, /Jenkins Patio: Submitted for office review/);
+  assert.equal(context.summary.includes("payRate"), false);
+  assert.equal(context.summary.includes("grossPay"), false);
+  assert.equal(context.summary.includes("estimateTotal"), false);
+  assert.equal(context.summary.includes("margin"), false);
+  assert.equal(context.workaround.includes("internalCost"), false);
+  assert.match(context.expected, /without exposing estimates, pricing, margin, payroll, hidden users, or unrelated jobs/);
+});
+
+test("daily reports support context stays limited to field-visible rows", () => {
+  const hiddenOfficeReport = {
+    id: "R-HIDDEN",
+    jobId: "J-HIDDEN",
+    reportDate: "2026-04-26",
+    status: "submitted",
+    createdBy: "U-HIDDEN",
+    createdByName: "Hidden Office",
+    workPerformed: "Should not appear",
+    crewSummary: "Hidden crew",
+    weather: "Hidden weather",
+    job: { title: "Hidden Office Job" },
+  };
+  const fieldVisibleRows = [REPORTS[0]];
+  const context = buildDailyReportsSupportContext({
+    user: { id: "U-FOREMAN", name: "Report Foreman", role: "Foreman" },
+    permissions: { reports: { canManageAll: false, canReview: false, canCreate: true } },
+    visibleRows: fieldVisibleRows,
+    selectedReport: fieldVisibleRows[0],
+    proofStateByReportId: new Map([["R-1", { photoCount: 1, ticketCount: 0, gapCount: 0 }]]),
+  });
+
+  assert.match(context.summary, /Scope: assigned field daily reports/);
+  assert.match(context.summary, /Visible reports: 1/);
+  assert.match(context.summary, /Martinez Front Walk/);
+  assert.equal(JSON.stringify(context).includes(hiddenOfficeReport.job.title), false);
+  assert.equal(context.summary.includes("pricing"), false);
+  assert.equal(context.summary.includes("payRate"), false);
 });

@@ -247,3 +247,78 @@ export function deriveAdvancedReportSummary(reports, {
     topCreators: topBreakdown(creatorBreakdown, maxBreakdownRows),
   };
 }
+
+function pluralize(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function reportSupportScopeLabel(user = {}, permissions = {}) {
+  if (permissions?.reports?.canManageAll) return "all visible company daily reports";
+  if (permissions?.reports?.canReview) return "visible daily reports in this role scope";
+  if (permissions?.reports?.canCreate) return "assigned field daily reports";
+  return `${String(user?.role || "role").trim() || "role"} visible daily reports`;
+}
+
+function proofGapCountForReport(report, proofStateByReportId) {
+  if (!report?.id) return 0;
+  return Number(proofStateByReportId?.get?.(report.id)?.gapCount || 0);
+}
+
+function reportSupportReviewItems(reports = [], proofStateByReportId = new Map(), limit = 3) {
+  return (reports || [])
+    .map((report) => reportPriorityItem(report, proofStateByReportId?.get?.(report.id) || null))
+    .filter(Boolean)
+    .sort((left, right) => left.priority - right.priority || String(right.date || "").localeCompare(String(left.date || "")) || left.label.localeCompare(right.label))
+    .slice(0, limit);
+}
+
+export function buildDailyReportsSupportContext({
+  user = {},
+  permissions = {},
+  visibleRows = [],
+  selectedReport = null,
+  filters = {},
+  proofStateByReportId = new Map(),
+} = {}) {
+  const safeRows = (Array.isArray(visibleRows) ? visibleRows : []).filter((report) => !isArchivedReport(report));
+  const submittedCount = safeRows.filter((report) => normalizeReportStatus(report.status) === "submitted").length;
+  const reviewedCount = safeRows.filter((report) => normalizeReportStatus(report.status) === "reviewed").length;
+  const draftCount = safeRows.filter((report) => ["draft", "reopened"].includes(normalizeReportStatus(report.status))).length;
+  const missingBasicsCount = safeRows.filter(isReportMissingBasics).length;
+  const proofGapCount = safeRows.reduce((sum, report) => sum + (proofGapCountForReport(report, proofStateByReportId) > 0 ? 1 : 0), 0);
+  const scopeLabel = reportSupportScopeLabel(user, permissions);
+  const selectedProofState = selectedReport?.id ? proofStateByReportId?.get?.(selectedReport.id) || null : null;
+  const selectedReportText = selectedReport
+    ? [
+      `${reportJobLabel(selectedReport)} on ${selectedReport.reportDate || "No date"}`,
+      `${reportStatusLabel(selectedReport.status)} by ${selectedReport.createdByName || selectedReport.createdBy || "Field user"}`,
+      `proof ${pluralize(Number(selectedProofState?.photoCount || 0), "photo")}, ${pluralize(Number(selectedProofState?.ticketCount || 0), "ticket")}, ${pluralize(Number(selectedProofState?.gapCount || 0), "gap")}`,
+    ].join("; ")
+    : "No report selected.";
+  const reviewItems = reportSupportReviewItems(safeRows, proofStateByReportId);
+  const reviewQueueText = reviewItems.length
+    ? reviewItems.map((item) => `${item.label}: ${item.reason}`).join("; ")
+    : "No submitted, draft, reopened, missing-basics, or proof-gap report is visible in this view.";
+  const filterText = [
+    `status ${filters.status || "All"}`,
+    `job ${filters.jobId || "All jobs"}`,
+    `creator ${filters.createdBy || "All creators"}`,
+    `date ${filters.date || "All dates"}`,
+    filters.query ? `search "${filters.query}"` : "",
+  ].filter(Boolean).join("; ");
+
+  return {
+    workflow: "Daily reports",
+    blockerLevel: submittedCount || missingBasicsCount || proofGapCount ? "Slowing work down" : "Not a blocker",
+    followUpNeeded: submittedCount || missingBasicsCount || proofGapCount ? "Manual daily report review" : "Daily report workflow question",
+    summary: [
+      `Daily reports support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
+      `Scope: ${scopeLabel}.`,
+      `Current filters: ${filterText}.`,
+      `Visible reports: ${safeRows.length}; submitted for review: ${submittedCount}; draft or reopened: ${draftCount}; reviewed: ${reviewedCount}; missing basics: ${missingBasicsCount}; reports with proof gaps: ${proofGapCount}.`,
+      `Selected report: ${selectedReportText}`,
+    ].join(" "),
+    expected: "Keep daily report capture and review clear using only reports this role can already see, without exposing estimates, pricing, margin, payroll, hidden users, or unrelated jobs.",
+    workaround: `Review queue in this view: ${reviewQueueText}`,
+  };
+}

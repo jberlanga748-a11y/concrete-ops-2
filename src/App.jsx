@@ -178,7 +178,7 @@ import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDe
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
-import { deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
+import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import {
   buildPilotFeedbackPacket,
@@ -12757,6 +12757,7 @@ function ReportsPagePolished({
   onReopenReport,
   onArchiveReport,
   onPrintDailyReport,
+  onOpenSupport,
   busy,
   reportRouteRequested,
 }) {
@@ -12809,6 +12810,7 @@ function ReportsPagePolished({
     proofStateByReportId,
   }), [proofStateByReportId, visibleRows]);
   const selectedReportProofState = selectedReport ? proofStateByReportId.get(selectedReport.id) : null;
+  const canOpenReportSupport = Boolean(canView && permissions?.support?.canView && typeof onOpenSupport === "function");
   const fieldFocusJob = liveReportJobs[0] || normalizeObjectArray(jobs).find((job) => !job.archivedAt) || null;
   const fieldFocusReport = (
     (fieldFocusJob && reportsForOperatingDate.find((report) => (report.jobId || report.job?.id) === fieldFocusJob.id))
@@ -12886,6 +12888,24 @@ function ReportsPagePolished({
     }
   }
 
+  function requestDailyReportsSupportReview() {
+    if (!canOpenReportSupport) return;
+    onOpenSupport(buildDailyReportsSupportContext({
+      user,
+      permissions,
+      visibleRows,
+      selectedReport,
+      filters: {
+        status: filter,
+        query: search,
+        jobId: jobFilter,
+        createdBy: creatorFilter,
+        date: dateFilter,
+      },
+      proofStateByReportId,
+    }));
+  }
+
   const reviewPriorityCard = {
     label: "Review submitted",
     value: submittedCount,
@@ -12940,6 +12960,11 @@ function ReportsPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => openReportTool("details")}>{canView ? visibleRows.length : 0} visible reports</Button>
+            {canOpenReportSupport ? (
+              <Button type="button" size="sm" variant="secondary" onClick={requestDailyReportsSupportReview}>
+                <Icon name="help" />Report Support
+              </Button>
+            ) : null}
             {canCreate ? <Button type="button" onClick={() => openReportTool("create")}>Start Report</Button> : null}
           </div>
         }
