@@ -20,10 +20,9 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `8bc8f6e Release founder pilot funnel and demo readiness`.
-- Fly release `v497` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `ab49234 Add setup and time support handoffs`.
+- Fly release `v498` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
-- Current unreleased local build candidates: Managed Setup Support Handoff Phase 1 and Time Tracking Support Handoff Phase 1, verified locally but not committed, pushed, or deployed.
 
 Usable now:
 
