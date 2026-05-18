@@ -28637,8 +28637,11 @@ function PostPourCloseoutItemsPolished({
 function PostPourCommandRailPolished({
   checklist,
   checklistSummary,
+  canCreateChecklist,
+  canEditChecklist,
   canCompleteChecklist,
   canReview,
+  isOfficeWorkspace,
   busy,
   onCompleteChecklist,
   onReviewChecklist,
@@ -28646,9 +28649,64 @@ function PostPourCommandRailPolished({
   onArchiveChecklist,
   onOpenTool,
 }) {
+  const railClassName = `co-prepour-right-rail space-y-4${isOfficeWorkspace ? " co-prepour-office-assistant co-postpour-office-assistant" : ""}`;
+  const assistantPriorities = checklist ? [
+    {
+      label: checklistSummary.incompleteCount
+        ? `${checklistSummary.incompleteCount} closeout item${checklistSummary.incompleteCount === 1 ? "" : "s"} still open`
+        : "Closeout items are clear",
+      tone: checklistSummary.incompleteCount ? "warn" : "ready",
+    },
+    {
+      label: checklist.status === "completed" ? "Field completed. Office review is next." : `${postPourChecklistStatusLabel(checklist.status)} status in the board`,
+      tone: checklist.status === "completed" ? "warn" : "default",
+    },
+    {
+      label: checklist.completedByName ? `Completed by ${checklist.completedByName}` : "Field completion still needed",
+      tone: checklist.completedByName ? "ready" : "default",
+    },
+  ] : [
+    { label: "Select a checklist to load closeout context", tone: "default" },
+    { label: "Start a checklist for the next visible job", tone: "warn" },
+    { label: "Keep cleanup, proof, and handoff tied together", tone: "default" },
+  ];
+
+  const assistantActions = [
+    { label: checklist ? "Open closeout notes" : "Prepare notes", icon: "clipboard", onClick: () => onOpenTool("work"), show: Boolean(checklist || canEditChecklist) },
+    { label: "Start checklist", icon: "plus", onClick: () => onOpenTool("create"), show: Boolean(canCreateChecklist) },
+    { label: checklistSummary?.incompleteCount ? "Review open items" : "Review closeout", icon: "layers", onClick: () => onOpenTool("work"), show: Boolean(checklist) },
+  ].filter((item) => item.show);
+
   if (!checklist) {
     return (
-      <div className="co-prepour-right-rail space-y-4">
+      <div className={railClassName}>
+        {isOfficeWorkspace ? (
+          <Card className="co-prepour-assistant-card p-0">
+            <div className="co-prepour-assistant-topbar">
+              <span><Icon name="spark" /></span>
+              <strong>Apex Assistant</strong>
+              <em>Post-Pour</em>
+            </div>
+            <div className="co-prepour-assistant-body">
+              <p className="co-prepour-assistant-kicker">Closeout command</p>
+              <h3>Pick a checklist before the crew leaves.</h3>
+              <p>Select a job row to see cleanup gaps, proof status, and the next office action.</p>
+              <div className="co-prepour-assistant-priorities">
+                {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+              </div>
+              {assistantActions.length ? (
+                <div className="co-prepour-assistant-actions">
+                  {assistantActions.map((item) => (
+                    <button key={item.label} type="button" onClick={item.onClick}>
+                      <Icon name={item.icon} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
         <Card className="co-prepour-rail-card p-4">
           <SectionHeader title="Closeout Console" description="Select a Post-Pour checklist or start a new one." />
           <div className="co-prepour-empty-rail">
@@ -28663,7 +28721,34 @@ function PostPourCommandRailPolished({
   }
 
   return (
-    <div className="co-prepour-right-rail space-y-4">
+    <div className={railClassName}>
+      {isOfficeWorkspace ? (
+        <Card className="co-prepour-assistant-card p-0">
+          <div className="co-prepour-assistant-topbar">
+            <span><Icon name="spark" /></span>
+            <strong>Apex Assistant</strong>
+            <em>Post-Pour</em>
+          </div>
+          <div className="co-prepour-assistant-body">
+            <p className="co-prepour-assistant-kicker">Closeout command</p>
+            <h3>{checklist.job?.title || "Selected Post-Pour checklist"}</h3>
+            <p>{checklist.job?.customer || "Assigned site"} / {postPourChecklistOwner(checklist)} / Updated {formatDateTime(postPourChecklistUpdated(checklist))}</p>
+            <div className="co-prepour-assistant-priorities">
+              {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+            </div>
+            {assistantActions.length ? (
+              <div className="co-prepour-assistant-actions">
+                {assistantActions.map((item) => (
+                  <button key={item.label} type="button" onClick={item.onClick}>
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
       <Card className="co-prepour-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -28768,7 +28853,7 @@ function PostPourFieldOperatorPanel({
               {checklist
                 ? incompleteCount
                   ? `Clear ${incompleteCount} closeout item${incompleteCount === 1 ? "" : "s"} before the checklist is marked complete.`
-                  : "Closeout is clear. Complete the checklist or add a note before office review."
+                  : "Closeout is clear. Complete the checklist or add a note before field handoff."
                 : visibleJobs.length
                   ? "Open an assigned closeout checklist, finish cleanup items, and keep proof moving without office-only data."
                   : "Assigned Post-Pour checklists will appear here when the office attaches a job to your field workspace."}
@@ -29062,12 +29147,14 @@ function PostPourPagePolished({
   }
 
   const reviewCompletedPriorityCard = {
-    label: "Review completed",
+    label: isFieldPostPourWorkspace ? "Field completed" : "Review completed",
     value: needsReviewCount,
-    helper: needsReviewCount ? "Field-completed closeout checklists need office review." : "No completed Post-Pour checklists waiting.",
+    helper: isFieldPostPourWorkspace
+      ? (needsReviewCount ? "Completed closeout checklists are ready for the next handoff." : "No completed Post-Pour checklists waiting.")
+      : (needsReviewCount ? "Field-completed closeout checklists need office review." : "No completed Post-Pour checklists waiting."),
     icon: "clipboard",
     tone: needsReviewCount ? "orange" : "green",
-    actionLabel: needsReviewCount ? "Open review" : "View board",
+    actionLabel: needsReviewCount ? (isFieldPostPourWorkspace ? "Open complete" : "Open review") : "View board",
     onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active", scrollTarget: "board" }),
   };
   const clearCloseoutItemsPriorityCard = {
@@ -29198,7 +29285,11 @@ function PostPourPagePolished({
                 <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Post-Pour Closeout Board</h2>
-                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a checklist, clear finish and cleanup items, and move field completion into office review.</p>
+                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                      {permissions.postPour.canManageAll
+                        ? "Select a checklist, clear finish and cleanup items, and move field completion into office review."
+                        : "Select a checklist, clear assigned closeout items, and keep your field handoff current."}
+                    </p>
                   </div>
                   <div className="co-prepour-board-actions flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All</Button>
@@ -29257,18 +29348,23 @@ function PostPourPagePolished({
           </div>
         </div>
 
-        <PostPourCommandRailPolished
-          checklist={selectedChecklist}
-          checklistSummary={checklistSummary}
-          canCompleteChecklist={canCompleteChecklist}
-          canReview={permissions.postPour.canReview}
-          busy={busy}
-          onCompleteChecklist={onCompleteChecklist}
-          onReviewChecklist={onReviewChecklist}
-          onReopenChecklist={onReopenChecklist}
-          onArchiveChecklist={onArchiveChecklist}
-          onOpenTool={openTool}
-        />
+        {permissions.postPour.canManageAll ? (
+          <PostPourCommandRailPolished
+            checklist={selectedChecklist}
+            checklistSummary={checklistSummary}
+            canCreateChecklist={canCreateChecklist}
+            canEditChecklist={canEditChecklist}
+            canCompleteChecklist={canCompleteChecklist}
+            canReview={permissions.postPour.canReview}
+            isOfficeWorkspace={permissions.postPour.canManageAll}
+            busy={busy}
+            onCompleteChecklist={onCompleteChecklist}
+            onReviewChecklist={onReviewChecklist}
+            onReopenChecklist={onReopenChecklist}
+            onArchiveChecklist={onArchiveChecklist}
+            onOpenTool={openTool}
+          />
+        ) : null}
       </div>
 
       <details
