@@ -22,7 +22,7 @@ Current launch stage:
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
 - Latest runtime release tracked: `d0801e3 Polish delivery assistant clearance`.
 - Fly release `v534` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
-- Latest source-control tooling commits tracked: visual polish audit through `decdcc8 Harden visual polish route audit`, demo desktop canonical route cleanup through `09f02c7 Use canonical routes in demo audit`, and a local demo audit shortcut in the current tooling docs batch. These were not deployed because they only change local verification tooling and docs.
+- Latest source-control tooling tracked: visual polish audit, bounded stable Chromium/tablet shortcuts, demo desktop canonical route cleanup, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling. These were not deployed because they only change local verification tooling and docs.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -94,6 +94,8 @@ Usable now:
 - Backup/export tooling.
 - Health/readiness endpoints.
 - Route-wide visual polish audit tooling for local desktop, tablet, mobile, console/network, overflow, assistant overlap, and field-role exposure checks.
+- Bounded Chromium visual polish shortcut that runs admin desktop, admin phone, and employee phone as separate slices for reliable local QA.
+- Visual polish audit handling for benign field-role client redirect navigation aborts while real failed requests remain failures.
 - Demo desktop audit tooling for live demo walkthrough screenshots plus a local 1440px shortcut for fast app evidence.
 
 Not ready yet:
@@ -429,6 +431,9 @@ npm.cmd run audit:demo-desktop
 npm.cmd run audit:demo-desktop:local
 npm.cmd run audit:visual-polish
 npm.cmd run audit:visual-polish:chromium
+npm.cmd run audit:visual-polish:chromium:desktop
+npm.cmd run audit:visual-polish:chromium:admin-phone
+npm.cmd run audit:visual-polish:chromium:employee-phone
 npm.cmd run audit:visual-polish:tablet
 npm.cmd run audit:public-site
 npm.cmd run brief:founder-demo
@@ -448,6 +453,7 @@ For focused browser QA, use Playwright or the Codex in-app browser against the e
 - mobile screenshot
 - demo screenshot manifest evidence with `npm.cmd run audit:demo-desktop` when live demo walkthrough surfaces are touched
 - local demo screenshot manifest evidence with `npm.cmd run audit:demo-desktop:local` when validating local UI changes before release
+- field-role direct-route redirect evidence; benign document navigation aborts from client redirects are ignored by `npm.cmd run audit:visual-polish:*`, but failed API/asset requests still fail the sweep
 - console errors
 - failed network requests
 - horizontal overflow

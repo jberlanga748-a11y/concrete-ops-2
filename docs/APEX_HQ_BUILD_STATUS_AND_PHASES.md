@@ -64,9 +64,10 @@ Current state:
 - Targeted Command Center metric helper polish: built, verified, released, and health-checked so the owner/admin Operations Command header metric helper copy wraps inside KPI cards instead of clipping on phone-width layouts while field-role redirects remain intact.
 - Targeted Apex Assistant launcher overlap polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer covers Toolbox/PPE right-rail action buttons while the assistant panel, safety field scope, and office-route redirects remain intact.
 - Targeted Delivery Tickets assistant clearance polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer touches the owner/admin Delivery Tickets right-rail action row while field-role delivery scope remains intact.
-- Visual polish route audit tooling: built, verified, and pushed so the repo has a repeatable local Playwright sweep for desktop, tablet, mobile, console/network, overflow, assistant overlap, clipped content, and field-role exposure checks. This was not deployed because it is local verification tooling only.
+- Visual polish route audit tooling: built, verified, and pushed so the repo has a repeatable local Playwright sweep for desktop, tablet, mobile, console/network, overflow, assistant overlap, clipped content, and field-role exposure checks. The stable Chromium shortcut now runs desktop/phone coverage as bounded role/viewport slices. This was not deployed because it is local verification tooling only.
 - Demo desktop screenshot audit hardening: built, verified, and pushed so field-mode demo headings match the current app and required screenshot capture failures no longer pass silently. This was not deployed because it is local verification tooling only.
 - Demo desktop local audit shortcut: built so local 1440px demo walkthrough screenshots can be captured with `npm.cmd run audit:demo-desktop:local` instead of repeating the local base URL and viewport flags. This was not deployed because it is local verification tooling only.
+- Visual polish field-role redirect hardening: built so direct-route field-role redirects do not fail the visual audit on benign top-level document `net::ERR_ABORTED` navigation aborts while real failed requests, console issues, overflow, clipped content, assistant overlap, and forbidden field-role text still fail the sweep. This was not deployed because it is local verification tooling only.
 
 ## Latest Released App State
 
@@ -80,10 +81,9 @@ Latest release tracked in this file:
 
 Latest source-control tooling state:
 
-- Commit: `09f02c7`
-- Message: `Use canonical routes in demo audit`
+- State: visual polish audit, bounded stable Chromium/tablet shortcuts, public-site tablet coverage, hardened demo desktop audit, canonical demo routes, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling are tracked in source.
 - Deployment: not deployed; local verification tooling only.
-- Verification: `npm.cmd run audit:demo-desktop -- --base-url=http://127.0.0.1:4000/ --roles=admin,foreman,employee --viewports=1440x900` captured 28 local demo route screenshots with 0 required failures; focused canonical route coverage for toolbox talks, tool checklist, pre-pour, post-pour, delivery tickets, jobs, and uploads also passed; `node --check scripts\demo-desktop-ui-audit.mjs`, `node --test --test-concurrency=1 src\app-routing.test.js`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` passed. Shortcut scripts `npm.cmd run audit:visual-polish:chromium`, `npm.cmd run audit:visual-polish:tablet`, and `npm.cmd run audit:demo-desktop:local` now wrap common local checks.
+- Verification: `npm.cmd run audit:visual-polish:chromium` checked 78 desktop/phone role-routes with 0 failures; `npm.cmd run audit:visual-polish:tablet` checks owner/admin and field-role tablet routes; `npm.cmd run audit:demo-desktop:local` captures 28 local demo route screenshots with 0 required failures; `node --check scripts\visual-polish-route-audit.mjs`, `node --check scripts\demo-desktop-ui-audit.mjs`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` are the current tooling verification gate.
 
 Known working tree note:
 

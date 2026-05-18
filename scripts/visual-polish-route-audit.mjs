@@ -12,6 +12,7 @@ const PAGE_SETTLE_DELAY_MS = 650;
 const NETWORK_IDLE_TIMEOUT_MS = 3500;
 const LOGIN_READY_DELAY_MS = 900;
 const LOGIN_BUTTON_NAME = /enter workspace/i;
+const BROWSER_LAUNCH_TIMEOUT_MS = 20000;
 const LOGIN_TIMEOUT_MS = 20000;
 const ROUTE_AUDIT_TIMEOUT_MS = 20000;
 const BROWSER_LAUNCH_OPTIONS = [
@@ -167,6 +168,16 @@ function withTimeout(promise, timeoutMs, label) {
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 }
 
+function isNavigationAbort(errorText = "") {
+  return /net::ERR_ABORTED/i.test(String(errorText));
+}
+
+function isIgnorableNavigationAbort(request) {
+  return request.isNavigationRequest()
+    && request.resourceType() === "document"
+    && isNavigationAbort(request.failure()?.errorText || "");
+}
+
 async function login(browser, options, role, viewportName) {
   const context = await browser.newContext({
     baseURL: options.baseUrl,
@@ -177,7 +188,11 @@ async function login(browser, options, role, viewportName) {
   try {
     return await withTimeout((async () => {
       const page = await context.newPage();
-      await page.goto("/", { waitUntil: "domcontentloaded" });
+      try {
+        await page.goto("/", { waitUntil: "domcontentloaded" });
+      } catch (error) {
+        if (!isNavigationAbort(error?.message || "")) throw error;
+      }
       await settlePage(page);
       await page.getByLabel("Email").first().fill(ROLE_CONFIGS[role].email);
       await page.getByLabel("Password").first().fill(DEMO_PASSWORD);
@@ -319,6 +334,7 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
     }
   });
   page.on("requestfailed", (request) => {
+    if (isIgnorableNavigationAbort(request)) return;
     failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || "failed"}`);
   });
 
@@ -326,7 +342,11 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
   let auditError = "";
   try {
     await withTimeout((async () => {
-      await page.goto(spec.path, { waitUntil: "domcontentloaded" });
+      try {
+        await page.goto(spec.path, { waitUntil: "domcontentloaded" });
+      } catch (error) {
+        if (!isNavigationAbort(error?.message || "")) throw error;
+      }
       await settlePage(page);
       inspection = await inspectPage(page, role);
     })(), ROUTE_AUDIT_TIMEOUT_MS, `${role} ${viewportName} ${spec.path} audit`);
@@ -373,7 +393,11 @@ async function launchBrowser(options) {
     : BROWSER_LAUNCH_OPTIONS.filter((candidate) => candidate.label === options.browser);
   for (const candidate of candidates) {
     try {
-      const browser = await chromium.launch({ ...candidate.options, headless: !options.headed });
+      const browser = await withTimeout(
+        chromium.launch({ ...candidate.options, headless: !options.headed }),
+        BROWSER_LAUNCH_TIMEOUT_MS,
+        `${candidate.label} browser launch`,
+      );
       return { browser, browserName: candidate.label };
     } catch (error) {
       lastError = error;

@@ -22,7 +22,7 @@ The demo account is available by default in development. In production, demo dat
 - `npm run audit:demo-desktop` logs into the demo Fly app and captures desktop screenshots for UI review
 - `npm run audit:demo-desktop:local` logs into the local app and captures 1440px desktop demo screenshots for fast local UI review
 - `npm run audit:visual-polish` logs into the local app and checks route-wide visual polish, overflow, assistant overlap, console/network failures, and field-role exposure
-- `npm run audit:visual-polish:chromium` runs the same sweep with bundled Chromium for stable local QA
+- `npm run audit:visual-polish:chromium` runs the stable desktop/phone Chromium sweep as bounded role/viewport slices
 - `npm run audit:visual-polish:tablet` runs the tablet owner/admin and field-role route sweep
 - `npm run audit:public-site` checks the public founder-pilot page across desktop, tablet, and phone
 
@@ -58,7 +58,7 @@ Use the local Playwright-based route audit when checking Apex HQ against the nor
 npm run audit:visual-polish
 ```
 
-The default sweep checks admin desktop, admin phone, and employee phone across the app route list. For tablet coverage, run:
+The default sweep checks admin desktop, admin phone, and employee phone across the app route list. The stable Chromium shortcut runs those same checks as bounded slices to avoid long browser child processes. For tablet coverage, run:
 
 ```bash
 npm run audit:visual-polish:tablet
@@ -67,11 +67,11 @@ npm run audit:visual-polish:tablet
 Useful focused options:
 
 ```bash
-npm run audit:visual-polish:chromium -- --routes=/,/estimates,/jobs --viewports=desktop,tablet
+npm run audit:visual-polish -- --browser=chromium --routes=/,/estimates,/jobs --viewports=desktop,tablet
 npm run audit:visual-polish:tablet -- --routes=/,/estimates,/jobs
 ```
 
-Audit manifests and failure screenshots are saved under `ui-audit/visual-polish/<timestamp>/` and are ignored by git. The audit is read-only: it logs in, navigates, checks route health and layout signals, and writes local evidence only.
+Audit manifests and failure screenshots are saved under `ui-audit/visual-polish/<timestamp>/` and are ignored by git. The audit is read-only: it logs in, navigates, checks route health and layout signals, and writes local evidence only. Field-role client redirects may abort the original document navigation; the audit ignores that benign redirect abort while still failing real route errors, console warnings/errors, failed asset/API requests, overflow, clipped content, assistant overlap, or forbidden field-role text.
 
 ## Docker
 
