@@ -8293,6 +8293,7 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
   const pourLabel = draft.concretePoured ? `${Number(draft.yardsPoured || 0)} yd${Number(draft.yardsPoured || 0) === 1 ? "" : "s"}` : "No pour marked";
   const requiredSummary = requiredReadyCount === 2 ? "Ready to start" : `${2 - requiredReadyCount} required field${2 - requiredReadyCount === 1 ? "" : "s"} left`;
   const notesSummary = noteCount ? `${noteCount} note area${noteCount === 1 ? "" : "s"} started` : "Notes optional";
+  const canStartReport = Boolean(draft.jobId && draft.reportDate);
 
   return (
     <>
@@ -8384,11 +8385,11 @@ function DailyReportCreateCard({ draft, setDraft, onCreate, disabled, canCreate,
             {draft.concretePoured ? <InputField label="Yards poured" type="number" min="0" step="0.1" value={draft.yardsPoured} onChange={(event) => setDraft((current) => ({ ...current, yardsPoured: Number(event.target.value) }))} /> : null}
           </div>
           <div className="co-reports-create-action-stack">
-            <Button type="submit" className="co-reports-create-cta" disabled={disabled}>
+            <Button type="submit" className="co-reports-create-cta" disabled={disabled || !canStartReport}>
               <Icon name="plus" />
               Start report now
             </Button>
-            <p>Opens the real daily report record with the job, date, and field notes you enter here.</p>
+            <p>{canStartReport ? "Opens the real daily report record with the job, date, and field notes you enter here." : "Select a job and report date before starting the daily report."}</p>
             <div className="co-reports-create-checks">
               <span data-state={draft.jobId ? "ready" : "needs"}>Job</span>
               <span data-state={draft.reportDate ? "ready" : "needs"}>Date</span>
@@ -13507,6 +13508,7 @@ function ReportsPagePolished({
   const canViewAdvancedReporting = Boolean(permissions.reports.canManageAll && permissions.reports.canViewAdvanced);
   const [showReportTools, setShowReportTools] = useState(false);
   const [activeReportTool, setActiveReportTool] = useState("create");
+  const [visibleReportCap, setVisibleReportCap] = useState(8);
   const reportToolsRef = useRef(null);
   const listState = useMemo(() => deriveDailyReportListState(reports), [reports]);
   const visibleRows = useMemo(() => filterDailyReports(reports, {
@@ -13519,7 +13521,6 @@ function ReportsPagePolished({
   const notFound = Boolean(reportRouteRequested) && !selectedReport;
   const canEdit = Boolean(selectedReport) && ((permissions.reports.canManageAll && !selectedReport.archivedAt) || (user?.role === "Foreman" && ["draft", "reopened"].includes(selectedReport.status)));
   const canReviewActions = permissions.reports.canReview;
-  const visibleReportCap = 8;
   const submittedCount = visibleRows.filter(dailyReportNeedsReview).length;
   const reviewedCount = visibleRows.filter((report) => report.status === "reviewed").length;
   const needsActionCount = visibleRows.filter(dailyReportNeedsAction).length;
@@ -13801,7 +13802,15 @@ function ReportsPagePolished({
                 )}
                 <div className="co-reports-board-footer flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
                   <p className="text-sm font-bold text-slate-600">Showing {Math.min(visibleRows.length, visibleReportCap)} of {visibleRows.length} filtered reports</p>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setJobFilter("All jobs"); setCreatorFilter("All creators"); setDateFilter("All dates"); setSearch(""); }}>Clear filters</Button>
+                  <div className="co-reports-board-footer-actions">
+                    {visibleRows.length > visibleReportCap ? (
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setVisibleReportCap((current) => current + 8)}>Show more</Button>
+                    ) : null}
+                    {visibleReportCap > 8 ? (
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setVisibleReportCap(8)}>Show less</Button>
+                    ) : null}
+                    <Button type="button" size="sm" variant="secondary" onClick={() => { setFilter("All"); setJobFilter("All jobs"); setCreatorFilter("All creators"); setDateFilter("All dates"); setSearch(""); setVisibleReportCap(8); }}>Clear filters</Button>
+                  </div>
                 </div>
               </>
             ) : (
