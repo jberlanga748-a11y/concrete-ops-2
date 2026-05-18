@@ -33570,3 +33570,158 @@ textarea {
     overflow-wrap: anywhere;
   }
 }
+
+.co-leads-page {
+  --co-leads-command-ink: #07111f;
+  --co-leads-command-muted: #52647a;
+  --co-leads-rail-bg: #07111f;
+  --co-leads-rail-panel: rgba(15, 23, 42, 0.9);
+  --co-leads-rail-line: rgba(148, 163, 184, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .co-leads-page .co-page-header {
+    margin-bottom: 0.72rem !important;
+    padding-top: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-leads-kpi-grid .co-command-kpi {
+    height: auto !important;
+    min-height: 5.05rem !important;
+  }
+
+  .co-leads-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21.5rem, 23rem) !important;
+  }
+
+  .co-leads-right-rail {
+    border: 1px solid var(--co-leads-rail-line);
+    border-radius: 0.5rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.16), transparent 13rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    padding: 0.62rem 4.2rem 0.62rem 0.62rem !important;
+    box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9);
+  }
+
+  .co-leads-right-rail .co-leads-rail-card,
+  .co-leads-right-rail .co-leads-rail-details {
+    border-color: var(--co-leads-rail-line) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-leads-rail-panel) !important;
+    box-shadow: none !important;
+  }
+
+  .co-leads-right-rail .co-section-accent h2,
+  .co-leads-right-rail h3,
+  .co-leads-right-rail .text-slate-950 {
+    color: #f8fafc !important;
+  }
+
+  .co-leads-right-rail .co-section-accent p,
+  .co-leads-right-rail .text-slate-500,
+  .co-leads-right-rail .text-slate-600,
+  .co-leads-right-rail .text-slate-700 {
+    color: #cbd5e1 !important;
+  }
+
+  .co-leads-right-rail .co-leads-rail-card .rounded-xl,
+  .co-leads-right-rail .co-leads-rail-details > summary {
+    border-color: rgba(148, 163, 184, 0.2) !important;
+    background: rgba(255, 255, 255, 0.055) !important;
+  }
+
+  .co-leads-right-rail .field-input,
+  .co-leads-right-rail select,
+  .co-leads-right-rail input,
+  .co-leads-right-rail textarea {
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: var(--co-leads-command-ink) !important;
+  }
+
+  .co-leads-right-rail .co-button-secondary {
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #f8fafc !important;
+  }
+}
+
+.co-leads-command-row td {
+  position: relative;
+}
+
+.co-leads-command-row td:first-child::before,
+.co-leads-mobile-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.co-leads-command-row.is-selected td:first-child::before,
+.co-leads-mobile-card.is-selected::before {
+  background: #f97316;
+}
+
+.co-leads-command-row.is-due td:first-child::before,
+.co-leads-mobile-card.is-due::before {
+  background: #ef4444;
+}
+
+.co-leads-command-row.is-ready td:first-child::before,
+.co-leads-mobile-card.is-ready::before {
+  background: #16a34a;
+}
+
+.co-leads-mobile-card {
+  position: relative;
+  overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .co-leads-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
+    overflow: visible !important;
+    padding-inline: 1rem !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-leads-kpi-grid .co-command-kpi {
+    min-height: 5.7rem !important;
+    padding: 0.66rem !important;
+  }
+
+  .co-leads-command-layout,
+  .co-leads-tools-drawer {
+    padding-inline: 1rem !important;
+  }
+
+  .co-leads-board-header,
+  .co-leads-tools-drawer > summary {
+    border-radius: 0.85rem !important;
+  }
+
+  .co-leads-tools-drawer > summary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .co-leads-tool-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible !important;
+  }
+
+  .co-leads-tool-tabs button {
+    min-width: 0;
+    width: 100%;
+    justify-content: space-between;
+    white-space: normal;
+  }
+}

@@ -3692,12 +3692,14 @@ function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows 
         {mobileRows.map((row) => {
           const selected = row.id === selectedId;
           const contactLine = [leadContactPhone(row), leadContactEmail(row)].filter(Boolean).join(" / ");
+          const followUpDue = isLeadFollowUpDue(row);
+          const readyForEstimate = isLeadReadyForEstimate(row);
           return (
             <button
               key={row.id}
               type="button"
               onClick={() => onSelect(row.id)}
-              className={`co-leads-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"}`}
+              className={`co-leads-mobile-card co-mobile-record-card co-office-list-card w-full rounded-[1.15rem] border p-4 text-left transition ${selected ? "is-selected border-orange-200 bg-orange-50/70" : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"} ${followUpDue ? "is-due" : ""} ${readyForEstimate ? "is-ready" : ""}`}
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -3765,8 +3767,10 @@ function LeadsTable({ rows, selectedId, onSelect, maxRows = null, mobileMaxRows 
           {displayRows.map((row) => {
             const selected = row.id === selectedId;
             const contactLine = [leadContactPhone(row), leadContactEmail(row)].filter(Boolean).join(" / ");
+            const followUpDue = isLeadFollowUpDue(row);
+            const readyForEstimate = isLeadReadyForEstimate(row);
             return (
-              <tr key={row.id} onClick={() => onSelect(row.id)} className={`cursor-pointer transition hover:bg-orange-50/45 ${selected ? "bg-orange-50/70" : ""}`}>
+              <tr key={row.id} onClick={() => onSelect(row.id)} className={`co-leads-command-row cursor-pointer transition hover:bg-orange-50/45 ${selected ? "is-selected bg-orange-50/70" : ""} ${followUpDue ? "is-due" : ""} ${readyForEstimate ? "is-ready" : ""}`}>
                 <td className="px-4 py-3">
                   <p className="font-black text-slate-950">{row.customer}</p>
                   <p className="text-xs font-bold text-slate-500">{row.id} · {row.city}</p>
