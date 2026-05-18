@@ -20870,8 +20870,8 @@ function ImportedDraftsTablePolished({ drafts, selectedId, onSelect, onReview, o
 function ImportedDraftCommandRailPolished({ draft, canManage, onReview, onImportClick, onOpenCreatedJob }) {
   if (!draft) {
     return (
-      <div className="co-imports-right-rail space-y-4">
-        <Card className="co-imports-rail-card p-4">
+      <div className="co-imports-right-rail co-imports-office-assistant space-y-4">
+        <div className="co-imports-rail-card co-imports-assistant-card p-4">
           <SectionHeader title="Draft Console" description="Import a package or select a draft for office review." />
           <div className="co-imports-empty-rail">
             <span><Icon name="database" /></span>
@@ -20879,7 +20879,7 @@ function ImportedDraftCommandRailPolished({ draft, canManage, onReview, onImport
             <p>Imported packages will show customer match, readiness, service type, and job creation status here.</p>
           </div>
           {canManage ? <Button type="button" className="mt-3 w-full" onClick={onImportClick}>Import Package</Button> : null}
-        </Card>
+        </div>
       </div>
     );
   }
@@ -20888,8 +20888,8 @@ function ImportedDraftCommandRailPolished({ draft, canManage, onReview, onImport
   const customerWarnings = getCustomerMatchWarnings(draft);
 
   return (
-    <div className="co-imports-right-rail space-y-4">
-      <Card className="co-imports-rail-card p-4">
+    <div className="co-imports-right-rail co-imports-office-assistant space-y-4">
+      <div className="co-imports-rail-card co-imports-assistant-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected draft</p>
@@ -20927,9 +20927,9 @@ function ImportedDraftCommandRailPolished({ draft, canManage, onReview, onImport
           <Button type="button" size="sm" onClick={() => onReview(draft.id)}>Review Draft</Button>
           {draft.createdJobId ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenCreatedJob(draft.createdJobId)}>Open Job</Button> : null}
         </div>
-      </Card>
+      </div>
 
-      <Card className="co-imports-rail-card p-4">
+      <div className="co-imports-rail-card co-imports-assistant-card p-4">
         <SectionHeader title="Readiness Checks" description="Resolve these before converting to a real job." />
         <div className="co-imports-readiness-list">
           <span data-state={draft.customerName ? "ready" : "needs"}>Customer <strong>{draft.customerName ? "Set" : "Needed"}</strong></span>
@@ -20937,7 +20937,7 @@ function ImportedDraftCommandRailPolished({ draft, canManage, onReview, onImport
           <span data-state={draft.jobName && draft.scopeSummary ? "ready" : "needs"}>Scope <strong>{draft.jobName && draft.scopeSummary ? "Set" : "Needed"}</strong></span>
           <span data-state={warnings.length || customerWarnings.length ? "needs" : "ready"}>Warnings <strong>{warnings.length + customerWarnings.length}</strong></span>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
