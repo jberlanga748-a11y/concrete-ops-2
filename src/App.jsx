@@ -30373,6 +30373,7 @@ function EstimatesPagePolished({
   const [packetSectionIds, setPacketSectionIds] = useState(() => getEstimatePacketPreset(DEFAULT_ESTIMATE_PACKET_PRESET_ID).sectionIds);
   const [showEstimateTools, setShowEstimateTools] = useState(false);
   const [activeEstimateTool, setActiveEstimateTool] = useState("edit");
+  const [visibleEstimateRowCap, setVisibleEstimateRowCap] = useState(6);
   const [roughNotes, setRoughNotes] = useState("");
   const [roughNotesState, setRoughNotesState] = useState({ loading: false, result: null, error: "" });
   const newEstimateRef = useRef(null);
@@ -30432,7 +30433,6 @@ function EstimatesPagePolished({
     sectionIds: packetSectionIds,
     allowInternalSections: canManage && canUseGcPackets,
   }), [canManage, canUseGcPackets, packetPresetId, packetSectionIds]);
-  const visibleEstimateRowCap = 6;
   const estimateKpis = [
     { label: "Estimates", value: filteredRows.length, helper: "Matching current filters", icon: "quote", tone: "blue", actionLabel: "View estimates", onAction: () => setStatusFilter("All") },
     { label: "Drafts", value: filteredRows.filter((estimate) => estimate.status === "draft").length, helper: "Need pricing or review", icon: "document", tone: "orange", actionLabel: "View drafts", onAction: () => setStatusFilter("Draft") },
@@ -30873,7 +30873,15 @@ function EstimatesPagePolished({
             )}
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
               <p className="text-sm font-bold text-slate-600">Showing {Math.min(filteredRows.length, visibleEstimateRowCap)} of {rows.length} estimates</p>
-              <Button type="button" size="sm" variant="secondary" onClick={() => { setStatusFilter("All"); setCustomerFilter("All customers"); setLeadFilter("All leads"); setCreatorFilter("All creators"); setArchiveFilter("Active"); setSearch(""); }}>Clear filters</Button>
+              <div className="co-estimates-board-footer-actions">
+                {filteredRows.length > visibleEstimateRowCap ? (
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setVisibleEstimateRowCap((current) => current + 6)}>Show more</Button>
+                ) : null}
+                {visibleEstimateRowCap > 6 ? (
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setVisibleEstimateRowCap(6)}>Show less</Button>
+                ) : null}
+                <Button type="button" size="sm" variant="secondary" onClick={() => { setStatusFilter("All"); setCustomerFilter("All customers"); setLeadFilter("All leads"); setCreatorFilter("All creators"); setArchiveFilter("Active"); setSearch(""); setVisibleEstimateRowCap(6); }}>Clear filters</Button>
+              </div>
             </div>
           </Card>
         </div>

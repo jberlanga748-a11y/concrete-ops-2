@@ -7945,14 +7945,20 @@ textarea {
   padding-bottom: 0.55rem !important;
 }
 
+.co-estimates-board-footer-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .co-estimates-right-rail {
   position: sticky;
   top: calc(var(--layout-topbar-height, 4.5rem) + 0.62rem);
-  max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 0.95rem);
-  overflow-y: auto;
-  padding-right: 0.2rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .co-estimates-right-rail > * + * {
@@ -8025,7 +8031,7 @@ textarea {
 }
 
 .co-estimates-rail-card button {
-  min-height: 2.05rem !important;
+  min-height: 2.45rem !important;
 }
 
 .co-estimates-action-row {
@@ -8104,7 +8110,7 @@ textarea {
 
 .co-estimates-tool-tabs button {
   display: inline-flex;
-  min-height: 1.8rem;
+  min-height: 2.45rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -8215,23 +8221,19 @@ textarea {
   }
 
   .co-estimates-kpi-grid {
-    display: flex !important;
-    grid-template-columns: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.72rem !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
     padding-bottom: 0.65rem !important;
-    scroll-padding-inline: 1rem;
-    scroll-snap-type: x proximity;
+    scroll-snap-type: none !important;
   }
 
   .co-estimates-kpi-grid .co-command-kpi {
-    flex: 0 0 10.8rem;
     min-height: 5.85rem !important;
     padding: 0.68rem !important;
-    scroll-snap-align: start;
   }
 
   .co-estimates-kpi-grid .co-command-kpi-body {
@@ -8300,8 +8302,23 @@ textarea {
 
   .co-estimates-action-row {
     border-radius: 0.55rem;
-    padding: 0.54rem 0.6rem;
+    min-height: 2.75rem;
+    padding: 0.58rem 0.6rem;
     font-size: 0.7rem;
+  }
+
+  .co-estimates-board-footer-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-estimates-tool-tabs button,
+  .co-estimates-advanced-filters > summary,
+  .co-estimates-tool-disclosure > summary,
+  .co-estimates-tools-drawer > summary,
+  .co-estimates-main-board .co-filter-bar button {
+    min-height: 2.75rem !important;
   }
 }
 
