@@ -28794,3 +28794,121 @@ textarea {
     border-radius: 0.5rem !important;
   }
 }
+
+@media (min-width: 1024px) {
+  .co-estimates-page,
+  .co-imports-page,
+  .co-change-orders-page {
+    background:
+      radial-gradient(circle at 88% 0%, rgba(249, 115, 22, 0.1), transparent 25rem),
+      linear-gradient(180deg, rgba(241, 245, 249, 0.98), rgba(248, 250, 252, 0.88) 44%, rgba(238, 243, 248, 0.96)) !important;
+  }
+
+  .co-estimates-kpi-grid,
+  .co-imports-kpi-grid,
+  .co-change-orders-kpi-grid {
+    gap: 0.66rem !important;
+    padding-bottom: 0.68rem !important;
+  }
+
+  .co-estimates-kpi-grid .co-command-kpi,
+  .co-imports-kpi-grid .co-command-kpi,
+  .co-change-orders-kpi-grid .co-command-kpi {
+    min-height: 5.15rem !important;
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background:
+      linear-gradient(135deg, #ffffff, rgba(248, 250, 252, 0.98) 62%, rgba(255, 247, 237, 0.62)) !important;
+    box-shadow: 0 18px 38px -34px rgba(7, 17, 31, 0.58) !important;
+  }
+
+  .co-estimates-main-board,
+  .co-imports-main-board,
+  .co-change-orders-main-board {
+    border-color: rgba(203, 213, 225, 0.96) !important;
+    border-top-color: rgba(249, 115, 22, 0.8) !important;
+    background: rgba(255, 255, 255, 0.99) !important;
+    box-shadow: 0 22px 48px -42px rgba(7, 17, 31, 0.7) !important;
+  }
+
+  .co-estimates-board-header,
+  .co-imports-board-header,
+  .co-change-orders-board-header {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.94)) !important;
+    box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.82) !important;
+  }
+
+  .co-estimates-board-header h2,
+  .co-imports-board-header h2,
+  .co-change-orders-board-header h2 {
+    color: #07111f !important;
+    letter-spacing: 0.055em !important;
+  }
+
+  .co-estimates-main-board .co-filter-bar,
+  .co-imports-main-board .co-filter-bar,
+  .co-change-orders-main-board .co-filter-bar {
+    border-top: 1px solid rgba(226, 232, 240, 0.96);
+    background:
+      linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.92)) !important;
+  }
+
+  .co-estimates-rail-card,
+  .co-imports-rail-card,
+  .co-change-orders-rail-card {
+    border-color: rgba(203, 213, 225, 0.96) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background:
+      linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 18px 38px -34px rgba(7, 17, 31, 0.58) !important;
+  }
+
+  .co-estimates-tools-drawer > summary,
+  .co-imports-tools-drawer > summary,
+  .co-change-orders-tools-drawer > summary {
+    border-left: 3px solid rgba(249, 115, 22, 0.86) !important;
+    background:
+      radial-gradient(circle at 96% 0%, rgba(249, 115, 22, 0.16), transparent 12rem),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.99), #07111f) !important;
+    color: #fff7ed !important;
+  }
+
+  .co-estimates-tools-drawer > summary strong,
+  .co-imports-tools-drawer > summary strong,
+  .co-change-orders-tools-drawer > summary strong {
+    color: #fff7ed !important;
+  }
+
+  .co-estimates-tools-drawer > summary em,
+  .co-imports-tools-drawer > summary em,
+  .co-change-orders-tools-drawer > summary em {
+    color: rgba(203, 213, 225, 0.9) !important;
+  }
+}
+
+@media (min-width: 1400px) and (max-width: 1535px) {
+  .co-imports-command-layout {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+  }
+
+  .co-imports-command-table {
+    min-width: 760px !important;
+  }
+
+  .co-imports-right-rail {
+    position: sticky !important;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem) !important;
+    display: block !important;
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 1.1rem) !important;
+    overflow: auto !important;
+    padding-right: 0.12rem !important;
+  }
+}
+
+.co-change-orders-right-rail .badge,
+.co-change-orders-right-rail .inline-flex[class*="rounded-lg"] {
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

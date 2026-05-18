@@ -2834,11 +2834,20 @@ function findEstimate(state, estimateId, user = null) {
   return user ? assertRecordBelongsToUserCompany(estimate, user, state, "Estimate") : estimate;
 }
 
+function hasAssignedChangeOrderJobAccess(user, job) {
+  if (!user || !job) return false;
+  const userId = String(user.id || "");
+  if (!userId) return false;
+  return job.assignedForemanId === userId
+    || job.assignedUserId === userId
+    || activeAssignmentsForJob(job).some((assignment) => assignment.userId === userId);
+}
+
 function canViewChangeOrderRequestRecord(user, request, job) {
   if (!user || !canViewChangeOrders(user)) return false;
   if (canManageChangeOrders(user)) return true;
   if (!job) return false;
-  if (isForeman(user)) return canViewJob(job, user);
+  if (isForeman(user)) return hasAssignedChangeOrderJobAccess(user, job);
   return false;
 }
 
@@ -4740,7 +4749,8 @@ function canCreateChangeOrderRequestForJob(user, job) {
   if (!job || job.archivedAt) return false;
   if (canManageChangeOrders(user)) return true;
   if (!canRequestChangeOrders(user)) return false;
-  return canViewJob(job, user);
+  if (isForeman(user)) return hasAssignedChangeOrderJobAccess(user, job);
+  return false;
 }
 
 function canEditChangeOrderRequest(user) {

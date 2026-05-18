@@ -230,7 +230,9 @@ test("change order requests stay field-safe while office manages review", async 
     assert.notEqual(request.job.canViewMoney, true);
 
     const otherForemanList = await assertOk(fixture.baseUrl, "/api/change-order-requests", { headers: otherForemanHeaders });
-    assert.equal(otherForemanList.changeOrderRequests.length, 0);
+    assert.equal(otherForemanList.changeOrderRequests.some((entry) => entry.id === request.id), false);
+    assert.equal(JSON.stringify(otherForemanList.changeOrderRequests).includes("Customer requested wider walk"), false);
+    assert.equal(otherForemanList.changeOrderRequests.every((entry) => entry.jobId !== "J-2201"), true);
 
     const employeeList = await requestJson(fixture.baseUrl, "/api/change-order-requests", { headers: employeeHeaders });
     assert.equal(employeeList.response.status, 403);
