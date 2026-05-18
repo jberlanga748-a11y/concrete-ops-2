@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `f527995 Polish settings account text wrapping`.
-- Fly release `v527` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `649c8e6 Polish command KPI card height`.
+- Fly release `v528` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -38,6 +38,7 @@ Usable now:
 - Premium Finished SaaS Polish Phase 4 Apex Assistant visual system: Apex Assistant label, darker review-only assistant shell, denser prompt/action cards, sticky mobile input above bottom nav, and assistant entry copy tightened around manual approval and field-role blocking.
 - Customers, leads, estimates, jobs, crews/employees.
 - Leads command table follow-up header polish for unclipped desktop `Follow-Up` headers with mobile cards and field-role redirects preserved.
+- Shared command KPI card height polish for unclipped helper/action text on Leads, Jobs, Customers, Estimate Studio, and Settings.
 - Jobs command table text wrapping polish for long job IDs, job names, and assigned/needed crew counts.
 - Jobs command table progress header polish for unclipped desktop `Progress` headers with mobile cards and field-role Field Mode behavior preserved.
 - Customers command table text wrapping polish for long emails and service areas.

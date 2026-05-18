@@ -57,20 +57,21 @@ Current state:
 - Targeted Communications mobile nav label polish: built, verified, released, and health-checked so the office mobile bottom nav shows `Comms` instead of clipping `Communications` while preserving the full accessible label and field-role redirects.
 - Targeted tablet mobile nav label polish: built, verified, released, and health-checked so long office module labels use compact tablet/mobile bar text without clipping while preserving full accessible labels and field-safe routing.
 - Targeted Settings account text wrapping polish: built, verified, released, and health-checked so the App Health/Settings account panel wraps long signed-in email text without horizontal clipping while field-role redirects remain intact.
+- Targeted command KPI card height polish: built, verified, released, and health-checked so Leads, Jobs, Customers, Estimate Studio, and Settings KPI cards show their helper/action text without vertical clipping while field-role redirects remain intact.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `f527995`
-- Message: `Polish settings account text wrapping`
-- Fly release: `v527`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWZ7FBZ206KRW66K616KCY2`
+- Commit: `649c8e6`
+- Message: `Polish command KPI card height`
+- Fly release: `v528`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWZTXPT5RQ7MB0KW6F6MT6R`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v527` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v528` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -135,6 +136,7 @@ Recent shipped phase stack:
 | `117d040` | `v525` | Communications mobile nav label polish |
 | `0d7817c` | `v526` | Tablet mobile nav label polish |
 | `f527995` | `v527` | Settings account text wrapping polish |
+| `649c8e6` | `v528` | Command KPI card height polish |
 
 ## Done / Do Not Rebuild
 
@@ -180,6 +182,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Communications mobile nav label polish | Built and released | Owner/admin mobile Communication Center bottom nav now shows `Comms` in the compact bar so the active label does not clip; the button keeps `Communications` as its accessible label and field roles remain redirected to Field Mode. |
 | Tablet mobile nav label polish | Built and released | Owner/admin tablet/mobile bottom navigation now uses compact labels for Operations Command, Photo Evidence, Delivery Tickets, Imported Drafts, Change Orders, Toolbox Talks, and Tool Checklist in the primary bar while preserving full accessible labels and unchanged route behavior. |
 | Settings account text wrapping polish | Built and released | App Health/Settings account panel now lets signed-in user email text wrap inside the card instead of clipping on narrow desktop account columns. Field roles remain redirected to Field Mode. |
+| Command KPI card height polish | Built and released | Shared office command KPI cards now size to their real helper/action text for Leads, Jobs, Customers, Estimate Studio, and Settings, removing hidden bottom action copy while preserving compact grids and field-role redirects. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
 | Premium Finished SaaS Polish Phase 1 | Built and released | Operations Command now matches the finished-visual direction more closely with the Operations Command label, dark premium top bar, owner/admin metric strip, tighter command cockpit/cards, responsive mobile rendering, and field-role denial preserved. No new billing, package controls, checkout, invoices, payment collection, support workflow, customer portal, automation, or permission widening was added. |
 | Premium Finished SaaS Polish Phase 2 | Built and released | Field Mode mobile now aligns more closely with the finished visual: dark premium Field Mode header, dark/orange operator hero, compact required-item rows, tighter action tiles, and field-safe direct-route behavior preserved. Foremen/employees still do not see Operations Command, Settings, billing, pricing, package controls, or office-only upgrade surfaces. No backend records, checkout, billing, support handoff, automation, or permission widening was added. |
@@ -304,6 +307,7 @@ Recent focused verification:
 - Communications mobile nav label polish release checks: browser QA found owner/admin mobile `/communications` bottom nav clipping the active `Communications` label in the compact phone bar. Runtime change displays `Comms` only in the primary mobile nav label while preserving `aria-label="Communications"` and full route behavior. `npm.cmd run verify:leads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner/admin mobile plus employee mobile direct-route QA passed. Browser QA confirmed `/communications` had no horizontal overflow, no console errors, no failed requests, no clipped primary bottom-nav labels, the full accessible label remained `Communications`, and employee direct `/communications` redirected to Field Mode without office nav. Released as Fly `v525` with image `registry.fly.io/concrete-ops-2:deployment-01KRWY41N2PVVR1XBV59WJZAN6`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
 - Tablet mobile nav label polish release checks: browser QA found owner/admin tablet bottom nav clipping long active labels for `/command-center`, `/uploads`, `/delivery-tickets`, `/imported-drafts`, `/change-orders`, `/toolbox-talks`, and `/tool-checklist`. Runtime change displays compact primary-bar labels `Command`, `Photos`, `Tickets`, `Imports`, `Changes`, `Toolbox`, and `Tools` while preserving each full `aria-label` and full route behavior. `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner tablet plus employee mobile direct-route QA passed. Browser QA confirmed the affected routes had no horizontal overflow, no console errors, no failed requests, no clipped primary bottom-nav labels, and employee mobile direct `/command-center` redirected to Field Mode. Released as Fly `v526` with image `registry.fly.io/concrete-ops-2:deployment-01KRWYSEDENAHXS2VYKHG7K7AC`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Settings account text wrapping polish release checks: browser QA found desktop `/app-health` account panel clipping the signed-in email in the narrow Settings account card. CSS-only patch lets account panel grid children shrink safely and wraps secondary account text with `overflow-wrap:anywhere`. `npm.cmd run verify:server`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed `/app-health` and `/settings` had no horizontal overflow, no account-panel text clipping, no console errors, no failed requests, and employee direct `/app-health` and `/settings` redirected to Field Mode. Released as Fly `v527` with image `registry.fly.io/concrete-ops-2:deployment-01KRWZ7FBZ206KRW66K616KCY2`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Command KPI card height polish release checks: browser QA found shared office KPI cards clipping bottom helper/action text on `/leads`, `/jobs`, `/customers`, `/estimates`, and `/settings` across desktop/tablet/phone. CSS-only patch removes the forced short height for those office KPI grids while keeping compact responsive columns. `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:customers`, `npm.cmd run verify:estimates`, `npm.cmd run verify:roles`, `npm.cmd run verify:server`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed no KPI text clipping, no horizontal overflow, no console errors, no failed requests, and employee direct office routes redirected to Field Mode without office KPI grids. Released as Fly `v528` with image `registry.fly.io/concrete-ops-2:deployment-01KRWZTXPT5RQ7MB0KW6F6MT6R`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
