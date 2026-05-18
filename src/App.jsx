@@ -15315,14 +15315,14 @@ function CommandCenterPage({
 
   return (
     <div className="co-command-page">
-      <div className="px-5 pb-1.5 pt-3 sm:px-6 lg:px-7">
-        <div className="flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+      <div className="co-command-hero px-5 pb-1.5 pt-3 sm:px-6 lg:px-7">
+        <div className="co-command-hero-head flex w-full flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-orange-700">{companyName || DEFAULT_COMPANY_NAME}</p>
             <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-slate-950">Operations Command</h1>
             <p className="mt-0.5 max-w-3xl text-sm font-bold leading-5 text-slate-700">Today's owner/admin view for jobs, crews, field proof, follow-ups, and office review.</p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="co-command-hero-actions flex shrink-0 flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => openModule("leads")}><Icon name="users" />Start Priority Work</Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => openModule("jobs")}><Icon name="briefcase" />Job Board</Button>
             {canViewAppHealth ? <Button type="button" size="sm" variant="secondary" onClick={openOwnerHealth}><Icon name="database" />App Health</Button> : null}

@@ -2033,8 +2033,57 @@ textarea {
   .co-command-page {
     position: relative;
     background:
-      radial-gradient(circle at 88% 0%, rgba(219, 234, 254, 0.62), transparent 30rem),
-      linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
+      radial-gradient(circle at 88% 0%, rgba(219, 234, 254, 0.5), transparent 30rem),
+      linear-gradient(180deg, rgba(241, 245, 249, 0.98), rgba(226, 232, 240, 0.78));
+    padding-top: 0.7rem;
+  }
+
+  .co-command-hero {
+    position: relative;
+    margin: 0 1.25rem 0.72rem;
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    border-radius: 0.82rem;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.97) 58%, rgba(255, 247, 237, 0.9)),
+      radial-gradient(circle at 92% 8%, rgba(249, 115, 22, 0.13), transparent 18rem);
+    box-shadow: 0 24px 58px -46px rgba(7, 17, 31, 0.72);
+  }
+
+  .co-command-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, #f4510b, #fdba74);
+  }
+
+  .co-command-hero-head {
+    position: relative;
+    z-index: 1;
+  }
+
+  .co-command-hero-actions {
+    justify-content: flex-start;
+  }
+
+  @media (min-width: 1280px) {
+    .co-command-hero-actions {
+      justify-content: flex-end;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .co-command-page {
+      padding-top: 0;
+    }
+
+    .co-command-hero {
+      margin: 0;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+    }
   }
 
   .co-command-header-metrics {
@@ -2138,13 +2187,13 @@ textarea {
     gap: 0.75rem;
     align-items: center;
     overflow: hidden;
-    border: 1px solid rgba(7, 17, 31, 0.12);
+    border: 1px solid rgba(251, 146, 60, 0.24);
     border-radius: 0.62rem;
     background:
-      linear-gradient(135deg, rgba(7, 17, 31, 0.96), rgba(15, 23, 42, 0.94)),
-      radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.22), transparent 16rem);
+      linear-gradient(135deg, rgba(255, 247, 237, 0.9), rgba(255, 255, 255, 0.95) 42%, rgba(248, 250, 252, 0.96)),
+      radial-gradient(circle at 100% 0%, rgba(249, 115, 22, 0.15), transparent 15rem);
     padding: 0.78rem;
-    box-shadow: 0 20px 48px -38px rgba(7, 17, 31, 0.72);
+    box-shadow: 0 16px 40px -36px rgba(7, 17, 31, 0.5);
   }
 
   .co-command-demo-path-copy {
@@ -2158,10 +2207,10 @@ textarea {
     width: fit-content;
     max-width: 100%;
     align-items: center;
-    border: 1px solid rgba(249, 115, 22, 0.38);
+    border: 1px solid rgba(249, 115, 22, 0.3);
     border-radius: 999px;
-    background: rgba(249, 115, 22, 0.16);
-    color: #fdba74;
+    background: #fff7ed;
+    color: #c2410c;
     font-size: 0.68rem;
     font-weight: 950;
     letter-spacing: 0.08em;
@@ -2173,7 +2222,7 @@ textarea {
 
   .co-command-demo-path-copy span {
     overflow-wrap: anywhere;
-    color: rgba(226, 232, 240, 0.9);
+    color: #334155;
     font-size: 0.8rem;
     font-weight: 850;
     line-height: 1.35;
@@ -2182,7 +2231,7 @@ textarea {
   .co-command-demo-path-actions {
     display: grid;
     min-width: 0;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.45rem;
   }
 
@@ -2193,10 +2242,10 @@ textarea {
     grid-template-columns: 1.45rem minmax(0, 1fr);
     gap: 0.45rem;
     align-items: center;
-    border: 1px solid rgba(255, 247, 237, 0.12);
+    border: 1px solid rgba(203, 213, 225, 0.86);
     border-radius: 0.54rem;
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(248, 250, 252, 0.94);
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f172a;
     padding: 0.55rem;
     text-align: left;
     transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
@@ -2204,8 +2253,8 @@ textarea {
 
   .co-command-demo-path-step:hover,
   .co-command-demo-path-step:focus-visible {
-    border-color: rgba(249, 115, 22, 0.54);
-    background: rgba(249, 115, 22, 0.12);
+    border-color: rgba(249, 115, 22, 0.5);
+    background: #fff7ed;
     transform: translateY(-1px);
   }
 
@@ -2220,17 +2269,15 @@ textarea {
   }
 
   .co-command-demo-path-step strong {
-    overflow: hidden;
+    overflow-wrap: anywhere;
     font-size: 0.74rem;
     font-weight: 950;
     line-height: 1.05;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .co-command-demo-path-step small {
     overflow-wrap: anywhere;
-    color: rgba(203, 213, 225, 0.82);
+    color: #64748b;
     font-size: 0.62rem;
     font-weight: 850;
     line-height: 1.12;
