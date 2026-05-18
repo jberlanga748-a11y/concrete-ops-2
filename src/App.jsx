@@ -22290,8 +22290,8 @@ function EmployeesTablePolished({
 function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
   if (!user) {
     return (
-      <div className="co-employees-right-rail space-y-4">
-        <Card className="co-employees-rail-card p-4">
+      <div className="co-employees-right-rail co-employees-command-assistant space-y-4">
+        <div className="co-employees-rail-card co-employees-assistant-card p-4">
           <SectionHeader title="Access Console" description="Select a user to review role, status, and login readiness." />
           <div className="co-employees-empty-rail">
             <span><Icon name="users" /></span>
@@ -22299,14 +22299,14 @@ function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
             <p>Use this console to keep office roles and field roles clear without exposing admin access to crew users.</p>
           </div>
           {canManage ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>New User</Button> : null}
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="co-employees-right-rail space-y-4">
-      <Card className="co-employees-rail-card p-4">
+    <div className="co-employees-right-rail co-employees-command-assistant space-y-4">
+      <div className="co-employees-rail-card co-employees-assistant-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected user</p>
@@ -22344,9 +22344,9 @@ function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
           <Button type="button" size="sm" onClick={() => onOpenTool("details")}>{canManage ? "Edit User" : "Review"}</Button>
           {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("create")}>New User</Button> : null}
         </div>
-      </Card>
+      </div>
 
-      <Card className="co-employees-rail-card p-4">
+      <div className="co-employees-rail-card co-employees-assistant-card p-4">
         <SectionHeader title="Login Readiness" description="Keep employee records usable for assignments and field workflows." />
         <div className="co-employees-readiness-list">
           <span data-state={user.name ? "ready" : "needs"}>Name <strong>{user.name ? "Set" : "Needed"}</strong></span>
@@ -22354,7 +22354,7 @@ function EmployeesCommandRailPolished({ user, canManage, busy, onOpenTool }) {
           <span data-state={user.role ? "ready" : "needs"}>Role <strong>{user.role || "Needed"}</strong></span>
           <span data-state={user.status === "active" ? "ready" : "needs"}>Status <strong>{user.status === "active" ? "Active" : "Inactive"}</strong></span>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
