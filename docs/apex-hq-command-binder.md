@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `c7ce11c Add daily reports support handoff`.
-- Fly release `v499` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `9d4ef4d Add photo evidence support handoff`.
+- Fly release `v500` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -39,6 +39,7 @@ Usable now:
 - Time tracking, daily reports, uploads/photo evidence.
 - Time Tracking Support Handoff Phase 1 role-scoped copy-only support context.
 - Daily Reports Support Handoff Phase 1 role-scoped copy-only support context.
+- Photo Evidence Support Handoff Phase 1 owner/admin copy-only support context with field-safe upload scope preserved.
 - Delivery tickets, change orders, pre-pour, post-pour.
 - Safety, incidents, PPE, toolbox, tool checklist.
 - Notifications/reminders.
@@ -303,12 +304,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree after runtime release `v499` was clean before the post-release source-of-truth sync.
-- Build status tracker now identifies the Daily Reports Support Handoff Phase 1 batch as built, released, and health-checked.
+- Current working tree after runtime release `v500` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the Photo Evidence Support Handoff Phase 1 batch as built, released, and health-checked.
 
 Assumptions / needs confirmation:
 
-- Production `v499` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v500` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
