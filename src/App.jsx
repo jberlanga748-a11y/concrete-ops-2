@@ -9619,6 +9619,58 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     : visibleRows.length === 0 && canCreate
     ? [uploadPhotoPriorityCard, missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard]
     : [missingGpsPriorityCard, captionsPriorityCard, latestPriorityCard, uploadPhotoPriorityCard];
+  const evidenceCommandItems = [
+    {
+      label: "Today",
+      value: todayUploadCount,
+      helper: todayUploadCount ? "Uploads captured today" : "No uploads captured today",
+      tone: todayUploadCount ? "orange" : "slate",
+      action: "Open today",
+      onClick: openTodayUploads,
+    },
+    {
+      label: "Missing GPS",
+      value: missingGpsCount,
+      helper: missingGpsCount ? "Review denied or missing location context" : "GPS context is clear",
+      tone: missingGpsCount ? "amber" : "green",
+      action: missingGpsCount ? "Review GPS" : "Clear",
+      onClick: () => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" }),
+    },
+    {
+      label: "Caption gaps",
+      value: missingNotesCount,
+      helper: missingNotesCount ? "Photos need caption or office note context" : "Caption context is ready",
+      tone: missingNotesCount ? "orange" : "green",
+      action: missingNotesCount ? "Open gaps" : "Clear",
+      onClick: () => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" }),
+    },
+    {
+      label: "Current job",
+      value: currentJobUploadCount,
+      helper: currentEvidenceJobLabel,
+      tone: currentJobUploadCount ? "green" : "slate",
+      action: "Open job",
+      onClick: openCurrentJobUploads,
+    },
+  ];
+  const evidenceNextAction = missingGpsCount
+    ? "Review missing GPS context"
+    : missingNotesCount
+      ? "Add caption context"
+      : latestVisibleUpload
+        ? "Review latest field proof"
+        : canCreate
+          ? "Capture the first job photo"
+          : "Evidence board is clear";
+  const evidenceNextDetail = missingGpsCount
+    ? `${missingGpsCount} upload${missingGpsCount === 1 ? "" : "s"} need a quick location-context review.`
+    : missingNotesCount
+      ? `${missingNotesCount} upload${missingNotesCount === 1 ? "" : "s"} would be stronger with caption or note context.`
+      : latestVisibleUpload
+        ? `${uploadTitle(latestVisibleUpload)} is the newest visible evidence.`
+        : canCreate
+          ? "Start with a job-linked upload and optional GPS capture."
+          : "No visible evidence blockers in the current view.";
   const uploadsEmptyTitle = safeUploads.length === 0 ? "No uploads yet" : "No uploads match these filters";
   const uploadsEmptyDescription = safeUploads.length === 0
     ? "Photo evidence will appear here after the first field upload."
@@ -9642,6 +9694,89 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
           </div>
         }
       />
+
+      {permissions.uploads.canManageAll ? (
+        <div className="co-uploads-command-band mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
+          <Card className="co-uploads-command-card overflow-hidden">
+            <div className="co-uploads-command-shell">
+              <div className="co-uploads-command-main">
+                <div className="co-uploads-command-header">
+                  <div className="min-w-0">
+                    <p className="co-uploads-command-eyebrow">Evidence command</p>
+                    <h2>Photo proof, GPS context, and captions in one review pass</h2>
+                    <p>Use this board to see which field photos are ready for closeout and which ones need office context before the job packet moves.</p>
+                  </div>
+                  <div className="co-uploads-command-actions">
+                    <Button type="button" variant="secondary" onClick={jumpToBoard}>Open board</Button>
+                    <Button type="button" variant="secondary" onClick={() => setGpsFilter("Missing GPS")}>Missing GPS</Button>
+                    {canCreate ? <Button type="button" onClick={() => openTool("upload")}>Upload photo</Button> : null}
+                  </div>
+                </div>
+                <div className="co-uploads-command-metrics">
+                  <button type="button" className="co-focus-ring" data-tone="orange" onClick={() => setFilter("Active only")}>
+                    <span>Visible evidence</span>
+                    <strong>{visibleRows.length}</strong>
+                    <em>Current photo board</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" data-tone={todayUploadCount ? "orange" : "slate"} onClick={openTodayUploads}>
+                    <span>Today</span>
+                    <strong>{todayUploadCount}</strong>
+                    <em>Captured today</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" data-tone={gpsCount ? "green" : "slate"} onClick={() => setGpsFilter("Has GPS")}>
+                    <span>GPS captured</span>
+                    <strong>{gpsCount}</strong>
+                    <em>Location context present</em>
+                  </button>
+                  <button type="button" className="co-focus-ring" data-tone={missingGpsCount ? "amber" : "green"} onClick={() => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" })}>
+                    <span>Missing GPS</span>
+                    <strong>{missingGpsCount}</strong>
+                    <em>Needs context review</em>
+                  </button>
+                </div>
+                <div className="co-uploads-command-queues">
+                  {evidenceCommandItems.slice(1).map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <aside className="co-uploads-command-rail" aria-label="Photo evidence assistant">
+                <div className="co-uploads-command-rail-head">
+                  <span><Icon name="upload" /></span>
+                  <div className="min-w-0">
+                    <strong>Photo Assistant</strong>
+                    <p>Manual evidence review</p>
+                  </div>
+                </div>
+                <div className="co-uploads-command-priority">
+                  <span>Next best action</span>
+                  <strong>{evidenceNextAction}</strong>
+                  <p>{evidenceNextDetail}</p>
+                </div>
+                <div className="co-uploads-command-list">
+                  {evidenceCommandItems.map((item) => (
+                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.helper}</em>
+                      <b>{item.action}</b>
+                    </button>
+                  ))}
+                </div>
+                <div className="co-uploads-command-rail-actions">
+                  {canCreate ? <button type="button" className="co-focus-ring" onClick={() => openTool("upload")}><Icon name="upload" />Upload photo</button> : null}
+                  <button type="button" className="co-focus-ring" onClick={jumpToBoard}><Icon name="check" />Review board</button>
+                </div>
+              </aside>
+            </div>
+          </Card>
+        </div>
+      ) : null}
 
       {permissions.uploads.canManageAll ? (
         <UploadsMobileFocusPanel
