@@ -48,20 +48,21 @@ Current state:
 - Targeted Safety / Incidents text wrapping polish: built, verified, released, and health-checked so long incident and job labels wrap cleanly without horizontal overflow.
 - Targeted Jobs text wrapping polish: built, verified, released, and health-checked so long job IDs, job names, and crew-count context wrap cleanly without horizontal overflow.
 - Targeted Time Entries text wrapping polish: built, verified, released, and health-checked so long job/work labels wrap cleanly without horizontal overflow.
+- Targeted Estimate Studio text wrapping polish: built, verified, released, and health-checked so long estimate, customer, lead, and job labels wrap cleanly without horizontal overflow.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `dc8a90d`
-- Message: `Fix time table text wrapping`
-- Fly release: `v518`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWT99KMMXW5YA75QCRE99TT`
+- Commit: `428cdb5`
+- Message: `Fix estimates table text wrapping`
+- Fly release: `v519`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWTRD5KPD7N5H8AB0CPGDZY`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v518` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v519` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -117,6 +118,7 @@ Recent shipped phase stack:
 | `f0491d4` | `v516` | Safety / Incidents text wrapping polish |
 | `b84a226` | `v517` | Jobs text wrapping polish |
 | `dc8a90d` | `v518` | Time Entries text wrapping polish |
+| `428cdb5` | `v519` | Estimate Studio text wrapping polish |
 
 ## Done / Do Not Rebuild
 
@@ -208,6 +210,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Operations Command UX Upgrade Phase 1 | Built and released | Operations strip, operating plan, field execution, review/approve, billing readiness, and mobile KPI polish exist. |
 | Jobs text wrapping polish | Built and released | Long job IDs, job names, and assigned/needed crew counts now wrap inside fixed command-table cells instead of clipping; mobile job cards and field-role Field Mode behavior were preserved. |
 | Time Entries text wrapping polish | Built and released | Long job/work labels now wrap inside fixed Time command-table work cells instead of clipping; mobile time cards and field-role My Time behavior were preserved. |
+| Estimate Studio text wrapping polish | Built and released | Long estimate titles, customer names, lead labels, and converted job IDs now wrap inside fixed Estimate Studio command-table cells instead of clipping; mobile estimate cards and field-role estimate denial were preserved. |
 
 ## Recently Verified
 
@@ -272,6 +275,7 @@ Recent focused verification:
 - Safety / Incidents text wrapping polish release checks: targeted route sweep found desktop `/incidents` long incident and job labels clipping in fixed command-table cells. `npm.cmd run verify:safety`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/incidents` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop incident context wrapping with `overflow-wrap:anywhere`, and mobile incident cards still replacing the table. Released as Fly `v516` with image `registry.fly.io/concrete-ops-2:deployment-01KRWS5937ZWQX48FXTQ2R5B5H`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Jobs text wrapping polish release checks: targeted route sweep found desktop `/jobs` long job IDs, job names, and assigned/needed crew-count context clipping in fixed command-table cells. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/jobs` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop job identity and crew context wrapping with `overflow-wrap:anywhere`, mobile job cards still replacing the table, and employee mobile `/jobs` still rendering Field Mode without office, settings, upgrade, or pricing signals. Released as Fly `v517` with image `registry.fly.io/concrete-ops-2:deployment-01KRWSWXYDW6DJF2PNG4Y9NXWV`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Time Entries text wrapping polish release checks: targeted route sweep found desktop `/time` long job/work labels clipping in fixed command-table work cells. `npm.cmd run verify:time`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/time` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop time work labels wrapping with `overflow-wrap:anywhere`, mobile time cards still replacing the table, and employee mobile `/time` still rendering My Time without office, settings, upgrade, pricing, or admin signals. Released as Fly `v518` with image `registry.fly.io/concrete-ops-2:deployment-01KRWT99KMMXW5YA75QCRE99TT`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
+- Estimate Studio text wrapping polish release checks: targeted route sweep found desktop `/estimates` long proposal titles clipping in fixed command-table cells. `npm.cmd run verify:estimates`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/estimates` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop estimate/customer and lead/job context wrapping with `overflow-wrap:anywhere`, mobile estimate cards still replacing the table, and employee mobile direct `/estimates` still landing in Field Mode without estimate studio, pricing, proposal, or total signals. Released as Fly `v519` with image `registry.fly.io/concrete-ops-2:deployment-01KRWTRD5KPD7N5H8AB0CPGDZY`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -318,6 +322,7 @@ Do not start these phases again as if they are missing:
 - Safety / Incidents text wrapping polish.
 - Jobs text wrapping polish.
 - Time Entries text wrapping polish.
+- Estimate Studio text wrapping polish.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
