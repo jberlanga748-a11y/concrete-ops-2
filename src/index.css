@@ -28696,3 +28696,101 @@ textarea {
     border-radius: 0.5rem !important;
   }
 }
+
+@media (min-width: 1024px) {
+  .co-leads-page,
+  .co-jobs-page,
+  .co-customers-page,
+  .co-schedule-page {
+    background:
+      radial-gradient(circle at 88% 0%, rgba(249, 115, 22, 0.1), transparent 24rem),
+      linear-gradient(180deg, rgba(241, 245, 249, 0.98), rgba(248, 250, 252, 0.86) 44%, rgba(238, 243, 248, 0.94));
+  }
+
+  .co-leads-kpi-grid,
+  .co-jobs-kpi-grid,
+  .co-customers-kpi-grid,
+  .co-schedule-kpi-grid {
+    gap: 0.66rem !important;
+    padding-bottom: 0.68rem !important;
+  }
+
+  .co-leads-kpi-grid .co-command-kpi,
+  .co-jobs-kpi-grid .co-command-kpi,
+  .co-customers-kpi-grid .co-command-kpi,
+  .co-schedule-kpi-grid .co-command-kpi {
+    min-height: 5.15rem !important;
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background:
+      linear-gradient(135deg, #ffffff, rgba(248, 250, 252, 0.98) 62%, rgba(255, 247, 237, 0.62)) !important;
+    box-shadow: 0 18px 38px -34px rgba(7, 17, 31, 0.58) !important;
+  }
+
+  .co-leads-command-layout,
+  .co-jobs-command-layout,
+  .co-customers-command-layout,
+  .co-schedule-layout {
+    gap: 0.72rem !important;
+  }
+
+  .co-leads-main-board,
+  .co-jobs-main-board,
+  .co-customers-main-board,
+  .co-schedule-section {
+    border-color: rgba(203, 213, 225, 0.96) !important;
+    border-top-color: rgba(249, 115, 22, 0.76) !important;
+    background: rgba(255, 255, 255, 0.99) !important;
+    box-shadow: 0 22px 48px -42px rgba(7, 17, 31, 0.7) !important;
+  }
+
+  .co-leads-board-header,
+  .co-jobs-board-header,
+  .co-customers-board-header,
+  .co-schedule-section-header {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.94)) !important;
+    box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.82);
+  }
+
+  .co-leads-board-header h2,
+  .co-jobs-board-header h2,
+  .co-customers-board-header h2,
+  .co-schedule-section-header p {
+    color: #07111f !important;
+    letter-spacing: 0.055em !important;
+  }
+
+  .co-leads-main-board .co-filter-bar,
+  .co-jobs-main-board .co-filter-bar,
+  .co-customers-main-board .co-filter-bar {
+    border-top: 1px solid rgba(226, 232, 240, 0.96);
+    background:
+      linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.92)) !important;
+  }
+
+  .co-leads-command-table tbody tr:hover td,
+  .co-jobs-command-table tbody tr:hover td,
+  .co-customers-command-table tbody tr:hover td {
+    background: rgba(255, 247, 237, 0.56) !important;
+  }
+
+  .co-leads-rail-card,
+  .co-jobs-rail-card,
+  .co-customers-rail-card,
+  .co-schedule-rail-card {
+    border-color: rgba(203, 213, 225, 0.96) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background:
+      linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.96)) !important;
+    box-shadow: 0 18px 38px -34px rgba(7, 17, 31, 0.58) !important;
+  }
+
+  .co-schedule-rail {
+    padding-right: 4.2rem !important;
+  }
+
+  .co-schedule-quick-moves button,
+  .co-schedule-prep-list button {
+    border-radius: 0.5rem !important;
+  }
+}
