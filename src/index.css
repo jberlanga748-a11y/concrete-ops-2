@@ -4642,11 +4642,20 @@ textarea {
 
   .co-customers-command-table td:nth-child(3) p {
     max-width: 9.75rem;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .co-customers-command-table td:nth-child(4),
   .co-customers-command-table td:nth-child(5) {
-    white-space: nowrap;
+    white-space: normal;
+  }
+
+  .co-customers-command-table td:nth-child(5) span,
+  .co-customers-command-table td:nth-child(6) span {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .co-customers-command-table tbody tr:hover td {
