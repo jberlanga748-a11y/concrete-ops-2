@@ -7756,67 +7756,157 @@ function DailyReportsOperationsBoard({
       },
     },
   ];
+  const closeoutPriorityItems = [
+    {
+      label: "Missing reports",
+      value: missingReportJobs.length,
+      helper: `${boardDateLabel} jobs without a report`,
+      tone: missingReportJobs.length ? "orange" : "green",
+      action: missingReportJobs.length ? "Open missing" : "Clear",
+      onClick: () => {
+        onSetDateFilter(operatingDate);
+        onSetFilter("All");
+      },
+    },
+    {
+      label: "Review queue",
+      value: submittedCount,
+      helper: "Submitted for office signoff",
+      tone: submittedCount ? "orange" : "green",
+      action: canReview ? "Review" : "View",
+      onClick: () => onSetFilter("Submitted"),
+    },
+    {
+      label: "Proof gaps",
+      value: proofGapReports.length,
+      helper: "Photos, tickets, notes, or checklists",
+      tone: proofGapReports.length ? "amber" : "green",
+      action: proofGapReports.length ? "Inspect" : "Clear",
+      onClick: () => {
+        const target = proofGapReports[0];
+        if (target) onOpenReport(target);
+      },
+    },
+    {
+      label: "Drafts open",
+      value: needsActionCount,
+      helper: "Field reports still in progress",
+      tone: needsActionCount ? "amber" : "green",
+      action: needsActionCount ? "Open drafts" : "Clear",
+      onClick: () => onSetFilter("Draft"),
+    },
+  ];
+  const closeoutNextAction = proofGapReports.length
+    ? "Inspect the first proof gap"
+    : submittedCount
+      ? "Review submitted reports"
+      : missingReportJobs.length
+        ? "Start the next missing report"
+        : needsActionCount
+          ? "Open field drafts"
+          : "Closeout board is clear";
+  const closeoutNextDetail = proofGapReports.length
+    ? dailyReportProofSummary(proofStateByReportId.get(proofGapReports[0].id))
+    : submittedCount
+      ? `${submittedCount} report${submittedCount === 1 ? "" : "s"} waiting on office signoff`
+      : missingReportJobs.length
+        ? `${missingReportJobs.length} job${missingReportJobs.length === 1 ? "" : "s"} missing ${boardDateLabel} reports`
+        : needsActionCount
+          ? `${needsActionCount} draft${needsActionCount === 1 ? "" : "s"} still open`
+          : "Nothing urgent in the current view.";
 
   return (
     <div className="co-reports-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6" data-mode="office">
       <Card className="co-reports-ops-card overflow-hidden">
-        <div className="co-reports-ops-header">
-          <div className="min-w-0">
-            <p className="co-reports-ops-eyebrow">Daily closeout command</p>
-            <h2>Reports, proof, and review status in one pass</h2>
-            <p>Use this board to see what is missing before the day gets away from the office.</p>
-          </div>
-          <div className="co-reports-ops-actions">
-            {canCreate ? <Button type="button" onClick={() => onOpenReportTool("create")}>Start report</Button> : null}
-            <Button type="button" variant="secondary" onClick={() => onSetFilter("Submitted")}>Review submitted</Button>
-          </div>
-        </div>
-        <div className="co-reports-ops-review-grid">
-          {reviewTiles.map((tile) => (
-            <button key={tile.label} type="button" data-tone={tile.tone} onClick={tile.onClick}>
-              <span>{tile.label}</span>
-              <strong>{tile.value}</strong>
-              <em>{tile.helper}</em>
-              <b>{tile.action}</b>
-            </button>
-          ))}
-        </div>
-        <div className="co-reports-ops-lists">
-          <div>
-            <span className="co-reports-ops-list-title">Missing report</span>
-            {missingReportJobs.slice(0, 3).length ? missingReportJobs.slice(0, 3).map((job) => (
-              <button key={job.id} type="button" onClick={() => onStartReportForJob(job)}>
-                <strong>{jobTitle(job)}</strong>
-                <span>{jobScheduleLabel(job)}</span>
-              </button>
-            )) : <p>All visible active jobs have a report for the operating date.</p>}
-          </div>
-          <div>
-            <span className="co-reports-ops-list-title">Needs office review</span>
-            {reviewReports.length ? reviewReports.map((report) => (
-              <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
-                <strong>{jobTitle(report.job)}</strong>
-                <span>{report.reportDate} / {report.createdByName}</span>
-              </button>
-            )) : <p>No submitted reports are waiting in this view.</p>}
-          </div>
-          <div>
-            <span className="co-reports-ops-list-title">Proof gaps</span>
-            {evidenceGapReports.length ? evidenceGapReports.map((report) => {
-              const proof = proofStateByReportId.get(report.id);
-              return (
-                <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
-                  <strong>{jobTitle(report.job)}</strong>
-                  <span>{dailyReportProofSummary(proof)}</span>
+        <div className="co-reports-ops-command-shell">
+          <div className="co-reports-ops-command-main">
+            <div className="co-reports-ops-header">
+              <div className="min-w-0">
+                <p className="co-reports-ops-eyebrow">Daily closeout command</p>
+                <h2>Reports, proof, and review status in one pass</h2>
+                <p>Use this board to see what is missing before the day gets away from the office.</p>
+              </div>
+              <div className="co-reports-ops-actions">
+                {canCreate ? <Button type="button" onClick={() => onOpenReportTool("create")}>Start report</Button> : null}
+                <Button type="button" variant="secondary" onClick={() => onSetFilter("Submitted")}>Review submitted</Button>
+              </div>
+            </div>
+            <div className="co-reports-ops-review-grid">
+              {reviewTiles.map((tile) => (
+                <button key={tile.label} type="button" data-tone={tile.tone} onClick={tile.onClick}>
+                  <span>{tile.label}</span>
+                  <strong>{tile.value}</strong>
+                  <em>{tile.helper}</em>
+                  <b>{tile.action}</b>
                 </button>
-              );
-            }) : draftReports.length ? draftReports.map((report) => (
-              <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
-                <strong>{jobTitle(report.job)}</strong>
-                <span>{reportStatusLabel(report.status)} / {report.reportDate}</span>
-              </button>
-            )) : <p>Proof checklist is clear for the current view.</p>}
+              ))}
+            </div>
+            <div className="co-reports-ops-lists">
+              <div>
+                <span className="co-reports-ops-list-title">Missing report</span>
+                {missingReportJobs.slice(0, 3).length ? missingReportJobs.slice(0, 3).map((job) => (
+                  <button key={job.id} type="button" onClick={() => onStartReportForJob(job)}>
+                    <strong>{jobTitle(job)}</strong>
+                    <span>{jobScheduleLabel(job)}</span>
+                  </button>
+                )) : <p>All visible active jobs have a report for the operating date.</p>}
+              </div>
+              <div>
+                <span className="co-reports-ops-list-title">Needs office review</span>
+                {reviewReports.length ? reviewReports.map((report) => (
+                  <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
+                    <strong>{jobTitle(report.job)}</strong>
+                    <span>{report.reportDate} / {report.createdByName}</span>
+                  </button>
+                )) : <p>No submitted reports are waiting in this view.</p>}
+              </div>
+              <div>
+                <span className="co-reports-ops-list-title">Proof gaps</span>
+                {evidenceGapReports.length ? evidenceGapReports.map((report) => {
+                  const proof = proofStateByReportId.get(report.id);
+                  return (
+                    <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
+                      <strong>{jobTitle(report.job)}</strong>
+                      <span>{dailyReportProofSummary(proof)}</span>
+                    </button>
+                  );
+                }) : draftReports.length ? draftReports.map((report) => (
+                  <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
+                    <strong>{jobTitle(report.job)}</strong>
+                    <span>{reportStatusLabel(report.status)} / {report.reportDate}</span>
+                  </button>
+                )) : <p>Proof checklist is clear for the current view.</p>}
+              </div>
+            </div>
           </div>
+          <aside className="co-reports-ops-closeout-rail" aria-label="Daily reports closeout assistant">
+            <div className="co-reports-ops-rail-head">
+              <span><Icon name="document" /></span>
+              <div className="min-w-0">
+                <strong>Closeout Assistant</strong>
+                <p>Manual review queue</p>
+              </div>
+            </div>
+            <div className="co-reports-ops-rail-priority">
+              <span>Next best action</span>
+              <strong>{closeoutNextAction}</strong>
+              <p>{closeoutNextDetail}</p>
+            </div>
+            <div className="co-reports-ops-rail-list">
+              {closeoutPriorityItems.map((item) => (
+                <button key={item.label} type="button" data-tone={item.tone} onClick={item.onClick}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <em>{item.helper}</em>
+                  <b>{item.action}</b>
+                </button>
+              ))}
+            </div>
+            <div className="co-reports-ops-rail-actions">
+              {canCreate ? <button type="button" onClick={() => onOpenReportTool("create")}><Icon name="plus" />Start report</button> : null}
+              <button type="button" onClick={() => onSetFilter("Submitted")}><Icon name="check" />Review submitted</button>
+            </div>
+          </aside>
         </div>
       </Card>
     </div>
