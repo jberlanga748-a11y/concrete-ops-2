@@ -11970,6 +11970,13 @@ textarea {
   width: 8%;
 }
 
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(1) p,
+.co-tool-checklist-page .co-toolbox-command-table td:nth-child(2) p {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .co-tool-checklist-status-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
