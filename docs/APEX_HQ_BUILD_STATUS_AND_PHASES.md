@@ -54,20 +54,21 @@ Current state:
 - Targeted Jobs progress header polish: built, verified, released, and health-checked so the Jobs command table `Progress` header no longer clips on desktop while mobile cards and field-role Field Mode behavior remain intact.
 - Targeted Dashboard status badge clipping polish: built, verified, released, and health-checked so dense Dashboard cockpit status badges no longer shrink into clipped text while owner/admin desktop/mobile and field-role redirects remain intact.
 - Targeted Schedule job card readability polish: built, verified, released, and health-checked so compact Schedule coordination cards keep job titles, location context, and status badges readable without broken word wrapping while mobile and field-role redirects remain intact.
+- Targeted Communications mobile nav label polish: built, verified, released, and health-checked so the office mobile bottom nav shows `Comms` instead of clipping `Communications` while preserving the full accessible label and field-role redirects.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `6ebdcf1`
-- Message: `Polish schedule job card readability`
-- Fly release: `v524`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWXG4WGKNH243AHZRDM2SBM`
+- Commit: `117d040`
+- Message: `Polish mobile communication nav label`
+- Fly release: `v525`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWY41N2PVVR1XBV59WJZAN6`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v524` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v525` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -129,6 +130,7 @@ Recent shipped phase stack:
 | `5b2383e` | `v522` | Jobs progress header polish |
 | `fb22557` | `v523` | Dashboard status badge clipping polish |
 | `6ebdcf1` | `v524` | Schedule job card readability polish |
+| `117d040` | `v525` | Communications mobile nav label polish |
 
 ## Done / Do Not Rebuild
 
@@ -171,6 +173,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
 | Managed Setup Support Handoff Phase 1 | Built and released | Owner/admin Settings Managed Setup can open Support with copy-only setup readiness context: status, progress, critical blockers, next action, and setup notes. Support only includes that managed setup context for office/admin-capable users, and field users remain blocked from Settings and setup data. No package changes, billing, payments, invoices, field permission widening, auto-send, or rollout automation were added. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
+| Communications mobile nav label polish | Built and released | Owner/admin mobile Communication Center bottom nav now shows `Comms` in the compact bar so the active label does not clip; the button keeps `Communications` as its accessible label and field roles remain redirected to Field Mode. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
 | Premium Finished SaaS Polish Phase 1 | Built and released | Operations Command now matches the finished-visual direction more closely with the Operations Command label, dark premium top bar, owner/admin metric strip, tighter command cockpit/cards, responsive mobile rendering, and field-role denial preserved. No new billing, package controls, checkout, invoices, payment collection, support workflow, customer portal, automation, or permission widening was added. |
 | Premium Finished SaaS Polish Phase 2 | Built and released | Field Mode mobile now aligns more closely with the finished visual: dark premium Field Mode header, dark/orange operator hero, compact required-item rows, tighter action tiles, and field-safe direct-route behavior preserved. Foremen/employees still do not see Operations Command, Settings, billing, pricing, package controls, or office-only upgrade surfaces. No backend records, checkout, billing, support handoff, automation, or permission widening was added. |
@@ -292,6 +295,7 @@ Recent focused verification:
 - Jobs progress header polish release checks: targeted route sweep found desktop `/jobs` `Progress` header clipping in the fixed Jobs command table. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/jobs` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop `Progress` header no longer clipped, owner mobile job cards still replacing the table, and employee mobile direct `/jobs` stayed in Field Mode without office, settings, upgrade, pricing, billing, AI Office, or App Health signals. Released as Fly `v522` with image `registry.fly.io/concrete-ops-2:deployment-01KRWW3SXWMFVASPYTM2NR10T4`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Dashboard status badge clipping polish release checks: targeted route sweep found desktop `/dashboard` dense cockpit buttons with status badges shrinking narrower than their badge text. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/dashboard` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, Dashboard cockpit buttons no longer measured wider than their containers, no table header clipping, and employee mobile direct `/dashboard` redirected to Field Mode without office, leads, estimates, settings, upgrade, pricing, billing, AI Office, or App Health signals. Released as Fly `v523` with image `registry.fly.io/concrete-ops-2:deployment-01KRWWPGG33PNEZ2313FH6JZ9B`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Schedule job card readability polish release checks: north-star route sweep found compact `/schedule` desktop cards squeezing job titles and status badges into the same narrow row, causing broken job-name wrapping in the operating plan. CSS-only patch keeps compact schedule card title/location context full-width and moves badges below for scan speed. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/mobile plus employee mobile direct-route QA passed. Browser QA confirmed `/schedule` had no horizontal overflow, no console errors, no failed requests, no clipped schedule job title/location/badge text after rebuild, and employee direct `/schedule`, `/leads`, `/estimates`, and `/settings` redirected to Field Mode without office nav. Released as Fly `v524` with image `registry.fly.io/concrete-ops-2:deployment-01KRWXG4WGKNH243AHZRDM2SBM`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Communications mobile nav label polish release checks: browser QA found owner/admin mobile `/communications` bottom nav clipping the active `Communications` label in the compact phone bar. Runtime change displays `Comms` only in the primary mobile nav label while preserving `aria-label="Communications"` and full route behavior. `npm.cmd run verify:leads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner/admin mobile plus employee mobile direct-route QA passed. Browser QA confirmed `/communications` had no horizontal overflow, no console errors, no failed requests, no clipped primary bottom-nav labels, the full accessible label remained `Communications`, and employee direct `/communications` redirected to Field Mode without office nav. Released as Fly `v525` with image `registry.fly.io/concrete-ops-2:deployment-01KRWY41N2PVVR1XBV59WJZAN6`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
 
 ## Current Loop Prevention Rules
 
