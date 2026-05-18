@@ -34814,3 +34814,217 @@ textarea {
   text-overflow: clip;
   white-space: normal;
 }
+
+.co-estimates-page {
+  --co-estimates-rail-line: rgba(148, 163, 184, 0.2);
+  --co-estimates-rail-panel: rgba(15, 23, 42, 0.86);
+  --co-estimates-rail-panel-soft: rgba(255, 255, 255, 0.065);
+}
+
+@media (min-width: 1024px) {
+  .co-estimates-page .co-page-header {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16) !important;
+    background:
+      radial-gradient(circle at 92% 0%, rgba(249, 115, 22, 0.16), transparent 16rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.95)) !important;
+    box-shadow: 0 24px 58px -44px rgba(2, 6, 23, 0.9) !important;
+  }
+
+  .co-estimates-page .co-page-header h1 {
+    color: #07111f !important;
+  }
+
+  .co-estimates-page .co-page-header p:first-child {
+    color: #c2410c !important;
+  }
+
+  .co-estimates-page .co-page-header p:not(:first-child) {
+    color: #52647a !important;
+  }
+
+  .co-estimates-page .co-page-header .co-page-header-actions button:not(:last-child) {
+    border-color: rgba(203, 213, 225, 0.98) !important;
+    background: #ffffff !important;
+    color: #07111f !important;
+  }
+
+  .co-estimates-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21.5rem, 23.5rem) !important;
+    gap: 0.74rem !important;
+  }
+
+  .co-estimates-main-board {
+    border-radius: 0.72rem !important;
+    overflow: hidden;
+  }
+
+  .co-estimates-board-header {
+    min-height: 4.25rem;
+  }
+
+  .co-estimates-board-header p {
+    display: block !important;
+    max-width: 48rem;
+    color: #64748b !important;
+    font-size: 0.76rem !important;
+    line-height: 1.28 !important;
+  }
+
+  .co-estimates-command-table td:nth-child(1) p,
+  .co-estimates-command-table td:nth-child(5) p,
+  .co-estimates-command-table td:nth-child(6) {
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .co-estimates-command-table th,
+  .co-estimates-command-table td {
+    padding-left: 0.54rem !important;
+    padding-right: 0.54rem !important;
+  }
+
+  .co-estimates-right-rail {
+    position: sticky !important;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.72rem) !important;
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 1.15rem) !important;
+    overflow-y: auto !important;
+    border: 1px solid var(--co-estimates-rail-line);
+    border-radius: 0.55rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.18), transparent 13rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    padding: 0.62rem !important;
+    box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.92);
+    scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+  }
+
+  .co-office-page .co-estimates-right-rail {
+    padding: 0.62rem !important;
+  }
+
+  .co-module-frame:not(.co-module-commandCenter) .co-office-page.co-estimates-page .co-estimates-right-rail > .co-estimates-rail-card.co-card,
+  .co-estimates-right-rail > .co-estimates-rail-card {
+    border-color: var(--co-estimates-rail-line) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-estimates-rail-panel) !important;
+    background-color: var(--co-estimates-rail-panel) !important;
+    box-shadow: none !important;
+    color: #e5edf6 !important;
+  }
+
+  .co-estimates-right-rail .co-section-accent::before {
+    background: #fb923c !important;
+  }
+
+  .co-estimates-right-rail .co-section-accent h2,
+  .co-estimates-right-rail h3,
+  .co-estimates-right-rail strong,
+  .co-estimates-right-rail .text-slate-950,
+  .co-estimates-right-rail .co-estimates-total-spotlight strong {
+    color: #f8fafc !important;
+  }
+
+  .co-estimates-right-rail .co-section-accent p,
+  .co-estimates-right-rail .text-slate-400,
+  .co-estimates-right-rail .text-slate-500,
+  .co-estimates-right-rail .text-slate-600,
+  .co-estimates-right-rail .text-slate-700,
+  .co-estimates-right-rail .co-estimates-total-spotlight span {
+    color: #cbd5e1 !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-total-spotlight,
+  .co-estimates-right-rail .co-estimates-summary-facts,
+  .co-estimates-right-rail .co-estimates-action-row {
+    border-color: rgba(148, 163, 184, 0.2) !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-total-spotlight {
+    background:
+      radial-gradient(circle at 90% 0%, rgba(249, 115, 22, 0.28), transparent 9rem),
+      linear-gradient(135deg, rgba(2, 6, 23, 0.62), rgba(15, 23, 42, 0.92)) !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-action-row {
+    background: var(--co-estimates-rail-panel-soft) !important;
+    color: #f8fafc !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-action-row:hover:not(:disabled) {
+    border-color: rgba(249, 115, 22, 0.36) !important;
+    background: rgba(249, 115, 22, 0.13) !important;
+    color: #fff7ed !important;
+  }
+
+  .co-estimates-right-rail .co-button-secondary {
+    border-color: rgba(148, 163, 184, 0.24) !important;
+    background: rgba(255, 255, 255, 0.075) !important;
+    color: #f8fafc !important;
+  }
+
+  .co-estimates-tools-drawer {
+    padding-bottom: 1rem !important;
+  }
+
+  .co-estimates-tools-drawer > summary {
+    min-height: 3.92rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.14), transparent 13rem),
+      linear-gradient(180deg, #1e293b 0%, #111827 100%) !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1180px) {
+  .co-estimates-command-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .co-estimates-right-rail {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .co-estimates-tools-panel > .co-card {
+    border-radius: 0.72rem !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-estimates-page .co-page-header .co-page-header-actions {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-estimates-page .co-page-header .co-page-header-actions button,
+  .co-estimates-page button,
+  .co-estimates-page summary {
+    min-height: 2.75rem !important;
+  }
+
+  .co-estimates-board-header p {
+    display: block !important;
+  }
+
+  .co-estimates-mobile-list {
+    gap: 0.72rem !important;
+    padding: 0.72rem !important;
+  }
+
+  .co-estimates-mobile-card {
+    border-radius: 0.9rem !important;
+    padding: 0.78rem !important;
+  }
+
+  .co-estimates-tools-drawer > summary span {
+    min-width: 0;
+  }
+
+  .co-estimates-tools-drawer > summary strong,
+  .co-estimates-tools-drawer > summary em,
+  .co-estimates-tools-drawer > summary > span:last-child {
+    overflow-wrap: anywhere;
+  }
+}
