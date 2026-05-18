@@ -11217,10 +11217,63 @@ function ToolboxTalksTablePolished({ policies, selectedId, onSelect, onOpenTalk 
   );
 }
 
-function ToolboxTalkCommandRailPolished({ policy, canAcknowledge, canManage, ackState, ppeItems, onOpenTool }) {
+function ToolboxTalkCommandRailPolished({ policy, canAcknowledge, canManage, ackState, ppeItems, onOpenTool, isOfficeWorkspace = false }) {
+  const requiredPpeCount = ppeItems.filter((item) => item.requiredByDefault).length;
+  const railClassName = `co-toolbox-right-rail space-y-4${isOfficeWorkspace ? " co-toolbox-talks-office-assistant" : ""}`;
+  const assistantPriorities = policy ? [
+    {
+      label: ackState.hasAcknowledged ? "Crew review is acknowledged for the current user" : "Crew review still needs acknowledgment",
+      tone: ackState.hasAcknowledged ? "ready" : "warn",
+    },
+    {
+      label: requiredPpeCount ? `${requiredPpeCount} required PPE reminder${requiredPpeCount === 1 ? "" : "s"} tied to this review` : "No required PPE reminders are marked yet",
+      tone: requiredPpeCount ? "ready" : "default",
+    },
+    {
+      label: policy.archivedAt ? "Archived guidance stays out of field focus" : `${policy.statusLabel || "Active"} guidance is visible to the crew`,
+      tone: policy.archivedAt ? "warn" : "ready",
+    },
+  ] : [
+    { label: "Select a toolbox talk to load crew guidance", tone: "default" },
+    { label: "Keep acknowledgments short and field-safe", tone: "ready" },
+    { label: canManage ? "Create practical guidance before the morning huddle" : "PPE reminders stay available without office controls", tone: "warn" },
+  ];
+  const assistantActions = [
+    { label: "Open PPE reminders", icon: "hardhat", onClick: () => onOpenTool("ppe"), show: true },
+    { label: policy ? "Acknowledge review" : "Prepare acknowledgment", icon: "check", onClick: () => onOpenTool("ack"), show: Boolean(canAcknowledge) },
+    { label: policy ? "Edit guidance" : "Manage guidance", icon: "settings", onClick: () => onOpenTool("manage"), show: Boolean(canManage) },
+  ].filter((item) => item.show);
+
   if (!policy) {
     return (
-      <div className="co-toolbox-right-rail space-y-4">
+      <div className={railClassName}>
+        {isOfficeWorkspace ? (
+          <Card className="co-prepour-assistant-card p-0">
+            <div className="co-prepour-assistant-topbar">
+              <span><Icon name="spark" /></span>
+              <strong>Apex Assistant</strong>
+              <em>Safety</em>
+            </div>
+            <div className="co-prepour-assistant-body">
+              <p className="co-prepour-assistant-kicker">Toolbox command</p>
+              <h3>Select a talk before the crew huddle.</h3>
+              <p>Pick current guidance to see PPE reminders, acknowledgment status, and the next office action.</p>
+              <div className="co-prepour-assistant-priorities">
+                {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+              </div>
+              {assistantActions.length ? (
+                <div className="co-prepour-assistant-actions">
+                  {assistantActions.map((item) => (
+                    <button key={item.label} type="button" onClick={item.onClick}>
+                      <Icon name={item.icon} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
         <Card className="co-toolbox-rail-card p-4">
           <SectionHeader title="Toolbox Console" description="Select a talk or create guidance for the crew." />
           <div className="co-toolbox-empty-rail">
@@ -11234,10 +11287,35 @@ function ToolboxTalkCommandRailPolished({ policy, canAcknowledge, canManage, ack
     );
   }
 
-  const requiredPpeCount = ppeItems.filter((item) => item.requiredByDefault).length;
-
   return (
-    <div className="co-toolbox-right-rail space-y-4">
+    <div className={railClassName}>
+      {isOfficeWorkspace ? (
+        <Card className="co-prepour-assistant-card p-0">
+          <div className="co-prepour-assistant-topbar">
+            <span><Icon name="spark" /></span>
+            <strong>Apex Assistant</strong>
+            <em>Safety</em>
+          </div>
+          <div className="co-prepour-assistant-body">
+            <p className="co-prepour-assistant-kicker">Toolbox command</p>
+            <h3>{policy.title || "Selected toolbox talk"}</h3>
+            <p>{policy.category || "Safety"} / Updated {formatDateTime(toolboxPolicyUpdatedAt(policy)) || "No date"} / {requiredPpeCount} PPE required</p>
+            <div className="co-prepour-assistant-priorities">
+              {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+            </div>
+            {assistantActions.length ? (
+              <div className="co-prepour-assistant-actions">
+                {assistantActions.map((item) => (
+                  <button key={item.label} type="button" onClick={item.onClick}>
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
       <Card className="co-toolbox-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -11372,7 +11450,7 @@ function ToolboxManagePanelPolished({
 function ToolboxPpePanelPolished({ ppeItems, canManage, selectedPpeItem, setSelectedPpeId, ppeDraft, setPpeDraft, onPpeSubmit, onArchivePpeItem, busy }) {
   return (
     <Card className="co-toolbox-form-card p-4">
-      <SectionHeader title="PPE Reminders" description="PPE expectations stay visible with toolbox talks and editable only by office/admin roles." />
+      <SectionHeader title="PPE Reminders" description={canManage ? "PPE expectations stay visible with toolbox talks and editable only by office/admin roles." : "PPE expectations stay visible with toolbox talks and crew acknowledgments."} />
       {ppeItems.length === 0 ? (
         <StateCard title="No PPE items yet" description="Add PPE items to support field toolbox reviews." tone="slate" />
       ) : (
@@ -11620,7 +11698,7 @@ function ToolboxTalksPagePolished({
     : [crewReviewPriorityCard, currentTalkPriorityCard, ppeRemindersPriorityCard];
 
   return (
-    <div className={`co-office-page co-toolbox-page co-toolbox-talks-page ${canManage ? "" : "co-field-tool-page"}`}>
+    <div className={`co-office-page co-toolbox-page co-toolbox-talks-page ${canManage ? "" : "co-field-tool-page"}`} data-field-workspace={canManage ? "false" : "true"}>
       <PageHeader
         eyebrow={canManage ? "Office Safety" : "Field Safety"}
         title="Toolbox Talks"
@@ -11688,7 +11766,7 @@ function ToolboxTalksPagePolished({
               <input className="field-input co-toolbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search toolbox talk, category, guidance..." />
             </div>
             {filteredPolicies.length === 0 ? (
-              <div className="p-5"><StateCard title={visiblePolicies.length === 0 ? "No toolbox talks yet" : "No toolbox talks match these filters"} description={visiblePolicies.length === 0 ? "Create the first safety policy or toolbox talk to start crew guidance." : "Clear the category or search another topic."} tone="slate" /></div>
+              <div className="p-5"><StateCard title={visiblePolicies.length === 0 ? "No toolbox talks yet" : "No toolbox talks match these filters"} description={visiblePolicies.length === 0 ? (canManage ? "Create the first safety policy or toolbox talk to start crew guidance." : "Toolbox guidance will show here when it is available for the crew.") : "Clear the category or search another topic."} tone="slate" /></div>
             ) : (
               <ToolboxTalksTablePolished
                 policies={filteredPolicies}
@@ -11711,7 +11789,7 @@ function ToolboxTalksPagePolished({
             <summary>
               <span>
                 <strong>Toolbox Tools</strong>
-                <em>Acknowledge crew review, manage guidance, and keep PPE reminders close to the talk.</em>
+                <em>{canManage ? "Acknowledge crew review, manage guidance, and keep PPE reminders close to the talk." : "Acknowledge crew review and keep PPE reminders close to the talk."}</em>
               </span>
               <span>Open tools</span>
             </summary>
@@ -11732,7 +11810,9 @@ function ToolboxTalksPagePolished({
           </details>
         </div>
 
-        <ToolboxTalkCommandRailPolished policy={selectedTalk} canAcknowledge={canAcknowledge} canManage={canManage} ackState={acknowledgmentState} ppeItems={activePpeItems} onOpenTool={openTools} />
+        {canManage ? (
+          <ToolboxTalkCommandRailPolished policy={selectedTalk} canAcknowledge={canAcknowledge} canManage={canManage} ackState={acknowledgmentState} ppeItems={activePpeItems} onOpenTool={openTools} isOfficeWorkspace={canManage} />
+        ) : null}
       </div>
     </div>
   );
