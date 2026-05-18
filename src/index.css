@@ -21426,6 +21426,51 @@ textarea {
   }
 }
 
+@media (min-width: 1280px) {
+  .co-employees-priority-card {
+    align-self: start;
+  }
+
+  .co-employees-priority-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem;
+  }
+
+  .co-employees-priority-list button {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    align-content: start;
+    min-height: 6.1rem;
+    padding: 0.58rem;
+  }
+
+  .co-employees-priority-list button > span {
+    height: 1.8rem;
+    width: 1.8rem;
+  }
+
+  .co-employees-priority-list strong {
+    align-self: center;
+    font-size: 0.74rem;
+  }
+
+  .co-employees-priority-list em {
+    display: -webkit-box;
+    grid-column: 1 / -1;
+    margin-top: 0.04rem;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .co-employees-priority-list b {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: start !important;
+    margin-top: 0.12rem;
+    padding: 0.22rem 0.42rem;
+  }
+}
+
 .co-employees-priority-list button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
