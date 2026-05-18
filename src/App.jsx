@@ -28860,9 +28860,9 @@ function EstimateCommandRailPolished({
   if (!estimate) {
     return (
       <div className="co-estimates-right-rail space-y-4">
-        <Card className="co-estimates-rail-card p-4">
+        <Card className="co-estimates-rail-card co-estimates-empty-card p-4">
           <SectionHeader
-            title="Selected estimate summary"
+            title="Estimate Studio Summary"
             description={newDraftMode
               ? "AI Rough Notes is building a new draft. No saved estimate is selected yet."
               : "Choose an estimate from the board to review proposal totals, workflow, and tools."}
@@ -28877,16 +28877,21 @@ function EstimateCommandRailPolished({
 
   return (
     <div className="co-estimates-right-rail space-y-4">
-      <Card className="co-estimates-rail-card p-4">
+      <Card className="co-estimates-rail-card co-estimates-selected-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Estimate Summary</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Estimate Studio Summary</p>
             <h3 className="mt-2 break-words text-xl font-black text-slate-950">{estimateDisplayTitle(estimate)}</h3>
             <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimateDisplayCustomer(estimate)}</p>
           </div>
           <StatusBadge status={estimateStatusLabel(estimate.status)} />
         </div>
-        <div className="mt-4 grid gap-2 text-sm font-bold text-slate-700">
+        <div className="co-estimates-total-spotlight">
+          <p>Estimate total</p>
+          <strong>{formatEstimateCurrency(optionTotals.totalWithSelectedOptions)}</strong>
+          <span>Base {formatEstimateCurrency(totals.grandTotal)} + selected options {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}</span>
+        </div>
+        <div className="co-estimates-summary-facts mt-4 grid gap-2 text-sm font-bold text-slate-700">
           <p><span className="text-slate-400">Base total:</span> {formatEstimateCurrency(totals.grandTotal)}</p>
           <p><span className="text-slate-400">Selected options:</span> {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}</p>
           <p><span className="text-slate-400">Customer email:</span> {estimateCustomerEmail(preview) || "Not set"}</p>
@@ -28902,7 +28907,7 @@ function EstimateCommandRailPolished({
         {copyFeedback ? <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">{copyFeedback}</p> : null}
       </Card>
 
-      <Card className="co-estimates-rail-card p-4">
+      <Card className="co-estimates-rail-card co-estimates-actions-card p-4">
         <SectionHeader title="Proposal actions" description={emailSendingConfigured ? "Email sending is configured." : "Manual send mode: copy or print the customer-ready message, then record the send in Apex HQ."} />
         <div className="grid gap-2">
           <button type="button" className="co-estimates-action-row" onClick={onCopyEstimate} disabled={!preview}>
@@ -28934,7 +28939,7 @@ function EstimateCommandRailPolished({
         </div>
       </Card>
 
-      <Card className="co-estimates-rail-card p-4">
+      <Card className="co-estimates-rail-card co-estimates-tools-card p-4">
         <SectionHeader title="Estimate tools" description="Pricing, line items, AI notes, proposal sections, SOV, and packet settings stay in the tools drawer." />
         <div className="grid grid-cols-2 gap-2">
           {canManage && canUseAiRoughNotes ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("roughNotes")}>AI notes</Button> : null}
@@ -29422,8 +29427,8 @@ function EstimatesPagePolished({
     <div className="co-office-page co-estimates-page">
       <PageHeader
         eyebrow="Office Sales"
-        title="Estimates"
-        description="Build proposals, review pricing, send customer-ready packets, and move approved work into jobs."
+        title="Estimate Studio"
+        description="Build proposal options, review pricing, assemble packet backup, and move approved work into jobs."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => openEstimateTool("edit")}>{filteredRows.length} visible estimates</Button>
@@ -29442,7 +29447,7 @@ function EstimatesPagePolished({
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
                   <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Estimate Board / Proposal Queue</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter proposals, select a record, and work estimate actions from the right rail.</p>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a proposal, review totals, and work customer-ready actions from the studio rail.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All estimates</Button>
@@ -29535,7 +29540,7 @@ function EstimatesPagePolished({
       >
         <summary>
           <span>
-            <strong>Estimate Tools</strong>
+            <strong>Estimate Studio Tools</strong>
             <em>Create, edit, price, packet, and proposal backup tools stay available here.</em>
           </span>
           <span>Open tools</span>
