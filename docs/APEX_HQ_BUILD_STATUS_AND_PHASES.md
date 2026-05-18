@@ -53,20 +53,21 @@ Current state:
 - Targeted Leads follow-up header polish: built, verified, released, and health-checked so the Leads command table `Follow-Up` header no longer clips on desktop while mobile cards and field-role redirects remain intact.
 - Targeted Jobs progress header polish: built, verified, released, and health-checked so the Jobs command table `Progress` header no longer clips on desktop while mobile cards and field-role Field Mode behavior remain intact.
 - Targeted Dashboard status badge clipping polish: built, verified, released, and health-checked so dense Dashboard cockpit status badges no longer shrink into clipped text while owner/admin desktop/mobile and field-role redirects remain intact.
+- Targeted Schedule job card readability polish: built, verified, released, and health-checked so compact Schedule coordination cards keep job titles, location context, and status badges readable without broken word wrapping while mobile and field-role redirects remain intact.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `fb22557`
-- Message: `Fix dashboard status badge clipping`
-- Fly release: `v523`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWWPGG33PNEZ2313FH6JZ9B`
+- Commit: `6ebdcf1`
+- Message: `Polish schedule job card readability`
+- Fly release: `v524`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWXG4WGKNH243AHZRDM2SBM`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v523` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v524` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -127,6 +128,7 @@ Recent shipped phase stack:
 | `6b431d6` | `v521` | Leads follow-up header polish |
 | `5b2383e` | `v522` | Jobs progress header polish |
 | `fb22557` | `v523` | Dashboard status badge clipping polish |
+| `6ebdcf1` | `v524` | Schedule job card readability polish |
 
 ## Done / Do Not Rebuild
 
@@ -183,6 +185,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | GC packet / foreman handoff packet split | Built and released | GC/customer-facing packet and foreman field handoff packet are separated. |
 | Jobs / crew assignments | Done/frozen | Extend only for planned workflows. |
 | Today Work / Schedule coordination | Built and released | Practical coordination board exists. |
+| Schedule job card readability polish | Built and released | Compact Schedule coordination cards now keep job titles, customer/location context, and status badges readable without broken word wrapping on desktop; mobile and field-role redirects were preserved. |
 | Notifications / reminders foundation | Built and released | Operational reminders exist. |
 | Time Tracking Support Handoff Phase 1 | Built and released | Time Tracking can open Support with a role-scoped copy-only time support request. Owner/admin context summarizes all visible company time; foreman context summarizes assigned crew time; employee context stays limited to own visible time. The packet excludes payroll rates, gross pay, pricing, margin, and hidden users. No payroll, accounting, billing, automatic messages, clock automation, or permission widening was added. |
 | Daily Reports Support Handoff Phase 1 | Built and released | Daily Reports can open Support with a role-scoped copy-only report support request. Owner/admin context summarizes all visible company reports; foreman context stays limited to assigned field-visible reports; employees remain blocked from Daily Reports and are redirected to field-safe Jobs. The packet excludes payroll rates, gross pay, pricing, margin values, internal cost fields, hidden users, unrelated jobs, automatic messages, and customer data mutation. |
@@ -288,6 +291,7 @@ Recent focused verification:
 - Leads follow-up header polish release checks: targeted route sweep found desktop `/leads` `Follow-Up` header clipping in the fixed Leads command table. `npm.cmd run verify:leads`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/leads` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop `Follow-Up` header no longer clipped, owner mobile lead cards still replacing the table, and employee mobile direct `/leads` redirected to Field Mode without leads, office, settings, upgrade, pricing, billing, or AI Office signals. Released as Fly `v521` with image `registry.fly.io/concrete-ops-2:deployment-01KRWVNB5NVTYPMPVBSBQK9P3Y`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok. Deploy emitted the known listening-address warning, but post-deploy status and ready checks passed.
 - Jobs progress header polish release checks: targeted route sweep found desktop `/jobs` `Progress` header clipping in the fixed Jobs command table. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/jobs` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, desktop `Progress` header no longer clipped, owner mobile job cards still replacing the table, and employee mobile direct `/jobs` stayed in Field Mode without office, settings, upgrade, pricing, billing, AI Office, or App Health signals. Released as Fly `v522` with image `registry.fly.io/concrete-ops-2:deployment-01KRWW3SXWMFVASPYTM2NR10T4`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Dashboard status badge clipping polish release checks: targeted route sweep found desktop `/dashboard` dense cockpit buttons with status badges shrinking narrower than their badge text. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop, owner mobile, and employee mobile direct browser QA for `/dashboard` passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, Dashboard cockpit buttons no longer measured wider than their containers, no table header clipping, and employee mobile direct `/dashboard` redirected to Field Mode without office, leads, estimates, settings, upgrade, pricing, billing, AI Office, or App Health signals. Released as Fly `v523` with image `registry.fly.io/concrete-ops-2:deployment-01KRWWPGG33PNEZ2313FH6JZ9B`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Schedule job card readability polish release checks: north-star route sweep found compact `/schedule` desktop cards squeezing job titles and status badges into the same narrow row, causing broken job-name wrapping in the operating plan. CSS-only patch keeps compact schedule card title/location context full-width and moves badges below for scan speed. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/mobile plus employee mobile direct-route QA passed. Browser QA confirmed `/schedule` had no horizontal overflow, no console errors, no failed requests, no clipped schedule job title/location/badge text after rebuild, and employee direct `/schedule`, `/leads`, `/estimates`, and `/settings` redirected to Field Mode without office nav. Released as Fly `v524` with image `registry.fly.io/concrete-ops-2:deployment-01KRWXG4WGKNH243AHZRDM2SBM`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
