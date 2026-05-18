@@ -12054,9 +12054,82 @@ textarea {
   align-items: start;
 }
 
+.co-incidents-page[data-field-workspace="true"] .co-incidents-command-layout {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
 @media (min-width: 1024px) {
   .co-incidents-command-layout {
     grid-template-columns: minmax(0, 1fr) 340px !important;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-command-layout {
+    grid-template-columns: minmax(0, 1fr) 380px !important;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 0.95rem;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(249, 115, 22, 0.2), transparent 34%),
+      linear-gradient(180deg, #0d1723 0%, #07111f 100%);
+    box-shadow: 0 24px 52px -28px rgba(2, 6, 23, 0.82);
+    padding: 0.72rem;
+    scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant > .co-card {
+    border: 1px solid rgba(148, 163, 184, 0.18) !important;
+    background: rgba(15, 23, 42, 0.68) !important;
+    box-shadow: none !important;
+    color: #e5edf6;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-prepour-assistant-card {
+    display: block;
+    overflow: hidden;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-section-accent h2,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant h3,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-empty-rail strong,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-readiness-list strong,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-selected-metrics strong {
+    color: #f8fafc !important;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-section-accent p,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-empty-rail p,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-note-panel p {
+    color: #cbd5e1 !important;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-selected-metrics > div,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-note-panel,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-empty-rail {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.74);
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-readiness-list span {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.74);
+    color: #cbd5e1;
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-readiness-list span[data-state="needs"] {
+    border-color: rgba(251, 191, 36, 0.28);
+    background: rgba(120, 53, 15, 0.22);
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-readiness-list span[data-state="ready"] {
+    border-color: rgba(34, 197, 94, 0.24);
+    background: rgba(20, 83, 45, 0.2);
+  }
+
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-selected-metrics span,
+  .co-incidents-page:not([data-field-workspace="true"]) .co-incidents-office-assistant .co-incidents-note-panel span {
+    color: #94a3b8;
   }
 }
 
@@ -12291,8 +12364,8 @@ textarea {
 
 .co-incidents-icon-button {
   display: inline-flex;
-  height: 1.55rem;
-  width: 1.55rem;
+  height: 2rem;
+  width: 2rem;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(203, 213, 225, 0.9);

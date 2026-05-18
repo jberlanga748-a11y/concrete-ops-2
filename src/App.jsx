@@ -10481,10 +10481,64 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect, onOpenDetail
   );
 }
 
-function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, busy, onOpenTool, onReview, onResolve, onArchive }) {
+function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, isOfficeWorkspace, busy, onOpenTool, onReview, onResolve, onArchive }) {
+  const railClassName = `co-incidents-right-rail space-y-4${isOfficeWorkspace ? " co-incidents-office-assistant" : ""}`;
+  const assistantPriorities = incident ? [
+    {
+      label: ["high", "critical"].includes(String(incident.severity || "").toLowerCase())
+        ? `${incident.severity} severity needs clear follow-up`
+        : `${incident.severity || "low"} severity in the response board`,
+      tone: ["high", "critical"].includes(String(incident.severity || "").toLowerCase()) ? "warn" : "default",
+    },
+    {
+      label: incident.immediateAction ? "Immediate action is logged" : "Immediate action still needs detail",
+      tone: incident.immediateAction ? "ready" : "warn",
+    },
+    {
+      label: ["reviewed", "resolved", "archived"].includes(String(incident.status || ""))
+        ? `${incident.statusLabel || incident.status} safety loop`
+        : "Office follow-up still open",
+      tone: ["reviewed", "resolved", "archived"].includes(String(incident.status || "")) ? "ready" : "warn",
+    },
+  ] : [
+    { label: "Select an incident to load response context", tone: "default" },
+    { label: "Keep severity, action, and reviewer context together", tone: "warn" },
+    { label: "Submit field-safe safety items from visible jobs", tone: "default" },
+  ];
+  const assistantActions = [
+    { label: incident ? "Open incident details" : "Prepare details", icon: "alert", onClick: () => onOpenTool("detail"), show: true },
+    { label: "Submit incident", icon: "plus", onClick: () => onOpenTool("submit"), show: Boolean(canSubmit) },
+    { label: "Review response", icon: "clipboard", onClick: () => onOpenTool("detail"), show: Boolean(incident && canReview) },
+  ].filter((item) => item.show);
+
   if (!incident) {
     return (
-      <div className="co-incidents-right-rail space-y-4">
+      <div className={railClassName}>
+        {isOfficeWorkspace ? (
+          <Card className="co-prepour-assistant-card p-0">
+            <div className="co-prepour-assistant-topbar">
+              <span><Icon name="spark" /></span>
+              <strong>Apex Assistant</strong>
+              <em>Safety</em>
+            </div>
+            <div className="co-prepour-assistant-body">
+              <p className="co-prepour-assistant-kicker">Safety command</p>
+              <h3>Select a safety item before follow-up.</h3>
+              <p>Load severity, job, reporter, immediate action, and the next response step in one place.</p>
+              <div className="co-prepour-assistant-priorities">
+                {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+              </div>
+              <div className="co-prepour-assistant-actions">
+                {assistantActions.map((item) => (
+                  <button key={item.label} type="button" onClick={item.onClick}>
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+        ) : null}
         <Card className="co-incidents-rail-card p-4">
           <SectionHeader title="Incident Console" description="Select a safety item or submit a new field concern." />
           <div className="co-incidents-empty-rail">
@@ -10502,7 +10556,32 @@ function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, bus
   const canResolve = canReview && !["resolved", "archived"].includes(String(incident.status || ""));
 
   return (
-    <div className="co-incidents-right-rail space-y-4">
+    <div className={railClassName}>
+      {isOfficeWorkspace ? (
+        <Card className="co-prepour-assistant-card p-0">
+          <div className="co-prepour-assistant-topbar">
+            <span><Icon name="spark" /></span>
+            <strong>Apex Assistant</strong>
+            <em>Safety</em>
+          </div>
+          <div className="co-prepour-assistant-body">
+            <p className="co-prepour-assistant-kicker">Safety command</p>
+            <h3>{incident.title || "Selected safety item"}</h3>
+            <p>{safetyIncidentJobLabel(incident)} / {safetyIncidentReporterLabel(incident)} / {formatDateTime(safetyIncidentPrimaryDate(incident)) || "No date"}</p>
+            <div className="co-prepour-assistant-priorities">
+              {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+            </div>
+            <div className="co-prepour-assistant-actions">
+              {assistantActions.map((item) => (
+                <button key={item.label} type="button" onClick={item.onClick}>
+                  <Icon name={item.icon} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Card>
+      ) : null}
       <Card className="co-incidents-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -10551,7 +10630,7 @@ function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, bus
           <span data-state={incident.title ? "ready" : "needs"}>Title <strong>{incident.title ? "Set" : "Needed"}</strong></span>
           <span data-state={incident.description ? "ready" : "needs"}>Description <strong>{incident.description ? "Set" : "Needed"}</strong></span>
           <span data-state={incident.immediateAction ? "ready" : "needs"}>Immediate action <strong>{incident.immediateAction ? "Logged" : "Needed"}</strong></span>
-          <span data-state={["reviewed", "resolved", "archived"].includes(String(incident.status || "")) ? "ready" : "needs"}>Office review <strong>{incident.statusLabel || "Open"}</strong></span>
+          <span data-state={["reviewed", "resolved", "archived"].includes(String(incident.status || "")) ? "ready" : "needs"}>Follow-up <strong>{incident.statusLabel || "Open"}</strong></span>
         </div>
       </Card>
     </div>
@@ -10763,7 +10842,7 @@ function SafetyIncidentsPagePolished({
     { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "orange" },
     { label: "Open Follow-Up", value: visibleOpen, helper: "Needs safety action", icon: "clock", tone: visibleOpen ? "amber" : "green", actionLabel: "Open", onAction: () => setIncidentStatusFilter("open") },
     { label: "High Severity", value: highSeverity, helper: "High or critical", icon: "alert", tone: highSeverity ? "red" : "green" },
-    { label: "Reviewed", value: visibleIncidents.filter((incident) => incident.status === "reviewed").length, helper: "Office reviewed", icon: "check", tone: "orange", actionLabel: "Reviewed", onAction: () => setIncidentStatusFilter("reviewed") },
+    { label: "Reviewed", value: visibleIncidents.filter((incident) => incident.status === "reviewed").length, helper: isFieldIncidentWorkspace ? "Follow-up reviewed" : "Office reviewed", icon: "check", tone: "orange", actionLabel: "Reviewed", onAction: () => setIncidentStatusFilter("reviewed") },
     { label: "Resolved", value: resolvedCount, helper: "Closed safety loop", icon: "check", tone: "green", actionLabel: "Resolved", onAction: () => setIncidentStatusFilter("resolved") },
   ];
   const statusOptions = [
@@ -10824,11 +10903,12 @@ function SafetyIncidentsPagePolished({
   }
 
   function openSafetySupport() {
+    const supportSelectedIncident = visibleIncidents.some((incident) => incident.id === selectedIncident?.id) ? selectedIncident : null;
     const context = buildSafetyIncidentSupportContext({
       user,
       permissions,
       visibleRows: visibleIncidents,
-      selectedIncident,
+      selectedIncident: supportSelectedIncident,
       filters: {
         status: incidentStatusFilter,
         type: incidentTypeFilter,
@@ -10859,7 +10939,7 @@ function SafetyIncidentsPagePolished({
   const openResponsePriorityCard = {
     label: "Open response",
     value: visibleOpen,
-    helper: visibleOpen ? "Unresolved safety items need the next office or field action." : "Visible incidents are reviewed or closed.",
+    helper: visibleOpen ? (isFieldIncidentWorkspace ? "Unresolved safety items need the next field action." : "Unresolved safety items need the next office or field action.") : "Visible incidents are reviewed or closed.",
     icon: "clock",
     tone: visibleOpen ? "amber" : "green",
     actionLabel: visibleOpen ? "Open response" : "View board",
@@ -10877,7 +10957,7 @@ function SafetyIncidentsPagePolished({
   const needsReviewPriorityCard = {
     label: "Needs review",
     value: reviewNeeded,
-    helper: reviewNeeded ? "Open reports are ready for documentation or office follow-up." : "No open report is waiting in the current view.",
+    helper: reviewNeeded ? (isFieldIncidentWorkspace ? "Open reports are ready for documentation or field follow-up." : "Open reports are ready for documentation or office follow-up.") : "No open report is waiting in the current view.",
     icon: "document",
     tone: reviewNeeded ? "orange" : "green",
     actionLabel: canReview ? "Review" : "View open",
@@ -10955,7 +11035,11 @@ function SafetyIncidentsPagePolished({
             <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
                 <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Incident Response Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Track jobsite safety items, severity, type, reporter, status, immediate action, and office follow-up.</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                  {canManage
+                    ? "Track jobsite safety items, severity, type, reporter, status, immediate action, and office follow-up."
+                    : "Track visible safety items, severity, immediate action, and field follow-up without office-only data."}
+                </p>
               </div>
             </div>
           </div>
@@ -11050,7 +11134,9 @@ function SafetyIncidentsPagePolished({
         </details>
         </div>
 
-        <SafetyIncidentCommandRailPolished incident={selectedIncident} canSubmit={canSubmitIncidents} canReview={canReview} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+        {canManage ? (
+          <SafetyIncidentCommandRailPolished incident={selectedIncident} canSubmit={canSubmitIncidents} canReview={canReview} isOfficeWorkspace={canManage} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+        ) : null}
       </div>
     </div>
   );
