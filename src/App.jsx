@@ -31388,7 +31388,7 @@ function DeliveryTicketsCommandRailPolished({
           </div>
         ) : null}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="co-delivery-rail-actions mt-3 grid grid-cols-2 gap-2">
           <Button type="button" size="sm" onClick={() => onOpenTool("details")}>{canEditSelected ? "Edit Ticket" : "Review"}</Button>
           {canCreate ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("create")}>New Ticket</Button> : null}
           {canManageAll ? <Button type="button" size="sm" variant="danger" onClick={() => onArchive(ticket.id)} disabled={busy || ticket.archivedAt}>Archive</Button> : null}

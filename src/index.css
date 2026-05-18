@@ -18719,6 +18719,10 @@ textarea {
   width: 0.78rem;
 }
 
+.co-delivery-rail-actions {
+  padding-right: 0;
+}
+
 .co-delivery-right-rail {
   position: sticky;
   top: calc(var(--layout-topbar-height, 4.5rem) + 0.75rem);
@@ -22118,6 +22122,10 @@ textarea {
 }
 
 @media (min-width: 1024px) {
+  .co-delivery-rail-actions {
+    padding-right: 4.2rem;
+  }
+
   .co-toolbox-rail-actions {
     padding-right: 4.2rem;
   }
