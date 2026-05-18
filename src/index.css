@@ -26592,7 +26592,8 @@ textarea {
 .co-schedule-job-title small {
   display: block;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .co-schedule-job-title strong {
@@ -26623,6 +26624,22 @@ textarea {
   justify-content: flex-end;
   gap: 0.34rem;
   max-width: 13rem;
+}
+
+.co-schedule-job-card-compact .co-schedule-job-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+}
+
+.co-schedule-job-card-compact .co-schedule-job-title {
+  width: 100%;
+  padding: 0.16rem 0.18rem;
+}
+
+.co-schedule-job-card-compact .co-schedule-job-badges {
+  justify-content: flex-start;
+  max-width: none;
 }
 
 .co-schedule-job-grid {
