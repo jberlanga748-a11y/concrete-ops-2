@@ -32,21 +32,22 @@ Current state:
 - Daily Reports Support Handoff Phase 1: built, verified, released, and health-checked.
 - Photo Evidence Support Handoff Phase 1: built, verified, released, and health-checked.
 - Delivery Tickets Support Handoff Phase 1: built, verified, released, and health-checked.
+- Pre-Pour Support Handoff Phase 1: built, verified, released, and health-checked.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `0909491`
-- Message: `Add delivery ticket support handoff`
-- Fly release: `v501`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWASQSYCF3QWNG7A3709KTR`
+- Commit: `bed845e`
+- Message: `Add pre-pour support handoff`
+- Fly release: `v502`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWB90V2TAPG46T258PGC65M`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v501` before the post-release source-of-truth docs sync.
+- Working tree was clean after runtime release `v502` before the post-release source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -85,6 +86,7 @@ Recent shipped phase stack:
 | `c7ce11c` | `v499` | Daily Reports support handoff |
 | `9d4ef4d` | `v500` | Photo Evidence support handoff |
 | `0909491` | `v501` | Delivery Tickets support handoff |
+| `bed845e` | `v502` | Pre-Pour support handoff |
 
 ## Done / Do Not Rebuild
 
@@ -144,7 +146,8 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Uploads/photo evidence | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Delivery Tickets Support Handoff Phase 1 | Built and released | Delivery Tickets can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible ticket counts, selected ticket label, supplier/time references, linked photo/report status, filter state, yardage totals, and missing basics/photo/report review gaps without exposing linked upload file contents, storage paths, content URLs, GPS coordinates, pricing, margin values, payroll, hidden users, unrelated jobs, automatic messages, or customer data mutation. Field ticket routes remain scoped to assigned/visible jobs and do not gain new Support access when the role/package does not already have it. |
 | Delivery tickets | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
-| Pre-pour/post-pour | Tightened | Preserve workflow. |
+| Pre-Pour Support Handoff Phase 1 | Built and released | Pre-Pour can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible checklist counts, selected checklist status, owner/date references, item readiness counts, filter state, and completed/open/reopened review gaps without exposing estimate pricing, margins, payroll, internal job notes, hidden users, unrelated jobs, GPS coordinates, customer notifications, automatic messages, or customer data mutation. Field Pre-Pour rows remain scoped to assigned/visible jobs, and Support access is not created where the role/package does not already have it. |
+| Pre-pour/post-pour | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
 | Enterprise Trust Prep | Built and released | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
@@ -207,6 +210,7 @@ Recent focused verification:
 - Daily Reports Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\report-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin Reports-to-Support, employee `/reports` redirect with no Report Support control, and foreman mobile assigned-scope Reports-to-Support, plus `git diff --check` passed. Released as Fly `v499` with image `registry.fly.io/concrete-ops-2:deployment-01KRW9JPWX9Z7VSATAT2M7DHXS`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Photo Evidence Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\upload-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:uploads`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin Uploads-to-Support, employee mobile Uploads without Support action, and foreman mobile upload field scope/no overflow, plus `git diff --check` passed. Released as Fly `v500` with image `registry.fly.io/concrete-ops-2:deployment-01KRWA6MPKT22EBEAWXKJRRGTB`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Delivery Tickets Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\delivery-ticket-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin Delivery Tickets-to-Support plus foreman/employee mobile Delivery Tickets without Support action in the current package state, and `git diff --check` passed. Released as Fly `v501` with image `registry.fly.io/concrete-ops-2:deployment-01KRWASQSYCF3QWNG7A3709KTR`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Pre-Pour Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\pre-pour-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:pre-pour`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin, foreman mobile, and employee mobile Pre-Pour-to-Support context with role-scoped summaries, and `git diff --check` passed. Released as Fly `v502` with image `registry.fly.io/concrete-ops-2:deployment-01KRWB90V2TAPG46T258PGC65M`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -237,6 +241,7 @@ Do not start these phases again as if they are missing:
 - Daily Reports Support Handoff Phase 1.
 - Photo Evidence Support Handoff Phase 1.
 - Delivery Tickets Support Handoff Phase 1.
+- Pre-Pour Support Handoff Phase 1.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
@@ -331,7 +336,7 @@ Suggested verification:
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
 | 1 | Founder-Led Demo Execution Support | Run demos, capture objections, and only build narrow blockers discovered from real demo/pilot use. | Low | Yes, for outreach/demo decisions. |
-| 2 | Pre-Pour Support Handoff Phase 1 | Add role-scoped copy-only support context from Pre-Pour to Support without broadening field visibility or adding automation. | Low | No, if kept to support handoff and tests. |
+| 2 | Post-Pour Support Handoff Phase 1 | Add role-scoped copy-only support context from Post-Pour to Support without broadening field visibility or adding automation. | Low | No, if kept to support handoff and tests. |
 
 ## Later / Do Not Build Yet
 
