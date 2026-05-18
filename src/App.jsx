@@ -31650,8 +31650,8 @@ function ChangeOrdersMobileFocusPanel({
 function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, onOpenTool, onArchive }) {
   if (!request) {
     return (
-      <div className="co-change-orders-right-rail space-y-4">
-        <Card className="co-change-orders-rail-card p-4">
+      <div className="co-change-orders-right-rail co-change-orders-command-assistant space-y-4">
+        <div className="co-change-orders-rail-card co-change-orders-assistant-card p-4">
           <SectionHeader title="Change Console" description="Select a request or capture a field scope change for office review." />
           <div className="co-change-orders-empty-rail">
             <span><Icon name="refresh" /></span>
@@ -31659,7 +31659,7 @@ function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, 
             <p>{canManage ? "Change orders stay organized here: scope, reason, job, status, and office review before cost decisions." : "Change orders stay field-safe here: scope, reason, job, status, and office review only."}</p>
           </div>
           {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>New Request</Button> : null}
-        </Card>
+        </div>
       </div>
     );
   }
@@ -31668,8 +31668,8 @@ function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, 
   const needsOfficeReview = request.status === "requested" || request.status === "under_review";
 
   return (
-    <div className="co-change-orders-right-rail space-y-4">
-      <Card className="co-change-orders-rail-card p-4">
+    <div className="co-change-orders-right-rail co-change-orders-command-assistant space-y-4">
+      <div className="co-change-orders-rail-card co-change-orders-assistant-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Selected change</p>
@@ -31708,9 +31708,9 @@ function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, 
           {canCreate ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("create")}>New Request</Button> : null}
           {canManage ? <Button type="button" size="sm" variant="danger" onClick={() => onArchive(request.id)} disabled={busy || request.archivedAt}>Archive</Button> : null}
         </div>
-      </Card>
+      </div>
 
-      <Card className="co-change-orders-rail-card p-4">
+      <div className="co-change-orders-rail-card co-change-orders-assistant-card p-4">
         <SectionHeader title="Readiness" description={canManage ? "Track what the office needs before costing, approving, or rejecting the change." : "Track what the office needs before approving or rejecting the change."} />
         <div className="co-change-orders-readiness-list">
           <span data-state={request.jobId ? "ready" : "needs"}>Job link <strong>{request.jobId ? "Set" : "Needed"}</strong></span>
@@ -31718,7 +31718,7 @@ function ChangeOrdersCommandRailPolished({ request, canCreate, canManage, busy, 
           <span data-state={request.scopeDescription ? "ready" : "needs"}>Scope <strong>{request.scopeDescription ? "Written" : "Needed"}</strong></span>
           <span data-state={needsOfficeReview ? "needs" : "ready"}>Office <strong>{needsOfficeReview ? "Review" : statusLabel}</strong></span>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
