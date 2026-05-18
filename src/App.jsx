@@ -14042,6 +14042,89 @@ function CustomerCommandRailPolished({
   );
 }
 
+function CustomerWorkPulse({
+  customer,
+  related = { leads: [], jobs: [], activity: [] },
+  onSelectLead,
+  onSelectJob,
+}) {
+  const safeRelated = {
+    leads: Array.isArray(related?.leads) ? related.leads.filter((lead) => !lead.archivedAt) : [],
+    jobs: Array.isArray(related?.jobs) ? related.jobs.filter((job) => !job.archivedAt) : [],
+    activity: Array.isArray(related?.activity) ? related.activity : [],
+  };
+  const activeJobs = safeRelated.jobs.filter((job) => {
+    const status = normalizeJobStatus(job.status || job.stage);
+    return ["in_progress", "scheduled", "planned"].includes(status);
+  });
+  const readyJobs = safeRelated.jobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "billing_ready");
+  const dueLeads = safeRelated.leads.filter((lead) => isLeadFollowUpDue(lead));
+  const primaryJob = activeJobs[0] || safeRelated.jobs[0] || null;
+  const primaryLead = dueLeads[0] || safeRelated.leads[0] || null;
+  const hasMissingContact = Boolean(customer && (!customer.phone || !customer.email));
+  const contactLine = customer
+    ? [customer.phone || "Phone not set", customer.email || "Email not set"].join(" / ")
+    : "Select a customer to inspect contact readiness and linked field work.";
+  const locationLine = customer
+    ? [customer.company, customer.city, customer.serviceArea].filter(Boolean).join(" / ") || customer.id
+    : "Customer work context appears here after an account is selected.";
+  const nextAction = !customer
+    ? "Choose an account from the work board"
+    : hasMissingContact
+      ? "Fill the contact gap before handoff"
+      : dueLeads.length > 0
+        ? "Follow up the active opportunity"
+        : readyJobs.length > 0
+          ? "Review ready work and proof status"
+          : activeJobs.length > 0
+            ? "Check the active job handoff"
+            : "Keep account details ready for the next job";
+  const pulseStats = [
+    { label: "Active jobs", value: activeJobs.length, helper: "Scheduled or in progress" },
+    { label: "Leads", value: safeRelated.leads.length, helper: dueLeads.length ? `${dueLeads.length} follow-up due` : "Pipeline records" },
+    { label: "Ready work", value: readyJobs.length, helper: "Closeout candidates" },
+    { label: "Activity", value: safeRelated.activity.length, helper: "Recent account context" },
+  ];
+
+  return (
+    <section className="co-customers-pulse-card mx-auto w-full max-w-[1520px] px-5 pb-3 sm:px-6 lg:px-6" aria-label="Selected customer work pulse">
+      <div className="co-customers-pulse-inner">
+        <div className="co-customers-pulse-copy">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="co-customers-pulse-kicker">Customer Work Pulse</span>
+            {customer ? <StatusBadge status={customerStatusText(customer)} /> : <Badge tone="slate">No account selected</Badge>}
+            {hasMissingContact ? <Badge tone="amber">Contact gap</Badge> : null}
+          </div>
+          <h2>{customer?.name || "Select an account to review the work picture"}</h2>
+          <p>{locationLine}</p>
+          <p>{contactLine}</p>
+          <div className="co-customers-pulse-next">
+            <span>Next action</span>
+            <strong>{nextAction}</strong>
+          </div>
+        </div>
+        <div className="co-customers-pulse-actions" aria-label="Customer work shortcuts">
+          <Button type="button" size="sm" variant="secondary" onClick={() => primaryLead ? onSelectLead(primaryLead.id) : undefined} disabled={!primaryLead}>
+            Open Lead
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={() => primaryJob ? onSelectJob(primaryJob.id) : undefined} disabled={!primaryJob}>
+            Open Job
+          </Button>
+        </div>
+        <div className="co-customers-pulse-metrics">
+          {pulseStats.map((stat) => (
+            <div key={stat.label} className="co-customers-pulse-metric">
+              <strong>{stat.value}</strong>
+              <span>{stat.label}</span>
+              <em>{stat.helper}</em>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ActivityPanel({ activity }) {
   return (
     <Card className="p-4">
@@ -21009,14 +21092,23 @@ function CustomersPagePolished({
         </div>
       ) : null}
 
+      {canView ? (
+        <CustomerWorkPulse
+          customer={selectedCustomer}
+          related={relatedRecords}
+          onSelectLead={onSelectLead}
+          onSelectJob={onSelectJob}
+        />
+      ) : null}
+
       <div className="co-customers-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-customers-left-stack min-w-0 space-y-3">
           <Card className="co-customers-main-board overflow-hidden">
             <div className="co-customers-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Customer Directory / Account Board</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Filter customers, select an account, and work contact details from the right rail.</p>
+                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Customer Work Board</h2>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Scan accounts by contact readiness, current work, and linked job or lead context.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => setFilter("All")}>All customers</Button>
