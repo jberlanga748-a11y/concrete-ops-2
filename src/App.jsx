@@ -27097,9 +27097,11 @@ function PrePourReadinessItemsPolished({
 function PrePourCommandRailPolished({
   checklist,
   checklistSummary,
+  canCreateChecklist,
   canEditChecklist,
   canCompleteChecklist,
   canReview,
+  isOfficeWorkspace,
   busy,
   onCompleteChecklist,
   onReviewChecklist,
@@ -27107,9 +27109,64 @@ function PrePourCommandRailPolished({
   onArchiveChecklist,
   onOpenTool,
 }) {
+  const railClassName = `co-prepour-right-rail space-y-4${isOfficeWorkspace ? " co-prepour-office-assistant" : ""}`;
+  const assistantPriorities = checklist ? [
+    {
+      label: checklistSummary.incompleteCount
+        ? `${checklistSummary.incompleteCount} readiness item${checklistSummary.incompleteCount === 1 ? "" : "s"} still open`
+        : "Readiness items are clear",
+      tone: checklistSummary.incompleteCount ? "warn" : "ready",
+    },
+    {
+      label: checklist.status === "completed" ? "Field completed. Office review is next." : `${prePourChecklistStatusLabel(checklist.status)} status in the board`,
+      tone: checklist.status === "completed" ? "warn" : "default",
+    },
+    {
+      label: checklist.completedByName ? `Completed by ${checklist.completedByName}` : "Field completion still needed",
+      tone: checklist.completedByName ? "ready" : "default",
+    },
+  ] : [
+    { label: "Select a checklist to load readiness context", tone: "default" },
+    { label: "Start a checklist for the next visible job", tone: "warn" },
+    { label: "Keep office review tied to field completion", tone: "default" },
+  ];
+
+  const assistantActions = [
+    { label: checklist ? "Open checklist notes" : "Prepare notes", icon: "clipboard", onClick: () => onOpenTool("work"), show: Boolean(checklist || canEditChecklist) },
+    { label: "Start checklist", icon: "plus", onClick: () => onOpenTool("create"), show: Boolean(canCreateChecklist) },
+    { label: checklistSummary?.incompleteCount ? "Review open items" : "Review readiness", icon: "layers", onClick: () => onOpenTool("work"), show: Boolean(checklist) },
+  ].filter((item) => item.show);
+
   if (!checklist) {
     return (
-      <div className="co-prepour-right-rail space-y-4">
+      <div className={railClassName}>
+        {isOfficeWorkspace ? (
+          <Card className="co-prepour-assistant-card p-0">
+            <div className="co-prepour-assistant-topbar">
+              <span><Icon name="spark" /></span>
+              <strong>Apex Assistant</strong>
+              <em>Pre-Pour</em>
+            </div>
+            <div className="co-prepour-assistant-body">
+              <p className="co-prepour-assistant-kicker">Readiness command</p>
+              <h3>Pick a checklist before the truck rolls.</h3>
+              <p>Select a job row to see blockers, owner context, and the next office action.</p>
+              <div className="co-prepour-assistant-priorities">
+                {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+              </div>
+              {assistantActions.length ? (
+                <div className="co-prepour-assistant-actions">
+                  {assistantActions.map((item) => (
+                    <button key={item.label} type="button" onClick={item.onClick}>
+                      <Icon name={item.icon} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
         <Card className="co-prepour-rail-card p-4">
           <SectionHeader title="Checklist Console" description="Select a Pre-Pour checklist or start a new one." />
           <div className="co-prepour-empty-rail">
@@ -27124,7 +27181,34 @@ function PrePourCommandRailPolished({
   }
 
   return (
-    <div className="co-prepour-right-rail space-y-4">
+    <div className={railClassName}>
+      {isOfficeWorkspace ? (
+        <Card className="co-prepour-assistant-card p-0">
+          <div className="co-prepour-assistant-topbar">
+            <span><Icon name="spark" /></span>
+            <strong>Apex Assistant</strong>
+            <em>Pre-Pour</em>
+          </div>
+          <div className="co-prepour-assistant-body">
+            <p className="co-prepour-assistant-kicker">Readiness command</p>
+            <h3>{checklist.job?.title || "Selected Pre-Pour checklist"}</h3>
+            <p>{checklist.job?.customer || "Assigned site"} / {prePourChecklistOwner(checklist)} / Updated {formatDateTime(prePourChecklistUpdated(checklist))}</p>
+            <div className="co-prepour-assistant-priorities">
+              {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+            </div>
+            {assistantActions.length ? (
+              <div className="co-prepour-assistant-actions">
+                {assistantActions.map((item) => (
+                  <button key={item.label} type="button" onClick={item.onClick}>
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
       <Card className="co-prepour-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -27229,7 +27313,7 @@ function PrePourFieldOperatorPanel({
               {checklist
                 ? incompleteCount
                   ? `Clear ${incompleteCount} readiness item${incompleteCount === 1 ? "" : "s"} before the pour is marked complete.`
-                  : "Readiness is clear. Complete the checklist or add a note before office review."
+                  : "Readiness is clear. Complete the checklist or add a note before field handoff."
                 : visibleJobs.length
                   ? "Open an assigned checklist, clear readiness items, and keep the pour moving without office-only data."
                   : "Assigned Pre-Pour checklists will appear here when the office attaches a job to your field workspace."}
@@ -27523,12 +27607,14 @@ function PrePourPagePolished({
   }
 
   const reviewCompletedPriorityCard = {
-    label: "Review completed",
+    label: isFieldPrePourWorkspace ? "Field completed" : "Review completed",
     value: needsReviewCount,
-    helper: needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed Pre-Pour checklists waiting.",
+    helper: isFieldPrePourWorkspace
+      ? (needsReviewCount ? "Completed checklists are ready for the next handoff." : "No completed Pre-Pour checklists waiting.")
+      : (needsReviewCount ? "Field-completed checklists are waiting on office review." : "No completed Pre-Pour checklists waiting."),
     icon: "clipboard",
     tone: needsReviewCount ? "orange" : "green",
-    actionLabel: needsReviewCount ? "Open review" : "View board",
+    actionLabel: needsReviewCount ? (isFieldPrePourWorkspace ? "Open complete" : "Open review") : "View board",
     onAction: () => openPriorityChecklist((checklist) => checklist.status === "completed", { statusFilter: needsReviewCount ? "Completed" : "All", archiveFilter: "Active", scrollTarget: "board" }),
   };
   const clearOpenItemsPriorityCard = {
@@ -27659,7 +27745,11 @@ function PrePourPagePolished({
                 <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Pre-Pour Readiness Board</h2>
-                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a checklist, clear readiness items, and move field completion into office review.</p>
+                    <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                      {permissions.prePour.canManageAll
+                        ? "Select a checklist, clear readiness items, and move field completion into office review."
+                        : "Select a checklist, clear assigned readiness items, and keep your field handoff current."}
+                    </p>
                   </div>
                   <div className="co-prepour-board-actions flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All</Button>
@@ -27718,19 +27808,23 @@ function PrePourPagePolished({
           </div>
         </div>
 
-        <PrePourCommandRailPolished
-          checklist={selectedChecklist}
-          checklistSummary={checklistSummary}
-          canEditChecklist={canEditChecklist}
-          canCompleteChecklist={canCompleteChecklist}
-          canReview={permissions.prePour.canReview}
-          busy={busy}
-          onCompleteChecklist={onCompleteChecklist}
-          onReviewChecklist={onReviewChecklist}
-          onReopenChecklist={onReopenChecklist}
-          onArchiveChecklist={onArchiveChecklist}
-          onOpenTool={openTool}
-        />
+        {permissions.prePour.canManageAll ? (
+          <PrePourCommandRailPolished
+            checklist={selectedChecklist}
+            checklistSummary={checklistSummary}
+            canCreateChecklist={canCreateChecklist}
+            canEditChecklist={canEditChecklist}
+            canCompleteChecklist={canCompleteChecklist}
+            canReview={permissions.prePour.canReview}
+            isOfficeWorkspace={permissions.prePour.canManageAll}
+            busy={busy}
+            onCompleteChecklist={onCompleteChecklist}
+            onReviewChecklist={onReviewChecklist}
+            onReopenChecklist={onReopenChecklist}
+            onArchiveChecklist={onArchiveChecklist}
+            onOpenTool={openTool}
+          />
+        ) : null}
       </div>
 
       <details
