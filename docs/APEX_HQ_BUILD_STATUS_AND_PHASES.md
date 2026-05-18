@@ -63,20 +63,21 @@ Current state:
 - Targeted Employees priority action polish: built, verified, released, and health-checked so the owner/admin Employees Priority Moves rail uses a readable vertical action queue with unclipped helper copy while tablet/mobile and field-role redirects remain intact.
 - Targeted Command Center metric helper polish: built, verified, released, and health-checked so the owner/admin Operations Command header metric helper copy wraps inside KPI cards instead of clipping on phone-width layouts while field-role redirects remain intact.
 - Targeted Apex Assistant launcher overlap polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer covers Toolbox/PPE right-rail action buttons while the assistant panel, safety field scope, and office-route redirects remain intact.
+- Targeted Delivery Tickets assistant clearance polish: built, verified, released, and health-checked so the collapsed assistant launcher no longer touches the owner/admin Delivery Tickets right-rail action row while field-role delivery scope remains intact.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `ead5500`
-- Message: `Polish assistant launcher overlap`
-- Fly release: `v533`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRX3Y6ZS2S3DPGB2VNC7TQ63`
+- Commit: `d0801e3`
+- Message: `Polish delivery assistant clearance`
+- Fly release: `v534`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRX53FTHRP3B0W2FSZVWN08A`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v533` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -147,6 +148,7 @@ Recent shipped phase stack:
 | `05a1031` | `v531` | Employees priority action polish |
 | `5f31e01` | `v532` | Command metric helper polish |
 | `ead5500` | `v533` | Assistant launcher overlap polish |
+| `d0801e3` | `v534` | Delivery assistant clearance polish |
 
 ## Done / Do Not Rebuild
 
@@ -194,6 +196,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Employees priority action polish | Built and released | Employees Priority Moves now uses a vertical action queue with wrapping helper copy so owner/admin users can read each access task without clipped text. Tablet/mobile rendering and field-role redirects were preserved. |
 | Command metric helper polish | Built and released | Operations Command header metric helper text now wraps inside KPI cards instead of clipping on narrow cards, including phone-width owner/admin views. Field-role direct-route redirects were preserved. |
 | Assistant launcher overlap polish | Built and released | The collapsed Apex Assistant launcher is now compact and Toolbox/PPE right-rail actions reserve a desktop gutter, so the launcher no longer covers Acknowledge/Edit/Report actions. Assistant open behavior, safety field scope, and office-route redirects were preserved. |
+| Delivery assistant clearance polish | Built and released | Delivery Tickets selected-ticket right-rail actions now reserve a desktop assistant gutter so `Edit Ticket`, `New Ticket`, and `Archive` stay clear of the collapsed assistant launcher. Tablet/mobile delivery layouts and field-role delivery scope were preserved. |
 | Tablet mobile nav label polish | Built and released | Owner/admin tablet/mobile bottom navigation now uses compact labels for Operations Command, Photo Evidence, Delivery Tickets, Imported Drafts, Change Orders, Toolbox Talks, and Tool Checklist in the primary bar while preserving full accessible labels and unchanged route behavior. |
 | Settings account text wrapping polish | Built and released | App Health/Settings account panel now lets signed-in user email text wrap inside the card instead of clipping on narrow desktop account columns. Field roles remain redirected to Field Mode. |
 | Command KPI card height polish | Built and released | Shared office command KPI cards now size to their real helper/action text for Leads, Jobs, Customers, Estimate Studio, and Settings, removing hidden bottom action copy while preserving compact grids and field-role redirects. |
@@ -328,6 +331,7 @@ Recent focused verification:
 - Employees priority action polish release checks: browser QA found desktop `/employees` Priority Moves helper copy clipped because the rail forced four long action helpers into a narrow two-column grid with `nowrap` text. CSS-only patch converts that rail to a vertical action queue and lets helper copy wrap. `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed Employees priority helper copy no longer clips, `/employees` has no page-level horizontal overflow, no console errors, no failed requests, and employee direct `/employees` redirects to `/jobs` Field Mode without office nav. Released as Fly `v531` with image `registry.fly.io/concrete-ops-2:deployment-01KRX1XH02QRA5ND5PR7KM8K62`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Command metric helper polish release checks: browser QA found phone-width `/command-center` header metric helper copy clipping `Jobs or estimates ready` inside the Operations Command KPI cards. CSS-only patch lets only the command header metric helper copy wrap while leaving dense command rows untouched. `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge owner desktop/tablet/phone plus employee mobile direct-route QA passed. Browser QA confirmed all command header metric helpers no longer clip, `/command-center` has no page-level horizontal overflow, no console errors, no failed requests, and employee direct `/command-center` redirects to `/jobs` Field Mode without office nav. Released as Fly `v532` with image `registry.fly.io/concrete-ops-2:deployment-01KRX2DV9AKD08J0YVEKKA1SJ8`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Assistant launcher overlap polish release checks: browser QA found the collapsed Apex Assistant pill overlapping Toolbox/PPE right-rail action buttons in the first desktop viewport. Runtime patch makes the closed launcher compact and reserves a desktop-only right gutter for Toolbox/PPE rail actions. `npm.cmd run verify:safety`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, Playwright/MS Edge desktop screenshots for `/toolbox-talks` and `/ppe`, and custom Playwright desktop/tablet/phone overlap checks passed. Browser QA confirmed no assistant/action overlap, no horizontal overflow, no console errors, no failed requests, the assistant still opens from the compact launcher, employee safety routes do not show office nav or management controls, and employee direct `/command-center` redirects to `/jobs`. Released as Fly `v533` with image `registry.fly.io/concrete-ops-2:deployment-01KRX3Y6ZS2S3DPGB2VNC7TQ63`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Delivery assistant clearance polish release checks: browser QA found desktop `/delivery-tickets` selected-ticket right-rail `New Ticket` action touching the collapsed Apex Assistant launcher. Scoped patch adds a delivery rail action wrapper and desktop-only assistant gutter. `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, Playwright/MS Edge desktop screenshot capture, and custom desktop/tablet/phone overlap checks passed. Browser QA confirmed no delivery assistant/action overlap, no horizontal overflow, no console errors, no failed requests, and employee mobile `/delivery-tickets` does not show office nav or delivery management buttons. Released as Fly `v534` with image `registry.fly.io/concrete-ops-2:deployment-01KRX53FTHRP3B0W2FSZVWN08A`; Fly status settled to machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 

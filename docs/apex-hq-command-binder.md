@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `ead5500 Polish assistant launcher overlap`.
-- Fly release `v533` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `d0801e3 Polish delivery assistant clearance`.
+- Fly release `v534` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -60,6 +60,7 @@ Usable now:
 - Photo Evidence command table text wrapping polish for long evidence labels, job/customer labels, and upload notes.
 - Delivery Tickets Support Handoff Phase 1 copy-only support context with field-safe ticket scope preserved.
 - Delivery Tickets command table text wrapping polish for long ticket, job, and customer labels.
+- Delivery Tickets assistant clearance polish for owner/admin selected-ticket right-rail actions with field-safe delivery scope preserved.
 - Pre-Pour Support Handoff Phase 1 copy-only support context with field-safe checklist scope preserved.
 - Post-Pour Support Handoff Phase 1 copy-only support context with field-safe checklist scope preserved.
 - Pre/Post-Pour shared checklist table action header polish for unclipped desktop `Actions` headers with mobile card layouts preserved.
@@ -335,12 +336,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree after runtime release `v533` was clean before the post-release source-of-truth sync.
-- Build status tracker now identifies the Assistant launcher overlap polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted north-star visual/workflow polish only when there is a confirmed visible route or demo blocker.
+- Current working tree after runtime release `v534` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the Delivery assistant clearance polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted north-star visual/workflow polish only when there is a confirmed visible route or demo blocker.
 
 Assumptions / needs confirmation:
 
-- Production `v533` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v534` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
