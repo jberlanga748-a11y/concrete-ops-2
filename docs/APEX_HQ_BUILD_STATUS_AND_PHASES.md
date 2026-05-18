@@ -39,20 +39,21 @@ Current state:
 - Premium Finished SaaS Polish Phase 3: built, verified, released, and health-checked for Estimate Studio polish.
 - Premium Finished SaaS Polish Phase 4: built, verified, released, and health-checked for Apex Assistant shell and assistant entry-point polish.
 - Safety / Incidents Support Handoff Phase 1: built, verified, released, and health-checked with field-safe incident scope preserved.
+- Targeted Customers text wrapping polish: built, verified, released, and health-checked so long customer emails/service areas wrap cleanly without horizontal overflow.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `0494eb8`
-- Message: `Add safety incident support handoff`
-- Fly release: `v509`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWNFDS918W7G17XTGC87V1N`
+- Commit: `3c7a23f`
+- Message: `Fix customer table text wrapping`
+- Fly release: `v510`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWPAD1JJ8PFPFW11T9Q7J1Z`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v509` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v510` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -99,6 +100,7 @@ Recent shipped phase stack:
 | `8c4c9e4` | `v507` | Premium Finished SaaS final visual system sync |
 | `b2395a1` | `v508` | Premium Finished SaaS Polish Phase 4 |
 | `0494eb8` | `v509` | Safety / Incidents support handoff |
+| `3c7a23f` | `v510` | Customers text wrapping polish |
 
 ## Done / Do Not Rebuild
 
@@ -148,6 +150,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Premium Finished SaaS Polish Phase 4 | Built and released | Apex Assistant now carries the finished-visual direction with the Apex Assistant label, darker review-only assistant shell, denser prompt/action cards, sticky mobile input above bottom nav, and assistant route entry copy tightened around manual approval and field-role blocking. Existing review-first assistant behavior, route-only command handling, role gates, and package gates were preserved. No backend records, checkout, billing, support handoff, automation, sending, approving, pricing, scheduling, job conversion, crew assignment, or customer messaging was added. |
 | Leads | Done/frozen | Do not redesign; only planned improvements or bugs. |
 | Customers | Done/frozen | Do not redesign. |
+| Customers text wrapping polish | Built and released | Long customer emails, service areas, and notes now wrap inside the fixed command table instead of clipping narrow desktop cells; mobile customer cards and role gates were preserved. |
 | Estimates / AI Rough Notes foundation | Built | Rough notes assistant and draft flow exist. Do not rebuild. |
 | Company branding / proposal identity | Built and released | Company/proposal identity exists for estimates and packets. Extend only for bugs or specific packet needs. |
 | Estimate options / attachments / takeoff inputs | Built and released | Multiple options, reference attachments, and takeoff input foundations exist. Automated takeoff remains deferred. |
@@ -236,6 +239,7 @@ Recent focused verification:
 - Premium Finished SaaS final visual system sync release checks: final-polish brief was copied into `docs/apex-hq-final-polish-visual-brief.md`, reread against the current app pass, verified, committed, pushed, released as Fly `v507` with image `registry.fly.io/concrete-ops-2:deployment-01KRWGZ0VMSTM14GBKRMN0KY5C`, and both live ready endpoints returned `200`, ready, database ok.
 - Premium Finished SaaS Polish Phase 4 release checks: `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:entitlements`, `node --test src\apex-assistant-shell-utils.test.js src\navigation-utils.test.js`, `npm.cmd run build`, Playwright browser QA for desktop/tablet/mobile assistant shell with no assistant overflow, no console/network errors, no mobile bottom-nav overlap, and `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v508` with image `registry.fly.io/concrete-ops-2:deployment-01KRWK4D314QFNF3QZSYKEQ7YR`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Safety / Incidents Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\safety-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:roles`, `npm.cmd run verify:safety`, `npm.cmd run build`, Playwright/MS Edge browser QA for admin desktop Safety-to-Support, employee mobile Safety-to-Support, and employee direct `/settings` denial with no upgrade/billing context, no console errors, no failed requests, plus `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v509` with image `registry.fly.io/concrete-ops-2:deployment-01KRWNFDS918W7G17XTGC87V1N`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Customers text wrapping polish release checks: targeted route sweep found desktop Customers long email/service-area text overflow in fixed table cells. `npm.cmd run verify:customers`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/customers` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, and long customer emails/service areas wrapping with `overflow-wrap:anywhere`. Released as Fly `v510` with image `registry.fly.io/concrete-ops-2:deployment-01KRWPAD1JJ8PFPFW11T9Q7J1Z`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -273,6 +277,7 @@ Do not start these phases again as if they are missing:
 - Premium Finished SaaS Polish Phase 3.
 - Premium Finished SaaS Polish Phase 4.
 - Safety / Incidents Support Handoff Phase 1.
+- Customers text wrapping polish.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.

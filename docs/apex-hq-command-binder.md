@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `0494eb8 Add safety incident support handoff`.
-- Fly release `v509` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest runtime release tracked: `3c7a23f Fix customer table text wrapping`.
+- Fly release `v510` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -36,6 +36,7 @@ Usable now:
 - Premium Finished SaaS Polish Phase 3 Estimate Studio visual system: Estimate Studio label, dark premium header, selected-total spotlight, tighter estimate rail, darker tools drawer, denser mobile estimate cards, and field-role denial preserved.
 - Premium Finished SaaS Polish Phase 4 Apex Assistant visual system: Apex Assistant label, darker review-only assistant shell, denser prompt/action cards, sticky mobile input above bottom nav, and assistant entry copy tightened around manual approval and field-role blocking.
 - Customers, leads, estimates, jobs, crews/employees.
+- Customers command table text wrapping polish for long emails and service areas.
 - Estimates, AI Rough Notes, proposal/GC packet foundations.
 - Company branding/proposal identity.
 - Estimate options, reference attachments, and takeoff input foundation.
@@ -312,12 +313,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree after runtime release `v509` was clean before the post-release source-of-truth sync.
-- Build status tracker now identifies Safety / Incidents Support Handoff Phase 1 as built, released, and health-checked, and points the next buildable work toward targeted visual/workflow polish only when there is a confirmed visible route or demo blocker.
+- Current working tree after runtime release `v510` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the Customers text wrapping polish as built, released, and health-checked, and keeps the next buildable work pointed toward targeted visual/workflow polish only when there is a confirmed visible route or demo blocker.
 
 Assumptions / needs confirmation:
 
-- Production `v509` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v510` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
