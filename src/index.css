@@ -13393,6 +13393,14 @@ textarea {
   width: 9%;
 }
 
+.co-reports-command-table td:nth-child(1) p,
+.co-reports-command-table td:nth-child(5) p,
+.co-reports-command-table td:nth-child(6) p {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .co-reports-command-table td:last-child {
   min-width: 4.6rem;
   white-space: nowrap;
