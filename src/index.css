@@ -9571,6 +9571,13 @@ textarea {
   white-space: nowrap;
 }
 
+.co-time-command-table:not(.is-own-view) td:nth-child(2) p,
+.co-time-command-table.is-own-view td:nth-child(1) p {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .co-time-command-table tbody tr:hover td {
   background: rgba(255, 247, 237, 0.48);
 }
