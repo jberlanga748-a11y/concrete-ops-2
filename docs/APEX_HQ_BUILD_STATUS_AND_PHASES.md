@@ -1,6 +1,6 @@
 # Apex HQ Build Status And Phase Tracker
 
-Last updated: 2026-05-17
+Last updated: 2026-05-18
 
 Purpose: this is the master build-status file for Apex HQ. Use it to prevent loops, avoid rebuilding completed systems, and choose the next phase.
 
@@ -29,21 +29,22 @@ Current state:
 - Pilot kickoff and check-in templates: prepared so strong-fit demos can convert into controlled 14-day pilots with explicit kickoff, day-3, day-10, support, and continue/adjust/stop criteria.
 - Public Website / Sales Funnel Phase 2: built, verified, released, and health-checked so `/founder-pilot` saves guided walkthrough interest as a manual review lead plus one owner/admin office queue cue with explicit consent and spam controls; no signup, checkout, billing, package controls, customer portal, account/workspace creation, customer/job/estimate creation, or automatic email/SMS was added.
 - Founder-Led Demo Execution Support: built, verified, released, and health-checked so the demo packet, tracker state, manual-only boundaries, and live production/demo readiness can be checked before a walkthrough.
+- Daily Reports Support Handoff Phase 1: built, verified, released, and health-checked.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `8bc8f6e`
-- Message: `Release founder pilot funnel and demo readiness`
-- Fly release: `v497`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRW6WJK7WGPX14QPXG0EPNF5`
+- Commit: `c7ce11c`
+- Message: `Add daily reports support handoff`
+- Fly release: `v499`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRW9JPWX9Z7VSATAT2M7DHXS`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after release `v497`.
+- Working tree was clean after runtime release `v499` before the post-release source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -79,6 +80,7 @@ Recent shipped phase stack:
 | `19d7fd2` | `v496` | Invite / Activation UX Polish |
 | `8bc8f6e` | `v497` | Founder pilot funnel and demo readiness |
 | `ab49234` | `v498` | Managed Setup and Time Tracking support handoffs |
+| `c7ce11c` | `v499` | Daily Reports support handoff |
 
 ## Done / Do Not Rebuild
 
@@ -132,7 +134,8 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Today Work / Schedule coordination | Built and released | Practical coordination board exists. |
 | Notifications / reminders foundation | Built and released | Operational reminders exist. |
 | Time Tracking Support Handoff Phase 1 | Built and released | Time Tracking can open Support with a role-scoped copy-only time support request. Owner/admin context summarizes all visible company time; foreman context summarizes assigned crew time; employee context stays limited to own visible time. The packet excludes payroll rates, gross pay, pricing, margin, and hidden users. No payroll, accounting, billing, automatic messages, clock automation, or permission widening was added. |
-| Daily reports | Tightened | Preserve workflow. |
+| Daily Reports Support Handoff Phase 1 | Built and released | Daily Reports can open Support with a role-scoped copy-only report support request. Owner/admin context summarizes all visible company reports; foreman context stays limited to assigned field-visible reports; employees remain blocked from Daily Reports and are redirected to field-safe Jobs. The packet excludes payroll rates, gross pay, pricing, margin values, internal cost fields, hidden users, unrelated jobs, automatic messages, and customer data mutation. |
+| Daily reports | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Uploads/photo evidence | Tightened | Preserve workflow. |
 | Delivery tickets | Tightened | Preserve workflow. |
 | Pre-pour/post-pour | Tightened | Preserve workflow. |
@@ -195,6 +198,7 @@ Recent focused verification:
 - Managed Setup Support Handoff Phase 1 local checks: `node --test --test-concurrency=1 shared\managedCompanySetup.test.js src\support-utils.test.js`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, local Playwright/MS Edge Settings-to-Support sanity check, and `git diff --check` passed. The first `npm.cmd run verify:users` attempt exited non-zero without useful runner output; running the exact test file list passed 52/52, and rerunning `npm.cmd run verify:users` passed 52/52. The bundled Playwright Chromium failed to launch on Windows, so the browser sanity check used the installed MS Edge channel.
 - Time Tracking Support Handoff Phase 1 local checks: `node --test --test-concurrency=1 src\time-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:time`, `npm.cmd run verify:roles`, `npm.cmd run build`, local Playwright/MS Edge Time-to-Support sanity check, and `git diff --check` passed. The support preview was verified to carry `Workflow: Time tracking` and role-scoped time summary without `payRate` or `grossPay`.
 - Managed Setup and Time Tracking support handoffs release checks: `npm.cmd run verify:users`, `npm.cmd run verify:time`, `npm.cmd run verify:roles`, `node --test --test-concurrency=1 server\role-permissions.test.js`, `npm.cmd run verify:server`, `npm.cmd run verify:backup`, `npm.cmd run build`, and `git diff --check` passed. The first `verify:roles` attempt reported a no-detail `server\role-permissions.test.js` process failure; rerunning `verify:roles` and the exact server role test passed. Released as Fly `v498` with image `registry.fly.io/concrete-ops-2:deployment-01KRW8VRRQ350WRM2ZR5NZ2DE2`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Daily Reports Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\report-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin Reports-to-Support, employee `/reports` redirect with no Report Support control, and foreman mobile assigned-scope Reports-to-Support, plus `git diff --check` passed. Released as Fly `v499` with image `registry.fly.io/concrete-ops-2:deployment-01KRW9JPWX9Z7VSATAT2M7DHXS`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -222,6 +226,7 @@ Do not start these phases again as if they are missing:
 - Customer Success / Guided Setup Phase 2.
 - Managed Setup Support Handoff Phase 1.
 - Time Tracking Support Handoff Phase 1.
+- Daily Reports Support Handoff Phase 1.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
@@ -316,6 +321,7 @@ Suggested verification:
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
 | 1 | Founder-Led Demo Execution Support | Run demos, capture objections, and only build narrow blockers discovered from real demo/pilot use. | Low | Yes, for outreach/demo decisions. |
+| 2 | Uploads / Photo Evidence Support Handoff Phase 1 | Add role-scoped copy-only support context from Uploads/Photo Evidence to Support without broadening field visibility or adding automation. | Low | No, if kept to support handoff and tests. |
 
 ## Later / Do Not Build Yet
 
