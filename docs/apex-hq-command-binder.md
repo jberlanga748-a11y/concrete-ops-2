@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `6e0746c Polish operations command visual system`.
-- Fly release `v504` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `5337465 Polish field mode mobile visual system`.
+- Fly release `v505` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -32,6 +32,7 @@ Usable now:
 - Basic/Premium/Elite package entitlement foundation.
 - Owner/admin Operations Command.
 - Premium Finished SaaS Polish Phase 1 Operations Command visual system: dark premium app top bar, Operations Command label, reference-style metric strip, tighter cockpit/cards, and field-role denial preserved.
+- Premium Finished SaaS Polish Phase 2 Field Mode mobile visual system: dark Field Mode header, dark/orange operator hero, compact required-item rows, tighter action tiles, and field-role denial preserved.
 - Customers, leads, estimates, jobs, crews/employees.
 - Estimates, AI Rough Notes, proposal/GC packet foundations.
 - Company branding/proposal identity.
@@ -308,12 +309,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree after runtime release `v503` was clean before the post-release source-of-truth sync.
-- Build status tracker now identifies the Post-Pour Support Handoff Phase 1 batch as built, released, and health-checked.
+- Current working tree after runtime release `v505` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the Premium Finished SaaS Polish Phase 2 batch as built, released, and health-checked.
 
 Assumptions / needs confirmation:
 
-- Production `v503` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v505` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.

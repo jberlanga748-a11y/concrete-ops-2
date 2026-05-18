@@ -35,20 +35,21 @@ Current state:
 - Pre-Pour Support Handoff Phase 1: built, verified, released, and health-checked.
 - Post-Pour Support Handoff Phase 1: built, verified, released, and health-checked.
 - Premium Finished SaaS Polish Phase 1: built, verified, released, and health-checked for Operations Command/app shell polish.
+- Premium Finished SaaS Polish Phase 2: built, verified, released, and health-checked for Field Mode mobile polish.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `6e0746c`
-- Message: `Polish operations command visual system`
-- Fly release: `v504`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWD13TN5BF1QRARY5MZM4EK`
+- Commit: `5337465`
+- Message: `Polish field mode mobile visual system`
+- Fly release: `v505`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWDXMDEHKNC5C6ZDHDE343C`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v504` before the post-release source-of-truth docs sync.
+- Working tree was clean after runtime release `v505` before the post-release source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -90,6 +91,7 @@ Recent shipped phase stack:
 | `bed845e` | `v502` | Pre-Pour support handoff |
 | `464eb14` | `v503` | Post-Pour support handoff |
 | `6e0746c` | `v504` | Premium Finished SaaS Polish Phase 1 |
+| `5337465` | `v505` | Premium Finished SaaS Polish Phase 2 |
 
 ## Done / Do Not Rebuild
 
@@ -134,6 +136,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
 | Premium Finished SaaS Polish Phase 1 | Built and released | Operations Command now matches the finished-visual direction more closely with the Operations Command label, dark premium top bar, owner/admin metric strip, tighter command cockpit/cards, responsive mobile rendering, and field-role denial preserved. No new billing, package controls, checkout, invoices, payment collection, support workflow, customer portal, automation, or permission widening was added. |
+| Premium Finished SaaS Polish Phase 2 | Built and released | Field Mode mobile now aligns more closely with the finished visual: dark premium Field Mode header, dark/orange operator hero, compact required-item rows, tighter action tiles, and field-safe direct-route behavior preserved. Foremen/employees still do not see Operations Command, Settings, billing, pricing, package controls, or office-only upgrade surfaces. No backend records, checkout, billing, support handoff, automation, or permission widening was added. |
 | Leads | Done/frozen | Do not redesign; only planned improvements or bugs. |
 | Customers | Done/frozen | Do not redesign. |
 | Estimates / AI Rough Notes foundation | Built | Rough notes assistant and draft flow exist. Do not rebuild. |
@@ -218,6 +221,7 @@ Recent focused verification:
 - Pre-Pour Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\pre-pour-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:pre-pour`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin, foreman mobile, and employee mobile Pre-Pour-to-Support context with role-scoped summaries, and `git diff --check` passed. Released as Fly `v502` with image `registry.fly.io/concrete-ops-2:deployment-01KRWB90V2TAPG46T258PGC65M`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Post-Pour Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\post-pour-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:post-pour`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin, foreman mobile, and employee mobile Post-Pour-to-Support context with role-scoped summaries, and `git diff --check` passed. Released as Fly `v503` with image `registry.fly.io/concrete-ops-2:deployment-01KRWBTSNK9NWPFDSEECGHJAY0`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Premium Finished SaaS Polish Phase 1 release checks: `node --test --test-concurrency=1 src\design-tokens.test.js src\command-center-utils.test.js`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run build`, browser owner/admin desktop and mobile Operations Command QA, employee mobile direct `/command-center` denial QA, and `git diff --check` passed. Released as Fly `v504` with image `registry.fly.io/concrete-ops-2:deployment-01KRWD13TN5BF1QRARY5MZM4EK`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Premium Finished SaaS Polish Phase 2 release checks: `node --test --test-concurrency=1 src\design-tokens.test.js src\field-workspace-utils.test.js src\navigation-utils.test.js`, `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run build`, Playwright browser QA for employee mobile Field Mode, foreman mobile Field Mode, and employee direct `/command-center` denial with no billing/pricing/package controls, no horizontal overflow, no console errors, no failed requests, dark Field Mode header, and dark operator hero; `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v505` with image `registry.fly.io/concrete-ops-2:deployment-01KRWDXMDEHKNC5C6ZDHDE343C`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -251,6 +255,7 @@ Do not start these phases again as if they are missing:
 - Pre-Pour Support Handoff Phase 1.
 - Post-Pour Support Handoff Phase 1.
 - Premium Finished SaaS Polish Phase 1.
+- Premium Finished SaaS Polish Phase 2.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
@@ -273,20 +278,21 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Premium Finished SaaS Polish Phase 2 - Next
+### Premium Finished SaaS Polish Phase 3 - Next
 
 Why this is current:
 
 - The user supplied the finished visual reference for Apex HQ and wants the build chat focused on making the app look and feel like that premium SaaS product.
 - Premium Finished SaaS Polish Phase 1 shipped the Operations Command label, dark top bar, command metric strip, and tighter command cards without widening permissions.
-- The next highest-leverage build slice is continuing that finished-visual direction on field/mobile and one adjacent high-value office surface, while preserving existing workflows.
+- Premium Finished SaaS Polish Phase 2 shipped the Field Mode mobile header/operator hero, required-item scanability, action-tile density, and field-role denial checks without widening permissions.
+- The next highest-leverage build slice is continuing that finished-visual direction on Estimate Studio or another existing owner/admin office surface visible in the reference, while preserving existing workflows.
 - This is still polish and hierarchy work, not a broad rebuild.
 
 Scope:
 
 - Continue from the reference image, not from generic SaaS templates.
-- Tighten Field Mode mobile visual hierarchy, bottom-nav density, card spacing, touch targets, and required-item scanability.
-- Tighten one adjacent owner/admin office surface that appears in the visual direction, such as Estimate Studio, only if the current code already has that surface and the change can stay narrow.
+- Tighten Estimate Studio or one existing adjacent owner/admin office surface that appears in the visual direction.
+- Focus on visual hierarchy, option/preview/summary density, action clarity, card spacing, responsive behavior, and route-safe polish only.
 - Keep all current role/package gates unchanged.
 - Preserve field-safe routing: foremen/employees must not see owner/admin Command, pricing, billing, Settings, package controls, or estimate financial controls beyond existing role rules.
 - Use current data only; do not add fake dashboards, fake charts, new automation, or new backend records.
@@ -331,16 +337,17 @@ Suggested verification:
 - `node --test --test-concurrency=1 src\design-tokens.test.js`
 - Focused tests for any touched workflow utility.
 - `npm.cmd run verify:roles`
-- `npm.cmd run verify:jobs`
+- `npm.cmd run verify:estimates`
+- `npm.cmd run verify:jobs` if shared routing or job context is touched.
 - `npm.cmd run build`
 - `git diff --check`
-- Browser QA for owner/admin desktop, owner/admin mobile, foreman mobile, and employee mobile direct denial for office-only routes.
+- Browser QA for owner/admin desktop/mobile Estimate Studio and employee/foreman direct denial for office-only or estimate financial routes.
 
 ## Next Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Premium Finished SaaS Polish Phase 2 | Continue the reference-image polish on Field Mode/mobile and one narrow adjacent office surface while preserving role gates. | Medium | No, if kept visual and role-safe. |
+| 1 | Premium Finished SaaS Polish Phase 3 | Continue the reference-image polish on Estimate Studio or one narrow adjacent owner/admin office surface while preserving role gates. | Medium | No, if kept visual and role-safe. |
 | 2 | Safety / Incidents Support Handoff Phase 1 | Add role-scoped copy-only support context from Safety/Incidents to Support without broadening field visibility, creating customer notifications, or adding automation. | Low | No, if support handoffs become priority again. |
 | 3 | Founder-Led Demo Execution Support | Run demos, capture objections, and only build narrow blockers discovered from real demo/pilot use. | Low | Yes, for outreach/demo decisions. |
 
@@ -410,43 +417,59 @@ Use this when ready for the next product/QA slice:
 ```text
 You are entering:
 
-APEX HQ - GUIDED DEMO REHEARSAL REFRESH
+APEX HQ - PREMIUM FINISHED SAAS POLISH PHASE 3
 
 Use skills:
 - apex-build-router
+- codex-mastery-system
+- apex-finished-vision
 - apex-product-system
+- apex-hq-operating-standards
 - apex-permission-safety
 - apex-qa-engineer
+- codex-ui-polish-saas-quality
+- codex-ui-design-systems
+- codex-react-frontend-mastery
 
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
 
-Do NOT commit, push, or deploy.
+Do NOT add Stripe.
+Do NOT add checkout.
+Do NOT add payment collection.
+Do NOT add invoices.
+Do NOT add self-serve package changes.
+Do NOT expose billing, pricing, package management, or upgrade controls to field users.
+Do NOT redesign the whole app.
+Do NOT touch unrelated files.
 
 Goal:
-Rehearse the current guided demo path after the latest product batch and invite/activation polish.
+Continue the finished-visual polish on Estimate Studio or one existing owner/admin office surface while preserving role and package gates.
 
 Focus only on:
-- owner/admin desktop guided demo path
-- owner mobile sanity path
-- foreman and employee mobile role-safety checks
-- estimates/proposals, support/trust, package upgrade, and invite activation handoff checks
-- console/network/horizontal-overflow review
+- Estimate Studio or one existing adjacent owner/admin office workflow visible in the reference direction
+- premium visual hierarchy, density, spacing, action clarity, and responsive behavior
+- existing data and existing routes only
+- field-role direct denial and navigation safety
 
 Preserve:
 - existing app behavior and data
 - existing auth/session/package/role logic
-- no production data mutation
+- existing estimate/job/proposal workflows
+- no backend records, automation, payments, checkout, invoices, or package controls
 
 Verify:
+- focused tests for touched workflow utilities
 - npm.cmd run verify:roles
-- npm.cmd run verify:demo
+- npm.cmd run verify:estimates
+- npm.cmd run build
 - git diff --check
+- browser QA for owner/admin desktop/mobile and foreman/employee direct denial where relevant
 
 Report:
-- demo paths checked
-- role-safety result
-- console/network/overflow result
-- blockers
-- release/no-release recommendation
+- files changed
+- exact UX/permission changes
+- verification results
+- release details if released
+- safe to release yes/no
 ```
