@@ -57,11 +57,12 @@ Before a scheduled walkthrough, check:
 
 ```powershell
 npm.cmd run verify:founder-demo
+npm.cmd run brief:founder-demo
 Invoke-WebRequest -UseBasicParsing -Uri https://app.apexhq.online/api/ready
 Invoke-WebRequest -UseBasicParsing -Uri https://concrete-ops-demo.fly.dev/api/ready
 ```
 
-Use `npm.cmd run verify:founder-demo` as the first local readiness gate. It checks the founder-led demo packet, tracker consistency, manual-only boundaries, and the live production/demo readiness endpoints. Use the production app for the current live product state and the demo app only when its ready endpoint is healthy.
+Use `npm.cmd run verify:founder-demo` as the first local readiness gate. It checks the founder-led demo packet, tracker consistency, manual-only boundaries, the live production/demo readiness endpoints, and the read-only demo brief generator. Use `npm.cmd run brief:founder-demo` when you want the day-of manual action queue without rerunning every readiness check. The brief does not send outreach, mutate tracker rows, create accounts, or change production data.
 
 ### 3. Pick The First Workflow
 

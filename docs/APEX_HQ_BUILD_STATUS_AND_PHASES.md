@@ -114,7 +114,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Assistant Job Conversion Planning | Prepared and released | `docs/ASSISTANT_JOB_CONVERSION_PLANNING.md` defines the reviewed estimate-to-job assistant handoff boundary, Premium-and-up package policy, approved-estimate source rules, role restrictions, negative tests, and no-automatic-job-creation/scheduling/crew-assignment rules. |
 | Public Website / Sales Funnel Phase 1 | Built and released | `/founder-pilot` provides claims-safe public Apex HQ positioning, founder-pilot workflow sections, manual walkthrough request copy, live manual review submission, and login handoff. It does not create accounts/workspaces, collect payments, expose package controls, add customer portal access, or send email/SMS automatically. |
 | Public Website / Sales Funnel Phase 2 | Built and released | `POST /api/public/demo-interest` saves guided walkthrough interest as an owner/admin manual review lead in the Apex HQ default company only and adds one owner/admin office queue cue for first-time captures. Explicit consent, honeypot, rate limiting, duplicate retry handling, secret redaction, audit activity, and field-role denial tests are in place. Duplicate retries do not add another lead or queue item. It does not create customers, jobs, estimates, users, workspaces, package changes, billing, customer portal access, or automatic email/SMS. |
-| Founder-Led Demo Execution Support | Built and released | `npm.cmd run verify:founder-demo` checks the demo execution docs, outreach tracker consistency, manual-only guardrails, and live production/demo readiness endpoints before guided walkthroughs. It does not send outreach, mutate customer data, create accounts, or deploy. |
+| Founder-Led Demo Execution Support | Built and released | `npm.cmd run verify:founder-demo` checks the demo execution docs, outreach tracker consistency, manual-only guardrails, live production/demo readiness endpoints, and the read-only founder demo brief generator before guided walkthroughs. `npm.cmd run brief:founder-demo` prints the manual action queue without sending outreach, mutating customer data, creating accounts, or deploying. |
 | Invite / Activation UX Polish | Built and released | Owner/admin Employees now clarifies manual activation handoff, one-time invite links, expiry/reissue expectations, and field-safe role boundaries. Activation setup explains missing/expired/used invite links without changing token, session, password, role, or company-scope behavior. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
@@ -251,6 +251,7 @@ Scope:
 
 - Use `docs/FIRST_10_DEMO_TARGETS.md` and `docs/OUTREACH_TRACKER.md`.
 - Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` before and after each guided demo.
+- Use `npm.cmd run brief:founder-demo` to print the day-of manual outreach/demo/follow-up brief without sending anything.
 - Use `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md` after each demo before sending follow-up.
 - Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` after a strong-fit demo accepts a pilot.
 - Use `/founder-pilot` as the live public founder-pilot page; its demo request form saves manual founder review leads only.
@@ -296,6 +297,7 @@ Do not include:
 Suggested verification:
 
 - `npm.cmd run verify:founder-demo`
+- `npm.cmd run brief:founder-demo`
 - `npm.cmd run verify:public-request`
 - `git diff --check`
 - Live app and demo app `/api/ready` checks before any guided walkthrough.

@@ -388,6 +388,7 @@ Browser/Playwright:
 ```powershell
 npm.cmd run audit:demo-desktop
 npm.cmd run audit:public-site
+npm.cmd run brief:founder-demo
 npm.cmd run verify:founder-demo
 ```
 
@@ -468,7 +469,8 @@ Demo/customer separation:
    - Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` to run demos and log objections.
    - Use `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md` before sending any post-demo follow-up.
    - Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` when a strong-fit demo becomes a controlled pilot.
-   - Run `npm.cmd run verify:founder-demo` before a scheduled walkthrough so docs, tracker state, manual-only boundaries, and live production/demo readiness are checked together.
+   - Run `npm.cmd run verify:founder-demo` before a scheduled walkthrough so docs, tracker state, manual-only boundaries, the read-only demo brief, and live production/demo readiness are checked together.
+   - Run `npm.cmd run brief:founder-demo` for a day-of manual action queue; it does not send outreach, mutate tracker rows, create accounts, or change production data.
    - Review `/founder-pilot` demo-interest as manual Leads with owner/admin office queue cues only; do not auto-send follow-up, create workspaces, create accounts, or change packages from public requests.
    - Book warm founder-led demos.
    - Do not publish/send without approval.
