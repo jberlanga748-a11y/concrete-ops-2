@@ -18611,6 +18611,12 @@ textarea {
   white-space: nowrap;
 }
 
+.co-delivery-command-table td:nth-child(1) p {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .co-delivery-command-table tbody tr:hover td {
   background: rgba(255, 247, 237, 0.48);
 }
