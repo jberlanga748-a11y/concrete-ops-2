@@ -175,7 +175,7 @@ import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
-import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
+import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
@@ -27895,6 +27895,7 @@ function PostPourMobileFocusPanel({
 }
 
 function PostPourPagePolished({
+  user,
   jobs,
   postPourChecklists,
   permissions,
@@ -27905,6 +27906,7 @@ function PostPourPagePolished({
   onReviewChecklist,
   onReopenChecklist,
   onArchiveChecklist,
+  onOpenSupport,
   busy,
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
@@ -27986,6 +27988,7 @@ function PostPourPagePolished({
     && permissions.postPour.canComplete
     && !selectedChecklist.archivedAt
     && ["draft", "reopened"].includes(selectedChecklist.status);
+  const canOpenPostPourSupport = Boolean(permissions?.postPour?.canView && permissions?.support?.canView && typeof onOpenSupport === "function");
   const isFieldPostPourWorkspace = !permissions.postPour.canManageAll;
   const noFieldJob = !permissions.postPour.canManageAll && visibleJobs.length === 0;
   const createJob = visibleJobs.find((job) => job.id === createDraft.jobId) || null;
@@ -28047,6 +28050,25 @@ function PostPourPagePolished({
     setDateFilter("All dates");
     setArchiveFilter("Active");
     setSearch("");
+  }
+
+  function requestPostPourSupportReview() {
+    if (!canOpenPostPourSupport) return;
+    onOpenSupport(buildPostPourSupportContext({
+      user,
+      permissions,
+      visibleRows: filteredRows,
+      selectedChecklist,
+      filters: {
+        status: statusFilter,
+        archived: archiveFilter,
+        job: jobFilter,
+        foreman: foremanFilter,
+        date: dateFilter,
+        search,
+      },
+      visibleJobs,
+    }));
   }
 
   const reviewCompletedPriorityCard = {
@@ -28117,6 +28139,11 @@ function PostPourPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setStatusFilter("All")}>{filteredRows.length} visible</Button>
+            {canOpenPostPourSupport ? (
+              <Button type="button" variant="secondary" onClick={requestPostPourSupportReview}>
+                <Icon name="help" />Post-Pour Support
+              </Button>
+            ) : null}
             {canCreateChecklist ? <Button type="button" onClick={() => openTool("create")}>Start Checklist</Button> : null}
           </div>
         }
