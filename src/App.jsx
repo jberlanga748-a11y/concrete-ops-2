@@ -4898,7 +4898,14 @@ const FIELD_MOBILE_NAV_ORDER = [
 ];
 
 const MOBILE_NAV_COMPACT_LABELS = {
+  commandCenter: "Command",
   communications: "Comms",
+  uploads: "Photos",
+  deliveryTickets: "Tickets",
+  jobDraftImports: "Imports",
+  changeOrders: "Changes",
+  toolbox: "Toolbox",
+  toolChecklist: "Tools",
 };
 
 function getFieldMobileNavItems(visibleNavItems) {
