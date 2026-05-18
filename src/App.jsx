@@ -5428,7 +5428,7 @@ function FieldJobOperatorPanel({ role = "employee", workspace, focusJob, permiss
       <div className="co-field-operator-shell">
         <div className="co-field-operator-copy min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Badge tone="orange">{isForeman ? "Foreman Jobs" : "My Job"}</Badge>
+            <Badge tone="orange">{isForeman ? "Foreman Mode" : "Field Mode"}</Badge>
             {primaryJob ? <StatusBadge status={jobStatusLabel(primaryJob.status || primaryJob.stage)} /> : null}
             {noticeCount ? <Badge tone="amber">{noticeCount} new notice{noticeCount === 1 ? "" : "s"}</Badge> : null}
           </div>
@@ -5863,7 +5863,7 @@ function FieldWorkspacePagePolished({
     <div className="co-office-page co-jobs-page co-field-workspace-page">
       <PageHeader
         eyebrow="Field Workspace"
-        title={isForeman ? "My Jobs" : "My Job"}
+        title="Field Mode"
         description={isForeman ? "Run assigned jobs, crew time, notes, checklists, photos, tickets, and job-safe tools from one field view." : "Open assigned work, clock in, review field notes, and use job-safe tools."}
         actions={
           <div className="flex flex-wrap items-center gap-2">

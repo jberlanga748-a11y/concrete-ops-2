@@ -8523,19 +8523,46 @@ textarea {
 }
 
 @media (max-width: 767px) {
+  .co-field-workspace-page {
+    background:
+      linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%) !important;
+  }
+
   .co-field-workspace-page .co-page-header {
     margin-bottom: 0.56rem;
-    padding: 0.6rem 1rem 0.64rem !important;
+    padding: 0.78rem 1rem 0.72rem !important;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.14), transparent 10rem),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.99), #07111f) !important;
+    border-bottom-color: rgba(148, 163, 184, 0.18) !important;
+  }
+
+  .co-field-workspace-page .co-page-header p:first-child {
+    color: #fdba74 !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.18em !important;
   }
 
   .co-field-workspace-page .co-page-header h1 {
-    font-size: clamp(1.45rem, 6vw, 1.78rem) !important;
+    color: #f8fafc !important;
+    font-size: clamp(1.52rem, 6vw, 1.86rem) !important;
+    letter-spacing: 0 !important;
   }
 
   .co-field-workspace-page .co-page-header h1 + p {
-    margin-top: 0.42rem;
-    font-size: 0.8rem;
-    line-height: 1.22;
+    margin-top: 0.34rem;
+    color: rgba(203, 213, 225, 0.9) !important;
+    font-size: 0.78rem;
+    font-weight: 800 !important;
+    line-height: 1.24;
+  }
+
+  .co-field-workspace-page .co-page-header .bg-orange-100,
+  .co-field-workspace-page .co-page-header .bg-amber-100,
+  .co-field-workspace-page .co-page-header .bg-green-100 {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #fff7ed !important;
   }
 
   .co-field-kpi-grid {
@@ -8578,8 +8605,9 @@ textarea {
   }
 
   .co-field-required-panel {
-    border-radius: 1rem !important;
-    padding: 0.68rem !important;
+    border-radius: 0.65rem !important;
+    padding: 0.62rem !important;
+    box-shadow: 0 16px 38px -32px rgba(7, 17, 31, 0.58) !important;
   }
 
   .co-field-required-heading .co-section-accent {
@@ -8597,25 +8625,26 @@ textarea {
   }
 
   .co-field-required-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.34rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.42rem;
   }
 
   .co-field-required-item {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    align-items: stretch;
-    gap: 0.36rem;
-    border-radius: 0.82rem;
-    padding: 0.48rem 0.54rem;
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(6.9rem, 0.45fr);
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 0.55rem;
+    border-radius: 0.58rem;
+    padding: 0.5rem 0.55rem;
+    box-shadow: none;
   }
 
   .co-field-required-item:first-child {
-    grid-column: 1 / -1;
-    grid-template-columns: 1.9rem minmax(0, 1fr) minmax(7.2rem, 0.75fr);
-    grid-template-rows: auto;
-    align-items: center;
-    gap: 0.5rem;
+    grid-column: auto;
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(6.9rem, 0.45fr);
+    background:
+      linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(255, 255, 255, 0.98)) !important;
+    border-color: rgba(16, 147, 68, 0.2);
   }
 
   .co-field-required-item:first-child .co-field-required-actions {
@@ -8637,13 +8666,16 @@ textarea {
   }
 
   .co-field-required-actions {
-    grid-column: 1 / -1;
+    grid-column: auto;
     grid-template-columns: minmax(0, 1fr);
-    gap: 0.4rem;
+    gap: 0.34rem;
   }
 
   .co-field-required-actions .btn {
-    min-height: 2.16rem;
+    min-height: 2.08rem;
+    border-radius: 0.5rem !important;
+    padding-inline: 0.42rem !important;
+    font-size: 0.68rem !important;
   }
 
   .co-field-required-secondary {
@@ -8719,7 +8751,28 @@ textarea {
   .co-field-operator-shell {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.72rem;
-    padding: 0.82rem;
+    padding: 0.86rem;
+  }
+
+  .co-module-frame:not(.co-module-commandCenter) .co-field-workspace-page .co-card.co-field-operator-panel,
+  .co-field-workspace-page .co-card.co-field-operator-panel {
+    border: 1px solid rgba(15, 23, 42, 0.36) !important;
+    border-radius: 0.65rem !important;
+    background:
+      radial-gradient(circle at 92% 0%, rgba(249, 115, 22, 0.34), transparent 12rem),
+      radial-gradient(circle at 0% 100%, rgba(20, 89, 217, 0.2), transparent 13rem),
+      linear-gradient(135deg, #07111f 0%, #101827 58%, #18283a 100%) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 24px 52px -38px rgba(7, 17, 31, 0.9) !important;
+  }
+
+  .co-field-workspace-page .co-field-operator-copy h2 {
+    color: #fff7ed !important;
+  }
+
+  .co-field-workspace-page .co-field-operator-copy p {
+    color: rgba(203, 213, 225, 0.9) !important;
   }
 
   .co-field-operator-copy h2 {
@@ -8734,10 +8787,20 @@ textarea {
 
   .co-field-operator-address {
     margin-top: 0.62rem;
+    border-color: rgba(255, 255, 255, 0.13);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(248, 250, 252, 0.92);
+    border-radius: 0.55rem;
   }
 
   .co-field-operator-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .co-field-operator-actions > .btn,
+  .co-field-operator-actions > button,
+  .co-field-operator-actions > .co-field-operator-link {
+    border-radius: 0.55rem !important;
   }
 
   .co-field-operator-strip {
@@ -8764,7 +8827,8 @@ textarea {
 
   .co-field-action-card {
     flex: 0 0 8.8rem;
-    min-height: 5.3rem;
+    min-height: 4.78rem;
+    border-radius: 0.58rem;
     scroll-snap-align: start;
   }
 
@@ -8792,12 +8856,12 @@ textarea {
 
   .co-field-action-grid-mobile .co-field-action-card {
     flex: initial;
-    min-height: 5.3rem;
+    min-height: 4.88rem;
   }
 
   .co-field-action-grid-mobile .co-field-action-card:first-child {
-    grid-column: 1 / -1;
-    min-height: 5.9rem;
+    grid-column: auto;
+    min-height: 4.88rem;
   }
 
   .co-field-secondary-tools-drawer {
