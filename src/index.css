@@ -11941,6 +11941,13 @@ textarea {
   max-height: 23.5rem;
 }
 
+.co-toolbox-talks-page .co-toolbox-command-table td:nth-child(1) p,
+.co-ppe-page .co-toolbox-command-table td:nth-child(1) p {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .co-tool-checklist-page .co-toolbox-command-table {
   min-width: 720px !important;
 }
