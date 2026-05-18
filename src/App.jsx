@@ -176,7 +176,7 @@ import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriv
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
-import { derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
+import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
 import { deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
@@ -26450,6 +26450,7 @@ function PrePourMobileFocusPanel({
 }
 
 function PrePourPagePolished({
+  user,
   jobs,
   prePourChecklists,
   permissions,
@@ -26461,6 +26462,7 @@ function PrePourPagePolished({
   onReviewChecklist,
   onReopenChecklist,
   onArchiveChecklist,
+  onOpenSupport,
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [jobFilter, setJobFilter] = useState("All jobs");
@@ -26541,6 +26543,7 @@ function PrePourPagePolished({
     && permissions.prePour.canComplete
     && !selectedChecklist.archivedAt
     && ["draft", "reopened"].includes(selectedChecklist.status);
+  const canOpenPrePourSupport = Boolean(permissions?.prePour?.canView && permissions?.support?.canView && typeof onOpenSupport === "function");
   const isFieldPrePourWorkspace = !permissions.prePour.canManageAll;
   const noFieldJob = !permissions.prePour.canManageAll && visibleJobs.length === 0;
   const createJob = visibleJobs.find((job) => job.id === createDraft.jobId) || null;
@@ -26602,6 +26605,25 @@ function PrePourPagePolished({
     setDateFilter("All dates");
     setArchiveFilter("Active");
     setSearch("");
+  }
+
+  function requestPrePourSupportReview() {
+    if (!canOpenPrePourSupport) return;
+    onOpenSupport(buildPrePourSupportContext({
+      user,
+      permissions,
+      visibleRows: filteredRows,
+      selectedChecklist,
+      filters: {
+        status: statusFilter,
+        archived: archiveFilter,
+        job: jobFilter,
+        foreman: foremanFilter,
+        date: dateFilter,
+        search,
+      },
+      visibleJobs,
+    }));
   }
 
   const reviewCompletedPriorityCard = {
@@ -26672,6 +26694,11 @@ function PrePourPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setStatusFilter("All")}>{filteredRows.length} visible</Button>
+            {canOpenPrePourSupport ? (
+              <Button type="button" variant="secondary" onClick={requestPrePourSupportReview}>
+                <Icon name="help" />Pre-Pour Support
+              </Button>
+            ) : null}
             {canCreateChecklist ? <Button type="button" onClick={() => openTool("create")}>Start Checklist</Button> : null}
           </div>
         }
