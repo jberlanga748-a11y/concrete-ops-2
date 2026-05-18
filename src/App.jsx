@@ -10782,7 +10782,7 @@ function ToolboxTalkCommandRailPolished({ policy, canAcknowledge, canManage, ack
           <p>{policy.body || "No guidance text recorded yet."}</p>
         </div>
 
-        <div className={`mt-3 grid gap-2 ${canAcknowledge && canManage ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className={`co-toolbox-rail-actions mt-3 grid gap-2 ${canAcknowledge && canManage ? "grid-cols-2" : "grid-cols-1"}`}>
           {canAcknowledge ? <Button type="button" size="sm" onClick={() => onOpenTool("ack")}>Acknowledge</Button> : null}
           {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("manage")}>Edit Talk</Button> : null}
         </div>
@@ -11387,7 +11387,7 @@ function PpeCommandRailPolished({ item, canManage, canAcknowledge, canSubmitInci
           <p>{item.description || "No PPE guidance recorded yet."}</p>
         </div>
 
-        <div className={`mt-3 grid gap-2 ${actionCount === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+        <div className={`co-toolbox-rail-actions mt-3 grid gap-2 ${actionCount === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
           {canAcknowledge ? <Button type="button" size="sm" onClick={() => onOpenTool("ack")}>Acknowledge</Button> : null}
           {canManage ? <Button type="button" size="sm" variant="secondary" onClick={() => { onSelectItem(item.id); onOpenTool("ppe"); }}>Edit PPE</Button> : null}
           {canSubmitIncidents ? <Button type="button" size="sm" className={actionCount === 3 ? "col-span-2" : ""} variant="secondary" onClick={() => onOpenTool("incident")}>Report Concern</Button> : null}

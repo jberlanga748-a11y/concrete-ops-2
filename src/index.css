@@ -22093,7 +22093,42 @@ textarea {
   background: #0f172a !important;
 }
 
+.co-toolbox-rail-actions {
+  padding-right: 0;
+}
+
+.co-apex-assistant-shell.is-closed {
+  width: auto !important;
+}
+
+.co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
+  width: 3.65rem;
+  min-height: 3.65rem;
+  justify-content: center;
+  padding: 0.38rem !important;
+}
+
+.co-apex-assistant-shell.is-closed .co-apex-assistant-trigger > span:not(:first-child) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .co-toolbox-rail-actions {
+    padding-right: 4.2rem;
+  }
+}
+
 @media (max-width: 767px) {
+  .co-apex-assistant-shell.is-closed .co-apex-assistant-trigger {
+    width: 3.5rem;
+    min-height: 3.5rem;
+  }
+
   .co-apex-assistant-shell {
     right: 0.75rem !important;
     bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.7rem) !important;
