@@ -33833,3 +33833,169 @@ textarea {
     padding: 0.72rem !important;
   }
 }
+
+.co-communications-page {
+  --co-communications-rail-line: rgba(148, 163, 184, 0.2);
+  --co-communications-rail-panel: rgba(255, 255, 255, 0.965);
+}
+
+@media (min-width: 1024px) {
+  .co-communications-page .co-page-header {
+    margin-bottom: 0.72rem !important;
+    padding-top: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-communications-shell {
+    gap: 0.75rem !important;
+  }
+
+  .co-communications-kpi-card {
+    min-height: 5.05rem !important;
+  }
+
+  .co-communications-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21rem, 23rem) !important;
+  }
+
+  .co-communications-main-board,
+  .co-communications-log-card {
+    border-radius: 0.78rem !important;
+    box-shadow: 0 18px 44px -38px rgba(7, 17, 31, 0.58) !important;
+  }
+
+  .co-communications-rail {
+    border: 1px solid var(--co-communications-rail-line);
+    border-radius: 0.55rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.16), transparent 13rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0.62rem !important;
+    box-shadow: 0 24px 52px -42px rgba(7, 17, 31, 0.9);
+  }
+
+  .co-communications-rail .co-leads-followup-card,
+  .co-communications-rules-card {
+    border-color: rgba(203, 213, 225, 0.88) !important;
+    border-left-color: rgba(249, 115, 22, 0.72) !important;
+    background: var(--co-communications-rail-panel) !important;
+    background-color: var(--co-communications-rail-panel) !important;
+    box-shadow: none !important;
+  }
+
+  .co-communications-rail .co-leads-followup-header {
+    padding: 0.72rem !important;
+  }
+
+  .co-communications-rail .co-leads-followup-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    min-width: 0 !important;
+  }
+
+  .co-communications-rail .co-leads-followup-stat {
+    min-height: 3.45rem !important;
+    padding: 0.54rem !important;
+  }
+
+  .co-communications-rules-card {
+    padding: 0.78rem !important;
+  }
+
+  .co-communications-log-row {
+    min-height: 6.2rem;
+  }
+
+  .co-communications-log-row:nth-child(4n + 1)::before {
+    background: rgba(37, 99, 235, 0.58);
+  }
+
+  .co-communications-log-row:nth-child(4n + 2)::before {
+    background: rgba(249, 115, 22, 0.68);
+  }
+
+  .co-communications-log-row:nth-child(4n + 3)::before {
+    background: rgba(22, 163, 74, 0.58);
+  }
+
+  .co-communications-log-row:hover::before {
+    width: 4px;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-communications-page .co-page-header {
+    margin-inline: 1rem !important;
+    border-radius: 0.9rem !important;
+  }
+
+  .co-communications-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.65rem !important;
+    overflow: visible !important;
+    padding-inline: 1rem !important;
+    scroll-snap-type: none !important;
+  }
+
+  .co-communications-kpi-card {
+    flex: initial !important;
+    min-width: 0 !important;
+    min-height: 5.7rem !important;
+    padding: 0.66rem !important;
+  }
+
+  .co-communications-kpi-card .badge,
+  .co-communications-kpi-card [class*="badge"] {
+    max-width: 100%;
+  }
+
+  .co-communications-board-header,
+  .co-communications-log-header,
+  .co-communications-form {
+    padding: 0.78rem !important;
+  }
+
+  .co-communications-submit-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-communications-submit-row .btn,
+  .co-communications-submit-row button,
+  .co-communications-submit-row p {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .co-communications-log-actions {
+    gap: 0.42rem !important;
+  }
+
+  .co-communications-log-actions > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .co-communications-method-row button,
+  .co-communications-submit-row .btn,
+  .co-communications-submit-row button,
+  .co-communications-log-actions .btn,
+  .co-communications-log-actions button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-communications-rail {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 0.92rem;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.14), transparent 12rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    padding: 0.72rem !important;
+  }
+
+  .co-communications-rail .co-leads-followup-card,
+  .co-communications-rules-card {
+    border-radius: 0.84rem !important;
+  }
+}
