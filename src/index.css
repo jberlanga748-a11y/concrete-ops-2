@@ -3614,6 +3614,296 @@ textarea {
     background: #ffffff;
   }
 
+  .co-communications-page {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(248, 250, 252, 0.64)),
+      radial-gradient(circle at top right, rgba(255, 237, 213, 0.34), transparent 32rem);
+  }
+
+  .co-communications-page .co-page-header {
+    padding-top: 0.85rem !important;
+    padding-bottom: 0.75rem !important;
+    border-left: 3px solid rgba(249, 115, 22, 0.76);
+    border-radius: 0.86rem;
+  }
+
+  .co-communications-page .co-page-header h1 {
+    font-size: clamp(1.65rem, 2vw, 2.18rem) !important;
+    line-height: 1.02 !important;
+  }
+
+  .co-communications-page .co-page-header p:not(:first-child) {
+    margin-top: 0.35rem !important;
+    max-width: 65rem !important;
+    font-size: 0.88rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .co-communications-shell {
+    max-width: 1520px;
+    margin-inline: auto;
+  }
+
+  .co-communications-kpi-grid {
+    gap: 0.78rem !important;
+  }
+
+  .co-communications-kpi-card {
+    min-height: 5.2rem;
+    border-radius: 0.82rem !important;
+    border-top-width: 3px !important;
+    border-top-color: rgba(37, 99, 235, 0.9) !important;
+    padding: 0.68rem 0.78rem !important;
+  }
+
+  .co-communications-kpi-card[data-tone="amber"],
+  .co-communications-kpi-card[data-tone="orange"] {
+    border-top-color: rgba(249, 115, 22, 0.86) !important;
+  }
+
+  .co-communications-kpi-card[data-tone="red"] {
+    border-top-color: rgba(239, 68, 68, 0.86) !important;
+  }
+
+  .co-communications-kpi-card[data-tone="green"] {
+    border-top-color: rgba(22, 163, 74, 0.86) !important;
+  }
+
+  .co-communications-kpi-card[data-tone="slate"] {
+    border-top-color: rgba(100, 116, 139, 0.86) !important;
+  }
+
+  .co-communications-kpi-card p:nth-child(1) {
+    font-size: 0.66rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .co-communications-kpi-card p:nth-child(2) {
+    margin-top: 0.38rem !important;
+    font-size: clamp(1.55rem, 1.7vw, 1.9rem) !important;
+    line-height: 0.9 !important;
+  }
+
+  .co-communications-kpi-card p:nth-child(3) {
+    font-size: 0.68rem !important;
+    line-height: 1.18 !important;
+  }
+
+  .co-communications-command-layout {
+    align-items: start;
+  }
+
+  .co-communications-main-board,
+  .co-communications-log-card,
+  .co-communications-rules-card {
+    border-top-color: rgba(249, 115, 22, 0.68) !important;
+  }
+
+  .co-communications-board-header,
+  .co-communications-log-header {
+    box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.78);
+    padding: 0.76rem 1rem !important;
+  }
+
+  .co-communications-board-header .co-section-accent,
+  .co-communications-log-header .co-section-accent {
+    margin-bottom: 0 !important;
+  }
+
+  .co-communications-board-header h2,
+  .co-communications-log-header h2 {
+    font-size: 0.95rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .co-communications-board-header p,
+  .co-communications-log-header p {
+    font-size: 0.76rem !important;
+    line-height: 1.32 !important;
+  }
+
+  .co-communications-form {
+    gap: 0.72rem !important;
+  }
+
+  .co-communications-form .field-label {
+    font-size: 0.68rem;
+  }
+
+  .co-communications-form .field-input {
+    min-height: 2.25rem;
+  }
+
+  .co-communications-form textarea.field-input {
+    min-height: 5.25rem;
+  }
+
+  .co-communications-selected-context {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.18rem 0.75rem;
+    border: 1px solid rgba(253, 186, 116, 0.62);
+    border-left: 3px solid rgba(249, 115, 22, 0.86);
+    border-radius: 0.72rem;
+    background:
+      linear-gradient(90deg, rgba(255, 247, 237, 0.86), #ffffff 42%);
+    padding: 0.62rem 0.72rem;
+  }
+
+  .co-communications-selected-context span,
+  .co-communications-selected-context em {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .co-communications-selected-context span {
+    grid-column: 1 / -1;
+    color: #c2410c;
+    font-size: 0.62rem;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .co-communications-selected-context strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: #07111f;
+    font-size: 0.88rem;
+    font-weight: 950;
+    line-height: 1.12;
+  }
+
+  .co-communications-selected-context em {
+    grid-column: 1 / -1;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 850;
+    line-height: 1.22;
+  }
+
+  .co-communications-method-row {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+    padding-bottom: 0.62rem;
+  }
+
+  .co-communications-method-row button {
+    min-height: 2rem !important;
+    min-width: 4.6rem;
+    justify-content: center;
+  }
+
+  .co-communications-submit-row {
+    border-top: 1px solid rgba(226, 232, 240, 0.95);
+    padding-top: 0.72rem;
+  }
+
+  .co-communications-submit-row p {
+    min-width: 12rem;
+    max-width: 34rem;
+    overflow-wrap: anywhere;
+  }
+
+  .co-communications-log-card .field-input {
+    min-height: 2.18rem;
+  }
+
+  .co-communications-log-row {
+    position: relative;
+    background: #ffffff;
+    transition:
+      background 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .co-communications-log-row::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: transparent;
+  }
+
+  .co-communications-log-row:hover {
+    background: rgba(255, 247, 237, 0.46);
+  }
+
+  .co-communications-log-row:hover::before {
+    background: rgba(249, 115, 22, 0.82);
+  }
+
+  .co-communications-log-draft {
+    border: 1px solid rgba(226, 232, 240, 0.94);
+    border-radius: 0.68rem !important;
+    background: rgba(248, 250, 252, 0.88) !important;
+    font-size: 0.78rem !important;
+    line-height: 1.42 !important;
+  }
+
+  .co-communications-log-notes {
+    color: #475569 !important;
+    font-size: 0.78rem !important;
+    line-height: 1.42 !important;
+  }
+
+  .co-communications-log-actions button {
+    min-height: 2rem !important;
+  }
+
+  .co-communications-rail {
+    position: sticky;
+    top: calc(var(--layout-topbar-height, 4.5rem) + 0.62rem);
+    max-height: calc(100vh - var(--layout-topbar-height, 4.5rem) - 0.95rem);
+    overflow-y: auto;
+    padding-right: 0.2rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .co-communications-rail .co-leads-followup-card,
+  .co-communications-rules-card {
+    border-left-color: rgba(249, 115, 22, 0.62) !important;
+  }
+
+  .co-communications-rail .co-leads-followup-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .co-communications-rail .co-leads-followup-tabs button {
+    width: 100%;
+    justify-content: center;
+    min-height: 2rem;
+  }
+
+  .co-communications-rail .co-leads-followup-card .hidden.md\:block {
+    display: none !important;
+  }
+
+  .co-communications-rail .co-leads-followup-mobile-list {
+    display: grid !important;
+  }
+
+  .co-communications-rail .co-leads-followup-mobile-list .co-office-list-card {
+    border-left: 3px solid rgba(249, 115, 22, 0.58);
+    border-radius: 0.68rem !important;
+  }
+
+  .co-communications-rules-card .co-section-accent {
+    margin-bottom: 0.72rem !important;
+  }
+
+  .co-communications-rules-card .co-ai-boundary-row {
+    min-height: 2.55rem;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+  }
+
   .co-access-restricted-page .co-card {
     border-top-color: rgba(249, 115, 22, 0.78) !important;
   }
@@ -5659,6 +5949,21 @@ textarea {
       color: #fff7ed !important;
       box-shadow: 0 16px 30px -22px rgba(249, 115, 22, 0.88);
     }
+
+    .co-communications-command-layout {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .co-communications-rail {
+      position: static !important;
+      max-height: none !important;
+      overflow: visible !important;
+      padding-right: 0 !important;
+    }
+
+    .co-communications-kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
   }
 
   @media (max-width: 767px) {
@@ -5686,6 +5991,69 @@ textarea {
       border-left: 3px solid var(--color-brand-orange);
       border-radius: 0.875rem !important;
       box-shadow: 0 16px 38px -34px rgba(7, 17, 31, 0.56) !important;
+    }
+
+    .co-communications-page .co-page-header {
+      margin-inline: 1rem !important;
+      padding-top: 1rem !important;
+      padding-bottom: 0.9rem !important;
+    }
+
+    .co-communications-shell {
+      padding-left: 1rem !important;
+      padding-right: 1rem !important;
+    }
+
+    .co-communications-kpi-grid {
+      display: flex !important;
+      grid-template-columns: none !important;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-padding-inline: 1rem;
+      scroll-snap-type: x proximity;
+    }
+
+    .co-communications-kpi-card {
+      flex: 0 0 10.4rem;
+      min-height: 5.8rem !important;
+      scroll-snap-align: start;
+    }
+
+    .co-communications-board-header,
+    .co-communications-log-header {
+      padding: 0.88rem !important;
+    }
+
+    .co-communications-form {
+      padding: 0.88rem !important;
+    }
+
+    .co-communications-selected-context {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .co-communications-method-row {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .co-communications-method-row button {
+      width: 100%;
+      min-height: 2.44rem !important;
+    }
+
+    .co-communications-log-row {
+      padding: 0.88rem !important;
+    }
+
+    .co-communications-log-actions {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .co-communications-log-actions button {
+      width: 100%;
+      min-height: 2.38rem !important;
     }
 
     .co-mobile-accordion {

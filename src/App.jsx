@@ -18728,10 +18728,10 @@ function CommunicationCenterPage({
         actions={<Badge tone="blue">Manual Log</Badge>}
       />
 
-      <div className="grid min-w-0 gap-4 px-5 pb-6 sm:px-6 lg:px-8">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="co-communications-shell grid min-w-0 gap-3 px-5 pb-6 sm:px-6 lg:px-8">
+        <div className="co-communications-kpi-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
-            <Card key={stat.label} className="p-4">
+            <Card key={stat.label} className="co-communications-kpi-card p-4" data-tone={stat.tone}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
@@ -18744,30 +18744,34 @@ function CommunicationCenterPage({
           ))}
         </div>
 
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid min-w-0 gap-4">
-            <Card className="p-5">
-              <SectionHeader
-                title="Log communication"
-                description="Save calls, copied email/text drafts, meeting notes, and next follow-up dates against the right record."
-                action={<Badge tone={canManage ? "green" : "slate"}>{canManage ? "Can edit" : "Read only"}</Badge>}
-              />
+        <div className="co-communications-command-layout grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="co-communications-left-stack grid min-w-0 gap-3">
+            <Card className="co-communications-main-board overflow-hidden">
+              <div className="co-communications-board-header border-b border-slate-200 bg-white p-4">
+                <SectionHeader
+                  title="Manual Outreach Command"
+                  description="Log calls, copied email/text drafts, meeting notes, and next follow-up dates against the right record."
+                  action={<Badge tone={canManage ? "green" : "slate"}>{canManage ? "Can edit" : "Read only"}</Badge>}
+                />
+              </div>
               {!centerState.options.length ? (
-                <StateCard title="No records available" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" />
+                <div className="p-4"><StateCard title="No records available" description="Create a lead, customer, estimate, or job before logging communication." tone="slate" /></div>
               ) : (
-                <form className="mt-4 grid gap-3" onSubmit={submitCommunication}>
+                <form className="co-communications-form grid gap-3 p-4" onSubmit={submitCommunication}>
                   <SelectField label="Link communication to" value={selectedOption?.key || ""} onChange={(event) => setSelectedKey(event.target.value)} disabled={busy || !canManage}>
                     {centerState.options.map((option) => (
                       <option key={option.key} value={option.key}>{option.label} - {option.type}</option>
                     ))}
                   </SelectField>
                   {selectedOption ? (
-                    <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-slate-700">
-                      <strong className="text-slate-950">{selectedOption.label}</strong>
-                      {selectedOption.subtitle ? <span className="block text-xs font-bold text-slate-500">{selectedOption.subtitle}</span> : null}
+                    <div className="co-communications-selected-context">
+                      <span>Selected context</span>
+                      <strong>{selectedOption.label}</strong>
+                      {selectedOption.subtitle ? <em>{selectedOption.subtitle}</em> : null}
+                      <Badge tone="slate">{selectedOption.type}</Badge>
                     </div>
                   ) : null}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="co-communications-method-row flex flex-wrap gap-2">
                     {["Call", "Email", "Text", "In Person", "Other"].map((method) => (
                       <Button key={method} type="button" size="sm" variant={draft.method === method ? "primary" : "secondary"} onClick={() => setQuickMethod(method)} disabled={busy || !canManage}>
                         {method}
@@ -18794,7 +18798,7 @@ function CommunicationCenterPage({
                   <InputField label="Subject / short title" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} disabled={busy || !canManage} placeholder="Estimate follow-up, site visit, approval call" />
                   <TextAreaField label="Draft message / script" value={draft.messageDraft} onChange={(event) => setDraft((current) => ({ ...current, messageDraft: event.target.value }))} disabled={busy || !canManage} placeholder="Manual email/SMS/call script. Stored only; Apex HQ does not send it." />
                   <TextAreaField label="Outcome notes" value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} disabled={busy || !canManage} placeholder="What happened, what the customer said, and what needs to happen next." />
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="co-communications-submit-row flex flex-wrap items-center gap-3">
                     <Button type="submit" disabled={busy || !canManage || !selectedOption}>Save communication</Button>
                     <p className="text-sm font-bold text-slate-500">{message || "Manual-only: no email, text, or phone call is sent."}</p>
                   </div>
@@ -18802,8 +18806,8 @@ function CommunicationCenterPage({
               )}
             </Card>
 
-            <Card className="overflow-hidden">
-              <div className="border-b border-slate-200 p-4">
+            <Card className="co-communications-log-card overflow-hidden">
+              <div className="co-communications-log-header border-b border-slate-200 p-4">
                 <SectionHeader title="Communication log" description="Search recent manual notes, drafts, follow-ups, and customer responses across office records." />
                 <div className="mt-3 grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
                   <SelectField label="Type" value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
@@ -18818,7 +18822,7 @@ function CommunicationCenterPage({
               </div>
               <div className="divide-y divide-slate-100">
                 {centerState.filteredRecords.slice(0, 18).map((record) => (
-                  <div key={record.id} className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                  <div key={record.id} className="co-communications-log-row grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
                         <Badge tone={contactHistoryBadgeTone(record.method, "method")}>{record.method}</Badge>
@@ -18829,10 +18833,10 @@ function CommunicationCenterPage({
                       <p className="mt-2 break-words text-sm font-black text-slate-950">{record.subject || record.entity?.label || "Manual communication"}</p>
                       <p className="mt-1 text-xs font-bold text-slate-500">{record.entity?.label || record.contactName || "Unlinked context"} {record.entity?.subtitle ? `- ${record.entity.subtitle}` : ""}</p>
                       <p className="mt-1 text-xs font-bold text-slate-500">{formatDateTime(record.contactedAt || record.createdAt)} by {record.createdByName || "Office"}</p>
-                      {record.messageDraft ? <p className="mt-3 line-clamp-3 whitespace-pre-wrap rounded-2xl bg-blue-50/60 p-3 text-sm leading-6 text-slate-700">{record.messageDraft}</p> : null}
-                      {record.notes ? <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{record.notes}</p> : null}
+                      {record.messageDraft ? <p className="co-communications-log-draft mt-3 line-clamp-3 whitespace-pre-wrap rounded-2xl bg-blue-50/60 p-3 text-sm leading-6 text-slate-700">{record.messageDraft}</p> : null}
+                      {record.notes ? <p className="co-communications-log-notes mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{record.notes}</p> : null}
                     </div>
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <div className="co-communications-log-actions flex flex-wrap gap-2 lg:justify-end">
                       <Button type="button" size="sm" variant="secondary" onClick={() => openRecord(record)}>Open Context</Button>
                       {canManage && record.outcome !== "Waiting on Response" ? <Button type="button" size="sm" variant="ghost" onClick={() => onUpdateContactHistory(record.id, { outcome: "Waiting on Response" })} disabled={busy}>Mark waiting</Button> : null}
                       {canManage ? <Button type="button" size="sm" variant="ghost" onClick={() => onArchiveContactHistory(record.id)} disabled={busy}>Archive</Button> : null}
@@ -18846,7 +18850,7 @@ function CommunicationCenterPage({
             </Card>
           </div>
 
-          <aside className="grid min-w-0 gap-4 content-start">
+          <aside className="co-communications-rail grid min-w-0 gap-3 content-start">
             <FollowUpQueuePanel
               leads={leads}
               customers={customers}
@@ -18865,7 +18869,7 @@ function CommunicationCenterPage({
               compact
               maxItems={8}
             />
-            <Card className="p-4">
+            <Card className="co-communications-rules-card p-4">
               <SectionHeader title="Manual communication rules" description="This phase is visibility and logging only." />
               <div className="grid gap-2">
                 <div className="co-ai-boundary-row" data-state="manual"><span>Email/SMS</span><strong>Manual only</strong></div>
