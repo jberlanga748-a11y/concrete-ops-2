@@ -474,7 +474,7 @@ Suggested verification:
 - `npm.cmd run build`
 - `git diff --check`
 - Browser QA for the touched route across the relevant desktop/tablet/mobile viewport and role matrix.
-- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage.
+- For route-wide final-polish regression, use `npm.cmd run audit:visual-polish` locally. Use `npm.cmd run audit:visual-polish:chromium` for the stable Chromium sweep and `npm.cmd run audit:visual-polish:tablet` for tablet-specific coverage. Use `npm.cmd run audit:public-site` when public `/founder-pilot` copy or UI is touched; it covers desktop, tablet, and phone.
 
 ## Next Build Phases
 

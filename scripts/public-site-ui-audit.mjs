@@ -5,9 +5,10 @@ import { chromium } from "playwright";
 
 const DEFAULT_BASE_URL = "http://localhost:4000/";
 const DEFAULT_OUTPUT_ROOT = path.resolve(process.cwd(), "ui-audit", "public-site");
-const DEFAULT_VIEWPORTS = ["1440x1000", "390x844"];
+const DEFAULT_VIEWPORTS = ["1440x1000", "768x1024", "390x844"];
 const VIEWPORTS = {
   "1440x1000": { width: 1440, height: 1000 },
+  "768x1024": { width: 768, height: 1024 },
   "390x844": { width: 390, height: 844 },
 };
 const FORBIDDEN_PUBLIC_CLAIMS = [
@@ -28,7 +29,7 @@ Usage:
 
 Optional flags:
   --base-url=http://localhost:4000/
-  --viewports=1440x1000,390x844
+  --viewports=1440x1000,768x1024,390x844
   --output-dir=ui-audit/public-site
   --headed
   --help

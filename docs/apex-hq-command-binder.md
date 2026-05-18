@@ -448,6 +448,7 @@ For focused browser QA, use Playwright or the Codex in-app browser against the e
 - failed network requests
 - horizontal overflow
 - direct-route role denial where relevant
+- public `/founder-pilot` desktop/tablet/mobile evidence with `npm.cmd run audit:public-site` when public claims or funnel UI are touched
 
 Supabase checks:
 

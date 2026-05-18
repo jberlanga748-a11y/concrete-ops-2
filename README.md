@@ -23,6 +23,7 @@ The demo account is available by default in development. In production, demo dat
 - `npm run audit:visual-polish` logs into the local app and checks route-wide visual polish, overflow, assistant overlap, console/network failures, and field-role exposure
 - `npm run audit:visual-polish:chromium` runs the same sweep with bundled Chromium for stable local QA
 - `npm run audit:visual-polish:tablet` runs the tablet owner/admin and field-role route sweep
+- `npm run audit:public-site` checks the public founder-pilot page across desktop, tablet, and phone
 
 If you open only the static frontend without the Node server, login will not work because authentication depends on the local `/api` backend.
 
