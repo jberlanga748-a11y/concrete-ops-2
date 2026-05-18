@@ -28463,3 +28463,225 @@ textarea {
   min-height: 6.35rem !important;
   justify-content: flex-start !important;
 }
+
+@media (min-width: 1024px) {
+  :root {
+    --layout-sidebar-width: 15.75rem;
+    --layout-topbar-height: 4rem;
+    --radius-card: 0.5rem;
+    --radius-panel: 0.5rem;
+    --radius-control: 0.5rem;
+  }
+
+  .co-app-shell {
+    background:
+      linear-gradient(90deg, #07111f 0, #07111f var(--layout-sidebar-width), transparent var(--layout-sidebar-width)),
+      radial-gradient(circle at calc(var(--layout-sidebar-width) + 72%) 0%, rgba(249, 115, 22, 0.13), transparent 30rem),
+      linear-gradient(180deg, #eef3f8 0%, #f8fafc 52%, #edf2f7 100%);
+  }
+
+  .co-workspace-shell {
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.22)),
+      radial-gradient(circle at 88% 0%, rgba(219, 234, 254, 0.44), transparent 32rem);
+  }
+
+  .co-topbar {
+    border-bottom-color: rgba(148, 163, 184, 0.2);
+    background:
+      radial-gradient(circle at 14% 0%, rgba(249, 115, 22, 0.18), transparent 16rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    box-shadow: 0 18px 40px -32px rgba(7, 17, 31, 0.92);
+  }
+
+  .co-topbar > div {
+    min-height: var(--layout-topbar-height) !important;
+    height: var(--layout-topbar-height) !important;
+    padding-left: 1.35rem !important;
+    padding-right: 1.35rem !important;
+  }
+
+  .co-topbar p:first-child {
+    color: #fdba74 !important;
+    letter-spacing: 0.24em !important;
+  }
+
+  .co-topbar p:last-child {
+    font-size: 0.94rem !important;
+    letter-spacing: 0 !important;
+  }
+
+  .co-topbar-pill,
+  .co-topbar .badge,
+  .co-topbar [class*="rounded-full"] {
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    background: rgba(255, 255, 255, 0.075) !important;
+    color: #f8fafc !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .co-sidebar-shell {
+    width: var(--layout-sidebar-width);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(249, 115, 22, 0.2), transparent 11rem),
+      linear-gradient(180deg, #0d1523 0%, #07111f 100%);
+    border-right-color: rgba(148, 163, 184, 0.18);
+  }
+
+  .co-sidebar-brand-panel {
+    padding: 0.5rem 0.62rem 0.45rem !important;
+  }
+
+  .co-sidebar-brand-logo {
+    max-height: 3.65rem;
+  }
+
+  .co-sidebar-scroll {
+    height: calc(100vh - 5.35rem) !important;
+    padding: 0.5rem 0.52rem 0.62rem !important;
+  }
+
+  .co-sidebar-nav-group + .co-sidebar-nav-group {
+    margin-top: 0.1rem;
+    padding-top: 0.42rem;
+  }
+
+  .co-sidebar-nav-item {
+    min-height: 1.96rem;
+    border-radius: 0.5rem !important;
+    padding: 0.38rem 0.56rem !important;
+  }
+
+  .co-sidebar-nav-active {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 14px 28px -22px rgba(249, 115, 22, 0.95);
+  }
+
+  .co-sidebar-status-card {
+    border: 1px solid rgba(148, 163, 184, 0.14) !important;
+    border-radius: 0.5rem !important;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(7, 17, 31, 0.62)) !important;
+  }
+
+  .co-module-frame > .co-office-page {
+    padding-top: 0.82rem;
+  }
+
+  .co-office-page .co-page-header {
+    position: relative;
+    margin: 0 1rem 0.82rem !important;
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.92) !important;
+    border-radius: 0.5rem !important;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96) 64%, rgba(255, 247, 237, 0.86)),
+      radial-gradient(circle at 92% 0%, rgba(249, 115, 22, 0.12), transparent 20rem) !important;
+    box-shadow: 0 22px 48px -42px rgba(7, 17, 31, 0.72) !important;
+  }
+
+  .co-office-page .co-page-header::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, #f4510b, #fdba74);
+  }
+
+  .co-office-page .co-page-header > div {
+    position: relative;
+    z-index: 1;
+  }
+
+  .co-office-page .co-page-header p:first-child {
+    color: #d83d00 !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.22em !important;
+  }
+
+  .co-office-page .co-page-header h1 {
+    color: #07111f !important;
+    font-size: clamp(1.6rem, 1.78vw, 2rem) !important;
+    letter-spacing: 0 !important;
+  }
+
+  .co-office-page .co-page-header h1 + p {
+    max-width: 64rem;
+    color: #52647a !important;
+    font-size: 0.9rem !important;
+    line-height: 1.45 !important;
+  }
+
+  .co-office-page .co-page-header-actions button,
+  .co-office-page .co-page-header-tabs button {
+    min-height: 2.25rem;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 12px 24px -22px rgba(7, 17, 31, 0.52);
+  }
+
+  .co-office-page .co-card,
+  .co-office-page .co-action-panel,
+  .co-office-page .co-office-list-card,
+  .co-office-page .table-shell,
+  .co-office-page .co-state-card,
+  .co-office-page .co-command-kpi,
+  .co-office-page .co-dashboard-priority-card,
+  .co-office-page .co-schedule-job-card,
+  .co-office-page .co-leads-rail-card,
+  .co-office-page .co-dashboard-rail-card,
+  .co-office-page .co-schedule-rail-card,
+  .co-office-page .co-employees-hero-card,
+  .co-office-page .co-employees-priority-card {
+    border-radius: 0.5rem !important;
+  }
+
+  .co-office-page .co-card,
+  .co-office-page .co-action-panel {
+    border-color: rgba(203, 213, 225, 0.94) !important;
+    box-shadow: 0 18px 38px -34px rgba(7, 17, 31, 0.56) !important;
+  }
+
+  .co-office-page .co-card:hover,
+  .co-office-page .co-action-panel:hover,
+  .co-office-page .co-office-list-card:hover {
+    border-color: rgba(249, 115, 22, 0.34) !important;
+  }
+
+  .co-office-page .table-shell {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .co-office-page table th {
+    background: rgba(248, 250, 252, 0.96);
+    color: #23334a !important;
+  }
+
+  .co-office-page .co-filter-bar {
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+  }
+
+  .co-office-page .co-filter-bar button,
+  .co-office-page .field-input,
+  .co-office-page select,
+  .co-office-page input,
+  .co-office-page textarea {
+    border-radius: 0.5rem !important;
+  }
+
+  .co-dashboard-page .co-page-header {
+    padding-top: 0.78rem !important;
+    padding-bottom: 0.72rem !important;
+  }
+
+  .co-module-frame .co-office-page .co-card[class],
+  .co-module-frame .co-office-page .co-action-panel[class],
+  .co-module-frame .co-office-page .co-office-list-card[class],
+  .co-module-frame .co-office-page .co-command-kpi[class],
+  .co-module-frame .co-office-page .co-state-card[class],
+  .co-module-frame .co-office-page .table-shell[class] {
+    border-radius: 0.5rem !important;
+  }
+}
