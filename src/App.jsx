@@ -298,7 +298,7 @@ const NAV_GROUPS = [
       { id: "calculator", label: "Calculator", icon: "calculator" },
       { id: "support", label: "Support", icon: "help" },
       { id: "appHealth", label: "App Health", icon: "database" },
-      { id: "copilot", label: "AI Office Preview", icon: "spark" },
+      { id: "copilot", label: "Apex Assistant", icon: "spark" },
       { id: "settings", label: "Settings", icon: "settings" },
     ],
   },
@@ -3459,10 +3459,10 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   }
 
   return (
-    <div className="fixed bottom-[5.75rem] right-3 z-40 w-[min(26rem,calc(100vw-1.5rem))] lg:bottom-5 lg:right-5">
+    <div className={`co-apex-assistant-shell ${open ? "is-open" : "is-closed"} fixed bottom-[5.75rem] right-3 z-40 w-[min(26rem,calc(100vw-1.5rem))] lg:bottom-5 lg:right-5`}>
       {open ? (
-        <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 text-white shadow-[0_28px_90px_-35px_rgba(2,6,23,0.88)]">
-          <div className="border-b border-white/10 bg-slate-900/95 p-4">
+        <div className="co-apex-assistant-panel overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 text-white shadow-[0_28px_90px_-35px_rgba(2,6,23,0.88)]">
+          <div className="co-apex-assistant-head border-b border-white/10 bg-slate-900/95 p-4">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -3475,11 +3475,11 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                   </div>
                 </div>
               </div>
-              <button type="button" className="co-focus-ring rounded-full border border-white/10 px-3 py-1 text-xs font-black text-slate-200 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close Apex Assistant">
+              <button type="button" className="co-apex-assistant-close co-focus-ring rounded-full border border-white/10 px-3 py-1 text-xs font-black text-slate-200 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close Apex Assistant">
                 Close
               </button>
             </div>
-            <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="co-apex-assistant-status-card mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
               <div className="flex min-w-0 items-start justify-between gap-2">
                 <p className="text-sm font-black text-white">{assistantState.statusLabel}</p>
                 <Badge tone={assistantState.statusLabel === "Operations clear" ? "green" : "amber"}>{assistantState.watchtowerQueue.length || assistantState.watchtowerActions.length}</Badge>
@@ -3488,7 +3488,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
             </div>
           </div>
 
-          <div className="max-h-[62vh] overflow-y-auto p-4">
+          <div className="co-apex-assistant-body max-h-[62vh] overflow-y-auto p-4">
             {assistantState.watchtowerQueue.length ? (
               <div className="grid gap-2">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Watchtower context</p>
@@ -3497,7 +3497,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     key={item.id}
                     type="button"
                     onClick={() => openModule(item.moduleId)}
-                    className="co-focus-ring w-full rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                    className="co-apex-assistant-context-card co-focus-ring w-full rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-left transition hover:border-orange-400/50 hover:bg-orange-500/10"
                   >
                     <span className="flex min-w-0 items-start justify-between gap-3">
                       <span className="min-w-0">
@@ -3521,7 +3521,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                   key={item}
                   type="button"
                   onClick={() => runPrompt(item)}
-                  className="co-focus-ring min-h-10 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-left text-xs font-black leading-4 text-slate-100 transition hover:border-orange-400/50 hover:bg-orange-500/10"
+                  className="co-apex-assistant-prompt co-focus-ring min-h-10 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-left text-xs font-black leading-4 text-slate-100 transition hover:border-orange-400/50 hover:bg-orange-500/10"
                 >
                   {item}
                 </button>
@@ -3529,7 +3529,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
             </div>
 
             {response ? (
-              <div className="mt-4 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3">
+              <div className="co-apex-assistant-response mt-4 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3">
                 <p className="text-sm font-black text-white">{response.message}</p>
                 {response.type === "missing-proof-summary" ? (
                   <div className="mt-3 grid gap-2">
@@ -3583,12 +3583,12 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
               </div>
             ) : null}
 
-            <form className="mt-4 flex min-w-0 gap-2" onSubmit={handleSubmit}>
+            <form className="co-apex-assistant-form mt-4 flex min-w-0 gap-2" onSubmit={handleSubmit}>
               <input
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                className="min-h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 outline-none focus:border-orange-300"
-                placeholder="Ask Apex Assistant..."
+                className="co-apex-assistant-input min-h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 outline-none focus:border-orange-300"
+                placeholder="Ask for the next review..."
               />
               <button type="submit" className="co-focus-ring inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-sm shadow-orange-950/20 hover:bg-orange-700" aria-label="Ask Apex Assistant">
                 <Icon name="arrowUpRight" className="h-4 w-4" />
@@ -3601,7 +3601,7 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="co-focus-ring ml-auto flex max-w-full items-center gap-2 rounded-full border border-slate-800 bg-slate-950 px-4 py-3 text-left text-white shadow-[0_18px_60px_-28px_rgba(2,6,23,0.88)] transition hover:bg-slate-900"
+          className="co-apex-assistant-trigger co-focus-ring ml-auto flex max-w-full items-center gap-2 rounded-full border border-slate-800 bg-slate-950 px-4 py-3 text-left text-white shadow-[0_18px_60px_-28px_rgba(2,6,23,0.88)] transition hover:bg-slate-900"
           aria-label="Open Apex Assistant"
         >
           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-600 text-white">
@@ -14557,7 +14557,7 @@ function CommandCenterOwnerHealthCard({ onOpenOwnerHealth }) {
     { label: "App Status", detail: "Review the live health panel", pill: "Review", tone: "blue" },
     { label: "Database", detail: "Confirm data service status", pill: "Review", tone: "blue" },
     { label: "Backup", detail: "Check export and safety status", pill: "Review", tone: "slate" },
-    { label: "AI Office Preview", detail: "Server-side, review-only assistant tools", pill: "Review", tone: "slate" },
+    { label: "Apex Assistant", detail: "Server-side, review-only assistant tools", pill: "Review", tone: "slate" },
     { label: "Website Intake", detail: "Review intake readiness", pill: "Review", tone: "slate" },
   ];
 
@@ -23382,6 +23382,32 @@ function CopilotPagePolished({
     { label: "Pipeline", value: compactCurrency(pipelineValue), helper: "Open value" },
     { label: "Uploads", value: visibleUploads.length, helper: "Photo evidence" },
   ];
+  const assistantCommandCards = [
+    {
+      id: "next-review",
+      label: "Next review",
+      value: nextActions[0]?.label || "Open Command Center",
+      helper: "Start with the highest-signal office action.",
+      tone: nextActions[0]?.tone || "green",
+      action: nextActions[0]?.action || (() => openModule("commandCenter")),
+    },
+    {
+      id: "manual-first",
+      label: "Guardrail",
+      value: "Manual approval",
+      helper: "No auto-send, approvals, record changes, or customer contact.",
+      tone: "amber",
+      action: () => openModule("copilot"),
+    },
+    {
+      id: "role-safe",
+      label: "Role safety",
+      value: "Field users blocked",
+      helper: "Assistant context stays office-only or assigned-scope.",
+      tone: "green",
+      action: () => openModule("commandCenter"),
+    },
+  ];
   const foundDraftReviewChecks = [
     {
       id: "source-proof",
@@ -23414,22 +23440,39 @@ function CopilotPagePolished({
     <div className="co-office-page co-ai-office-page">
       <PageHeader
         eyebrow="Apex HQ AI"
-        title="AI Office Preview"
-        description="Office-only review workspace for lead drafts, scout signals, startup checks, and operator next actions. Nothing sends or changes records without approval."
+        title="Apex Assistant Command"
+        description="Office-only assistant workspace for lead drafts, scout signals, startup checks, and operator next actions. Nothing sends or changes records without approval."
         actions={
           <div className="co-ai-header-actions">
             <div className="co-ai-header-badges">
-              <Badge tone="amber">Preview</Badge>
+              <Badge tone="amber">Manual-first</Badge>
               <Badge tone="green">Field roles blocked</Badge>
               <Badge tone="amber">No auto-send</Badge>
             </div>
             <div className="co-ai-header-buttons">
-              <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Open Lead Assistant</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Assistant</Button>
               <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Open Command Center</Button>
             </div>
           </div>
         }
       />
+
+      <div className="co-ai-command-hero mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.74fr)] lg:px-6">
+        <div className="co-ai-command-hero-copy">
+          <span>Apex Assistant</span>
+          <h2>Review the next office move before anyone changes the work.</h2>
+          <p>The assistant routes owners, admins, and office roles into existing Apex HQ workflows with saved context, visible guardrails, and manual approval at every step.</p>
+        </div>
+        <div className="co-ai-command-hero-cards">
+          {assistantCommandCards.map((card) => (
+            <button key={card.id} type="button" className="co-ai-command-card co-focus-ring" data-tone={card.tone} onClick={card.action}>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+              <em>{card.helper}</em>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="co-ai-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
         {aiKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
@@ -23891,7 +23934,7 @@ function CopilotPagePolished({
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
                   <h2>Lead Finder locked for this package</h2>
-                  <p>Premium AI Office keeps lead assistant and operations guidance available. Daily Job Finder and Opportunity Scout stay hidden unless the company package includes Lead Finder.</p>
+                  <p>Premium Apex Assistant keeps lead assistant and operations guidance available. Daily Job Finder and Opportunity Scout stay hidden unless the company package includes Lead Finder.</p>
                 </div>
                 <Badge tone="amber">Elite</Badge>
               </div>
@@ -23906,8 +23949,8 @@ function CopilotPagePolished({
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2>Apex HQ AI Action Board</h2>
-                  <p>Use AI where Apex HQ already has real saved context: leads, follow-ups, job readiness, and operator review.</p>
+                  <h2>Assistant Action Board</h2>
+                  <p>Use the assistant where Apex HQ already has real saved context: leads, follow-ups, job readiness, and operator review.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Assistant</Button>
@@ -23934,7 +23977,7 @@ function CopilotPagePolished({
           <Card className="co-ai-main-board overflow-hidden">
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
                 <div className="min-w-0">
-                <h2>AI Office Preview Focus Queue</h2>
+                <h2>Assistant Focus Queue</h2>
                 <p>Highest-signal records and queues to open next. Every row routes to an existing Apex HQ workflow.</p>
               </div>
             </div>
@@ -24000,7 +24043,7 @@ function CopilotPagePolished({
           ) : null}
 
           <Card className="co-ai-rail-card">
-            <SectionHeader title="Workspace Snapshot" description="Current live record counts feeding the AI Office Preview view." />
+            <SectionHeader title="Workspace Snapshot" description="Current live record counts feeding the assistant command view." />
             <div className="co-ai-snapshot-grid">
               {snapshotRows.map((row) => (
                 <div key={row.label}>

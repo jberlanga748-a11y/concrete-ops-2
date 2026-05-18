@@ -65,9 +65,9 @@ const ROUTE_COMMANDS = [
   {
     id: "copilot",
     moduleId: "copilot",
-    actionLabel: "Open AI Office",
+    actionLabel: "Open Apex Assistant",
     keywords: ["assistant", "ai office", "copilot", "help me"],
-    message: "Open AI Office Preview for review-only assistant tools and workspace guidance.",
+    message: "Open Apex Assistant for review-only assistant tools and workspace guidance.",
   },
 ];
 

@@ -34,7 +34,7 @@ const NAV_GROUPS = [
       { id: "toolChecklist", label: "Tool Checklist" },
       { id: "jobDraftImports", label: "Imported Drafts" },
       { id: "appHealth", label: "App Health" },
-      { id: "copilot", label: "AI Office Preview" },
+      { id: "copilot", label: "Apex Assistant" },
       { id: "settings", label: "Settings" },
     ],
   },
@@ -79,7 +79,7 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.equal(canAccessWorkspaceModule("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
   assert.equal(canAccessWorkspaceModule("jobDraftImports", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
   assert.equal(canAccessWorkspaceModule("appHealth", owner, { toolChecklistEnabled: true }, premiumPermissions), true);
-  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /AI Office Preview/);
+  assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Apex Assistant/);
   assert.match(getWorkspaceModuleLock("jobDraftImports", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /Imported Drafts/);
   assert.match(getWorkspaceModuleLock("appHealth", owner, { toolChecklistEnabled: true }, basicPermissions)?.title || "", /App Health/);
   assert.match(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, basicPermissions)?.badge || "", /Premium package/);
@@ -87,7 +87,7 @@ test("package-aware navigation hides premium import and AI Office surfaces", () 
   assert.match(aiOfficeLock?.reviewActionLabel || "", /Review plan readiness/);
   assert.match(aiOfficeLock?.supportActionLabel || "", /Request upgrade review/);
   assert.equal(aiOfficeLock?.requiredPackage, "Premium");
-  assert.equal(aiOfficeLock?.requestedFeature, "AI Office Preview");
+  assert.equal(aiOfficeLock?.requestedFeature, "Apex Assistant");
   assert.match(aiOfficeLock?.manualUpgradeNote || "", /reviewed manually/i);
   assert.match(aiOfficeLock?.manualUpgradeNote || "", /checkout|billing collection/i);
   assert.equal(getWorkspaceModuleLock("copilot", owner, { toolChecklistEnabled: true }, premiumPermissions), null);

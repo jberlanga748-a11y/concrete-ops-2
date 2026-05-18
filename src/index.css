@@ -21920,14 +21920,136 @@ textarea {
   }
 }
 
+.co-apex-assistant-shell {
+  --co-assistant-orange: #f97316;
+  --co-assistant-green: #22c55e;
+  pointer-events: none;
+}
+
+.co-apex-assistant-shell > * {
+  pointer-events: auto;
+}
+
+.co-apex-assistant-panel {
+  border-radius: 1rem !important;
+  background: #07111f !important;
+  box-shadow: 0 30px 90px -38px rgba(2, 6, 23, 0.96) !important;
+}
+
+.co-apex-assistant-head {
+  background: #07111f !important;
+}
+
+.co-apex-assistant-head .rounded-2xl,
+.co-apex-assistant-trigger .rounded-full {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.co-apex-assistant-close {
+  min-height: 2rem;
+  border-radius: 999px !important;
+}
+
+.co-apex-assistant-status-card,
+.co-apex-assistant-context-card,
+.co-apex-assistant-prompt,
+.co-apex-assistant-response {
+  border-radius: 0.86rem !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+}
+
+.co-apex-assistant-status-card {
+  border-color: rgba(249, 115, 22, 0.28) !important;
+  box-shadow: inset 3px 0 0 var(--co-assistant-orange);
+}
+
+.co-apex-assistant-body {
+  display: flex;
+  flex-direction: column;
+  max-height: min(62vh, 36rem) !important;
+  scrollbar-color: rgba(249, 115, 22, 0.68) rgba(15, 23, 42, 0.72);
+}
+
+.co-apex-assistant-context-card,
+.co-apex-assistant-prompt {
+  min-width: 0;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.co-apex-assistant-context-card:hover,
+.co-apex-assistant-prompt:hover {
+  border-color: rgba(251, 146, 60, 0.58) !important;
+  background: rgba(249, 115, 22, 0.13) !important;
+}
+
+.co-apex-assistant-response {
+  border-color: rgba(251, 146, 60, 0.38) !important;
+  box-shadow: inset 3px 0 0 var(--co-assistant-orange);
+}
+
+.co-apex-assistant-input {
+  border-radius: 0.86rem !important;
+}
+
+.co-apex-assistant-form button[type="submit"] {
+  border-radius: 0.86rem !important;
+  box-shadow: inset 0 -2px 0 rgba(154, 52, 18, 0.45);
+}
+
+.co-apex-assistant-form {
+  position: sticky;
+  bottom: -1rem;
+  z-index: 2;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  margin-bottom: -1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #07111f;
+  padding: 0.72rem 1rem 1rem;
+}
+
+.co-apex-assistant-trigger {
+  max-width: min(22rem, calc(100vw - 1.5rem));
+  border-color: rgba(15, 23, 42, 0.98) !important;
+  border-radius: 999px !important;
+  background: #07111f !important;
+  box-shadow: 0 20px 60px -30px rgba(2, 6, 23, 0.94) !important;
+}
+
+.co-apex-assistant-trigger:hover {
+  background: #0f172a !important;
+}
+
+@media (max-width: 767px) {
+  .co-apex-assistant-shell {
+    right: 0.75rem !important;
+    bottom: calc(var(--co-mobile-bottom-nav-height, 5.75rem) + 0.7rem) !important;
+    width: min(25rem, calc(100vw - 1.5rem)) !important;
+  }
+
+  .co-apex-assistant-shell.is-open {
+    left: 0.75rem;
+  }
+
+  .co-apex-assistant-panel {
+    max-height: calc(100dvh - var(--co-mobile-bottom-nav-height, 5.75rem) - 1.55rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .co-apex-assistant-body {
+    max-height: none !important;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
 .co-ai-office-page {
   --co-ai-border: rgba(203, 213, 225, 0.98);
   --co-ai-border-strong: rgba(148, 163, 184, 0.62);
   --co-ai-soft: rgba(248, 250, 252, 0.88);
   --co-ai-shadow: 0 18px 44px -36px rgba(7, 17, 31, 0.58);
-  background:
-    radial-gradient(circle at 78% -8%, rgba(249, 115, 22, 0.08), transparent 28rem),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.78));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.82));
 }
 
 .co-ai-office-page .co-page-header {
@@ -21954,6 +22076,119 @@ textarea {
 
 .co-ai-header-buttons > button {
   min-height: 2.18rem;
+}
+
+.co-ai-command-hero {
+  align-items: stretch;
+}
+
+.co-ai-command-hero-copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 0.48rem;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.94);
+  border-radius: 1rem;
+  background: #07111f;
+  padding: 1rem 1.1rem;
+  color: #ffffff;
+  box-shadow: 0 24px 58px -42px rgba(2, 6, 23, 0.92);
+}
+
+.co-ai-command-hero-copy > span {
+  color: #fdba74;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.co-ai-command-hero-copy h2 {
+  max-width: 48rem;
+  color: #ffffff;
+  font-size: clamp(1.45rem, 2.2vw, 2.15rem);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.co-ai-command-hero-copy p {
+  max-width: 58rem;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.co-ai-command-hero-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.co-ai-command-card {
+  --co-ai-card-tone: #f97316;
+  display: grid;
+  min-width: 0;
+  min-height: 7rem;
+  align-content: start;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--co-ai-card-tone) 32%, rgba(203, 213, 225, 0.92));
+  border-radius: 0.88rem;
+  background: #ffffff;
+  padding: 0.78rem;
+  text-align: left;
+  box-shadow: 0 18px 40px -36px rgba(7, 17, 31, 0.72);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.co-ai-command-card:hover {
+  border-color: color-mix(in srgb, var(--co-ai-card-tone) 56%, white);
+  box-shadow: 0 20px 44px -34px rgba(7, 17, 31, 0.78);
+  transform: translateY(-1px);
+}
+
+.co-ai-command-card[data-tone="red"] {
+  --co-ai-card-tone: #ef4444;
+}
+
+.co-ai-command-card[data-tone="amber"],
+.co-ai-command-card[data-tone="orange"] {
+  --co-ai-card-tone: #f97316;
+}
+
+.co-ai-command-card[data-tone="green"] {
+  --co-ai-card-tone: #16a34a;
+}
+
+.co-ai-command-card[data-tone="blue"] {
+  --co-ai-card-tone: #2563eb;
+}
+
+.co-ai-command-card span {
+  color: var(--co-ai-card-tone);
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  line-height: 1.12;
+  text-transform: uppercase;
+}
+
+.co-ai-command-card strong {
+  overflow-wrap: anywhere;
+  color: #07111f;
+  font-size: 0.9rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.co-ai-command-card em {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 820;
+  line-height: 1.28;
 }
 
 .co-ai-kpi-grid .co-command-kpi {
@@ -23356,6 +23591,18 @@ textarea {
 }
 
 @media (min-width: 1024px) and (max-width: 1439px) {
+  .co-ai-command-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.7fr) !important;
+  }
+
+  .co-ai-command-hero-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-ai-command-card {
+    min-height: 0;
+  }
+
   .co-ai-kpi-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     gap: 0.65rem !important;
@@ -23426,6 +23673,7 @@ textarea {
 
 @media (min-width: 1440px) {
   .co-ai-office-page .co-page-header > div,
+  .co-ai-office-page .co-ai-command-hero,
   .co-ai-office-page .co-ai-kpi-grid,
   .co-ai-office-page .co-ai-command-layout {
     max-width: 1460px !important;
@@ -23442,6 +23690,10 @@ textarea {
 }
 
 @media (max-width: 1023px) {
+  .co-ai-command-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .co-ai-right-rail {
     position: static;
     max-height: none;
@@ -23469,6 +23721,27 @@ textarea {
   .co-ai-header-buttons > button {
     flex: 1 1 9rem;
     min-height: 2.44rem;
+  }
+
+  .co-ai-command-hero {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .co-ai-command-hero-copy {
+    padding: 0.88rem;
+  }
+
+  .co-ai-command-hero-copy h2 {
+    font-size: 1.35rem;
+  }
+
+  .co-ai-command-hero-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .co-ai-command-card {
+    min-height: 0;
   }
 
   .co-ai-kpi-grid {
