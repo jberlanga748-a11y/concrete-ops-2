@@ -34,21 +34,21 @@ Current state:
 - Delivery Tickets Support Handoff Phase 1: built, verified, released, and health-checked.
 - Pre-Pour Support Handoff Phase 1: built, verified, released, and health-checked.
 - Post-Pour Support Handoff Phase 1: built, verified, released, and health-checked.
-- Premium finished SaaS polish: still in progress.
+- Premium Finished SaaS Polish Phase 1: built, verified, released, and health-checked for Operations Command/app shell polish.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `464eb14`
-- Message: `Add post-pour support handoff`
-- Fly release: `v503`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWBTSNK9NWPFDSEECGHJAY0`
+- Commit: `6e0746c`
+- Message: `Polish operations command visual system`
+- Fly release: `v504`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWD13TN5BF1QRARY5MZM4EK`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v503` before the post-release source-of-truth docs sync.
+- Working tree was clean after runtime release `v504` before the post-release source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -89,6 +89,7 @@ Recent shipped phase stack:
 | `0909491` | `v501` | Delivery Tickets support handoff |
 | `bed845e` | `v502` | Pre-Pour support handoff |
 | `464eb14` | `v503` | Post-Pour support handoff |
+| `6e0746c` | `v504` | Premium Finished SaaS Polish Phase 1 |
 
 ## Done / Do Not Rebuild
 
@@ -132,6 +133,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Managed Setup Support Handoff Phase 1 | Built and released | Owner/admin Settings Managed Setup can open Support with copy-only setup readiness context: status, progress, critical blockers, next action, and setup notes. Support only includes that managed setup context for office/admin-capable users, and field users remain blocked from Settings and setup data. No package changes, billing, payments, invoices, field permission widening, auto-send, or rollout automation were added. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
+| Premium Finished SaaS Polish Phase 1 | Built and released | Operations Command now matches the finished-visual direction more closely with the Operations Command label, dark premium top bar, owner/admin metric strip, tighter command cockpit/cards, responsive mobile rendering, and field-role denial preserved. No new billing, package controls, checkout, invoices, payment collection, support workflow, customer portal, automation, or permission widening was added. |
 | Leads | Done/frozen | Do not redesign; only planned improvements or bugs. |
 | Customers | Done/frozen | Do not redesign. |
 | Estimates / AI Rough Notes foundation | Built | Rough notes assistant and draft flow exist. Do not rebuild. |
@@ -215,6 +217,7 @@ Recent focused verification:
 - Delivery Tickets Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\delivery-ticket-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin Delivery Tickets-to-Support plus foreman/employee mobile Delivery Tickets without Support action in the current package state, and `git diff --check` passed. Released as Fly `v501` with image `registry.fly.io/concrete-ops-2:deployment-01KRWASQSYCF3QWNG7A3709KTR`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Pre-Pour Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\pre-pour-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:pre-pour`, `npm.cmd run verify:roles`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin, foreman mobile, and employee mobile Pre-Pour-to-Support context with role-scoped summaries, and `git diff --check` passed. Released as Fly `v502` with image `registry.fly.io/concrete-ops-2:deployment-01KRWB90V2TAPG46T258PGC65M`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Post-Pour Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\post-pour-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:post-pour`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run build`, Playwright/MS Edge browser QA for owner/admin, foreman mobile, and employee mobile Post-Pour-to-Support context with role-scoped summaries, and `git diff --check` passed. Released as Fly `v503` with image `registry.fly.io/concrete-ops-2:deployment-01KRWBTSNK9NWPFDSEECGHJAY0`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Premium Finished SaaS Polish Phase 1 release checks: `node --test --test-concurrency=1 src\design-tokens.test.js src\command-center-utils.test.js`, `npm.cmd run verify:jobs`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run build`, browser owner/admin desktop and mobile Operations Command QA, employee mobile direct `/command-center` denial QA, and `git diff --check` passed. Released as Fly `v504` with image `registry.fly.io/concrete-ops-2:deployment-01KRWD13TN5BF1QRARY5MZM4EK`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -247,6 +250,7 @@ Do not start these phases again as if they are missing:
 - Delivery Tickets Support Handoff Phase 1.
 - Pre-Pour Support Handoff Phase 1.
 - Post-Pour Support Handoff Phase 1.
+- Premium Finished SaaS Polish Phase 1.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
@@ -269,31 +273,24 @@ If one of those areas comes up, first ask:
 
 ## Current Next Phase
 
-### Founder-Led Demo Execution - Next
+### Premium Finished SaaS Polish Phase 2 - Next
 
 Why this is current:
 
-- Premium Demo Workspace Prep Phase 1, Pilot Feedback Capture Phase 1, Customer Portal Phase 1 Manual Approval Preview, and related planning docs were released in Fly `v495`.
-- Invite / Activation UX Polish was released in Fly `v496`.
-- Guided Demo Rehearsal Refresh has been completed after the latest product batch.
-- The separate demo app was refreshed to Fly `v71`, and the documented demo users authenticate again.
-- Pilot terms/support and customer data handling drafts now exist for controlled founder-led pilots.
-- The next highest-leverage phase is not a product build; it is running founder-led demos and logging real objections before adding more app surface area.
+- The user supplied the finished visual reference for Apex HQ and wants the build chat focused on making the app look and feel like that premium SaaS product.
+- Premium Finished SaaS Polish Phase 1 shipped the Operations Command label, dark top bar, command metric strip, and tighter command cards without widening permissions.
+- The next highest-leverage build slice is continuing that finished-visual direction on field/mobile and one adjacent high-value office surface, while preserving existing workflows.
+- This is still polish and hierarchy work, not a broad rebuild.
 
 Scope:
 
-- Use `docs/FIRST_10_DEMO_TARGETS.md` and `docs/OUTREACH_TRACKER.md`.
-- Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` before and after each guided demo.
-- Use `npm.cmd run brief:founder-demo` to print the day-of manual outreach/demo/follow-up brief without sending anything.
-- Use `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md` after each demo before sending follow-up.
-- Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` after a strong-fit demo accepts a pilot.
-- Use `/founder-pilot` as the live public founder-pilot page; its demo request form saves manual founder review leads only.
-- Captured `/founder-pilot` demo-interest requests should be reviewed as owner/admin manual review leads with the matching office queue cue only.
-- Book and run warm guided demos.
-- Keep the first demo focused on `lead/estimate -> job setup -> field handoff -> photo/report proof -> owner review -> follow-up`.
-- Capture objections in `docs/REAL_OBJECTION_BANK.md` when real objections appear.
-- Use `docs/PILOT_TERMS_AND_SUPPORT_POLICY.md` and `docs/CUSTOMER_DATA_POLICY_DRAFT.md` for pilot expectations and trust language.
-- Convert only good-fit contractors into controlled pilots.
+- Continue from the reference image, not from generic SaaS templates.
+- Tighten Field Mode mobile visual hierarchy, bottom-nav density, card spacing, touch targets, and required-item scanability.
+- Tighten one adjacent owner/admin office surface that appears in the visual direction, such as Estimate Studio, only if the current code already has that surface and the change can stay narrow.
+- Keep all current role/package gates unchanged.
+- Preserve field-safe routing: foremen/employees must not see owner/admin Command, pricing, billing, Settings, package controls, or estimate financial controls beyond existing role rules.
+- Use current data only; do not add fake dashboards, fake charts, new automation, or new backend records.
+- Verify desktop, mobile, and field-role denial in browser QA.
 
 Do not include:
 
@@ -326,22 +323,26 @@ Do not include:
 - Invite email automation.
 - New roles or permission broadening.
 - Sending outreach, email, SMS, DMs, ads, or public posts without explicit approval.
+- Whole-app redesign.
+- Rebuilding Settings, Support, Leads, Customers, Jobs, or core field workflows from scratch.
 
 Suggested verification:
 
-- `npm.cmd run verify:founder-demo`
-- `npm.cmd run brief:founder-demo`
-- `npm.cmd run verify:public-request`
+- `node --test --test-concurrency=1 src\design-tokens.test.js`
+- Focused tests for any touched workflow utility.
+- `npm.cmd run verify:roles`
+- `npm.cmd run verify:jobs`
+- `npm.cmd run build`
 - `git diff --check`
-- Live app and demo app `/api/ready` checks before any guided walkthrough.
-- `npm.cmd run verify:roles` and `npm.cmd run verify:demo` before any app release candidate.
+- Browser QA for owner/admin desktop, owner/admin mobile, foreman mobile, and employee mobile direct denial for office-only routes.
 
 ## Next Build Phases
 
 | Order | Phase | Goal | Risk | User needed? |
 | --- | --- | --- | --- | --- |
-| 1 | Founder-Led Demo Execution Support | Run demos, capture objections, and only build narrow blockers discovered from real demo/pilot use. | Low | Yes, for outreach/demo decisions. |
-| 2 | Safety / Incidents Support Handoff Phase 1 | Add role-scoped copy-only support context from Safety/Incidents to Support without broadening field visibility, creating customer notifications, or adding automation. | Low | No, if kept to support handoff and tests. |
+| 1 | Premium Finished SaaS Polish Phase 2 | Continue the reference-image polish on Field Mode/mobile and one narrow adjacent office surface while preserving role gates. | Medium | No, if kept visual and role-safe. |
+| 2 | Safety / Incidents Support Handoff Phase 1 | Add role-scoped copy-only support context from Safety/Incidents to Support without broadening field visibility, creating customer notifications, or adding automation. | Low | No, if support handoffs become priority again. |
+| 3 | Founder-Led Demo Execution Support | Run demos, capture objections, and only build narrow blockers discovered from real demo/pilot use. | Low | Yes, for outreach/demo decisions. |
 
 ## Later / Do Not Build Yet
 

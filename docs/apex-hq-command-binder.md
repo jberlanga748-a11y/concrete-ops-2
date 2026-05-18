@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `464eb14 Add post-pour support handoff`.
-- Fly release `v503` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `6e0746c Polish operations command visual system`.
+- Fly release `v504` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -30,7 +30,8 @@ Usable now:
 - Public signup/company creation foundation.
 - Company/workspace foundations.
 - Basic/Premium/Elite package entitlement foundation.
-- Owner/admin Command Center.
+- Owner/admin Operations Command.
+- Premium Finished SaaS Polish Phase 1 Operations Command visual system: dark premium app top bar, Operations Command label, reference-style metric strip, tighter cockpit/cards, and field-role denial preserved.
 - Customers, leads, estimates, jobs, crews/employees.
 - Estimates, AI Rough Notes, proposal/GC packet foundations.
 - Company branding/proposal identity.
