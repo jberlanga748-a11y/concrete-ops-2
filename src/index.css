@@ -28095,3 +28095,13 @@ textarea {
     line-height: 1.12;
   }
 }
+
+.co-leads-kpi-grid .co-command-kpi,
+.co-customers-kpi-grid .co-command-kpi,
+.co-estimates-kpi-grid .co-command-kpi,
+.co-jobs-kpi-grid .co-command-kpi,
+.co-settings-kpi-grid .co-command-kpi {
+  height: auto !important;
+  min-height: 6.35rem !important;
+  justify-content: flex-start !important;
+}
