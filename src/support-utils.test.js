@@ -24,6 +24,8 @@ test("support draft starts as a copy-only general support request", () => {
   assert.equal(draft.followUpNeeded, "");
   assert.equal(draft.currentPackage, "");
   assert.equal(draft.requestedPackage, "");
+  assert.equal(draft.setupStatus, "");
+  assert.equal(draft.setupProgress, "");
   assert.equal(draft.pilotFeedback.stage, "Demo completed");
   assert.equal(draft.pilotFeedback.workflowFit, "Unknown");
   assert.equal(draft.pilotFeedback.nextAction, "No action yet");
@@ -109,6 +111,70 @@ test("support packet captures role-safe issue context without sending anything",
   assert.match(packet, /Upload button does not respond/);
   assert.match(packet, /copy-only/);
   assert.equal(packet.includes("secret-session-token"), false);
+});
+
+test("support packet can carry managed setup review context without widening field access", () => {
+  const packet = buildSupportPacket({
+    draft: createSupportDraft({
+      workflow: "Setup / onboarding",
+      blockerLevel: "Slowing work down",
+      summary: "Managed setup review for Pacific Concrete.",
+      expected: "Clear critical setup blockers before rollout.",
+      setupStatus: "In Progress",
+      setupProgress: "12/34 (35%)",
+      setupBlockers: "Service area; Roles reviewed",
+      setupNextAction: "Finish service area before managed use.",
+      setupNotes: "Owner wants a walkthrough before adding field users.",
+    }),
+    user: {
+      name: "Office Admin",
+      role: "Administrator",
+      token: "secret-session-token",
+    },
+    companyName: "Pacific Concrete",
+    currentCompanyId: "COMPANY-PC",
+    activeModule: "settings",
+    path: "/settings",
+    generatedAt: "2026-05-18T10:00:00.000Z",
+  });
+
+  assert.match(packet, /Managed setup review context/);
+  assert.match(packet, /Setup status: In Progress/);
+  assert.match(packet, /Setup progress: 12\/34 \(35%\)/);
+  assert.match(packet, /Critical blockers: Service area; Roles reviewed/);
+  assert.match(packet, /owner\/admin manual review request only/);
+  assert.match(packet, /did not widen field role access/);
+  assert.match(packet, /change package access/);
+  assert.match(packet, /collect payment/);
+  assert.equal(packet.includes("secret-session-token"), false);
+});
+
+test("support packet can suppress managed setup context for field users", () => {
+  const packet = buildSupportPacket({
+    includeSetupContext: false,
+    draft: createSupportDraft({
+      workflow: "Setup / onboarding",
+      setupStatus: "Ready for Managed Use",
+      setupProgress: "34/34 (100%)",
+      setupBlockers: "No critical blockers open",
+      setupNextAction: "Review field rollout.",
+      summary: "I need help with setup.",
+    }),
+    user: {
+      name: "Field Employee",
+      role: "Employee",
+    },
+    companyName: "Pacific Concrete",
+    currentCompanyId: "COMPANY-PC",
+    activeModule: "support",
+    path: "/support",
+    generatedAt: "2026-05-18T10:05:00.000Z",
+  });
+
+  assert.match(packet, /Workflow: Setup \/ onboarding/);
+  assert.equal(packet.includes("Managed setup review context"), false);
+  assert.equal(packet.includes("Setup progress: 34/34"), false);
+  assert.equal(packet.includes("Ready for Managed Use"), false);
 });
 
 test("support packet can carry manual upgrade review context without changing billing", () => {

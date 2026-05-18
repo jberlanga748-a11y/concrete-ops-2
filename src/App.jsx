@@ -172,7 +172,7 @@ import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
 import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
-import { deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
+import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
 import { derivePostPourChecklistListState, derivePostPourItems, filterPostPourChecklists, postPourChecklistStatusLabel, postPourItemStatusLabel, summarizePostPourChecklist } from "./post-pour-utils";
@@ -191,7 +191,7 @@ import {
   SUPPORT_BLOCKER_OPTIONS,
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
-import { deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -6843,6 +6843,7 @@ function TimePage({
   onClockOut,
   onStartBreak,
   onEndBreak,
+  onOpenSupport,
   busy,
 }) {
   const safeRows = Array.isArray(rows) ? rows : [];
@@ -6884,6 +6885,18 @@ function TimePage({
     { label: "Breaks", value: formatMinutes(boardSummary.breakMinutes || 0) },
     { label: "Week", value: formatMinutes(boardSummary.totalMinutes || 0) },
   ];
+  const canOpenTimeSupport = Boolean(permissions?.support?.canView && typeof onOpenSupport === "function");
+
+  function requestTimeSupportReview() {
+    if (!canOpenTimeSupport) return;
+    onOpenSupport(buildTimeTrackingSupportContext({
+      user,
+      permissions,
+      workspace,
+      boardRows,
+      boardSummary,
+    }));
+  }
 
   return (
     <div className="co-office-page co-time-page">
@@ -6896,6 +6909,11 @@ function TimePage({
             <Badge tone={clockedInCount ? "blue" : "slate"}>{clockedInCount} clocked in</Badge>
             <Badge tone={onBreakCount ? "amber" : "green"}>{onBreakCount} on break</Badge>
             <Badge tone="blue">{boardRows.length} entries</Badge>
+            {canOpenTimeSupport ? (
+              <Button type="button" size="sm" variant="secondary" onClick={requestTimeSupportReview}>
+                <Icon name="help" />Time Support
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -24062,6 +24080,7 @@ function ManagedSetupPanelPolished({
   busy,
   onUpdateCompanySettings,
   onNavigate,
+  onOpenSupport,
 }) {
   const setupState = useMemo(() => deriveManagedCompanySetupState({
     companySettings,
@@ -24127,6 +24146,7 @@ function ManagedSetupPanelPolished({
       return item.completed !== source?.completed || item.note !== (source?.note || "");
     });
   const canSave = typeof onUpdateCompanySettings === "function" && !busy;
+  const canOpenSupport = typeof onOpenSupport === "function";
 
   function updateItem(key, patch) {
     setItemDraft((current) => ({
@@ -24165,6 +24185,14 @@ function ManagedSetupPanelPolished({
       managedSetupNotes: notesDraft.trim(),
     });
     setNotice(saved ? "Managed setup saved." : "Could not save managed setup. Please try again.");
+  }
+
+  function requestSetupReview() {
+    if (!canOpenSupport) return;
+    onOpenSupport(buildManagedSetupSupportContext({
+      setupState,
+      companySettings,
+    }));
   }
 
   function renderChecklistItem(item) {
@@ -24209,6 +24237,11 @@ function ManagedSetupPanelPolished({
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={() => onNavigate?.("employees")}>Users</Button>
             <Button type="button" size="sm" variant="secondary" onClick={() => onNavigate?.("commandCenter")}>Command Center</Button>
+            {canOpenSupport ? (
+              <Button type="button" size="sm" variant="secondary" onClick={requestSetupReview}>
+                <Icon name="help" />Setup Support
+              </Button>
+            ) : null}
             <Button type="button" size="sm" onClick={saveSetup} disabled={!canSave || !dirty}>Save Setup</Button>
           </div>
         </div>
@@ -24255,6 +24288,24 @@ function ManagedSetupPanelPolished({
           </div>
           <p>{draftBlockers[0] ? `Finish ${draftBlockers[0].label.toLowerCase()} before this contractor is ready for managed use.` : setupState.nextAction}</p>
         </div>
+
+        {canOpenSupport ? (
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="blue">Setup support</Badge>
+                  <Badge tone="green">Copy only</Badge>
+                </div>
+                <p className="mt-2 text-sm font-black text-slate-950">Send setup readiness context to Support</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Opens Support with the current setup status, progress, blockers, and next action. No message is sent and no field permissions change.</p>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={requestSetupReview}>
+                <Icon name="help" />Open setup review
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="co-settings-category-grid mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {setupState.categories.map((category) => {
@@ -25453,6 +25504,7 @@ function SettingsPagePolished({
               busy={busy}
               onUpdateCompanySettings={onUpdateCompanySettings}
               onNavigate={setActive}
+              onOpenSupport={canViewSupport ? onOpenSupport : null}
             />
           </section>
 
@@ -33727,6 +33779,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
   const supportWorkflowOptions = getSupportWorkflowOptionsForUser(user);
   const selectedWorkflow = supportWorkflowOptions.includes(draft.workflow) ? draft.workflow : "General workspace";
   const isUpgradeReview = canRequestUpgradeReview && selectedWorkflow === "Upgrade / package review";
+  const isSetupReview = isOfficeUser && selectedWorkflow === "Setup / onboarding";
   const isPilotFeedback = canCaptureFeedback && selectedWorkflow === SUPPORT_PILOT_FEEDBACK_WORKFLOW;
   useEffect(() => {
     if (!supportDraftSeed?.nonce) return;
@@ -33748,7 +33801,7 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
   };
   const supportPacket = isPilotFeedback
     ? buildPilotFeedbackPacket({ ...packetContext, draft: draft.pilotFeedback })
-    : buildSupportPacket({ ...packetContext, draft: { ...draft, workflow: selectedWorkflow } });
+    : buildSupportPacket({ ...packetContext, draft: { ...draft, workflow: selectedWorkflow }, includeSetupContext: isOfficeUser });
   const quickActions = [
     { label: "My work", helper: "Open assigned jobs and field tasks.", moduleId: "jobs", icon: "briefcase", show: true },
     { label: "Clock", helper: "Open time tracking.", moduleId: "time", icon: "clock", show: true },
@@ -33867,6 +33920,20 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
                       <InputField label="Requested package" value={draft.requestedPackage} onChange={(event) => updateDraft("requestedPackage", event.target.value)} placeholder="Premium or Elite" />
                       <InputField label="Requested feature" value={draft.requestedFeature} onChange={(event) => updateDraft("requestedFeature", event.target.value)} placeholder="App Health, Watchtower, Lead Finder..." />
                       <InputField label="Reason / use case" value={draft.upgradeReason} onChange={(event) => updateDraft("upgradeReason", event.target.value)} placeholder="What workflow needs review?" />
+                    </div>
+                  </div>
+                ) : null}
+                {isSetupReview ? (
+                  <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <SectionHeader title="Managed setup context" description="Owner/admin setup context only. This does not send a message, widen field access, or start field rollout." />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <InputField label="Setup status" value={draft.setupStatus} onChange={(event) => updateDraft("setupStatus", event.target.value)} placeholder="In Progress" />
+                      <InputField label="Setup progress" value={draft.setupProgress} onChange={(event) => updateDraft("setupProgress", event.target.value)} placeholder="12/34 (35%)" />
+                      <InputField label="Critical blockers" value={draft.setupBlockers} onChange={(event) => updateDraft("setupBlockers", event.target.value)} placeholder="Service area; roles reviewed" />
+                      <InputField label="Next setup action" value={draft.setupNextAction} onChange={(event) => updateDraft("setupNextAction", event.target.value)} placeholder="Finish setup blockers before rollout." />
+                    </div>
+                    <div className="mt-3">
+                      <TextAreaField label="Setup notes" value={draft.setupNotes} onChange={(event) => updateDraft("setupNotes", event.target.value)} placeholder="Owner/admin setup notes for manual review." />
                     </div>
                   </div>
                 ) : null}

@@ -118,6 +118,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Invite / Activation UX Polish | Built and released | Owner/admin Employees now clarifies manual activation handoff, one-time invite links, expiry/reissue expectations, and field-safe role boundaries. Activation setup explains missing/expired/used invite links without changing token, session, password, role, or company-scope behavior. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
+| Managed Setup Support Handoff Phase 1 | Built and verified locally | Owner/admin Settings Managed Setup can open Support with copy-only setup readiness context: status, progress, critical blockers, next action, and setup notes. Support only includes that managed setup context for office/admin-capable users, and field users remain blocked from Settings and setup data. No package changes, billing, payments, invoices, field permission widening, auto-send, or rollout automation were added. |
 | Communication Center Phase 1 | Done and released | Manual-first owner/admin communication log exists. Extend only for workflow-specific communication needs. |
 | Dashboard / Command Center foundation | Done/frozen | Only bug fixes, usability fixes, and planned command-center upgrades. |
 | Leads | Done/frozen | Do not redesign; only planned improvements or bugs. |
@@ -129,6 +130,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Jobs / crew assignments | Done/frozen | Extend only for planned workflows. |
 | Today Work / Schedule coordination | Built and released | Practical coordination board exists. |
 | Notifications / reminders foundation | Built and released | Operational reminders exist. |
+| Time Tracking Support Handoff Phase 1 | Built and verified locally | Time Tracking can open Support with a role-scoped copy-only time support request. Owner/admin context summarizes all visible company time; foreman context summarizes assigned crew time; employee context stays limited to own visible time. The packet excludes payroll rates, gross pay, pricing, margin, and hidden users. No payroll, accounting, billing, automatic messages, clock automation, or permission widening was added. |
 | Daily reports | Tightened | Preserve workflow. |
 | Uploads/photo evidence | Tightened | Preserve workflow. |
 | Delivery tickets | Tightened | Preserve workflow. |
@@ -189,6 +191,8 @@ Recent focused verification:
 - Founder-Led Demo Execution Support local checks: `npm.cmd run verify:founder-demo` and `git diff --check` passed. The readiness gate confirmed required demo/pilot/trust docs, outreach tracker consistency, manual-only boundaries, and live production/demo `/api/ready` database checks.
 - Public Website / Sales Funnel Phase 2 focused local checks: `node --test --test-concurrency=1 server\public-demo-interest.test.js src\public-website-utils.test.js` and syntax checks for `server\index.js`, `src\api.js`, and `scripts\public-site-ui-audit.mjs` passed. Superseded by the full `v497` release checks below.
 - Founder pilot funnel and demo readiness release checks: `npm.cmd run verify:public-request`, `node --test --test-concurrency=1 src\public-website-utils.test.js`, `npm.cmd run verify:founder-demo`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:server`, `npm.cmd run verify:backup`, `npm.cmd run verify:auth`, `npm.cmd run verify:demo`, `npm.cmd run verify:users`, `npm.cmd run build`, `npm.cmd run audit:public-site -- --base-url=http://localhost:4027/`, and `git diff --check` passed. Local public-site audit evidence: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean\ui-audit\public-site\2026-05-18T00-12-24-146Z\public-site-audit.json`. Released as Fly `v497`; both live ready endpoints returned `200`, ready, database ok. Live non-mutating browser QA confirmed `/founder-pilot` desktop/mobile H1, manual copy, submit button, no horizontal overflow, no console errors, and no failed requests.
+- Managed Setup Support Handoff Phase 1 local checks: `node --test --test-concurrency=1 shared\managedCompanySetup.test.js src\support-utils.test.js`, `npm.cmd run verify:users`, `npm.cmd run verify:roles`, `npm.cmd run build`, local Playwright/MS Edge Settings-to-Support sanity check, and `git diff --check` passed. The first `npm.cmd run verify:users` attempt exited non-zero without useful runner output; running the exact test file list passed 52/52, and rerunning `npm.cmd run verify:users` passed 52/52. The bundled Playwright Chromium failed to launch on Windows, so the browser sanity check used the installed MS Edge channel. Not released.
+- Time Tracking Support Handoff Phase 1 local checks: `node --test --test-concurrency=1 src\time-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:time`, `npm.cmd run verify:roles`, `npm.cmd run build`, local Playwright/MS Edge Time-to-Support sanity check, and `git diff --check` passed. The support preview was verified to carry `Workflow: Time tracking` and role-scoped time summary without `payRate` or `grossPay`. Not released.
 
 ## Current Loop Prevention Rules
 
@@ -214,6 +218,8 @@ Do not start these phases again as if they are missing:
 - Field Ops Agent Planning Checkpoint.
 - Field Ops Agent Phase 1 read-only summary.
 - Customer Success / Guided Setup Phase 2.
+- Managed Setup Support Handoff Phase 1.
+- Time Tracking Support Handoff Phase 1.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.

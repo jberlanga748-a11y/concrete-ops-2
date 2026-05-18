@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildManagedSetupSupportContext,
   deriveFirstOwnerOnboardingState,
   deriveManagedCompanySetupState,
   managedSetupSettingsFromPayload,
@@ -34,6 +35,34 @@ test("managed setup derives profile, user, source, and feature readiness", () =>
   assert.equal(state.items.find((item) => item.key === "lead_scoring_available")?.completed, true);
   assert.equal(state.items.find((item) => item.key === "field_permissions_safe")?.completed, true);
   assert.ok(state.completedCount > 0);
+});
+
+test("managed setup builds copy-only owner admin support context", () => {
+  const setupState = deriveManagedCompanySetupState({
+    companySettings: {
+      companyName: "Pacific Concrete",
+      businessPhone: "503-555-0100",
+      businessEmail: "office@example.test",
+      managedSetupNotes: "Needs owner walkthrough before field rollout.",
+    },
+    users: [{ role: "Owner", status: "active" }],
+    leadSources: [],
+    jobs: [],
+  });
+  const context = buildManagedSetupSupportContext({
+    setupState,
+    companySettings: { companyName: "Pacific Concrete" },
+  });
+
+  assert.equal(context.workflow, "Setup / onboarding");
+  assert.equal(context.blockerLevel, "Slowing work down");
+  assert.match(context.summary, /Pacific Concrete/);
+  assert.match(context.summary, /Managed setup review/);
+  assert.match(context.setupProgress, /\d+\/\d+ \(\d+%\)/);
+  assert.match(context.setupBlockers, /Service area|Roles reviewed|At least one lead source/);
+  assert.match(context.workaround, /Do not widen field role access/);
+  assert.equal(context.currentPackage, undefined);
+  assert.equal(context.requestedPackage, undefined);
 });
 
 test("manual checklist overrides can complete or reopen derived setup items", () => {

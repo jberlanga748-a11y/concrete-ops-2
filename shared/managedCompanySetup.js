@@ -333,6 +333,54 @@ export function deriveManagedCompanySetupState({
   };
 }
 
+export function buildManagedSetupSupportContext({
+  setupState = {},
+  companySettings = {},
+} = {}) {
+  const items = Array.isArray(setupState.items) ? setupState.items : [];
+  const totalCount = Number.isFinite(Number(setupState.totalCount)) ? Number(setupState.totalCount) : items.length;
+  const completedCount = Number.isFinite(Number(setupState.completedCount))
+    ? Number(setupState.completedCount)
+    : items.filter((item) => item.completed).length;
+  const percentComplete = Number.isFinite(Number(setupState.percentComplete))
+    ? Number(setupState.percentComplete)
+    : totalCount > 0
+      ? Math.round((completedCount / totalCount) * 100)
+      : 0;
+  const blockers = (Array.isArray(setupState.blockers) ? setupState.blockers : items.filter((item) => item.critical && !item.completed))
+    .map((item) => text(item?.label || item?.key, 120))
+    .filter(Boolean)
+    .slice(0, 5);
+  const openItems = items
+    .filter((item) => !item.completed)
+    .map((item) => text(item?.label || item?.key, 120))
+    .filter(Boolean)
+    .slice(0, 6);
+  const status = text(setupState.status || setupState.storedStatus, 80) || "Not Started";
+  const progress = `${completedCount}/${totalCount} (${percentComplete}%)`;
+  const nextAction = text(setupState.nextAction, 300) || (blockers.length
+    ? `Clear ${blockers[0].toLowerCase()} before managed use.`
+    : "Review the remaining setup items before field rollout.");
+  const notes = text(setupState.notes || companySettings.managedSetupNotes, 600);
+  const workspaceName = text(companySettings.companyName, 120) || "this workspace";
+  const blockerText = blockers.length ? `Critical blockers: ${blockers.join("; ")}.` : "No critical setup blockers are open.";
+  const openText = openItems.length ? `Open items: ${openItems.join("; ")}.` : "All visible setup items are complete.";
+
+  return {
+    workflow: "Setup / onboarding",
+    blockerLevel: blockers.length ? "Slowing work down" : "Not a blocker",
+    followUpNeeded: "Manual owner/admin setup review",
+    summary: `Managed setup review for ${workspaceName}: ${status} at ${progress}. ${blockerText} ${openText}`,
+    expected: nextAction,
+    workaround: "Keep setup review manual in Settings. Do not widen field role access or start live field rollout until owner/admin review is complete.",
+    setupStatus: status,
+    setupProgress: progress,
+    setupBlockers: blockers.length ? blockers.join("; ") : "No critical blockers open",
+    setupNextAction: nextAction,
+    setupNotes: notes,
+  };
+}
+
 function activeRecords(records = []) {
   return (Array.isArray(records) ? records : []).filter((record) => !record?.archivedAt);
 }

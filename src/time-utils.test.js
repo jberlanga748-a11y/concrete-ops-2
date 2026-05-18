@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveCrewWeeklySummary, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeStatusTone } from "./time-utils.js";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeStatusTone } from "./time-utils.js";
 
 const SAMPLE_ENTRIES = [
   {
@@ -100,6 +100,52 @@ test("deriveCrewWeeklySummary excludes the foreman self entry and counts active 
 
   assert.equal(summary.totalMinutes, 240);
   assert.equal(summary.activeUserCount, 1);
+});
+
+test("time tracking support context uses role-scoped visible time without pay data", () => {
+  const workspace = deriveTimeWorkspace(
+    SAMPLE_ENTRIES,
+    [{ id: "J-1", title: "North Patio", archivedAt: null }],
+    "U-1",
+    ["job", "travel"],
+    { now: new Date("2026-04-24T12:00:00.000Z") },
+  );
+  const context = buildTimeTrackingSupportContext({
+    user: { id: "U-1", name: "Sam Field", role: "Employee" },
+    permissions: { time: { canViewAll: false, canViewCrew: false } },
+    workspace,
+    boardRows: workspace.ownEntries,
+    boardSummary: workspace.weeklySummary,
+  });
+
+  assert.equal(context.workflow, "Time tracking");
+  assert.match(context.summary, /Scope: my own time/);
+  assert.match(context.summary, /Visible entries: 2/);
+  assert.match(context.summary, /Week total: 9h 30m/);
+  assert.match(context.workaround, /Allowed self clock categories: Job, Travel/);
+  assert.equal(context.summary.includes("payRate"), false);
+  assert.equal(context.summary.includes("grossPay"), false);
+  assert.equal(context.expected.includes("payroll rates"), true);
+});
+
+test("time tracking support context summarizes crew scope without naming hidden payroll fields", () => {
+  const summary = deriveCrewWeeklySummary(SAMPLE_ENTRIES, {
+    excludeUserId: "U-1",
+    now: new Date("2026-04-24T12:00:00.000Z"),
+  });
+  const context = buildTimeTrackingSupportContext({
+    user: { id: "U-1", name: "Frank Foreman", role: "Foreman" },
+    permissions: { time: { canViewAll: false, canViewCrew: true } },
+    workspace: { allowedCategories: ["job"], availableJobs: [{ id: "J-1" }] },
+    boardRows: SAMPLE_ENTRIES.filter((entry) => entry.userId !== "U-1"),
+    boardSummary: summary,
+  });
+
+  assert.match(context.summary, /Scope: assigned crew time/);
+  assert.match(context.summary, /Active visible clocks: 1/);
+  assert.match(context.summary, /Week total: 4h/);
+  assert.equal(context.summary.includes("payRate"), false);
+  assert.equal(context.summary.includes("grossPay"), false);
 });
 
 test("formatMinutes and timeStatusTone provide compact field-friendly labels", () => {

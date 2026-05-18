@@ -23,7 +23,11 @@ function isWithinRange(value, start, end) {
 
 function labelForEntry(entry) {
   if (entry.jobTitle) return entry.jobTitle;
-  return String(entry.workCategory || "other")
+  return timeWorkCategoryLabel(entry.workCategory);
+}
+
+function timeWorkCategoryLabel(category) {
+  return String(category || "other")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -109,6 +113,46 @@ export function deriveCrewWeeklySummary(entries, {
   return {
     ...weekly,
     activeUserCount: activeUsers.size,
+  };
+}
+
+export function buildTimeTrackingSupportContext({
+  user = {},
+  permissions = {},
+  workspace = {},
+  boardRows = [],
+  boardSummary = {},
+} = {}) {
+  const safeRows = Array.isArray(boardRows) ? boardRows : [];
+  const safeWorkspace = workspace || {};
+  const activeRows = safeRows.filter((entry) => entry.status !== "completed");
+  const onBreakRows = safeRows.filter((entry) => entry.status === "on_break");
+  const ownActiveEntry = safeWorkspace.activeEntry || null;
+  const allowedCategories = Array.isArray(safeWorkspace.allowedCategories) ? safeWorkspace.allowedCategories : [];
+  const availableJobs = Array.isArray(safeWorkspace.availableJobs) ? safeWorkspace.availableJobs : [];
+  const canViewAll = Boolean(permissions?.time?.canViewAll);
+  const canViewCrew = Boolean(permissions?.time?.canViewCrew && !canViewAll);
+  const scopeLabel = canViewAll ? "all visible company time" : canViewCrew ? "assigned crew time" : "my own time";
+  const totalMinutes = Number(boardSummary?.totalMinutes || 0);
+  const breakMinutes = Number(boardSummary?.breakMinutes || 0);
+  const allowedCategoryLabel = allowedCategories.length ? allowedCategories.map(timeWorkCategoryLabel).join(", ") : "No self clock categories";
+  const activeLabel = ownActiveEntry
+    ? `${ownActiveEntry.jobTitle || timeWorkCategoryLabel(ownActiveEntry.workCategory)} (${ownActiveEntry.status || "active"})`
+    : "No active personal clock";
+
+  return {
+    workflow: "Time tracking",
+    blockerLevel: ownActiveEntry ? "Slowing work down" : "Not a blocker",
+    followUpNeeded: ownActiveEntry ? "Review active clock if help is needed" : "Manual time tracking review",
+    summary: [
+      `Time tracking support request for ${String(user?.name || user?.email || "workspace user").trim() || "workspace user"}.`,
+      `Scope: ${scopeLabel}.`,
+      `Visible entries: ${safeRows.length}. Active visible clocks: ${activeRows.length}. On break: ${onBreakRows.length}.`,
+      `Week total: ${formatMinutes(totalMinutes)} worked with ${formatMinutes(breakMinutes)} breaks.`,
+      `My active clock: ${activeLabel}.`,
+    ].join(" "),
+    expected: "Keep the time entry accurate without exposing payroll rates, pricing, margin, or other users outside this role scope.",
+    workaround: `Allowed self clock categories: ${allowedCategoryLabel}. Available job options: ${availableJobs.length}. If the right job is missing, contact the office instead of clocking into unrelated work.`,
   };
 }
 

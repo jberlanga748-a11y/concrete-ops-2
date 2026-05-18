@@ -1,6 +1,6 @@
 # Apex HQ Command Binder
 
-Last updated: 2026-05-17
+Last updated: 2026-05-18
 
 Purpose: this is the first file future Codex, Builder, QA, release, product, and business chats should read before making claims or changes. It keeps Apex HQ from drifting, looping, rebuilding completed systems, or overpromising before the product is ready.
 
@@ -23,6 +23,7 @@ Current launch stage:
 - Latest release tracked: `8bc8f6e Release founder pilot funnel and demo readiness`.
 - Fly release `v497` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
+- Current unreleased local build candidates: Managed Setup Support Handoff Phase 1 and Time Tracking Support Handoff Phase 1, verified locally but not committed, pushed, or deployed.
 
 Usable now:
 
@@ -37,6 +38,7 @@ Usable now:
 - Estimate options, reference attachments, and takeoff input foundation.
 - Foreman/employee mobile field workflows.
 - Time tracking, daily reports, uploads/photo evidence.
+- Time Tracking Support Handoff Phase 1 role-scoped copy-only support context.
 - Delivery tickets, change orders, pre-pour, post-pour.
 - Safety, incidents, PPE, toolbox, tool checklist.
 - Notifications/reminders.
@@ -47,6 +49,7 @@ Usable now:
 - Assistant missing proof summary.
 - Field Ops Agent Phase 1 read-only summary.
 - Billing / Manual Upgrade Prep Phase 1 support-led upgrade review handoff.
+- Managed Setup Support Handoff Phase 1 owner/admin copy-only setup review context.
 - Premium demo workspace package config.
 - Pilot Feedback Capture Phase 1 owner/admin copy-only feedback packet.
 - Customer Portal Phase 1 Manual Approval Preview owner/admin internal preview.

@@ -101,6 +101,11 @@ export function createSupportDraft(overrides = {}) {
     requestedPackage: "",
     requestedFeature: "",
     upgradeReason: "",
+    setupStatus: "",
+    setupProgress: "",
+    setupBlockers: "",
+    setupNextAction: "",
+    setupNotes: "",
     pilotFeedback,
     ...(overrides || {}),
     pilotFeedback,
@@ -179,6 +184,7 @@ export function buildSupportPacket({
   activeModule = "",
   path = "",
   generatedAt = new Date().toISOString(),
+  includeSetupContext = true,
 } = {}) {
   const safeDraft = { ...createSupportDraft(), ...(draft || {}) };
   const hasUpgradeContext = Boolean(
@@ -186,6 +192,13 @@ export function buildSupportPacket({
     || text(safeDraft.requestedPackage)
     || text(safeDraft.requestedFeature)
     || text(safeDraft.upgradeReason),
+  );
+  const hasSetupContext = Boolean(includeSetupContext) && Boolean(
+    text(safeDraft.setupStatus)
+    || text(safeDraft.setupProgress)
+    || text(safeDraft.setupBlockers)
+    || text(safeDraft.setupNextAction)
+    || text(safeDraft.setupNotes),
   );
   const lines = [
     "Apex HQ Support Request",
@@ -223,6 +236,23 @@ export function buildSupportPacket({
       "",
       "Upgrade boundary:",
       "This is a manual review request only. Apex HQ did not change the package, collect payment, create an invoice, or start checkout.",
+    );
+  }
+
+  if (hasSetupContext) {
+    lines.push(
+      "",
+      "Managed setup review context:",
+      `Setup status: ${text(safeDraft.setupStatus, "Unknown")}`,
+      `Setup progress: ${text(safeDraft.setupProgress, "Unknown")}`,
+      `Critical blockers: ${text(safeDraft.setupBlockers, "Not specified")}`,
+      "Next setup action:",
+      text(safeDraft.setupNextAction, "[Describe the setup action to review.]"),
+      "Setup notes:",
+      text(safeDraft.setupNotes, "[Add owner/admin setup notes if needed.]"),
+      "",
+      "Setup boundary:",
+      "This is an owner/admin manual review request only. Apex HQ did not widen field role access, change package access, collect payment, create invoices, start checkout, or send this request automatically.",
     );
   }
 
