@@ -40,20 +40,21 @@ Current state:
 - Premium Finished SaaS Polish Phase 4: built, verified, released, and health-checked for Apex Assistant shell and assistant entry-point polish.
 - Safety / Incidents Support Handoff Phase 1: built, verified, released, and health-checked with field-safe incident scope preserved.
 - Targeted Customers text wrapping polish: built, verified, released, and health-checked so long customer emails/service areas wrap cleanly without horizontal overflow.
+- Targeted Tool Checklist text wrapping polish: built, verified, released, and health-checked so long checklist titles, notes, job labels, and foreman context wrap cleanly without horizontal overflow.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `3c7a23f`
-- Message: `Fix customer table text wrapping`
-- Fly release: `v510`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWPAD1JJ8PFPFW11T9Q7J1Z`
+- Commit: `7d10ce1`
+- Message: `Fix tool checklist table text wrapping`
+- Fly release: `v511`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRWPVD5DCT2YBX2QKKRNCEKA`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Working tree was clean after runtime release `v510` before this source-of-truth docs sync.
+- Working tree was clean after runtime release `v511` before this source-of-truth docs sync.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -101,6 +102,7 @@ Recent shipped phase stack:
 | `b2395a1` | `v508` | Premium Finished SaaS Polish Phase 4 |
 | `0494eb8` | `v509` | Safety / Incidents support handoff |
 | `3c7a23f` | `v510` | Customers text wrapping polish |
+| `7d10ce1` | `v511` | Tool Checklist text wrapping polish |
 
 ## Done / Do Not Rebuild
 
@@ -170,6 +172,7 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Safety / Incidents Support Handoff Phase 1 | Built and released | Safety / Incidents can open Support with a copy-only support request when the current role/package already has Support access. The packet summarizes visible incident counts, selected incident context, current filters, high/open/reviewed/resolved counts, missing immediate-action status, and manual review queue without exposing pricing, margins, payroll, office-only job notes, hidden users, unrelated jobs, customer notifications, automation, billing, checkout, invoices, or package controls. Field incident rows remain scoped to assigned/submitted visible incidents. |
 | Pre-pour/post-pour | Tightened | Preserve workflow; extend only with scoped role-safe fixes. |
 | Safety/incidents/PPE/toolbox/tool checklist | Tightened | Preserve workflow. |
+| Tool Checklist text wrapping polish | Built and released | Long checklist labels, notes, job/foreman context, and table supporting copy now wrap inside fixed command cells instead of clipping; mobile layout and role gates were preserved. |
 | App health / owner health foundations | Built | Includes audit activity review panel. Expand later into trust/observability only with a scoped phase. |
 | Enterprise Trust Prep | Built and released | Owner/admin trust readiness panel summarizes audit activity, owner export, Owner Health, support handoff, and release safety without adding compliance claims or new backend systems. |
 | Enterprise Trust Phase 2 | Built and released | Owner/admin trust readiness now includes a copy-only pilot trust review packet, next trust actions, and explicit claims guardrails using existing audit/export/health/support data only. Field users remain blocked. |
@@ -240,6 +243,7 @@ Recent focused verification:
 - Premium Finished SaaS Polish Phase 4 release checks: `npm.cmd run verify:roles`, `npm.cmd run verify:jobs`, `npm.cmd run verify:entitlements`, `node --test src\apex-assistant-shell-utils.test.js src\navigation-utils.test.js`, `npm.cmd run build`, Playwright browser QA for desktop/tablet/mobile assistant shell with no assistant overflow, no console/network errors, no mobile bottom-nav overlap, and `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v508` with image `registry.fly.io/concrete-ops-2:deployment-01KRWK4D314QFNF3QZSYKEQ7YR`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Safety / Incidents Support Handoff Phase 1 release checks: `node --test --test-concurrency=1 src\safety-utils.test.js src\support-utils.test.js`, `npm.cmd run verify:roles`, `npm.cmd run verify:safety`, `npm.cmd run build`, Playwright/MS Edge browser QA for admin desktop Safety-to-Support, employee mobile Safety-to-Support, and employee direct `/settings` denial with no upgrade/billing context, no console errors, no failed requests, plus `git diff --check` passed with only LF-to-CRLF working-copy warnings. Released as Fly `v509` with image `registry.fly.io/concrete-ops-2:deployment-01KRWNFDS918W7G17XTGC87V1N`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 - Customers text wrapping polish release checks: targeted route sweep found desktop Customers long email/service-area text overflow in fixed table cells. `npm.cmd run verify:customers`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/customers` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, and long customer emails/service areas wrapping with `overflow-wrap:anywhere`. Released as Fly `v510` with image `registry.fly.io/concrete-ops-2:deployment-01KRWPAD1JJ8PFPFW11T9Q7J1Z`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
+- Tool Checklist text wrapping polish release checks: targeted route sweep found desktop Tool Checklist long checklist titles, notes, and job/foreman context clipping in fixed command table cells. `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:roles`, `npm.cmd run build`, `git diff --check`, and Playwright/MS Edge desktop/mobile `/tool-checklist` browser QA passed. Browser QA confirmed no horizontal overflow, no console errors, no failed requests, and long checklist text wrapping with `overflow-wrap:anywhere`. Released as Fly `v511` with image `registry.fly.io/concrete-ops-2:deployment-01KRWPVD5DCT2YBX2QKKRNCEKA`; Fly status showed machine `148e06e2b53d68` started with `1 passing` check, and both live ready endpoints returned `200`, ready, database ok.
 
 ## Current Loop Prevention Rules
 
@@ -278,6 +282,7 @@ Do not start these phases again as if they are missing:
 - Premium Finished SaaS Polish Phase 4.
 - Safety / Incidents Support Handoff Phase 1.
 - Customers text wrapping polish.
+- Tool Checklist text wrapping polish.
 - Billing / Plans Readiness Prep.
 - Public SaaS Signup UX Phase 2.
 - Package Upgrade / Locked State Polish.
