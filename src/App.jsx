@@ -34146,10 +34146,67 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, onOpenChecklis
   );
 }
 
-function ToolChecklistCommandRailPolished({ checklist, selectedItems, permissions, busy, onOpenTool, onSubmitChecklist, onReviewChecklist, onArchiveChecklist }) {
+function ToolChecklistCommandRailPolished({ checklist, selectedItems, permissions, busy, onOpenTool, onSubmitChecklist, onReviewChecklist, onArchiveChecklist, isOfficeWorkspace = false }) {
+  const missingCount = Number(checklist?.missingItemCount || 0);
+  const damagedCount = Number(checklist?.damagedItemCount || 0);
+  const hasIssues = missingCount > 0 || damagedCount > 0;
+  const railClassName = `co-toolbox-right-rail space-y-4${isOfficeWorkspace ? " co-tool-checklist-office-assistant" : ""}`;
+  const assistantPriorities = checklist ? [
+    {
+      label: hasIssues
+        ? `${missingCount + damagedCount} tool issue${missingCount + damagedCount === 1 ? "" : "s"} need a loadout decision`
+        : "Tool issues are clear for the selected loadout",
+      tone: hasIssues ? "warn" : "ready",
+    },
+    {
+      label: `${toolChecklistStatusLabel(checklist.status)} status in the loadout board`,
+      tone: String(checklist.status || "").toLowerCase() === "submitted" ? "warn" : "default",
+    },
+    {
+      label: `${toolChecklistForemanLabel(checklist)} owns the field handoff`,
+      tone: checklist.foremanName || checklist.foremanId ? "ready" : "default",
+    },
+  ] : [
+    { label: "Select a loadout to see missing and damaged tools", tone: "default" },
+    { label: permissions.toolChecklist.canManage ? "Create the next job loadout before the crew rolls" : "Assigned loadouts stay job-scoped", tone: "warn" },
+    { label: "Office review stays out of field-only views", tone: "ready" },
+  ];
+  const assistantActions = [
+    { label: checklist ? "Review checklist items" : "Prepare loadout", icon: checklist ? "layers" : "plus", onClick: () => onOpenTool(checklist ? "items" : "create"), show: Boolean(checklist || permissions.toolChecklist.canManage) },
+    { label: "Edit loadout notes", icon: "clipboard", onClick: () => onOpenTool("detail"), show: Boolean(checklist && (permissions.toolChecklist.canManageAll || permissions.toolChecklist.canManageJob)) },
+    { label: "Review submission", icon: "check", onClick: () => onReviewChecklist(checklist.id), show: Boolean(checklist && permissions.toolChecklist.canReview) },
+  ].filter((item) => item.show);
+
   if (!checklist) {
     return (
-      <div className="co-toolbox-right-rail space-y-4">
+      <div className={railClassName}>
+        {isOfficeWorkspace ? (
+          <Card className="co-prepour-assistant-card p-0">
+            <div className="co-prepour-assistant-topbar">
+              <span><Icon name="spark" /></span>
+              <strong>Apex Assistant</strong>
+              <em>Tools</em>
+            </div>
+            <div className="co-prepour-assistant-body">
+              <p className="co-prepour-assistant-kicker">Loadout command</p>
+              <h3>Select a loadout before the crew rolls.</h3>
+              <p>Pick a job row to see missing tools, crew ownership, submission status, and the next office action.</p>
+              <div className="co-prepour-assistant-priorities">
+                {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+              </div>
+              {assistantActions.length ? (
+                <div className="co-prepour-assistant-actions">
+                  {assistantActions.map((item) => (
+                    <button key={item.label} type="button" onClick={item.onClick}>
+                      <Icon name={item.icon} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
         <Card className="co-toolbox-rail-card p-4">
           <SectionHeader title="Tool Console" description="Select a checklist or create one for a visible job." />
           <div className="co-toolbox-empty-rail">
@@ -34163,12 +34220,35 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, permission
     );
   }
 
-  const missingCount = Number(checklist.missingItemCount || 0);
-  const damagedCount = Number(checklist.damagedItemCount || 0);
-  const hasIssues = missingCount > 0 || damagedCount > 0;
-
   return (
-    <div className="co-toolbox-right-rail space-y-4">
+    <div className={railClassName}>
+      {isOfficeWorkspace ? (
+        <Card className="co-prepour-assistant-card p-0">
+          <div className="co-prepour-assistant-topbar">
+            <span><Icon name="spark" /></span>
+            <strong>Apex Assistant</strong>
+            <em>Tools</em>
+          </div>
+          <div className="co-prepour-assistant-body">
+            <p className="co-prepour-assistant-kicker">Loadout command</p>
+            <h3>{checklist.title || "Selected tool loadout"}</h3>
+            <p>{toolChecklistJobLabel(checklist)} / {toolChecklistCustomerLabel(checklist)} / {selectedItems.length} item{selectedItems.length === 1 ? "" : "s"} listed</p>
+            <div className="co-prepour-assistant-priorities">
+              {assistantPriorities.map((item) => <span key={item.label} data-tone={item.tone}>{item.label}</span>)}
+            </div>
+            {assistantActions.length ? (
+              <div className="co-prepour-assistant-actions">
+                {assistantActions.map((item) => (
+                  <button key={item.label} type="button" onClick={item.onClick}>
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
       <Card className="co-toolbox-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -34335,7 +34415,7 @@ function ToolChecklistFieldOperatorPanel({ checklist, selectedItems, filteredRow
               {checklist
                 ? `${toolChecklistJobLabel(checklist)} / ${toolChecklistCustomerLabel(checklist)}`
                 : visibleJobs.length
-                  ? "Select an assigned loadout, add missing tools, and keep the job checklist ready for the office."
+                  ? "Select an assigned loadout, add missing tools, and keep the job checklist ready for handoff."
                   : "When a job tool checklist is assigned, the loadout and field actions will show here."}
             </p>
             <div className="co-field-operator-address">
@@ -34683,7 +34763,7 @@ function ToolChecklistPagePolished({
   const issuePriorityCard = {
     label: "Open tool issues",
     value: openIssueCount,
-    helper: openIssueCount ? "Missing or damaged items need a crew or office decision." : "No missing or damaged tools in the current view.",
+    helper: openIssueCount ? (permissions.toolChecklist.canReview ? "Missing or damaged items need a crew or office decision." : "Missing or damaged items need a crew or foreman decision.") : "No missing or damaged tools in the current view.",
     icon: "alert",
     tone: openIssueCount ? "amber" : "green",
     actionLabel: openIssueCount ? "Open issues" : "All clear",
@@ -34717,6 +34797,7 @@ function ToolChecklistPagePolished({
     onAction: () => openTools(canCreateChecklist ? "create" : (canAddItems ? "add" : "items")),
   };
   const isFieldToolChecklist = !permissions.toolChecklist.canManageAll;
+  const visibleStatusOptions = isFieldToolChecklist ? statusOptions.filter((option) => option !== "Archived") : statusOptions;
   const toolChecklistPriorityCards = filteredRows.length === 0 && canCreateChecklist
     ? [createPriorityCard, issuePriorityCard, reviewPriorityCard, selectedPriorityCard]
     : isFieldToolChecklist && openIssueCount
@@ -34739,7 +34820,7 @@ function ToolChecklistPagePolished({
   );
 
   return (
-    <div className={`co-office-page co-toolbox-page co-tool-checklist-page ${permissions.toolChecklist.canManageAll ? "" : "co-field-tool-page"}`}>
+    <div className={`co-office-page co-toolbox-page co-tool-checklist-page ${permissions.toolChecklist.canManageAll ? "" : "co-field-tool-page"}`} data-field-workspace={isFieldToolChecklist ? "true" : "false"}>
       <PageHeader
         eyebrow={permissions.toolChecklist.canManageAll ? "Office Tools" : "Field Tools"}
         title="Tool Checklist"
@@ -34807,7 +34888,7 @@ function ToolChecklistPagePolished({
             </div>
             <div className="co-toolbox-filter-strip border-b border-slate-200 bg-white p-3">
               <div className="co-toolbox-category-tabs">
-                {statusOptions.map((option) => (
+                {visibleStatusOptions.map((option) => (
                   <button key={option} type="button" className={statusFilter === option ? "is-active" : ""} onClick={() => setStatusFilter(option)}>
                     {option}
                   </button>
@@ -34818,18 +34899,20 @@ function ToolChecklistPagePolished({
             <details className="co-incidents-advanced-filters border-b border-slate-200 bg-white">
               <summary>
                 <span>Advanced filters</span>
-                <span>{[jobFilter !== "All jobs" ? "Job" : "", foremanFilter !== "All foremen" ? "Foreman" : "", archiveFilter !== "Active" ? archiveFilter : "", issueFilter !== "All items" ? issueFilter : ""].filter(Boolean).length || "Job, foreman, issue"}</span>
+                <span>{[jobFilter !== "All jobs" ? "Job" : "", foremanFilter !== "All foremen" ? "Foreman" : "", !isFieldToolChecklist && archiveFilter !== "Active" ? archiveFilter : "", issueFilter !== "All items" ? issueFilter : ""].filter(Boolean).length || "Job, foreman, issue"}</span>
               </summary>
-              <div className="co-office-filter-grid grid gap-3 p-3 md:grid-cols-4">
+              <div className={`co-office-filter-grid grid gap-3 p-3 ${isFieldToolChecklist ? "md:grid-cols-3" : "md:grid-cols-4"}`}>
                 <SelectField label="Job" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
                   {listState.jobOptions.map((option) => <option key={option}>{option}</option>)}
                 </SelectField>
                 <SelectField label="Foreman" value={foremanFilter} onChange={(event) => setForemanFilter(event.target.value)}>
                   {listState.foremanOptions.map((option) => <option key={option}>{option}</option>)}
                 </SelectField>
-                <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
-                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
+                {!isFieldToolChecklist ? (
+                  <SelectField label="Archived" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
+                    {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+                  </SelectField>
+                ) : null}
                 <SelectField label="Issue focus" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
                   {["All items", "Missing only", "Damaged only", "Missing or damaged"].map((option) => <option key={option}>{option}</option>)}
                 </SelectField>
@@ -34894,7 +34977,9 @@ function ToolChecklistPagePolished({
           </details>
         </div>
 
-        <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} />
+        {!isFieldToolChecklist ? (
+          <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} isOfficeWorkspace={!isFieldToolChecklist} />
+        ) : null}
       </div>
     </div>
   );
