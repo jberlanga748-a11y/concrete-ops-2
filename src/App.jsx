@@ -147,7 +147,7 @@ import { deriveCommandCenterState } from "./command-center-utils";
 import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveCommunicationCenterState, deriveContactHistoryPanelState } from "./contact-history-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
-import { deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
+import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
 import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
@@ -31600,6 +31600,7 @@ function DeliveryTicketsPagePolished({
   onCreateTicket,
   onUpdateTicket,
   onArchiveTicket,
+  onOpenSupport,
 }) {
   const [jobFilter, setJobFilter] = useState("All jobs");
   const [supplierFilter, setSupplierFilter] = useState("All suppliers");
@@ -31637,6 +31638,7 @@ function DeliveryTicketsPagePolished({
   const canManageAll = permissions.deliveryTickets.canManageAll;
   const isFieldDeliveryWorkspace = !canManageAll;
   const canEditSelected = Boolean(selectedTicket) && (canManageAll || (permissions.deliveryTickets.canEditOwn && selectedTicket.createdBy === user?.id && !selectedTicket.archivedAt));
+  const canOpenDeliverySupport = Boolean(permissions?.deliveryTickets?.canView && permissions?.support?.canView && typeof onOpenSupport === "function");
   const scopedUploads = (Array.isArray(uploads) ? uploads : []).filter((upload) => !upload.archivedAt);
   const scopedReports = (Array.isArray(dailyReports) ? dailyReports : []).filter((report) => !report.archivedAt);
   const createUploadOptions = scopedUploads.filter((upload) => createJobId ? upload.jobId === createJobId : canManageAll);
@@ -31803,6 +31805,25 @@ function DeliveryTicketsPagePolished({
     setSearch("");
   }
 
+  function requestDeliveryTicketSupportReview() {
+    if (!canOpenDeliverySupport) return;
+    onOpenSupport(buildDeliveryTicketSupportContext({
+      user,
+      permissions,
+      visibleRows: filteredRows,
+      selectedTicket,
+      filters: {
+        archived: archiveFilter,
+        job: jobFilter,
+        supplier: supplierFilter,
+        createdBy: creatorFilter,
+        date: dateFilter,
+        search,
+      },
+      visibleJobs,
+    }));
+  }
+
   const missingPhotoPriorityCard = {
     label: "Need ticket photo",
     value: missingPhotoCount,
@@ -31874,6 +31895,11 @@ function DeliveryTicketsPagePolished({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => setArchiveFilter("Active")}>{filteredRows.length} visible</Button>
+            {canOpenDeliverySupport ? (
+              <Button type="button" variant="secondary" onClick={requestDeliveryTicketSupportReview}>
+                <Icon name="help" />Ticket Support
+              </Button>
+            ) : null}
             {canCreate ? <Button type="button" onClick={() => openTool("create")}>New Ticket</Button> : null}
           </div>
         }
