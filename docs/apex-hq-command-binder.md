@@ -20,8 +20,8 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest release tracked: `19d7fd2 Polish invite activation handoff`.
-- Fly release `v496` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
+- Latest release tracked: `8bc8f6e Release founder pilot funnel and demo readiness`.
+- Fly release `v497` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
 - Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
 
 Usable now:
@@ -51,7 +51,7 @@ Usable now:
 - Pilot Feedback Capture Phase 1 owner/admin copy-only feedback packet.
 - Customer Portal Phase 1 Manual Approval Preview owner/admin internal preview.
 - Invite / Activation UX Polish.
-- Public founder-pilot website route `/founder-pilot` built locally with manual guided walkthrough interest capture as owner/admin review leads plus office queue cues.
+- Public founder-pilot website route `/founder-pilot` live with manual guided walkthrough interest capture as owner/admin review leads plus office queue cues.
 - Support/help handoff and guided setup foundations.
 - Demo mode and demo reset protections.
 - Backup/export tooling.
@@ -300,12 +300,12 @@ Confirmed facts:
 - `fly.demo.toml` is demo-only and sets `SEED_DEMO_DATA=true`.
 - CI exists at `.github/workflows/ci.yml` and runs auth/signup, tenant/role/package, public/demo, server/backup, and build checks.
 - Existing docs warn not to stage unrelated docs during app releases.
-- Current working tree at inspection had unrelated uncommitted business docs: `docs/AGENT_DAILY_GTM_BRIEF.md`, `docs/FIRST_10_DEMO_TARGETS.md`, and `docs/OUTREACH_TRACKER.md`.
-- Build status tracker now identifies Field Ops Agent Phase 1 as built, released, and health-checked.
+- Current working tree after release `v497` was clean before the post-release source-of-truth sync.
+- Build status tracker now identifies the founder-pilot funnel and demo readiness batch as built, released, and health-checked.
 
 Assumptions / needs confirmation:
 
-- Production v496 is tracked from prior release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
+- Production `v497` is tracked from release output in this chat; re-run `fly releases -a concrete-ops-2 --json` and both `/api/ready` checks before future release claims.
 - Supabase/RLS is not implemented in this repo now; if the product moves to Supabase, a full migration/RLS plan is needed.
 - Public signup exists and is tested, but business docs still prefer controlled founder-led pilots before broad self-serve positioning.
 - Package/billing UI foundations exist, but Stripe/payment processing is not implemented.
@@ -485,7 +485,7 @@ Demo/customer separation:
 Product priorities:
 
 1. Hold app builds unless a guided demo or pilot exposes a blocker, permission issue, demo data problem, or narrow workflow gap.
-2. Release `/founder-pilot` and public demo-interest capture only after confirming the current diff excludes unrelated docs and the standard release checks stay green.
+2. Keep `/founder-pilot` manual and claims-safe; do not add self-serve signup, checkout, package controls, or automatic outreach.
 
 Business priorities:
 

@@ -1,23 +1,23 @@
 # Public Website / Sales Funnel Planning
 
-Status: Phase 2 built locally / release pending
+Status: Phase 2 built, verified, released, and health-checked
 
 ## Decision
 
 Do not build or launch a public self-serve SaaS website yet.
 
-The safe next public surface is a claims-safe marketing website and founder-led demo funnel. Its job is to explain Apex HQ, qualify good-fit contractors, capture demo interest, and route prospects into a manual founder-led sales process. It must not create production workspaces, sell packages, collect payments, expose package controls, promise unsupported automation, or imply a fully public launch.
+The safe public surface is the claims-safe `/founder-pilot` page and founder-led demo funnel. Its job is to explain Apex HQ, qualify good-fit contractors, capture demo interest, and route prospects into a manual founder-led sales process. It must not create production workspaces, sell packages, collect payments, expose package controls, promise unsupported automation, or imply a fully public launch.
 
 The website should point prospects toward a guided walkthrough and controlled founder pilot, not toward checkout or unsupervised product access.
 
 ## Phase 1 Implementation Status
 
-Built locally:
+Built and released:
 
 - public founder-pilot route: `/founder-pilot`
 - claims-safe homepage/founder-pilot/workflow public sections in one page
 - manual walkthrough request form
-- prepared request summary for copy/email/manual follow-up
+- live manual review submission plus prepared request summary for copy/email/manual follow-up
 - login link back to the product workspace
 
 Phase 1 intentionally does not:
@@ -26,14 +26,13 @@ Phase 1 intentionally does not:
 - create workspaces
 - collect payments
 - expose package selection
-- submit public demo interest to the database
 - send email or SMS automatically
 - add customer portal access
 - change product auth, package gates, or field permissions
 
 ## Phase 2 Implementation Status
 
-Built locally:
+Built and released:
 
 - backend `POST /api/public/demo-interest`
 - `/founder-pilot` form now saves guided walkthrough interest as a manual review lead
@@ -259,7 +258,7 @@ Avoid optimizing for vanity traffic before the founder-led demo process is conve
 
 ## Future Implementation Prompt
 
-Phase 2 is built locally. Use this only for a future manual operations polish phase after the capture path is released and real demo-interest requests are reviewed:
+Phase 2 is live. Use this only for a future manual operations polish phase after real demo-interest requests are reviewed:
 
 ```text
 APEX HQ - PUBLIC WEBSITE / SALES FUNNEL PHASE 3 REVIEW OPS POLISH
@@ -301,3 +300,12 @@ Additional focused checks:
 node --test --test-concurrency=1 server\public-demo-interest.test.js src\public-website-utils.test.js
 git diff --check
 ```
+
+Release evidence:
+
+- Commit: `8bc8f6e Release founder pilot funnel and demo readiness`
+- Fly release: `v497`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRW6WJK7WGPX14QPXG0EPNF5`
+- Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned ready/database ok.
+- Local browser audit: `ui-audit/public-site/2026-05-18T00-12-24-146Z/public-site-audit.json`
+- Live browser sanity checked `/founder-pilot` desktop/mobile without submitting production demo interest.

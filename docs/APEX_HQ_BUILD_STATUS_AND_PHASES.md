@@ -27,23 +27,23 @@ Current state:
 - Founder-led demo execution runbook: prepared so demos produce real objection and pilot-fit evidence before more app builds.
 - Demo recap and pilot-fit templates: prepared so post-demo follow-up stays manual, claim-safe, and tied to a clear pilot decision.
 - Pilot kickoff and check-in templates: prepared so strong-fit demos can convert into controlled 14-day pilots with explicit kickoff, day-3, day-10, support, and continue/adjust/stop criteria.
-- Public Website / Sales Funnel Phase 2: built locally so `/founder-pilot` saves guided walkthrough interest as a manual review lead plus one owner/admin office queue cue with explicit consent and spam controls; no signup, checkout, billing, package controls, customer portal, account/workspace creation, customer/job/estimate creation, or automatic email/SMS was added.
-- Founder-Led Demo Execution Support: local readiness gate added so the demo packet, tracker state, manual-only boundaries, and live production/demo readiness can be checked before a walkthrough.
+- Public Website / Sales Funnel Phase 2: built, verified, released, and health-checked so `/founder-pilot` saves guided walkthrough interest as a manual review lead plus one owner/admin office queue cue with explicit consent and spam controls; no signup, checkout, billing, package controls, customer portal, account/workspace creation, customer/job/estimate creation, or automatic email/SMS was added.
+- Founder-Led Demo Execution Support: built, verified, released, and health-checked so the demo packet, tracker state, manual-only boundaries, and live production/demo readiness can be checked before a walkthrough.
 - Premium finished SaaS polish: still in progress.
 
 ## Latest Released App State
 
 Latest release tracked in this file:
 
-- Commit: `19d7fd2`
-- Message: `Polish invite activation handoff`
-- Fly release: `v496`
-- Image: `registry.fly.io/concrete-ops-2:deployment-01KRVT1JXT76XG9E03DHF43H9R`
+- Commit: `8bc8f6e`
+- Message: `Release founder pilot funnel and demo readiness`
+- Fly release: `v497`
+- Image: `registry.fly.io/concrete-ops-2:deployment-01KRW6WJK7WGPX14QPXG0EPNF5`
 - Health checks: `https://app.apexhq.online/api/ready` and `https://concrete-ops-2.fly.dev/api/ready` returned `200`, ready, database ok.
 
 Known working tree note:
 
-- Existing uncommitted docs/agent/skill files may be present.
+- Working tree was clean after release `v497`.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
@@ -77,6 +77,7 @@ Recent shipped phase stack:
 | `f604949` | `v494` | Billing / Manual Upgrade Prep Phase 1 |
 | `c1e66f0` | `v495` | Pilot readiness preview batch |
 | `19d7fd2` | `v496` | Invite / Activation UX Polish |
+| `8bc8f6e` | `v497` | Founder pilot funnel and demo readiness |
 
 ## Done / Do Not Rebuild
 
@@ -111,9 +112,9 @@ These systems exist and should not be rebuilt from scratch. Future work should e
 | Customer Portal Planning Checkpoint | Prepared and released | `docs/CUSTOMER_PORTAL_PLANNING_CHECKPOINT.md` defines the no-build decision, Elite package boundary, owner/admin manual approval preview direction, field/customer/support restrictions, customer-visible content rules, auth/data/audit requirements, and a future implementation prompt. |
 | Assistant Material Planning Prep | Prepared and released | `docs/ASSISTANT_MATERIAL_PLANNING_PREP.md` defines the reviewed material planning assistant boundary, Premium-and-up package policy, allowed source data, role restrictions, negative tests, and no-ordering/no-pricing/no-job-conversion rules. |
 | Assistant Job Conversion Planning | Prepared and released | `docs/ASSISTANT_JOB_CONVERSION_PLANNING.md` defines the reviewed estimate-to-job assistant handoff boundary, Premium-and-up package policy, approved-estimate source rules, role restrictions, negative tests, and no-automatic-job-creation/scheduling/crew-assignment rules. |
-| Public Website / Sales Funnel Phase 1 | Built locally | `/founder-pilot` provides claims-safe public Apex HQ positioning, founder-pilot workflow sections, manual prepared walkthrough request copy, and login handoff. It does not create accounts/workspaces, collect payments, expose package controls, add customer portal access, or send email/SMS automatically. |
-| Public Website / Sales Funnel Phase 2 | Built locally | `POST /api/public/demo-interest` saves guided walkthrough interest as an owner/admin manual review lead in the Apex HQ default company only and adds one owner/admin office queue cue for first-time captures. Explicit consent, honeypot, rate limiting, duplicate retry handling, secret redaction, audit activity, and field-role denial tests are in place. Duplicate retries do not add another lead or queue item. It does not create customers, jobs, estimates, users, workspaces, package changes, billing, customer portal access, or automatic email/SMS. |
-| Founder-Led Demo Execution Support | Built locally | `npm.cmd run verify:founder-demo` checks the demo execution docs, outreach tracker consistency, manual-only guardrails, and live production/demo readiness endpoints before guided walkthroughs. It does not send outreach, mutate customer data, create accounts, release, or deploy. |
+| Public Website / Sales Funnel Phase 1 | Built and released | `/founder-pilot` provides claims-safe public Apex HQ positioning, founder-pilot workflow sections, manual walkthrough request copy, live manual review submission, and login handoff. It does not create accounts/workspaces, collect payments, expose package controls, add customer portal access, or send email/SMS automatically. |
+| Public Website / Sales Funnel Phase 2 | Built and released | `POST /api/public/demo-interest` saves guided walkthrough interest as an owner/admin manual review lead in the Apex HQ default company only and adds one owner/admin office queue cue for first-time captures. Explicit consent, honeypot, rate limiting, duplicate retry handling, secret redaction, audit activity, and field-role denial tests are in place. Duplicate retries do not add another lead or queue item. It does not create customers, jobs, estimates, users, workspaces, package changes, billing, customer portal access, or automatic email/SMS. |
+| Founder-Led Demo Execution Support | Built and released | `npm.cmd run verify:founder-demo` checks the demo execution docs, outreach tracker consistency, manual-only guardrails, and live production/demo readiness endpoints before guided walkthroughs. It does not send outreach, mutate customer data, create accounts, or deploy. |
 | Invite / Activation UX Polish | Built and released | Owner/admin Employees now clarifies manual activation handoff, one-time invite links, expiry/reissue expectations, and field-safe role boundaries. Activation setup explains missing/expired/used invite links without changing token, session, password, role, or company-scope behavior. |
 | Support / Help page | Done and released | Copy-only/manual support handoff exists. |
 | Customer Success / Guided Setup Phase 2 | Done and released | First-owner guided setup path now groups profile, team, first work, and rollout readiness. |
@@ -186,7 +187,8 @@ Recent focused verification:
 - Separate demo app credential repair: `concrete-ops-demo` was released to Fly `v71` with image `registry.fly.io/concrete-ops-demo:deployment-01KRW2EYBXXKG9S72PM3SVH1XN`. `DEMO_MODE=true`, `SEED_DEMO_DATA=true`, and `DEMO_PACKAGE_ID=premium` were confirmed. `/api/ready` returned ready/database ok, and `demo.ops@apexhq.app`, `demo.admin@apexhq.app`, `demo.foreman@apexhq.app`, and `demo.employee@apexhq.app` authenticated with the documented demo password.
 - Public Website / Sales Funnel Phase 1 local checks: `node --test --test-concurrency=1 src\public-website-utils.test.js`, `npm.cmd run verify:public-request`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:roles`, `npm.cmd run build`, `npm.cmd run audit:public-site`, and `git diff --check` passed. Browser QA checked `/founder-pilot` desktop and mobile with no horizontal overflow, no console errors, no failed network requests, no forbidden public claims, a working login handoff, and manual-only prepared walkthrough request copy. Screenshot evidence: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean\ui-audit\public-site\2026-05-17T23-37-24-005Z\founder-pilot-1440x1000.png` and `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean\ui-audit\public-site\2026-05-17T23-37-24-005Z\founder-pilot-390x844.png`.
 - Founder-Led Demo Execution Support local checks: `npm.cmd run verify:founder-demo` and `git diff --check` passed. The readiness gate confirmed required demo/pilot/trust docs, outreach tracker consistency, manual-only boundaries, and live production/demo `/api/ready` database checks.
-- Public Website / Sales Funnel Phase 2 focused local checks: `node --test --test-concurrency=1 server\public-demo-interest.test.js src\public-website-utils.test.js` and syntax checks for `server\index.js`, `src\api.js`, and `scripts\public-site-ui-audit.mjs` passed. Full release checks still need to be rerun before release.
+- Public Website / Sales Funnel Phase 2 focused local checks: `node --test --test-concurrency=1 server\public-demo-interest.test.js src\public-website-utils.test.js` and syntax checks for `server\index.js`, `src\api.js`, and `scripts\public-site-ui-audit.mjs` passed. Superseded by the full `v497` release checks below.
+- Founder pilot funnel and demo readiness release checks: `npm.cmd run verify:public-request`, `node --test --test-concurrency=1 src\public-website-utils.test.js`, `npm.cmd run verify:founder-demo`, `npm.cmd run verify:roles`, `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:server`, `npm.cmd run verify:backup`, `npm.cmd run verify:auth`, `npm.cmd run verify:demo`, `npm.cmd run verify:users`, `npm.cmd run build`, `npm.cmd run audit:public-site -- --base-url=http://localhost:4027/`, and `git diff --check` passed. Local public-site audit evidence: `C:\Users\jberl\Documents\Codex\concrete-ops-2-clean\ui-audit\public-site\2026-05-18T00-12-24-146Z\public-site-audit.json`. Released as Fly `v497`; both live ready endpoints returned `200`, ready, database ok. Live non-mutating browser QA confirmed `/founder-pilot` desktop/mobile H1, manual copy, submit button, no horizontal overflow, no console errors, and no failed requests.
 
 ## Current Loop Prevention Rules
 
@@ -251,7 +253,7 @@ Scope:
 - Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` before and after each guided demo.
 - Use `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md` after each demo before sending follow-up.
 - Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` after a strong-fit demo accepts a pilot.
-- Use `/founder-pilot` as the local public founder-pilot page once released; its demo request form prepares manual follow-up copy only.
+- Use `/founder-pilot` as the live public founder-pilot page; its demo request form saves manual founder review leads only.
 - Captured `/founder-pilot` demo-interest requests should be reviewed as owner/admin manual review leads with the matching office queue cue only.
 - Book and run warm guided demos.
 - Keep the first demo focused on `lead/estimate -> job setup -> field handoff -> photo/report proof -> owner review -> follow-up`.
