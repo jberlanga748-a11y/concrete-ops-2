@@ -33684,6 +33684,70 @@ textarea {
   color: #f8fafc !important;
 }
 
+/* Change Orders north-star polish: keep this route dense, readable, and field-safe. */
+.co-change-orders-command-table td:nth-child(1) p,
+.co-change-orders-command-table td:nth-child(3),
+.co-change-orders-command-table td:nth-child(4),
+.co-change-orders-command-table td:nth-child(6) {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.co-change-orders-icon-button {
+  min-height: 2rem !important;
+  min-width: 2rem !important;
+  height: 2rem !important;
+  width: 2rem !important;
+}
+
+.co-change-orders-icon-button svg {
+  height: 0.9rem !important;
+  width: 0.9rem !important;
+}
+
+@media (min-width: 1400px) {
+  .co-change-orders-command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(21.5rem, 23rem) !important;
+    gap: 0.78rem !important;
+  }
+
+  .co-change-orders-command-table {
+    min-width: 800px !important;
+  }
+
+  .co-change-orders-right-rail,
+  .co-change-orders-command-assistant {
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0.72rem !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .co-change-orders-mobile-focus-actions button,
+  .co-change-orders-mobile-focus-metrics button,
+  .co-change-orders-mobile-list-toggle,
+  .co-change-orders-main-board .co-filter-bar > div:first-child button,
+  .co-change-orders-advanced-filters > summary,
+  .co-change-orders-tools-drawer > summary,
+  .co-change-orders-tool-tabs button,
+  .co-change-orders-form-card button,
+  .co-change-orders-tools-panel button,
+  .co-change-orders-right-rail button {
+    min-height: 2.75rem !important;
+  }
+
+  .co-change-orders-mobile-focus-metrics button {
+    padding-top: 0.58rem !important;
+    padding-bottom: 0.58rem !important;
+  }
+
+  .co-change-orders-tools-drawer > summary {
+    align-items: flex-start !important;
+  }
+}
+
 .co-employees-command-assistant {
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 0.95rem;
