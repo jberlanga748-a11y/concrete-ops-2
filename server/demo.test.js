@@ -793,6 +793,67 @@ test("demo package can be set to Basic to preserve package-lock demo evidence", 
   }
 });
 
+test("demo users can see leads converted from Opportunity Scout", async () => {
+  const fixture = await startServer({
+    DEMO_MODE: "true",
+    DEMO_PACKAGE_ID: "elite",
+  });
+
+  try {
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.admin@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = {
+      Authorization: `Bearer ${adminLogin.token}`,
+      "Content-Type": "application/json",
+    };
+
+    const created = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        intakeSourceType: "pasted_text",
+        intakeText: "Project: Library ADA ramp\nAgency: City of Salem Facilities\nLocation: Salem, OR\nScope: Concrete ramp and sidewalk repair",
+        title: "Library ADA ramp",
+        agency: "City of Salem Facilities",
+        city: "Salem",
+        state: "OR",
+        trade: "Concrete",
+        fitScore: 88,
+        reasonToBid: "High-fit concrete accessibility work in the demo service area.",
+        missingInfoItems: ["Plan sheet", "Walk date"],
+      }),
+    });
+    const opportunity = created.foundOpportunities.find((entry) => entry.title === "Library ADA ramp");
+    assert.ok(opportunity);
+
+    await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        humanReviewStatus: "approved_for_lead",
+        humanReviewNote: "Demo office approved for lead draft.",
+      }),
+    });
+
+    const converted = await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers,
+    });
+    assert.ok(converted.createdLeadId);
+    assert.ok(converted.leads.some((lead) => lead.id === converted.createdLeadId));
+
+    const refreshedBootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", {
+      headers: { Authorization: `Bearer ${adminLogin.token}` },
+    });
+    assert.ok(refreshedBootstrap.leads.some((lead) => lead.id === converted.createdLeadId));
+    assert.ok(refreshedBootstrap.customers.some((customer) => customer.name === "City of Salem Facilities"));
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("restarting the demo app does not keep growing seeded demo records", async () => {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "concrete-ops-demo-restart-"));
   const sqliteFile = path.join(tempDataDir, "app-data.sqlite");

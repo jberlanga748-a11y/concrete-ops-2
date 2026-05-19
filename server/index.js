@@ -1437,14 +1437,22 @@ function buildDemoScope(state) {
       .filter((entry) => isDemoId(entry?.id) || DEMO_CUSTOMER_NAME_SET.has(String(entry?.name || "")))
       .map((entry) => String(entry.id)),
   );
-  const leadIds = new Set(
+  const buildLeadIds = () => new Set(
     leads
       .filter((entry) => isDemoId(entry?.id)
         || hasDemoReference(entry?.customerId, customerIds)
+        || hasDemoReference(entry?.ownerId, userIds)
         || DEMO_CUSTOMER_NAME_SET.has(String(entry?.customer || ""))
         || DEMO_LEAD_PROJECT_SET.has(String(entry?.project || "")))
       .map((entry) => String(entry.id)),
   );
+  let leadIds = buildLeadIds();
+  for (const lead of leads) {
+    if (leadIds.has(String(lead?.id || "")) && lead?.customerId) {
+      customerIds.add(String(lead.customerId));
+    }
+  }
+  leadIds = buildLeadIds();
   const jobIds = new Set(
     jobs
       .filter((entry) => isDemoId(entry?.id)
