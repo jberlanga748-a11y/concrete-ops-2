@@ -560,16 +560,17 @@ Use this when ready for the next product/QA slice:
 ```text
 You are entering:
 
-APEX HQ - SAFETY / INCIDENTS SUPPORT HANDOFF PHASE 1
+APEX HQ - TARGETED ROUTE SWEEP / VISUAL QA REFRESH
 
 Use skills:
 - apex-build-router
 - codex-mastery-system
-- apex-product-system
 - apex-hq-operating-standards
 - apex-permission-safety
 - apex-qa-engineer
 - codex-react-frontend-mastery
+- codex-ui-polish-saas-quality
+- codex-browser-automation
 
 Repo:
 C:\Users\jberl\Documents\Codex\concrete-ops-2-clean
@@ -580,37 +581,40 @@ Do NOT add payment collection.
 Do NOT add invoices.
 Do NOT add self-serve package changes.
 Do NOT expose billing, pricing, package management, or upgrade controls to field users.
-Do NOT redesign Safety or Support.
+Do NOT do broad polish loops.
+Do NOT redesign frozen canonical pages without a concrete defect.
 Do NOT touch unrelated files.
 
 Goal:
-Add a role-scoped copy-only support handoff from Safety / Incidents to the existing Support workflow while preserving field-safe visibility.
+Run a focused route sweep for visible demo blockers, text overflow, mobile/desktop breakage, console/network errors, and role-safe route behavior. Implement only the smallest confirmed fix if the sweep finds a real issue.
 
 Focus only on:
-- existing Safety / Incidents data and selected incident context
-- role-scoped support request context
-- existing Support handoff patterns
-- owner/admin visibility and field-safe assigned/visible scope
+- routes or components with confirmed QA evidence
+- visible workflow breakage, clipped text, layout overflow, or broken empty states
+- role-safe navigation and field-user blocking
+- existing shared Apex HQ visual/workflow patterns
 
 Preserve:
 - existing app behavior and data
 - existing auth/session/package/role logic
-- existing Support permissions
+- existing Support, Safety, Jobs, Reports, Uploads, Estimates, and Field Mode workflows unless a confirmed defect requires a narrow touch
 - no backend records, automation, payments, checkout, invoices, or package controls
 - no automatic sending, approving, resolving, customer notifications, pricing, scheduling, job conversion, crew assignment, or customer messaging
 
 Verify:
-- focused tests for touched safety/support utilities
+- npm.cmd run audit:visual-polish:chromium
+- npm.cmd run audit:visual-polish:tablet if tablet layout is touched
+- focused tests for the touched route/workflow
 - npm.cmd run verify:roles
-- npm.cmd run verify:safety
 - npm.cmd run build
 - git diff --check
-- browser QA for owner/admin Safety-to-Support and foreman/employee field-safe behavior where relevant
+- browser QA screenshots for the fixed route and relevant role/device matrix
 
 Report:
 - files changed
-- exact UX/permission changes
+- QA finding fixed
+- exact UX/permission behavior
 - verification results
 - release details if released
-- safe to release yes/no
+- whether to move on or keep fixing the same route
 ```
