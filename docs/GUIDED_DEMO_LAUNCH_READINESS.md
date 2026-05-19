@@ -1,39 +1,33 @@
 # Apex HQ Guided Demo Launch Readiness
 
-Status: refreshed after live v496 and demo app v71; warm-demo ready with notes
+Status: controlled guided-demo reference; current app state is tracked in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
 Owner: Apex HQ Master Coordinator
-Use with: `docs/SALES_DEMO_PLAYBOOK.md`, `docs/DEMO_LAUNCH_PACKET.md`, `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`, `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md`, and `docs/DEMO_READY_CHECKLIST.md`
+Use with: `docs/SALES_DEMO_PLAYBOOK.md`, `docs/DEMO_LAUNCH_PACKET.md`, `docs/FOUNDER_PILOT_ONBOARDING_PACKET.md`, `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md`, `docs/DEMO_READY_CHECKLIST.md`, `docs/MANUAL_PILOT_SMOKE_TEST.md`, and `docs/apex-hq-pilot-readiness-checklist.md`
 
 ## Current Verdict
 
-Apex HQ is ready for guided warm demos and founder-led pilot conversations.
+Apex HQ is ready for guided warm demos and controlled founder-led pilot conversations when the demo or pilot environment passes the current smoke checks.
 
 It is not yet positioned as public self-serve SaaS, enterprise-ready procurement software, or an autonomous AI platform.
 
-## Live Rehearsal Result
+## Current Verification Trail
 
-Date: 2026-05-17
-Environment: `https://app.apexhq.online`
-Release: Fly `v496`
-Evidence:
+Date: 2026-05-19
+Canonical state:
 
-- Desktop audit manifest: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-v496-live-desktop\2026-05-17T22-46-05-531Z\manifest.json`
-- Focused route/mobile results: `C:\Users\jberl\AppData\Local\Temp\apex-guided-demo-v496-live-focused\2026-05-17T22-47-30-393Z\focused-results.json`
+- latest build, demo deploy, smoke, and visual QA evidence: `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+- manual pilot smoke procedure: `docs/MANUAL_PILOT_SMOKE_TEST.md`
+- Day 0 / Day 3 / Day 10 pilot gates: `docs/apex-hq-pilot-readiness-checklist.md`
+- release and rollback procedure: `docs/apex-hq-release-rollback-checklist.md`
+- backup and restore drill: `docs/apex-hq-restore-runbook.md`
+- support intake process: `docs/apex-hq-support-intake-process.md`
 
-Result:
+Current guided-demo rule:
 
-- No P0/P1 blockers found.
-- No console errors found.
-- No failed API/network requests found.
-- No horizontal overflow found across checked desktop/mobile pages.
-- Field users remained blocked from office/admin/pricing/estimate surfaces through direct route checks.
-- `npm.cmd run verify:demo`, `npm.cmd run verify:roles`, and `git diff --check` passed.
-
-Note:
-
-- The separate demo app at `https://concrete-ops-demo.fly.dev/` was refreshed to Fly `v71` after rehearsal found the documented demo password was rejected there.
-- Demo app release `v71` restored documented demo authentication for `demo.ops@apexhq.app`, `demo.admin@apexhq.app`, `demo.foreman@apexhq.app`, and `demo.employee@apexhq.app`.
-- Check `https://concrete-ops-demo.fly.dev/api/ready` before using the separate demo app for a guided walkthrough.
+- Check `https://concrete-ops-demo.fly.dev/api/ready` before using the separate demo app.
+- Run the current hosted smoke command from `docs/MANUAL_PILOT_SMOKE_TEST.md` before relying on demo auth or route safety.
+- Do not paste or store demo passwords in this document; use environment secrets such as `APEX_SMOKE_PASSWORD`.
+- Do not use stale Fly release numbers in sales/demo planning. Confirm the current release in the build tracker or Fly before a live walkthrough.
 
 The first demo goal is simple:
 
@@ -164,9 +158,15 @@ Before warm demos, rehearse:
 Suggested focused commands:
 
 ```text
-npm.cmd run verify:demo
+npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json
 npm.cmd run verify:roles
 git diff --check
+```
+
+If safe demo auth is available through the environment, also run:
+
+```text
+npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
 ```
 
 Browser evidence to capture:
