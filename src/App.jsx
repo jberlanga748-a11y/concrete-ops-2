@@ -4,6 +4,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
+import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
 import {
   activateInvite,
   acknowledgeJobAssignmentNotice,
@@ -361,140 +362,7 @@ const EMPTY_APP_STATE = {
   email: {
     estimateSendingConfigured: false,
   },
-  permissions: {
-    users: {
-      canView: false,
-      canManage: false,
-    },
-    customers: {
-      canView: false,
-      canManage: false,
-    },
-    leads: {
-      canView: false,
-      canManage: false,
-    },
-    opportunityScout: {
-      canView: false,
-      canManage: false,
-    },
-    customerPortal: {
-      canPreview: false,
-    },
-    contactHistory: {
-      canView: false,
-      canManage: false,
-    },
-    estimates: {
-      canView: false,
-      canManage: false,
-      canUseAiRoughNotes: false,
-      canUseGcPackets: false,
-    },
-    jobDraftImports: {
-      canView: false,
-      canManage: false,
-      canCreateJob: false,
-    },
-    aiOffice: {
-      canView: false,
-      canUseLeadAssistant: false,
-    },
-    jobs: {
-      canView: false,
-      canCreate: false,
-      canManageAll: false,
-      canManageField: false,
-      canManageAssignments: false,
-      canViewMoney: false,
-    },
-    reports: {
-      canView: false,
-      canCreate: false,
-      canManageAll: false,
-      canReview: false,
-      canViewAdvanced: false,
-    },
-    prePour: {
-      canView: false,
-      canManage: false,
-      canManageAll: false,
-      canComplete: false,
-      canReview: false,
-    },
-    postPour: {
-      canView: false,
-      canManage: false,
-      canManageAll: false,
-      canComplete: false,
-      canReview: false,
-    },
-    uploads: {
-      canView: false,
-      canCreate: false,
-      canManageAll: false,
-    },
-    time: {
-      canView: false,
-      canManageOwn: false,
-      canViewCrew: false,
-      canViewAll: false,
-      canCorrect: false,
-      allowedCategories: [],
-    },
-    safety: {
-      canView: false,
-      canManage: false,
-      canAcknowledge: false,
-      canSubmitIncidents: false,
-      canReviewIncidents: false,
-    },
-    calculator: {
-      canUse: false,
-    },
-    toolChecklist: {
-      canUse: false,
-      canManage: false,
-      canManageAll: false,
-      canManageJob: false,
-      canContribute: false,
-      canReview: false,
-      canToggle: false,
-    },
-    settings: {
-      canView: false,
-      canManageUsers: false,
-      canExport: false,
-    },
-    appHealth: {
-      canView: false,
-    },
-    support: {
-      canView: false,
-    },
-    fieldOps: {
-      canView: false,
-      canViewCompanyWide: false,
-    },
-    companies: {
-      canSwitch: false,
-      canViewAll: false,
-    },
-    changeOrders: {
-      canView: false,
-      canManage: false,
-      canRequest: false,
-    },
-    deliveryTickets: {
-      canView: false,
-      canCreate: false,
-      canManageAll: false,
-      canEditOwn: false,
-    },
-    audit: {
-      canView: false,
-    },
-  },
+  permissions: DEFAULT_APP_PERMISSIONS,
   stats: {
     newLeads: 0,
     highPriorityLeads: 0,
@@ -505,13 +373,6 @@ const EMPTY_APP_STATE = {
     queueBlocked: 0,
   },
 };
-
-function mergePermissionScope(defaults, incoming) {
-  return {
-    ...defaults,
-    ...(incoming || {}),
-  };
-}
 
 function getUploadPreviewCacheKey(upload) {
   if (!upload?.id) return "";
@@ -732,32 +593,7 @@ function normalizeAppState(nextState, fallbackState = EMPTY_APP_STATE) {
       ...(fallback.email || {}),
       ...(source.email || {}),
     },
-    permissions: {
-      users: mergePermissionScope(EMPTY_APP_STATE.permissions.users, source.permissions?.users || fallback.permissions?.users),
-      customers: mergePermissionScope(EMPTY_APP_STATE.permissions.customers, source.permissions?.customers || fallback.permissions?.customers),
-      leads: mergePermissionScope(EMPTY_APP_STATE.permissions.leads, source.permissions?.leads || fallback.permissions?.leads),
-      opportunityScout: mergePermissionScope(EMPTY_APP_STATE.permissions.opportunityScout, source.permissions?.opportunityScout || fallback.permissions?.opportunityScout),
-      contactHistory: mergePermissionScope(EMPTY_APP_STATE.permissions.contactHistory, source.permissions?.contactHistory || fallback.permissions?.contactHistory),
-      estimates: mergePermissionScope(EMPTY_APP_STATE.permissions.estimates, source.permissions?.estimates || fallback.permissions?.estimates),
-      jobDraftImports: mergePermissionScope(EMPTY_APP_STATE.permissions.jobDraftImports, source.permissions?.jobDraftImports || fallback.permissions?.jobDraftImports),
-        jobs: mergePermissionScope(EMPTY_APP_STATE.permissions.jobs, source.permissions?.jobs || fallback.permissions?.jobs),
-        reports: mergePermissionScope(EMPTY_APP_STATE.permissions.reports, source.permissions?.reports || fallback.permissions?.reports),
-        prePour: mergePermissionScope(EMPTY_APP_STATE.permissions.prePour, source.permissions?.prePour || fallback.permissions?.prePour),
-        postPour: mergePermissionScope(EMPTY_APP_STATE.permissions.postPour, source.permissions?.postPour || fallback.permissions?.postPour),
-        uploads: mergePermissionScope(EMPTY_APP_STATE.permissions.uploads, source.permissions?.uploads || fallback.permissions?.uploads),
-      time: mergePermissionScope(EMPTY_APP_STATE.permissions.time, source.permissions?.time || fallback.permissions?.time),
-        safety: mergePermissionScope(EMPTY_APP_STATE.permissions.safety, source.permissions?.safety || fallback.permissions?.safety),
-        calculator: mergePermissionScope(EMPTY_APP_STATE.permissions.calculator, source.permissions?.calculator || fallback.permissions?.calculator),
-      toolChecklist: mergePermissionScope(EMPTY_APP_STATE.permissions.toolChecklist, source.permissions?.toolChecklist || fallback.permissions?.toolChecklist),
-      settings: mergePermissionScope(EMPTY_APP_STATE.permissions.settings, source.permissions?.settings || fallback.permissions?.settings),
-      appHealth: mergePermissionScope(EMPTY_APP_STATE.permissions.appHealth, source.permissions?.appHealth || fallback.permissions?.appHealth),
-      support: mergePermissionScope(EMPTY_APP_STATE.permissions.support, source.permissions?.support || fallback.permissions?.support),
-      fieldOps: mergePermissionScope(EMPTY_APP_STATE.permissions.fieldOps, source.permissions?.fieldOps || fallback.permissions?.fieldOps),
-      companies: mergePermissionScope(EMPTY_APP_STATE.permissions.companies, source.permissions?.companies || fallback.permissions?.companies),
-      changeOrders: mergePermissionScope(EMPTY_APP_STATE.permissions.changeOrders, source.permissions?.changeOrders || fallback.permissions?.changeOrders),
-      deliveryTickets: mergePermissionScope(EMPTY_APP_STATE.permissions.deliveryTickets, source.permissions?.deliveryTickets || fallback.permissions?.deliveryTickets),
-      audit: mergePermissionScope(EMPTY_APP_STATE.permissions.audit, source.permissions?.audit || fallback.permissions?.audit),
-    },
+    permissions: normalizeAppPermissions(source.permissions, fallback.permissions),
     stats: {
       ...EMPTY_APP_STATE.stats,
       ...(fallback.stats || {}),
@@ -25818,7 +25654,7 @@ function CopilotPagePolished({
       actionLabel: "Command Center",
       onAction: () => openModule("commandCenter"),
     },
-  ];
+  ].filter(Boolean);
 
   const focusRows = [
     ...blockedQueueItems.slice(0, 2).map((item) => ({

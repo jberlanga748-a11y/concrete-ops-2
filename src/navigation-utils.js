@@ -15,7 +15,7 @@ function packageAllowsModule(moduleId, permissions = null) {
   }
 
   if (moduleId === "copilot") {
-    return Boolean(permissionFlag(permissions, "aiOffice.canView"));
+    return Boolean(permissionFlag(permissions, "aiOffice.canView") && permissionFlag(permissions, "opportunityScout.canView"));
   }
 
   if (moduleId === "appHealth") {
@@ -49,16 +49,16 @@ const PACKAGE_LOCKED_MODULES = {
   },
   copilot: {
     eyebrow: "Package Locked",
-    title: "Apex Assistant is not included",
-    description: "Assistant command tools are available in Premium and Elite packages. This workspace can keep using core office and field workflows.",
-    badge: "Premium package",
-    requiredPackage: "Premium",
-    requestedFeature: "Apex Assistant",
+    title: "Opportunity Scout is not included",
+    description: "Opportunity Scout review-first intake is available in Elite. This workspace can keep using core office and field workflows.",
+    badge: "Elite package",
+    requiredPackage: "Elite",
+    requestedFeature: "Opportunity Scout",
     actionTitle: "Open your operating workspace",
-    actionDescription: "Continue with the role-safe Apex HQ tools included for this company, or request a manual Premium review.",
+    actionDescription: "Continue with the role-safe Apex HQ tools included for this company, or request a manual Elite review.",
     reviewActionLabel: "Review plan readiness",
     supportActionLabel: "Request upgrade review",
-    manualUpgradeNote: "AI and assistant upgrades are reviewed manually for now. Apex HQ does not enable automation, package changes, checkout, or billing collection from this page.",
+    manualUpgradeNote: "Opportunity Scout upgrades are reviewed manually for now. Apex HQ does not enable automation, package changes, checkout, or billing collection from this page.",
   },
   appHealth: {
     eyebrow: "Package Locked",
