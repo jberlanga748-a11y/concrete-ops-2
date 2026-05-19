@@ -24,6 +24,30 @@ Purpose: define the smallest production-safe monitoring loop around Apex HQ read
 
 Production monitoring should treat `/api/ready` as the source of truth.
 
+## Hosted Smoke Latency Budgets
+
+`npm.cmd run smoke:hosted` records timing for:
+
+- `/api/health`
+- `/api/ready`
+- `/api/auth/login`
+- `/api/bootstrap`
+
+Default budgets:
+
+- `/api/ready`: `10000ms`
+- `/api/auth/login`: `15000ms`
+- `/api/bootstrap`: `15000ms`
+
+Run demo auth smoke:
+
+```powershell
+$env:APEX_SMOKE_PASSWORD="<demo smoke password>"
+npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
+```
+
+The budgets are intentionally loose enough for Fly cold starts but tight enough to catch the previous auth/bootstrap regression where login and bootstrap took tens of seconds. Do not mask a slow path by only raising these budgets; inspect session writes, SQLite locking, bootstrap payload size, and Fly health flapping first.
+
 ## Existing Platform Checks
 
 Fly production already checks:
@@ -151,3 +175,4 @@ P3:
 - Define where incident notes live.
 - Add a restore-drill date to the monthly operating cadence.
 - Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
+- Consider a scheduled non-mutating hosted smoke that records auth/bootstrap timing for demo and, after explicit approval, production.

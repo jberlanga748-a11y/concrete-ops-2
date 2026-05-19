@@ -58,6 +58,7 @@ Minimum local checks:
 ```powershell
 npm.cmd run build
 npm.cmd run verify:roles
+npm.cmd run verify:demo
 npm.cmd run verify:server
 npm.cmd run verify:backup
 git diff --check
@@ -84,6 +85,56 @@ Preview expectations:
 - preview data is demo data, not production data
 
 Do not treat Vercel preview as production backend proof.
+
+## Fly Demo Deploy Checklist
+
+Use Fly demo for founder walkthroughs, synthetic Opportunity Scout acceptance, and demo-only package checks.
+
+Before demo deploy:
+
+```powershell
+git status --short
+git rev-parse HEAD
+npm.cmd run build
+npm.cmd run verify:roles
+npm.cmd run verify:demo
+Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
+fly status -a concrete-ops-demo
+fly checks list -a concrete-ops-demo
+fly machine exec 784192dc275318 -a concrete-ops-demo --timeout 120 "sh -lc 'cd /app && node server/backup-export.js'"
+```
+
+Deploy demo only:
+
+```powershell
+fly deploy --config fly.demo.toml --app concrete-ops-demo
+```
+
+After demo deploy:
+
+```powershell
+Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
+npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
+```
+
+For Opportunity Scout demo acceptance:
+
+```powershell
+$env:APEX_SMOKE_PASSWORD="<demo smoke password>"
+npm.cmd run smoke:opportunity-scout:fly-demo -- --json
+```
+
+The Opportunity Scout demo orchestrator must:
+
+- wake the demo app before Fly machine exec
+- take a demo backup before package mutation
+- temporarily set only `COMPANY-DEFAULT` to Elite
+- run hosted Opportunity Scout acceptance
+- clean smoke artifacts
+- roll the demo package back to Premium
+- run final hosted smoke with latency budgets
+
+Do not use `fly.toml` for demo deploys. Do not run demo package or smoke cleanup scripts against production.
 
 ## Production Deploy Checklist
 

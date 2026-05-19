@@ -67,6 +67,16 @@ Confirm workflow:
 
 Run the non-destructive manual pilot smoke test in `MANUAL_PILOT_SMOKE_TEST.md`.
 
+For demo rehearsal, the current automated smoke gates are:
+
+```powershell
+$env:APEX_SMOKE_PASSWORD="<demo smoke password>"
+npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
+npm.cmd run smoke:opportunity-scout:fly-demo -- --json
+```
+
+The Opportunity Scout demo smoke is mutation-capable but demo-only: it takes a backup, temporarily sets the demo package to Elite, runs acceptance, cleans smoke artifacts, rolls back to Premium, and reruns hosted smoke. Do not run it against production or a real pilot workspace.
+
 ## Day 0 Pass Criteria
 
 Day 0 passes when:
