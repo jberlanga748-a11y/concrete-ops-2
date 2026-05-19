@@ -1426,6 +1426,420 @@ function ProposalTotalCard({ value, detail, label = "Proposal total" }) {
   );
 }
 
+function WorkQueueCard({
+  eyebrow,
+  title,
+  meta,
+  status,
+  tone = "orange",
+  actionLabel,
+  onClick,
+  selected = false,
+  children,
+}) {
+  const toneClass = {
+    green: "co-work-queue-card--green",
+    red: "co-work-queue-card--red",
+    blue: "co-work-queue-card--blue",
+    slate: "co-work-queue-card--slate",
+    amber: "co-work-queue-card--amber",
+    orange: "co-work-queue-card--orange",
+  }[tone] || "co-work-queue-card--orange";
+  const Component = onClick ? "button" : "div";
+
+  return (
+    <Component type={onClick ? "button" : undefined} className={`co-work-queue-card ${toneClass}${selected ? " is-selected" : ""}`} onClick={onClick}>
+      <div className="co-work-queue-card-head">
+        <div className="min-w-0">
+          {eyebrow ? <p className="co-work-queue-eyebrow">{eyebrow}</p> : null}
+          <h3>{title}</h3>
+          {meta ? <p className="co-work-queue-meta">{meta}</p> : null}
+        </div>
+        {status ? <span className="co-work-queue-status">{status}</span> : null}
+      </div>
+      {children ? <div className="co-work-queue-body">{children}</div> : null}
+      {actionLabel ? <span className="co-work-queue-action">{actionLabel}</span> : null}
+    </Component>
+  );
+}
+
+function AssistantRail({ title = "Apex Assistant", eyebrow = "Assistant", description, priorities = [], actions = [], className = "" }) {
+  return (
+    <section className={`co-assistant-rail ${className}`}>
+      <div className="co-assistant-rail-head">
+        <span>{eyebrow}</span>
+        <h2>{title}</h2>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {priorities.length > 0 ? (
+        <div className="co-assistant-rail-priorities">
+          {priorities.map((item) => (
+            <div key={item.label} className={`co-assistant-rail-priority co-assistant-rail-priority--${item.tone || "orange"}`}>
+              <span>{item.value}</span>
+              <p>{item.label}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="co-assistant-rail-actions">
+          {actions.map((action) => (
+            <button key={action.label} type="button" onClick={action.onClick} disabled={action.disabled}>
+              {action.icon ? <Icon name={action.icon} /> : null}
+              <span>{action.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CommandPageFrame({ children, kpis, rail, footer, className = "" }) {
+  return (
+    <div className={`co-command-page-frame ${className}`}>
+      {kpis ? <div className="co-command-page-frame-kpis">{kpis}</div> : null}
+      <div className="co-command-page-frame-grid">
+        <div className="co-command-page-frame-main">{children}</div>
+        {rail ? <aside className="co-command-page-frame-rail">{rail}</aside> : null}
+      </div>
+      {footer ? <div className="co-command-page-frame-footer">{footer}</div> : null}
+    </div>
+  );
+}
+
+function EstimateStudioShell({
+  options = [],
+  selectedOptionId = "",
+  onSelectOption,
+  children,
+  sidebar,
+  packetTiles = [],
+  assistantActions = [],
+}) {
+  return (
+    <CommandPageFrame
+      className="co-estimate-studio-shell"
+      rail={sidebar}
+      footer={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Estimate"
+          description="Review the packet, missing scope, and foreman handoff without covering the proposal workspace."
+          actions={assistantActions}
+        />
+      }
+    >
+      <aside className="co-estimate-studio-option-rail" aria-label="Estimate options">
+        <div className="co-estimate-studio-option-head">
+          <p>Estimate Options</p>
+          <span>{options.length} active</span>
+        </div>
+        <div className="co-estimate-studio-option-list">
+          {options.length > 0 ? options.map((option, index) => (
+            <WorkQueueCard
+              key={option.id}
+              eyebrow={`Option ${index + 1}`}
+              title={option.title}
+              meta={option.meta}
+              status={option.status}
+              tone={option.tone}
+              actionLabel={option.actionLabel}
+              selected={selectedOptionId === option.id}
+              onClick={() => onSelectOption?.(option.id)}
+            />
+          )) : (
+            <div className="co-estimate-studio-empty-option">Create or select a draft to start the packet.</div>
+          )}
+        </div>
+      </aside>
+      <div className="co-estimate-studio-workbench">
+        {children}
+        {packetTiles.length > 0 ? (
+          <section className="co-estimate-studio-packet-preview" aria-label="GC packet preview">
+            <div className="co-estimate-studio-packet-head">
+              <p>GC Packet Preview</p>
+              <span>Customer-safe packet sections</span>
+            </div>
+            <div className="co-estimate-studio-packet-tiles">
+              {packetTiles.map((tile) => (
+                <button key={tile.label} type="button" onClick={tile.onClick} disabled={tile.disabled}>
+                  <Icon name={tile.icon || "document"} />
+                  <span>{tile.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </CommandPageFrame>
+  );
+}
+
+function estimateStudioListItems(value, fallback = []) {
+  const rawItems = Array.isArray(value) ? value : String(value || "").split(/\n|;|,/);
+  const items = rawItems
+    .map((item) => String(item || "").replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : fallback;
+}
+
+function estimateStudioTakeoffCards(backup = {}, estimate = {}) {
+  const references = Array.isArray(backup.referenceRows) ? backup.referenceRows : [];
+  const takeoffs = Array.isArray(backup.takeoffRows) ? backup.takeoffRows : [];
+  const cards = [
+    ...references.slice(0, 2).map((row, index) => ({
+      id: `reference-${index}`,
+      type: row.referenceType || "Reference",
+      title: row.fileName || row.source || "Jobsite reference",
+      meta: row.source || row.notes || "Office review",
+      tone: "photo",
+    })),
+    ...takeoffs.slice(0, 2).map((row, index) => ({
+      id: `takeoff-${index}`,
+      type: row.unit ? `${row.quantity || ""} ${row.unit}`.trim() : "Takeoff",
+      title: row.item || "Takeoff item",
+      meta: row.source || row.estimatorNote || "Estimator backup",
+      tone: "takeoff",
+    })),
+  ];
+
+  if (cards.length > 0) return cards.slice(0, 3);
+
+  return [
+    {
+      id: "site-photo-placeholder",
+      type: "Site photo",
+      title: estimate?.lead?.project || estimate?.title || "Jobsite photo",
+      meta: "Demo preview",
+      tone: "photo",
+    },
+    {
+      id: "takeoff-placeholder",
+      type: "Takeoff",
+      title: "Plan / measured scope",
+      meta: estimate?.scopeSummary ? "Scope linked" : "Add takeoff backup",
+      tone: "takeoff",
+    },
+    {
+      id: "add-photo-placeholder",
+      type: "Add photo",
+      title: "Upload reference",
+      meta: "Use SOV / Backup",
+      tone: "empty",
+    },
+  ];
+}
+
+function EstimateProposalWorkbench({
+  estimate,
+  preview,
+  totals,
+  optionTotals,
+  sections,
+  backup,
+  canManage,
+  filteredRows = [],
+  rows = [],
+  listState = {},
+  statusFilter = "All",
+  customerFilter = "All customers",
+  leadFilter = "All leads",
+  creatorFilter = "All creators",
+  archiveFilter = "Active",
+  search = "",
+  selectedId = "",
+  visibleEstimateRowCap = 6,
+  onSelect,
+  onOpenTool,
+  onFocusNewEstimate,
+  onStatusFilter,
+  onSearch,
+  onCustomerFilter,
+  onLeadFilter,
+  onCreatorFilter,
+  onArchiveFilter,
+  onShowMore,
+  onShowLess,
+  onClearFilters,
+}) {
+  if (!estimate || !preview) {
+    return (
+      <Card className="co-estimate-proposal-workbench co-estimate-proposal-workbench--empty">
+        <div className="co-estimate-proposal-empty">
+          <Icon name="quote" className="h-6 w-6" />
+          <h2>Select an estimate option</h2>
+          <p>Choose a proposal from the option rail to review scope, takeoff, inclusions, exclusions, packet sections, and send-ready actions.</p>
+          {canManage ? <Button type="button" onClick={onFocusNewEstimate}>Create Estimate</Button> : null}
+        </div>
+      </Card>
+    );
+  }
+
+  const scopeFallback = [
+    preview.scopeSummary || "Scope is pending office review.",
+  ];
+  const inclusionItems = estimateStudioListItems(sections?.inclusions, [
+    "Concrete labor and standard equipment",
+    "Form, place, finish, and cleanup",
+    "Office-reviewed customer proposal",
+  ]);
+  const exclusionItems = estimateStudioListItems(sections?.exclusions, [
+    "Permits and inspection fees",
+    "Engineering, design, or utility relocation",
+    "Hidden conditions outside reviewed scope",
+  ]);
+  const scopeItems = estimateStudioListItems(sections?.scopeOfWork, scopeFallback).slice(0, 3);
+  const photoTakeoffCards = estimateStudioTakeoffCards(backup, preview);
+  const topLineItems = Array.isArray(preview.items) ? preview.items.filter((item) => item?.description || item?.name).slice(0, 3) : [];
+  const customerLabel = estimateDisplayCustomer(preview);
+  const totalLabel = formatEstimateCurrency(optionTotals?.totalWithSelectedOptions ?? totals?.grandTotal ?? estimateDisplayTotal(preview));
+
+  return (
+    <Card className="co-estimate-proposal-workbench">
+      <div className="co-estimate-proposal-head">
+        <div className="min-w-0">
+          <p className="co-estimate-proposal-eyebrow">Selected Proposal</p>
+          <div className="co-estimate-proposal-title-row">
+            <h2>{estimateDisplayTitle(preview)}</h2>
+            <StatusBadge status={estimateStatusLabel(preview.status)} />
+          </div>
+          <p>{customerLabel} · {preview.jobId ? "Converted job" : estimateDisplayLead(preview)}</p>
+        </div>
+        <div className="co-estimate-proposal-total">
+          <span>Estimate Total</span>
+          <strong>{totalLabel}</strong>
+          <em>Base {formatEstimateCurrency(totals?.grandTotal || 0)}</em>
+        </div>
+      </div>
+
+      <div className="co-estimate-proposal-media" aria-label="Jobsite photos and takeoff preview">
+        <div className="co-estimate-proposal-media-head">
+          <span>Jobsite Photos & Takeoff</span>
+          <button type="button" onClick={() => onOpenTool?.("backup")}>Open backup</button>
+        </div>
+        <div className="co-estimate-proposal-media-grid">
+          {photoTakeoffCards.map((card) => (
+            <button key={card.id} type="button" className={`co-estimate-proposal-thumb co-estimate-proposal-thumb--${card.tone}`} onClick={() => onOpenTool?.("backup")}>
+              <span>{card.type}</span>
+              <strong>{card.title}</strong>
+              <em>{card.meta}</em>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="co-estimate-proposal-scope">
+        <div className="co-estimate-proposal-section-head">
+          <span>Scope of Work</span>
+          <button type="button" onClick={() => onOpenTool?.("sections")}>Edit sections</button>
+        </div>
+        <div className="co-estimate-proposal-scope-copy">
+          {scopeItems.map((item) => <p key={item}>{item}</p>)}
+        </div>
+        {topLineItems.length > 0 ? (
+          <div className="co-estimate-proposal-line-items">
+            {topLineItems.map((item, index) => (
+              <div key={`${item.id || item.description || item.name}-${index}`}>
+                <span>{item.description || item.name}</span>
+                <strong>{formatEstimateCurrency(calculateEstimateLineTotal(item))}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="co-estimate-proposal-inclusions-grid">
+        <section>
+          <div className="co-estimate-proposal-section-head">
+            <span>Inclusions</span>
+          </div>
+          <ul className="co-estimate-proposal-check-list">
+            {inclusionItems.slice(0, 5).map((item) => (
+              <li key={item}><Icon name="check" /> <span>{item}</span></li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <div className="co-estimate-proposal-section-head">
+            <span>Exclusions</span>
+          </div>
+          <ul className="co-estimate-proposal-warning-list">
+            {exclusionItems.slice(0, 5).map((item) => (
+              <li key={item}><Icon name="alert" /> <span>{item}</span></li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      <details className="co-estimate-proposal-browse">
+        <summary>
+          <span>Browse all estimates</span>
+          <em>{filteredRows.length} matching</em>
+        </summary>
+        <FilterBar filters={["All", "Draft", "Sent", "Approved", "Rejected", "Archived"]} active={statusFilter} setActive={onStatusFilter} search={search} setSearch={onSearch} placeholder="Search title, customer, notes, or line items..." />
+        <details className="co-estimates-advanced-filters border-b border-slate-200 bg-white">
+          <summary>
+            <span>Advanced filters</span>
+            <span>{[customerFilter !== "All customers" ? customerFilter : "", leadFilter !== "All leads" ? leadFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Customer, lead, creator, archive"}</span>
+          </summary>
+          <div className="co-office-filter-grid co-estimates-filter-grid grid gap-3 p-3 md:grid-cols-4">
+            <SelectField label="Customer" value={customerFilter} onChange={(event) => onCustomerFilter?.(event.target.value)}>
+              {(listState.customerOptions || []).map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <SelectField label="Lead" value={leadFilter} onChange={(event) => onLeadFilter?.(event.target.value)}>
+              {(listState.leadOptions || []).map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <SelectField label="Created by" value={creatorFilter} onChange={(event) => onCreatorFilter?.(event.target.value)}>
+              {(listState.creatorOptions || []).map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <SelectField label="Archive view" value={archiveFilter} onChange={(event) => onArchiveFilter?.(event.target.value)}>
+              {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+          </div>
+        </details>
+        <div className="co-estimates-board-header border-b border-slate-200 bg-white p-4">
+          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">Proposal Queue</h3>
+              <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Use this list when you need the full estimate board.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={() => onStatusFilter?.("All")}>All estimates</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => onStatusFilter?.("Draft")}>Drafts</Button>
+              {canManage ? <Button type="button" size="sm" onClick={onFocusNewEstimate}>Create Estimate</Button> : null}
+            </div>
+          </div>
+        </div>
+        {filteredRows.length === 0 ? (
+          <div className="p-5">
+            <StateCard title="No estimates match this view" description="Create a proposal from a customer or lead, or clear filters to bring older work back into view." tone="blue" />
+          </div>
+        ) : (
+          <EstimatesTablePolished
+            rows={filteredRows}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            maxRows={visibleEstimateRowCap}
+          />
+        )}
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+          <p className="text-sm font-bold text-slate-600">Showing {Math.min(filteredRows.length, visibleEstimateRowCap)} of {rows.length} estimates</p>
+          <div className="co-estimates-board-footer-actions">
+            {filteredRows.length > visibleEstimateRowCap ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onShowMore}>Show more</Button>
+            ) : null}
+            {visibleEstimateRowCap > 6 ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onShowLess}>Show less</Button>
+            ) : null}
+            <Button type="button" size="sm" variant="secondary" onClick={onClearFilters}>Clear filters</Button>
+          </div>
+        </div>
+      </details>
+    </Card>
+  );
+}
+
 const ESTIMATE_ALTERNATE_STATUS_OPTIONS = ["optional", "included", "excluded", "accepted"];
 const ESTIMATE_ADD_ON_STATUS_OPTIONS = ["optional", "selected", "included", "accepted", "excluded"];
 
@@ -7960,102 +8374,157 @@ function DailyReportsOperationsBoard({
         : needsActionCount
           ? `${needsActionCount} draft${needsActionCount === 1 ? "" : "s"} still open`
           : "Nothing urgent in the current view.";
+  const focusReport = evidenceGapReports[0] || reviewReports[0] || draftReports[0] || visibleRows[0] || null;
+  const focusProof = focusReport ? proofStateByReportId.get(focusReport.id) : null;
+  const focusQueue = [
+    ...missingReportJobs.slice(0, 2).map((job) => ({ type: "missing", job })),
+    ...reviewReports.map((report) => ({ type: "review", report })),
+    ...evidenceGapReports.map((report) => ({ type: "proof", report })),
+  ].slice(0, 6);
+  const focusProofBadges = focusProof ? [
+    { label: "Photos", value: focusProof.photoMissing ? "Missing" : `${focusProof.photoCount} linked`, state: focusProof.photoMissing ? "needs" : "ready" },
+    { label: "Ticket", value: focusProof.ticketMissing ? "Missing" : focusProof.ticketExpected ? `${focusProof.ticketCount} linked` : "If pour", state: focusProof.ticketMissing ? "needs" : "ready" },
+    { label: "Checklists", value: focusProof.openChecklistCount ? `${focusProof.openChecklistCount} open` : "Clear", state: focusProof.openChecklistCount ? "needs" : "ready" },
+    { label: "Basics", value: focusProof.missingCore?.length ? `${focusProof.missingCore.length} missing` : "Ready", state: focusProof.missingCore?.length ? "needs" : "ready" },
+  ] : [];
 
   return (
-    <div className="co-reports-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6" data-mode="office">
-      <Card className="co-reports-ops-card overflow-hidden">
-        <div className="co-reports-ops-command-shell">
-          <div className="co-reports-ops-command-main">
-            <div className="co-reports-ops-header">
-              <div className="min-w-0">
-                <p className="co-reports-ops-eyebrow">Daily closeout command</p>
-                <h2>Reports, proof, and review status in one pass</h2>
-                <p>Use this board to see what is missing before the day gets away from the office.</p>
-              </div>
-              <div className="co-reports-ops-actions">
-                {canCreate ? <Button type="button" onClick={() => onOpenReportTool("create")}>Start report</Button> : null}
-                <Button type="button" variant="secondary" onClick={() => onSetFilter("Submitted")}>Review submitted</Button>
-              </div>
-            </div>
-            <div className="co-reports-ops-review-grid">
-              {reviewTiles.map((tile) => (
-                <button key={tile.label} type="button" data-tone={tile.tone} onClick={tile.onClick}>
-                  <span>{tile.label}</span>
-                  <strong>{tile.value}</strong>
-                  <em>{tile.helper}</em>
-                  <b>{tile.action}</b>
-                </button>
-              ))}
-            </div>
-            <div className="co-reports-ops-lists">
-              <div>
-                <span className="co-reports-ops-list-title">Missing report</span>
-                {missingReportJobs.slice(0, 3).length ? missingReportJobs.slice(0, 3).map((job) => (
-                  <button key={job.id} type="button" onClick={() => onStartReportForJob(job)}>
-                    <strong>{jobTitle(job)}</strong>
-                    <span>{jobScheduleLabel(job)}</span>
-                  </button>
-                )) : <p>All visible active jobs have a report for the operating date.</p>}
-              </div>
-              <div>
-                <span className="co-reports-ops-list-title">Needs office review</span>
-                {reviewReports.length ? reviewReports.map((report) => (
-                  <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
-                    <strong>{jobTitle(report.job)}</strong>
-                    <span>{report.reportDate} / {report.createdByName}</span>
-                  </button>
-                )) : <p>No submitted reports are waiting in this view.</p>}
-              </div>
-              <div>
-                <span className="co-reports-ops-list-title">Proof gaps</span>
-                {evidenceGapReports.length ? evidenceGapReports.map((report) => {
-                  const proof = proofStateByReportId.get(report.id);
-                  return (
-                    <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
-                      <strong>{jobTitle(report.job)}</strong>
-                      <span>{dailyReportProofSummary(proof)}</span>
-                    </button>
-                  );
-                }) : draftReports.length ? draftReports.map((report) => (
-                  <button key={report.id} type="button" onClick={() => onOpenReport(report)}>
-                    <strong>{jobTitle(report.job)}</strong>
-                    <span>{reportStatusLabel(report.status)} / {report.reportDate}</span>
-                  </button>
-                )) : <p>Proof checklist is clear for the current view.</p>}
-              </div>
-            </div>
-          </div>
-          <aside className="co-reports-ops-closeout-rail" aria-label="Daily reports closeout assistant">
-            <div className="co-reports-ops-rail-head">
-              <span><Icon name="document" /></span>
-              <div className="min-w-0">
-                <strong>Closeout Assistant</strong>
-                <p>Manual review queue</p>
-              </div>
-            </div>
-            <div className="co-reports-ops-rail-priority">
-              <span>Next best action</span>
-              <strong>{closeoutNextAction}</strong>
-              <p>{closeoutNextDetail}</p>
-            </div>
-            <div className="co-reports-ops-rail-list">
-              {closeoutPriorityItems.map((item) => (
-                <button key={item.label} type="button" data-tone={item.tone} onClick={item.onClick}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                  <em>{item.helper}</em>
-                  <b>{item.action}</b>
-                </button>
-              ))}
-            </div>
-            <div className="co-reports-ops-rail-actions">
-              {canCreate ? <button type="button" onClick={() => onOpenReportTool("create")}><Icon name="plus" />Start report</button> : null}
-              <button type="button" onClick={() => onSetFilter("Submitted")}><Icon name="check" />Review submitted</button>
-            </div>
-          </aside>
+    <CommandPageFrame
+      className="co-proof-engine-frame co-reports-proof-frame"
+      kpis={
+        <div className="co-proof-engine-kpis">
+          {reviewTiles.map((tile) => (
+            <button key={tile.label} type="button" className="co-proof-engine-kpi" data-tone={tile.tone} onClick={tile.onClick}>
+              <span>{tile.label}</span>
+              <strong>{tile.value}</strong>
+              <em>{tile.helper}</em>
+              <b>{tile.action}</b>
+            </button>
+          ))}
         </div>
-      </Card>
-    </div>
+      }
+      rail={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Closeout"
+          description={`${closeoutNextAction}. ${closeoutNextDetail}`}
+          priorities={closeoutPriorityItems.map((item) => ({ value: item.value, label: item.label, tone: item.tone }))}
+          actions={[
+            canCreate ? { label: "Start report", icon: "plus", onClick: () => onOpenReportTool("create") } : null,
+            { label: canReview ? "Review submitted" : "View submitted", icon: "check", onClick: () => onSetFilter("Submitted") },
+            { label: "Open uploads", icon: "upload", onClick: () => onOpenModule("uploads"), disabled: !permissions?.uploads?.canView },
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <section className="co-proof-engine-workbench" aria-label="Daily report proof engine">
+        <div className="co-proof-engine-head">
+          <div className="min-w-0">
+            <p className="co-proof-engine-eyebrow">Daily closeout command</p>
+            <h2>Reports, proof, blockers, and billing readiness</h2>
+            <p>Office review starts with what field submitted, what proof is missing, and which job can move toward ready-to-bill.</p>
+          </div>
+          <div className="co-proof-engine-actions">
+            {canCreate ? <Button type="button" onClick={() => onOpenReportTool("create")}>Start report</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => onSetFilter("Submitted")}>Review queue</Button>
+          </div>
+        </div>
+        <div className="co-proof-engine-board">
+          <div className="co-proof-engine-queue">
+            <div className="co-proof-engine-section-head">
+              <span>Proof review queue</span>
+              <strong>{focusQueue.length || "Clear"}</strong>
+            </div>
+            {focusQueue.length ? focusQueue.map((item) => {
+              if (item.type === "missing") {
+                return (
+                  <WorkQueueCard
+                    key={`missing-${item.job.id}`}
+                    eyebrow="Missing report"
+                    title={jobTitle(item.job)}
+                    meta={jobScheduleLabel(item.job)}
+                    status="Not started"
+                    tone="amber"
+                    actionLabel={canCreate ? "Start report" : "View job"}
+                    onClick={() => onStartReportForJob(item.job)}
+                  >
+                    <div className="co-proof-engine-row-meta">
+                      <span>Job</span>
+                      <span>Field closeout missing</span>
+                      <span>Blocks billing proof</span>
+                    </div>
+                  </WorkQueueCard>
+                );
+              }
+
+              const proof = proofStateByReportId.get(item.report.id);
+              const tone = item.type === "proof" ? "amber" : dailyReportNeedsReview(item.report) ? "orange" : "green";
+              return (
+                <WorkQueueCard
+                  key={`${item.type}-${item.report.id}`}
+                  eyebrow={item.type === "proof" ? "Proof gap" : "Needs review"}
+                  title={jobTitle(item.report.job)}
+                  meta={`${item.report.reportDate} / ${item.report.createdByName || "Field crew"}`}
+                  status={reportStatusLabel(item.report.status)}
+                  tone={tone}
+                  actionLabel="Open report"
+                  selected={focusReport?.id === item.report.id}
+                  onClick={() => onOpenReport(item.report)}
+                >
+                  <div className="co-proof-engine-row-meta">
+                    <span>{dailyReportProofSummary(proof)}</span>
+                    <span>{dailyReportConcreteSummary(item.report)}</span>
+                    <span>{dailyReportPrimaryNote(item.report) || "No note"}</span>
+                  </div>
+                </WorkQueueCard>
+              );
+            }) : (
+              <div className="co-proof-engine-empty">
+                <strong>Closeout queue is clear</strong>
+                <span>Visible jobs have no urgent report or proof blockers.</span>
+              </div>
+            )}
+          </div>
+          <div className="co-proof-engine-detail">
+            <div className="co-proof-engine-section-head">
+              <span>Selected proof packet</span>
+              <strong>{focusReport ? reportStatusLabel(focusReport.status) : "Ready"}</strong>
+            </div>
+            {focusReport ? (
+              <>
+                <div className="co-proof-engine-detail-title">
+                  <div className="min-w-0">
+                    <h3>{jobTitle(focusReport.job)}</h3>
+                    <p>{focusReport.reportDate} / {focusReport.createdByName || "Field crew"} / {dailyReportConcreteSummary(focusReport)}</p>
+                  </div>
+                  <DailyReportStatusBadge status={focusReport.status} />
+                </div>
+                <p className="co-proof-engine-note">{dailyReportPrimaryNote(focusReport) || "No field note has been added yet."}</p>
+                <DailyReportProofChecklist proofState={focusProof} />
+                <div className="co-proof-engine-proof-grid">
+                  {focusProofBadges.map((item) => (
+                    <span key={item.label} data-state={item.state}>
+                      {item.label}
+                      <strong>{item.value}</strong>
+                    </span>
+                  ))}
+                </div>
+                <div className="co-proof-engine-next">
+                  <span>Next action</span>
+                  <strong>{closeoutNextAction}</strong>
+                  <p>{closeoutNextDetail}</p>
+                </div>
+              </>
+            ) : (
+              <div className="co-proof-engine-empty">
+                <strong>No report selected</strong>
+                <span>Start with a missing report, submitted report, or proof gap.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
   );
 }
 
@@ -9441,6 +9910,176 @@ function UploadsMobileFocusPanel({
   );
 }
 
+function UploadsProofWorkbench({
+  visibleRows,
+  selectedUpload,
+  latestVisibleUpload,
+  sessionToken,
+  evidenceCommandItems,
+  evidenceNextAction,
+  evidenceNextDetail,
+  visibleCount,
+  todayUploadCount,
+  currentJobUploadCount,
+  currentEvidenceJobLabel,
+  gpsCount,
+  missingGpsCount,
+  missingNotesCount,
+  imageCount,
+  canCreate,
+  onUpload,
+  onJumpToBoard,
+  onOpenToday,
+  onOpenCurrentJob,
+  onOpenMissingGps,
+  onOpenCaptionGap,
+  onOpenUpload,
+  onSetActive,
+  onSetGps,
+}) {
+  const focusUpload = selectedUpload || latestVisibleUpload || visibleRows[0] || null;
+  const queueRows = visibleRows.slice(0, 6);
+  const kpis = [
+    { label: "Visible evidence", value: visibleCount, helper: "Current proof board", tone: visibleCount ? "orange" : "slate", action: "Open board", onClick: onJumpToBoard },
+    { label: "Today", value: todayUploadCount, helper: "Captured today", tone: todayUploadCount ? "orange" : "slate", action: "Open today", onClick: onOpenToday },
+    { label: "GPS captured", value: gpsCount, helper: "Location context present", tone: gpsCount ? "green" : "slate", action: "View GPS", onClick: () => onSetGps("Has GPS") },
+    { label: "Missing proof context", value: missingGpsCount + missingNotesCount, helper: "GPS or caption gaps", tone: missingGpsCount || missingNotesCount ? "amber" : "green", action: "Review gaps", onClick: missingGpsCount ? onOpenMissingGps : onOpenCaptionGap },
+  ];
+
+  function uploadStatus(upload) {
+    if (upload.archivedAt) return { label: "Archived", tone: "slate" };
+    if (!upload.hasGps) return { label: "GPS gap", tone: "amber" };
+    if (!String(upload.caption || upload.notes || "").trim()) return { label: "Caption gap", tone: "orange" };
+    return { label: "Ready", tone: "green" };
+  }
+
+  return (
+    <CommandPageFrame
+      className="co-proof-engine-frame co-uploads-proof-frame"
+      kpis={
+        <div className="co-proof-engine-kpis">
+          {kpis.map((item) => (
+            <button key={item.label} type="button" className="co-proof-engine-kpi" data-tone={item.tone} onClick={item.onClick}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.helper}</em>
+              <b>{item.action}</b>
+            </button>
+          ))}
+        </div>
+      }
+      rail={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Photo Evidence"
+          description={`${evidenceNextAction}. ${evidenceNextDetail}`}
+          priorities={evidenceCommandItems.map((item) => ({ value: item.value, label: item.label, tone: item.tone }))}
+          actions={[
+            canCreate ? { label: "Upload photo", icon: "upload", onClick: onUpload } : null,
+            { label: "Review board", icon: "check", onClick: onJumpToBoard },
+            { label: "Missing GPS", icon: "alert", onClick: onOpenMissingGps, disabled: !missingGpsCount },
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <section className="co-proof-engine-workbench" aria-label="Photo evidence proof engine">
+        <div className="co-proof-engine-head">
+          <div className="min-w-0">
+            <p className="co-proof-engine-eyebrow">Jobsite proof intake</p>
+            <h2>Photos, captions, GPS, reports, and billing proof</h2>
+            <p>Office review starts with the newest job-linked evidence, proof gaps, and what is ready to attach to closeout.</p>
+          </div>
+          <div className="co-proof-engine-actions">
+            <Button type="button" variant="secondary" onClick={onJumpToBoard}>Open board</Button>
+            <Button type="button" variant="secondary" onClick={onOpenMissingGps}>Missing GPS</Button>
+            {canCreate ? <Button type="button" onClick={onUpload}>Upload photo</Button> : null}
+          </div>
+        </div>
+        <div className="co-proof-engine-board co-proof-engine-board--uploads">
+          <div className="co-proof-engine-queue">
+            <div className="co-proof-engine-section-head">
+              <span>Evidence review queue</span>
+              <strong>{queueRows.length || "Clear"}</strong>
+            </div>
+            {queueRows.length ? queueRows.map((upload) => {
+              const status = uploadStatus(upload);
+              const selected = focusUpload?.id === upload.id;
+              return (
+                <WorkQueueCard
+                  key={upload.id}
+                  eyebrow={uploadEvidenceDateKey(upload) === todayDateInputValue() ? "Today" : "Jobsite proof"}
+                  title={uploadTitle(upload)}
+                  meta={`${uploadJobLabel(upload)} / ${uploadUploaderLabel(upload)}`}
+                  status={status.label}
+                  tone={status.tone}
+                  actionLabel="Open proof"
+                  selected={selected}
+                  onClick={() => onOpenUpload(upload)}
+                >
+                  <div className="co-proof-engine-row-meta">
+                    <span>{formatDateTime(uploadCapturedAt(upload))}</span>
+                    <span>{gpsStatusLabel(upload)}</span>
+                    <span>{String(upload.caption || upload.notes || "").trim() ? "Caption ready" : "Needs caption"}</span>
+                  </div>
+                </WorkQueueCard>
+              );
+            }) : (
+              <div className="co-proof-engine-empty">
+                <strong>No visible evidence</strong>
+                <span>Upload jobsite photos to start the proof intake queue.</span>
+              </div>
+            )}
+          </div>
+          <div className="co-proof-engine-detail">
+            <div className="co-proof-engine-section-head">
+              <span>Selected proof item</span>
+              <strong>{focusUpload ? uploadStatus(focusUpload).label : "Waiting"}</strong>
+            </div>
+            {focusUpload ? (
+              <>
+                <div className="co-proof-engine-upload-preview">
+                  {String(focusUpload.fileType || "").startsWith("image/") ? (
+                    <AuthenticatedUploadPreview upload={focusUpload} token={sessionToken} className="h-full min-h-[11rem] w-full rounded-[0.55rem] object-cover" />
+                  ) : (
+                    <div className="co-proof-engine-file-preview">
+                      <Icon name="document" />
+                      <span>{focusUpload.fileName || "Uploaded file"}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="co-proof-engine-detail-title">
+                  <div className="min-w-0">
+                    <h3>{uploadTitle(focusUpload)}</h3>
+                    <p>{uploadJobLabel(focusUpload)} / {uploadCustomerLabel(focusUpload)} / {uploadUploaderLabel(focusUpload)}</p>
+                  </div>
+                  <Badge tone={uploadStatus(focusUpload).tone}>{uploadStatus(focusUpload).label}</Badge>
+                </div>
+                <div className="co-proof-engine-proof-grid">
+                  <span data-state="ready">Captured<strong>{formatDateTime(uploadCapturedAt(focusUpload))}</strong></span>
+                  <span data-state={focusUpload.hasGps ? "ready" : "needs"}>GPS<strong>{gpsStatusLabel(focusUpload)}</strong></span>
+                  <span data-state={String(focusUpload.caption || focusUpload.notes || "").trim() ? "ready" : "needs"}>Caption<strong>{String(focusUpload.caption || focusUpload.notes || "").trim() ? "Ready" : "Needed"}</strong></span>
+                  <span data-state="ready">File<strong>{formatFileSize(focusUpload.fileSize)}</strong></span>
+                </div>
+                <p className="co-proof-engine-note">{focusUpload.caption || focusUpload.notes || "No caption has been added yet. Add short jobsite context before closeout review."}</p>
+                <div className="co-proof-engine-next">
+                  <span>Proof connection</span>
+                  <strong>{currentEvidenceJobLabel}</strong>
+                  <p>{imageCount} image proof item{imageCount === 1 ? "" : "s"} visible, {currentJobUploadCount} tied to the current job.</p>
+                </div>
+              </>
+            ) : (
+              <div className="co-proof-engine-empty">
+                <strong>No proof selected</strong>
+                <span>Choose an upload, open today, or capture new jobsite evidence.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
+  );
+}
+
 function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload, onOpenSupport }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
@@ -9843,86 +10482,36 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
       />
 
       {permissions.uploads.canManageAll ? (
-        <div className="co-uploads-command-band mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
-          <Card className="co-uploads-command-card overflow-hidden">
-            <div className="co-uploads-command-shell">
-              <div className="co-uploads-command-main">
-                <div className="co-uploads-command-header">
-                  <div className="min-w-0">
-                    <p className="co-uploads-command-eyebrow">Evidence command</p>
-                    <h2>Photo proof, GPS context, and captions in one review pass</h2>
-                    <p>Use this board to see which field photos are ready for closeout and which ones need office context before the job packet moves.</p>
-                  </div>
-                  <div className="co-uploads-command-actions">
-                    <Button type="button" variant="secondary" onClick={jumpToBoard}>Open board</Button>
-                    <Button type="button" variant="secondary" onClick={() => setGpsFilter("Missing GPS")}>Missing GPS</Button>
-                    {canCreate ? <Button type="button" onClick={() => openTool("upload")}>Upload photo</Button> : null}
-                  </div>
-                </div>
-                <div className="co-uploads-command-metrics">
-                  <button type="button" className="co-focus-ring" data-tone="orange" onClick={() => setFilter("Active only")}>
-                    <span>Visible evidence</span>
-                    <strong>{visibleRows.length}</strong>
-                    <em>Current photo board</em>
-                  </button>
-                  <button type="button" className="co-focus-ring" data-tone={todayUploadCount ? "orange" : "slate"} onClick={openTodayUploads}>
-                    <span>Today</span>
-                    <strong>{todayUploadCount}</strong>
-                    <em>Captured today</em>
-                  </button>
-                  <button type="button" className="co-focus-ring" data-tone={gpsCount ? "green" : "slate"} onClick={() => setGpsFilter("Has GPS")}>
-                    <span>GPS captured</span>
-                    <strong>{gpsCount}</strong>
-                    <em>Location context present</em>
-                  </button>
-                  <button type="button" className="co-focus-ring" data-tone={missingGpsCount ? "amber" : "green"} onClick={() => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" })}>
-                    <span>Missing GPS</span>
-                    <strong>{missingGpsCount}</strong>
-                    <em>Needs context review</em>
-                  </button>
-                </div>
-                <div className="co-uploads-command-queues">
-                  {evidenceCommandItems.slice(1).map((item) => (
-                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                      <em>{item.helper}</em>
-                      <b>{item.action}</b>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <aside className="co-uploads-command-rail" aria-label="Photo evidence assistant">
-                <div className="co-uploads-command-rail-head">
-                  <span><Icon name="upload" /></span>
-                  <div className="min-w-0">
-                    <strong>Photo Assistant</strong>
-                    <p>Manual evidence review</p>
-                  </div>
-                </div>
-                <div className="co-uploads-command-priority">
-                  <span>Next best action</span>
-                  <strong>{evidenceNextAction}</strong>
-                  <p>{evidenceNextDetail}</p>
-                </div>
-                <div className="co-uploads-command-list">
-                  {evidenceCommandItems.map((item) => (
-                    <button key={item.label} type="button" className="co-focus-ring" data-tone={item.tone} onClick={item.onClick}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                      <em>{item.helper}</em>
-                      <b>{item.action}</b>
-                    </button>
-                  ))}
-                </div>
-                <div className="co-uploads-command-rail-actions">
-                  {canCreate ? <button type="button" className="co-focus-ring" onClick={() => openTool("upload")}><Icon name="upload" />Upload photo</button> : null}
-                  <button type="button" className="co-focus-ring" onClick={jumpToBoard}><Icon name="check" />Review board</button>
-                </div>
-              </aside>
-            </div>
-          </Card>
-        </div>
+        <UploadsProofWorkbench
+          visibleRows={visibleRows}
+          selectedUpload={selectedUpload}
+          latestVisibleUpload={latestVisibleUpload}
+          sessionToken={sessionToken}
+          evidenceCommandItems={evidenceCommandItems}
+          evidenceNextAction={evidenceNextAction}
+          evidenceNextDetail={evidenceNextDetail}
+          visibleCount={visibleRows.length}
+          todayUploadCount={todayUploadCount}
+          currentJobUploadCount={currentJobUploadCount}
+          currentEvidenceJobLabel={currentEvidenceJobLabel}
+          gpsCount={gpsCount}
+          missingGpsCount={missingGpsCount}
+          missingNotesCount={missingNotesCount}
+          imageCount={imageCount}
+          canCreate={canCreate}
+          onUpload={() => openTool("upload")}
+          onJumpToBoard={jumpToBoard}
+          onOpenToday={openTodayUploads}
+          onOpenCurrentJob={openCurrentJobUploads}
+          onOpenMissingGps={() => openPriorityUpload((upload) => !upload.hasGps, { gpsFilter: missingGpsCount ? "Missing GPS" : "All locations" })}
+          onOpenCaptionGap={() => openPriorityUpload((upload) => !String(upload.caption || upload.notes || "").trim(), { gpsFilter: "All locations" })}
+          onOpenUpload={(upload) => {
+            setSelectedUploadId(upload.id);
+            openTool("details");
+          }}
+          onSetActive={() => setFilter("Active only")}
+          onSetGps={setGpsFilter}
+        />
       ) : null}
 
       {permissions.uploads.canManageAll ? (
@@ -14753,6 +15342,206 @@ function CustomerWorkPulse({
   );
 }
 
+function customerEstimateRecords(customer, estimates = []) {
+  if (!customer) return [];
+  const normalizedName = String(customer.name || "").toLowerCase();
+  return normalizeObjectArray(estimates).filter((estimate) => {
+    const values = [
+      estimate.customerId,
+      estimate.customer?.id,
+      estimate.customerName,
+      estimate.customer,
+      estimateDisplayCustomer?.(estimate),
+    ].map((value) => String(value || "").toLowerCase());
+    return values.includes(String(customer.id || "").toLowerCase()) || values.includes(normalizedName);
+  });
+}
+
+function customerOperationsSummary(customer, { leads = [], jobs = [], activity = [], estimates = [] } = {}) {
+  const related = relatedCustomerRecords(customer, leads, jobs, activity);
+  const activeJobs = related.jobs.filter((job) => ["in_progress", "scheduled", "planned"].includes(normalizeJobStatus(job.status || job.stage)));
+  const readyJobs = related.jobs.filter((job) => normalizeJobStatus(job.status || job.stage) === "billing_ready");
+  const customerEstimates = customerEstimateRecords(customer, estimates);
+  const openLeads = related.leads.filter((lead) => !lead.archivedAt && !["won", "lost", "closed"].includes(String(lead.status || "").toLowerCase()));
+  const dueLeads = related.leads.filter((lead) => isLeadFollowUpDue(lead));
+  const contactGap = Boolean(customer && (!customer.phone || !customer.email));
+  const tone = contactGap || dueLeads.length ? "amber" : activeJobs.length || readyJobs.length ? "green" : openLeads.length || customerEstimates.length ? "orange" : "slate";
+  const nextAction = contactGap
+    ? "Fill contact gap"
+    : dueLeads.length
+      ? "Follow up lead"
+      : readyJobs.length
+        ? "Review ready work"
+        : activeJobs.length
+          ? "Check active job"
+          : customerEstimates.length
+            ? "Review estimate"
+            : "Keep account ready";
+
+  return {
+    related,
+    activeJobs,
+    readyJobs,
+    estimates: customerEstimates,
+    openLeads,
+    dueLeads,
+    contactGap,
+    tone,
+    nextAction,
+  };
+}
+
+function CustomerOperationsWorkbench({
+  customers = [],
+  selectedCustomer,
+  leads = [],
+  jobs = [],
+  activity = [],
+  estimates = [],
+  canManage,
+  onSelectCustomer,
+  onSelectLead,
+  onSelectJob,
+  onCreateCustomer,
+  onSetFilter,
+}) {
+  const activeRows = normalizeObjectArray(customers).filter((customer) => !customer.archivedAt);
+  const customerSummaries = activeRows.map((customer) => ({ customer, summary: customerOperationsSummary(customer, { leads, jobs, activity, estimates }) }));
+  const selectedSummary = customerOperationsSummary(selectedCustomer, { leads, jobs, activity, estimates });
+  const queueRows = customerSummaries
+    .sort((left, right) => Number(right.summary.contactGap) - Number(left.summary.contactGap)
+      || right.summary.activeJobs.length - left.summary.activeJobs.length
+      || right.summary.openLeads.length - left.summary.openLeads.length)
+    .slice(0, 6);
+  const focusCustomer = selectedCustomer || queueRows[0]?.customer || null;
+  const focusSummary = selectedCustomer ? selectedSummary : queueRows[0]?.summary || customerOperationsSummary(null);
+  const customerKpis = [
+    { label: "Customers", value: customers.length, helper: "Visible accounts", tone: "blue", action: "View all", onClick: () => onSetFilter("All") },
+    { label: "Active jobs", value: customerSummaries.reduce((sum, item) => sum + item.summary.activeJobs.length, 0), helper: "Customer work in motion", tone: "green", action: "Open jobs", onClick: () => onSelectJob(focusSummary.activeJobs[0]?.id) },
+    { label: "Estimates", value: customerSummaries.reduce((sum, item) => sum + item.summary.estimates.length, 0), helper: "Proposal records", tone: "orange", action: "Review", onClick: () => onSetFilter("All") },
+    { label: "Contact gaps", value: customerSummaries.filter((item) => item.summary.contactGap).length, helper: "Phone or email missing", tone: customerSummaries.some((item) => item.summary.contactGap) ? "amber" : "green", action: "Fix gaps", onClick: () => onSetFilter("All") },
+  ];
+  const pipelineSteps = [
+    { label: "Customer", value: focusCustomer ? customerStatusText(focusCustomer) : "Select" },
+    { label: "Lead", value: focusSummary.openLeads.length ? `${focusSummary.openLeads.length} open` : "None" },
+    { label: "Estimate", value: focusSummary.estimates.length ? `${focusSummary.estimates.length} record${focusSummary.estimates.length === 1 ? "" : "s"}` : "None" },
+    { label: "Job", value: focusSummary.activeJobs.length ? `${focusSummary.activeJobs.length} active` : focusSummary.related.jobs.length ? `${focusSummary.related.jobs.length} linked` : "None" },
+    { label: "Proof", value: focusSummary.readyJobs.length ? "Ready work" : focusSummary.activeJobs.length ? "In progress" : "Pending" },
+  ];
+
+  return (
+    <CommandPageFrame
+      className="co-people-northstar-frame co-customers-northstar-frame"
+      kpis={
+        <div className="co-people-kpis">
+          {customerKpis.map((item) => (
+            <button key={item.label} type="button" className="co-people-kpi" data-tone={item.tone} onClick={item.onClick}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.helper}</em>
+              <b>{item.action}</b>
+            </button>
+          ))}
+        </div>
+      }
+      rail={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Customers"
+          description={focusCustomer ? `${focusCustomer.name}: ${focusSummary.nextAction}.` : "Select an account to inspect contact, pipeline, job, and proof context."}
+          priorities={[
+            { value: customerSummaries.filter((item) => item.summary.contactGap).length, label: "Contact gaps", tone: "amber" },
+            { value: customerSummaries.reduce((sum, item) => sum + item.summary.openLeads.length, 0), label: "Open leads", tone: "orange" },
+            { value: customerSummaries.reduce((sum, item) => sum + item.summary.activeJobs.length, 0), label: "Active jobs", tone: "green" },
+            { value: customerSummaries.reduce((sum, item) => sum + item.summary.readyJobs.length, 0), label: "Ready work", tone: "green" },
+          ]}
+          actions={[
+            { label: "Open lead", icon: "arrowUpRight", onClick: () => onSelectLead(focusSummary.openLeads[0]?.id), disabled: !focusSummary.openLeads[0] },
+            { label: "Open job", icon: "briefcase", onClick: () => onSelectJob(focusSummary.activeJobs[0]?.id || focusSummary.related.jobs[0]?.id), disabled: !(focusSummary.activeJobs[0] || focusSummary.related.jobs[0]) },
+            canManage ? { label: "New customer", icon: "plus", onClick: onCreateCustomer } : null,
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <section className="co-people-workbench" aria-label="Customer account command record">
+        <div className="co-people-workbench-head">
+          <div className="min-w-0">
+            <p>Contractor account command</p>
+            <h2>Customer, pipeline, work, proof, and next action</h2>
+            <span>Accounts are operational records: contact readiness, active jobs, estimate context, and closeout work stay connected.</span>
+          </div>
+          <div className="co-people-workbench-actions">
+            {canManage ? <Button type="button" onClick={onCreateCustomer}>New Customer</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => onSetFilter("Active")}>Active Accounts</Button>
+          </div>
+        </div>
+        <div className="co-people-workbench-grid">
+          <div className="co-people-record-queue">
+            <div className="co-people-section-head">
+              <span>Account queue</span>
+              <strong>{queueRows.length || "Clear"}</strong>
+            </div>
+            {queueRows.length ? queueRows.map(({ customer, summary }) => (
+              <WorkQueueCard
+                key={customer.id}
+                eyebrow={summary.contactGap ? "Contact gap" : summary.activeJobs.length ? "Active work" : summary.openLeads.length ? "Pipeline" : "Account"}
+                title={customer.name || "Unnamed customer"}
+                meta={[customer.company, customer.city || customer.serviceArea, customerContactText(customer)].filter(Boolean).join(" / ")}
+                status={customerStatusText(customer)}
+                tone={summary.tone}
+                actionLabel={summary.nextAction}
+                selected={focusCustomer?.id === customer.id}
+                onClick={() => onSelectCustomer(customer.id)}
+              >
+                <div className="co-people-row-facts">
+                  <span>Jobs <strong>{summary.related.jobs.length}</strong></span>
+                  <span>Leads <strong>{summary.openLeads.length}</strong></span>
+                  <span>Estimates <strong>{summary.estimates.length}</strong></span>
+                  <span data-state={summary.contactGap ? "needs" : "ready"}>Contact <strong>{summary.contactGap ? "Gap" : "Ready"}</strong></span>
+                </div>
+              </WorkQueueCard>
+            )) : (
+              <div className="co-people-empty"><strong>No customer records visible</strong><span>Create or clear filters to build the account queue.</span></div>
+            )}
+          </div>
+
+          <div className="co-people-selected-panel">
+            <div className="co-people-section-head">
+              <span>Selected account</span>
+              <strong>{focusCustomer ? focusSummary.nextAction : "Waiting"}</strong>
+            </div>
+            {focusCustomer ? (
+              <>
+                <div className="co-people-selected-title">
+                  <div className="min-w-0">
+                    <h3>{focusCustomer.name}</h3>
+                    <p>{[focusCustomer.company, focusCustomer.city, focusCustomer.serviceArea].filter(Boolean).join(" / ") || focusCustomer.id}</p>
+                  </div>
+                  <StatusBadge status={customerStatusText(focusCustomer)} />
+                </div>
+                <div className="co-people-proof-grid">
+                  {pipelineSteps.map((step) => <span key={step.label}><em>{step.label}</em><strong>{step.value}</strong></span>)}
+                </div>
+                <div className="co-people-next-panel">
+                  <span>Next action</span>
+                  <strong>{focusSummary.nextAction}</strong>
+                  <p>{customerContactText(focusCustomer)} / {focusSummary.related.activity.length} activity item{focusSummary.related.activity.length === 1 ? "" : "s"} linked.</p>
+                </div>
+                <div className="co-people-workbench-actions co-people-selected-actions">
+                  <Button type="button" onClick={() => onSelectLead(focusSummary.openLeads[0]?.id)} disabled={!focusSummary.openLeads[0]}>Open Lead</Button>
+                  <Button type="button" variant="secondary" onClick={() => onSelectJob(focusSummary.activeJobs[0]?.id || focusSummary.related.jobs[0]?.id)} disabled={!(focusSummary.activeJobs[0] || focusSummary.related.jobs[0])}>Open Job</Button>
+                </div>
+              </>
+            ) : (
+              <div className="co-people-empty"><strong>No customer selected</strong><span>Select a customer to inspect account operations.</span></div>
+            )}
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
+  );
+}
+
 function ActivityPanel({ activity }) {
   return (
     <Card className="p-4">
@@ -16740,6 +17529,10 @@ function DashboardDailyFocusBoard({
 }
 
 function DashboardPage(props) {
+  const isOfficeWorkspace = Boolean(props.permissions?.jobs?.canManageAll || props.permissions?.leads?.canView);
+  if (isOfficeWorkspace) {
+    return <CommandCenterPage {...props} />;
+  }
   return <DashboardPagePolished {...props} />;
 }
 
@@ -17225,6 +18018,159 @@ function ScheduleSection({ title, description, rows = [], emptyTitle, emptyDescr
   );
 }
 
+function scheduleUniqueRows(rows = []) {
+  const seen = new Set();
+  return normalizeObjectArray(rows).filter((row) => {
+    const key = `${row.job?.id || "job"}-${row.dateKey || "unscheduled"}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function scheduleRowTone(row) {
+  if (row?.tone === "red") return "red";
+  if (row?.tone === "amber") return "amber";
+  const status = normalizeJobStatus(row?.job?.status || row?.job?.stage);
+  if (status === "in_progress") return "blue";
+  if (status === "scheduled" || status === "planned") return "blue";
+  return "green";
+}
+
+function ScheduleOperatingPlanWorkbench({
+  scheduleState,
+  permissions,
+  selectedRow,
+  onSelectRow,
+  onOpenJob,
+  onOpenModule,
+  onOpenReport,
+}) {
+  const primaryRows = scheduleUniqueRows([
+    ...scheduleState.todayRows,
+    ...scheduleState.tomorrowRows,
+    ...scheduleState.missingRows,
+    ...scheduleState.unassignedRows,
+  ]).slice(0, 7);
+  const crewLoads = Array.from(primaryRows.reduce((map, row) => {
+    const labels = row.crewLabels.length ? row.crewLabels : [row.foreman || "Unassigned"];
+    labels.slice(0, 2).forEach((label) => {
+      const key = label || "Unassigned";
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, new Map()).entries()).slice(0, 5);
+  const focusRow = selectedRow || primaryRows[0] || null;
+  const focusJob = focusRow?.job || null;
+  const canOpenReports = Boolean(permissions?.reports?.canView);
+  const canOpenUploads = Boolean(permissions?.uploads?.canView);
+  const canOpenTickets = Boolean(permissions?.deliveryTickets?.canView);
+
+  return (
+    <section className="co-schedule-command-workbench" aria-label="Daily operating plan">
+      <div className="co-schedule-command-head">
+        <div className="min-w-0">
+          <p>Daily operating plan</p>
+          <h2>Dispatch today, prep tomorrow, clear blockers</h2>
+          <span>Schedule, crew load, field proof, safety, and closeout readiness in one office pass.</span>
+        </div>
+        <div className="co-schedule-command-actions">
+          <Button type="button" variant="secondary" onClick={() => onOpenModule("jobs")}>Open Jobs</Button>
+          <Button type="button" onClick={() => onOpenModule("reports")}>Review Reports</Button>
+        </div>
+      </div>
+
+      <div className="co-schedule-command-grid">
+        <div className="co-schedule-dispatch-queue">
+          <div className="co-schedule-command-section-head">
+            <span>Operating queue</span>
+            <strong>{primaryRows.length || "Clear"}</strong>
+          </div>
+          {primaryRows.length ? primaryRows.map((row) => {
+            const job = row.job;
+            const missingLabel = row.missing.length ? row.missing.slice(0, 3).join(" / ") : "Ready";
+            const crewLabel = row.crewLabels.length ? row.crewLabels.slice(0, 2).join(", ") : "Crew missing";
+            return (
+              <WorkQueueCard
+                key={`${job.id}-${row.dateKey || "unscheduled"}`}
+                eyebrow={row.dateKey === scheduleState.todayKey ? "Today" : row.dateKey === scheduleState.tomorrowKey ? "Tomorrow prep" : row.dateKey ? "Lookahead" : "Needs scheduling"}
+                title={jobTitle(job)}
+                meta={[job.customer, job.city || job.address, scheduleDateLabel(row.dateKey)].filter(Boolean).join(" / ")}
+                status={jobStatusLabel(job.status || job.stage)}
+                tone={scheduleRowTone(row)}
+                actionLabel="Inspect plan"
+                selected={focusJob?.id === job.id && focusRow?.dateKey === row.dateKey}
+                onClick={() => onSelectRow(row)}
+              >
+                <div className="co-schedule-command-row-facts">
+                  <span>Time <strong>{formatJobScheduleDetail(job)}</strong></span>
+                  <span>Crew <strong>{crewLabel}</strong></span>
+                  <span>Proof <strong>{row.proofState.photoCount} photos / {row.proofState.ticketCount} tickets</strong></span>
+                  <span data-state={row.missing.length ? "needs" : "ready"}>Blockers <strong>{missingLabel}</strong></span>
+                </div>
+              </WorkQueueCard>
+            );
+          }) : (
+            <div className="co-schedule-command-empty">
+              <strong>No scheduled work in this view</strong>
+              <span>Jobs appear here when they need dispatch, crew prep, or field follow-up.</span>
+            </div>
+          )}
+        </div>
+
+        <div className="co-schedule-selected-panel">
+          <div className="co-schedule-command-section-head">
+            <span>Selected job and crew</span>
+            <strong>{focusRow ? (focusRow.missing.length ? "Needs action" : "Ready") : "Waiting"}</strong>
+          </div>
+          {focusRow ? (
+            <>
+              <div className="co-schedule-selected-title">
+                <div className="min-w-0">
+                  <h3>{jobTitle(focusJob)}</h3>
+                  <p>{[focusJob.customer, focusJob.address || focusJob.city].filter(Boolean).join(" / ") || "Location pending"}</p>
+                </div>
+                <Badge tone={focusRow.missing.length ? (focusRow.tone === "red" ? "red" : "amber") : "green"}>{focusRow.missing.length ? focusRow.missing.slice(0, 2).join(" / ") : "Ready"}</Badge>
+              </div>
+              <div className="co-schedule-selected-grid">
+                <span><em>Schedule</em><strong>{formatJobScheduleDetail(focusJob)}</strong></span>
+                <span><em>Foreman</em><strong>{focusRow.foreman}</strong></span>
+                <span><em>Crew</em><strong>{focusRow.crewLabels.length ? focusRow.crewLabels.join(", ") : "Pending crew"}</strong></span>
+                <span><em>Report</em><strong>{focusRow.report ? reportStatusLabel(focusRow.report.status) : focusRow.dateKey && focusRow.dateKey <= todayDateInputValue() ? "Missing" : "Not due"}</strong></span>
+                <span><em>Proof</em><strong>{focusRow.proofState.photoCount} photos / {focusRow.proofState.ticketCount} tickets</strong></span>
+                <span><em>Safety / checklist</em><strong>{focusRow.workflowCounts.total ? `${focusRow.workflowCounts.total} open` : "Clear"}</strong></span>
+              </div>
+              <div className="co-schedule-crew-load">
+                <div className="co-schedule-command-section-head">
+                  <span>Crew load</span>
+                  <strong>{crewLoads.length || "No crews"}</strong>
+                </div>
+                {crewLoads.length ? crewLoads.map(([label, count]) => (
+                  <span key={label}>
+                    <strong>{label}</strong>
+                    <em>{count} job{count === 1 ? "" : "s"}</em>
+                  </span>
+                )) : <p>No crew load visible yet.</p>}
+              </div>
+              <div className="co-schedule-selected-actions">
+                <Button type="button" onClick={() => onOpenJob(focusRow)}>Open Job</Button>
+                {canOpenReports ? <Button type="button" variant="secondary" onClick={() => onOpenReport(focusRow)}>{focusRow.report ? "Open Report" : "Reports"}</Button> : null}
+                {canOpenUploads ? <Button type="button" variant="secondary" onClick={() => onOpenModule("uploads")}>Photos</Button> : null}
+                {canOpenTickets ? <Button type="button" variant="secondary" onClick={() => onOpenModule("deliveryTickets")}>Tickets</Button> : null}
+              </div>
+            </>
+          ) : (
+            <div className="co-schedule-command-empty">
+              <strong>No job selected</strong>
+              <span>Select a row to inspect crew, proof, report, safety, and next action context.</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function SchedulePage({
   jobs = [],
   dailyReports = [],
@@ -17254,6 +18200,20 @@ function SchedulePage({
     users,
   }), [dailyReports, deliveryTickets, jobs, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, users]);
   const stats = scheduleState.stats;
+  const [selectedScheduleKey, setSelectedScheduleKey] = useState("");
+  const allScheduleRows = useMemo(() => scheduleUniqueRows([
+    ...scheduleState.todayRows,
+    ...scheduleState.tomorrowRows,
+    ...scheduleState.missingRows,
+    ...scheduleState.unassignedRows,
+    ...scheduleState.weekRows,
+  ]), [scheduleState]);
+  const selectedScheduleRow = allScheduleRows.find((row) => `${row.job?.id || "job"}-${row.dateKey || "unscheduled"}` === selectedScheduleKey)
+    || scheduleState.missingRows[0]
+    || scheduleState.todayRows[0]
+    || scheduleState.tomorrowRows[0]
+    || allScheduleRows[0]
+    || null;
   const kpis = [
     { label: "Today", value: stats.today, helper: "Scheduled or active", icon: "calendar", tone: stats.today ? "orange" : "slate", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
     { label: "Tomorrow", value: stats.tomorrow, helper: "Prep before morning", icon: "clock", tone: stats.tomorrow ? "blue" : "slate", actionLabel: "Open jobs", onAction: () => setActive("jobs") },
@@ -17278,6 +18238,10 @@ function SchedulePage({
     setActive?.("reports");
   }
 
+  function selectScheduleRow(row) {
+    setSelectedScheduleKey(`${row.job?.id || "job"}-${row.dateKey || "unscheduled"}`);
+  }
+
   return (
     <div className="co-office-page co-schedule-page">
       <PageHeader
@@ -17292,41 +18256,53 @@ function SchedulePage({
         )}
       />
 
-      <div className="co-schedule-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
-        {kpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-      </div>
-
-      <div className="co-schedule-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-6">
-        <div className="co-schedule-main-stack min-w-0">
-          <div className="co-schedule-day-grid">
-            <ScheduleSection
-              title="Today's Operating Plan"
-              description={`${scheduleDateLabel(scheduleState.todayKey)} / field execution`}
-              rows={scheduleState.todayRows}
-              emptyTitle="No work scheduled today"
-              emptyDescription="Jobs scheduled for today or showing field activity will appear here."
-              permissions={permissions}
-              onOpenJob={openJob}
-              onOpenModule={openModule}
-              onOpenReport={openReport}
-              compact
-              limit={4}
-            />
-            <ScheduleSection
-              title="Tomorrow Prep"
-              description={`${scheduleDateLabel(scheduleState.tomorrowKey)} / prep view`}
-              rows={scheduleState.tomorrowRows}
-              emptyTitle="No work scheduled tomorrow"
-              emptyDescription="Schedule jobs in the Jobs board when tomorrow's plan is ready."
-              permissions={permissions}
-              onOpenJob={openJob}
-              onOpenModule={openModule}
-              onOpenReport={openReport}
-              compact
-              limit={4}
-            />
+      <CommandPageFrame
+        className="co-schedule-northstar-frame"
+        kpis={
+          <div className="co-schedule-plan-kpis">
+            {kpis.map((item) => (
+              <button key={item.label} type="button" className="co-schedule-plan-kpi" data-tone={item.tone} onClick={item.onAction}>
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <em>{item.helper}</em>
+                <b>{item.actionLabel}</b>
+              </button>
+            ))}
           </div>
+        }
+        rail={
+          <AssistantRail
+            eyebrow="Apex Assistant"
+            title="Schedule"
+            description={stats.missingActivity ? `${stats.missingActivity} schedule item${stats.missingActivity === 1 ? "" : "s"} need crew, proof, report, or readiness review.` : "Today and tomorrow are clear in the current operating plan."}
+            priorities={[
+              { value: stats.today, label: "Today's jobs", tone: stats.today ? "orange" : "slate" },
+              { value: stats.tomorrow, label: "Tomorrow prep", tone: stats.tomorrow ? "blue" : "slate" },
+              { value: stats.unassigned, label: "Needs crew/date", tone: stats.unassigned ? "amber" : "green" },
+              { value: stats.missingActivity, label: "Needs action", tone: stats.missingActivity ? "red" : "green" },
+            ]}
+            actions={[
+              { label: "Open Jobs", icon: "briefcase", onClick: () => openModule("jobs") },
+              { label: "Review Reports", icon: "document", onClick: () => openModule("reports") },
+              { label: "Photo Evidence", icon: "upload", onClick: () => openModule("uploads"), disabled: !permissions?.uploads?.canView },
+              { label: "Crew Time", icon: "clock", onClick: () => openModule("time"), disabled: !permissions?.time?.canView },
+            ]}
+          />
+        }
+      >
+        <ScheduleOperatingPlanWorkbench
+          scheduleState={scheduleState}
+          permissions={permissions}
+          selectedRow={selectedScheduleRow}
+          onSelectRow={selectScheduleRow}
+          onOpenJob={openJob}
+          onOpenModule={openModule}
+          onOpenReport={openReport}
+        />
+      </CommandPageFrame>
 
+      <div className="co-schedule-support-grid mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-5 sm:px-6 lg:px-6">
           <ScheduleSection
             title="Week Lookahead"
             description={`Scheduled work through ${scheduleDateLabel(scheduleState.weekEndKey)}`}
@@ -17341,71 +18317,33 @@ function SchedulePage({
           />
 
           <div className="co-schedule-day-grid">
-            <ScheduleSection
-              title="Unassigned / Needs Crew"
-              description="Jobs missing a start date, foreman, or crew coverage"
-              rows={scheduleState.unassignedRows}
-              emptyTitle="Crew coverage looks clear"
-              emptyDescription="Jobs with missing dates or crew assignments will appear here."
-              permissions={permissions}
-              onOpenJob={openJob}
-              onOpenModule={openModule}
-              onOpenReport={openReport}
-              compact
-              limit={5}
-            />
-            <ScheduleSection
-              title="Missing Activity / Needs Follow-Up"
-              description="Due work missing reports, photos, startup, crew, or checklist completion"
-              rows={scheduleState.missingRows}
-              emptyTitle="No urgent activity gaps"
-              emptyDescription="Missing reports, proof, crew, or readiness issues will appear here."
-              permissions={permissions}
-              onOpenJob={openJob}
-              onOpenModule={openModule}
-              onOpenReport={openReport}
-              compact
-              limit={5}
-            />
-          </div>
+          <ScheduleSection
+            title="Unassigned / Needs Crew"
+            description="Jobs missing a start date, foreman, or crew coverage"
+            rows={scheduleState.unassignedRows}
+            emptyTitle="Crew coverage looks clear"
+            emptyDescription="Jobs with missing dates or crew assignments will appear here."
+            permissions={permissions}
+            onOpenJob={openJob}
+            onOpenModule={openModule}
+            onOpenReport={openReport}
+            compact
+            limit={5}
+          />
+          <ScheduleSection
+            title="Missing Activity / Needs Follow-Up"
+            description="Due work missing reports, photos, startup, crew, or checklist completion"
+            rows={scheduleState.missingRows}
+            emptyTitle="No urgent activity gaps"
+            emptyDescription="Missing reports, proof, crew, or readiness issues will appear here."
+            permissions={permissions}
+            onOpenJob={openJob}
+            onOpenModule={openModule}
+            onOpenReport={openReport}
+            compact
+            limit={5}
+          />
         </div>
-
-        <aside className="co-schedule-rail">
-          <Card className="co-schedule-rail-card">
-            <SectionHeader title="Planning Snapshot" description="Fast readout for owner and office coordination." />
-            <div className="co-schedule-rail-metrics">
-              <span><em>Today</em><strong>{stats.today}</strong></span>
-              <span><em>Tomorrow</em><strong>{stats.tomorrow}</strong></span>
-              <span><em>Unassigned</em><strong>{stats.unassigned}</strong></span>
-              <span><em>Needs Action</em><strong>{stats.missingActivity}</strong></span>
-            </div>
-          </Card>
-
-          <Card className="co-schedule-rail-card">
-            <SectionHeader title="Quick Moves" description="Jump into the existing workflow that owns the record." />
-            <div className="co-schedule-quick-moves">
-              <button type="button" onClick={() => setActive("jobs")}><span>Jobs board</span><Icon name="briefcase" /></button>
-              <button type="button" onClick={() => setActive("reports")}><span>Daily reports</span><Icon name="document" /></button>
-              <button type="button" onClick={() => setActive("uploads")}><span>Photo evidence</span><Icon name="upload" /></button>
-              <button type="button" onClick={() => setActive("deliveryTickets")}><span>Delivery tickets</span><Icon name="clipboard" /></button>
-            </div>
-          </Card>
-
-          <Card className="co-schedule-rail-card">
-            <SectionHeader title="Tomorrow Prep" description="Items to clear before the next crew rolls." />
-            <div className="co-schedule-prep-list">
-              {scheduleState.tomorrowRows.filter((row) => row.missing.length).slice(0, 4).map((row) => (
-                <button key={row.job.id} type="button" onClick={() => openJob(row)}>
-                  <strong>{jobTitle(row.job)}</strong>
-                  <span>{row.missing.slice(0, 3).join(" / ")}</span>
-                </button>
-              ))}
-              {scheduleState.tomorrowRows.filter((row) => row.missing.length).length === 0 ? (
-                <p>Tomorrow has no visible crew or readiness gaps.</p>
-              ) : null}
-            </div>
-          </Card>
-        </aside>
       </div>
     </div>
   );
@@ -20142,6 +21080,195 @@ function JobCommandRailPolished({
   );
 }
 
+function jobNorthStarTone(job, proofState = {}, safetyCount = 0) {
+  if (safetyCount > 0) return "red";
+  if (jobMissingCrew(job) || jobMissingStart(job) || jobStartupNeedsReview(job) || proofState.missingCount > 0) return "orange";
+  if (normalizeJobStatus(job?.status || job?.stage) === "billing_ready") return "green";
+  if (normalizeJobStatus(job?.status || job?.stage) === "in_progress") return "blue";
+  return "slate";
+}
+
+function jobNorthStarNextAction(job, proofState = {}, safetyCount = 0) {
+  if (safetyCount > 0) return "Review safety";
+  if (jobMissingCrew(job)) return "Assign crew";
+  if (jobMissingStart(job)) return "Set start";
+  if (jobStartupNeedsReview(job)) return "Review startup";
+  if (proofState.missingCount > 0) return "Collect proof";
+  if (normalizeJobStatus(job?.status || job?.stage) === "billing_ready") return "Ready to bill";
+  return "Open job";
+}
+
+function jobNorthStarProofState(job, reportJobIds = new Set(), uploadJobIds = new Set(), ticketJobIds = new Set()) {
+  const jobId = job?.id || "";
+  const hasReport = Boolean(jobId && reportJobIds.has(jobId));
+  const hasPhotos = Boolean(jobId && uploadJobIds.has(jobId));
+  const hasTicket = Boolean(jobId && ticketJobIds.has(jobId));
+  const missingCount = [hasReport, hasPhotos, hasTicket].filter((value) => !value).length;
+  return { hasReport, hasPhotos, hasTicket, missingCount };
+}
+
+function JobsCommandWorkbench({
+  rows = [],
+  selectedJob,
+  selectedJobId,
+  reportJobIds = new Set(),
+  uploadJobIds = new Set(),
+  ticketJobIds = new Set(),
+  safetyJobIds = new Set(),
+  visibleRowsCount,
+  startupReviewCount,
+  missingCrewCount,
+  activeFieldCount,
+  readyToBillCount,
+  jobsNextAction,
+  jobsNextDetail,
+  permissions,
+  onSelectJob,
+  onOpenTool,
+  onOpenModule,
+  onCreateJob,
+  onViewBoard,
+}) {
+  const sortedRows = [...rows]
+    .sort((a, b) => {
+      const aProof = jobNorthStarProofState(a, reportJobIds, uploadJobIds, ticketJobIds);
+      const bProof = jobNorthStarProofState(b, reportJobIds, uploadJobIds, ticketJobIds);
+      const aSafety = safetyJobIds.has(a.id) ? 1 : 0;
+      const bSafety = safetyJobIds.has(b.id) ? 1 : 0;
+      const score = (job, proof, safety) => (
+        safety * 40
+        + (jobMissingCrew(job) ? 30 : 0)
+        + (jobMissingStart(job) ? 24 : 0)
+        + (jobStartupNeedsReview(job) ? 18 : 0)
+        + proof.missingCount * 6
+        + (normalizeJobStatus(job.status || job.stage) === "billing_ready" ? 5 : 0)
+      );
+      return score(b, bProof, bSafety) - score(a, aProof, aSafety);
+    })
+    .slice(0, 5);
+  const selectedProof = jobNorthStarProofState(selectedJob, reportJobIds, uploadJobIds, ticketJobIds);
+  const selectedSafetyCount = selectedJob?.id && safetyJobIds.has(selectedJob.id) ? 1 : 0;
+  const selectedSetupReady = selectedJob && !jobMissingCrew(selectedJob) && !jobMissingStart(selectedJob) && !jobStartupNeedsReview(selectedJob);
+  const selectedFieldReady = selectedJob && selectedSetupReady && (selectedJob.visibleToForeman || selectedJob.fieldPlanningVisible || normalizeJobStatus(selectedJob.status || selectedJob.stage) === "in_progress");
+  const selectedFromEstimate = Boolean(selectedJob?.estimateId || selectedJob?.sourceEstimateId || /Created from approved estimate/i.test(selectedJob?.notes || ""));
+  const selectedBillingReady = selectedJob && normalizeJobStatus(selectedJob.status || selectedJob.stage) === "billing_ready";
+  const bridgeSteps = [
+    { label: "Estimate", value: selectedFromEstimate ? "Linked" : "Manual", state: selectedFromEstimate ? "ready" : "neutral" },
+    { label: "Setup", value: selectedSetupReady ? "Ready" : "Needs", state: selectedSetupReady ? "ready" : "needs" },
+    { label: "Field handoff", value: selectedFieldReady ? "Visible" : "Prep", state: selectedFieldReady ? "ready" : "needs" },
+    { label: "Proof", value: selectedProof.missingCount === 0 ? "Complete" : `${selectedProof.missingCount} gaps`, state: selectedProof.missingCount === 0 ? "ready" : "needs" },
+    { label: "Billing", value: selectedBillingReady ? "Ready" : "Later", state: selectedBillingReady ? "ready" : "neutral" },
+  ];
+  const priorities = [
+    { value: missingCrewCount, label: "crew gaps", tone: missingCrewCount ? "orange" : "green" },
+    { value: startupReviewCount, label: "startup reviews", tone: startupReviewCount ? "orange" : "green" },
+    { value: readyToBillCount, label: "ready to bill", tone: readyToBillCount ? "green" : "slate" },
+  ];
+  const actions = [
+    { label: "Review job board", icon: "briefcase", onClick: onViewBoard },
+    selectedJob ? { label: "Open startup", icon: "clipboard", onClick: () => onOpenTool?.("startup") } : null,
+    selectedJob ? { label: "Open photos", icon: "upload", onClick: () => onOpenModule?.("uploads") } : null,
+  ].filter(Boolean);
+
+  return (
+    <CommandPageFrame
+      className="co-jobs-northstar-frame"
+      rail={(
+        <AssistantRail
+          eyebrow="Job Assistant"
+          title="Operations"
+          description={jobsNextDetail}
+          priorities={priorities}
+          actions={actions}
+        />
+      )}
+    >
+      <section className="co-jobs-command-workbench" aria-label="Job operations command board">
+        <div className="co-jobs-command-workbench-head">
+          <div className="min-w-0">
+            <p>Job Command</p>
+            <h2>Jobs moving from setup to field proof</h2>
+            <span>{jobsNextAction}</span>
+          </div>
+          <div className="co-jobs-command-workbench-actions">
+            <Button type="button" size="sm" variant="secondary" onClick={onViewBoard}>Open board</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => onOpenModule?.("reports")}>Reports</Button>
+            {permissions?.jobs?.canCreate ? <Button type="button" size="sm" onClick={onCreateJob}>Create job</Button> : null}
+          </div>
+        </div>
+        <div className="co-jobs-command-metrics">
+          <span><strong>{visibleRowsCount}</strong> active jobs</span>
+          <span data-tone={missingCrewCount ? "orange" : "green"}><strong>{missingCrewCount}</strong> crew gaps</span>
+          <span data-tone={startupReviewCount ? "orange" : "green"}><strong>{startupReviewCount}</strong> startup</span>
+          <span data-tone={activeFieldCount ? "green" : "slate"}><strong>{activeFieldCount}</strong> in field</span>
+          <span data-tone={readyToBillCount ? "green" : "slate"}><strong>{readyToBillCount}</strong> ready bill</span>
+        </div>
+        <div className="co-jobs-command-grid">
+          <div className="co-jobs-flow-list">
+            <div className="co-jobs-flow-head">
+              <span>Primary work queue</span>
+              <em>{rows.length} filtered</em>
+            </div>
+            {sortedRows.length > 0 ? sortedRows.map((job) => {
+              const proof = jobNorthStarProofState(job, reportJobIds, uploadJobIds, ticketJobIds);
+              const safetyCount = job?.id && safetyJobIds.has(job.id) ? 1 : 0;
+              const tone = jobNorthStarTone(job, proof, safetyCount);
+              const selected = job.id === selectedJobId;
+              return (
+                <WorkQueueCard
+                  key={job.id}
+                  eyebrow={jobBoardScheduleLabel(job)}
+                  title={jobTitle(job)}
+                  meta={`${job.customer || "Customer pending"} / ${job.city || job.address || "Location pending"}`}
+                  status={jobStatusLabel(job.status || job.stage)}
+                  tone={tone}
+                  selected={selected}
+                  actionLabel={jobNorthStarNextAction(job, proof, safetyCount)}
+                  onClick={() => onSelectJob?.(job.id)}
+                >
+                  <div className="co-jobs-flow-facts">
+                    <span>Crew <strong>{jobMissingCrew(job) ? "Needs" : jobDisplayForeman(job)}</strong></span>
+                    <span data-state={proof.missingCount ? "needs" : "ready"}>Proof <strong>{proof.missingCount ? `${proof.missingCount} gaps` : "Ready"}</strong></span>
+                    <span data-state={safetyCount ? "blocker" : "ready"}>Safety <strong>{safetyCount ? "Review" : "Clear"}</strong></span>
+                    <span data-state={normalizeJobStatus(job.status || job.stage) === "billing_ready" ? "ready" : "neutral"}>Billing <strong>{normalizeJobStatus(job.status || job.stage) === "billing_ready" ? "Ready" : "Later"}</strong></span>
+                  </div>
+                </WorkQueueCard>
+              );
+            }) : (
+              <StateCard title="No jobs match this view" description="Adjust filters or create a job to bring active work into the operations board." tone="blue" />
+            )}
+          </div>
+          <div className="co-jobs-bridge-panel">
+            <div className="co-jobs-bridge-head">
+              <span>Selected job bridge</span>
+              {selectedJob ? <StatusBadge status={jobStatusLabel(selectedJob.status || selectedJob.stage)} /> : <Badge tone="slate">No job</Badge>}
+            </div>
+            {selectedJob ? (
+              <>
+                <h3>{jobTitle(selectedJob)}</h3>
+                <p>{selectedJob.customer || "Customer pending"} / {selectedJob.address || selectedJob.city || "Location pending"}</p>
+                <div className="co-jobs-bridge-steps">
+                  {bridgeSteps.map((step) => (
+                    <span key={step.label} data-state={step.state}>{step.label}<strong>{step.value}</strong></span>
+                  ))}
+                </div>
+                <div className="co-jobs-bridge-actions">
+                  <button type="button" onClick={() => onOpenTool?.("details")}><Icon name="briefcase" />Setup</button>
+                  <button type="button" onClick={() => onOpenTool?.("crew")}><Icon name="users" />Crew</button>
+                  <button type="button" onClick={() => onOpenModule?.("reports")}><Icon name="document" />Reports</button>
+                  <button type="button" onClick={() => onOpenModule?.("uploads")}><Icon name="upload" />Photos</button>
+                </div>
+              </>
+            ) : (
+              <StateCard title="Select a job" description="Choose a job from the queue to see setup, field handoff, proof, and ready-to-bill context." tone="slate" />
+            )}
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
+  );
+}
+
 function JobsPage({
   ...props
 }) {
@@ -20284,6 +21411,8 @@ function JobsPagePolished({
   const visibleReportJobIds = new Set(visibleReports.map(dailyReportRecordJobId).filter(Boolean));
   const visibleUploadJobIds = new Set(visibleUploads.map(dailyReportRecordJobId).filter(Boolean));
   const visibleTicketJobIds = new Set(visibleTickets.map(dailyReportRecordJobId).filter(Boolean));
+  const visibleSafetyIncidents = normalizeObjectArray(safetyIncidents).filter((incident) => !incident.archivedAt && visibleJobIds.has(dailyReportRecordJobId(incident)));
+  const visibleSafetyJobIds = new Set(visibleSafetyIncidents.map(dailyReportRecordJobId).filter(Boolean));
   const visibleProofBlockers = visibleRows.filter((job) => (
     !visibleReportJobIds.has(job.id)
     || !visibleUploadJobIds.has(job.id)
@@ -20427,6 +21556,30 @@ function JobsPagePolished({
         }
       />
       {!isReadyToBillView ? (
+        <JobsCommandWorkbench
+          rows={visibleRows}
+          selectedJob={selectedJob}
+          selectedJobId={selectedJobId}
+          reportJobIds={visibleReportJobIds}
+          uploadJobIds={visibleUploadJobIds}
+          ticketJobIds={visibleTicketJobIds}
+          safetyJobIds={visibleSafetyJobIds}
+          visibleRowsCount={visibleRows.length}
+          startupReviewCount={startupReviewCount}
+          missingCrewCount={missingCrewCount}
+          activeFieldCount={activeFieldCount}
+          readyToBillCount={readyToBillRows.length}
+          jobsNextAction={jobsNextAction}
+          jobsNextDetail={jobsNextDetail}
+          permissions={permissions}
+          onSelectJob={onSelectJob}
+          onOpenTool={openJobTool}
+          onOpenModule={setActive}
+          onCreateJob={focusNewJob}
+          onViewBoard={() => jumpToJobSection("jobs-operations-board")}
+        />
+      ) : null}
+      {false && !isReadyToBillView ? (
         <div className="co-jobs-ops-board mx-auto w-full max-w-[1520px] min-w-0 px-5 pb-3 sm:px-6 lg:px-6">
           <Card className="co-jobs-ops-card overflow-hidden">
             <div className="co-jobs-ops-shell">
@@ -21823,6 +22976,10 @@ function CustomersPage({
 function CustomersPagePolished({
   customers,
   contactHistory = [],
+  leads = [],
+  jobs = [],
+  activity = [],
+  estimates = [],
   filter,
   setFilter,
   search,
@@ -21859,13 +23016,6 @@ function CustomersPagePolished({
   const visibleRows = debugState.renderedRows;
   const activeVisibleRows = visibleRows.filter((customer) => !customer.archivedAt);
   const missingContactRows = activeVisibleRows.filter((customer) => !customer.phone || !customer.email);
-  const customerKpis = [
-    { label: "Customers", value: canView ? visibleRows.length : 0, helper: "Matching current filters", icon: "users", tone: "blue", actionLabel: "View customers", onAction: () => setFilter("All") },
-    { label: "Prospects", value: activeVisibleRows.filter((customer) => customer.status === "Prospect").length, helper: "Potential future work", icon: "inbox", tone: "orange", actionLabel: "View prospects", onAction: () => setFilter("Prospect") },
-    { label: "Active", value: activeVisibleRows.filter((customer) => customer.status === "Active").length, helper: "Current relationships", icon: "check", tone: "green", actionLabel: "View active", onAction: () => setFilter("Active") },
-    { label: "Missing Contact", value: missingContactRows.length, helper: "Needs phone or email", icon: "alert", tone: "amber", actionLabel: "Review customers", onAction: () => { setFilter("All"); setSearch(""); } },
-    { label: "Archived", value: visibleRows.filter((customer) => customer.archivedAt || customer.status === "Archived").length, helper: "Hidden from active work", icon: "database", tone: "slate", actionLabel: "View archive", onAction: () => setFilter("Archived") },
-  ];
   const totalCustomers = customers.length;
 
   return (
@@ -21882,17 +23032,22 @@ function CustomersPagePolished({
         }
       />
       {canView ? (
-        <div className="co-customers-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-5 lg:px-6">
-          {customerKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
-        </div>
-      ) : null}
-
-      {canView ? (
-        <CustomerWorkPulse
-          customer={selectedCustomer}
-          related={relatedRecords}
+        <CustomerOperationsWorkbench
+          customers={visibleRows}
+          selectedCustomer={selectedCustomer}
+          leads={leads}
+          jobs={jobs}
+          activity={activity}
+          estimates={estimates}
+          canManage={canManage}
+          onSelectCustomer={onSelectCustomer}
           onSelectLead={onSelectLead}
           onSelectJob={onSelectJob}
+          onCreateCustomer={() => setShowCreateCustomer(true)}
+          onSetFilter={(nextFilter) => {
+            setFilter(nextFilter);
+            setSearch("");
+          }}
         />
       ) : null}
 
@@ -22510,8 +23665,283 @@ function UserDetailPanelPolished({ user, draft, setDraft, onSaveUser, onResendIn
   );
 }
 
+function employeeRecordMatchesUser(record = {}, user = {}) {
+  if (!record || !user) return false;
+  const userId = String(user.id || "").toLowerCase();
+  const userName = String(user.name || "").toLowerCase();
+  const values = [
+    record.userId,
+    record.employeeId,
+    record.assignedUserId,
+    record.createdById,
+    record.createdBy,
+    record.reportedById,
+    record.uploaderId,
+    record.userName,
+    record.employeeName,
+    record.createdByName,
+    record.reportedByName,
+    record.uploaderName,
+  ].map((value) => String(value || "").toLowerCase());
+  return Boolean(userId && values.includes(userId)) || Boolean(userName && values.includes(userName));
+}
+
+function employeeAssignedJobs(user = {}, jobs = []) {
+  if (!user) return [];
+  const userId = String(user.id || "");
+  const userName = String(user.name || "").toLowerCase();
+  return normalizeObjectArray(jobs).filter((job) => {
+    if (job.archivedAt) return false;
+    const directValues = [
+      job.assignedUserId,
+      job.assignedEmployeeId,
+      job.assignedForemanId,
+      job.foremanId,
+      job.createdById,
+    ].map((value) => String(value || ""));
+    const nameValues = [
+      job.assignedUserName,
+      job.assignedEmployeeName,
+      job.assignedForemanName,
+      job.foremanName,
+      todayWorkForemanLabel(job),
+    ].map((value) => String(value || "").toLowerCase());
+    const assignmentMatch = todayWorkCrewAssignments(job).some((assignment) => (
+      String(assignment.userId || assignment.employeeId || assignment.id || "") === userId
+      || String(assignment.name || assignment.userName || assignment.employeeName || "").toLowerCase() === userName
+    ));
+    return directValues.includes(userId) || Boolean(userName && nameValues.includes(userName)) || assignmentMatch;
+  });
+}
+
+function employeeOperationsSummary(user, {
+  jobs = [],
+  timeEntries = [],
+  dailyReports = [],
+  uploads = [],
+  safetyIncidents = [],
+  toolChecklists = [],
+} = {}) {
+  const assignedJobs = employeeAssignedJobs(user, jobs);
+  const activeJobs = assignedJobs.filter((job) => ["in_progress", "scheduled", "planned"].includes(normalizeJobStatus(job.status || job.stage)));
+  const activeClock = normalizeObjectArray(timeEntries).find((entry) => !entry.archivedAt && employeeRecordMatchesUser(entry, user) && entry.clockInAt && !entry.clockOutAt);
+  const reports = normalizeObjectArray(dailyReports).filter((report) => !report.archivedAt && employeeRecordMatchesUser(report, user));
+  const proofUploads = normalizeObjectArray(uploads).filter((upload) => !upload.archivedAt && employeeRecordMatchesUser(upload, user));
+  const incidents = normalizeObjectArray(safetyIncidents).filter((incident) => !incident.archivedAt && employeeRecordMatchesUser(incident, user));
+  const checklists = normalizeObjectArray(toolChecklists).filter((checklist) => !checklist.archivedAt && employeeRecordMatchesUser(checklist, user));
+  const readinessGaps = [
+    !user?.name ? "Name" : null,
+    !user?.email ? "Email" : null,
+    !user?.role ? "Role" : null,
+    user?.status !== "active" ? "Active status" : null,
+  ].filter(Boolean);
+  const isField = FIELD_USER_ROLES.includes(user?.role);
+  const tone = incidents.length
+    ? "red"
+    : readinessGaps.length
+      ? "amber"
+      : activeClock || activeJobs.length
+        ? "green"
+        : isField
+          ? "orange"
+          : "blue";
+  const nextAction = incidents.length
+    ? "Review safety"
+    : readinessGaps.length
+      ? "Fix readiness"
+      : activeClock
+        ? "Check clock"
+        : activeJobs.length
+          ? "Review assignment"
+          : isField
+            ? "Assign crew work"
+            : "Keep access ready";
+
+  return {
+    assignedJobs,
+    activeJobs,
+    activeClock,
+    reports,
+    proofUploads,
+    incidents,
+    checklists,
+    readinessGaps,
+    isField,
+    tone,
+    nextAction,
+  };
+}
+
+function EmployeeOperationsWorkbench({
+  users = [],
+  selectedUser,
+  jobs = [],
+  timeEntries = [],
+  dailyReports = [],
+  uploads = [],
+  safetyIncidents = [],
+  toolChecklists = [],
+  canManage,
+  onSelectUser,
+  onOpenTool,
+  onSetRoleFilter,
+  onSetStatusFilter,
+}) {
+  const visibleUsers = normalizeObjectArray(users);
+  const summaries = visibleUsers.map((employee) => ({
+    employee,
+    summary: employeeOperationsSummary(employee, { jobs, timeEntries, dailyReports, uploads, safetyIncidents, toolChecklists }),
+  }));
+  const selectedSummary = employeeOperationsSummary(selectedUser, { jobs, timeEntries, dailyReports, uploads, safetyIncidents, toolChecklists });
+  const queueRows = summaries
+    .sort((left, right) => Number(right.summary.incidents.length > 0) - Number(left.summary.incidents.length > 0)
+      || Number(right.summary.readinessGaps.length > 0) - Number(left.summary.readinessGaps.length > 0)
+      || right.summary.activeJobs.length - left.summary.activeJobs.length
+      || Number(right.summary.isField) - Number(left.summary.isField))
+    .slice(0, 6);
+  const focusUser = selectedUser || queueRows[0]?.employee || null;
+  const focusSummary = selectedUser ? selectedSummary : queueRows[0]?.summary || employeeOperationsSummary(null);
+  const allFieldUsers = summaries.filter((item) => item.summary.isField);
+  const activeUsers = summaries.filter((item) => item.employee.status === "active");
+  const activeAssignments = summaries.reduce((sum, item) => sum + item.summary.activeJobs.length, 0);
+  const readinessGaps = summaries.filter((item) => item.summary.readinessGaps.length);
+  const activeClocks = summaries.filter((item) => item.summary.activeClock);
+  const employeeKpis = [
+    { label: "Crew records", value: visibleUsers.length, helper: "Visible people", tone: "blue", action: "All roles", onClick: () => onSetRoleFilter("All roles") },
+    { label: "Field crew", value: allFieldUsers.length, helper: "Foremen and employees", tone: "orange", action: "Review field", onClick: () => onSetRoleFilter("Field roles") },
+    { label: "Active jobs", value: activeAssignments, helper: "Assignments in motion", tone: "green", action: "Open active", onClick: () => onSetStatusFilter("active") },
+    { label: "Readiness gaps", value: readinessGaps.length, helper: "Setup or inactive", tone: readinessGaps.length ? "amber" : "green", action: "Fix gaps", onClick: () => onSetRoleFilter("All roles") },
+  ];
+  const readinessSteps = [
+    { label: "Role", value: focusUser?.role || "Unassigned" },
+    { label: "Crew", value: focusSummary.isField ? userAccessGroup(focusUser) : "Office" },
+    { label: "Job", value: focusSummary.activeJobs[0] ? jobTitle(focusSummary.activeJobs[0]) : focusSummary.assignedJobs.length ? "Linked" : "Unassigned" },
+    { label: "Time", value: focusSummary.activeClock ? "Clocked in" : "No live clock" },
+    { label: "Proof", value: focusSummary.reports.length || focusSummary.proofUploads.length ? `${focusSummary.reports.length + focusSummary.proofUploads.length} items` : "None" },
+    { label: "Safety", value: focusSummary.incidents.length ? `${focusSummary.incidents.length} flag${focusSummary.incidents.length === 1 ? "" : "s"}` : "Clear" },
+  ];
+
+  return (
+    <CommandPageFrame
+      className="co-people-northstar-frame co-employees-northstar-frame"
+      kpis={
+        <div className="co-people-kpis">
+          {employeeKpis.map((item) => (
+            <button key={item.label} type="button" className="co-people-kpi" data-tone={item.tone} onClick={item.onClick}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.helper}</em>
+              <b>{item.action}</b>
+            </button>
+          ))}
+        </div>
+      }
+      rail={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Crew readiness"
+          description={focusUser ? `${focusUser.name}: ${focusSummary.nextAction}.` : "Select a crew or office user to inspect assignment, time, proof, and safety context."}
+          priorities={[
+            { value: allFieldUsers.length, label: "Field crew", tone: "orange" },
+            { value: activeClocks.length, label: "Clocked in", tone: activeClocks.length ? "green" : "slate" },
+            { value: activeAssignments, label: "Active assignments", tone: activeAssignments ? "green" : "slate" },
+            { value: readinessGaps.length, label: "Readiness gaps", tone: readinessGaps.length ? "amber" : "green" },
+          ]}
+          actions={[
+            { label: "Review details", icon: "users", onClick: () => onOpenTool("details"), disabled: !focusUser },
+            canManage ? { label: "New user", icon: "plus", onClick: () => onOpenTool("create") } : null,
+            { label: "Field crew", icon: "hardhat", onClick: () => onSetRoleFilter("Field roles") },
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <section className="co-people-workbench" aria-label="Crew operations command record">
+        <div className="co-people-workbench-head">
+          <div className="min-w-0">
+            <p>Crew operations command</p>
+            <h2>People, assignments, time, proof, and safety readiness</h2>
+            <span>Employee records stay tied to field work instead of drifting into generic HR: who is assigned, clocked in, ready, blocked, or missing setup.</span>
+          </div>
+          <div className="co-people-workbench-actions">
+            {canManage ? <Button type="button" onClick={() => onOpenTool("create")}>New User</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => onSetRoleFilter("Field roles")}>Field Crew</Button>
+          </div>
+        </div>
+        <div className="co-people-workbench-grid">
+          <div className="co-people-record-queue">
+            <div className="co-people-section-head">
+              <span>Crew queue</span>
+              <strong>{queueRows.length || "Clear"}</strong>
+            </div>
+            {queueRows.length ? queueRows.map(({ employee, summary }) => (
+              <WorkQueueCard
+                key={employee.id}
+                eyebrow={summary.incidents.length ? "Safety flag" : summary.readinessGaps.length ? "Needs readiness" : summary.activeJobs.length ? "Assigned work" : summary.isField ? "Field crew" : "Office"}
+                title={employee.name || employee.email || "Unnamed user"}
+                meta={[employee.role, employee.phone || employee.email, userAccessGroup(employee)].filter(Boolean).join(" / ")}
+                status={employee.status === "active" ? "Active" : "Inactive"}
+                tone={summary.tone}
+                actionLabel={summary.nextAction}
+                selected={focusUser?.id === employee.id}
+                onClick={() => onSelectUser(employee.id)}
+              >
+                <div className="co-people-row-facts">
+                  <span>Jobs <strong>{summary.activeJobs.length || summary.assignedJobs.length}</strong></span>
+                  <span>Time <strong>{summary.activeClock ? "Live" : "Clear"}</strong></span>
+                  <span>Proof <strong>{summary.reports.length + summary.proofUploads.length}</strong></span>
+                  <span data-state={summary.incidents.length || summary.readinessGaps.length ? "needs" : "ready"}>Ready <strong>{summary.incidents.length ? "Safety" : summary.readinessGaps.length ? "Gap" : "Yes"}</strong></span>
+                </div>
+              </WorkQueueCard>
+            )) : (
+              <div className="co-people-empty"><strong>No employee records visible</strong><span>Clear filters or create a crew record to build the queue.</span></div>
+            )}
+          </div>
+
+          <div className="co-people-selected-panel">
+            <div className="co-people-section-head">
+              <span>Selected person</span>
+              <strong>{focusUser ? focusSummary.nextAction : "Waiting"}</strong>
+            </div>
+            {focusUser ? (
+              <>
+                <div className="co-people-selected-title">
+                  <div className="min-w-0">
+                    <h3>{focusUser.name || focusUser.email}</h3>
+                    <p>{[focusUser.role, userAccessGroup(focusUser), focusUser.email].filter(Boolean).join(" / ")}</p>
+                  </div>
+                  <UserStatusBadge status={focusUser.status} />
+                </div>
+                <div className="co-people-proof-grid">
+                  {readinessSteps.map((step) => <span key={step.label}><em>{step.label}</em><strong>{step.value}</strong></span>)}
+                </div>
+                <div className="co-people-next-panel">
+                  <span>Next action</span>
+                  <strong>{focusSummary.nextAction}</strong>
+                  <p>{focusSummary.readinessGaps.length ? `Missing: ${focusSummary.readinessGaps.join(", ")}.` : `${focusSummary.reports.length} reports, ${focusSummary.proofUploads.length} proof uploads, ${focusSummary.checklists.length} checklist records.`}</p>
+                </div>
+                <div className="co-people-workbench-actions co-people-selected-actions">
+                  <Button type="button" onClick={() => onOpenTool("details")}>{canManage ? "Edit User" : "Review"}</Button>
+                  <Button type="button" variant="secondary" onClick={() => onSetRoleFilter(focusSummary.isField ? "Field roles" : "Office roles")}>{focusSummary.isField ? "Field Crew" : "Office Roles"}</Button>
+                </div>
+              </>
+            ) : (
+              <div className="co-people-empty"><strong>No person selected</strong><span>Select a crew or office user to inspect operational readiness.</span></div>
+            )}
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
+  );
+}
+
 function EmployeesPagePolished({
   users,
+  jobs = [],
+  timeEntries = [],
+  dailyReports = [],
+  uploads = [],
+  safetyIncidents = [],
+  toolChecklists = [],
   filter,
   setFilter,
   statusFilter,
@@ -22687,50 +24117,27 @@ function EmployeesPagePolished({
         }
       />
 
-      <div className="co-employees-command-deck mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-3 sm:px-6 lg:px-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card className="co-employees-hero-card p-4">
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-700">Access control</p>
-              <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950">Workspace user readiness</h2>
-              <p className="mt-1 max-w-3xl text-sm font-bold leading-5 text-slate-600">Owner/admin access, office roles, and field crew logins stay visible without exposing protected tools to the field.</p>
-            </div>
-            {canManage ? <Button type="button" onClick={() => openTools("create")}><Icon name="plus" />New User</Button> : <Badge tone="slate">Read only</Badge>}
-          </div>
-          <div className="co-employees-summary-grid">
-            {summaryStats.map((stat) => (
-              <button
-                key={stat.label}
-                type="button"
-                onClick={() => {
-                  if (stat.label === "Active") setStatusFilter("active");
-                  if (stat.label === "Field") setFilter("Field roles");
-                  if (stat.label === "Owners") setFilter("Owner");
-                  if (stat.label === "Inactive") setStatusFilter("inactive");
-                  if (stat.label === "Visible") clearFilters();
-                }}
-              >
-                <strong>{stat.value}</strong>
-                <span>{stat.label}</span>
-                <em>{stat.helper}</em>
-              </button>
-            ))}
-          </div>
-        </Card>
-        <Card className="co-employees-priority-card p-4">
-          <SectionHeader title="Priority Moves" description="Jump straight to the next access task." />
-          <div className="co-employees-priority-list">
-            {employeePriorityCards.map((card) => (
-              <button key={card.label} type="button" data-tone={card.tone} onClick={card.onAction}>
-                <span><Icon name={card.icon} /></span>
-                <strong>{card.label}</strong>
-                <em>{card.helper}</em>
-                <b>{card.actionLabel}</b>
-              </button>
-            ))}
-          </div>
-        </Card>
-      </div>
+      <EmployeeOperationsWorkbench
+        users={visibleRows}
+        selectedUser={selectedUser}
+        jobs={jobs}
+        timeEntries={timeEntries}
+        dailyReports={dailyReports}
+        uploads={uploads}
+        safetyIncidents={safetyIncidents}
+        toolChecklists={toolChecklists}
+        canManage={canManage}
+        onSelectUser={onSelectUser}
+        onOpenTool={openTools}
+        onSetRoleFilter={(nextFilter) => {
+          setFilter(nextFilter);
+          setSearch("");
+        }}
+        onSetStatusFilter={(nextStatus) => {
+          setStatusFilter(nextStatus);
+          setSearch("");
+        }}
+      />
 
       <div className="co-employees-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <div className="co-employees-board-stack min-w-0">
@@ -30426,6 +31833,14 @@ function EstimatesPagePolished({
     };
   }, [detailCustomer, detailDraft, detailLead, selectedEstimate]);
   const detailEstimateCustomerEmail = useMemo(() => estimateCustomerEmail(detailEstimatePreview), [detailEstimatePreview]);
+  const detailProposalSections = useMemo(
+    () => deriveEstimateProposalSections(detailEstimatePreview || detailDraft),
+    [detailDraft, detailEstimatePreview],
+  );
+  const detailEstimateBackup = useMemo(
+    () => deriveEstimateBackup(detailEstimatePreview || detailDraft),
+    [detailDraft, detailEstimatePreview],
+  );
   const detailSaveDisabled = busy || (!detailDraft.customerId && !detailDraft.leadId) || !detailDraft.title;
   const canMarkSent = canManage && detailDraft.status === "draft";
   const packetPrintSettings = useMemo(() => resolveEstimatePacketSettings({
@@ -30447,6 +31862,28 @@ function EstimatesPagePolished({
     { id: "sections", label: "Sections", count: detailDraft.items?.length || 0 },
     { id: "backup", label: "SOV / Backup", count: 1 },
     canUseGcPackets ? { id: "packet", label: "Packet", count: packetSectionIds.length } : null,
+  ].filter(Boolean);
+  const estimateStudioOptions = filteredRows.slice(0, 5).map((estimate) => ({
+    id: estimate.id,
+    title: estimateDisplayTitle(estimate),
+    meta: estimateDisplayCustomer(estimate),
+    status: formatEstimateCurrency(estimateDisplayTotal(estimate)),
+    tone: estimate.status === "approved" || estimate.jobId ? "green" : estimate.status === "sent" ? "blue" : estimate.status === "rejected" ? "red" : "orange",
+    actionLabel: estimateStatusLabel(estimate.status),
+  }));
+  const estimatePacketTiles = [
+    { label: "Cover Page", icon: "document", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
+    { label: "Scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
+    { label: "Line Items", icon: "document", onClick: () => openEstimateTool("edit"), disabled: !selectedEstimate },
+    { label: "Exclusions", icon: "alert", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
+    { label: "Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
+    { label: "Pricing Summary", icon: "briefcase", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
+    { label: "Field Handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
+  ];
+  const estimateAssistantActions = [
+    canUseAiRoughNotes ? { label: "Turn rough notes into packet", icon: "spark", onClick: () => openEstimateTool("roughNotes") } : null,
+    { label: "Review missing scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
+    { label: "Create foreman handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
   ].filter(Boolean);
 
   function linkedEstimateCustomerEmail(draft = {}) {
@@ -30819,105 +32256,85 @@ function EstimatesPagePolished({
         {estimateKpis.map((item) => <CommandCenterKpiCard key={item.label} item={item} />)}
       </div>
 
-      <div className="co-estimates-command-layout mx-auto grid w-full max-w-[1520px] min-w-0 gap-3 px-5 pb-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <div className="co-estimates-left-stack min-w-0 space-y-3">
-          <Card className="co-estimates-main-board overflow-hidden">
-            <div className="co-estimates-board-header border-b border-slate-200 bg-white p-4">
-              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-base font-black uppercase tracking-[0.04em] text-slate-950">Estimate Board / Proposal Queue</h2>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Select a proposal, review totals, and work customer-ready actions from the studio rail.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("All")}>All estimates</Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setStatusFilter("Draft")}>Drafts</Button>
-                  {canManage ? <Button type="button" size="sm" onClick={focusNewEstimate}>Create Estimate</Button> : null}
-                </div>
-              </div>
-            </div>
-            <FilterBar filters={["All", "Draft", "Sent", "Approved", "Rejected", "Archived"]} active={statusFilter} setActive={setStatusFilter} search={search} setSearch={setSearch} placeholder="Search title, customer, notes, or line items..." />
-            <details className="co-estimates-advanced-filters border-b border-slate-200 bg-white">
-              <summary>
-                <span>Advanced filters</span>
-                <span>{[customerFilter !== "All customers" ? customerFilter : "", leadFilter !== "All leads" ? leadFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Customer, lead, creator, archive"}</span>
-              </summary>
-              <div className="co-office-filter-grid co-estimates-filter-grid grid gap-3 p-3 md:grid-cols-4">
-                <SelectField label="Customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
-                  {listState.customerOptions.map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-                <SelectField label="Lead" value={leadFilter} onChange={(event) => setLeadFilter(event.target.value)}>
-                  {listState.leadOptions.map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-                <SelectField label="Created by" value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}>
-                  {listState.creatorOptions.map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-                <SelectField label="Archive view" value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
-                  {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
-                </SelectField>
-              </div>
-            </details>
-            {filteredRows.length === 0 ? (
-              <div className="p-5">
-                <StateCard title="No estimates match this view" description="Create a proposal from a customer or lead, or clear filters to bring older work back into view." tone="blue" />
-              </div>
-            ) : (
-              <EstimatesTablePolished
-                rows={filteredRows}
-                selectedId={selectedEstimate?.id}
-                onSelect={(id) => {
-                  setEstimateViewMode("browse");
-                  setSelectedEstimateId(id);
-                }}
-                maxRows={visibleEstimateRowCap}
-              />
+      <EstimateStudioShell
+        options={estimateStudioOptions}
+        selectedOptionId={selectedEstimate?.id || ""}
+        onSelectOption={(id) => {
+          setEstimateViewMode("browse");
+          setSelectedEstimateId(id);
+        }}
+        packetTiles={estimatePacketTiles}
+        assistantActions={estimateAssistantActions}
+        sidebar={(
+          <EstimateCommandRailPolished
+            estimate={selectedEstimate}
+            preview={detailEstimatePreview}
+            totals={detailTotals}
+            optionTotals={detailOptionTotals}
+            canManage={canManage}
+            canUseAiRoughNotes={canUseAiRoughNotes}
+            canUseGcPackets={canUseGcPackets}
+            busy={busy}
+            detailSaveDisabled={detailSaveDisabled}
+            canMarkSent={canMarkSent}
+            copyFeedback={copyFeedback}
+            emailSendingConfigured={emailSendingConfigured}
+            newDraftMode={estimateViewMode === "create"}
+            onSave={() => onSaveEstimate(selectedEstimate.id, detailDraft)}
+            onMarkSent={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
+            onMarkApproved={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "approved" })}
+            onConvert={handleConvertApprovedEstimate}
+            onPrint={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)}
+            onPrintForemanHandoff={() => onPrintEstimateForemanHandoff?.(detailEstimatePreview, packetPrintSettings)}
+            onSend={handleSendEstimate}
+            onCopyEstimate={() => copyEstimateText(
+              () => buildEstimateCopyText({ companyName, companyProfile, estimate: detailEstimatePreview }),
+              "Estimate copied.",
             )}
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
-              <p className="text-sm font-bold text-slate-600">Showing {Math.min(filteredRows.length, visibleEstimateRowCap)} of {rows.length} estimates</p>
-              <div className="co-estimates-board-footer-actions">
-                {filteredRows.length > visibleEstimateRowCap ? (
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setVisibleEstimateRowCap((current) => current + 6)}>Show more</Button>
-                ) : null}
-                {visibleEstimateRowCap > 6 ? (
-                  <Button type="button" size="sm" variant="secondary" onClick={() => setVisibleEstimateRowCap(6)}>Show less</Button>
-                ) : null}
-                <Button type="button" size="sm" variant="secondary" onClick={() => { setStatusFilter("All"); setCustomerFilter("All customers"); setLeadFilter("All leads"); setCreatorFilter("All creators"); setArchiveFilter("Active"); setSearch(""); setVisibleEstimateRowCap(6); }}>Clear filters</Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <EstimateCommandRailPolished
-          estimate={selectedEstimate}
-          preview={detailEstimatePreview}
-          totals={detailTotals}
-          optionTotals={detailOptionTotals}
-          canManage={canManage}
-          canUseAiRoughNotes={canUseAiRoughNotes}
-          canUseGcPackets={canUseGcPackets}
-          busy={busy}
-          detailSaveDisabled={detailSaveDisabled}
-          canMarkSent={canMarkSent}
-          copyFeedback={copyFeedback}
-          emailSendingConfigured={emailSendingConfigured}
-          newDraftMode={estimateViewMode === "create"}
-          onSave={() => onSaveEstimate(selectedEstimate.id, detailDraft)}
-          onMarkSent={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "sent" })}
-          onMarkApproved={() => onSaveEstimate(selectedEstimate.id, { ...detailDraft, status: "approved" })}
-          onConvert={handleConvertApprovedEstimate}
-          onPrint={() => onPrintEstimate?.(detailEstimatePreview, packetPrintSettings)}
-          onPrintForemanHandoff={() => onPrintEstimateForemanHandoff?.(detailEstimatePreview, packetPrintSettings)}
-          onSend={handleSendEstimate}
-          onCopyEstimate={() => copyEstimateText(
-            () => buildEstimateCopyText({ companyName, companyProfile, estimate: detailEstimatePreview }),
-            "Estimate copied.",
-          )}
-          onCopyCustomerMessage={() => copyEstimateText(
-            () => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }),
-            "Customer message copied.",
-          )}
-          onOpenTool={openEstimateTool}
-        />
-      </div>
+            onCopyCustomerMessage={() => copyEstimateText(
+              () => buildEstimateCustomerMessage({ companyName, companyProfile, estimate: detailEstimatePreview }),
+              "Customer message copied.",
+            )}
+            onOpenTool={openEstimateTool}
+          />
+        )}
+      >
+          <EstimateProposalWorkbench
+            estimate={selectedEstimate}
+            preview={detailEstimatePreview}
+            totals={detailTotals}
+            optionTotals={detailOptionTotals}
+            sections={detailProposalSections}
+            backup={detailEstimateBackup}
+            canManage={canManage}
+            filteredRows={filteredRows}
+            rows={rows}
+            listState={listState}
+            statusFilter={statusFilter}
+            customerFilter={customerFilter}
+            leadFilter={leadFilter}
+            creatorFilter={creatorFilter}
+            archiveFilter={archiveFilter}
+            search={search}
+            selectedId={selectedEstimate?.id}
+            visibleEstimateRowCap={visibleEstimateRowCap}
+            onSelect={(id) => {
+              setEstimateViewMode("browse");
+              setSelectedEstimateId(id);
+            }}
+            onOpenTool={openEstimateTool}
+            onFocusNewEstimate={focusNewEstimate}
+            onStatusFilter={setStatusFilter}
+            onSearch={setSearch}
+            onCustomerFilter={setCustomerFilter}
+            onLeadFilter={setLeadFilter}
+            onCreatorFilter={setCreatorFilter}
+            onArchiveFilter={setArchiveFilter}
+            onShowMore={() => setVisibleEstimateRowCap((current) => current + 6)}
+            onShowLess={() => setVisibleEstimateRowCap(6)}
+            onClearFilters={() => { setStatusFilter("All"); setCustomerFilter("All customers"); setLeadFilter("All leads"); setCreatorFilter("All creators"); setArchiveFilter("Active"); setSearch(""); setVisibleEstimateRowCap(6); }}
+          />
+      </EstimateStudioShell>
 
       <details
         ref={newEstimateRef}
@@ -35558,6 +36975,241 @@ function ToolChecklistPage({
   );
 }
 
+function supportCommandSeverityTone(blockerLevel = "") {
+  if (/blocking/i.test(blockerLevel) && /field/i.test(blockerLevel)) return "red";
+  if (/blocking/i.test(blockerLevel)) return "red";
+  if (/slowing/i.test(blockerLevel)) return "amber";
+  return "green";
+}
+
+function supportCommandWorkflowRows({ isOfficeUser = false, canRequestUpgradeReview = false, supportWorkflowOptions = [] } = {}) {
+  const canUseWorkflow = (workflow) => supportWorkflowOptions.includes(workflow);
+  const row = ({ id, label, workflow, role, helper, nextAction, tone = "orange", status = "Ready", blocker = false }) => ({
+    id,
+    label,
+    workflow: canUseWorkflow(workflow) ? workflow : "General workspace",
+    role,
+    helper,
+    nextAction,
+    tone,
+    status,
+    blocker,
+  });
+
+  return [
+    row({
+      id: "account-login",
+      label: "Account / login",
+      workflow: "Login / access",
+      role: "Owner, admin, field",
+      helper: "Sign-in, invite, password, or workspace access issue.",
+      nextAction: "Capture role, email, and what screen failed",
+      tone: "blue",
+    }),
+    row({
+      id: "estimates-proposals",
+      label: "Estimates / proposals",
+      workflow: "Estimates / proposals",
+      role: "Office",
+      helper: "Proposal, packet, send state, or estimate workflow issue.",
+      nextAction: "Attach estimate name and expected result",
+      tone: "orange",
+    }),
+    row({
+      id: "jobs-field",
+      label: "Jobs / field mode",
+      workflow: "Jobs / schedule",
+      role: "Office + field",
+      helper: "Job handoff, field mode, schedule, or assignment problem.",
+      nextAction: "Capture job, crew, device, and blocker",
+      tone: "green",
+    }),
+    row({
+      id: "reports-uploads-proof",
+      label: "Reports / uploads / proof",
+      workflow: canUseWorkflow("Photos / uploads") ? "Photos / uploads" : "Daily reports",
+      role: "Field + office",
+      helper: "Photo evidence, daily report, checklist, or proof intake issue.",
+      nextAction: "Include job/date and what proof is missing",
+      tone: "amber",
+    }),
+    row({
+      id: "billing-ready",
+      label: "Billing / ready-to-bill",
+      workflow: canRequestUpgradeReview ? "Upgrade / package review" : "General workspace",
+      role: isOfficeUser ? "Office only" : "Support context only",
+      helper: "Ready-to-bill handoff context only. No money movement or plan changes here.",
+      nextAction: "Describe the blocked closeout step",
+      tone: isOfficeUser ? "green" : "slate",
+    }),
+    row({
+      id: "permissions-roles",
+      label: "Permissions / roles",
+      workflow: "Login / access",
+      role: "Owner/admin review",
+      helper: "Role boundary, module access, invite, or protected-route question.",
+      nextAction: "Copy role and target module",
+      tone: isOfficeUser ? "blue" : "amber",
+    }),
+    row({
+      id: "safety-incidents",
+      label: "Safety / incidents",
+      workflow: "Safety / tools",
+      role: "Field + safety",
+      helper: "Incident, PPE, tool checklist, or safety follow-up support.",
+      nextAction: "Capture incident/job and urgency",
+      tone: "red",
+      blocker: true,
+    }),
+    row({
+      id: "data-imports",
+      label: "Data / imports",
+      workflow: isOfficeUser ? "Setup / onboarding" : "General workspace",
+      role: "Office setup",
+      helper: "Startup import, setup, customer data, or onboarding question.",
+      nextAction: "Copy workspace and setup progress",
+      tone: "slate",
+    }),
+  ];
+}
+
+function SupportCommandWorkbench({
+  user,
+  companyName,
+  currentCompanyId,
+  selectedWorkflow,
+  blockerLevel,
+  draft,
+  isOfficeUser,
+  isPilotFeedback,
+  isUpgradeReview,
+  canRequestUpgradeReview,
+  supportWorkflowOptions,
+  onSelectWorkflow,
+  onSetBlocker,
+  onCopySupportRequest,
+  onOpenModule,
+}) {
+  const workflowRows = supportCommandWorkflowRows({ isOfficeUser, canRequestUpgradeReview, supportWorkflowOptions });
+  const selectedRow = workflowRows.find((row) => row.workflow === selectedWorkflow) || workflowRows[0];
+  const blockerTone = supportCommandSeverityTone(blockerLevel);
+  const blockedCount = /blocking/i.test(blockerLevel) ? 1 : 0;
+  const waitingOnUser = Boolean(draft?.summary || draft?.expected || draft?.workaround) ? 0 : 1;
+  const supportKpis = [
+    { label: "Current draft", value: isPilotFeedback ? "Pilot" : isUpgradeReview ? "Upgrade" : "Support", helper: "Copy-only handoff", tone: isPilotFeedback ? "blue" : isUpgradeReview ? "orange" : "green", action: "Copy", onClick: onCopySupportRequest },
+    { label: "Workflows", value: workflowRows.length, helper: "Support categories", tone: "blue", action: "Review", onClick: () => onSelectWorkflow(selectedRow.workflow) },
+    { label: "Blockers", value: blockedCount, helper: blockerLevel || "Not a blocker", tone: blockerTone, action: blockedCount ? "Escalate" : "Safe", onClick: () => onSetBlocker(blockedCount ? blockerLevel : "Slowing work down") },
+    { label: "Waiting on", value: waitingOnUser ? "User" : "Packet", helper: waitingOnUser ? "Need issue details" : "Ready to copy", tone: waitingOnUser ? "amber" : "green", action: waitingOnUser ? "Fill details" : "Send manual", onClick: onCopySupportRequest },
+  ];
+  const workflowFacts = [
+    { label: "Role", value: user?.role || "Unknown", state: isOfficeUser ? "ready" : "needs" },
+    { label: "Workspace", value: companyName || "Apex HQ", state: "ready" },
+    { label: "Page", value: typeof window !== "undefined" ? window.location.pathname : "/support", state: "ready" },
+    { label: "Boundary", value: "Manual only", state: "needs" },
+    { label: "Secrets", value: "Not included", state: "ready" },
+    { label: "Access", value: isOfficeUser ? "Office" : "Field safe", state: "ready" },
+  ];
+
+  return (
+    <CommandPageFrame
+      className="co-support-northstar-frame"
+      kpis={
+        <div className="co-support-command-kpis">
+          {supportKpis.map((item) => (
+            <button key={item.label} type="button" className="co-support-command-kpi" data-tone={item.tone} onClick={item.onClick}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.helper}</em>
+              <b>{item.action}</b>
+            </button>
+          ))}
+        </div>
+      }
+      rail={
+        <AssistantRail
+          eyebrow="Apex Assistant"
+          title="Support"
+          description={`${selectedRow.label}: ${selectedRow.nextAction}. Safe manual handoff only.`}
+          priorities={[
+            { value: blockedCount, label: "Blocking workflows", tone: blockedCount ? "red" : "green" },
+            { value: waitingOnUser, label: "Need user detail", tone: waitingOnUser ? "amber" : "green" },
+            { value: supportWorkflowOptions.length, label: "Allowed workflows", tone: "blue" },
+            { value: isOfficeUser ? "Office" : "Field", label: "Role boundary", tone: isOfficeUser ? "blue" : "amber" },
+          ]}
+          actions={[
+            { label: "Copy packet", icon: "clipboard", onClick: onCopySupportRequest },
+            { label: "Open jobs", icon: "briefcase", onClick: () => onOpenModule("jobs") },
+            isOfficeUser ? { label: "Open settings", icon: "settings", onClick: () => onOpenModule("settings") } : { label: "Open reports", icon: "document", onClick: () => onOpenModule("reports") },
+          ]}
+        />
+      }
+    >
+      <section className="co-support-command-workbench" aria-label="Support operations command board">
+        <div className="co-support-command-head">
+          <div className="min-w-0">
+            <p>Support operations command</p>
+            <h2>Issue queue, workflow context, role boundary, and safe handoff</h2>
+            <span>Support stays operational: identify the workflow, capture blocker level, copy the right packet, and avoid changing permissions or creating tickets automatically.</span>
+          </div>
+          <div className="co-support-command-actions">
+            <Button type="button" onClick={onCopySupportRequest}><Icon name="clipboard" />Copy Packet</Button>
+            <Button type="button" variant="secondary" onClick={() => onSetBlocker("Blocking office work")}>Mark Blocking</Button>
+          </div>
+        </div>
+        <div className="co-support-command-grid">
+          <div className="co-support-workflow-queue">
+            <div className="co-support-section-head">
+              <span>Support queue</span>
+              <strong>{workflowRows.length} workflows</strong>
+            </div>
+            {workflowRows.map((row) => (
+              <WorkQueueCard
+                key={row.id}
+                eyebrow={row.role}
+                title={row.label}
+                meta={row.helper}
+                status={row.status}
+                tone={selectedWorkflow === row.workflow ? supportCommandSeverityTone(blockerLevel) : row.tone}
+                actionLabel={row.nextAction}
+                selected={selectedWorkflow === row.workflow}
+                onClick={() => onSelectWorkflow(row.workflow)}
+              >
+                <div className="co-support-row-facts">
+                  <span>Workflow <strong>{row.workflow}</strong></span>
+                  <span data-state={row.blocker ? "needs" : "ready"}>Risk <strong>{row.blocker ? "Safety" : "Standard"}</strong></span>
+                </div>
+              </WorkQueueCard>
+            ))}
+          </div>
+          <div className="co-support-selected-panel">
+            <div className="co-support-section-head">
+              <span>Selected support context</span>
+              <strong>{selectedRow.nextAction}</strong>
+            </div>
+            <div className="co-support-selected-title">
+              <div className="min-w-0">
+                <h3>{selectedRow.label}</h3>
+                <p>{selectedRow.helper}</p>
+              </div>
+              <Badge tone={blockerTone}>{blockerLevel}</Badge>
+            </div>
+            <div className="co-support-proof-grid">
+              {workflowFacts.map((fact) => (
+                <span key={fact.label} data-state={fact.state}><em>{fact.label}</em><strong>{fact.value}</strong></span>
+              ))}
+            </div>
+            <div className="co-support-next-panel">
+              <span>Safe handoff</span>
+              <strong>{selectedRow.nextAction}</strong>
+              <p>Workspace {companyName || "Apex HQ"} / company ID {currentCompanyId || "unavailable"} / no secrets, no impersonation, no automatic send.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </CommandPageFrame>
+  );
+}
+
 function SupportPage({ user, companyName, currentCompanyId, active, permissions, setActive, supportDraftSeed }) {
   const [draft, setDraft] = useState(() => createSupportDraft());
   const [copyMessage, setCopyMessage] = useState("");
@@ -35617,33 +37269,6 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
     { label: "Reports", helper: "Open daily reports if your role can use them.", moduleId: "reports", icon: "document", show: Boolean(permissions?.reports?.canView) },
     { label: "Settings", helper: "Open owner/admin setup tools.", moduleId: "settings", icon: "settings", show: Boolean(permissions?.settings?.canView) },
   ].filter((item) => item.show);
-  const supportStatusCards = [
-    {
-      label: "Support mode",
-      value: isPilotFeedback ? "Pilot notes" : isUpgradeReview ? "Upgrade review" : "Manual request",
-      helper: "Copy-only handoff",
-      tone: isUpgradeReview ? "orange" : isPilotFeedback ? "blue" : "green",
-    },
-    {
-      label: "Workspace",
-      value: companyName || "Apex HQ",
-      helper: currentCompanyId ? `ID ${currentCompanyId}` : "Current company",
-      tone: "slate",
-    },
-    {
-      label: "Role",
-      value: user?.role || "Unknown",
-      helper: isOfficeUser ? "Office tools available" : "Field-safe view",
-      tone: isOfficeUser ? "blue" : "amber",
-    },
-    {
-      label: "Current page",
-      value: typeof window !== "undefined" ? window.location.pathname : "/support",
-      helper: "Included in packet",
-      tone: "slate",
-    },
-  ];
-
   function updateDraft(field, value) {
     setDraft((current) => ({ ...current, [field]: value }));
     setCopyMessage("");
@@ -35691,20 +37316,23 @@ function SupportPage({ user, companyName, currentCompanyId, active, permissions,
         description="Copy a clear issue report, find the right workspace, and keep support manual until messaging automation is ready."
         actions={<Badge tone="green">Basic included</Badge>}
       />
-      <div className="co-support-kpi-grid mx-auto grid w-full max-w-[1520px] min-w-0 grid-cols-1 gap-3 px-5 pb-3 sm:px-6 md:grid-cols-2 xl:grid-cols-4 lg:px-8">
-        {supportStatusCards.map((stat) => (
-          <Card key={stat.label} className="co-support-kpi-card p-4">
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
-                <p className="mt-2 break-words text-2xl font-black leading-tight text-slate-950">{stat.value}</p>
-                <p className="mt-1 break-words text-xs font-bold text-slate-500">{stat.helper}</p>
-              </div>
-              <Badge tone={stat.tone}>{stat.label}</Badge>
-            </div>
-          </Card>
-        ))}
-      </div>
+      <SupportCommandWorkbench
+        user={user}
+        companyName={companyName}
+        currentCompanyId={currentCompanyId}
+        selectedWorkflow={selectedWorkflow}
+        blockerLevel={draft.blockerLevel}
+        draft={draft}
+        isOfficeUser={isOfficeUser}
+        isPilotFeedback={isPilotFeedback}
+        isUpgradeReview={isUpgradeReview}
+        canRequestUpgradeReview={canRequestUpgradeReview}
+        supportWorkflowOptions={supportWorkflowOptions}
+        onSelectWorkflow={(workflow) => updateDraft("workflow", workflow)}
+        onSetBlocker={(blocker) => updateDraft("blockerLevel", blocker)}
+        onCopySupportRequest={copySupportRequest}
+        onOpenModule={(moduleId) => setActive?.(moduleId)}
+      />
       <div className="co-support-command-layout grid min-w-0 gap-4 px-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
         <div className="grid gap-4">
           <Card className="co-support-request-card p-5">
