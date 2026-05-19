@@ -91,6 +91,7 @@ Current state:
 - Full visual route sweep wrapper verification: `npm.cmd run audit:visual-polish:full` passed end-to-end with 0 failures and no Node shell-argument warning after starting the local app on port 4000. Evidence manifests: `ui-audit/visual-polish/2026-05-19T21-34-57-365Z/manifest.json`, `ui-audit/visual-polish/2026-05-19T21-35-22-633Z/manifest.json`, `ui-audit/visual-polish/2026-05-19T21-35-47-976Z/manifest.json`, and `ui-audit/visual-polish/2026-05-19T21-36-13-322Z/manifest.json`.
 - Full visual route sweep wrapper regression coverage: `scripts/visual-polish-full-audit.test.mjs` now verifies the sequential audit order and Windows `cmd.exe` / non-Windows `npm` invocation behavior, and it runs through `npm run verify:demo`.
 - Demo hosted smoke reporting: `.github/workflows/demo-hosted-smoke.yml` now writes a GitHub Actions step summary when auth smoke is skipped because `APEX_SMOKE_PASSWORD` is missing, and writes a success summary when auth/bootstrap smoke runs.
+- Demo hosted smoke reporting verification: manual GitHub Actions dispatch `26127793170` passed on `main`; logs confirmed the non-auth hosted smoke ran and the auth smoke path reported `APEX_SMOKE_PASSWORD is not configured; skipping auth hosted smoke.`
 
 ## Latest Released App State
 
