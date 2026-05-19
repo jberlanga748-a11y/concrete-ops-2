@@ -6,6 +6,9 @@ const DEFAULT_BASE_URL = "https://concrete-ops-demo.fly.dev/";
 const PRODUCTION_HOSTS = new Set(["app.apexhq.online", "concrete-ops-2.fly.dev"]);
 const SAFE_DEFAULT_ROLES = ["admin", "employee"];
 const SAFE_DEFAULT_FLOWS = ["health", "routes", "auth", "restricted-routes"];
+const DEFAULT_MAX_READY_MS = 10_000;
+const DEFAULT_MAX_LOGIN_MS = 15_000;
+const DEFAULT_MAX_BOOTSTRAP_MS = 15_000;
 
 const ROLE_CONFIGS = {
   admin: {
@@ -51,6 +54,10 @@ Flags:
   --allow-auth                  Permit login/bootstrap checks. Login creates a session/audit side effect.
   --skip-auth                   Skip all login/bootstrap/restricted API checks.
   --allow-production-auth       Permit auth checks against production hosts.
+  --max-ready-ms=<ms>           /api/ready latency budget. Default ${DEFAULT_MAX_READY_MS}.
+  --max-login-ms=<ms>           /api/auth/login latency budget. Default ${DEFAULT_MAX_LOGIN_MS}.
+  --max-bootstrap-ms=<ms>       /api/bootstrap latency budget. Default ${DEFAULT_MAX_BOOTSTRAP_MS}.
+  --disable-latency-budget      Record timings without failing on budget.
   --json                        Print JSON summary only.
   --help                        Print this message without network calls.
 
@@ -80,6 +87,10 @@ function parseArgs(argv) {
     allowAuth: false,
     skipAuth: false,
     allowProductionAuth: false,
+    latencyBudgetEnabled: true,
+    maxReadyMs: DEFAULT_MAX_READY_MS,
+    maxLoginMs: DEFAULT_MAX_LOGIN_MS,
+    maxBootstrapMs: DEFAULT_MAX_BOOTSTRAP_MS,
     json: false,
     help: false,
   };
@@ -95,6 +106,8 @@ function parseArgs(argv) {
       options.allowProductionAuth = true;
     } else if (arg === "--json") {
       options.json = true;
+    } else if (arg === "--disable-latency-budget") {
+      options.latencyBudgetEnabled = false;
     } else if (arg.startsWith("--base-url=")) {
       options.baseUrl = arg.slice("--base-url=".length);
     } else if (arg.startsWith("--roles=")) {
@@ -107,6 +120,12 @@ function parseArgs(argv) {
       options.roleEmails.admin = arg.slice("--admin-email=".length).trim();
     } else if (arg.startsWith("--employee-email=")) {
       options.roleEmails.employee = arg.slice("--employee-email=".length).trim();
+    } else if (arg.startsWith("--max-ready-ms=")) {
+      options.maxReadyMs = parsePositiveInteger(arg.slice("--max-ready-ms=".length), "max-ready-ms");
+    } else if (arg.startsWith("--max-login-ms=")) {
+      options.maxLoginMs = parsePositiveInteger(arg.slice("--max-login-ms=".length), "max-login-ms");
+    } else if (arg.startsWith("--max-bootstrap-ms=")) {
+      options.maxBootstrapMs = parsePositiveInteger(arg.slice("--max-bootstrap-ms=".length), "max-bootstrap-ms");
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -132,6 +151,14 @@ function parseArgs(argv) {
   return options;
 }
 
+function parsePositiveInteger(value, label) {
+  const normalized = Number.parseInt(String(value || ""), 10);
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    throw new Error(`--${label} must be a positive integer.`);
+  }
+  return normalized;
+}
+
 function isProductionHost(baseUrl) {
   return PRODUCTION_HOSTS.has(new URL(baseUrl).hostname);
 }
@@ -141,8 +168,10 @@ function routeUrl(baseUrl, routePath) {
 }
 
 async function requestJson(url, options = {}) {
+  const startedAt = performance.now();
   const response = await fetch(url, options);
   const text = await response.text();
+  const durationMs = Math.round(performance.now() - startedAt);
   let payload = null;
   if (text) {
     try {
@@ -151,7 +180,7 @@ async function requestJson(url, options = {}) {
       payload = { raw: text.slice(0, 500) };
     }
   }
-  return { response, payload };
+  return { response, payload, durationMs };
 }
 
 function assertStatus(result, expectedStatus, label) {
@@ -166,6 +195,12 @@ function assertOk(result, label) {
   }
 }
 
+function assertLatencyBudget(options, durationMs, budgetMs, label) {
+  if (options.latencyBudgetEnabled && durationMs > budgetMs) {
+    throw new Error(`${label} exceeded latency budget: ${durationMs}ms > ${budgetMs}ms`);
+  }
+}
+
 async function checkHealth(options, results) {
   for (const endpoint of ["/api/health", "/api/ready"]) {
     const result = await requestJson(routeUrl(options.baseUrl, endpoint));
@@ -173,7 +208,10 @@ async function checkHealth(options, results) {
     if (endpoint === "/api/ready" && result.payload?.checks?.database !== "ok") {
       throw new Error("/api/ready did not report database ok");
     }
-    results.checks.push({ flow: "health", endpoint, status: result.response.status });
+    if (endpoint === "/api/ready") {
+      assertLatencyBudget(options, result.durationMs, options.maxReadyMs, endpoint);
+    }
+    results.checks.push({ flow: "health", endpoint, status: result.response.status, durationMs: result.durationMs });
   }
 }
 
@@ -208,6 +246,7 @@ async function loginRole(options, role) {
     body: JSON.stringify({ email, password }),
   });
   assertOk(login, `${role} login`);
+  assertLatencyBudget(options, login.durationMs, options.maxLoginMs, `${role} login`);
   if (!login.payload?.token) {
     throw new Error(`${role} login did not return a token`);
   }
@@ -215,6 +254,7 @@ async function loginRole(options, role) {
     email,
     token: login.payload.token,
     user: login.payload.user,
+    loginDurationMs: login.durationMs,
     headers: {
       Authorization: `Bearer ${login.payload.token}`,
       "Content-Type": "application/json",
@@ -238,12 +278,15 @@ async function checkAuth(options, results) {
       headers: session.headers,
     });
     assertOk(bootstrap, `${role} bootstrap`);
+    assertLatencyBudget(options, bootstrap.durationMs, options.maxBootstrapMs, `${role} bootstrap`);
     results.checks.push({
       flow: "auth",
       role,
       email: session.email,
       userRole: session.user?.role || "",
+      loginDurationMs: session.loginDurationMs,
       bootstrapStatus: bootstrap.response.status,
+      bootstrapDurationMs: bootstrap.durationMs,
     });
   }
   return sessions;
@@ -280,6 +323,12 @@ async function run() {
     roles: options.roles,
     flows: options.flows,
     authSideEffectsAllowed: options.allowAuth,
+    latencyBudget: {
+      enabled: options.latencyBudgetEnabled,
+      maxReadyMs: options.maxReadyMs,
+      maxLoginMs: options.maxLoginMs,
+      maxBootstrapMs: options.maxBootstrapMs,
+    },
     checks: [],
   };
 
