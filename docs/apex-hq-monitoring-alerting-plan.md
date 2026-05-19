@@ -71,6 +71,13 @@ Recommended no-required-paid option:
 - runs every 5 to 10 minutes
 - creates or updates a GitHub issue when two checks fail in a row
 
+Implementation:
+
+- workflow: `.github/workflows/readiness-monitor.yml`
+- cadence: every 10 minutes plus manual dispatch
+- retry behavior: each endpoint is checked twice in one run before an issue is opened or updated
+- recovery behavior: an open readiness issue is commented on and closed after both production readiness endpoints recover
+
 Issue title:
 
 ```text
@@ -169,7 +176,7 @@ P3:
 
 ## Phase 1 Follow-Ups
 
-- Add a scheduled GitHub Actions readiness monitor.
+- Watch the scheduled GitHub Actions readiness monitor for false positives during Fly cold starts.
 - Decide whether production should keep at least one Fly machine running.
 - Align Docker health check with `/api/ready`.
 - Define where incident notes live.
