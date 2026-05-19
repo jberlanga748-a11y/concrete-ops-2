@@ -61,6 +61,7 @@ npm.cmd run verify:roles
 npm.cmd run verify:demo
 npm.cmd run verify:server
 npm.cmd run verify:backup
+npm.cmd run verify:restore
 git diff --check
 ```
 
@@ -98,6 +99,7 @@ git rev-parse HEAD
 npm.cmd run build
 npm.cmd run verify:roles
 npm.cmd run verify:demo
+npm.cmd run verify:restore
 Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
 fly status -a concrete-ops-demo
 fly checks list -a concrete-ops-demo

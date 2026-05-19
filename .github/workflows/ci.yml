@@ -55,6 +55,7 @@ jobs:
         run: |
           npm run verify:server
           npm run verify:backup
+          npm run verify:restore
 
       - name: Build frontend
         run: npm run build
