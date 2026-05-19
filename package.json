@@ -44,6 +44,7 @@
     "verify:print-packets": "node --test --test-concurrency=1 shared/estimatePrint.test.js src/print-packets.test.js",
     "smoke:hosted": "node scripts/hosted-smoke.mjs",
     "smoke:opportunity-scout": "node scripts/opportunity-scout-hosted-smoke.mjs",
+    "smoke:opportunity-scout:cleanup": "node server/demo-smoke-cleanup.js",
     "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
     "audit:demo-desktop:local": "node scripts/demo-desktop-ui-audit.mjs --base-url=http://127.0.0.1:4000/ --viewports=1440x900",
     "audit:visual-polish": "node scripts/visual-polish-route-audit.mjs",
