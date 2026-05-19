@@ -1,6 +1,6 @@
 # Apex HQ Build Status And Phase Tracker
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 Purpose: this is the master build-status file for Apex HQ. Use it to prevent loops, avoid rebuilding completed systems, and choose the next phase.
 
@@ -68,6 +68,9 @@ Current state:
 - Demo desktop screenshot audit hardening: built, verified, and pushed so field-mode demo headings match the current app and required screenshot capture failures no longer pass silently. This was not deployed because it is local verification tooling only.
 - Demo desktop local audit shortcut: built so local 1440px demo walkthrough screenshots can be captured with `npm.cmd run audit:demo-desktop:local` instead of repeating the local base URL and viewport flags. This was not deployed because it is local verification tooling only.
 - Visual polish field-role redirect hardening: built so direct-route field-role redirects do not fail the visual audit on benign top-level document `net::ERR_ABORTED` navigation aborts while real failed requests, console issues, overflow, clipped content, assistant overlap, and forbidden field-role text still fail the sweep. This was not deployed because it is local verification tooling only.
+- Opportunity Scout hosted demo smoke hardening: built, verified, pushed, and Fly-demo checked. The repo now has guarded scripts for hosted Opportunity Scout acceptance, demo-only package toggling, smoke artifact cleanup, and a backup-first Fly demo orchestrator that wakes the demo app, backs up, temporarily sets Elite, runs acceptance, cleans smoke records, rolls back to Premium, and runs final hosted smoke.
+- Hosted smoke latency budgets: built, verified, pushed, and Fly-demo checked. `smoke:hosted` now records `/api/ready`, login, and bootstrap durations and fails when configured budgets are exceeded so the previous auth/bootstrap latency regression is caught automatically.
+- Manual pilot smoke runbook and ops docs sync: prepared and pushed. `docs/MANUAL_PILOT_SMOKE_TEST.md`, release/rollback, monitoring, and pilot readiness docs now reference the current hosted smoke, Fly demo Opportunity Scout orchestrator, demo package rollback, cleanup, and latency gates.
 
 ## Latest Released App State
 
@@ -81,16 +84,17 @@ Latest release tracked in this file:
 
 Latest source-control tooling state:
 
-- Commit: `c071cbe`
-- Message: `Harden visual polish audit shortcuts`
-- State: visual polish audit, bounded stable Chromium/tablet shortcuts, public-site tablet coverage, hardened demo desktop audit, canonical demo routes, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling are tracked in source.
-- Deployment: not deployed; local verification tooling only.
-- Verification: `npm.cmd run audit:visual-polish:chromium` checked 78 desktop/phone role-routes with 0 failures; `npm.cmd run audit:visual-polish:tablet` checked 52 owner/admin and field-role tablet routes with 0 failures; `npm.cmd run audit:demo-desktop:local` captured 28 local demo route screenshots with 0 required failures; `npm.cmd run audit:public-site` checked `/founder-pilot` desktop/tablet/phone with 0 failures; `node --check scripts\visual-polish-route-audit.mjs`, `node --check scripts\demo-desktop-ui-audit.mjs`, `npm.cmd run verify:roles`, `npm.cmd run build`, and `git diff --check` are the current tooling verification gate.
+- Commit: `9093263`
+- Message: `Document Fly demo smoke and latency gates`
+- State: Opportunity Scout hosted demo smoke automation, demo-only package setter, smoke cleanup, Fly demo acceptance orchestrator, hosted smoke latency budgets, and pilot/release/monitoring runbooks are tracked in source.
+- Deployment: latest runtime-affecting package/script changes were deployed to Fly demo only; production was not touched. Docs-only commits were pushed without production deploy.
+- Verification: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:demo`, `node --test --test-concurrency=1 scripts/fly-demo-opportunity-scout-smoke.test.mjs`, `npm.cmd run smoke:opportunity-scout:fly-demo -- --json`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json`, and `git diff --check` passed for the current demo smoke/tooling lane. Fly demo reached v84 with `/api/ready` healthy and hosted smoke passing.
 
 Known working tree note:
 
 - Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
 - Post-release tooling commits `56a81f0`, `decdcc8`, `9e9eb92`, `ad0da7e`, `41622e2`, `2e90585`, `09f02c7`, `20e55e1`, and `c071cbe` added visual/demo/public audit coverage, canonical demo route handling, local demo audit shortcuts, and redirect-safe bounded visual audit handling; they do not change shipped app runtime behavior.
+- Current demo smoke hardening commits through `9093263` added Opportunity Scout hosted smoke automation, demo package/cleanup safety scripts, Fly demo orchestration, latency budgets, and pilot smoke runbooks. Production remains locked unless a separate backup-first production release is approved.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
