@@ -64,6 +64,12 @@ The default sweep checks admin desktop, admin phone, and employee phone across t
 npm run audit:visual-polish:tablet
 ```
 
+To run the full local route sweep without sharing a browser session across parallel audits, use:
+
+```bash
+npm run audit:visual-polish:full
+```
+
 Useful focused options:
 
 ```bash

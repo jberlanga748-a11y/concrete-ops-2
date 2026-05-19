@@ -52,6 +52,7 @@
     "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
     "audit:demo-desktop:local": "node scripts/demo-desktop-ui-audit.mjs --base-url=http://127.0.0.1:4000/ --viewports=1440x900",
     "audit:visual-polish": "node scripts/visual-polish-route-audit.mjs",
+    "audit:visual-polish:full": "npm run audit:visual-polish:chromium && npm run audit:visual-polish:tablet",
     "audit:visual-polish:chromium": "npm run audit:visual-polish:chromium:desktop && npm run audit:visual-polish:chromium:admin-phone && npm run audit:visual-polish:chromium:employee-phone",
     "audit:visual-polish:chromium:desktop": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=admin --viewports=desktop",
     "audit:visual-polish:chromium:admin-phone": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=admin --viewports=phone",
