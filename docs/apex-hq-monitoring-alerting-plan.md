@@ -48,6 +48,17 @@ npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow
 
 The budgets are intentionally loose enough for Fly cold starts but tight enough to catch the previous auth/bootstrap regression where login and bootstrap took tens of seconds. Do not mask a slow path by only raising these budgets; inspect session writes, SQLite locking, bootstrap payload size, and Fly health flapping first.
 
+## Scheduled Demo Smoke
+
+GitHub Actions runs `.github/workflows/demo-hosted-smoke.yml` every hour against `https://concrete-ops-demo.fly.dev`.
+
+The scheduled smoke:
+
+- always runs non-auth health and route checks
+- runs auth/bootstrap and restricted-route checks only when the repository secret `APEX_SMOKE_PASSWORD` is configured
+- uses the same hosted smoke latency budgets described above
+- is demo-only and does not target production
+
 ## Existing Platform Checks
 
 Fly production already checks:
@@ -182,4 +193,5 @@ P3:
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Run the next scheduled local restore drill on Monday, June 1, 2026.
 - Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
-- Consider a scheduled non-mutating hosted smoke that records auth/bootstrap timing for demo and, after explicit approval, production.
+- Configure the `APEX_SMOKE_PASSWORD` GitHub Actions secret so scheduled demo smoke can include auth/bootstrap timing.
+- Consider scheduled production auth smoke only after explicit production-safety approval.

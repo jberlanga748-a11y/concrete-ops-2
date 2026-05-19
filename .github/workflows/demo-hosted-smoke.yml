@@ -1,0 +1,44 @@
+name: Apex HQ Demo Hosted Smoke
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: demo-hosted-smoke
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run non-auth demo smoke
+        run: npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json
+
+      - name: Run auth demo smoke when configured
+        env:
+          APEX_SMOKE_PASSWORD: ${{ secrets.APEX_SMOKE_PASSWORD }}
+        run: |
+          if [ -z "$APEX_SMOKE_PASSWORD" ]; then
+            echo "APEX_SMOKE_PASSWORD is not configured; skipping auth hosted smoke."
+            exit 0
+          fi
+          npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
