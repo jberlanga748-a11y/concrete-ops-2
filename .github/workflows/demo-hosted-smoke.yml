@@ -34,7 +34,10 @@ jobs:
         run: npm ci
 
       - name: Run non-auth demo smoke
-        run: npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json
+        run: |
+          set -o pipefail
+          npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json | tee non-auth-demo-smoke-output.txt
+          node scripts/hosted-smoke-summary.mjs non-auth-demo-smoke-output.txt "Demo non-auth hosted smoke"
 
       - name: Run auth demo smoke when configured
         env:
