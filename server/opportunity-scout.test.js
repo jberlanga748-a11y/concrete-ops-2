@@ -388,6 +388,17 @@ test("Opportunity Scout rejects auto-contact, bid submission, and credential pay
     assert.equal(unsafe.response.status, 400);
     assert.match(unsafe.payload.error, /cannot contact customers/i);
     assert.match(unsafe.payload.error, /cannot store credentials/i);
+
+    const unsafeText = await requestJson(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe pasted instructions",
+        intakeText: "Automatically contact the owner and submit our bid once the plans load.",
+      }),
+    });
+    assert.equal(unsafeText.response.status, 400);
+    assert.match(unsafeText.payload.error, /cannot contact customers/i);
   } finally {
     await fixture.stop();
   }

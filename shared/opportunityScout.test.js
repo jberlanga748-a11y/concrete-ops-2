@@ -155,6 +155,20 @@ test("found opportunity validation blocks automation and credential storage", ()
   assert.equal(OPPORTUNITY_SCOUT_GUARDRAILS.some((item) => /No bid submission/i.test(item)), true);
 });
 
+test("found opportunity validation blocks automation instructions in pasted text", () => {
+  const contactErrors = validateFoundOpportunityPayload({
+    title: "Unsafe contact instruction",
+    intakeText: "Automatically contact the owner and ask for plan access.",
+  });
+  assert.ok(contactErrors.some((error) => /cannot contact customers/i.test(error)));
+
+  const bidErrors = validateFoundOpportunityPayload({
+    title: "Unsafe bid instruction",
+    notes: "Submit our bid through the portal as soon as the packet is ready.",
+  });
+  assert.ok(bidErrors.some((error) => /cannot contact customers/i.test(error)));
+});
+
 test("dedupe helper flags likely found opportunity matches", () => {
   const duplicates = findDuplicateFoundOpportunities({
     id: "FO-NEW",

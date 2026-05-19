@@ -420,7 +420,23 @@ export function canConvertFoundOpportunityToLead(opportunity = {}) {
 }
 
 function containsBlockedAutomationPayload(payload = {}) {
-  return Boolean(payload.autoContact || payload.autoContactCustomer || payload.customerContacted || payload.contactCustomer || payload.submitBid || payload.bidSubmitted || payload.autoSubmitBid);
+  if (payload.autoContact || payload.autoContactCustomer || payload.customerContacted || payload.contactCustomer || payload.submitBid || payload.bidSubmitted || payload.autoSubmitBid) {
+    return true;
+  }
+
+  const textFields = [
+    payload.intakeText,
+    payload.notes,
+    payload.reasonToBid,
+    payload.nextStep,
+    payload.humanReviewNote,
+    payload.scopeSummary,
+  ].map((value) => text(value).toLowerCase()).filter(Boolean);
+  return textFields.some((value) => (
+    /\b(auto(?:matically)?[-\s]+)?contact\s+(?:the\s+)?(?:customer|owner|agency|gc|general contractor|client)\b/.test(value)
+    || /\b(?:submit|send|place|file)\s+(?:our\s+|the\s+|a\s+)?bid\b/.test(value)
+    || /\bauto[-\s]*(?:submit|send|bid|contact)\b/.test(value)
+  ));
 }
 
 export function validateOpportunitySearchProfilePayload(payload = {}, { existing = null } = {}) {
