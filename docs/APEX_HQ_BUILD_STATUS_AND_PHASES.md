@@ -93,6 +93,7 @@ Current state:
 - Demo hosted smoke reporting: `.github/workflows/demo-hosted-smoke.yml` now writes a GitHub Actions step summary when auth smoke is skipped because `APEX_SMOKE_PASSWORD` is missing, and writes a success summary when auth/bootstrap smoke runs.
 - Demo hosted smoke reporting verification: manual GitHub Actions dispatch `26127793170` passed on `main`; logs confirmed the non-auth hosted smoke ran and the auth smoke path reported `APEX_SMOKE_PASSWORD is not configured; skipping auth hosted smoke.`
 - Demo hosted smoke summary helper: `scripts/hosted-smoke-summary.mjs` now converts hosted smoke JSON output into a GitHub Actions step-summary table for the non-auth route/health smoke, and regression coverage runs through `npm run verify:demo`.
+- Demo hosted smoke summary helper verification: manual GitHub Actions dispatch `26128701406` passed on `main`; logs confirmed `scripts/hosted-smoke-summary.mjs` ran after the non-auth hosted smoke and auth smoke remained skipped because `APEX_SMOKE_PASSWORD` is not configured.
 - Readiness monitor reporting: `.github/workflows/readiness-monitor.yml` now writes a GitHub Actions step summary table with endpoint, attempt, HTTP status, duration, and ready/error state for each production readiness check without changing endpoint targets, issue behavior, production config, or secrets.
 - Readiness monitor reporting verification: manual GitHub Actions dispatch `26128221109` passed on `main`; logs confirmed both production readiness endpoints passed after the summary-writing workflow update.
 
