@@ -42,6 +42,18 @@ jobs:
         run: |
           if [ -z "$APEX_SMOKE_PASSWORD" ]; then
             echo "APEX_SMOKE_PASSWORD is not configured; skipping auth hosted smoke."
+            {
+              echo "### Demo auth hosted smoke"
+              echo ""
+              echo ":warning: \`APEX_SMOKE_PASSWORD\` is not configured, so auth/bootstrap hosted smoke was skipped."
+              echo ""
+              echo "Configure it with \`docs/apex-hq-github-actions-smoke-secrets.md\` before relying on scheduled auth smoke coverage."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
+          {
+            echo "### Demo auth hosted smoke"
+            echo ""
+            echo ":white_check_mark: Auth/bootstrap hosted smoke ran successfully."
+          } >> "$GITHUB_STEP_SUMMARY"
