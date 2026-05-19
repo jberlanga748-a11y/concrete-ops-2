@@ -6,10 +6,11 @@ Purpose: define how Apex HQ backups are created, verified, protected, and restor
 
 ## Current Backup Behavior
 
-Apex HQ currently has backup/export tooling, not an automated production restore tool.
+Apex HQ currently has backup/export tooling and a local restore drill verifier, not an automated production restore tool.
 
 - Backup command: `npm run backup:data`
 - Backup verifier: `npm run verify:backup`
+- Local restore drill verifier: `npm run verify:restore`
 - Backup entry file: `server/backup-export.js`
 - Backup implementation: `createBackupArtifacts()` in `server/store.js`
 - Default database path: `data/app-data.sqlite`
@@ -55,6 +56,16 @@ Never overwrite a live `app-data.sqlite` until:
 ## Local Restore Drill
 
 This drill uses only throwaway local directories.
+
+Run the scripted local drill first:
+
+```powershell
+npm.cmd run verify:restore
+```
+
+The script creates temporary source, backup, and restored data directories, copies the generated SQLite backup into the restored data directory, starts Apex HQ on a throwaway local port, checks `/api/ready` and `/api/setup/status`, and removes the temporary directories.
+
+Use the manual steps below only when debugging the scripted drill or rehearsing the restore flow by hand.
 
 1. Create a temporary source data directory and backup directory.
 
@@ -170,4 +181,4 @@ Post-restore checks:
 
 ## Current Gap
 
-Apex HQ does not yet have a dedicated `restore:data` script. Until that exists, full-database restore remains a manual, approval-gated operation using a trusted SQLite backup artifact.
+Apex HQ has a local restore drill verifier, but does not yet have a dedicated `restore:data` script. Until that exists, full-database restore remains a manual, approval-gated operation using a trusted SQLite backup artifact.
