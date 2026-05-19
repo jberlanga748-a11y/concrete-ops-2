@@ -71,6 +71,7 @@ Current state:
 - Opportunity Scout hosted demo smoke hardening: built, verified, pushed, and Fly-demo checked. The repo now has guarded scripts for hosted Opportunity Scout acceptance, demo-only package toggling, smoke artifact cleanup, and a backup-first Fly demo orchestrator that wakes the demo app, backs up, temporarily sets Elite, runs acceptance, cleans smoke records, rolls back to Premium, and runs final hosted smoke.
 - Hosted smoke latency budgets: built, verified, pushed, and Fly-demo checked. `smoke:hosted` now records `/api/ready`, login, and bootstrap durations and fails when configured budgets are exceeded so the previous auth/bootstrap latency regression is caught automatically.
 - Manual pilot smoke runbook and ops docs sync: prepared and pushed. `docs/MANUAL_PILOT_SMOKE_TEST.md`, release/rollback, monitoring, and pilot readiness docs now reference the current hosted smoke, Fly demo Opportunity Scout orchestrator, demo package rollback, cleanup, and latency gates.
+- Phase 1 monitoring hardening: built, verified, pushed, and Fly-demo checked. GitHub Actions now has a production readiness monitor, demo hosted smoke monitor, Node 24 action-runtime forcing, Docker `/api/ready` healthcheck alignment, an incident-notes log, and a monthly restore-drill cadence. Fly demo `v85` is healthy on `/api/ready`; production was not deployed.
 
 ## Latest Released App State
 
@@ -84,17 +85,17 @@ Latest release tracked in this file:
 
 Latest source-control tooling state:
 
-- Commit: `9093263`
-- Message: `Document Fly demo smoke and latency gates`
-- State: Opportunity Scout hosted demo smoke automation, demo-only package setter, smoke cleanup, Fly demo acceptance orchestrator, hosted smoke latency budgets, and pilot/release/monitoring runbooks are tracked in source.
-- Deployment: latest runtime-affecting package/script changes were deployed to Fly demo only; production was not touched. Docs-only commits were pushed without production deploy.
-- Verification: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:demo`, `node --test --test-concurrency=1 scripts/fly-demo-opportunity-scout-smoke.test.mjs`, `npm.cmd run smoke:opportunity-scout:fly-demo -- --json`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json`, and `git diff --check` passed for the current demo smoke/tooling lane. Fly demo reached v84 with `/api/ready` healthy and hosted smoke passing.
+- Commit: `89c72c4`
+- Message: `Use Node 24 for monitor workflow actions`
+- State: Opportunity Scout hosted demo smoke automation, demo-only package setter, smoke cleanup, Fly demo acceptance orchestrator, hosted smoke latency budgets, scheduled readiness monitoring, scheduled demo hosted smoke, Docker `/api/ready` healthcheck alignment, incident notes, and monthly restore-drill cadence are tracked in source.
+- Deployment: Docker healthcheck alignment was deployed to Fly demo only as `v85`; production was not touched. Workflow/docs-only commits were pushed without app deploy.
+- Verification: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:backup`, `npm.cmd run verify:demo`, `node --test --test-concurrency=1 scripts/fly-demo-opportunity-scout-smoke.test.mjs`, `npm.cmd run smoke:opportunity-scout:fly-demo -- --json`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`, `git diff --check`, manual GitHub Actions dispatch for `Apex HQ Demo Hosted Smoke`, and manual GitHub Actions dispatch for `Apex HQ Readiness Monitor` passed for the current monitoring/demo smoke lane. Fly demo reached `v85` with `/api/ready` healthy and service checks passing.
 
 Known working tree note:
 
 - Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
 - Post-release tooling commits `56a81f0`, `decdcc8`, `9e9eb92`, `ad0da7e`, `41622e2`, `2e90585`, `09f02c7`, `20e55e1`, and `c071cbe` added visual/demo/public audit coverage, canonical demo route handling, local demo audit shortcuts, and redirect-safe bounded visual audit handling; they do not change shipped app runtime behavior.
-- Current demo smoke hardening commits through `9093263` added Opportunity Scout hosted smoke automation, demo package/cleanup safety scripts, Fly demo orchestration, latency budgets, and pilot smoke runbooks. Production remains locked unless a separate backup-first production release is approved.
+- Current demo smoke and monitoring hardening commits through `89c72c4` added Opportunity Scout hosted smoke automation, demo package/cleanup safety scripts, Fly demo orchestration, latency budgets, pilot smoke runbooks, production readiness monitoring, scheduled demo hosted smoke, Docker readiness health checks, incident notes, and restore-drill cadence. Production remains locked unless a separate backup-first production release is approved.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
