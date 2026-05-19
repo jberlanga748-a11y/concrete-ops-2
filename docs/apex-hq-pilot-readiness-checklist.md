@@ -65,7 +65,7 @@ Confirm workflow:
 - day-3 check-in booked
 - day-10 value review booked
 
-Run the non-destructive manual pilot smoke test in `MANUAL_PILOT_SMOKE_TEST.md`.
+Run the non-destructive manual pilot smoke test in `docs/MANUAL_PILOT_SMOKE_TEST.md`.
 
 Confirm the monthly restore drill is scheduled. The current Phase 1 cadence lives in `docs/apex-hq-restore-runbook.md`; the next scheduled local restore drill is Monday, June 1, 2026.
 
@@ -175,17 +175,17 @@ Stop:
 - preserve agreed records if needed
 - do not ask for testimonial unless value was real
 
-## Stale Docs Cleanup Plan
+## Stale Docs Cleanup Status
 
 Use `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` as the master build tracker.
 
-Cleanup targets:
+Completed cleanup:
 
-- reconcile `docs/LAUNCH_READINESS.md` against the current tracker
+- reconciled `docs/LAUNCH_READINESS.md` against the current tracker
 - keep `APEX_HQ_MASTER_CHECKLIST.md` as historical/pilot-reference, not the source of truth
-- update stale recommended prompts in the build tracker after Phase 1 ops docs land
-- keep `CUSTOMER_PILOT_SETUP.md` infrastructure-focused and pair it with this Day 0/3/10 checklist
-- reference `MANUAL_PILOT_SMOKE_TEST.md` as the non-destructive readiness gate
+- updated stale recommended prompts in the build tracker after Phase 1 ops docs landed
+- kept `CUSTOMER_PILOT_SETUP.md` infrastructure-focused and paired it with this Day 0/3/10 checklist
+- made root `MANUAL_PILOT_SMOKE_TEST.md` point to canonical `docs/MANUAL_PILOT_SMOKE_TEST.md`
 
 ## Product Build Trigger
 
