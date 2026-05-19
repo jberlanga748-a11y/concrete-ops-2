@@ -57,7 +57,16 @@ The scheduled smoke:
 - always runs non-auth health and route checks
 - runs auth/bootstrap and restricted-route checks only when the repository secret `APEX_SMOKE_PASSWORD` is configured
 - uses the same hosted smoke latency budgets described above
+- writes GitHub Actions summary tables for non-auth checks and auth checks when auth smoke runs
+- opens or updates a GitHub issue when demo hosted smoke fails
+- comments on and closes the open demo smoke issue when a later run recovers
 - is demo-only and does not target production
+
+Issue title:
+
+```text
+Apex HQ demo hosted smoke failed
+```
 
 Secret setup, verification, rotation, and failure handling are defined in `docs/apex-hq-github-actions-smoke-secrets.md`.
 
