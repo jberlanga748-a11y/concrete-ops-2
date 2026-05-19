@@ -69,8 +69,7 @@ function buildSmokeArtifactPlan(database) {
     SELECT id
     FROM queue_items
     WHERE title LIKE 'Follow up City of Salem Facilities%'
-      OR meta LIKE '%Opportunity Scout%'
-      OR meta LIKE '%Smoke%'
+      OR meta LIKE 'Smoke % - Opportunity Scout'
   `);
 
   const activityIds = listIds(database, `
@@ -123,8 +122,7 @@ function countRemainingSmokeArtifacts(database) {
       SELECT COUNT(*) AS count
       FROM queue_items
       WHERE title LIKE 'Follow up City of Salem Facilities%'
-        OR meta LIKE '%Opportunity Scout%'
-        OR meta LIKE '%Smoke%'
+        OR meta LIKE 'Smoke % - Opportunity Scout'
     `),
     activity: countQuery(database, `
       SELECT COUNT(*) AS count

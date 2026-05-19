@@ -167,3 +167,25 @@ test("demo smoke cleanup preserves smoke-named customer when a real job still re
     database.close();
   }
 });
+
+test("demo smoke cleanup preserves non-smoke Opportunity Scout queue items", () => {
+  const database = createDatabase();
+  try {
+    seedSmokeAndRealRecords(database);
+    database.prepare("INSERT INTO queue_items (id, title, meta) VALUES (?, ?, ?)").run(
+      "Q-OPPORTUNITY-REAL",
+      "Follow up county bid board",
+      "Courthouse ramp - Opportunity Scout",
+    );
+
+    const result = cleanupDemoSmokeArtifacts(database, { apply: true });
+
+    assert.equal(result.deleted.queueItems, 1);
+    assert.deepEqual(
+      database.prepare("SELECT id FROM queue_items ORDER BY id ASC").all().map((row) => row.id),
+      ["Q-OPPORTUNITY-REAL", "Q-REAL"],
+    );
+  } finally {
+    database.close();
+  }
+});
