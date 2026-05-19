@@ -109,6 +109,8 @@ Issue body should include:
 
 This is not pager-grade monitoring. It is enough for Phase 1 pilot-readiness until a dedicated uptime service or on-call process exists.
 
+The Phase 2 upgrade path for log drains, dedicated uptime monitoring, alert routing, and approval gates lives in `docs/apex-hq-monitoring-upgrade-plan.md`.
+
 ## Alert Thresholds
 
 Create an incident note in `docs/apex-hq-incident-notes-log.md` when:
@@ -194,6 +196,6 @@ P3:
 - Watch Docker `/api/ready` health checks during the next demo deploy for false positives during cold start.
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Run the next scheduled local restore drill on Monday, June 1, 2026.
-- Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
+- Use `docs/apex-hq-monitoring-upgrade-plan.md` before adding a log drain or dedicated uptime monitoring.
 - Configure the `APEX_SMOKE_PASSWORD` GitHub Actions secret using `docs/apex-hq-github-actions-smoke-secrets.md` so scheduled demo smoke can include auth/bootstrap timing.
 - Consider scheduled production auth smoke only after explicit production-safety approval.
