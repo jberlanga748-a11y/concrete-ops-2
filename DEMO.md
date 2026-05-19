@@ -7,7 +7,7 @@ Demo logins:
 - Admin: `demo.admin@apexhq.app`
 - Foreman: `demo.foreman@apexhq.app`
 - Employee: `demo.employee@apexhq.app`
-- Password: shared privately for the demo deployment. If the deployment explicitly uses the shared demo password, it is `apexdemo123` and is demo-only.
+- Password: shared privately for the demo deployment through the approved secret channel or `APEX_SMOKE_PASSWORD`; do not store demo passwords in docs or commits.
 
 Public estimate request:
 - Public estimate request form: [https://app.apexhq.online/request-estimate](https://app.apexhq.online/request-estimate)

@@ -10,7 +10,7 @@ Apex HQ is a full-stack contractor operations workspace. It includes:
 ## Demo Login
 
 - Email: `demo.ops@apexhq.app`
-- Password: `apexdemo123`
+- Password: use the private demo password from the target environment or `APEX_SMOKE_PASSWORD`; do not store demo passwords in docs or commits.
 
 The demo account is available by default in development. In production, demo data is disabled by default and the first admin can be created through the setup screen or environment bootstrap variables.
 
