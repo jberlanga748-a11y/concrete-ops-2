@@ -1,6 +1,6 @@
 # Apex HQ Demo Launch Packet
 
-Status: guided-demo ready after live v496 rehearsal and demo app v71 refresh
+Status: guided-demo packet; current app readiness must be confirmed through `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` and `docs/MANUAL_PILOT_SMOKE_TEST.md`
 Use for: the first founder-led demos and controlled pilot conversations
 
 ## Launch Position
@@ -228,7 +228,14 @@ The goal is to help contractors find opportunities, follow up faster, organize j
 
 ## Best First Move
 
-Demo readiness is live-confirmed through production v496 and the separate demo app v71.
+Demo readiness is not tied to a hard-coded historical release in this packet.
+
+Before outreach or a live walkthrough, confirm:
+
+- current app/demo state in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+- demo route/auth smoke using `docs/MANUAL_PILOT_SMOKE_TEST.md`
+- Day 0 / Day 3 / Day 10 gates in `docs/apex-hq-pilot-readiness-checklist.md`
+- no passwords, tokens, or demo credentials are pasted into outreach docs
 
 Next move:
 
