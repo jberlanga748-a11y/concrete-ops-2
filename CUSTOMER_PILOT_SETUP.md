@@ -1,5 +1,8 @@
 # Customer Pilot Setup
 
+Status note, 2026-05-19:
+This file is the infrastructure setup guide for a customer-specific pilot app. Pair it with `docs/apex-hq-pilot-readiness-checklist.md` for Day 0, Day 3, and Day 10 operating gates, and with `docs/MANUAL_PILOT_SMOKE_TEST.md` for non-destructive workflow smoke.
+
 Use this guide to create a brand-new contractor pilot workspace on Fly.io without reusing the demo app, the live production app, or any internal testing data.
 
 This guide assumes:
@@ -11,6 +14,8 @@ This guide assumes:
 
 Before you hand a pilot to a contractor, confirm all of these are true:
 
+- the selected pilot workflow is written down
+- Day 0 kickoff, Day 3 check-in, and Day 10 value review are scheduled
 - the app name is unique
 - the volume name is unique
 - `DEMO_MODE` is off
@@ -19,6 +24,10 @@ Before you hand a pilot to a contractor, confirm all of these are true:
 - `GET /api/setup/status` shows no existing users before the first admin is created
 - the setup screen shows a new workspace, not an old demo or production estimate context
 - the pilot app is not sharing storage with demo or production
+- a backup/export plan is known
+- a rollback path is known
+- support severity owner is known
+- manual pilot smoke has passed before real customer workflow use
 
 ## Goal
 
@@ -178,6 +187,8 @@ Expected result:
 - HTTP `200`
 - readiness payload shows the database is healthy
 
+Do not deploy a customer pilot without confirming the current release/rollback checklist in `docs/apex-hq-release-rollback-checklist.md`.
+
 ## 6. Verify `/api/setup/status`
 
 Before creating the first admin, check setup status:
@@ -315,7 +326,33 @@ After the pilot users are added, verify:
 - only assigned job data appears
 - no office modules appear
 
-## 10. What Not To Do
+Use `docs/MANUAL_PILOT_SMOKE_TEST.md` for the full non-destructive pilot workflow check before using real customer data.
+
+## 10. Day 0 / Day 3 / Day 10 Operating Gates
+
+This infrastructure guide only creates a safe pilot environment. The pilot is not ready just because the app deploys.
+
+Before kickoff:
+
+- follow `docs/apex-hq-pilot-readiness-checklist.md`
+- run the manual pilot smoke
+- confirm support/severity process
+- confirm restore drill cadence
+- confirm no custom feature promises
+
+Day 3:
+
+- confirm owner/admin and field usage happened
+- classify issues as training, workaround, product blocker, or poor fit
+- keep the workflow narrow
+
+Day 10:
+
+- score value signals
+- decide continue, adjust, or stop
+- do not expand scope if the pilot workflow is not proving value
+
+## 11. What Not To Do
 
 Do not:
 - deploy a customer pilot into the Apex HQ demo app
@@ -329,7 +366,7 @@ Do not:
 - test customer data inside the demo workspace
 - mix customer records with demo or internal test records
 
-## 11. Safe Separation Rules
+## 12. Safe Separation Rules
 
 Use these rules every time:
 
@@ -349,7 +386,7 @@ Use these rules every time:
 - `SEED_DEMO_DATA=false`
 - `DEMO_MODE` off
 
-## 12. Recommended Minimal Handoff Notes
+## 13. Recommended Minimal Handoff Notes
 
 When handing the pilot to a contractor, provide:
 - pilot URL
@@ -365,7 +402,19 @@ Do not send:
 - your internal test app URL
 - your personal/admin credentials
 
-## 13. Quick Command Summary
+## 14. Monitoring And Support Before Handoff
+
+Before handoff, confirm:
+
+- `https://<pilot-app>.fly.dev/api/ready` returns ready/database ok
+- `fly checks list -a <pilot-app>` is passing
+- support intake process is known from `docs/apex-hq-support-intake-process.md`
+- incident notes location is known from `docs/apex-hq-incident-notes-log.md`
+- monitoring upgrade boundaries are known from `docs/apex-hq-monitoring-upgrade-plan.md`
+
+Do not add production log drains, paid monitoring, production auth smoke, or production machine scaling as part of a pilot setup without explicit approval.
+
+## 15. Quick Command Summary
 
 ```bash
 fly apps create apex-hq-acme-pilot
@@ -375,6 +424,8 @@ fly deploy --config fly.customer-acme.toml
 curl https://apex-hq-acme-pilot.fly.dev/api/ready
 curl https://apex-hq-acme-pilot.fly.dev/api/setup/status
 ```
+
+Then run the manual pilot smoke from `docs/MANUAL_PILOT_SMOKE_TEST.md`.
 
 ## Final Rule
 
