@@ -119,6 +119,8 @@ Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
 npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
 ```
 
+For scheduled GitHub Actions auth smoke, configure `APEX_SMOKE_PASSWORD` with `docs/apex-hq-github-actions-smoke-secrets.md`. Do not commit or paste the smoke password.
+
 For Opportunity Scout demo acceptance:
 
 ```powershell

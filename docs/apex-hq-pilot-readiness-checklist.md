@@ -79,6 +79,8 @@ npm.cmd run smoke:opportunity-scout:fly-demo -- --json
 
 The Opportunity Scout demo smoke is mutation-capable but demo-only: it takes a backup, temporarily sets the demo package to Elite, runs acceptance, cleans smoke artifacts, rolls back to Premium, and reruns hosted smoke. Do not run it against production or a real pilot workspace.
 
+If scheduled GitHub Actions auth smoke is required before a demo or pilot rehearsal, configure `APEX_SMOKE_PASSWORD` using `docs/apex-hq-github-actions-smoke-secrets.md`. Never paste the smoke password into docs, issues, or chat.
+
 ## Day 0 Pass Criteria
 
 Day 0 passes when:

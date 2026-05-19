@@ -59,6 +59,8 @@ The scheduled smoke:
 - uses the same hosted smoke latency budgets described above
 - is demo-only and does not target production
 
+Secret setup, verification, rotation, and failure handling are defined in `docs/apex-hq-github-actions-smoke-secrets.md`.
+
 ## Existing Platform Checks
 
 Fly production already checks:
@@ -193,5 +195,5 @@ P3:
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Run the next scheduled local restore drill on Monday, June 1, 2026.
 - Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
-- Configure the `APEX_SMOKE_PASSWORD` GitHub Actions secret so scheduled demo smoke can include auth/bootstrap timing.
+- Configure the `APEX_SMOKE_PASSWORD` GitHub Actions secret using `docs/apex-hq-github-actions-smoke-secrets.md` so scheduled demo smoke can include auth/bootstrap timing.
 - Consider scheduled production auth smoke only after explicit production-safety approval.
