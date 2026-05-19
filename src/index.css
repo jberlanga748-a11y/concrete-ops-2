@@ -27935,6 +27935,24 @@ textarea {
   background: #fff7ed;
 }
 
+.co-ai-found-review-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  margin-top: 0.45rem;
+}
+
+.co-ai-found-review-strip span {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 0.22rem 0.48rem;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
 .co-ai-found-evidence-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

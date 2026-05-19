@@ -54,7 +54,9 @@ import {
   validateLeadSourcePayload,
 } from "../shared/leadSources.js";
 import {
+  canConvertFoundOpportunityToLead,
   changedOpportunityFields,
+  findDuplicateFoundOpportunities,
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
   validateFoundOpportunityPayload,
@@ -9022,6 +9024,9 @@ function buildOpportunityLeadNotes(opportunity) {
   return [
     `Source: Opportunity Scout`,
     `Found opportunity: ${opportunity.title}`,
+    opportunity.intakeSourceType ? `Intake type: ${opportunity.intakeSourceType}` : "",
+    opportunity.humanReviewStatus ? `Human review: ${opportunity.humanReviewStatus}` : "",
+    opportunity.fitExplanation ? `Fit review: ${opportunity.fitExplanation}` : "",
     opportunity.agency ? `Agency/source: ${opportunity.agency}` : "",
     opportunity.sourceName ? `Saved source: ${opportunity.sourceName}` : "",
     opportunity.trade ? `Trade: ${opportunity.trade}` : "",
@@ -9030,6 +9035,7 @@ function buildOpportunityLeadNotes(opportunity) {
     opportunity.jobWalkAt ? `Walk-through: ${dateOnlyFromDateTime(opportunity.jobWalkAt) || opportunity.jobWalkAt}` : "",
     opportunity.sourceUrl ? `Source URL: ${opportunity.sourceUrl}` : "",
     opportunity.planUrl ? `Plan URL: ${opportunity.planUrl}` : "",
+    opportunity.fileMetadata?.length ? `Files noted: ${opportunity.fileMetadata.map((file) => file.name || file.type).filter(Boolean).join(", ")}` : "",
     opportunity.reasonToBid ? `Reason to bid: ${opportunity.reasonToBid}` : "",
     opportunity.scopeSummary ? `Scope summary: ${opportunity.scopeSummary}` : "",
     opportunity.riskFlags?.length ? `Risks: ${opportunity.riskFlags.join(", ")}` : "",
@@ -9144,21 +9150,27 @@ app.post("/api/ai/opportunity-scout/search-profiles/:id/search-plan", requireAut
 app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(async (req, res) => {
   assertCanManageLeads(req.auth.user);
   await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
-  const errors = validateFoundOpportunityPayload(req.body || {});
-  if (errors.length > 0) {
-    throw new ApiError(400, errors.join(" "));
-  }
   const changedAt = new Date().toISOString();
 
   const nextState = await updateDb((draft) => {
     draft.foundOpportunities ||= [];
-    const opportunity = normalizeFoundOpportunityPayload(req.body || {}, {
+    const payload = { ...(req.body || {}) };
+    if (Object.hasOwn(payload, "humanReviewStatus") && payload.humanReviewStatus && payload.humanReviewStatus !== "needs_review") {
+      payload.humanReviewedBy = req.auth.user.id;
+      payload.humanReviewedAt = changedAt;
+    }
+    const errors = validateFoundOpportunityPayload(payload);
+    if (errors.length > 0) {
+      throw new ApiError(400, errors.join(" "));
+    }
+    const opportunity = normalizeFoundOpportunityPayload(payload, {
       id: makeId("FO"),
       changedAt,
       createdBy: req.auth.user.id,
     });
     assignCompanyIdForCreate(opportunity, req.auth.user, draft);
     validateOpportunityScoutLinks(draft, opportunity, req.auth.user);
+    opportunity.duplicateHints = findDuplicateFoundOpportunities(opportunity, draft.foundOpportunities);
     draft.foundOpportunities.unshift(opportunity);
     appendActivity(draft, "Opportunity found", `${req.auth.user.name} added ${opportunity.title}.`, { companyId: opportunity.companyId });
     appendAuditEvent(draft, {
@@ -9168,7 +9180,7 @@ app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(a
       summary: "Opportunity found",
       detail: opportunity.title,
       actor: req.auth.user,
-      changedFields: ["title", "status", "fitScore", "bidDueAt", "assignedEstimatorId"],
+      changedFields: ["title", "status", "fitScore", "bidDueAt", "assignedEstimatorId", "humanReviewStatus", "missingInfoItems", "duplicateHints"],
     });
     return draft;
   });
@@ -9185,17 +9197,23 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
   const nextState = await updateDb((draft) => {
     draft.foundOpportunities ||= [];
     const opportunity = findCompanyScopedRecord(draft.foundOpportunities, id, req.auth.user, draft, "Opportunity");
-    const errors = validateFoundOpportunityPayload(req.body || {}, { existing: opportunity });
+    const payload = { ...(req.body || {}) };
+    if (Object.hasOwn(payload, "humanReviewStatus") && payload.humanReviewStatus !== opportunity.humanReviewStatus) {
+      payload.humanReviewedBy = req.auth.user.id;
+      payload.humanReviewedAt = changedAt;
+    }
+    const errors = validateFoundOpportunityPayload(payload, { existing: opportunity });
     if (errors.length > 0) {
       throw new ApiError(400, errors.join(" "));
     }
     const previous = { ...opportunity };
-    const normalized = normalizeFoundOpportunityPayload(req.body || {}, {
+    const normalized = normalizeFoundOpportunityPayload(payload, {
       existing: opportunity,
       changedAt,
       createdBy: opportunity.createdBy || req.auth.user.id,
     });
     validateOpportunityScoutLinks(draft, normalized, req.auth.user);
+    normalized.duplicateHints = findDuplicateFoundOpportunities(normalized, draft.foundOpportunities);
     Object.assign(opportunity, normalized, {
       id: opportunity.id,
       companyId: opportunity.companyId,
@@ -9211,7 +9229,7 @@ app.patch("/api/opportunity-scout/found-opportunities/:id", requireAuth, asyncRo
       summary: "Opportunity updated",
       detail: opportunity.title,
       actor: req.auth.user,
-      changedFields: changedOpportunityFields(previous, opportunity, ["title", "status", "fitScore", "urgencyScore", "distanceScore", "tradeMatchScore", "bidDueAt", "jobWalkAt", "assignedEstimatorId", "reasonToBid", "reasonToSkip", "riskFlags", "missingInfoItems", "convertedLeadId"]),
+      changedFields: changedOpportunityFields(previous, opportunity, ["title", "status", "fitScore", "fitLabel", "fitExplanation", "urgencyScore", "distanceScore", "tradeMatchScore", "bidDueAt", "jobWalkAt", "assignedEstimatorId", "reasonToBid", "reasonToSkip", "riskFlags", "missingInfoItems", "duplicateHints", "humanReviewStatus", "humanReviewNote", "convertedLeadId"]),
     });
     return draft;
   });
@@ -9233,6 +9251,9 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
     const opportunity = findCompanyScopedRecord(draft.foundOpportunities, req.params.id, req.auth.user, draft, "Opportunity");
     if (opportunity.convertedLeadId) {
       throw new ApiError(409, "This found opportunity has already been converted to a lead.");
+    }
+    if (!canConvertFoundOpportunityToLead(opportunity)) {
+      throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
     }
 
     const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);

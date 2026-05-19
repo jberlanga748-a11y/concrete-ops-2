@@ -87,6 +87,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
     ],
     foundOpportunities: [
       { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, sourceUrl: "https://example.test/bid", scopeSummary: "Sidewalk replacement with ADA ramp repair.", riskFlags: ["prevailing wage"], missingInfoItems: ["addenda"] },
+      { id: "FO-5", companyId: "COMPANY-A", title: "Approved ramp repair", status: "reviewing", humanReviewStatus: "approved_for_lead", duplicateHints: [{ opportunityId: "FO-1", confidence: "medium", reasons: ["same agency"] }], fileMetadata: [{ name: "ramp-screenshot.png" }], fitLabel: "strong fit", fitExplanation: "strong fit: source proof saved" },
       { id: "FO-2", companyId: "COMPANY-A", title: "Skipped job", status: "skipped", fitScore: 95 },
       { id: "FO-3", companyId: "COMPANY-B", title: "Other company work", status: "new" },
       { id: "FO-4", companyId: "COMPANY-A", title: "No bid date job", status: "new", fitScore: 70 },
@@ -97,14 +98,14 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.activeProfiles, 1);
   assert.equal(state.stats.totalProfiles, 2);
   assert.equal(state.stats.profilesDue, 1);
-  assert.equal(state.stats.openFoundOpportunities, 2);
+  assert.equal(state.stats.openFoundOpportunities, 3);
   assert.equal(state.stats.dueBidOpportunities, 1);
   assert.equal(state.dailyJobFinder.headline, "Review Found Work");
-  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").value, 2);
+  assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").value, 3);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").tone, "red");
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "review-found-work").tone, "red");
-  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4"]);
+  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4", "FO-5"]);
   assert.equal(state.foundOpportunityQueue[0].sourceUrl, "https://example.test/bid");
   assert.equal(state.foundOpportunityQueue[0].scopeSummary, "Sidewalk replacement with ADA ramp repair.");
   assert.deepEqual(state.foundOpportunityQueue[0].riskFlags, ["prevailing wage"]);
@@ -114,7 +115,13 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.foundOpportunityQueue[0].leadPreview.city, "Location pending");
   assert.equal(state.foundOpportunityQueue[0].leadPreview.priority, "High");
   assert.deepEqual(state.foundOpportunityQueue[0].leadPreview.notesIncluded, ["source link", "scope", "risks", "missing info"]);
-  assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 3);
+  const approvedOpportunity = state.foundOpportunityQueue.find((opportunity) => opportunity.opportunityId === "FO-5");
+  assert.equal(approvedOpportunity.canConvertToLead, true);
+  assert.equal(approvedOpportunity.humanReviewStatus, "approved_for_lead");
+  assert.equal(approvedOpportunity.duplicateHints.length, 1);
+  assert.deepEqual(approvedOpportunity.fileMetadata.map((file) => file.name), ["ramp-screenshot.png"]);
+  assert.equal(approvedOpportunity.fitLabel, "strong fit");
+  assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 5);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").targetId, "scout-found-opportunities");
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);
   assert.equal(state.searchBriefs.some((brief) => brief.profileId === "OSP-1"), true);

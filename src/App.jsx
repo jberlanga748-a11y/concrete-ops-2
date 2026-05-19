@@ -171,7 +171,7 @@ import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "..
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
-import { OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
+import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
@@ -800,6 +800,9 @@ const INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM = {
 const INITIAL_FOUND_OPPORTUNITY_FORM = {
   searchProfileId: "",
   leadSourceId: "",
+  intakeSourceType: "manual",
+  intakeText: "",
+  fileMetadata: "",
   title: "",
   agency: "",
   sourceName: "",
@@ -25633,12 +25636,15 @@ function CopilotPagePolished({
 
   async function submitFoundDraft(event) {
     event.preventDefault();
-    if (!canManageOpportunityScout || !foundDraft.title.trim()) return;
+    if (!canManageOpportunityScout || (!foundDraft.title.trim() && !foundDraft.intakeText.trim())) return;
     const selectedSource = leadSourceOptions.find((source) => source.id === foundDraft.leadSourceId);
     const ok = await onCreateFoundOpportunity?.({
       ...foundDraft,
       sourceName: foundDraft.sourceName || selectedSource?.name || "",
       bidDueAt: foundDraft.bidDueAt ? `${foundDraft.bidDueAt}T17:00:00` : "",
+      fileMetadata: foundDraft.fileMetadata
+        ? foundDraft.fileMetadata.split("\n").map((name) => ({ name: name.trim() })).filter((entry) => entry.name)
+        : [],
     });
     if (ok) setFoundDraft(INITIAL_FOUND_OPPORTUNITY_FORM);
   }
@@ -25697,8 +25703,16 @@ function CopilotPagePolished({
   }
 
   function convertOpportunityToLead(opportunity) {
-    if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId || !opportunity.canConvertToLead) return;
     onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
+  }
+
+  function approveOpportunityForLead(opportunity) {
+    if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
+    onUpdateFoundOpportunity?.(opportunity.opportunityId, {
+      humanReviewStatus: "approved_for_lead",
+      humanReviewNote: "Approved by the office for lead draft conversion.",
+    });
   }
 
   async function reviewOpportunityWithAi(opportunity) {
@@ -26233,13 +26247,29 @@ function CopilotPagePolished({
                 </div>
                 <form className="co-ai-scout-form" onSubmit={submitFoundDraft}>
                   <div className="co-ai-scout-form-grid">
+                    <label>
+                      <span>Intake Type</span>
+                      <select value={foundDraft.intakeSourceType} onChange={(event) => updateFoundDraft("intakeSourceType", event.target.value)}>
+                        {OPPORTUNITY_INTAKE_SOURCE_TYPES.map((sourceType) => (
+                          <option key={sourceType} value={sourceType}>{sourceType.replace(/_/g, " ")}</option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="md:col-span-2">
                       <span>Opportunity</span>
-                      <input value={foundDraft.title} onChange={(event) => updateFoundDraft("title", event.target.value)} placeholder="School sidewalk repair" required />
+                      <input value={foundDraft.title} onChange={(event) => updateFoundDraft("title", event.target.value)} placeholder="School sidewalk repair" />
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Pasted Intake Text</span>
+                      <textarea value={foundDraft.intakeText} onChange={(event) => updateFoundDraft("intakeText", event.target.value)} placeholder="Paste a public notice, GC invite summary, email excerpt, or screenshot/PDF notes. Apex HQ redacts tokens and keeps this review-only." rows={3} />
                     </label>
                     <label className="md:col-span-2">
                       <span>Source Link</span>
                       <input value={foundDraft.sourceUrl} onChange={(event) => updateFoundDraft("sourceUrl", event.target.value)} placeholder="https://city.example/bids/sidewalk-repair" />
+                    </label>
+                    <label>
+                      <span>File Metadata</span>
+                      <textarea value={foundDraft.fileMetadata} onChange={(event) => updateFoundDraft("fileMetadata", event.target.value)} placeholder="plan-set.pdf&#10;screenshot-bid-page.png" rows={2} />
                     </label>
                     <label>
                       <span>Agency / Source</span>
@@ -26321,7 +26351,7 @@ function CopilotPagePolished({
                   </div>
                   <div className="co-ai-scout-form-footer">
                     <span>Manual review only. Save found work, run AI Review, then create a lead only after office approval.</span>
-                    <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || !foundDraft.title.trim()}>Save Opportunity</Button>
+                    <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || (!foundDraft.title.trim() && !foundDraft.intakeText.trim())}>Save Opportunity</Button>
                   </div>
                 </form>
                 <div className="co-ai-scout-record-list">
@@ -26336,8 +26366,14 @@ function CopilotPagePolished({
                           <Badge tone={opportunity.tone}>{opportunity.statusLabel}</Badge>
                         </div>
                         <p>{[opportunity.agency, opportunity.trade, opportunity.location, opportunity.bidDueAt ? `Bid due ${formatDateTime(opportunity.bidDueAt)}` : ""].filter(Boolean).join(" / ")}</p>
+                        <div className="co-ai-found-review-strip">
+                          <span>Review: {opportunity.humanReviewStatus.replace(/_/g, " ")}</span>
+                          {opportunity.fitLabel ? <span>Fit: {opportunity.fitLabel} ({opportunity.fitScore})</span> : <span>Fit: {opportunity.fitScore}</span>}
+                          {opportunity.duplicateHints.length ? <span>{opportunity.duplicateHints.length} possible duplicate</span> : <span>No duplicate match</span>}
+                        </div>
+                        {opportunity.fitExplanation ? <em>{opportunity.fitExplanation}</em> : null}
                         {opportunity.reasonToBid ? <em>{opportunity.reasonToBid}</em> : null}
-                        {opportunity.sourceUrl || opportunity.scopeSummary || opportunity.riskFlags.length || opportunity.missingInfoItems.length ? (
+                        {opportunity.sourceUrl || opportunity.scopeSummary || opportunity.riskFlags.length || opportunity.missingInfoItems.length || opportunity.fileMetadata.length ? (
                           <div className="co-ai-found-evidence-grid">
                             {opportunity.sourceUrl ? (
                               <div className="co-ai-found-evidence-cell">
@@ -26361,6 +26397,12 @@ function CopilotPagePolished({
                               <div className="co-ai-found-evidence-cell">
                                 <span>Missing Info</span>
                                 <p>{opportunity.missingInfoItems.slice(0, 3).join(", ")}</p>
+                              </div>
+                            ) : null}
+                            {opportunity.fileMetadata.length ? (
+                              <div className="co-ai-found-evidence-cell">
+                                <span>Files Noted</span>
+                                <p>{opportunity.fileMetadata.slice(0, 3).map((file) => file.name || file.type).filter(Boolean).join(", ")}</p>
                               </div>
                             ) : null}
                           </div>
@@ -26391,7 +26433,10 @@ function CopilotPagePolished({
                         <Button type="button" size="sm" variant="secondary" onClick={() => reviewOpportunityWithAi(opportunity)} disabled={!canManageOpportunityScout || busy || aiReview?.status === "loading"}>
                           {aiReview?.status === "loading" ? "Reviewing..." : "AI Review"}
                         </Button>
-                        <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId)}>
+                        <Button type="button" size="sm" variant={opportunity.canConvertToLead ? "secondary" : "ghost"} onClick={() => approveOpportunityForLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || opportunity.canConvertToLead}>
+                          {opportunity.canConvertToLead ? "Approved" : "Approve For Lead"}
+                        </Button>
+                        <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || !opportunity.canConvertToLead}>
                           {opportunity.convertedLeadId ? "Lead Created" : "Create Lead"}
                         </Button>
                         {["reviewing", "watching", "bidding", "skipped"].map((status) => (

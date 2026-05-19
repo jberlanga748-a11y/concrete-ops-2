@@ -2,9 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canConvertFoundOpportunityToLead,
   changedOpportunityFields,
+  deriveFoundOpportunityMissingInfoItems,
+  extractOpportunityFieldsFromIntake,
+  findDuplicateFoundOpportunities,
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
+  OPPORTUNITY_SCOUT_GUARDRAILS,
+  redactOpportunityScoutText,
+  sanitizeOpportunityScoutUrl,
   OPPORTUNITY_SEARCH_PROFILE_STARTERS,
   validateFoundOpportunityPayload,
   validateOpportunitySearchProfilePayload,
@@ -65,6 +72,8 @@ test("found opportunities normalize scores, dates, risks, and contact fields", (
     contactEmail: "BIDS@EXAMPLE.COM ",
     riskFlags: "prevailing wage, bond",
     missingInfoItems: ["plan link", " addenda "],
+    sourceUrl: "https://example.com/bids?token=secret&project=1",
+    humanReviewStatus: "approved_for_lead",
   }, {
     id: "FO-1",
     changedAt: "2026-05-13T12:00:00.000Z",
@@ -77,13 +86,95 @@ test("found opportunities normalize scores, dates, risks, and contact fields", (
   assert.equal(opportunity.urgencyScore, 100);
   assert.equal(opportunity.distanceScore, 0);
   assert.equal(opportunity.contactEmail, "bids@example.com");
+  assert.equal(opportunity.sourceUrl, "https://example.com/bids?token=%5Bredacted%5D&project=1");
+  assert.equal(opportunity.humanReviewStatus, "approved_for_lead");
   assert.deepEqual(opportunity.riskFlags, ["prevailing wage", "bond"]);
-  assert.deepEqual(opportunity.missingInfoItems, ["plan link", "addenda"]);
+  assert.equal(opportunity.missingInfoItems.includes("plan link"), true);
+  assert.equal(opportunity.missingInfoItems.includes("addenda"), true);
   assert.match(opportunity.bidDueAt, /^2026-06-01T/);
 });
 
 test("found opportunity validation requires a title", () => {
   assert.deepEqual(validateFoundOpportunityPayload({}), ["Opportunity title is required."]);
+});
+
+test("pasted intake text extracts fields while redacting secrets", () => {
+  const extracted = extractOpportunityFieldsFromIntake(`
+    Project: Library ADA concrete ramp
+    Agency: City of Salem
+    Location: Salem, OR
+    Bid due: June 10 2026
+    Contact: bids@example.com
+    Scope: Concrete demolition, ramp forming, and sidewalk replacement.
+    https://example.com/rfp?access_token=super-secret
+    password: portal-secret
+  `);
+
+  assert.equal(extracted.title, "Library ADA concrete ramp");
+  assert.equal(extracted.agency, "City of Salem");
+  assert.equal(extracted.city, "Salem");
+  assert.equal(extracted.state, "OR");
+  assert.equal(extracted.trade, "concrete");
+  assert.equal(extracted.contactEmail, "bids@example.com");
+  assert.match(extracted.bidDueAt, /^2026-06-10T/);
+  assert.equal(extracted.sourceUrl.includes("super-secret"), false);
+  assert.equal(redactOpportunityScoutText("token=abc password: secret").includes("secret"), false);
+  assert.equal(sanitizeOpportunityScoutUrl("ftp://private.example.com/file"), "");
+});
+
+test("found opportunity intake derives missing info and fit explanation", () => {
+  const opportunity = normalizeFoundOpportunityPayload({
+    intakeSourceType: "pasted_text",
+    intakeText: "Project: Sidewalk patch\nLocation: Albany, OR\nScope: concrete repair",
+    fileMetadata: [{ name: "bid-screenshot.png", notes: "authorization=secret" }],
+  }, {
+    id: "FO-2",
+    changedAt: "2026-05-13T12:00:00.000Z",
+    createdBy: "U-1",
+  });
+
+  assert.equal(opportunity.title, "Sidewalk patch");
+  assert.equal(opportunity.intakeSourceType, "pasted_text");
+  assert.equal(opportunity.fileMetadata[0].notes.includes("secret"), false);
+  assert.equal(opportunity.missingInfoItems.includes("bid due date"), true);
+  assert.equal(opportunity.missingInfoItems.includes("review owner"), true);
+  assert.match(opportunity.fitExplanation, /fit/i);
+  assert.equal(deriveFoundOpportunityMissingInfoItems(opportunity).includes("bid due date"), true);
+});
+
+test("found opportunity validation blocks automation and credential storage", () => {
+  assert.deepEqual(validateFoundOpportunityPayload({
+    title: "Unsafe portal bid",
+    autoContact: true,
+    password: "portal-secret",
+  }), [
+    "Opportunity Scout cannot contact customers, submit bids, or automate external actions.",
+    "Opportunity Scout cannot store credentials, tokens, cookies, or private portal secrets.",
+  ]);
+  assert.equal(OPPORTUNITY_SCOUT_GUARDRAILS.some((item) => /No automatic customer/i.test(item)), true);
+  assert.equal(OPPORTUNITY_SCOUT_GUARDRAILS.some((item) => /No bid submission/i.test(item)), true);
+});
+
+test("dedupe helper flags likely found opportunity matches", () => {
+  const duplicates = findDuplicateFoundOpportunities({
+    id: "FO-NEW",
+    title: "School sidewalk repair",
+    agency: "Albany School District",
+    sourceUrl: "https://example.com/bids/123?token=redacted",
+  }, [
+    { id: "FO-OLD", title: "School sidewalk repair", agency: "Albany School District", sourceUrl: "https://example.com/bids/123" },
+    { id: "FO-OTHER", title: "Roofing", agency: "Other" },
+  ]);
+
+  assert.equal(duplicates.length, 1);
+  assert.equal(duplicates[0].opportunityId, "FO-OLD");
+  assert.equal(duplicates[0].confidence, "high");
+});
+
+test("lead conversion helper requires human approval first", () => {
+  assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "needs_review" }), false);
+  assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "approved_for_lead" }), true);
+  assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "approved_for_lead", convertedLeadId: "L-1" }), false);
 });
 
 test("changed fields compare array values safely", () => {

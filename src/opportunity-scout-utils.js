@@ -1,4 +1,5 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
+import { canConvertFoundOpportunityToLead } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -275,8 +276,18 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
     reasonToBid: opportunity.reasonToBid || opportunity.scopeSummary || opportunity.notes || "",
     riskFlags: Array.isArray(opportunity.riskFlags) ? opportunity.riskFlags : [],
     missingInfoItems: Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems : [],
+    duplicateHints: Array.isArray(opportunity.duplicateHints) ? opportunity.duplicateHints : [],
+    intakeSourceType: opportunity.intakeSourceType || "manual",
+    extractionSummary: opportunity.extractionSummary || "",
+    fileMetadata: Array.isArray(opportunity.fileMetadata) ? opportunity.fileMetadata : [],
+    fitLabel: opportunity.fitLabel || "",
+    fitExplanation: opportunity.fitExplanation || "",
+    humanReviewStatus: opportunity.humanReviewStatus || "needs_review",
+    humanReviewNote: opportunity.humanReviewNote || "",
+    humanReviewedAt: opportunity.humanReviewedAt || "",
     assignedEstimatorId: opportunity.assignedEstimatorId || "",
     convertedLeadId: opportunity.convertedLeadId || "",
+    canConvertToLead: canConvertFoundOpportunityToLead(opportunity),
     leadPreview: buildFoundOpportunityLeadPreview(opportunity, today),
     tone,
     priority,

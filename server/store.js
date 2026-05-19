@@ -5333,6 +5333,11 @@ const MIGRATIONS = [
             company_id TEXT NOT NULL,
             search_profile_id TEXT NOT NULL,
             lead_source_id TEXT NOT NULL,
+            intake_source_type TEXT NOT NULL DEFAULT 'manual',
+            intake_text TEXT NOT NULL DEFAULT '',
+            file_metadata TEXT NOT NULL DEFAULT '[]',
+            extraction_summary TEXT NOT NULL DEFAULT '',
+            extraction_confidence INTEGER NOT NULL DEFAULT 0,
             title TEXT NOT NULL,
             agency TEXT NOT NULL,
             source_name TEXT NOT NULL,
@@ -5343,6 +5348,8 @@ const MIGRATIONS = [
             project_type TEXT NOT NULL,
             status TEXT NOT NULL,
             fit_score INTEGER NOT NULL,
+            fit_label TEXT NOT NULL DEFAULT '',
+            fit_explanation TEXT NOT NULL DEFAULT '',
             urgency_score INTEGER NOT NULL,
             distance_score INTEGER NOT NULL,
             trade_match_score INTEGER NOT NULL,
@@ -5358,6 +5365,11 @@ const MIGRATIONS = [
             reason_to_skip TEXT NOT NULL,
             risk_flags TEXT NOT NULL,
             missing_info_items TEXT NOT NULL,
+            duplicate_hints TEXT NOT NULL DEFAULT '[]',
+            human_review_status TEXT NOT NULL DEFAULT 'needs_review',
+            human_review_note TEXT NOT NULL DEFAULT '',
+            human_reviewed_by TEXT NOT NULL DEFAULT '',
+            human_reviewed_at TEXT NOT NULL DEFAULT '',
             assigned_estimator_id TEXT NOT NULL,
             notes TEXT NOT NULL,
             converted_lead_id TEXT NOT NULL,
@@ -5475,6 +5487,35 @@ const MIGRATIONS = [
         `);
       },
     },
+    {
+      version: 48,
+      description: "Persist Opportunity Scout review-first intake metadata.",
+      up(database) {
+        const columns = [
+          ["intake_source_type", "TEXT NOT NULL DEFAULT 'manual'"],
+          ["intake_text", "TEXT NOT NULL DEFAULT ''"],
+          ["file_metadata", "TEXT NOT NULL DEFAULT '[]'"],
+          ["extraction_summary", "TEXT NOT NULL DEFAULT ''"],
+          ["extraction_confidence", "INTEGER NOT NULL DEFAULT 0"],
+          ["fit_label", "TEXT NOT NULL DEFAULT ''"],
+          ["fit_explanation", "TEXT NOT NULL DEFAULT ''"],
+          ["duplicate_hints", "TEXT NOT NULL DEFAULT '[]'"],
+          ["human_review_status", "TEXT NOT NULL DEFAULT 'needs_review'"],
+          ["human_review_note", "TEXT NOT NULL DEFAULT ''"],
+          ["human_reviewed_by", "TEXT NOT NULL DEFAULT ''"],
+          ["human_reviewed_at", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "found_opportunities", column)) {
+            database.exec(`
+              ALTER TABLE found_opportunities
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5549,8 +5590,8 @@ function writeStateToDb(state) {
   `);
 
   const insertFoundOpportunity = database.prepare(`
-    INSERT INTO found_opportunities (id, sort_index, company_id, search_profile_id, lead_source_id, title, agency, source_name, source_url, city, state, trade, project_type, status, fit_score, urgency_score, distance_score, trade_match_score, bid_due_at, job_walk_at, estimated_value, contact_name, contact_email, contact_phone, scope_summary, plan_url, reason_to_bid, reason_to_skip, risk_flags, missing_info_items, assigned_estimator_id, notes, converted_lead_id, created_by, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO found_opportunities (id, sort_index, company_id, search_profile_id, lead_source_id, intake_source_type, intake_text, file_metadata, extraction_summary, extraction_confidence, title, agency, source_name, source_url, city, state, trade, project_type, status, fit_score, fit_label, fit_explanation, urgency_score, distance_score, trade_match_score, bid_due_at, job_walk_at, estimated_value, contact_name, contact_email, contact_phone, scope_summary, plan_url, reason_to_bid, reason_to_skip, risk_flags, missing_info_items, duplicate_hints, human_review_status, human_review_note, human_reviewed_by, human_reviewed_at, assigned_estimator_id, notes, converted_lead_id, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertLeadStatusHistory = database.prepare(`
@@ -5902,6 +5943,11 @@ function writeStateToDb(state) {
         normalizeCompanyId(opportunity.companyId),
         opportunity.searchProfileId || "",
         opportunity.leadSourceId || "",
+        opportunity.intakeSourceType || "manual",
+        opportunity.intakeText || "",
+        JSON.stringify(Array.isArray(opportunity.fileMetadata) ? opportunity.fileMetadata : []),
+        opportunity.extractionSummary || "",
+        Number(opportunity.extractionConfidence || 0),
         opportunity.title || "",
         opportunity.agency || "",
         opportunity.sourceName || "",
@@ -5912,6 +5958,8 @@ function writeStateToDb(state) {
         opportunity.projectType || "",
         opportunity.status || "new",
         Number(opportunity.fitScore || 0),
+        opportunity.fitLabel || "",
+        opportunity.fitExplanation || "",
         Number(opportunity.urgencyScore || 0),
         Number(opportunity.distanceScore || 0),
         Number(opportunity.tradeMatchScore || 0),
@@ -5927,6 +5975,11 @@ function writeStateToDb(state) {
         opportunity.reasonToSkip || "",
         JSON.stringify(Array.isArray(opportunity.riskFlags) ? opportunity.riskFlags : []),
         JSON.stringify(Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems : []),
+        JSON.stringify(Array.isArray(opportunity.duplicateHints) ? opportunity.duplicateHints : []),
+        opportunity.humanReviewStatus || "needs_review",
+        opportunity.humanReviewNote || "",
+        opportunity.humanReviewedBy || "",
+        opportunity.humanReviewedAt || "",
         opportunity.assignedEstimatorId || "",
         opportunity.notes || "",
         opportunity.convertedLeadId || "",
@@ -6631,11 +6684,16 @@ function readTableState() {
 
   const foundOpportunities = database.prepare(`
     SELECT id, company_id AS companyId, search_profile_id AS searchProfileId, lead_source_id AS leadSourceId, title, agency, source_name AS sourceName,
+           intake_source_type AS intakeSourceType, intake_text AS intakeText, file_metadata AS fileMetadata,
+           extraction_summary AS extractionSummary, extraction_confidence AS extractionConfidence,
            source_url AS sourceUrl, city, state, trade, project_type AS projectType, status, fit_score AS fitScore, urgency_score AS urgencyScore,
+           fit_label AS fitLabel, fit_explanation AS fitExplanation,
            distance_score AS distanceScore, trade_match_score AS tradeMatchScore, bid_due_at AS bidDueAt, job_walk_at AS jobWalkAt,
            estimated_value AS estimatedValue, contact_name AS contactName, contact_email AS contactEmail, contact_phone AS contactPhone,
            scope_summary AS scopeSummary, plan_url AS planUrl, reason_to_bid AS reasonToBid, reason_to_skip AS reasonToSkip,
-           risk_flags AS riskFlags, missing_info_items AS missingInfoItems, assigned_estimator_id AS assignedEstimatorId, notes,
+           risk_flags AS riskFlags, missing_info_items AS missingInfoItems, duplicate_hints AS duplicateHints,
+           human_review_status AS humanReviewStatus, human_review_note AS humanReviewNote, human_reviewed_by AS humanReviewedBy,
+           human_reviewed_at AS humanReviewedAt, assigned_estimator_id AS assignedEstimatorId, notes,
            converted_lead_id AS convertedLeadId, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM found_opportunities
     ORDER BY sort_index ASC
@@ -6645,9 +6703,12 @@ function readTableState() {
     urgencyScore: Number(opportunity.urgencyScore || 0),
     distanceScore: Number(opportunity.distanceScore || 0),
     tradeMatchScore: Number(opportunity.tradeMatchScore || 0),
+    extractionConfidence: Number(opportunity.extractionConfidence || 0),
     estimatedValue: Number(opportunity.estimatedValue || 0),
+    fileMetadata: parseJsonValue(opportunity.fileMetadata, []),
     riskFlags: parseJsonValue(opportunity.riskFlags, []),
     missingInfoItems: parseJsonValue(opportunity.missingInfoItems, []),
+    duplicateHints: parseJsonValue(opportunity.duplicateHints, []),
   }));
 
   const leadStatusHistory = database.prepare(`

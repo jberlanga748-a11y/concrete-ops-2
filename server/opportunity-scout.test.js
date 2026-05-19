@@ -270,6 +270,21 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.equal(updated.foundOpportunities[0].status, "watching");
     assert.equal(updated.foundOpportunities[0].urgencyScore, 70);
 
+    const blockedConversion = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+    });
+    assert.equal(blockedConversion.response.status, 409);
+    assert.match(blockedConversion.payload.error, /approve/i);
+
+    const approved = await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}`, {
+      method: "PATCH",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({ humanReviewStatus: "approved_for_lead", humanReviewNote: "Office approved for lead draft." }),
+    });
+    assert.equal(approved.foundOpportunities[0].humanReviewStatus, "approved_for_lead");
+    assert.equal(approved.foundOpportunities[0].humanReviewedBy, adminLogin.user.id);
+
     const converted = await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
       method: "POST",
       headers: authHeaders(adminLogin.token),
@@ -295,6 +310,84 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     });
     assert.equal(scoutPayload.searchProfiles.length, 1);
     assert.equal(scoutPayload.foundOpportunities.length, 1);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Opportunity Scout manual intake redacts secrets, derives missing info, and flags duplicates", async () => {
+  const fixture = await startServer();
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+
+    const first = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        intakeSourceType: "pasted_text",
+        intakeText: `
+          Project: Library ADA concrete ramp
+          Agency: City of Salem
+          Location: Salem, OR
+          Scope: Concrete ramp replacement and sidewalk repair
+          https://example.com/rfp/44?token=secret-token
+          password: portal-secret
+        `,
+        fileMetadata: [{ name: "library-rfp.pdf", notes: "access_token=hidden" }],
+      }),
+    });
+    const opportunity = first.foundOpportunities[0];
+    assert.equal(opportunity.title, "Library ADA concrete ramp");
+    assert.equal(opportunity.intakeSourceType, "pasted_text");
+    assert.equal(opportunity.sourceUrl.includes("secret-token"), false);
+    assert.equal(opportunity.intakeText.includes("portal-secret"), false);
+    assert.equal(opportunity.fileMetadata[0].notes.includes("hidden"), false);
+    assert.equal(opportunity.missingInfoItems.includes("bid due date"), true);
+    assert.equal(opportunity.humanReviewStatus, "needs_review");
+
+    const duplicate = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title: "Library ADA concrete ramp",
+        agency: "City of Salem",
+        sourceUrl: "https://example.com/rfp/44",
+      }),
+    });
+    assert.equal(duplicate.foundOpportunities[0].duplicateHints[0].opportunityId, opportunity.id);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Opportunity Scout rejects auto-contact, bid submission, and credential payloads", async () => {
+  const fixture = await startServer();
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    const unsafe = await requestJson(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe auto bid",
+        autoContact: true,
+        submitBid: true,
+        token: "portal-token",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+    assert.match(unsafe.payload.error, /cannot contact customers/i);
+    assert.match(unsafe.payload.error, /cannot store credentials/i);
   } finally {
     await fixture.stop();
   }
