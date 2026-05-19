@@ -48,6 +48,7 @@ jobs:
 
       - name: Verify public intake and demo safety
         run: |
+          npm run verify:docs
           npm run verify:public-request
           npm run verify:demo
 
