@@ -1,6 +1,6 @@
 # Apex HQ Command Binder
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 Purpose: this is the first file future Codex, Builder, QA, release, product, and business chats should read before making claims or changes. It keeps Apex HQ from drifting, looping, rebuilding completed systems, or overpromising before the product is ready.
 
@@ -20,10 +20,9 @@ Current launch stage:
 
 - Production app exists at `https://app.apexhq.online/`.
 - Fly production app is configured by `fly.toml` as `concrete-ops-2`.
-- Latest runtime release tracked: `d0801e3 Polish delivery assistant clearance`.
-- Fly release `v534` was deployed and health-checked; `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md` tracks this release as the current app state.
-- Latest source-control tooling commit tracked: `c071cbe Harden visual polish audit shortcuts`. This tracks visual polish audit coverage, bounded stable Chromium/tablet shortcuts, demo desktop canonical route cleanup, local demo audit shortcut, and field-role redirect-safe visual audit navigation handling. It was not deployed because it only changes local verification tooling and docs.
-- Separate demo app `https://concrete-ops-demo.fly.dev/` was refreshed to Fly release `v71` so the documented demo users authenticate against the Premium demo workspace config.
+- Latest runtime release, latest pushed commit, demo release, and verification evidence are tracked in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`.
+- Do not treat hard-coded release numbers in older docs as current. Confirm current production and demo state from the tracker, `git log`, Fly status, and the relevant smoke runbook.
+- Separate demo app: `https://concrete-ops-demo.fly.dev/`. Check `https://concrete-ops-demo.fly.dev/api/ready` and run the current hosted smoke before relying on it for a live walkthrough.
 
 Usable now:
 
@@ -509,26 +508,27 @@ Demo/customer separation:
 - `fly.demo.toml` is demo only and must never be used for real contractor data.
 - Customer pilots need separate Fly apps and separate Fly volumes per `CUSTOMER_PILOT_SETUP.md`.
 
-## 10. Next 7 Days
+## 10. Current Operating Priorities
 
 1. Keep source-of-truth docs current:
    - Before every new phase, read this binder, check `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`, confirm `git status`, and make sure the latest release/next phase state is not stale.
 
-2. Invite / Activation UX Polish:
-   - Built, verified, released, and health-checked in Fly `v496`.
-   - Keep token expiry, single-use activation, company scoping, and password rules intact.
-   - Keep automatic email/SMS sending, new roles, public signup changes, and permission broadening out of scope.
+2. Controlled demo and pilot readiness:
+   - Use `docs/MANUAL_PILOT_SMOKE_TEST.md` before relying on demo auth, route safety, or field-role checks.
+   - Use `docs/apex-hq-pilot-readiness-checklist.md` for Day 0 / Day 3 / Day 10 pilot gates.
+   - Keep token expiry, single-use activation, company scoping, password rules, package gates, and field-role restrictions intact.
+   - Keep automatic email/SMS sending, self-serve checkout, new roles, public package changes, and permission broadening out of scope unless explicitly approved.
 
-3. Guided demo rehearsal refresh:
-   - Completed after Invite / Activation UX Polish and demo app refresh.
-   - Use the live app for owner/admin and field rehearsal evidence, and use the separate demo app only after checking `https://concrete-ops-demo.fly.dev/api/ready`.
+3. Guided demo rehearsal:
+   - Use `docs/GUIDED_DEMO_LAUNCH_READINESS.md` and `docs/DEMO_LAUNCH_PACKET.md` for the talk track.
+   - Use the separate demo app only after checking readiness and smoke evidence.
 
 4. Business execution:
    - Use `docs/FIRST_10_DEMO_TARGETS.md` and `docs/OUTREACH_TRACKER.md`.
    - Use `docs/FOUNDER_LED_DEMO_EXECUTION_RUNBOOK.md` to run demos and log objections.
    - Use `docs/DEMO_RECAP_AND_PILOT_FIT_TEMPLATES.md` before sending any post-demo follow-up.
    - Use `docs/PILOT_KICKOFF_AND_CHECKIN_TEMPLATES.md` when a strong-fit demo becomes a controlled pilot.
-   - Run `npm.cmd run verify:founder-demo` before a scheduled walkthrough so docs, tracker state, manual-only boundaries, the read-only demo brief, and live production/demo readiness are checked together.
+   - Run the current demo/pilot smoke from `docs/MANUAL_PILOT_SMOKE_TEST.md` before a scheduled walkthrough.
    - Run `npm.cmd run brief:founder-demo` for a day-of manual action queue; it does not send outreach, mutate tracker rows, create accounts, or change production data.
    - Review `/founder-pilot` demo-interest as manual Leads with owner/admin office queue cues only; do not auto-send follow-up, create workspaces, create accounts, or change packages from public requests.
    - Book warm founder-led demos.
