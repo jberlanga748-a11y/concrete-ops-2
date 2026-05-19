@@ -91,8 +91,8 @@ Latest release tracked in this file:
 
 Latest source-control tooling state:
 
-- Commit: `04fda9e`
-- Message: `Run restore drill in CI verification`
+- Commit: `ce54e2a`
+- Message: `Track canonical pilot smoke runbook cleanup`
 - State: Opportunity Scout hosted demo smoke automation, demo-only package setter, smoke cleanup, Fly demo acceptance orchestrator, hosted smoke latency budgets, scheduled readiness monitoring, scheduled demo hosted smoke, Docker `/api/ready` healthcheck alignment, incident notes, monthly restore-drill cadence, local restore drill verification, latest visual route sweep evidence, demo smoke secret setup runbook, monitoring upgrade plan, launch readiness reconciliation, customer pilot setup gates, and canonical manual pilot smoke pointer are tracked in source.
 - Deployment: Docker healthcheck alignment was deployed to Fly demo only as `v85`; production was not touched. Workflow/docs-only commits were pushed without app deploy.
 - Verification: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, `npm.cmd run verify:demo`, `node --test --test-concurrency=1 scripts/fly-demo-opportunity-scout-smoke.test.mjs`, `npm.cmd run smoke:opportunity-scout:fly-demo -- --json`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`, `npm.cmd run audit:visual-polish:chromium`, `npm.cmd run audit:visual-polish:tablet`, `git diff --check`, `gh secret list --repo jberlanga748-a11y/concrete-ops-2`, manual GitHub Actions dispatch for `Apex HQ Demo Hosted Smoke`, manual GitHub Actions dispatch for `Apex HQ Readiness Monitor`, and GitHub Actions `CI` passed for the current monitoring/demo smoke lane. Fly demo reached `v85` with `/api/ready` healthy and service checks passing.
@@ -101,7 +101,7 @@ Known working tree note:
 
 - Working tree was clean after runtime release `v534` before this source-of-truth docs sync.
 - Post-release tooling commits `56a81f0`, `decdcc8`, `9e9eb92`, `ad0da7e`, `41622e2`, `2e90585`, `09f02c7`, `20e55e1`, and `c071cbe` added visual/demo/public audit coverage, canonical demo route handling, local demo audit shortcuts, and redirect-safe bounded visual audit handling; they do not change shipped app runtime behavior.
-- Current demo smoke, monitoring, restore, and pilot-doc hardening commits through `25ad6bb` added Opportunity Scout hosted smoke automation, demo package/cleanup safety scripts, Fly demo orchestration, latency budgets, pilot smoke runbooks, production readiness monitoring, scheduled demo hosted smoke, Docker readiness health checks, incident notes, restore-drill cadence, CI-covered local restore drill verification, demo smoke secret setup docs, monitoring upgrade planning, launch readiness reconciliation, customer pilot setup gates, and canonical manual smoke runbook cleanup. Production remains locked unless a separate backup-first production release is approved.
+- Current demo smoke, monitoring, restore, and pilot-doc hardening commits through `ce54e2a` added Opportunity Scout hosted smoke automation, demo package/cleanup safety scripts, Fly demo orchestration, latency budgets, pilot smoke runbooks, production readiness monitoring, scheduled demo hosted smoke, Docker readiness health checks, incident notes, restore-drill cadence, CI-covered local restore drill verification, demo smoke secret setup docs, monitoring upgrade planning, launch readiness reconciliation, customer pilot setup gates, and canonical manual smoke runbook cleanup. Production remains locked unless a separate backup-first production release is approved.
 - Do not stage unrelated docs/skills during app releases unless the user explicitly asks.
 - Use explicit file paths for staging.
 
