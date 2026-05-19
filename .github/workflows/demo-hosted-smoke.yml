@@ -54,9 +54,6 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json
-          {
-            echo "### Demo auth hosted smoke"
-            echo ""
-            echo ":white_check_mark: Auth/bootstrap hosted smoke ran successfully."
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -o pipefail
+          npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --allow-auth --json | tee auth-demo-smoke-output.txt
+          node scripts/hosted-smoke-summary.mjs auth-demo-smoke-output.txt "Demo auth hosted smoke"
