@@ -263,7 +263,7 @@ const INITIAL_PRE_POUR_CHECKLIST_ITEMS = [
 
 export function createDefaultPrePourChecklistItems(checklistId, addedBy, createdAt = isoNow()) {
   return INITIAL_PRE_POUR_CHECKLIST_ITEMS.map((item, index) => ({
-    id: makeId("PPI"),
+    id: createStableChecklistItemId("PPI", checklistId, item.key),
     checklistId,
     key: item.key,
     label: item.label,
@@ -300,7 +300,7 @@ const INITIAL_POST_POUR_CHECKLIST_ITEMS = [
 
 export function createDefaultPostPourChecklistItems(checklistId, addedBy, createdAt = isoNow()) {
   return INITIAL_POST_POUR_CHECKLIST_ITEMS.map((item, index) => ({
-    id: makeId("POI"),
+    id: createStableChecklistItemId("POI", checklistId, item.key),
     checklistId,
     key: item.key,
     label: item.label,
@@ -1961,6 +1961,45 @@ function insertRecordsIfMissing(database, tableName, columns, rows, toValues) {
   return inserted;
 }
 
+function cleanupDuplicateDemoChecklistItemsInDatabase(database, tableName, seededItems = []) {
+  const seededItemKeys = new Map();
+  for (const item of Array.isArray(seededItems) ? seededItems : []) {
+    if (!item?.id || !item?.checklistId || !item?.key) continue;
+    seededItemKeys.set(`${item.checklistId}\u0000${item.key}`, item.id);
+  }
+
+  if (!seededItemKeys.size) {
+    return 0;
+  }
+
+  const selectDuplicates = database.prepare(`
+    SELECT id
+    FROM ${tableName}
+    WHERE checklist_id = ? AND key = ?
+    ORDER BY
+      CASE WHEN id = ? THEN 0 ELSE 1 END ASC,
+      COALESCE(updated_at, created_at, '') DESC,
+      id ASC
+  `);
+  const deleteById = database.prepare(`DELETE FROM ${tableName} WHERE id = ?`);
+  let deleted = 0;
+
+  for (const [compoundKey, preferredId] of seededItemKeys.entries()) {
+    const [checklistId, itemKey] = compoundKey.split("\u0000");
+    const rows = selectDuplicates.all(checklistId, itemKey, preferredId);
+    if (rows.length <= 1) continue;
+
+    const keepId = rows.some((row) => row.id === preferredId) ? preferredId : rows[0].id;
+    for (const row of rows) {
+      if (row.id === keepId) continue;
+      const result = deleteById.run(row.id);
+      deleted += Number(result.changes || 0);
+    }
+  }
+
+  return deleted;
+}
+
 function ensureDemoUsersInDatabase(database, users = [], changedAt = isoNow()) {
   const existingUsers = Array.isArray(users) ? users : [];
   const insertUser = database.prepare(`
@@ -3357,6 +3396,15 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
       event.createdAt || isoNow(),
     ],
   );
+  const deleted = cleanupDuplicateDemoChecklistItemsInDatabase(
+    database,
+    "pre_pour_checklist_items",
+    demoSeed.prePourChecklistItems,
+  ) + cleanupDuplicateDemoChecklistItemsInDatabase(
+    database,
+    "post_pour_checklist_items",
+    demoSeed.postPourChecklistItems,
+  );
   const updated = refreshDemoWalkthroughDatesInDatabase(database, demoSeed);
 
   return {
@@ -3364,6 +3412,7 @@ function ensureDemoSeedDataInDatabase(database, actualUserIdsByEmail) {
     skipped: Math.max(0, attempted - inserted),
     attempted,
     updated,
+    deleted,
   };
 }
 
@@ -7196,7 +7245,7 @@ async function ensureDbInternal() {
 
       if (serverConfig.seedDemoData) {
         const demoDataResult = ensureDemoSeedDataInDatabase(db, demoUsers.actualUserIdsByEmail);
-        const demoRecordsDeleted = cleanupLegacyDemoSeedDataInDatabase(db);
+        const demoRecordsDeleted = cleanupLegacyDemoSeedDataInDatabase(db) + (demoDataResult.deleted || 0);
         demoData = demoDataResult.inserted > 0 || demoDataResult.updated > 0 ? "complete" : "skipped";
         demoSummary = {
           usersEnsured: demoUsers.usersEnsured,
@@ -7357,6 +7406,47 @@ export function updateDb(mutator) {
       writeStateToDb(next);
       return readTableState();
     });
+  });
+}
+
+export async function insertAuditEventRecord(event = {}) {
+  await ensureDb();
+  return queueWrite(async () => {
+    const database = createDatabaseConnection();
+    const companyId = normalizeCompanyId(event.companyId);
+    const createdAt = event.createdAt || isoNow();
+    const sortIndex = Number(database.prepare(`
+      SELECT COALESCE(MAX(sort_index), -1) + 1 AS nextSortIndex
+      FROM audit_events
+    `).get()?.nextSortIndex ?? 0);
+
+    database.prepare(`
+      INSERT INTO audit_events (
+        id, sort_index, company_id, entity_type, entity_id, action, summary, detail,
+        actor_user_id, actor_name, changed_fields, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      event.id || makeAuditId(),
+      sortIndex,
+      companyId,
+      event.entityType || "",
+      event.entityId || null,
+      event.action || "",
+      event.summary || "",
+      event.detail || "",
+      event.actorUserId || null,
+      event.actorName || "Unknown user",
+      JSON.stringify(Array.isArray(event.changedFields) ? event.changedFields : []),
+      createdAt,
+    );
+
+    return {
+      ...event,
+      companyId,
+      sortIndex,
+      createdAt,
+    };
   });
 }
 

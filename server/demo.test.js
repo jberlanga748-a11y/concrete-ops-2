@@ -925,10 +925,22 @@ test("demo bootstrap deduplicates duplicate pre-pour and post-pour checklist ite
     await firstServer.stop();
   }
 
+  const baselineChecklistCounts = readTableCounts(sqliteFile, [
+    "pre_pour_checklist_items",
+    "post_pour_checklist_items",
+  ]);
+
   duplicateChecklistItems(sqliteFile, "pre_pour_checklist_items", "DEMO-PP-DEMO-001", "dupe");
   duplicateChecklistItems(sqliteFile, "pre_pour_checklist_items", "DEMO-PP-DEMO-002", "dupe");
   duplicateChecklistItems(sqliteFile, "post_pour_checklist_items", "DEMO-PO-DEMO-001", "dupe");
   duplicateChecklistItems(sqliteFile, "post_pour_checklist_items", "DEMO-PO-DEMO-002", "dupe");
+
+  const duplicatedChecklistCounts = readTableCounts(sqliteFile, [
+    "pre_pour_checklist_items",
+    "post_pour_checklist_items",
+  ]);
+  assert.ok(duplicatedChecklistCounts.pre_pour_checklist_items > baselineChecklistCounts.pre_pour_checklist_items);
+  assert.ok(duplicatedChecklistCounts.post_pour_checklist_items > baselineChecklistCounts.post_pour_checklist_items);
 
   const secondServer = await startServer({
     DEMO_MODE: "true",
@@ -948,6 +960,12 @@ test("demo bootstrap deduplicates duplicate pre-pour and post-pour checklist ite
   } finally {
     await secondServer.stop();
   }
+
+  const prunedChecklistCounts = readTableCounts(sqliteFile, [
+    "pre_pour_checklist_items",
+    "post_pour_checklist_items",
+  ]);
+  assert.deepEqual(prunedChecklistCounts, baselineChecklistCounts);
 
   await fs.rm(tempDataDir, { recursive: true, force: true });
 });
