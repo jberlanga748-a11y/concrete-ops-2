@@ -92,6 +92,7 @@ Current state:
 - Full visual route sweep wrapper regression coverage: `scripts/visual-polish-full-audit.test.mjs` now verifies the sequential audit order and Windows `cmd.exe` / non-Windows `npm` invocation behavior, and it runs through `npm run verify:demo`.
 - Demo hosted smoke reporting: `.github/workflows/demo-hosted-smoke.yml` now writes a GitHub Actions step summary when auth smoke is skipped because `APEX_SMOKE_PASSWORD` is missing, and writes a success summary when auth/bootstrap smoke runs.
 - Demo hosted smoke reporting verification: manual GitHub Actions dispatch `26127793170` passed on `main`; logs confirmed the non-auth hosted smoke ran and the auth smoke path reported `APEX_SMOKE_PASSWORD is not configured; skipping auth hosted smoke.`
+- Readiness monitor reporting: `.github/workflows/readiness-monitor.yml` now writes a GitHub Actions step summary table with endpoint, attempt, HTTP status, duration, and ready/error state for each production readiness check without changing endpoint targets, issue behavior, production config, or secrets.
 
 ## Latest Released App State
 

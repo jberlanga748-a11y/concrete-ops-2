@@ -93,6 +93,29 @@ jobs:
             const existing = existingIssues.data.find((issue) => issue.title === issueTitle);
 
             const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const summaryRows = attempts.map((attempt) => [
+              attempt.ok ? ":white_check_mark:" : ":x:",
+              attempt.url,
+              String(attempt.attempt),
+              String(attempt.status),
+              `${attempt.durationMs}ms`,
+              attempt.body?.status || attempt.error || "unknown",
+            ]);
+            await core.summary
+              .addHeading("Apex HQ production readiness monitor", 3)
+              .addTable([
+                [
+                  { data: "Result", header: true },
+                  { data: "Endpoint", header: true },
+                  { data: "Attempt", header: true },
+                  { data: "HTTP", header: true },
+                  { data: "Duration", header: true },
+                  { data: "Status", header: true },
+                ],
+                ...summaryRows,
+              ])
+              .addLink("Workflow run", runUrl)
+              .write();
             const body = [
               `Timestamp: ${new Date().toISOString()}`,
               `Workflow run: ${runUrl}`,
