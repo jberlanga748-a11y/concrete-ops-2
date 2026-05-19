@@ -98,7 +98,7 @@ This is not pager-grade monitoring. It is enough for Phase 1 pilot-readiness unt
 
 ## Alert Thresholds
 
-Create an incident note when:
+Create an incident note in `docs/apex-hq-incident-notes-log.md` when:
 
 - `/api/ready` returns non-200 twice in a row over 2 to 5 minutes
 - `/api/health` is healthy but `/api/ready` fails
@@ -179,7 +179,7 @@ P3:
 - Watch the scheduled GitHub Actions readiness monitor for false positives during Fly cold starts.
 - Decide whether production should keep at least one Fly machine running.
 - Watch Docker `/api/ready` health checks during the next demo deploy for false positives during cold start.
-- Define where incident notes live.
+- Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Add a restore-drill date to the monthly operating cadence.
 - Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
 - Consider a scheduled non-mutating hosted smoke that records auth/bootstrap timing for demo and, after explicit approval, production.
