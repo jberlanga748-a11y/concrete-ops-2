@@ -1,18 +1,18 @@
 # Apex HQ Launch Readiness
 
-Status note, 2026-05-17:
+Status note, 2026-05-19:
 This document is launch/readiness reference material. Current completed build phases, latest release, and next build phase now live in `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`. If this file conflicts with the tracker, use the tracker.
 
 ## Current Readiness
 
-Apex HQ is close to guided-demo ready and usable for founder-led walkthroughs.
+Apex HQ is guided-demo ready and controlled-pilot ready when the pilot is founder-led, narrow, and setup-safe.
 
-Market it as a controlled contractor operations demo/pilot, not a fully public self-serve SaaS.
+Market it as a controlled contractor operations platform for guided demos and founder-led pilots, not a fully public self-serve SaaS.
 
 Current stage:
 
-- guided founder-led demos: close to ready / usable now
-- paid pilot: possible only after fit is confirmed and onboarding is guided
+- guided founder-led demos: ready with demo smoke and route QA evidence
+- paid pilot: possible only after fit is confirmed, environment is isolated, and onboarding is guided
 - public self-serve SaaS: not ready yet
 
 ## Ready To Show
@@ -32,22 +32,24 @@ Current stage:
 - tool checklist
 - employees and roles
 - AI rough notes / estimate helper foundation, with human review
+- Opportunity Scout review-first intake foundation, package-gated
 - demo and pilot setup documentation
 - health/readiness endpoints
+- backup/export and local restore drill verifier
+- release/rollback checklist
+- support intake process
+- scheduled readiness and demo smoke monitors
 
 ## Must Be Tightened Before Wider Launch
 
-- public signup/workspace creation
-- company isolation hardening
-- demo-vs-real hard gates
-- package/feature entitlements
-- invite/activation/password reset
-- onboarding checklist
-- support/bug report flow
-- audit/activity history expansion
-- app health monitoring
-- guided onboarding polish
-- paid pilot support process
+- production auth smoke design and approval
+- GitHub `APEX_SMOKE_PASSWORD` secret setup for scheduled demo auth smoke
+- production monitoring/log drain decision
+- production min-machine/cold-start decision
+- customer-specific pilot environment setup for any real pilot
+- legal review of pilot/customer data docs before wider paid launch
+- pilot onboarding rehearsal with the exact contractor workflow
+- real Day 0, Day 3, and Day 10 pilot operating cadence
 - public claims review
 
 ## Current Marketing Position
@@ -75,13 +77,18 @@ Do not use:
 | Demo app separated | Exists |
 | Pilot setup guide | Exists |
 | Manual pilot smoke test | Exists |
-| Public signup | Missing |
-| Package tiers | Missing |
-| User invite/reset | Missing |
-| Formal support flow | Missing |
-| Terms/privacy/GPS/SMS consent docs | Missing |
-| App health page | Missing |
-| Rollback checklist | Partial |
+| Public signup foundation | Built / controlled |
+| Package tiers / entitlements | Built / tested |
+| User invite / activation UX | Built |
+| Formal support intake process | Built for Phase 1 pilots |
+| Pilot terms / data handling drafts | Drafted / legal review needed |
+| App health page | Built |
+| Rollback checklist | Built |
+| Backup/export verification | Built |
+| Local restore drill verifier | Built |
+| Scheduled readiness monitor | Built |
+| Scheduled demo hosted smoke | Built; auth waits on GitHub secret |
+| Production log drain / dedicated monitor | Planned; not enabled |
 
 ## Business Launch Checklist
 
@@ -101,6 +108,7 @@ Do not use:
 ## Demo Checklist
 
 - demo company only
+- `concrete-ops-demo` healthy
 - no real customer data shown without approval
 - lead/customer ready
 - estimate/job ready
@@ -109,6 +117,9 @@ Do not use:
 - owner/admin review path ready
 - pilot offer ready
 - known product limitations stated plainly
+- run `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`
+- run auth smoke only when `APEX_SMOKE_PASSWORD` is available
+- use `docs/apex-hq-github-actions-smoke-secrets.md` for scheduled auth smoke setup
 
 ## Pilot Onboarding Checklist
 
@@ -116,12 +127,17 @@ Do not use:
 - owner/admin contact confirmed
 - field lead confirmed
 - one workflow selected
+- isolated pilot app/workspace confirmed
+- `DEMO_MODE` off for real pilot
+- `SEED_DEMO_DATA=false` for real pilot
 - users/roles planned
 - kickoff booked
 - day-3 check-in booked
 - day-10 review booked
 - success criteria written
 - no custom feature promises made
+- run `docs/MANUAL_PILOT_SMOKE_TEST.md`
+- confirm restore drill cadence in `docs/apex-hq-restore-runbook.md`
 
 ## Customer Setup Checklist
 
@@ -138,6 +154,7 @@ Do not use:
 
 ## Support Checklist
 
+- use `docs/apex-hq-support-intake-process.md`
 - issue owner assigned
 - company/workspace captured
 - user role captured
@@ -153,10 +170,15 @@ Do not use:
 - no company data mixing
 - no field access to office-only data
 - demo and real data separated
+- backup path known before deploys
+- rollback path known before deploys
+- incident notes location known
 - no automatic SMS/email sending
 - no AI auto-pricing or auto-promising
 - no billing claims beyond current readiness
 - no enterprise/security claims beyond verified state
+- no production deploy without explicit approval
+- no production restore without explicit production-safety review
 
 ## Demo Script Direction
 
@@ -172,7 +194,7 @@ Do not use:
 
 ## Support Workflow
 
-Minimum support intake should capture:
+Minimum support intake lives in `docs/apex-hq-support-intake-process.md` and should capture:
 
 - company/workspace
 - user role
@@ -193,3 +215,15 @@ Minimum support intake should capture:
 - collect before/after pain story
 - turn successful pilots into testimonials
 - ask every successful pilot for two referrals
+
+## Current Source Of Truth Links
+
+- Build tracker: `docs/APEX_HQ_BUILD_STATUS_AND_PHASES.md`
+- Manual pilot smoke: `docs/MANUAL_PILOT_SMOKE_TEST.md`
+- Pilot readiness: `docs/apex-hq-pilot-readiness-checklist.md`
+- Release/rollback: `docs/apex-hq-release-rollback-checklist.md`
+- Restore runbook: `docs/apex-hq-restore-runbook.md`
+- Support intake: `docs/apex-hq-support-intake-process.md`
+- Monitoring plan: `docs/apex-hq-monitoring-alerting-plan.md`
+- Monitoring upgrade plan: `docs/apex-hq-monitoring-upgrade-plan.md`
+- Demo smoke secret setup: `docs/apex-hq-github-actions-smoke-secrets.md`
