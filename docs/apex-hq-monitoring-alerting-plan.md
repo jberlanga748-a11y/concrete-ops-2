@@ -57,7 +57,7 @@ Fly production already checks:
 - timeout: `5s`
 - grace period: `20s`
 
-Docker currently checks `/api/health`. That can pass even if SQLite readiness is broken. A later hardening pass should consider changing Docker health checks to `/api/ready` so container health and Fly routing checks agree.
+Docker image health now checks `/api/ready` so container health and Fly routing checks agree. This prevents process liveness from masking SQLite readiness failures.
 
 ## Minimum External Monitor
 
@@ -178,7 +178,7 @@ P3:
 
 - Watch the scheduled GitHub Actions readiness monitor for false positives during Fly cold starts.
 - Decide whether production should keep at least one Fly machine running.
-- Align Docker health check with `/api/ready`.
+- Watch Docker `/api/ready` health checks during the next demo deploy for false positives during cold start.
 - Define where incident notes live.
 - Add a restore-drill date to the monthly operating cadence.
 - Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
