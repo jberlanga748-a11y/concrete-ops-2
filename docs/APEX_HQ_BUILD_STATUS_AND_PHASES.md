@@ -73,6 +73,7 @@ Current state:
 - Manual pilot smoke runbook and ops docs sync: prepared and pushed. `docs/MANUAL_PILOT_SMOKE_TEST.md`, release/rollback, monitoring, and pilot readiness docs now reference the current hosted smoke, Fly demo Opportunity Scout orchestrator, demo package rollback, cleanup, and latency gates.
 - Phase 1 monitoring hardening: built, verified, pushed, and Fly-demo checked. GitHub Actions now has a production readiness monitor, demo hosted smoke monitor, Node 24 action-runtime forcing, Docker `/api/ready` healthcheck alignment, an incident-notes log, and a monthly restore-drill cadence. Fly demo `v85` is healthy on `/api/ready`; production was not deployed.
 - Local restore drill verifier: built, verified, pushed, and added to CI. `npm.cmd run verify:restore` now creates a temporary backup, boots Apex HQ from the restored SQLite copy on a throwaway local port, checks `/api/ready` and `/api/setup/status`, and cleans up temporary data.
+- Targeted route sweep / visual QA refresh: completed with no blockers found. `npm.cmd run audit:visual-polish:chromium` and `npm.cmd run audit:visual-polish:tablet` passed against a local demo server, covering admin desktop/phone/tablet and employee phone/tablet route behavior with console/network, overflow, clipping, assistant overlap, and field-role exposure checks.
 
 ## Latest Released App State
 
@@ -88,9 +89,9 @@ Latest source-control tooling state:
 
 - Commit: `04fda9e`
 - Message: `Run restore drill in CI verification`
-- State: Opportunity Scout hosted demo smoke automation, demo-only package setter, smoke cleanup, Fly demo acceptance orchestrator, hosted smoke latency budgets, scheduled readiness monitoring, scheduled demo hosted smoke, Docker `/api/ready` healthcheck alignment, incident notes, monthly restore-drill cadence, and local restore drill verification are tracked in source.
+- State: Opportunity Scout hosted demo smoke automation, demo-only package setter, smoke cleanup, Fly demo acceptance orchestrator, hosted smoke latency budgets, scheduled readiness monitoring, scheduled demo hosted smoke, Docker `/api/ready` healthcheck alignment, incident notes, monthly restore-drill cadence, local restore drill verification, and latest visual route sweep evidence are tracked in source.
 - Deployment: Docker healthcheck alignment was deployed to Fly demo only as `v85`; production was not touched. Workflow/docs-only commits were pushed without app deploy.
-- Verification: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, `npm.cmd run verify:demo`, `node --test --test-concurrency=1 scripts/fly-demo-opportunity-scout-smoke.test.mjs`, `npm.cmd run smoke:opportunity-scout:fly-demo -- --json`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`, `git diff --check`, manual GitHub Actions dispatch for `Apex HQ Demo Hosted Smoke`, manual GitHub Actions dispatch for `Apex HQ Readiness Monitor`, and GitHub Actions `CI` passed for the current monitoring/demo smoke lane. Fly demo reached `v85` with `/api/ready` healthy and service checks passing.
+- Verification: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, `npm.cmd run verify:demo`, `node --test --test-concurrency=1 scripts/fly-demo-opportunity-scout-smoke.test.mjs`, `npm.cmd run smoke:opportunity-scout:fly-demo -- --json`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`, `npm.cmd run audit:visual-polish:chromium`, `npm.cmd run audit:visual-polish:tablet`, `git diff --check`, manual GitHub Actions dispatch for `Apex HQ Demo Hosted Smoke`, manual GitHub Actions dispatch for `Apex HQ Readiness Monitor`, and GitHub Actions `CI` passed for the current monitoring/demo smoke lane. Fly demo reached `v85` with `/api/ready` healthy and service checks passing.
 
 Known working tree note:
 
