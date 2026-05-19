@@ -180,6 +180,6 @@ P3:
 - Decide whether production should keep at least one Fly machine running.
 - Watch Docker `/api/ready` health checks during the next demo deploy for false positives during cold start.
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
-- Add a restore-drill date to the monthly operating cadence.
+- Run the next scheduled local restore drill on Monday, June 1, 2026.
 - Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.
 - Consider a scheduled non-mutating hosted smoke that records auth/bootstrap timing for demo and, after explicit approval, production.

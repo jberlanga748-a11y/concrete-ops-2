@@ -67,6 +67,8 @@ Confirm workflow:
 
 Run the non-destructive manual pilot smoke test in `MANUAL_PILOT_SMOKE_TEST.md`.
 
+Confirm the monthly restore drill is scheduled. The current Phase 1 cadence lives in `docs/apex-hq-restore-runbook.md`; the next scheduled local restore drill is Monday, June 1, 2026.
+
 For demo rehearsal, the current automated smoke gates are:
 
 ```powershell

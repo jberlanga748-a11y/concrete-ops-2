@@ -128,6 +128,20 @@ A restore drill passes only when:
 - temporary directories are removed
 - the artifact name and command output are recorded
 
+## Monthly Restore Drill Cadence
+
+Run one local restore drill on the first Monday of each month before expanding pilot usage.
+
+Next scheduled drill:
+
+- Monday, June 1, 2026
+
+Monthly drill owner:
+
+- founder/operator until a separate support owner exists
+
+Record the drill result in `docs/apex-hq-incident-notes-log.md` only if the drill fails, exposes a restore risk, or requires a follow-up task. Successful routine drills can be summarized in the pilot readiness notes or release checklist evidence.
+
 ## Real Production Restore Gate
 
 Do not perform a production restore without a production-safety review.
