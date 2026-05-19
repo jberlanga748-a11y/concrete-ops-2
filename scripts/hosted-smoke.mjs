@@ -1,0 +1,318 @@
+#!/usr/bin/env node
+import process from "node:process";
+
+const DEFAULT_PASSWORD_ENV = "APEX_SMOKE_PASSWORD";
+const DEFAULT_BASE_URL = "https://concrete-ops-demo.fly.dev/";
+const PRODUCTION_HOSTS = new Set(["app.apexhq.online", "concrete-ops-2.fly.dev"]);
+const SAFE_DEFAULT_ROLES = ["admin", "employee"];
+const SAFE_DEFAULT_FLOWS = ["health", "routes", "auth", "restricted-routes"];
+
+const ROLE_CONFIGS = {
+  admin: {
+    email: "demo.admin@apexhq.app",
+    restrictedApiExpectations: [],
+    routes: ["/", "/command-center", "/jobs", "/reports", "/uploads", "/schedule", "/customers", "/employees", "/estimates", "/support"],
+  },
+  employee: {
+    email: "demo.employee@apexhq.app",
+    restrictedApiExpectations: [
+      { path: "/api/customers", expectedStatus: 403 },
+      { path: "/api/users", expectedStatus: 403 },
+      { path: "/api/estimates", expectedStatus: 403 },
+      { path: "/api/export/company", expectedStatus: 403 },
+      { path: "/api/owner-health", expectedStatus: 403 },
+    ],
+    routes: ["/", "/jobs", "/time", "/reports", "/uploads", "/ppe", "/pre-pour", "/post-pour", "/support"],
+  },
+};
+
+const OFFICE_ROUTES = ["/command-center", "/leads", "/customers", "/employees", "/estimates", "/settings", "/app-health", "/imported-drafts"];
+
+function printHelp() {
+  console.log(`Apex HQ hosted smoke check
+
+Usage:
+  node scripts/hosted-smoke.mjs --base-url=https://concrete-ops-demo.fly.dev/ --allow-auth
+  node scripts/hosted-smoke.mjs --base-url=https://app.apexhq.online/ --skip-auth
+
+Defaults:
+  --base-url=${DEFAULT_BASE_URL}
+  --roles=admin,employee
+  --flows=health,routes,auth,restricted-routes
+  --password-env=${DEFAULT_PASSWORD_ENV}
+
+Flags:
+  --base-url=<url>              Hosted app URL to check.
+  --roles=admin,employee        Roles to check.
+  --flows=health,routes,auth,restricted-routes
+  --admin-email=<email>         Admin login email.
+  --employee-email=<email>      Employee login email.
+  --password-env=<name>         Env var containing smoke password.
+  --allow-auth                  Permit login/bootstrap checks. Login creates a session/audit side effect.
+  --skip-auth                   Skip all login/bootstrap/restricted API checks.
+  --allow-production-auth       Permit auth checks against production hosts.
+  --json                        Print JSON summary only.
+  --help                        Print this message without network calls.
+
+Safety:
+  This script performs GET requests plus optional login/bootstrap checks only.
+  It never calls reset, export download, invite, password reset, public intake, AI send, upload, POST/PATCH/DELETE workflow, or destructive endpoints.
+`);
+}
+
+function parseCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseArgs(argv) {
+  const options = {
+    baseUrl: DEFAULT_BASE_URL,
+    roles: [...SAFE_DEFAULT_ROLES],
+    flows: [...SAFE_DEFAULT_FLOWS],
+    passwordEnv: DEFAULT_PASSWORD_ENV,
+    roleEmails: {
+      admin: ROLE_CONFIGS.admin.email,
+      employee: ROLE_CONFIGS.employee.email,
+    },
+    allowAuth: false,
+    skipAuth: false,
+    allowProductionAuth: false,
+    json: false,
+    help: false,
+  };
+
+  for (const arg of argv) {
+    if (arg === "--help" || arg === "-h") {
+      options.help = true;
+    } else if (arg === "--allow-auth") {
+      options.allowAuth = true;
+    } else if (arg === "--skip-auth") {
+      options.skipAuth = true;
+    } else if (arg === "--allow-production-auth") {
+      options.allowProductionAuth = true;
+    } else if (arg === "--json") {
+      options.json = true;
+    } else if (arg.startsWith("--base-url=")) {
+      options.baseUrl = arg.slice("--base-url=".length);
+    } else if (arg.startsWith("--roles=")) {
+      options.roles = parseCsv(arg.slice("--roles=".length));
+    } else if (arg.startsWith("--flows=")) {
+      options.flows = parseCsv(arg.slice("--flows=".length));
+    } else if (arg.startsWith("--password-env=")) {
+      options.passwordEnv = arg.slice("--password-env=".length).trim();
+    } else if (arg.startsWith("--admin-email=")) {
+      options.roleEmails.admin = arg.slice("--admin-email=".length).trim();
+    } else if (arg.startsWith("--employee-email=")) {
+      options.roleEmails.employee = arg.slice("--employee-email=".length).trim();
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  options.baseUrl = new URL(options.baseUrl).toString();
+
+  const invalidRoles = options.roles.filter((role) => !ROLE_CONFIGS[role]);
+  if (invalidRoles.length > 0) {
+    throw new Error(`Unknown roles: ${invalidRoles.join(", ")}`);
+  }
+
+  const allowedFlows = new Set(["health", "routes", "auth", "restricted-routes"]);
+  const invalidFlows = options.flows.filter((flow) => !allowedFlows.has(flow));
+  if (invalidFlows.length > 0) {
+    throw new Error(`Unknown flows: ${invalidFlows.join(", ")}`);
+  }
+
+  if (options.skipAuth) {
+    options.flows = options.flows.filter((flow) => flow !== "auth" && flow !== "restricted-routes");
+  }
+
+  return options;
+}
+
+function isProductionHost(baseUrl) {
+  return PRODUCTION_HOSTS.has(new URL(baseUrl).hostname);
+}
+
+function routeUrl(baseUrl, routePath) {
+  return new URL(routePath, baseUrl).toString();
+}
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  let payload = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { raw: text.slice(0, 500) };
+    }
+  }
+  return { response, payload };
+}
+
+function assertStatus(result, expectedStatus, label) {
+  if (result.response.status !== expectedStatus) {
+    throw new Error(`${label} expected HTTP ${expectedStatus}, received ${result.response.status}`);
+  }
+}
+
+function assertOk(result, label) {
+  if (!result.response.ok) {
+    throw new Error(`${label} expected 2xx, received HTTP ${result.response.status}`);
+  }
+}
+
+async function checkHealth(options, results) {
+  for (const endpoint of ["/api/health", "/api/ready"]) {
+    const result = await requestJson(routeUrl(options.baseUrl, endpoint));
+    assertOk(result, endpoint);
+    if (endpoint === "/api/ready" && result.payload?.checks?.database !== "ok") {
+      throw new Error("/api/ready did not report database ok");
+    }
+    results.checks.push({ flow: "health", endpoint, status: result.response.status });
+  }
+}
+
+async function checkRoutes(options, results) {
+  const routeSet = new Set();
+  for (const role of options.roles) {
+    ROLE_CONFIGS[role].routes.forEach((routePath) => routeSet.add(routePath));
+  }
+  if (options.roles.includes("employee")) {
+    OFFICE_ROUTES.forEach((routePath) => routeSet.add(routePath));
+  }
+
+  for (const routePath of routeSet) {
+    const response = await fetch(routeUrl(options.baseUrl, routePath), { redirect: "manual" });
+    if (![200, 302, 303, 307, 308].includes(response.status)) {
+      throw new Error(`Route ${routePath} expected app response or redirect, received HTTP ${response.status}`);
+    }
+    results.checks.push({ flow: "routes", route: routePath, status: response.status });
+  }
+}
+
+async function loginRole(options, role) {
+  const password = process.env[options.passwordEnv];
+  if (!password) {
+    throw new Error(`Missing ${options.passwordEnv}. Set it or run with --skip-auth.`);
+  }
+
+  const email = options.roleEmails[role];
+  const login = await requestJson(routeUrl(options.baseUrl, "/api/auth/login"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  assertOk(login, `${role} login`);
+  if (!login.payload?.token) {
+    throw new Error(`${role} login did not return a token`);
+  }
+  return {
+    email,
+    token: login.payload.token,
+    user: login.payload.user,
+    headers: {
+      Authorization: `Bearer ${login.payload.token}`,
+      "Content-Type": "application/json",
+    },
+  };
+}
+
+async function checkAuth(options, results) {
+  if (!options.allowAuth) {
+    throw new Error("Auth checks require --allow-auth because login creates a session/audit side effect.");
+  }
+  if (isProductionHost(options.baseUrl) && !options.allowProductionAuth) {
+    throw new Error("Production auth checks require --allow-production-auth. Use --skip-auth for health/route-only production checks.");
+  }
+
+  const sessions = new Map();
+  for (const role of options.roles) {
+    const session = await loginRole(options, role);
+    sessions.set(role, session);
+    const bootstrap = await requestJson(routeUrl(options.baseUrl, "/api/bootstrap"), {
+      headers: session.headers,
+    });
+    assertOk(bootstrap, `${role} bootstrap`);
+    results.checks.push({
+      flow: "auth",
+      role,
+      email: session.email,
+      userRole: session.user?.role || "",
+      bootstrapStatus: bootstrap.response.status,
+    });
+  }
+  return sessions;
+}
+
+async function checkRestrictedRoutes(options, sessions, results) {
+  const employeeSession = sessions.get("employee");
+  if (!employeeSession) return;
+
+  for (const expectation of ROLE_CONFIGS.employee.restrictedApiExpectations) {
+    const result = await requestJson(routeUrl(options.baseUrl, expectation.path), {
+      headers: employeeSession.headers,
+    });
+    assertStatus(result, expectation.expectedStatus, `employee ${expectation.path}`);
+    results.checks.push({
+      flow: "restricted-routes",
+      role: "employee",
+      endpoint: expectation.path,
+      status: result.response.status,
+    });
+  }
+}
+
+async function run() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help) {
+    printHelp();
+    return;
+  }
+
+  const results = {
+    baseUrl: options.baseUrl,
+    productionHost: isProductionHost(options.baseUrl),
+    roles: options.roles,
+    flows: options.flows,
+    authSideEffectsAllowed: options.allowAuth,
+    checks: [],
+  };
+
+  if (options.flows.includes("health")) {
+    await checkHealth(options, results);
+  }
+  if (options.flows.includes("routes")) {
+    await checkRoutes(options, results);
+  }
+
+  let sessions = new Map();
+  if (options.flows.includes("auth")) {
+    sessions = await checkAuth(options, results);
+  }
+  if (options.flows.includes("restricted-routes")) {
+    if (!options.flows.includes("auth")) {
+      throw new Error("restricted-routes flow requires auth flow.");
+    }
+    await checkRestrictedRoutes(options, sessions, results);
+  }
+
+  if (options.json) {
+    console.log(JSON.stringify(results, null, 2));
+  } else {
+    console.log(`Hosted smoke passed for ${options.baseUrl}`);
+    console.log(`Checks: ${results.checks.length}`);
+    if (options.allowAuth) {
+      console.log("Auth note: login checks create minimal session/audit side effects.");
+    }
+  }
+}
+
+run().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

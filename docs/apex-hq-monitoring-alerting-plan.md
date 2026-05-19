@@ -1,0 +1,153 @@
+# Apex HQ Monitoring And Alerting Plan
+
+Status: Phase 1 minimum monitoring plan
+
+Purpose: define the smallest production-safe monitoring loop around Apex HQ readiness before broader pilot or production expansion.
+
+## Health Endpoint Semantics
+
+`GET /api/health`
+
+- process liveness
+- unauthenticated
+- returns service, environment, uptime, timestamp, and request ID
+- does not verify SQLite readiness
+
+`GET /api/ready`
+
+- production readiness
+- unauthenticated
+- calls `ensureDb()`
+- returns database `ok` when SQLite initializes successfully
+- returns HTTP `503` when readiness fails
+- logs `Readiness check failed` with request ID and serialized error
+
+Production monitoring should treat `/api/ready` as the source of truth.
+
+## Existing Platform Checks
+
+Fly production already checks:
+
+- path: `/api/ready`
+- interval: `15s`
+- timeout: `5s`
+- grace period: `20s`
+
+Docker currently checks `/api/health`. That can pass even if SQLite readiness is broken. A later hardening pass should consider changing Docker health checks to `/api/ready` so container health and Fly routing checks agree.
+
+## Minimum External Monitor
+
+Use one external check outside Fly so readiness failures are not visible only inside the platform.
+
+Recommended no-required-paid option:
+
+- GitHub Actions scheduled workflow
+- checks `https://app.apexhq.online/api/ready`
+- checks `https://concrete-ops-2.fly.dev/api/ready`
+- runs every 5 to 10 minutes
+- creates or updates a GitHub issue when two checks fail in a row
+
+Issue title:
+
+```text
+Apex HQ production readiness check failed
+```
+
+Issue body should include:
+
+- timestamp
+- URL checked
+- HTTP status
+- response body
+- workflow run URL
+- last known successful check if available
+- immediate triage commands
+
+This is not pager-grade monitoring. It is enough for Phase 1 pilot-readiness until a dedicated uptime service or on-call process exists.
+
+## Alert Thresholds
+
+Create an incident note when:
+
+- `/api/ready` returns non-200 twice in a row over 2 to 5 minutes
+- `/api/health` is healthy but `/api/ready` fails
+- repeated 5xx errors appear in logs
+- Fly reports failed service checks after grace period
+- SQLite, volume, migration, or startup errors appear in logs
+- production login or bootstrap fails during a smoke test
+- role leakage or cross-company data exposure is suspected
+
+## First Triage Commands
+
+```powershell
+Invoke-RestMethod https://app.apexhq.online/api/ready
+Invoke-RestMethod https://app.apexhq.online/api/health
+fly checks list -a concrete-ops-2
+fly status -a concrete-ops-2
+fly logs -a concrete-ops-2
+```
+
+For demo:
+
+```powershell
+Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
+fly checks list -a concrete-ops-demo
+fly logs -a concrete-ops-demo
+```
+
+## Logging Behavior
+
+Apex HQ emits structured JSON logs with:
+
+- timestamp
+- level
+- message
+- service
+- request ID
+- method
+- path
+- status code
+- duration
+- error details where applicable
+
+`warn` and `error` logs go to stderr. `info` and `debug` logs go to stdout.
+
+Every response includes `X-Request-Id`. API error payloads include the same request ID.
+
+Do not put secrets or tokens in query strings. Request logging records the original URL path, including query strings.
+
+## Incident Severity
+
+P0:
+
+- company data exposure
+- role leakage
+- production login down for all users
+- production database readiness down
+- suspected data loss
+
+P1:
+
+- selected pilot workflow blocked
+- owner/admin cannot use core workspace
+- field workflow blocked during active pilot
+- readiness flapping after deploy
+
+P2:
+
+- important workflow friction with workaround
+- repeated non-critical API errors
+- demo or preview instability
+
+P3:
+
+- documentation, polish, training, or non-blocking warnings
+
+## Phase 1 Follow-Ups
+
+- Add a scheduled GitHub Actions readiness monitor.
+- Decide whether production should keep at least one Fly machine running.
+- Align Docker health check with `/api/ready`.
+- Define where incident notes live.
+- Add a restore-drill date to the monthly operating cadence.
+- Add log drain or dedicated uptime monitoring before scaling beyond founder-led pilots.

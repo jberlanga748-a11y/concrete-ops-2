@@ -42,6 +42,7 @@
     "verify:demo": "node --test --test-concurrency=1 server/demo.test.js",
     "verify:public-request": "node --test --test-concurrency=1 server/public-request.test.js server/public-demo-interest.test.js",
     "verify:print-packets": "node --test --test-concurrency=1 shared/estimatePrint.test.js src/print-packets.test.js",
+    "smoke:hosted": "node scripts/hosted-smoke.mjs",
     "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
     "audit:demo-desktop:local": "node scripts/demo-desktop-ui-audit.mjs --base-url=http://127.0.0.1:4000/ --viewports=1440x900",
     "audit:visual-polish": "node scripts/visual-polish-route-audit.mjs",
