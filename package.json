@@ -44,6 +44,7 @@
     "verify:print-packets": "node --test --test-concurrency=1 shared/estimatePrint.test.js src/print-packets.test.js",
     "smoke:hosted": "node scripts/hosted-smoke.mjs",
     "smoke:opportunity-scout": "node scripts/opportunity-scout-hosted-smoke.mjs",
+    "smoke:opportunity-scout:fly-demo": "node scripts/fly-demo-opportunity-scout-smoke.mjs",
     "smoke:opportunity-scout:cleanup": "node server/demo-smoke-cleanup.js",
     "demo:package": "node server/demo-package-set.js",
     "audit:demo-desktop": "node scripts/demo-desktop-ui-audit.mjs",
