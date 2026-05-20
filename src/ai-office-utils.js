@@ -71,6 +71,7 @@ export function deriveAiOfficeAgentCommandCenter({
   jobDraftImports = [],
   dailyReports = [],
   uploads = [],
+  fieldOpsAgent = null,
 } = {}) {
   if (!canUseAiOfficeAgentCommand(permissions)) {
     return {
@@ -103,6 +104,9 @@ export function deriveAiOfficeAgentCommandCenter({
   const readyDrafts = visibleDrafts.filter((draft) => ["ready", "needs review", "imported"].includes(normalizeStatus(draft.status || draft.importStatus || "imported")));
   const readyToBill = visibleJobs.filter((job) => normalizeStatus(job.status || job.stage) === "billing ready").length
     || Number(stats.jobsReadyToBill || stats.moneyReadyItems || 0);
+  const fieldOpsStats = fieldOpsAgent?.stats || {};
+  const fieldOpsItems = fieldOpsAgent?.canView ? asArray(fieldOpsAgent.items) : [];
+  const fieldOpsReviewCount = Number(fieldOpsStats.total || fieldOpsItems.length || 0);
 
   const workflowCards = [
     canViewOpportunityScout ? {
@@ -144,6 +148,16 @@ export function deriveAiOfficeAgentCommandCenter({
       tone: toneForCount(reportsNeedingReview.length + missingUploads, { active: "amber", highAt: 5 }),
       actionLabel: "Open reports",
       moduleId: "reports",
+    } : null,
+    fieldOpsAgent?.canView ? {
+      id: "field-ops-agent",
+      title: "Field Ops Agent",
+      helper: "Review company field risk across missing reports, proof, tickets, checklists, safety, and active clocks without writing records.",
+      icon: "hardhat",
+      badge: `${countLabel(fieldOpsReviewCount, "field item")} open`,
+      tone: fieldOpsStats.critical ? "red" : fieldOpsStats.warning ? "amber" : fieldOpsReviewCount ? "blue" : "green",
+      actionLabel: "Open field ops",
+      moduleId: "commandCenter",
     } : null,
     permissions?.customers?.canView || permissions?.settings?.canView ? {
       id: "pilot-handoff",
@@ -203,6 +217,18 @@ export function deriveAiOfficeAgentCommandCenter({
       moduleId: "reports",
       recordType: "report",
       record: report,
+    })),
+    ...fieldOpsItems.slice(0, 3).map((item) => ({
+      id: `field-ops-${item.id}`,
+      eyebrow: item.contextLabel || fieldOpsAgent?.roleScope || "Field Ops Agent",
+      title: item.title || "Field item needs review",
+      description: item.description || "Open the existing field workflow and review before taking action.",
+      tone: item.severity === "critical" ? "red" : item.severity === "warning" ? "amber" : "blue",
+      icon: item.moduleId === "uploads" ? "upload" : item.moduleId === "time" ? "clock" : item.moduleId === "safety" || item.moduleId === "incidents" ? "alert" : "hardhat",
+      actionLabel: item.actionLabel || "Open field item",
+      moduleId: item.moduleId || "jobs",
+      recordType: "fieldOps",
+      record: item,
     })),
     ...newLeads.slice(0, 2).map((lead) => ({
       id: `lead-${lead.id}`,
@@ -274,6 +300,7 @@ export function deriveAiOfficeAgentCommandCenter({
       readyToBill,
       scoutChecksNeeded: scoutStats.checksNeeded || 0,
       openFoundOpportunities: scoutStats.openFoundOpportunities || 0,
+      fieldOpsReview: fieldOpsReviewCount,
     },
     guardrails: defaultAgentGuardrails(),
   };

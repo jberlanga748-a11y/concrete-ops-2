@@ -33,16 +33,36 @@ test("AI Office agent command center builds role-safe review lanes from visible 
     jobDraftImports: [{ id: "DRAFT-1", jobName: "Imported slab", status: "Ready" }],
     dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Westview Warehouse" }],
     uploads: [{ id: "UPLOAD-1", fileName: "finish.jpg" }],
+    fieldOpsAgent: {
+      canView: true,
+      roleScope: "Company field risk",
+      stats: { total: 2, critical: 1, warning: 1 },
+      items: [
+        {
+          id: "fieldOps:safety:SI-1",
+          title: "Open safety item",
+          description: "Warehouse slab has an unresolved hazard.",
+          severity: "critical",
+          moduleId: "incidents",
+          actionLabel: "Open safety",
+          contextLabel: "Warehouse slab",
+          relatedJobId: "JOB-1",
+        },
+      ],
+    },
   });
 
   assert.equal(state.canView, true);
   assert.equal(state.modeLabel, "Review-first");
   assert.equal(state.workflowCards.some((card) => card.id === "opportunity-scout"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "release-readiness"), true);
   assert.equal(state.focusRows[0].id, "queue-Q-1");
+  assert.equal(state.focusRows.some((row) => row.recordType === "fieldOps" && row.moduleId === "incidents"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "report" && row.moduleId === "reports"), true);
   assert.equal(state.counts.readyToBill, 1);
+  assert.equal(state.counts.fieldOpsReview, 2);
   assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
   assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
 });
@@ -75,11 +95,17 @@ test("AI Office agent command center keeps Premium assistant useful without Oppo
       jobs: { canView: true, canManageAll: true },
       reports: { canView: true, canReview: true },
       uploads: { canView: true },
+      fieldOps: { canView: true, canViewCompanyWide: true },
       support: { canView: true },
     },
     leads: [{ id: "LEAD-1", customer: "New GC", status: "New" }],
     jobs: [{ id: "JOB-1", title: "Startup job", status: "planned" }],
     dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Startup job" }],
+    fieldOpsAgent: {
+      canView: true,
+      stats: { total: 0 },
+      items: [],
+    },
   });
 
   assert.equal(state.canView, true);
@@ -87,5 +113,6 @@ test("AI Office agent command center keeps Premium assistant useful without Oppo
   assert.equal(state.workflowCards.some((card) => card.id === "lead-review"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "job-startup"), true);
   assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "field-ops-agent"), true);
   assert.equal(state.focusRows.some((row) => row.recordType === "lead"), true);
 });

@@ -26269,6 +26269,7 @@ function CopilotPage(props) {
 }
 
 function CopilotPagePolished({
+  user = null,
   stats = {},
   companySettings = {},
   currentCompanyId = "",
@@ -26282,6 +26283,12 @@ function CopilotPagePolished({
   jobDraftImports = [],
   dailyReports = [],
   uploads = [],
+  deliveryTickets = [],
+  prePourChecklists = [],
+  postPourChecklists = [],
+  safetyIncidents = [],
+  toolChecklists = [],
+  timeEntries = [],
   users = [],
   permissions,
   busy = false,
@@ -26329,6 +26336,22 @@ function CopilotPagePolished({
   }, { today }), [companySettings, contactHistory, currentCompanyId, foundOpportunities, leadSources, leads, opportunitySearchProfiles, today]);
   const dailyJobFinder = opportunityScout.dailyJobFinder;
   const scoutAgent = opportunityScout.agentRunPacket || {};
+  const fieldOpsAgent = useMemo(() => deriveFieldOpsAgentState({
+    currentCompanyId,
+    jobs,
+    dailyReports,
+    uploads,
+    deliveryTickets,
+    prePourChecklists,
+    postPourChecklists,
+    safetyIncidents,
+    toolChecklists,
+    timeEntries,
+  }, {
+    companyId: currentCompanyId,
+    permissions,
+    user,
+  }), [currentCompanyId, dailyReports, deliveryTickets, jobs, permissions, postPourChecklists, prePourChecklists, safetyIncidents, timeEntries, toolChecklists, uploads, user]);
 
   const newLeads = liveLeads.filter((lead) => lead.status === "New");
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High");
@@ -26589,7 +26612,8 @@ function CopilotPagePolished({
     jobDraftImports: liveDrafts,
     dailyReports: visibleReports,
     uploads: visibleUploads,
-  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, openQueueItems, liveDrafts, visibleReports, visibleUploads]);
+    fieldOpsAgent,
+  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, openQueueItems, liveDrafts, visibleReports, visibleUploads, fieldOpsAgent]);
 
   function openAgentCommandTarget(target = {}) {
     if (target.recordType === "lead" && target.record) {
@@ -26606,6 +26630,11 @@ function CopilotPagePolished({
     }
     if (target.recordType === "report" && target.record) {
       openReport(target.record);
+      return;
+    }
+    if (target.recordType === "fieldOps" && target.record) {
+      if (target.record.relatedJobId) onSelectJob?.(target.record.relatedJobId);
+      openModule(target.moduleId || target.record.moduleId || "jobs");
       return;
     }
     openModule(target.moduleId || "commandCenter");
@@ -26669,6 +26698,7 @@ function CopilotPagePolished({
     newLeads.length ? { label: "Assign first responses", action: () => openModule("leads"), tone: "orange" } : null,
     startupWatchJobs.length ? { label: "Review startup readiness", action: () => openModule("jobs"), tone: "amber" } : null,
     reportPreview ? { label: "Review submitted report", action: () => openReport(reportPreview), tone: "blue" } : null,
+    fieldOpsAgent.canView && fieldOpsAgent.stats?.total ? { label: "Review field risk", action: () => openModule("commandCenter"), tone: fieldOpsAgent.stats.critical ? "red" : "amber" } : null,
     !blockedQueueItems.length && !newLeads.length && !startupWatchJobs.length ? { label: "Open Command Center", action: () => openModule("commandCenter"), tone: "green" } : null,
   ].filter(Boolean);
 
@@ -26680,10 +26710,11 @@ function CopilotPagePolished({
     ] : []),
     { label: "Leads", value: liveLeads.length, helper: `${approvedLeads.length} approved` },
     { label: "Jobs", value: liveJobs.length, helper: `${stats.activeJobs || 0} active` },
+    fieldOpsAgent.canView ? { label: "Field Ops", value: fieldOpsAgent.stats?.total || 0, helper: fieldOpsAgent.roleScope || "Review-only" } : null,
     { label: "Reports", value: visibleReports.length, helper: `${reportsNeedingReview} review` },
     { label: "Pipeline", value: compactCurrency(pipelineValue), helper: "Open value" },
     { label: "Uploads", value: visibleUploads.length, helper: "Photo evidence" },
-  ];
+  ].filter(Boolean);
   const assistantCommandCards = [
     {
       id: "next-review",
