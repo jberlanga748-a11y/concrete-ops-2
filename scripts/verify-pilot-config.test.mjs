@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePilotConfig, verifyPilotConfig } from "./verify-pilot-config.mjs";
+import { isPilotConfigFile, parsePilotConfig, verifyPilotConfig } from "./verify-pilot-config.mjs";
 
 const safeConfig = `
 app = "apex-hq-acme-pilot"
@@ -86,4 +86,12 @@ app = "apex-hq-acme-pilot"
   assert.equal(report.ok, false);
   assert.match(report.errors.join("\n"), /DATA_DIR/);
   assert.match(report.errors.join("\n"), /\/api\/ready/);
+});
+
+test("detects customer pilot config file names for CI scanning", () => {
+  assert.equal(isPilotConfigFile("fly.customer-acme.toml"), true);
+  assert.equal(isPilotConfigFile("fly.pilot-acme.toml"), true);
+  assert.equal(isPilotConfigFile("fly.toml"), false);
+  assert.equal(isPilotConfigFile("fly.demo.toml"), false);
+  assert.equal(isPilotConfigFile("fly.customer-acme.txt"), false);
 });

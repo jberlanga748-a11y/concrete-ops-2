@@ -162,6 +162,8 @@ npm run pilot:verify-config -- --config=fly.customer-acme.toml
 
 The verifier rejects production/demo app names, production/demo volumes, demo seeding, demo package settings, missing `/api/ready` checks, and unsafe data-dir settings. It does not create apps, create volumes, deploy, set secrets, or touch production.
 
+CI also scans committed `fly.customer*.toml` and `fly.pilot*.toml` files through `npm run verify:pilot-config`, so unsafe pilot configs should not land unnoticed.
+
 ## 4. Keep Demo Seeding Off
 
 For a customer pilot workspace:

@@ -12,6 +12,7 @@ function printHelp() {
 
 Usage:
   node scripts/verify-pilot-config.mjs --config=fly.customer-acme.toml
+  node scripts/verify-pilot-config.mjs --all
 
 Checks:
   - app is present and is not production/demo
@@ -28,6 +29,7 @@ This verifier is local and read-only. It does not create Fly apps, create volume
 
 export function parseArgs(argv) {
   const options = {
+    all: false,
     config: "",
     json: false,
     help: false,
@@ -36,6 +38,8 @@ export function parseArgs(argv) {
   for (const arg of argv) {
     if (arg === "--help" || arg === "-h") {
       options.help = true;
+    } else if (arg === "--all") {
+      options.all = true;
     } else if (arg === "--json") {
       options.json = true;
     } else if (arg.startsWith("--config=")) {
@@ -205,19 +209,68 @@ export function verifyPilotConfig(parsed, { configPath = "" } = {}) {
   };
 }
 
+export function isPilotConfigFile(fileName) {
+  return /^fly\.customer.+\.toml$/i.test(fileName) || /^fly\.pilot.+\.toml$/i.test(fileName);
+}
+
+export async function findPilotConfigFiles(rootDir = process.cwd()) {
+  const entries = await fs.readdir(rootDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && isPilotConfigFile(entry.name))
+    .map((entry) => path.join(rootDir, entry.name))
+    .sort();
+}
+
+async function verifyConfigFile(configPath) {
+  const resolvedConfigPath = path.resolve(configPath);
+  const content = await fs.readFile(resolvedConfigPath, "utf8");
+  return {
+    configPath: resolvedConfigPath,
+    ...verifyPilotConfig(parsePilotConfig(content), { configPath: resolvedConfigPath }),
+  };
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     printHelp();
     return;
   }
-  if (!options.config) {
-    throw new Error("Missing --config=<path>.");
+  if (options.all && options.config) {
+    throw new Error("Use either --all or --config=<path>, not both.");
+  }
+  if (!options.config && !options.all) {
+    throw new Error("Missing --config=<path> or --all.");
   }
 
-  const configPath = path.resolve(options.config);
-  const content = await fs.readFile(configPath, "utf8");
-  const report = verifyPilotConfig(parsePilotConfig(content), { configPath });
+  if (options.all) {
+    const configs = [];
+    for (const configPath of await findPilotConfigFiles()) {
+      configs.push(await verifyConfigFile(configPath));
+    }
+    const report = {
+      ok: configs.every((entry) => entry.ok),
+      checked: configs.length,
+      configs,
+    };
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else if (report.ok) {
+      console.log(`Pilot config scan passed: ${configs.length} config(s) checked.`);
+    } else {
+      console.error("Pilot config scan failed.");
+      for (const entry of configs.filter((item) => !item.ok)) {
+        console.error(`\n${entry.configPath}`);
+        for (const error of entry.errors) console.error(`- ${error}`);
+      }
+    }
+    if (!report.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  const report = await verifyConfigFile(options.config);
 
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
