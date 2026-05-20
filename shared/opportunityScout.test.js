@@ -7,6 +7,7 @@ import {
   deriveFoundOpportunityMissingInfoItems,
   extractOpportunityFieldsFromIntake,
   findDuplicateFoundOpportunities,
+  isConvertedFoundOpportunityToLead,
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
   OPPORTUNITY_SCOUT_GUARDRAILS,
@@ -189,6 +190,9 @@ test("lead conversion helper requires human approval first", () => {
   assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "needs_review" }), false);
   assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "approved_for_lead" }), true);
   assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "approved_for_lead", convertedLeadId: "L-1" }), false);
+  assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "approved_for_lead", status: "converted_to_lead" }), false);
+  assert.equal(isConvertedFoundOpportunityToLead({ status: "converted_to_lead" }), true);
+  assert.equal(isConvertedFoundOpportunityToLead({ convertedLeadId: "L-1" }), true);
 });
 
 test("changed fields compare array values safely", () => {

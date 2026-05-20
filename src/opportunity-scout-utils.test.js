@@ -88,6 +88,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
     foundOpportunities: [
       { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, sourceUrl: "https://example.test/bid", scopeSummary: "Sidewalk replacement with ADA ramp repair.", riskFlags: ["prevailing wage"], missingInfoItems: ["addenda"] },
       { id: "FO-5", companyId: "COMPANY-A", title: "Approved ramp repair", status: "reviewing", humanReviewStatus: "approved_for_lead", duplicateHints: [{ opportunityId: "FO-1", confidence: "medium", reasons: ["same agency"] }], fileMetadata: [{ name: "ramp-screenshot.png" }], fitLabel: "strong fit", fitExplanation: "strong fit: source proof saved" },
+      { id: "FO-6", companyId: "COMPANY-A", title: "Converted city ramp", status: "converted_to_lead", convertedLeadId: "L-99", updatedAt: "2026-05-12T10:00:00.000Z" },
       { id: "FO-2", companyId: "COMPANY-A", title: "Skipped job", status: "skipped", fitScore: 95 },
       { id: "FO-3", companyId: "COMPANY-B", title: "Other company work", status: "new" },
       { id: "FO-4", companyId: "COMPANY-A", title: "No bid date job", status: "new", fitScore: 70 },
@@ -105,7 +106,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").tone, "red");
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);
   assert.equal(state.dailyRunSteps.find((step) => step.id === "review-found-work").tone, "red");
-  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4", "FO-5"]);
+  assert.deepEqual(state.foundOpportunityQueue.map((opportunity) => opportunity.opportunityId), ["FO-1", "FO-4", "FO-5", "FO-6"]);
   assert.equal(state.foundOpportunityQueue[0].sourceUrl, "https://example.test/bid");
   assert.equal(state.foundOpportunityQueue[0].scopeSummary, "Sidewalk replacement with ADA ramp repair.");
   assert.deepEqual(state.foundOpportunityQueue[0].riskFlags, ["prevailing wage"]);
@@ -117,10 +118,19 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.deepEqual(state.foundOpportunityQueue[0].leadPreview.notesIncluded, ["source link", "scope", "risks", "missing info"]);
   const approvedOpportunity = state.foundOpportunityQueue.find((opportunity) => opportunity.opportunityId === "FO-5");
   assert.equal(approvedOpportunity.canConvertToLead, true);
+  assert.equal(approvedOpportunity.leadHandoffState, "approved_for_lead");
+  assert.equal(approvedOpportunity.leadHandoffLabel, "Ready to create lead");
   assert.equal(approvedOpportunity.humanReviewStatus, "approved_for_lead");
   assert.equal(approvedOpportunity.duplicateHints.length, 1);
   assert.deepEqual(approvedOpportunity.fileMetadata.map((file) => file.name), ["ramp-screenshot.png"]);
   assert.equal(approvedOpportunity.fitLabel, "strong fit");
+  const convertedOpportunity = state.foundOpportunityQueue.find((opportunity) => opportunity.opportunityId === "FO-6");
+  assert.equal(convertedOpportunity.leadHandoffState, "converted_to_lead");
+  assert.equal(convertedOpportunity.leadHandoffLabel, "Lead created");
+  assert.equal(convertedOpportunity.canConvertToLead, false);
+  assert.equal(convertedOpportunity.convertedLeadId, "L-99");
+  assert.equal(state.stats.convertedLeadHandoffs, 1);
+  assert.equal(state.stats.approvedForLeadOpportunities, 1);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 5);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").targetId, "scout-found-opportunities");
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);

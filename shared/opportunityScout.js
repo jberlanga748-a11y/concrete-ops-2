@@ -416,7 +416,13 @@ export function findDuplicateFoundOpportunities(candidate = {}, existingOpportun
 
 export function canConvertFoundOpportunityToLead(opportunity = {}) {
   return !text(opportunity.convertedLeadId)
+    && !isConvertedFoundOpportunityToLead(opportunity)
     && normalizeOption(opportunity.humanReviewStatus, OPPORTUNITY_HUMAN_REVIEW_STATUSES, "needs_review") === "approved_for_lead";
+}
+
+export function isConvertedFoundOpportunityToLead(opportunity = {}) {
+  return Boolean(text(opportunity.convertedLeadId))
+    || normalizeOption(opportunity.status, FOUND_OPPORTUNITY_STATUSES, "new") === "converted_to_lead";
 }
 
 function containsBlockedAutomationPayload(payload = {}) {

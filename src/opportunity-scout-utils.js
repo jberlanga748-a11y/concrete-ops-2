@@ -1,5 +1,5 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
-import { canConvertFoundOpportunityToLead } from "../shared/opportunityScout.js";
+import { canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -155,6 +155,36 @@ function isOpenFoundOpportunity(opportunity = {}) {
   return !["skipped", "converted to lead", "converted", "archived"].includes(normalizeStatus(opportunity.status || "new"));
 }
 
+function leadHandoffState(opportunity = {}) {
+  if (isConvertedFoundOpportunityToLead(opportunity)) {
+    return {
+      state: "converted_to_lead",
+      label: "Lead created",
+      helper: "Lead was created and is ready in the Leads workflow.",
+      tone: "green",
+      actionLabel: "Open Lead",
+    };
+  }
+
+  if (canConvertFoundOpportunityToLead(opportunity)) {
+    return {
+      state: "approved_for_lead",
+      label: "Ready to create lead",
+      helper: "Office approval is complete. Create Lead is still a separate human action.",
+      tone: "green",
+      actionLabel: "Create Lead",
+    };
+  }
+
+  return {
+    state: "needs_review",
+    label: "Needs office approval",
+    helper: "Approve For Lead before any lead draft can be created.",
+    tone: "amber",
+    actionLabel: "Approve For Lead",
+  };
+}
+
 function opportunityPriority(opportunity = {}, today = dateKey(new Date())) {
   const status = normalizeStatus(opportunity.status || "new");
   const bidBucket = dateBucket(opportunity.bidDueAt, today);
@@ -251,6 +281,7 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
   const bidBucket = dateBucket(opportunity.bidDueAt, today);
   const priority = opportunityPriority(opportunity, today);
   const fitScore = Number(opportunity.fitScore || 0);
+  const handoff = leadHandoffState(opportunity);
   const tone = bidBucket === "overdue"
     ? "red"
     : bidBucket === "today" || ["new", "reviewing", "bidding"].includes(normalizeStatus(opportunity.status || "new"))
@@ -288,6 +319,11 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
     assignedEstimatorId: opportunity.assignedEstimatorId || "",
     convertedLeadId: opportunity.convertedLeadId || "",
     canConvertToLead: canConvertFoundOpportunityToLead(opportunity),
+    leadHandoffState: handoff.state,
+    leadHandoffLabel: handoff.label,
+    leadHandoffHelper: handoff.helper,
+    leadHandoffTone: handoff.tone,
+    leadHandoffActionLabel: handoff.actionLabel,
     leadPreview: buildFoundOpportunityLeadPreview(opportunity, today),
     tone,
     priority,
@@ -674,13 +710,21 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const activeProfiles = searchProfiles.filter(isActiveSearchProfile);
   const foundOpportunities = asArray(source.foundOpportunities).filter((entry) => sameCompany(entry, companyId) && !isArchived(entry));
   const openFoundOpportunities = foundOpportunities.filter(isOpenFoundOpportunity);
+  const convertedLeadHandoffs = foundOpportunities
+    .filter(isConvertedFoundOpportunityToLead)
+    .sort((left, right) => dateSortValue(right.updatedAt || right.convertedAt || right.createdAt).localeCompare(dateSortValue(left.updatedAt || left.convertedAt || left.createdAt)))
+    .slice(0, 2);
   const dailyCheck = deriveDailySourceCheckState(activeSources, { today });
   const profileQueue = searchProfiles
     .map((entry) => buildSearchProfileQueue(entry, companySettings, today))
     .sort((left, right) => left.priority - right.priority || dateSortValue(left.nextRunAt).localeCompare(dateSortValue(right.nextRunAt)) || left.name.localeCompare(right.name));
-  const foundOpportunityQueue = openFoundOpportunities
+  const openFoundOpportunityQueue = openFoundOpportunities
     .map((entry) => buildFoundOpportunityQueue(entry, today))
     .sort((left, right) => left.priority - right.priority || dateSortValue(left.bidDueAt).localeCompare(dateSortValue(right.bidDueAt)) || Number(right.fitScore || 0) - Number(left.fitScore || 0));
+  const foundOpportunityQueue = [
+    ...openFoundOpportunityQueue,
+    ...convertedLeadHandoffs.map((entry) => buildFoundOpportunityQueue(entry, today)),
+  ];
   const checkQueue = [...dailyCheck.overdueSources, ...dailyCheck.dueTodaySources].map((entry) => buildSourceQueue(entry, companySettings));
   const fallbackSources = activeSources
     .slice()
@@ -729,6 +773,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const newFoundOpportunities = openFoundOpportunities.filter((opportunity) => normalizeStatus(opportunity.status || "new") === "new");
   const reviewingOpportunities = openFoundOpportunities.filter((opportunity) => normalizeStatus(opportunity.status || "new") === "reviewing");
   const biddingOpportunities = openFoundOpportunities.filter((opportunity) => normalizeStatus(opportunity.status || "new") === "bidding");
+  const approvedForLeadOpportunities = openFoundOpportunities.filter((opportunity) => canConvertFoundOpportunityToLead(opportunity));
 
   const scoutTargetCount = activeSources.length + activeProfiles.length;
   const readiness = scoutTargetCount === 0
@@ -738,11 +783,11 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
         summary: "Add lead sources or search profiles before Apex HQ can guide daily opportunity checks.",
         nextAction: "Add Search Profile",
       }
-    : foundOpportunityQueue.length > 0
+    : openFoundOpportunityQueue.length > 0
       ? {
           label: "Found work needs review",
           tone: dueBidOpportunities.length ? "red" : "orange",
-          summary: `${foundOpportunityQueue.length} found opportunit${foundOpportunityQueue.length === 1 ? "y" : "ies"} need office review before anyone bids or converts work.`,
+          summary: `${openFoundOpportunityQueue.length} found opportunit${openFoundOpportunityQueue.length === 1 ? "y" : "ies"} need office review before anyone bids or converts work.`,
           nextAction: "Review Found Work",
         }
     : dailyCheck.stats.checksNeeded > 0 || dueProfiles.length > 0
@@ -780,8 +825,8 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     {
       id: "found-work",
       label: "Review found opportunities",
-      helper: `${foundOpportunityQueue.length} open found / ${biddingOpportunities.length} bidding / ${dueBidOpportunities.length} due now.`,
-      tone: foundOpportunityQueue.length ? "orange" : "slate",
+      helper: `${openFoundOpportunityQueue.length} open found / ${biddingOpportunities.length} bidding / ${dueBidOpportunities.length} due now.`,
+      tone: openFoundOpportunityQueue.length ? "orange" : "slate",
       moduleId: "copilot",
       targetId: "scout-found-opportunities",
     },
@@ -805,7 +850,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const dailyRunSteps = buildDailyScoutRunSteps({
     dueProfiles,
     dailyCheck,
-    foundOpportunityQueue,
+    foundOpportunityQueue: openFoundOpportunityQueue,
     dueBidOpportunities,
     highFitOpportunities,
     dueLeads,
@@ -814,7 +859,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const qualityChecks = buildDailyScoutQualityChecks({
     dueProfiles,
     dailyCheck,
-    foundOpportunityQueue,
+    foundOpportunityQueue: openFoundOpportunityQueue,
     dueBidOpportunities,
   });
   const dailyJobFinder = buildDailyJobFinderPlan({
@@ -823,7 +868,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     activeProfiles,
     dueProfiles,
     dailyCheck,
-    foundOpportunityQueue,
+    foundOpportunityQueue: openFoundOpportunityQueue,
     dueBidOpportunities,
     highFitOpportunities,
     dueLeads,
@@ -854,6 +899,8 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       newFoundOpportunities: newFoundOpportunities.length,
       reviewingOpportunities: reviewingOpportunities.length,
       biddingOpportunities: biddingOpportunities.length,
+      approvedForLeadOpportunities: approvedForLeadOpportunities.length,
+      convertedLeadHandoffs: convertedLeadHandoffs.length,
       highFitOpportunities: highFitOpportunities.length,
       dueBidOpportunities: dueBidOpportunities.length,
       overdueSourceChecks: dailyCheck.stats.overdue,

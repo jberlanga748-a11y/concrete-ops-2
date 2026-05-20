@@ -25629,6 +25629,11 @@ function CopilotPagePolished({
     onConvertFoundOpportunityToLead?.(opportunity.opportunityId);
   }
 
+  function openConvertedOpportunityLead(opportunity) {
+    if (!opportunity?.convertedLeadId) return;
+    openLead({ id: opportunity.convertedLeadId });
+  }
+
   function approveOpportunityForLead(opportunity) {
     if (!canManageOpportunityScout || !opportunity?.opportunityId || opportunity.convertedLeadId) return;
     onUpdateFoundOpportunity?.(opportunity.opportunityId, {
@@ -26289,6 +26294,7 @@ function CopilotPagePolished({
                         </div>
                         <p>{[opportunity.agency, opportunity.trade, opportunity.location, opportunity.bidDueAt ? `Bid due ${formatDateTime(opportunity.bidDueAt)}` : ""].filter(Boolean).join(" / ")}</p>
                         <div className="co-ai-found-review-strip">
+                          <span>Handoff: {opportunity.leadHandoffLabel}</span>
                           <span>Review: {opportunity.humanReviewStatus.replace(/_/g, " ")}</span>
                           {opportunity.fitLabel ? <span>Fit: {opportunity.fitLabel} ({opportunity.fitScore})</span> : <span>Fit: {opportunity.fitScore}</span>}
                           {opportunity.duplicateHints.length ? <span>{opportunity.duplicateHints.length} possible duplicate</span> : <span>No duplicate match</span>}
@@ -26332,9 +26338,9 @@ function CopilotPagePolished({
                         {opportunity.leadPreview ? (
                           <div className="co-ai-lead-handoff-card" data-tone={opportunity.convertedLeadId ? "green" : opportunity.tone}>
                             <div className="co-ai-lead-handoff-head">
-                              <span>{opportunity.convertedLeadId ? "Lead Created" : "Lead Handoff Preview"}</span>
+                              <span>{opportunity.leadHandoffLabel || (opportunity.convertedLeadId ? "Lead Created" : "Lead Handoff Preview")}</span>
                               <strong>{opportunity.convertedLeadId ? "Already in Leads" : "What Create Lead will carry forward"}</strong>
-                              <p>No lead is created until the office clicks Create Lead. The existing handler opens the new lead after conversion.</p>
+                              <p>{opportunity.leadHandoffHelper || "No lead is created until the office clicks Create Lead."}</p>
                             </div>
                             <div className="co-ai-lead-handoff-grid">
                               <small><b>Customer</b>{opportunity.leadPreview.customer}</small>
@@ -26361,11 +26367,17 @@ function CopilotPagePolished({
                         <Button type="button" size="sm" onClick={() => convertOpportunityToLead(opportunity)} disabled={!canManageOpportunityScout || busy || Boolean(opportunity.convertedLeadId) || !opportunity.canConvertToLead}>
                           {opportunity.convertedLeadId ? "Lead Created" : "Create Lead"}
                         </Button>
-                        {["reviewing", "watching", "bidding", "skipped"].map((status) => (
-                          <Button key={status} type="button" size="sm" variant={opportunity.status === status ? "primary" : "ghost"} onClick={() => setOpportunityStatus(opportunity, status)} disabled={!canManageOpportunityScout || busy}>
-                            {status === "reviewing" ? "Review" : status === "watching" ? "Watch" : status === "bidding" ? "Bid" : "Skip"}
+                        {opportunity.convertedLeadId ? (
+                          <Button type="button" size="sm" variant="secondary" onClick={() => openConvertedOpportunityLead(opportunity)}>
+                            Open Lead
                           </Button>
-                        ))}
+                        ) : (
+                          ["reviewing", "watching", "bidding", "skipped"].map((status) => (
+                            <Button key={status} type="button" size="sm" variant={opportunity.status === status ? "primary" : "ghost"} onClick={() => setOpportunityStatus(opportunity, status)} disabled={!canManageOpportunityScout || busy}>
+                              {status === "reviewing" ? "Review" : status === "watching" ? "Watch" : status === "bidding" ? "Bid" : "Skip"}
+                            </Button>
+                          ))
+                        )}
                       </div>
                       {aiReview?.status === "ready" ? (
                         <div className="co-ai-scout-review" data-state={aiReviewResult.configured === false ? "not-configured" : "ready"}>
