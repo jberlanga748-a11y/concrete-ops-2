@@ -12,8 +12,8 @@
 
 ## Status
 
-- Machine is running
-- Health and readiness checks are passing
+- Machine may auto-stop when idle because `min_machines_running = 0`
+- Health and readiness checks pass when the machine is started
 - `GET /api/ready` returns `200`
 - Database readiness reports `ok`
 - First admin bootstrap completed successfully
@@ -34,6 +34,7 @@
 
 - Older `sea` examples are deprecated for this deployment; use `sjc`
 - Fly readiness checks should continue to target `GET /api/ready`
+- Docker image health checks also target `GET /api/ready`
 - Production deploys keep `SEED_DEMO_DATA=false`
 - Production deploys must keep `DEMO_MODE` off
 - Customer pilots should use a separate Fly app and a separate Fly volume, not the production app or production data volume
