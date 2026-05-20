@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils.js";
+import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils.js";
 
 const TICKETS = [
   {
@@ -59,6 +59,77 @@ test("delivery ticket list state tolerates sparse jobs and derives options", () 
   assert.deepEqual(emptyState.supplierOptions, ["All suppliers"]);
   assert.deepEqual(emptyState.creatorOptions, ["All creators"]);
   assert.deepEqual(emptyState.dateOptions, ["All dates"]);
+});
+
+test("delivery ticket closeout readiness groups evidence gaps by job", () => {
+  const readiness = deriveDeliveryTicketCloseoutReadiness([
+    {
+      id: "DTK-1",
+      jobId: "J-1",
+      supplier: "Knife River",
+      truckNumber: "T-17",
+      ticketNumber: "KR-1001",
+      yardsDelivered: 8.5,
+      ticketUploadId: "UP-1",
+      reportId: "R-1",
+    },
+    {
+      id: "DTK-2",
+      jobId: "J-1",
+      supplier: "Knife River",
+      truckNumber: "",
+      ticketNumber: "",
+      yardsDelivered: 0,
+      ticketUploadId: "",
+      reportId: "",
+    },
+    {
+      id: "DTK-3",
+      supplier: "Cadman",
+      truckNumber: "T-4",
+      ticketNumber: "CD-400",
+      yardsDelivered: 5,
+      ticketUploadId: "UP-3",
+      reportId: "R-3",
+    },
+  ], [{ id: "J-1", title: "Martinez Front Walk" }]);
+
+  assert.equal(readiness.status, "Unlinked tickets need review");
+  assert.equal(readiness.activeTickets, 3);
+  assert.equal(readiness.readyTickets, 2);
+  assert.equal(readiness.unlinkedTickets, 1);
+  assert.equal(readiness.jobsWithGaps, 1);
+  assert.equal(readiness.topJobs[0].label, "Martinez Front Walk");
+  assert.match(readiness.topJobs[0].blockers.join(" "), /basics gap/);
+  assert.match(readiness.topJobs[0].blockers.join(" "), /missing photo/);
+  assert.match(readiness.topJobs[0].blockers.join(" "), /missing report link/);
+});
+
+test("delivery ticket closeout readiness marks complete active tickets ready", () => {
+  const readiness = deriveDeliveryTicketCloseoutReadiness([
+    {
+      id: "DTK-1",
+      jobId: "J-1",
+      supplier: "Knife River",
+      truckNumber: "T-17",
+      ticketNumber: "KR-1001",
+      yardsDelivered: 8.5,
+      ticketUploadId: "UP-1",
+      reportId: "R-1",
+    },
+    {
+      id: "DTK-2",
+      jobId: "J-2",
+      archivedAt: "2026-04-26T10:00:00.000Z",
+      supplier: "",
+    },
+  ], [{ id: "J-1", title: "Martinez Front Walk" }]);
+
+  assert.equal(readiness.status, "Delivery tickets closeout-ready");
+  assert.equal(readiness.tone, "green");
+  assert.equal(readiness.activeTickets, 1);
+  assert.equal(readiness.readyTickets, 1);
+  assert.equal(readiness.jobsWithGaps, 0);
 });
 
 test("delivery ticket support context summarizes visible office tickets without linked file or financial data", () => {

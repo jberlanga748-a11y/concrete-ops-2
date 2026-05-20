@@ -33,6 +33,14 @@ function ticketMissingBasics(ticket = {}) {
   return !ticket?.supplier || !ticket?.truckNumber || !ticket?.ticketNumber || !Number(ticket?.yardsDelivered || 0);
 }
 
+function recordJobId(record = {}) {
+  return String(record?.jobId || record?.job?.id || "").trim();
+}
+
+function jobLabel(job = {}, fallback = "Job unavailable") {
+  return String(job?.title || job?.label || job?.job || job?.jobTitle || job?.customer || fallback).trim() || fallback;
+}
+
 function ticketSupportPriorityItems(tickets = [], limit = 3) {
   return (Array.isArray(tickets) ? tickets : [])
     .filter((ticket) => !ticket?.archivedAt)
@@ -99,6 +107,107 @@ export function deriveDeliveryTicketListState(tickets = [], jobs = []) {
     creatorOptions: ["All creators", ...new Set(safeTickets.map((ticket) => ticket.createdByName).filter(Boolean))],
     dateOptions: ["All dates", ...new Set(safeTickets.map((ticket) => String(ticket.createdAt || "").slice(0, 10)).filter(Boolean))],
     defaultJobId: safeJobs.length === 1 ? safeJobs[0].id : "",
+  };
+}
+
+export function deriveDeliveryTicketCloseoutReadiness(tickets = [], jobs = [], { maxJobs = 4 } = {}) {
+  const safeTickets = Array.isArray(tickets) ? tickets : [];
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const jobMap = new Map(safeJobs.map((job) => [String(job?.id || "").trim(), job]));
+  const jobSummaries = new Map();
+  let activeTickets = 0;
+  let unlinkedTickets = 0;
+  let missingBasics = 0;
+  let missingPhotos = 0;
+  let missingReports = 0;
+  let readyTickets = 0;
+  let yardsLogged = 0;
+
+  safeTickets.forEach((ticket) => {
+    if (ticket?.archivedAt) return;
+    activeTickets += 1;
+    const basicsMissing = ticketMissingBasics(ticket);
+    const photoMissing = !ticket?.ticketUploadId;
+    const reportMissing = !ticket?.reportId;
+    const yards = Number(ticket?.yardsDelivered || 0);
+    yardsLogged += yards;
+    if (basicsMissing) missingBasics += 1;
+    if (photoMissing) missingPhotos += 1;
+    if (reportMissing) missingReports += 1;
+    if (!basicsMissing && !photoMissing && !reportMissing) readyTickets += 1;
+
+    const jobId = recordJobId(ticket);
+    if (!jobId) {
+      unlinkedTickets += 1;
+      return;
+    }
+
+    const job = jobMap.get(jobId) || ticket?.job || {};
+    const summary = jobSummaries.get(jobId) || {
+      jobId,
+      label: ticket?.jobTitle || jobLabel(job, jobId),
+      tickets: 0,
+      yards: 0,
+      missingBasics: 0,
+      missingPhotos: 0,
+      missingReports: 0,
+      readyTickets: 0,
+      blockers: [],
+      tone: "slate",
+    };
+
+    summary.tickets += 1;
+    summary.yards += yards;
+    if (basicsMissing) summary.missingBasics += 1;
+    if (photoMissing) summary.missingPhotos += 1;
+    if (reportMissing) summary.missingReports += 1;
+    if (!basicsMissing && !photoMissing && !reportMissing) summary.readyTickets += 1;
+    jobSummaries.set(jobId, summary);
+  });
+
+  const jobRows = Array.from(jobSummaries.values()).map((summary) => {
+    if (summary.missingBasics) summary.blockers.push(`${summary.missingBasics} basics gap${summary.missingBasics === 1 ? "" : "s"}`);
+    if (summary.missingPhotos) summary.blockers.push(`${summary.missingPhotos} missing photo${summary.missingPhotos === 1 ? "" : "s"}`);
+    if (summary.missingReports) summary.blockers.push(`${summary.missingReports} missing report link${summary.missingReports === 1 ? "" : "s"}`);
+    return {
+      ...summary,
+      tone: summary.blockers.length ? "amber" : "green",
+    };
+  }).sort((left, right) => right.blockers.length - left.blockers.length || right.tickets - left.tickets || right.yards - left.yards || left.label.localeCompare(right.label));
+
+  const jobsWithGaps = jobRows.filter((row) => row.blockers.length > 0).length;
+
+  return {
+    activeTickets,
+    readyTickets,
+    jobsWithGaps,
+    unlinkedTickets,
+    missingBasics,
+    missingPhotos,
+    missingReports,
+    yardsLogged,
+    topJobs: jobRows.slice(0, maxJobs),
+    status: unlinkedTickets
+      ? "Unlinked tickets need review"
+      : missingBasics
+        ? "Ticket basics needed"
+        : missingPhotos || missingReports
+          ? "Ticket evidence needed"
+          : activeTickets
+            ? "Delivery tickets closeout-ready"
+            : "No active tickets",
+    tone: unlinkedTickets || missingBasics ? "amber" : missingPhotos || missingReports ? "blue" : activeTickets ? "green" : "slate",
+    nextAction: unlinkedTickets
+      ? "Link tickets to jobs"
+      : missingBasics
+        ? "Complete ticket basics"
+        : missingPhotos
+          ? "Attach ticket photos"
+          : missingReports
+            ? "Link daily reports"
+            : activeTickets
+              ? "Ready for office review"
+              : "Create a ticket",
   };
 }
 

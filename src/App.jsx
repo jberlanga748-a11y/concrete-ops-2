@@ -148,7 +148,7 @@ import { deriveCommandCenterState } from "./command-center-utils";
 import { contactHistoryBadgeTone, contactHistoryTimeline, createContactHistoryDraft, deriveCommunicationCenterState, deriveContactHistoryPanelState } from "./contact-history-utils";
 import { getCustomerFilterLayoutClasses } from "./customer-filter-layout";
 import { deriveCustomerListState, filterCustomers, relatedCustomerRecords } from "./customer-utils";
-import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
+import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryTicketCloseoutReadiness, deriveDeliveryTicketListState, filterDeliveryTickets } from "./delivery-ticket-utils";
 import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
@@ -34147,8 +34147,57 @@ function DeliveryTicketsTablePolished({ rows, selectedId, onSelect }) {
   );
 }
 
+function DeliveryTicketCloseoutReadinessCard({ readiness }) {
+  if (!readiness) return null;
+
+  return (
+    <Card className="co-delivery-rail-card p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-700">Delivery closeout</p>
+          <h3 className="mt-2 text-base font-black leading-tight text-slate-950">{readiness.status}</h3>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{readiness.nextAction} before delivery proof is ready for office review.</p>
+        </div>
+        <Badge tone={readiness.tone}>{readiness.readyTickets} ready</Badge>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Active</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.activeTickets}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Gaps</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.jobsWithGaps}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Unlinked</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.unlinkedTickets}</strong>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {readiness.topJobs.length ? readiness.topJobs.map((job) => (
+          <div key={job.jobId} className="rounded-xl border border-slate-200 bg-white p-2.5">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs font-black text-slate-900">{job.label}</p>
+              <Badge tone={job.tone}>{deliveryTicketYardsLabel({ yardsDelivered: job.yards })}</Badge>
+            </div>
+            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-500">{job.tickets} ticket{job.tickets === 1 ? "" : "s"} / {job.readyTickets} ready</p>
+            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-600">{job.blockers.length ? job.blockers.slice(0, 2).join(" / ") : "Truck, ticket, photo, and report links are complete."}</p>
+          </div>
+        )) : (
+          <StateCard title="No active tickets" description="Delivery ticket proof will appear here once field tickets are recorded." tone="slate" />
+        )}
+      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">
+        Review-only. This does not invoice, bill, contact customers, or change job status.
+      </p>
+    </Card>
+  );
+}
+
 function DeliveryTicketsCommandRailPolished({
   ticket,
+  closeoutReadiness,
   canCreate,
   canManageAll,
   canEditSelected,
@@ -34171,6 +34220,7 @@ function DeliveryTicketsCommandRailPolished({
           </div>
           {canCreate ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>New Ticket</Button> : null}
         </Card>
+        {canManageAll ? <DeliveryTicketCloseoutReadinessCard readiness={closeoutReadiness} /> : null}
       </div>
     );
   }
@@ -34232,6 +34282,8 @@ function DeliveryTicketsCommandRailPolished({
           {canManageAll ? <Button type="button" size="sm" variant="danger" onClick={() => onArchive(ticket.id)} disabled={busy || ticket.archivedAt}>Archive</Button> : null}
         </div>
       </Card>
+
+      {canManageAll ? <DeliveryTicketCloseoutReadinessCard readiness={closeoutReadiness} /> : null}
 
       <Card className="co-delivery-rail-card p-4">
         <SectionHeader title="Ticket Readiness" description="Delivery records are strongest when the core field links are complete." />
@@ -34671,6 +34723,7 @@ function DeliveryTicketsPagePolished({
     archived: archiveFilter,
     search,
   }), [archiveFilter, creatorFilter, dateFilter, jobFilter, search, supplierFilter, ticketRows]);
+  const deliveryCloseoutReadiness = useMemo(() => deriveDeliveryTicketCloseoutReadiness(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
   const listState = useMemo(() => deriveDeliveryTicketListState(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
   const selectedTicket = filteredRows.find((ticket) => ticket.id === selectedTicketId)
     || filteredRows[0]
@@ -35201,6 +35254,7 @@ function DeliveryTicketsPagePolished({
 
         <DeliveryTicketsCommandRailPolished
           ticket={selectedTicket}
+          closeoutReadiness={deliveryCloseoutReadiness}
           canCreate={canCreate}
           canManageAll={canManageAll}
           canEditSelected={canEditSelected}
