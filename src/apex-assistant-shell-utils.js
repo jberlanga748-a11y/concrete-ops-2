@@ -42,6 +42,13 @@ const ROUTE_COMMANDS = [
     message: "Open Estimates to create or review proposals, packets, and rough notes drafts.",
   },
   {
+    id: "changeOrders",
+    moduleId: "changeOrders",
+    actionLabel: "Open change orders",
+    keywords: ["change order", "change orders", "scope change", "field change"],
+    message: "Open Change Orders to review scope changes before pricing or billing work.",
+  },
+  {
     id: "deliveryTickets",
     moduleId: "deliveryTickets",
     actionLabel: "Open tickets",
@@ -167,6 +174,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const timeReviewCommand = resolveAssistantTimeReviewCommand(input, state.commandContext || {});
   if (timeReviewCommand) return timeReviewCommand;
+
+  const changeOrderReviewCommand = resolveAssistantChangeOrderReviewCommand(input, state.commandContext || {});
+  if (changeOrderReviewCommand) return changeOrderReviewCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -465,6 +475,47 @@ export function resolveAssistantTimeReviewCommand(input = "", context = {}) {
       : matches.length > 1
         ? "I found multiple time entries that may need review. Choose the right entry before opening the time board."
         : "I did not find an exact time entry match. Open Time and review active clocks or entries manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
+export function resolveAssistantChangeOrderReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasChangeOrderReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.changeOrders?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Change order review assistant commands are office scope-review tools. Field users can submit visible job change requests where allowed, but cannot open office review controls.",
+    };
+  }
+
+  const query = extractChangeOrderReviewTargetQuery(rawText);
+  const matches = findAssistantChangeOrderReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-change-order-review",
+    type: "change-order-review",
+    label: "Open change order board",
+    helper: "No exact change order match found. Open Change Orders and choose the request manually.",
+  };
+
+  return {
+    type: "change-order-review",
+    moduleId: "changeOrders",
+    actionLabel: matches.length === 1 ? "Review change order" : matches.length > 1 ? "Choose request" : "Open Change Orders",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for change order review. No request will be approved, priced, rejected, archived, sent, billed, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple change order requests that may need review. Choose the right request before opening the review drawer."
+        : "I did not find an exact change order match. Open Change Orders and review the board manually.",
     commandText: rawText,
     query,
     matches,
@@ -787,6 +838,13 @@ function hasTimeReviewIntent(text = "") {
   return asksToOpen && mentionsTime && mentionsReviewQueue;
 }
 
+function hasChangeOrderReviewIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsChangeOrder = /\b(change order|change orders|scope change|scope changes|field change|field changes|change request|change requests)\b/.test(text);
+  const mentionsReviewQueue = /\b(requested|under review|review|needs review|needing review|review queue|office review|scope|pricing|cost|detail|details|field notes)\b/.test(text);
+  return asksToOpen && mentionsChangeOrder && mentionsReviewQueue;
+}
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -918,6 +976,18 @@ function extractTimeReviewTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:time|time entry|time entries|timesheet|timesheets|clock|clocks|crew time|field time)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|time|entry|entries|timesheet|timesheets|clock|clocks|crew|field|for|from|on|at|this|the|active|break|breaks|needs|correction)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractChangeOrderReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:change order|change orders|scope change|scope changes|field change|field changes|change request|change requests)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:change order|change orders|scope change|scope changes|field change|field changes|change request|change requests)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|change|order|orders|scope|field|request|requests|for|from|on|at|this|the|requested|needs|pricing|cost)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -1350,6 +1420,69 @@ function findAssistantTimeReviewMatches(query = "", context = {}) {
     }))
     .filter((match) => match.timeEntryId)
     .slice(0, 4);
+}
+
+function findAssistantChangeOrderReviewMatches(query = "", context = {}) {
+  const requests = asArray(context.changeOrderRequests).filter((request) => !request?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? requests.filter((request) => targetMatchesWords(changeOrderSearchText(request), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : requests;
+
+  return candidates
+    .map((request) => ({
+      request,
+      requested: normalizeText(request.status || "requested") === "requested",
+      underReview: normalizeText(request.status) === "under_review",
+      missingDetail: !request.jobId || !request.reason || !request.scopeDescription,
+    }))
+    .sort((left, right) => changeOrderReviewPriority(right) - changeOrderReviewPriority(left) || changeOrderLabel(left.request).localeCompare(changeOrderLabel(right.request)))
+    .map(({ request, requested, underReview, missingDetail }) => ({
+      id: `change-order:${request.id}`,
+      type: "change-order",
+      changeOrderRequestId: request.id || "",
+      label: changeOrderLabel(request),
+      helper: [
+        requested ? "requested" : underReview ? "under review" : `status ${request.status || "requested"}`,
+        missingDetail ? "details missing" : "scope details present",
+        request.requestedByName || request.requestedBy || "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.changeOrderRequestId)
+    .slice(0, 4);
+}
+
+function changeOrderReviewPriority(candidate = {}) {
+  return (candidate.requested ? 20 : 0) + (candidate.underReview ? 12 : 0) + (candidate.missingDetail ? 8 : 0);
+}
+
+function changeOrderLabel(request = {}) {
+  return [
+    request.reason || "Change order request",
+    request.job?.title || request.jobTitle || request.jobId || "",
+    request.scopeDescription || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function changeOrderSearchText(request = {}) {
+  return normalizeText([
+    request.id,
+    request.status,
+    request.reason,
+    request.scopeDescription,
+    request.fieldNotes,
+    request.officeNotes,
+    request.requestedByName,
+    request.requestedBy,
+    request.createdAt,
+    request.jobTitle,
+    request.job?.title,
+    request.job?.customer,
+    request.job?.customerName,
+    request.job?.address,
+    request.job?.city,
+    request.job?.location,
+  ].filter(Boolean).join(" "));
 }
 
 function timeEntryReviewPriority(candidate = {}) {

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
+  resolveAssistantChangeOrderReviewCommand,
   resolveAssistantDeliveryTicketReviewCommand,
   resolveAssistantEstimateDraftCommand,
   resolveAssistantEstimateJobHandoffCommand,
@@ -352,6 +353,58 @@ test("assistant routes generic time navigation without office review", () => {
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "time");
+});
+
+test("assistant opens change order review without write actions", () => {
+  const command = resolveAssistantChangeOrderReviewCommand("Review change order for Westview Warehouse", {
+    permissions: { changeOrders: { canView: true, canManage: true } },
+    changeOrderRequests: [
+      {
+        id: "CO-1",
+        status: "requested",
+        reason: "Extra curb removal",
+        scopeDescription: "Remove and replace added curb section",
+        requestedByName: "Luis G.",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+      },
+    ],
+  });
+
+  assert.equal(command.type, "change-order-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].changeOrderRequestId, "CO-1");
+  assert.match(command.message, /No request will be approved, priced, rejected, archived, sent, billed, or changed automatically/i);
+});
+
+test("assistant change order review is blocked for field roles", () => {
+  const command = resolveAssistantChangeOrderReviewCommand("Open change orders needing review", {
+    permissions: { changeOrders: { canView: true, canRequest: true, canManage: false } },
+    changeOrderRequests: [{ id: "CO-1", status: "requested", reason: "Field change", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users can submit visible job change requests/i);
+});
+
+test("assistant routes change order review before generic change order navigation", () => {
+  const command = resolveApexAssistantCommand("Open change orders needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { changeOrders: { canView: true, canManage: true } },
+      changeOrderRequests: [
+        { id: "CO-1", status: "requested", reason: "Extra curb removal", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "change-order-review");
+  assert.equal(command.matches[0].changeOrderRequestId, "CO-1");
+});
+
+test("assistant routes generic change orders without office review", () => {
+  const command = resolveApexAssistantCommand("open change orders");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "changeOrders");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

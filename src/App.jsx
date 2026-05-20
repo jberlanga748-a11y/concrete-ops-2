@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3796,6 +3796,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openTimeReview(choice = {}) {
     const opened = onOpenTimeReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openChangeOrderReview(choice = {}) {
+    const opened = onOpenChangeOrderReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -4010,6 +4018,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openTimeReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Time instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "change-order-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openChangeOrderReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the change order review drawer. No approval or pricing action happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openChangeOrderReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Change Orders instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -34237,6 +34262,8 @@ function ChangeOrdersPagePolished({
   onCreateRequest,
   onUpdateRequest,
   onArchiveRequest,
+  assistantChangeOrderReviewSeed = null,
+  onAssistantChangeOrderReviewSeedHandled = () => {},
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [jobFilter, setJobFilter] = useState("All jobs");
@@ -34353,6 +34380,25 @@ function ChangeOrdersPagePolished({
     if (targetRequest?.id) setSelectedRequestId(targetRequest.id);
     if (options.toolTab) openTools(options.toolTab);
   }
+
+  useEffect(() => {
+    const seed = assistantChangeOrderReviewSeed;
+    if (!seed?.nonce || !canManage) return;
+
+    const targetRequest = seed.changeOrderRequestId
+      ? rows.find((request) => request?.id === seed.changeOrderRequestId)
+      : requestedRows[0] || underReviewRows[0] || activeChangeRows[0] || rows.find((request) => !request?.archivedAt) || null;
+
+    setStatusFilter("All");
+    setJobFilter("All jobs");
+    setRequesterFilter("All requesters");
+    setDateFilter("All dates");
+    setArchiveFilter(targetRequest?.archivedAt ? "All" : "Active");
+    setSearch("");
+    if (targetRequest?.id) setSelectedRequestId(targetRequest.id);
+    openTools("review");
+    onAssistantChangeOrderReviewSeedHandled(seed.nonce);
+  }, [assistantChangeOrderReviewSeed?.nonce, activeChangeRows, canManage, onAssistantChangeOrderReviewSeedHandled, requestedRows, rows, underReviewRows]);
 
   const needsReviewPriorityCard = {
     label: "Needs review",
@@ -39021,7 +39067,17 @@ function MainContent(props) {
     return <SupportPage {...props} />;
   }
   if (active === "changeOrders") {
-    return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
+    return (
+      <ChangeOrdersPage
+        {...props}
+        changeOrderRequests={props.changeOrderRequests}
+        onCreateRequest={props.onCreateChangeOrderRequest}
+        onUpdateRequest={props.onUpdateChangeOrderRequest}
+        onArchiveRequest={props.onArchiveChangeOrderRequest}
+        assistantChangeOrderReviewSeed={props.assistantChangeOrderReviewSeed}
+        onAssistantChangeOrderReviewSeedHandled={props.onAssistantChangeOrderReviewSeedHandled}
+      />
+    );
   }
   if (active === "deliveryTickets") {
     return (
@@ -39110,6 +39166,7 @@ export default function App() {
   const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
   const [assistantUploadReviewSeed, setAssistantUploadReviewSeed] = useState(null);
   const [assistantDeliveryTicketReviewSeed, setAssistantDeliveryTicketReviewSeed] = useState(null);
+  const [assistantChangeOrderReviewSeed, setAssistantChangeOrderReviewSeed] = useState(null);
   const [assistantPrePourReviewSeed, setAssistantPrePourReviewSeed] = useState(null);
   const [assistantPostPourReviewSeed, setAssistantPostPourReviewSeed] = useState(null);
   const [assistantSafetyIncidentReviewSeed, setAssistantSafetyIncidentReviewSeed] = useState(null);
@@ -39307,6 +39364,19 @@ export default function App() {
     }
     if (seed.timeEntryId) setSelectedTimeEntryId(seed.timeEntryId);
     setActive("time");
+    return true;
+  }
+
+  function handleOpenAssistantChangeOrderReview(seed = {}) {
+    if (!appState.permissions.changeOrders?.canManage) {
+      setErrorMessage("Change order assistant review actions require an office or estimator role that can manage change orders.");
+      return false;
+    }
+    setAssistantChangeOrderReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("changeOrders");
     return true;
   }
 
@@ -42345,6 +42415,12 @@ export default function App() {
                     setAssistantUploadReviewSeed(null);
                   }
                 }}
+                assistantChangeOrderReviewSeed={assistantChangeOrderReviewSeed}
+                onAssistantChangeOrderReviewSeedHandled={(nonce) => {
+                  if (!assistantChangeOrderReviewSeed || assistantChangeOrderReviewSeed.nonce === nonce) {
+                    setAssistantChangeOrderReviewSeed(null);
+                  }
+                }}
                 assistantDeliveryTicketReviewSeed={assistantDeliveryTicketReviewSeed}
                 onAssistantDeliveryTicketReviewSeedHandled={(nonce) => {
                   if (!assistantDeliveryTicketReviewSeed || assistantDeliveryTicketReviewSeed.nonce === nonce) {
@@ -42579,6 +42655,7 @@ export default function App() {
           dailyReports: appState.permissions.reports?.canView ? appState.dailyReports : [],
           uploads: appState.permissions.uploads?.canView ? appState.uploads : [],
           timeEntries: appState.permissions.time?.canView ? appState.timeEntries : [],
+          changeOrderRequests: appState.permissions.changeOrders?.canView ? appState.changeOrderRequests : [],
           deliveryTickets: appState.permissions.deliveryTickets?.canView ? appState.deliveryTickets : [],
           prePourChecklists: appState.permissions.prePour?.canView ? appState.prePourChecklists : [],
           postPourChecklists: appState.permissions.postPour?.canView ? appState.postPourChecklists : [],
@@ -42596,6 +42673,7 @@ export default function App() {
         onOpenReportReview={handleOpenAssistantReportReview}
         onOpenUploadReview={handleOpenAssistantUploadReview}
         onOpenTimeReview={handleOpenAssistantTimeReview}
+        onOpenChangeOrderReview={handleOpenAssistantChangeOrderReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}
