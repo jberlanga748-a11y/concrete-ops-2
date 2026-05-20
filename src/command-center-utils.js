@@ -194,8 +194,97 @@ export function deriveCommandCenterState(source = {}, options = {}) {
   };
   return {
     ...result,
+    proofChainSummary: deriveProofChainSummary(result),
     watchtowerActions: deriveWatchtowerActions(result),
     watchtowerQueue: deriveWatchtowerQueue(result),
+  };
+}
+
+export function deriveProofChainSummary(commandCenter = {}) {
+  const stats = commandCenter.stats || {};
+  const setupBlockers = Number(stats.jobsNeedingStartupReview || 0)
+    + Number(stats.jobsMissingCrew || 0)
+    + Number(stats.jobsMissingStartDate || 0);
+  const fieldProofBlockers = Number(stats.openDailyReports || 0)
+    + Number(stats.dailyReportsNeedingReview || 0)
+    + Number(stats.jobsMissingPhotos || 0);
+  const materialsBlockers = Number(stats.pendingDeliveryTickets || 0)
+    + Number(stats.pendingPrePourChecklists || 0)
+    + Number(stats.pendingPostPourChecklists || 0);
+  const safetyToolBlockers = Number(stats.openSafetyIncidents || 0)
+    + Number(stats.openToolChecklists || 0);
+  const timeBlockers = Number(stats.timeIssues || 0);
+  const readyForOffice = Number(stats.jobsReadyToBill || 0)
+    + Number(stats.approvedEstimatesReadyToConvert || 0);
+
+  const rows = [
+    {
+      id: "setup",
+      label: "Setup",
+      value: setupBlockers,
+      helper: "Startup, crew, and start-date blockers",
+      moduleId: "jobs",
+      actionLabel: "Open jobs",
+      tone: setupBlockers > 0 ? "amber" : "green",
+    },
+    {
+      id: "field-proof",
+      label: "Field proof",
+      value: fieldProofBlockers,
+      helper: "Daily reports, review items, and photos",
+      moduleId: fieldProofBlockers > 0 && Number(stats.jobsMissingPhotos || 0) > Number(stats.dailyReportsNeedingReview || 0) ? "uploads" : "reports",
+      actionLabel: "Open proof",
+      tone: fieldProofBlockers > 0 ? "amber" : "green",
+    },
+    {
+      id: "materials",
+      label: "Tickets / pour",
+      value: materialsBlockers,
+      helper: "Delivery tickets plus pre/post-pour checklists",
+      moduleId: "deliveryTickets",
+      actionLabel: "Open tickets",
+      tone: materialsBlockers > 0 ? "blue" : "green",
+    },
+    {
+      id: "safety-tools",
+      label: "Safety / tools",
+      value: safetyToolBlockers,
+      helper: "Safety incidents and tool accountability",
+      moduleId: Number(stats.openSafetyIncidents || 0) > 0 ? "incidents" : "toolChecklist",
+      actionLabel: Number(stats.openSafetyIncidents || 0) > 0 ? "Open safety" : "Open tools",
+      tone: Number(stats.openSafetyIncidents || 0) > 0 ? "red" : safetyToolBlockers > 0 ? "amber" : "green",
+    },
+    {
+      id: "time",
+      label: "Time",
+      value: timeBlockers,
+      helper: "Active clocks and unassigned time entries",
+      moduleId: "time",
+      actionLabel: "Open time",
+      tone: timeBlockers > 0 ? "blue" : "green",
+    },
+    {
+      id: "ready-to-bill",
+      label: "Ready",
+      value: readyForOffice,
+      helper: "Manual ready-to-bill or approved handoff work",
+      moduleId: Number(stats.jobsReadyToBill || 0) > 0 ? "jobs" : "estimates",
+      actionLabel: Number(stats.jobsReadyToBill || 0) > 0 ? "Open jobs" : "Open estimates",
+      tone: readyForOffice > 0 ? "green" : "slate",
+    },
+  ];
+  const blockerRows = rows.filter((row) => row.id !== "ready-to-bill" && Number(row.value || 0) > 0);
+  const nextRow = blockerRows[0] || rows.find((row) => row.id === "ready-to-bill") || rows[0];
+  const blockerCount = blockerRows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+
+  return {
+    status: blockerCount > 0 ? "needs-review" : readyForOffice > 0 ? "ready" : "clear",
+    statusLabel: blockerCount > 0 ? "Proof chain needs review" : readyForOffice > 0 ? "Ready work available" : "Proof chain clear",
+    blockerCount,
+    readyCount: readyForOffice,
+    nextAction: nextRow?.actionLabel || "Review chain",
+    nextModuleId: nextRow?.moduleId || "jobs",
+    rows,
   };
 }
 

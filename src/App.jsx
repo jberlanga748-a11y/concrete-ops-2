@@ -16391,6 +16391,62 @@ function CommandCenterOpsPulseCard({ icon = "grid", title, value, helper, rows =
   );
 }
 
+function CommandCenterProofChainCard({ summary, onOpenModule }) {
+  const rows = Array.isArray(summary?.rows) ? summary.rows : [];
+  if (!rows.length) return null;
+  const hasBlockers = Number(summary?.blockerCount || 0) > 0;
+  const readyCount = Number(summary?.readyCount || 0);
+
+  return (
+    <Card className="co-command-card p-3.5">
+      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={hasBlockers ? "amber" : readyCount > 0 ? "green" : "slate"}>{summary?.statusLabel || "Proof chain"}</Badge>
+            <Badge tone="slate">Review-only</Badge>
+          </div>
+          <h3 className="mt-2 text-base font-black text-slate-950">Proof chain from setup to ready-to-bill</h3>
+          <p className="mt-1 max-w-4xl text-sm font-bold leading-6 text-slate-600">
+            One office readout ties job startup, reports, uploads, tickets, safety, tools, time, and manual billing readiness together.
+          </p>
+        </div>
+        <Button type="button" size="sm" onClick={() => onOpenModule?.(summary?.nextModuleId || "jobs")}>
+          {summary?.nextAction || "Review chain"}
+        </Button>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        {rows.map((row) => (
+          <button
+            key={row.id}
+            type="button"
+            onClick={() => onOpenModule?.(row.moduleId)}
+            className="co-command-ops-card co-focus-ring text-left"
+            data-tone={row.tone || "slate"}
+          >
+            <span className="co-command-ops-card-head">
+              <span className="co-command-ops-card-icon" aria-hidden="true">
+                <Icon name={row.id === "ready-to-bill" ? "check" : row.id === "time" ? "clock" : row.id === "safety-tools" ? "alert" : row.id === "materials" ? "clipboard" : row.id === "field-proof" ? "upload" : "briefcase"} className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="co-command-ops-card-title">{row.label}</span>
+                <span className="co-command-ops-card-helper">{row.helper}</span>
+              </span>
+              <strong>{row.value}</strong>
+            </span>
+            <span className="co-command-ops-card-link">
+              {row.actionLabel || "Open"}
+              <span aria-hidden="true">-&gt;</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-600">
+        This is a visibility surface only. It does not send messages, create invoices, submit billing, or change field records automatically.
+      </p>
+    </Card>
+  );
+}
+
 function FieldOpsAgentSummaryCard({ state, onOpenModule, onOpenItem, compact = false }) {
   if (!state?.canView) return null;
   const items = Array.isArray(state.items) ? state.items.slice(0, compact ? 3 : 5) : [];
@@ -16898,6 +16954,7 @@ function CommandCenterPage({
             <CommandCenterOpsPulseCard key={card.title} {...card} />
           ))}
         </div>
+        <CommandCenterProofChainCard summary={commandCenter.proofChainSummary} onOpenModule={openModule} />
         <div className="co-command-kpi-grid grid grid-cols-2 gap-2.5 2xl:grid-cols-4">
           {priorityStatCards.map((card) => (
             <CommandCenterKpiCard key={card.label} item={card} />

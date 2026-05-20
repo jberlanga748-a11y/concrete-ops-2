@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveCommandCenterState, deriveWatchtowerActions, deriveWatchtowerQueue, isLiveJob } from "./command-center-utils.js";
+import { deriveCommandCenterState, deriveProofChainSummary, deriveWatchtowerActions, deriveWatchtowerQueue, isLiveJob } from "./command-center-utils.js";
 
 const READY_STARTUP_CHECKLIST = [
   { key: "customerContactConfirmed", checked: true },
@@ -110,6 +110,10 @@ test("command center derives priority stats across existing concrete modules", (
   assert.equal(result.stats.moneyReadyItems, 2);
   assert.equal(result.stats.scheduledTodayJobs, 1);
   assert.equal(result.stats.scheduledTomorrowJobs, 0);
+  assert.equal(result.proofChainSummary.blockerCount, 13);
+  assert.equal(result.proofChainSummary.readyCount, 2);
+  assert.equal(result.proofChainSummary.nextModuleId, "jobs");
+  assert.equal(result.proofChainSummary.rows.map((row) => row.id).join(","), "setup,field-proof,materials,safety-tools,time,ready-to-bill");
   assert.equal(result.schedule.scheduledTodayJobs.map((job) => job.id).join(","), "J-2");
   assert.deepEqual(result.leadSourceChecks.checksNeeded.map((source) => source.id), ["LS-1", "LS-2"]);
   assert.deepEqual(result.watchtowerActions.slice(0, 3).map((action) => action.id), [
@@ -153,6 +157,53 @@ test("time issues do not duplicate active entries that are also missing a job", 
 
 test("watchtower actions stay empty when operations are clear", () => {
   assert.deepEqual(deriveWatchtowerActions({ stats: {} }), []);
+});
+
+test("proof chain summary moves office review through setup, proof, materials, safety, time, and ready work", () => {
+  const summary = deriveProofChainSummary({
+    stats: {
+      jobsNeedingStartupReview: 1,
+      jobsMissingCrew: 1,
+      openDailyReports: 2,
+      jobsMissingPhotos: 3,
+      pendingDeliveryTickets: 1,
+      pendingPostPourChecklists: 1,
+      openSafetyIncidents: 1,
+      openToolChecklists: 2,
+      timeIssues: 4,
+      jobsReadyToBill: 2,
+      approvedEstimatesReadyToConvert: 1,
+    },
+  });
+
+  assert.equal(summary.status, "needs-review");
+  assert.equal(summary.statusLabel, "Proof chain needs review");
+  assert.equal(summary.blockerCount, 16);
+  assert.equal(summary.readyCount, 3);
+  assert.equal(summary.nextAction, "Open jobs");
+  assert.equal(summary.nextModuleId, "jobs");
+  assert.deepEqual(summary.rows.map((row) => [row.id, row.value, row.tone]), [
+    ["setup", 2, "amber"],
+    ["field-proof", 5, "amber"],
+    ["materials", 2, "blue"],
+    ["safety-tools", 3, "red"],
+    ["time", 4, "blue"],
+    ["ready-to-bill", 3, "green"],
+  ]);
+});
+
+test("proof chain summary routes to ready work when blockers are clear", () => {
+  const summary = deriveProofChainSummary({
+    stats: {
+      jobsReadyToBill: 0,
+      approvedEstimatesReadyToConvert: 2,
+    },
+  });
+
+  assert.equal(summary.status, "ready");
+  assert.equal(summary.blockerCount, 0);
+  assert.equal(summary.readyCount, 2);
+  assert.equal(summary.nextModuleId, "estimates");
 });
 
 test("watchtower actions prioritize owner revenue and field blockers", () => {
