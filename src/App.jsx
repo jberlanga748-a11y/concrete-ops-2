@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenSafetyIncidentReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3788,6 +3788,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openDeliveryTicketReview(choice = {}) {
     const opened = onOpenDeliveryTicketReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openSafetyIncidentReview(choice = {}) {
+    const opened = onOpenSafetyIncidentReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3945,6 +3953,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openDeliveryTicketReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Tickets instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "safety-incident-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openSafetyIncidentReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the safety incident tools. No review or resolve action happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openSafetyIncidentReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Safety instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "estimate-draft-review" ? (
@@ -11548,6 +11573,8 @@ function SafetyIncidentsPagePolished({
   onReviewSafetyIncident,
   onResolveSafetyIncident,
   onArchiveSafetyIncident,
+  assistantSafetyIncidentReviewSeed = null,
+  onAssistantSafetyIncidentReviewSeedHandled = () => {},
 }) {
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState(canSubmitIncidents ? "submit" : "detail");
@@ -11623,6 +11650,32 @@ function SafetyIncidentsPagePolished({
     }
     openTools(options.tool || "detail");
   }
+
+  useEffect(() => {
+    const seed = assistantSafetyIncidentReviewSeed;
+    if (!seed?.nonce || !canReview) return;
+
+    const activeIncidents = normalizeObjectArray(allIncidents).filter((incident) => (
+      !incident.archivedAt && !["resolved", "archived"].includes(String(incident.status || "").toLowerCase())
+    ));
+    const targetIncidentId = seed.incidentId && activeIncidents.some((incident) => incident?.id === seed.incidentId)
+      ? seed.incidentId
+      : activeIncidents.find((incident) => ["critical", "high"].includes(String(incident.severity || "").toLowerCase()))?.id
+        || activeIncidents.find((incident) => String(incident.status || "").toLowerCase() === "open")?.id
+        || activeIncidents[0]?.id
+        || "";
+
+    setIncidentStatusFilter("All");
+    setIncidentTypeFilter("All types");
+    setIncidentSeverityFilter("All severities");
+    setIncidentJobFilter("All jobs");
+    setIncidentReporterFilter("All reporters");
+    setIncidentArchiveFilter("Active only");
+    setIncidentSearch("");
+    if (targetIncidentId) setSelectedIncidentId(targetIncidentId);
+    openTools("detail");
+    onAssistantSafetyIncidentReviewSeedHandled(seed.nonce);
+  }, [assistantSafetyIncidentReviewSeed?.nonce, canReview, allIncidents]);
 
   function openSafetySupport() {
     const supportSelectedIncident = visibleIncidents.some((incident) => incident.id === selectedIncident?.id) ? selectedIncident : null;
@@ -13401,6 +13454,8 @@ function SafetyPage({
   onResolveSafetyIncident,
   onArchiveSafetyIncident,
   onOpenSupport,
+  assistantSafetyIncidentReviewSeed = null,
+  onAssistantSafetyIncidentReviewSeedHandled = () => {},
 }) {
   const incidentFocused = active === "incidents";
   const toolboxFocused = active === "toolbox";
@@ -13611,6 +13666,8 @@ function SafetyPage({
         onResolveSafetyIncident={onResolveSafetyIncident}
         onArchiveSafetyIncident={onArchiveSafetyIncident}
         onOpenSupport={onOpenSupport}
+        assistantSafetyIncidentReviewSeed={assistantSafetyIncidentReviewSeed}
+        onAssistantSafetyIncidentReviewSeedHandled={onAssistantSafetyIncidentReviewSeedHandled}
       />
     );
   }
@@ -38681,7 +38738,14 @@ function MainContent(props) {
       );
     }
     if (active === "ppe" || active === "incidents" || active === "toolbox") {
-      return <SafetyPage {...props} onOpenSupport={props.onOpenSafetySupport || props.onOpenSupport} />;
+      return (
+        <SafetyPage
+          {...props}
+          onOpenSupport={props.onOpenSafetySupport || props.onOpenSupport}
+          assistantSafetyIncidentReviewSeed={props.assistantSafetyIncidentReviewSeed}
+          onAssistantSafetyIncidentReviewSeedHandled={props.onAssistantSafetyIncidentReviewSeedHandled}
+        />
+      );
     }
   if (active === "toolChecklist") {
     return <ToolChecklistPage {...props} toolChecklists={props.toolChecklists} />;
@@ -38807,6 +38871,7 @@ export default function App() {
   const [assistantJobHandoffSeed, setAssistantJobHandoffSeed] = useState(null);
   const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
   const [assistantDeliveryTicketReviewSeed, setAssistantDeliveryTicketReviewSeed] = useState(null);
+  const [assistantSafetyIncidentReviewSeed, setAssistantSafetyIncidentReviewSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -38990,6 +39055,19 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("deliveryTickets");
+    return true;
+  }
+
+  function handleOpenAssistantSafetyIncidentReview(seed = {}) {
+    if (!appState.permissions.safety?.canReviewIncidents && !appState.permissions.safety?.canManage) {
+      setErrorMessage("Safety incident assistant review actions require an office role that can review safety incidents.");
+      return false;
+    }
+    setAssistantSafetyIncidentReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("incidents");
     return true;
   }
 
@@ -41963,6 +42041,12 @@ export default function App() {
                     setAssistantDeliveryTicketReviewSeed(null);
                   }
                 }}
+                assistantSafetyIncidentReviewSeed={assistantSafetyIncidentReviewSeed}
+                onAssistantSafetyIncidentReviewSeedHandled={(nonce) => {
+                  if (!assistantSafetyIncidentReviewSeed || assistantSafetyIncidentReviewSeed.nonce === nonce) {
+                    setAssistantSafetyIncidentReviewSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -42182,6 +42266,7 @@ export default function App() {
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
         onOpenReportReview={handleOpenAssistantReportReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
+        onOpenSafetyIncidentReview={handleOpenAssistantSafetyIncidentReview}
       />
     </div>
   );

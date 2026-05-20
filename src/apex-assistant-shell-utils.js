@@ -158,6 +158,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
 
+  const safetyIncidentReviewCommand = resolveAssistantSafetyIncidentReviewCommand(input, state.commandContext || {});
+  if (safetyIncidentReviewCommand) return safetyIncidentReviewCommand;
+
   const jobHandoffCommand = resolveAssistantJobHandoffCommand(input, state.commandContext || {});
   if (jobHandoffCommand) return jobHandoffCommand;
 
@@ -365,6 +368,47 @@ export function resolveAssistantDeliveryTicketReviewCommand(input = "", context 
   };
 }
 
+export function resolveAssistantSafetyIncidentReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasSafetyIncidentReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.safety?.canReviewIncidents && !permissions?.safety?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Safety incident review assistant commands are office safety-review tools. Field users stay limited to assigned safety guidance and field-safe incident submission.",
+    };
+  }
+
+  const query = extractSafetyIncidentReviewTargetQuery(rawText);
+  const matches = findAssistantSafetyIncidentReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-safety-incident-review",
+    type: "safety-incident-review",
+    label: "Open safety incident board",
+    helper: "No exact incident match found. Open Safety / Incidents and choose the record manually.",
+  };
+
+  return {
+    type: "safety-incident-review",
+    moduleId: "incidents",
+    actionLabel: matches.length === 1 ? "Review incident" : matches.length > 1 ? "Choose incident" : "Open Safety",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for safety incident review. No incident will be reviewed, resolved, archived, messaged, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple safety incidents that may need review. Choose the right incident before opening the safety tools."
+        : "I did not find an exact safety incident match. Open Safety / Incidents and review the board manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantEstimateDraftCommand(input = "", context = {}) {
   const rawText = String(input || "").trim();
   const text = normalizeText(rawText);
@@ -556,6 +600,14 @@ function hasDeliveryTicketReviewIntent(text = "") {
   return asksForReview && mentionsTicket && mentionsReviewQueue;
 }
 
+function hasSafetyIncidentReviewIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
+  const mentionsIncidentEntity = /\b(incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
+  const mentionsReviewQueue = /\b(unresolved|needs review|needing review|follow[- ]?up|high|critical|severity|immediate action|resolve|closeout)\b/.test(text);
+  return asksForReview && mentionsSafety && (mentionsReviewQueue || (mentionsIncidentEntity && /\breview\b/.test(text)));
+}
+
 function hasEstimatePacketIntent(text = "") {
   return /\b(prepare|open|review|build|assemble|show)\b/.test(text)
     && /\b(gc packet|packet|proposal packet|foreman handoff|field handoff)\b/.test(text);
@@ -644,6 +696,18 @@ function extractDeliveryTicketReviewTargetQuery(input = "") {
   return "";
 }
 
+function extractSafetyIncidentReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|safety|incident|incidents|hazard|hazards|near|miss|injury|injuries|property|damage|for|from|this|the|open|unresolved|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
 function findProofTargetJob(jobs = [], query = "") {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return null;
@@ -657,6 +721,78 @@ function findProofTargetJob(jobs = [], query = "") {
     job.city,
     job.status,
   ].filter(Boolean).join(" ")), words)) || null;
+}
+
+function findAssistantSafetyIncidentReviewMatches(query = "", context = {}) {
+  const incidents = asArray(context.safetyIncidents).filter((incident) => !incident?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? incidents.filter((incident) => targetMatchesWords(safetyIncidentSearchText(incident), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : incidents;
+
+  return candidates
+    .map((incident) => ({
+      incident,
+      severe: safetyIncidentIsSevere(incident),
+      open: safetyIncidentIsOpen(incident),
+      missingAction: !String(incident?.immediateAction || "").trim(),
+      reviewedNotResolved: normalizeText(incident.status) === "reviewed",
+    }))
+    .sort((left, right) => safetyIncidentReviewPriority(right) - safetyIncidentReviewPriority(left) || safetyIncidentLabel(left.incident).localeCompare(safetyIncidentLabel(right.incident)))
+    .map(({ incident, severe, open, missingAction, reviewedNotResolved }) => ({
+      id: `safety-incident:${incident.id}`,
+      type: "safety-incident",
+      incidentId: incident.id || "",
+      label: safetyIncidentLabel(incident),
+      helper: [
+        severe ? `${incident.severity || "high"} severity` : `severity ${incident.severity || "low"}`,
+        open ? "open follow-up" : reviewedNotResolved ? "reviewed, not resolved" : `status ${incident.status || "open"}`,
+        missingAction ? "immediate action missing" : "immediate action logged",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.incidentId)
+    .slice(0, 4);
+}
+
+function safetyIncidentReviewPriority(candidate = {}) {
+  return (candidate.severe ? 30 : 0) + (candidate.open ? 15 : 0) + (candidate.missingAction ? 10 : 0) + (candidate.reviewedNotResolved ? 6 : 0);
+}
+
+function safetyIncidentIsSevere(incident = {}) {
+  return ["critical", "high"].includes(normalizeText(incident.severity));
+}
+
+function safetyIncidentIsOpen(incident = {}) {
+  const status = normalizeText(incident.status || "open");
+  return !["resolved", "archived"].includes(status);
+}
+
+function safetyIncidentLabel(incident = {}) {
+  return [
+    incident.title || "Safety incident",
+    jobTitle(incident.job),
+    incident.severity || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function safetyIncidentSearchText(incident = {}) {
+  return normalizeText([
+    incident.id,
+    incident.title,
+    incident.description,
+    incident.immediateAction,
+    incident.status,
+    incident.severity,
+    incident.type,
+    incident.submittedByName,
+    incident.submittedBy,
+    incident.job?.title,
+    incident.job?.customer,
+    incident.job?.customerName,
+    incident.job?.address,
+    incident.job?.city,
+    incident.job?.location,
+  ].filter(Boolean).join(" "));
 }
 
 function findAssistantDeliveryTicketReviewMatches(query = "", context = {}) {

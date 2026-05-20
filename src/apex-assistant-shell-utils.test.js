@@ -11,6 +11,7 @@ import {
   resolveAssistantJobHandoffCommand,
   resolveAssistantMissingProofCommand,
   resolveAssistantReportReviewCommand,
+  resolveAssistantSafetyIncidentReviewCommand,
 } from "./apex-assistant-shell-utils.js";
 
 test("assistant shell is hidden without AI Office permission", () => {
@@ -280,6 +281,65 @@ test("assistant routes delivery ticket review before generic ticket navigation",
 
   assert.equal(command.type, "delivery-ticket-review");
   assert.equal(command.matches[0].ticketId, "TICKET-1");
+});
+
+test("assistant opens safety incident review without write actions", () => {
+  const command = resolveAssistantSafetyIncidentReviewCommand("Review safety incident for Westview Warehouse", {
+    permissions: { safety: { canReviewIncidents: true, canManage: true } },
+    safetyIncidents: [
+      {
+        id: "INC-1",
+        title: "Wet saw guard concern",
+        status: "open",
+        severity: "high",
+        immediateAction: "",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+      },
+    ],
+  });
+
+  assert.equal(command.type, "safety-incident-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].incidentId, "INC-1");
+  assert.match(command.message, /No incident will be reviewed, resolved, archived, messaged, or changed automatically/i);
+});
+
+test("assistant safety incident review is blocked for field roles", () => {
+  const command = resolveAssistantSafetyIncidentReviewCommand("Open safety incidents needing review", {
+    permissions: { safety: { canView: true, canSubmitIncidents: true, canReviewIncidents: false, canManage: false } },
+    safetyIncidents: [{ id: "INC-1", title: "Field concern", status: "open", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes safety incident review before generic safety navigation", () => {
+  const command = resolveApexAssistantCommand("Open safety incidents needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { safety: { canReviewIncidents: true } },
+      safetyIncidents: [
+        { id: "INC-1", title: "Guard concern", status: "open", severity: "high", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "safety-incident-review");
+  assert.equal(command.matches[0].incidentId, "INC-1");
+});
+
+test("assistant keeps generic safety navigation out of office incident review", () => {
+  const command = resolveApexAssistantCommand("open safety", {
+    commandContext: {
+      permissions: { safety: { canSubmitIncidents: true, canReviewIncidents: false, canManage: false } },
+      safetyIncidents: [
+        { id: "INC-1", title: "Guard concern", status: "open", severity: "high", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "incidents");
 });
 
 test("assistant routes plain foreman handoff to Jobs before estimate packet tools", () => {
