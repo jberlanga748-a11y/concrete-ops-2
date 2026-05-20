@@ -9,6 +9,12 @@ Apex HQ is guided-demo ready and controlled-pilot ready when the pilot is founde
 
 Market it as a controlled contractor operations platform for guided demos and founder-led pilots, not a fully public self-serve SaaS.
 
+Use the local launch gate status helper to see the current GO/NO-GO state without deploying or mutating production:
+
+```powershell
+npm.cmd run launch:gate-status
+```
+
 Current stage:
 
 - guided founder-led demos: ready with demo smoke and route QA evidence
@@ -93,6 +99,7 @@ Do not use:
 | Production log drain / dedicated monitor | Planned; preflight helper built; not enabled |
 | Public claims scan | Built; scans curated public/source copy for unsupported positive claims |
 | Pilot rehearsal helper | Built; read-only Day 0/3/10 packet generator and validator |
+| Launch gate status helper | Built; read-only combined GO/NO-GO view |
 
 ## Business Launch Checklist
 
