@@ -14,6 +14,13 @@ function createDatabase() {
       source_name TEXT NOT NULL
     );
 
+    CREATE TABLE opportunity_search_profiles (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      source_policy_note TEXT NOT NULL
+    );
+
     CREATE TABLE customers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL
@@ -69,6 +76,18 @@ function seedSmokeAndRealRecords(database) {
     "Salem-Keizer",
     "Public bid board",
   );
+  database.prepare("INSERT INTO opportunity_search_profiles (id, name, notes, source_policy_note) VALUES (?, ?, ?, ?)").run(
+    "OSP-SMOKE",
+    "Smoke blocked source posture",
+    "Opportunity Scout hosted smoke search profile",
+    "Opportunity Scout hosted smoke source posture",
+  );
+  database.prepare("INSERT INTO opportunity_search_profiles (id, name, notes, source_policy_note) VALUES (?, ?, ?, ?)").run(
+    "OSP-REAL",
+    "Daily public bid scan",
+    "Real profile",
+    "Reviewed public terms",
+  );
   database.prepare("INSERT INTO customers (id, name) VALUES (?, ?)").run("C-SMOKE", "City of Salem Facilities");
   database.prepare("INSERT INTO customers (id, name) VALUES (?, ?)").run("C-REAL", "ABC Builders");
   database.prepare("INSERT INTO leads (id, customer, project, source, customer_id) VALUES (?, ?, ?, ?, ?)").run(
@@ -117,6 +136,7 @@ test("demo smoke cleanup dry-run reports matches without deleting records", () =
     const result = cleanupDemoSmokeArtifacts(database);
 
     assert.equal(result.dryRun, true);
+    assert.equal(result.matched.opportunitySearchProfiles, 1);
     assert.equal(result.matched.foundOpportunities, 1);
     assert.equal(result.matched.leads, 1);
     assert.equal(result.matched.customers, 1);
@@ -139,6 +159,7 @@ test("demo smoke cleanup apply deletes only smoke artifacts", () => {
 
     assert.equal(result.dryRun, false);
     assert.equal(result.deleted.foundOpportunities, 1);
+    assert.equal(result.deleted.opportunitySearchProfiles, 1);
     assert.equal(result.deleted.leadStatusHistory, 1);
     assert.equal(result.deleted.leads, 1);
     assert.equal(result.deleted.customers, 1);
@@ -147,6 +168,7 @@ test("demo smoke cleanup apply deletes only smoke artifacts", () => {
     assert.equal(database.prepare("SELECT id FROM leads").get().id, "L-REAL");
     assert.equal(database.prepare("SELECT id FROM customers").get().id, "C-REAL");
     assert.equal(database.prepare("SELECT id FROM found_opportunities").get().id, "FO-REAL");
+    assert.equal(database.prepare("SELECT id FROM opportunity_search_profiles").get().id, "OSP-REAL");
   } finally {
     database.close();
   }

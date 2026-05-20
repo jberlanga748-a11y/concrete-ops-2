@@ -41,6 +41,14 @@ function buildSmokeArtifactPlan(database) {
       OR source_name = ?
   `, [SMOKE_COMPANY_NAME, SMOKE_SOURCE_NAME]);
 
+  const searchProfileIds = listIds(database, `
+    SELECT id
+    FROM opportunity_search_profiles
+    WHERE name LIKE 'Smoke %'
+      OR notes LIKE '%Opportunity Scout hosted smoke%'
+      OR source_policy_note LIKE '%Opportunity Scout hosted smoke%'
+  `);
+
   const leadIds = listIds(database, `
     SELECT id
     FROM leads
@@ -88,6 +96,7 @@ function buildSmokeArtifactPlan(database) {
     : [];
 
   return {
+    opportunitySearchProfiles: searchProfileIds,
     foundOpportunities: opportunityIds,
     leadStatusHistory: leadStatusIds,
     leads: leadIds,
@@ -107,6 +116,13 @@ function countRemainingSmokeArtifacts(database) {
         OR agency = ?
         OR source_name = ?
     `, [SMOKE_COMPANY_NAME, SMOKE_SOURCE_NAME]),
+    opportunitySearchProfiles: countQuery(database, `
+      SELECT COUNT(*) AS count
+      FROM opportunity_search_profiles
+      WHERE name LIKE 'Smoke %'
+        OR notes LIKE '%Opportunity Scout hosted smoke%'
+        OR source_policy_note LIKE '%Opportunity Scout hosted smoke%'
+    `),
     leads: countQuery(database, `
       SELECT COUNT(*) AS count
       FROM leads
@@ -136,6 +152,7 @@ function countRemainingSmokeArtifacts(database) {
 export function cleanupDemoSmokeArtifacts(database, { apply = false } = {}) {
   const plan = buildSmokeArtifactPlan(database);
   const matched = {
+    opportunitySearchProfiles: countByIds(database, "opportunity_search_profiles", plan.opportunitySearchProfiles),
     foundOpportunities: countByIds(database, "found_opportunities", plan.foundOpportunities),
     leadStatusHistory: countByIds(database, "lead_status_history", plan.leadStatusHistory),
     leads: countByIds(database, "leads", plan.leads),
@@ -145,6 +162,7 @@ export function cleanupDemoSmokeArtifacts(database, { apply = false } = {}) {
   };
 
   const deleted = {
+    opportunitySearchProfiles: 0,
     foundOpportunities: 0,
     leadStatusHistory: 0,
     leads: 0,
@@ -158,6 +176,7 @@ export function cleanupDemoSmokeArtifacts(database, { apply = false } = {}) {
     try {
       deleted.leadStatusHistory = deleteByIds(database, "lead_status_history", plan.leadStatusHistory);
       deleted.foundOpportunities = deleteByIds(database, "found_opportunities", plan.foundOpportunities);
+      deleted.opportunitySearchProfiles = deleteByIds(database, "opportunity_search_profiles", plan.opportunitySearchProfiles);
       deleted.leads = deleteByIds(database, "leads", plan.leads);
       deleted.queueItems = deleteByIds(database, "queue_items", plan.queueItems);
       deleted.activity = deleteByIds(database, "activity", plan.activity);

@@ -177,6 +177,85 @@ async function run() {
   assertStatus(createApprovedStatus, 400, "approved status during opportunity create");
   checks.push({ name: "approved-status-create-rejected", status: createApprovedStatus.response.status });
 
+  const profileName = `Smoke blocked source posture ${Date.now()}`;
+  const profileCreated = await requestJson(options.baseUrl, "/api/opportunity-scout/search-profiles", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      name: profileName,
+      trades: ["concrete"],
+      serviceAreas: ["Salem"],
+      sourceTypes: ["Public bid portal"],
+      sourceAdapterId: "public_web",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "blocked",
+      sourcePolicyNote: "Opportunity Scout hosted smoke blocked terms review. api_key=secret",
+      keywords: ["ADA", "sidewalk"],
+      excludedKeywords: ["roofing"],
+      cadence: "manual",
+      notes: "Opportunity Scout hosted smoke source-posture profile.",
+    },
+  });
+  assertOk(profileCreated, "create source posture search profile");
+  const searchProfile = profileCreated.payload?.opportunitySearchProfiles?.find((entry) => entry.name === profileName);
+  if (!searchProfile?.id) throw new Error("Created source posture search profile was not returned.");
+  if (searchProfile.sourceTermsStatus !== "blocked" || searchProfile.sourcePolicyNote?.includes("secret")) {
+    throw new Error(`Search profile source posture was not normalized/redacted: ${JSON.stringify(searchProfile)}`);
+  }
+  checks.push({
+    name: "source-posture-profile-created",
+    status: profileCreated.response.status,
+    searchProfileId: searchProfile.id,
+    sourceTermsStatus: searchProfile.sourceTermsStatus,
+  });
+
+  const searchPlan = await requestJson(options.baseUrl, `/api/ai/opportunity-scout/search-profiles/${searchProfile.id}/search-plan`, {
+    method: "POST",
+    token: admin.token,
+  });
+  assertOk(searchPlan, "source posture search plan");
+  if (JSON.stringify(searchPlan.payload).includes("secret")) {
+    throw new Error("Source posture search plan leaked a secret.");
+  }
+  if (searchPlan.payload?.localFallback && !searchPlan.payload?.riskFilters?.some((item) => /blocked/i.test(item))) {
+    throw new Error(`Local source posture search plan did not include blocked-source risk: ${JSON.stringify(searchPlan.payload)}`);
+  }
+  checks.push({
+    name: "source-posture-search-plan",
+    status: searchPlan.response.status,
+    localFallback: Boolean(searchPlan.payload?.localFallback),
+    riskFilters: searchPlan.payload?.riskFilters?.length || 0,
+  });
+
+  const agentPreview = await requestJson(options.baseUrl, "/api/ai/opportunity-scout/agent-preview", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      searchProfileId: searchProfile.id,
+      intakeSourceType: "pasted_text",
+      intakeText: "Project: Smoke blocked posture preview\nAgency: City of Salem Facilities\nLocation: Salem, OR\nScope: concrete sidewalk repair",
+      title: "Smoke blocked posture preview",
+      sourceName: "Manual smoke intake",
+      trade: "Concrete",
+      city: "Salem",
+      state: "OR",
+    },
+  });
+  assertOk(agentPreview, "source posture agent preview");
+  const sourcePosture = agentPreview.payload?.agentRunPacket?.sourcePosture;
+  if (!sourcePosture?.blocked || sourcePosture.safeUseLabel !== "Blocked source") {
+    throw new Error(`Agent preview did not expose blocked source posture: ${JSON.stringify(sourcePosture)}`);
+  }
+  if (JSON.stringify(agentPreview.payload).includes("secret")) {
+    throw new Error("Agent preview leaked a source posture secret.");
+  }
+  checks.push({
+    name: "source-posture-agent-preview",
+    status: agentPreview.response.status,
+    safeUseLabel: sourcePosture.safeUseLabel,
+    blocked: sourcePosture.blocked,
+  });
+
   const unique = `Smoke Library ADA Ramp ${Date.now()}`;
   const created = await requestJson(options.baseUrl, "/api/opportunity-scout/found-opportunities", {
     method: "POST",
