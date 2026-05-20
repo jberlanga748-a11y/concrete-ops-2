@@ -7,6 +7,7 @@ import {
   resolveAssistantChangeOrderReviewCommand,
   resolveAssistantCrewReadinessCommand,
   resolveAssistantCustomerAccountCommand,
+  resolveAssistantDailyCloseoutReadinessCommand,
   resolveAssistantDeliveryTicketReviewCommand,
   resolveAssistantEstimateDraftCommand,
   resolveAssistantEstimateJobHandoffCommand,
@@ -172,6 +173,78 @@ test("assistant missing proof summary is blocked for field roles", () => {
 
   assert.equal(command.type, "blocked-command");
   assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant opens daily closeout readiness without approving or billing", () => {
+  const command = resolveAssistantDailyCloseoutReadinessCommand("Review daily closeout and ready-to-bill proof chain", {
+    permissions: {
+      jobs: { canView: true, canManageAll: true },
+      reports: { canView: true, canReview: true },
+      uploads: { canView: true, canManageAll: true },
+      deliveryTickets: { canView: true, canManageAll: true },
+      prePour: { canReview: true },
+      postPour: { canReview: true },
+      safety: { canReviewIncidents: true },
+      time: { canView: true, canManageAll: true },
+    },
+    jobs: [
+      { id: "JOB-1", title: "Westview Warehouse", status: "billing_ready" },
+      { id: "JOB-2", title: "Maple Ridge", status: "in_progress" },
+    ],
+    dailyReports: [
+      { id: "REPORT-1", status: "submitted", jobId: "JOB-1" },
+      { id: "REPORT-2", status: "reviewed", jobId: "JOB-2" },
+    ],
+    uploads: [{ id: "UPLOAD-1", fileName: "finish.jpg" }],
+    deliveryTickets: [{ id: "TICKET-1", status: "pending" }],
+    prePourChecklists: [{ id: "PRE-1", status: "completed" }],
+    postPourChecklists: [{ id: "POST-1", status: "reopened" }],
+    safetyIncidents: [{ id: "SAFE-1", status: "open" }],
+    timeEntries: [{ id: "TIME-1", status: "active" }],
+    commandCenter: {
+      stats: { missingReports: 1, fieldProofGaps: 2 },
+      uploads: { jobsMissingPhotos: [{ id: "JOB-2" }] },
+    },
+  });
+
+  assert.equal(command.type, "daily-closeout-readiness");
+  assert.equal(command.moduleId, "reports");
+  assert.equal(command.actions.map((action) => action.moduleId).join(","), "reports,uploads,jobs,time,deliveryTickets");
+  assert.equal(command.closeoutSummary.length, 4);
+  assert.equal(command.closeoutSummary.some((item) => /ready-to-bill/i.test(item.label)), true);
+  assert.equal(command.closeoutSummary.some((item) => /does not create invoices, submit billing, change job status/i.test(item.detail)), true);
+  assert.match(command.message, /No report approval, upload change, ticket link, checklist review, time correction, safety resolution, billing action, invoice/i);
+});
+
+test("assistant daily closeout readiness is blocked for field users", () => {
+  const command = resolveAssistantDailyCloseoutReadinessCommand("Review daily closeout and ready-to-bill proof chain", {
+    permissions: {
+      jobs: { canView: true, canManageField: true, canManageAll: false },
+      reports: { canCreate: true, canReview: false },
+      uploads: { canCreate: true, canManageAll: false },
+      time: { canClockSelf: true, canManageAll: false },
+    },
+    jobs: [{ id: "JOB-1", title: "Assigned Field Job" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes daily closeout before generic reports navigation", () => {
+  const command = resolveApexAssistantCommand("Open reports and review daily closeout proof chain", {
+    commandContext: {
+      permissions: {
+        jobs: { canView: true, canManageAll: true },
+        reports: { canView: true, canReview: true },
+        uploads: { canView: true, canManageAll: true },
+      },
+      dailyReports: [{ id: "REPORT-1", status: "submitted" }],
+    },
+  });
+
+  assert.equal(command.type, "daily-closeout-readiness");
+  assert.equal(command.moduleId, "reports");
 });
 
 test("assistant opens job startup handoff for visible office jobs without write actions", () => {

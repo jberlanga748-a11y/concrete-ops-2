@@ -123,6 +123,7 @@ const ROUTE_COMMANDS = [
 const DEFAULT_PROMPTS = [
   "What needs attention?",
   "Summarize missing proof",
+  "Review daily closeout",
   "Start estimate from rough notes",
   "Review material plan",
   "Review pilot handoff",
@@ -199,6 +200,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
       message: "Watchtower is clear. Open Command Center for the operating plan and next best actions.",
     };
   }
+
+  const dailyCloseoutCommand = resolveAssistantDailyCloseoutReadinessCommand(input, state.commandContext || {});
+  if (dailyCloseoutCommand) return dailyCloseoutCommand;
 
   const uploadReviewCommand = resolveAssistantUploadReviewCommand(input, state.commandContext || {});
   if (uploadReviewCommand) return uploadReviewCommand;
@@ -339,6 +343,55 @@ export function resolveAssistantMissingProofCommand(input = "", context = {}) {
     },
     items,
     actions: actions.length ? actions : [{ moduleId: "jobs", actionLabel: "Open job" }],
+  };
+}
+
+export function resolveAssistantDailyCloseoutReadinessCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasDailyCloseoutReadinessIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+
+  const hasOfficeCloseoutAccess = Boolean(
+    permissions?.jobs?.canManageAll
+    || permissions?.reports?.canReview
+    || permissions?.reports?.canManageAll
+    || permissions?.uploads?.canManageAll
+    || permissions?.deliveryTickets?.canManageAll
+    || permissions?.prePour?.canReview
+    || permissions?.postPour?.canReview
+    || permissions?.safety?.canReviewIncidents
+    || permissions?.time?.canManageAll,
+  );
+
+  if (!hasOfficeCloseoutAccess) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Daily closeout readiness is an office review tool. Field users stay limited to assigned jobs, reports, uploads, tickets, checklists, safety, and clock actions without company-wide closeout or billing-readiness visibility.",
+    };
+  }
+
+  const closeoutSummary = buildAssistantDailyCloseoutSummary(context);
+  const actions = [
+    permissions?.reports?.canView || permissions?.reports?.canReview ? { moduleId: "reports", actionLabel: "Open Reports" } : null,
+    permissions?.uploads?.canView || permissions?.uploads?.canManageAll ? { moduleId: "uploads", actionLabel: "Open Uploads" } : null,
+    permissions?.jobs?.canView || permissions?.jobs?.canManageAll ? { moduleId: "jobs", actionLabel: "Open Jobs" } : null,
+    permissions?.time?.canView || permissions?.time?.canManageAll ? { moduleId: "time", actionLabel: "Open Time" } : null,
+    permissions?.deliveryTickets?.canView || permissions?.deliveryTickets?.canManageAll ? { moduleId: "deliveryTickets", actionLabel: "Open Tickets" } : null,
+  ].filter(Boolean);
+
+  return {
+    type: "daily-closeout-readiness",
+    moduleId: actions[0]?.moduleId || "commandCenter",
+    actionLabel: actions[0]?.actionLabel || "Open Command Center",
+    message: "Daily closeout readiness is ready for office review. No report approval, upload change, ticket link, checklist review, time correction, safety resolution, billing action, invoice, customer message, or job status change happens automatically.",
+    commandText: rawText,
+    closeoutSummary,
+    actions,
   };
 }
 
@@ -1407,6 +1460,13 @@ function hasEstimateJobHandoffIntent(text = "") {
   return asksForHandoff || asksForConversion;
 }
 
+function hasDailyCloseoutReadinessIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find|prepare|summarize|run)\b/.test(text);
+  const mentionsCloseout = /\b(daily closeout|day closeout|today closeout|today's closeout|todays closeout|closeout readiness|field closeout|office closeout|end of day|end-of-day|ready to bill|ready-to-bill|billing readiness|proof chain)\b/.test(text);
+  const mentionsProofChain = /\b(report|reports|upload|uploads|photo|photos|ticket|tickets|checklist|checklists|time|clock|safety|billing|proof|evidence|closeout)\b/.test(text);
+  return asksForReview && mentionsCloseout && mentionsProofChain;
+}
+
 function hasMissingProofIntent(text = "") {
   const mentionsProof = /\b(proof|evidence|documentation|documented|closeout)\b/.test(text);
   const asksForSummary = /\b(missing|needed|need|summarize|summary|show|what|review)\b/.test(text);
@@ -2438,6 +2498,51 @@ function buildAssistantReleaseReadinessSummary(context = {}) {
       id: "release-boundary",
       label: "Release boundary",
       detail: `${moneyReadyItems} ready-to-bill item${moneyReadyItems === 1 ? "" : "s"} visible. This packet does not deploy, roll back, restore backups, change packages, or touch production.`,
+    },
+  ];
+}
+
+function buildAssistantDailyCloseoutSummary(context = {}) {
+  const commandCenter = context.commandCenter || {};
+  const stats = commandCenter.stats || {};
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const reports = asArray(context.dailyReports).filter((report) => !report?.archivedAt);
+  const uploads = asArray(context.uploads).filter((upload) => !upload?.archivedAt);
+  const tickets = asArray(context.deliveryTickets).filter((ticket) => !ticket?.archivedAt);
+  const prePour = asArray(context.prePourChecklists).filter((checklist) => !checklist?.archivedAt);
+  const postPour = asArray(context.postPourChecklists).filter((checklist) => !checklist?.archivedAt);
+  const incidents = asArray(context.safetyIncidents).filter((incident) => !incident?.archivedAt);
+  const timeEntries = asArray(context.timeEntries).filter((entry) => !entry?.archivedAt);
+  const submittedReports = reports.filter((report) => ["submitted", "needs_review", "reviewed"].includes(normalizeText(report.status))).length;
+  const missingReports = asArray(commandCenter.dailyReports?.activeJobsMissingTodayReport).length || Number(stats.missingReports || 0);
+  const missingPhotos = asArray(commandCenter.uploads?.jobsMissingPhotos).length || Number(stats.missingPhotos || stats.fieldProofGaps || 0);
+  const unlinkedUploads = uploads.filter((upload) => !upload.jobId && !upload.reportId).length;
+  const pendingTickets = tickets.filter((ticket) => !ticket.ticketUploadId || !ticket.reportId || ["pending", "draft", "needs_review"].includes(normalizeText(ticket.status))).length;
+  const checklistReview = prePour.concat(postPour).filter((checklist) => ["completed", "submitted", "reopened"].includes(normalizeText(checklist.status))).length;
+  const openSafety = incidents.filter((incident) => safetyIncidentIsOpen(incident)).length;
+  const activeTime = timeEntries.filter((entry) => !entry.clockOut && ["active", "clocked_in", "in_progress"].includes(normalizeText(entry.status || "active"))).length;
+  const readyToBill = jobs.filter((job) => normalizeText(job.status || job.stage) === "billing_ready").length || Number(stats.jobsReadyToBill || stats.moneyReadyItems || 0);
+
+  return [
+    {
+      id: "field-reports",
+      label: "Reports / proof",
+      detail: `${submittedReports} submitted or reviewed report${submittedReports === 1 ? "" : "s"}, ${missingReports} missing report${missingReports === 1 ? "" : "s"}, ${missingPhotos} photo proof gap${missingPhotos === 1 ? "" : "s"}, and ${unlinkedUploads} unlinked upload${unlinkedUploads === 1 ? "" : "s"} are visible for closeout review.`,
+    },
+    {
+      id: "tickets-checklists",
+      label: "Tickets / checklists",
+      detail: `${pendingTickets} delivery ticket${pendingTickets === 1 ? "" : "s"} may need proof links or review, and ${checklistReview} pre/post-pour checklist${checklistReview === 1 ? "" : "s"} are waiting on office attention.`,
+    },
+    {
+      id: "time-safety",
+      label: "Time / safety",
+      detail: `${activeTime} active clock or open time item${activeTime === 1 ? "" : "s"} and ${openSafety} unresolved safety item${openSafety === 1 ? "" : "s"} should be checked before closeout is treated as clean.`,
+    },
+    {
+      id: "billing-boundary",
+      label: "Ready-to-bill boundary",
+      detail: `${readyToBill} job${readyToBill === 1 ? "" : "s"} are visible as ready-to-bill or money-ready. This packet does not create invoices, submit billing, change job status, contact customers, or approve field records.`,
     },
   ];
 }
