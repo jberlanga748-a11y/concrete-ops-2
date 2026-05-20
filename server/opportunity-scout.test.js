@@ -202,6 +202,23 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     });
     const leadSource = leadSourceBootstrap.leadSources[0];
 
+    await assertOk(fixture.baseUrl, `/api/lead-sources/${leadSource.id}/check`, {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        checkedAt: "2026-05-19",
+        checkNote: "Result: Missing Docs | Next: Request or locate documents manually | Source: Public bid portals | Missing: plans | Note: Plans not posted token=secret.",
+      }),
+    });
+    await assertOk(fixture.baseUrl, `/api/lead-sources/${leadSource.id}/check`, {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        checkedAt: "2026-05-20",
+        checkNote: "Result: Found Work | Next: Save found opportunity | Source: Public bid portals | Note: ADA sidewalk packet found.",
+      }),
+    });
+
     const profileBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/search-profiles", {
       method: "POST",
       headers: authHeaders(adminLogin.token),
@@ -229,6 +246,9 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.match(searchPlan.searchSummary, /Daily public work/);
     assert.match(searchPlan.searchQueries.join(" "), /Albany concrete sidewalk/i);
     assert.match(searchPlan.qualificationChecklist.join(" "), /Approve For Lead/i);
+    assert.match(searchPlan.nextOfficeStep, /recent Found Work/i);
+    assert.match(searchPlan.riskFilters.join(" "), /Recent source outcome: Public bid portals was Missing Docs/i);
+    assert.equal(JSON.stringify(searchPlan).includes("secret"), false);
 
     const opportunityBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
       method: "POST",
