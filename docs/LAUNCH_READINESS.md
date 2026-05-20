@@ -87,7 +87,7 @@ Do not use:
 | Local restore drill verifier | Built |
 | Scheduled readiness monitor | Built |
 | Scheduled demo hosted smoke | Built; auth/bootstrap gate configured and passing |
-| Production auth smoke design | Designed; not enabled |
+| Production auth smoke | Manual fail-closed workflow added; secret/users not configured |
 | Production cold-start decision | Documented; no config change |
 | Production log drain / dedicated monitor | Planned; not enabled |
 

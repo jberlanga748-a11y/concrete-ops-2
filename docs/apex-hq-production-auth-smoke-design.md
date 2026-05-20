@@ -1,6 +1,6 @@
 # Apex HQ Production Auth Smoke Design
 
-Status: approval-ready design, not enabled
+Status: manual workflow added, not scheduled, not enabled until production smoke users and secret are approved
 
 Purpose: define how Apex HQ can add production login/bootstrap smoke safely when the business is ready, without weakening auth, roles, package gates, tenant isolation, or production data boundaries.
 
@@ -16,7 +16,7 @@ Current safe coverage:
 - Demo hosted smoke runs auth/bootstrap checks against `https://concrete-ops-demo.fly.dev` using the GitHub Actions `APEX_SMOKE_PASSWORD` secret.
 - `scripts/hosted-smoke.mjs` refuses production auth unless `--allow-production-auth` is passed.
 
-This design does not authorize a production deploy, production secret, production smoke user, workflow change, or monitoring vendor.
+This design does not authorize a production deploy, production secret, production smoke user, scheduled workflow, or monitoring vendor.
 
 ## Why Production Auth Smoke Is Risky
 
@@ -120,16 +120,18 @@ Stop and do not schedule production auth smoke when:
 
 ## Suggested Workflow Shape
 
-If approved later, add a separate workflow instead of extending demo smoke:
+The production auth smoke workflow is separate from demo smoke:
 
 ```text
 .github/workflows/production-auth-smoke.yml
 ```
 
-Recommended behavior:
+Current behavior:
 
-- manual dispatch first
-- scheduled only after manual runs stay stable
+- manual dispatch only
+- no schedule
+- requires the exact `PRODUCTION_AUTH_SMOKE_APPROVED` confirmation phrase
+- only allows `https://app.apexhq.online` or `https://concrete-ops-2.fly.dev`
 - requires `APEX_PRODUCTION_SMOKE_PASSWORD`
 - uses production smoke emails explicitly
 - passes `--allow-production-auth`
@@ -137,6 +139,8 @@ Recommended behavior:
 - opens or updates a GitHub issue on failure
 - closes the issue after recovery
 - does not deploy, mutate app data, toggle packages, or clean records
+
+The workflow is fail-closed. It stops before auth smoke when the confirmation phrase, approved production URL, or production-only secret is missing. As of May 20, 2026, the repository has the demo `APEX_SMOKE_PASSWORD` secret configured but does not have `APEX_PRODUCTION_SMOKE_PASSWORD` configured.
 
 Do not run mutation-capable Opportunity Scout, package toggles, cleanup, public intake, upload, invite, password reset, or export scripts against production from this workflow.
 

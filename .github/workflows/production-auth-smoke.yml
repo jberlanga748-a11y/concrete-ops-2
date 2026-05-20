@@ -1,0 +1,189 @@
+name: Apex HQ Production Auth Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type PRODUCTION_AUTH_SMOKE_APPROVED to allow production login/bootstrap smoke."
+        required: true
+        type: string
+      base_url:
+        description: "Production base URL to smoke."
+        required: true
+        default: "https://app.apexhq.online"
+        type: string
+
+concurrency:
+  group: production-auth-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        timeout-minutes: 5
+        run: npm ci
+
+      - name: Gate production auth smoke
+        id: gate
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          BASE_URL: ${{ inputs.base_url }}
+          APEX_PRODUCTION_SMOKE_PASSWORD: ${{ secrets.APEX_PRODUCTION_SMOKE_PASSWORD }}
+        run: |
+          can_run=true
+          reason=""
+
+          if [ "$CONFIRMATION" != "PRODUCTION_AUTH_SMOKE_APPROVED" ]; then
+            can_run=false
+            reason="Confirmation phrase did not match."
+          fi
+
+          case "$BASE_URL" in
+            "https://app.apexhq.online"|"https://app.apexhq.online/"|"https://concrete-ops-2.fly.dev"|"https://concrete-ops-2.fly.dev/")
+              ;;
+            *)
+              can_run=false
+              reason="Base URL is not an approved Apex HQ production URL."
+              ;;
+          esac
+
+          if [ -z "$APEX_PRODUCTION_SMOKE_PASSWORD" ]; then
+            can_run=false
+            reason="APEX_PRODUCTION_SMOKE_PASSWORD is not configured."
+          fi
+
+          echo "can_run=$can_run" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Production auth smoke gate"
+            echo ""
+            echo "Base URL: \`$BASE_URL\`"
+            echo "Can run: \`$can_run\`"
+            if [ -n "$reason" ]; then
+              echo ""
+              echo "Blocked reason: $reason"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop when production auth smoke is not approved
+        if: ${{ steps.gate.outputs.can_run != 'true' }}
+        run: |
+          echo "Production auth smoke did not run because the approval gate was not satisfied."
+          exit 1
+
+      - name: Run production health smoke
+        timeout-minutes: 3
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -o pipefail
+          npm run smoke:hosted -- --base-url="$BASE_URL" --skip-auth --json | tee production-health-smoke-output.txt
+          node scripts/hosted-smoke-summary.mjs production-health-smoke-output.txt "Production health hosted smoke"
+
+      - name: Run production auth smoke
+        timeout-minutes: 3
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          APEX_PRODUCTION_SMOKE_PASSWORD: ${{ secrets.APEX_PRODUCTION_SMOKE_PASSWORD }}
+        run: |
+          set -o pipefail
+          npm run smoke:hosted -- --base-url="$BASE_URL" --allow-auth --allow-production-auth --password-env=APEX_PRODUCTION_SMOKE_PASSWORD --admin-email=smoke.admin@apexhq.app --employee-email=smoke.employee@apexhq.app --json | tee production-auth-smoke-output.txt
+          node scripts/hosted-smoke-summary.mjs production-auth-smoke-output.txt "Production auth hosted smoke"
+
+      - name: Report production auth smoke failure
+        timeout-minutes: 2
+        if: ${{ failure() && steps.gate.outputs.can_run == 'true' }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issueTitle = "Apex HQ production auth smoke failed";
+            const { owner, repo } = context.repo;
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const existing = existingIssues.data.find((issue) => issue.title === issueTitle);
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Timestamp: ${new Date().toISOString()}`,
+              `Workflow run: ${runUrl}`,
+              "",
+              "Production auth smoke failed. Check the job summary and logs for health, login/bootstrap, latency, and employee restricted-route checks.",
+              "",
+              "Immediate triage:",
+              "```powershell",
+              "Invoke-RestMethod https://app.apexhq.online/api/ready",
+              "npm.cmd run smoke:hosted -- --base-url=https://app.apexhq.online --skip-auth --json",
+              "fly status -a concrete-ops-2",
+              "fly checks list -a concrete-ops-2",
+              "fly logs -a concrete-ops-2 --no-tail",
+              "```",
+            ].join("\n");
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: issueTitle,
+                body,
+              });
+            }
+
+      - name: Close recovered production auth smoke issue
+        timeout-minutes: 2
+        if: ${{ success() }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const issueTitle = "Apex HQ production auth smoke failed";
+            const { owner, repo } = context.repo;
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const existing = existingIssues.data.find((issue) => issue.title === issueTitle);
+
+            if (!existing) {
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: existing.number,
+              body: `Production auth smoke recovered at ${new Date().toISOString()}.\n\nWorkflow run: ${runUrl}`,
+            });
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: existing.number,
+              state: "closed",
+            });
