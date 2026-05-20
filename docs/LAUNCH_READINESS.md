@@ -47,7 +47,7 @@ Current stage:
 - production min-machine/cold-start approval using `docs/apex-hq-production-cold-start-decision.md`
 - customer-specific pilot environment setup for any real pilot
 - legal review of pilot/customer data docs before wider paid launch using `docs/apex-hq-legal-review-prep-checklist.md`
-- pilot onboarding rehearsal with the exact contractor workflow
+- pilot onboarding rehearsal with the exact contractor workflow using `npm.cmd run pilot:rehearsal`
 - real Day 0, Day 3, and Day 10 pilot operating cadence
 - formal public claims/legal review before wider publishing or paid launch
 
@@ -92,6 +92,7 @@ Do not use:
 | Production cold-start decision | Documented with read-only timing helper; no config change |
 | Production log drain / dedicated monitor | Planned; not enabled |
 | Public claims scan | Built; scans curated public/source copy for unsupported positive claims |
+| Pilot rehearsal helper | Built; read-only Day 0/3/10 packet generator and validator |
 
 ## Business Launch Checklist
 

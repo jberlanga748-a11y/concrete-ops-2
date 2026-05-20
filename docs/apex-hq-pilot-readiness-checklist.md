@@ -73,7 +73,15 @@ Before creating or handing off a customer pilot app, run the local non-deploying
 npm.cmd run verify:pilot-readiness
 ```
 
-This bundles docs drift, customer pilot config safety, role gates, backup/export, restore drill, and frontend build checks.
+This bundles docs drift, customer pilot config safety, pilot rehearsal helper tests, role gates, backup/export, restore drill, and frontend build checks.
+
+To prepare the actual Day 0 rehearsal packet before any customer app handoff, use:
+
+```powershell
+npm.cmd run pilot:rehearsal -- --company="Acme Concrete" --workflow="estimate -> job -> field proof" --owner="Owner name" --field-lead="Foreman name" --first-record="First real estimate or job" --field-action="Upload one proof photo" --success="Owner can find proof without text search" --success="Field user completes one action" --write
+```
+
+The rehearsal helper is local/read-only. It writes a markdown packet under `tmp/pilot-rehearsals/` only when `--write` is supplied, and it does not create apps, users, records, Fly resources, outreach, or deployments.
 
 Confirm the monthly restore drill is scheduled. The current Phase 1 cadence lives in `docs/apex-hq-restore-runbook.md`; the next scheduled local restore drill is Monday, June 1, 2026.
 
