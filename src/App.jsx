@@ -192,7 +192,7 @@ import {
   SUPPORT_BLOCKER_OPTIONS,
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
 import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
@@ -7087,11 +7087,64 @@ function TimeCorrectionPanel({ entry, draft, setDraft, onSave, disabled, canCorr
   );
 }
 
+function TimeJobCostingReadinessCard({ readiness }) {
+  if (!readiness) return null;
+
+  return (
+    <Card className="co-time-rail-card p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-700">Job costing + proof</p>
+          <h3 className="mt-2 text-base font-black leading-tight text-slate-950">{readiness.status}</h3>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{readiness.nextAction} before time moves into billing review.</p>
+        </div>
+        <Badge tone={readiness.tone}>{readiness.proofReadyJobs} ready</Badge>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Jobs</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.linkedJobs}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Gaps</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.jobsWithGaps}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Unlinked</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.unlinkedEntries}</strong>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {readiness.topJobs.length ? readiness.topJobs.map((job) => (
+          <div key={job.jobId} className="rounded-xl border border-slate-200 bg-white p-2.5">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs font-black text-slate-900">{job.label}</p>
+              <Badge tone={job.tone}>{formatMinutes(job.minutes)}</Badge>
+            </div>
+            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-500">
+              {job.entries} entr{job.entries === 1 ? "y" : "ies"} / {job.proofCount} proof item{job.proofCount === 1 ? "" : "s"}
+            </p>
+            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-600">
+              {job.gaps.length ? job.gaps.slice(0, 2).join(" / ") : "Time, reviewed report, and photo proof line up."}
+            </p>
+          </div>
+        )) : (
+          <StateCard title="No job time yet" description="Clocked job time will appear here for proof and office review." tone="slate" />
+        )}
+      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">
+        Review-only. No payroll rates, pricing, margin, invoices, or billing changes are exposed here.
+      </p>
+    </Card>
+  );
+}
+
 function TimeCommandRailPolished({
   user,
   entry,
   rows,
   workspace,
+  jobCostingReadiness,
   permissions,
   timeEditDraft,
   setTimeEditDraft,
@@ -7160,6 +7213,8 @@ function TimeCommandRailPolished({
         <TimeCorrectionPanel entry={entry} draft={timeEditDraft} setDraft={setTimeEditDraft} onSave={onSaveTimeEntry} disabled={busy} canCorrect={permissions.time.canCorrect} compactMobile />
       ) : null}
 
+      {permissions.time.canViewAll ? <TimeJobCostingReadinessCard readiness={jobCostingReadiness} /> : null}
+
       <Card className="co-time-rail-card p-4">
         <SectionHeader title="Access Guardrails" description="Time stays role-scoped and field-safe." />
         <div className="co-time-guardrail-list">
@@ -7177,6 +7232,9 @@ function TimePage({
   permissions,
   rows,
   jobs,
+  dailyReports,
+  uploads,
+  deliveryTickets,
   selectedTimeEntryId,
   onSelectTimeEntry,
   selectedTimeEntry,
@@ -7197,6 +7255,11 @@ function TimePage({
   const onBreakCount = safeRows.filter((entry) => entry.status === "on_break").length;
   const allWeeklySummary = useMemo(() => deriveCrewWeeklySummary(safeRows), [safeRows]);
   const crewWeeklySummary = useMemo(() => deriveCrewWeeklySummary(safeRows, { excludeUserId: user?.id }), [safeRows, user?.id]);
+  const jobCostingReadiness = useMemo(() => deriveTimeJobCostingReadiness(safeRows, jobs, {
+    reports: dailyReports,
+    uploads,
+    deliveryTickets,
+  }), [dailyReports, deliveryTickets, jobs, safeRows, uploads]);
   const canViewAll = permissions.time.canViewAll;
   const canViewCrew = permissions.time.canViewCrew && !canViewAll;
   const isOwnOnly = !canViewAll && !canViewCrew;
@@ -7220,7 +7283,9 @@ function TimePage({
   const timeKpis = [
     { label: "Visible Entries", value: boardRows.length, rawValue: boardRows.length, helper: "Role-scoped time log", icon: "clock", tone: "blue" },
     { label: "Clocked In", value: clockedInCount, rawValue: clockedInCount, helper: "Active or on break now", icon: "users", tone: "green" },
-    { label: "Completed", value: completedCount, rawValue: completedCount, helper: "Closed visible entries", icon: "check", tone: completedCount ? "green" : "slate" },
+    canViewAll
+      ? { label: "Proof Gaps", value: jobCostingReadiness.jobsWithGaps, rawValue: jobCostingReadiness.jobsWithGaps, helper: "Jobs needing proof review", icon: "alert", tone: jobCostingReadiness.jobsWithGaps ? "amber" : "green" }
+      : { label: "Completed", value: completedCount, rawValue: completedCount, helper: "Closed visible entries", icon: "check", tone: completedCount ? "green" : "slate" },
     { label: "My Week", value: formatMinutes(workspace.weeklySummary.totalMinutes || 0), rawValue: workspace.weeklySummary.totalMinutes || 0, helper: "Your visible hours", icon: "clipboard", tone: "amber" },
   ];
   const mobileSnapshotItems = [
@@ -7375,6 +7440,11 @@ function TimePage({
                     <strong>{completedCount}</strong>
                     <em>Closed visible entries</em>
                   </button>
+                  <button type="button" className="co-focus-ring" data-tone={jobCostingReadiness.tone} onClick={() => jumpToTimeSection(timeBoardRef)}>
+                    <span>Proof gaps</span>
+                    <strong>{jobCostingReadiness.jobsWithGaps}</strong>
+                    <em>{jobCostingReadiness.nextAction}</em>
+                  </button>
                 </div>
                 <div className="co-time-command-queues">
                   {timeCommandItems.slice(0, 3).map((item) => (
@@ -7492,6 +7562,7 @@ function TimePage({
           entry={selectedTimeEntry}
           rows={boardRows}
           workspace={workspace}
+          jobCostingReadiness={jobCostingReadiness}
           permissions={permissions}
           timeEditDraft={timeEditDraft}
           setTimeEditDraft={setTimeEditDraft}

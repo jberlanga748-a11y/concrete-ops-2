@@ -26,6 +26,14 @@ function labelForEntry(entry) {
   return timeWorkCategoryLabel(entry.workCategory);
 }
 
+function recordJobId(record = {}) {
+  return String(record?.jobId || record?.job?.id || "").trim();
+}
+
+function jobLabel(job = {}, fallback = "Unassigned job") {
+  return String(job?.title || job?.job || job?.jobTitle || fallback).trim() || fallback;
+}
+
 function timeWorkCategoryLabel(category) {
   return String(category || "other")
     .replaceAll("_", " ")
@@ -113,6 +121,108 @@ export function deriveCrewWeeklySummary(entries, {
   return {
     ...weekly,
     activeUserCount: activeUsers.size,
+  };
+}
+
+export function deriveTimeJobCostingReadiness(entries = [], jobs = [], {
+  reports = [],
+  uploads = [],
+  deliveryTickets = [],
+  maxJobs = 4,
+} = {}) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const safeReports = Array.isArray(reports) ? reports : [];
+  const safeUploads = Array.isArray(uploads) ? uploads : [];
+  const safeTickets = Array.isArray(deliveryTickets) ? deliveryTickets : [];
+  const jobMap = new Map(safeJobs.map((job) => [String(job?.id || "").trim(), job]));
+  const jobSummaries = new Map();
+  let unlinkedEntries = 0;
+  let activeEntries = 0;
+  let completedEntries = 0;
+  let totalMinutes = 0;
+
+  safeEntries.forEach((entry) => {
+    const jobId = recordJobId(entry);
+    const isActive = entry?.status !== "completed";
+    const minutes = Number(entry?.totalMinutes || 0);
+    if (isActive) activeEntries += 1;
+    if (!isActive) completedEntries += 1;
+    totalMinutes += minutes;
+    if (!jobId) {
+      unlinkedEntries += 1;
+      return;
+    }
+
+    const job = jobMap.get(jobId) || entry?.job || {};
+    const summary = jobSummaries.get(jobId) || {
+      jobId,
+      label: entry?.jobTitle || jobLabel(job, jobId),
+      entries: 0,
+      activeEntries: 0,
+      completedEntries: 0,
+      minutes: 0,
+      reportCount: 0,
+      reviewedReportCount: 0,
+      uploadCount: 0,
+      ticketCount: 0,
+      proofCount: 0,
+      gaps: [],
+      tone: "slate",
+    };
+
+    summary.entries += 1;
+    summary.minutes += minutes;
+    if (isActive) summary.activeEntries += 1;
+    if (!isActive) summary.completedEntries += 1;
+    jobSummaries.set(jobId, summary);
+  });
+
+  const summaries = Array.from(jobSummaries.values());
+  summaries.forEach((summary) => {
+    summary.reportCount = safeReports.filter((report) => !report?.archivedAt && recordJobId(report) === summary.jobId).length;
+    summary.reviewedReportCount = safeReports.filter((report) => !report?.archivedAt && recordJobId(report) === summary.jobId && String(report?.status || "").toLowerCase() === "reviewed").length;
+    summary.uploadCount = safeUploads.filter((upload) => !upload?.archivedAt && recordJobId(upload) === summary.jobId).length;
+    summary.ticketCount = safeTickets.filter((ticket) => !ticket?.archivedAt && recordJobId(ticket) === summary.jobId).length;
+    summary.proofCount = summary.reportCount + summary.uploadCount + summary.ticketCount;
+
+    if (summary.activeEntries > 0) summary.gaps.push("Active time still running");
+    if (summary.completedEntries > 0 && summary.reportCount === 0) summary.gaps.push("No daily report linked");
+    if (summary.completedEntries > 0 && summary.uploadCount === 0) summary.gaps.push("No photo proof linked");
+    if (summary.completedEntries > 0 && summary.reviewedReportCount === 0) summary.gaps.push("Report not reviewed");
+    summary.tone = summary.gaps.length ? (summary.activeEntries ? "blue" : "amber") : "green";
+  });
+
+  const proofReadyJobs = summaries.filter((summary) => summary.entries > 0 && summary.gaps.length === 0).length;
+  const jobsWithGaps = summaries.filter((summary) => summary.gaps.length > 0).length;
+  const topJobs = summaries
+    .sort((left, right) => right.gaps.length - left.gaps.length || right.activeEntries - left.activeEntries || right.minutes - left.minutes)
+    .slice(0, maxJobs);
+
+  return {
+    linkedJobs: summaries.length,
+    proofReadyJobs,
+    jobsWithGaps,
+    activeEntries,
+    completedEntries,
+    unlinkedEntries,
+    totalMinutes,
+    topJobs,
+    status: unlinkedEntries
+      ? "Unlinked time needs review"
+      : jobsWithGaps
+        ? "Proof review needed"
+        : summaries.length
+          ? "Time proof-ready"
+          : "No job time yet",
+    tone: unlinkedEntries ? "amber" : jobsWithGaps ? "blue" : summaries.length ? "green" : "slate",
+    nextAction: unlinkedEntries
+      ? "Link time to jobs"
+      : jobsWithGaps
+        ? "Review proof gaps"
+        : summaries.length
+          ? "Ready for office review"
+          : "Clock into a job",
   };
 }
 

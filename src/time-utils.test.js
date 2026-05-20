@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeStatusTone } from "./time-utils.js";
+import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, deriveWeeklySummary, findActiveTimeEntry, formatMinutes, sortTimeEntries, timeStatusTone } from "./time-utils.js";
 
 const SAMPLE_ENTRIES = [
   {
@@ -100,6 +100,54 @@ test("deriveCrewWeeklySummary excludes the foreman self entry and counts active 
 
   assert.equal(summary.totalMinutes, 240);
   assert.equal(summary.activeUserCount, 1);
+});
+
+test("deriveTimeJobCostingReadiness marks completed job time proof-ready", () => {
+  const readiness = deriveTimeJobCostingReadiness([
+    { id: "T-1", jobId: "J-1", jobTitle: "North Patio", status: "completed", totalMinutes: 480 },
+  ], [
+    { id: "J-1", title: "North Patio" },
+  ], {
+    reports: [{ id: "R-1", jobId: "J-1", status: "reviewed" }],
+    uploads: [{ id: "U-1", jobId: "J-1", caption: "Finished slab" }],
+    deliveryTickets: [{ id: "D-1", jobId: "J-1", ticketNumber: "123" }],
+  });
+
+  assert.equal(readiness.status, "Time proof-ready");
+  assert.equal(readiness.proofReadyJobs, 1);
+  assert.equal(readiness.jobsWithGaps, 0);
+  assert.equal(readiness.topJobs[0].gaps.length, 0);
+});
+
+test("deriveTimeJobCostingReadiness flags missing reports and proof", () => {
+  const readiness = deriveTimeJobCostingReadiness([
+    { id: "T-1", jobId: "J-1", jobTitle: "North Patio", status: "completed", totalMinutes: 240 },
+    { id: "T-2", jobId: "J-2", jobTitle: "Shop Slab", status: "completed", totalMinutes: 180 },
+  ], [], {
+    reports: [{ id: "R-2", jobId: "J-2", status: "submitted" }],
+    uploads: [],
+  });
+
+  assert.equal(readiness.status, "Proof review needed");
+  assert.equal(readiness.jobsWithGaps, 2);
+  assert.match(readiness.topJobs.find((job) => job.jobId === "J-1").gaps.join(" "), /No daily report linked/);
+  assert.match(readiness.topJobs.find((job) => job.jobId === "J-2").gaps.join(" "), /No photo proof linked/);
+  assert.match(readiness.topJobs.find((job) => job.jobId === "J-2").gaps.join(" "), /Report not reviewed/);
+});
+
+test("deriveTimeJobCostingReadiness keeps active and unlinked time out of ready state", () => {
+  const readiness = deriveTimeJobCostingReadiness([
+    { id: "T-1", jobId: "J-1", jobTitle: "North Patio", status: "active", totalMinutes: 0 },
+    { id: "T-2", status: "completed", totalMinutes: 120 },
+  ], [{ id: "J-1", title: "North Patio" }], {
+    reports: [{ id: "R-1", jobId: "J-1", status: "reviewed" }],
+    uploads: [{ id: "U-1", jobId: "J-1" }],
+  });
+
+  assert.equal(readiness.status, "Unlinked time needs review");
+  assert.equal(readiness.unlinkedEntries, 1);
+  assert.equal(readiness.activeEntries, 1);
+  assert.match(readiness.topJobs[0].gaps.join(" "), /Active time still running/);
 });
 
 test("time tracking support context uses role-scoped visible time without pay data", () => {
