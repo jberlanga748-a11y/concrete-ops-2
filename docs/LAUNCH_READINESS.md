@@ -49,7 +49,7 @@ Current stage:
 - legal review of pilot/customer data docs before wider paid launch using `docs/apex-hq-legal-review-prep-checklist.md`
 - pilot onboarding rehearsal with the exact contractor workflow
 - real Day 0, Day 3, and Day 10 pilot operating cadence
-- public claims review
+- formal public claims/legal review before wider publishing or paid launch
 
 ## Current Marketing Position
 
@@ -91,6 +91,7 @@ Do not use:
 | Production auth smoke | Manual fail-closed workflow added; secret/users not configured |
 | Production cold-start decision | Documented with read-only timing helper; no config change |
 | Production log drain / dedicated monitor | Planned; not enabled |
+| Public claims scan | Built; scans curated public/source copy for unsupported positive claims |
 
 ## Business Launch Checklist
 
@@ -105,7 +106,8 @@ Do not use:
 | Customer success playbook | Ready |
 | Testimonial ask | Ready |
 | Referral plan | Ready |
-| Public claims review | Required before launch |
+| Public claims automation | Built; `npm.cmd run verify:claims` scans curated public/source copy |
+| Formal public claims/legal review | Required before wider paid launch |
 
 ## Demo Checklist
 
