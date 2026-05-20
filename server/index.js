@@ -9200,6 +9200,9 @@ app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(a
   const nextState = await updateDb((draft) => {
     draft.foundOpportunities ||= [];
     const payload = { ...(req.body || {}) };
+    if (Object.hasOwn(payload, "humanReviewStatus") && !["", "needs_review", "needs_info"].includes(payload.humanReviewStatus || "")) {
+      throw new ApiError(400, "Save Opportunity cannot approve, reject, or convert review status. Use Approve For Lead as a separate office action after saving.");
+    }
     if (Object.hasOwn(payload, "humanReviewStatus") && payload.humanReviewStatus && payload.humanReviewStatus !== "needs_review") {
       payload.humanReviewedBy = req.auth.user.id;
       payload.humanReviewedAt = changedAt;

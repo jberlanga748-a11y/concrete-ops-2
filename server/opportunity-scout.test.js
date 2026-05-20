@@ -277,6 +277,28 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.equal(opportunity.fitScore, 84);
     assert.deepEqual(opportunity.riskFlags, ["prevailing wage"]);
 
+    const createApprovedResponse = await requestJson(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        title: "Approved during create should fail",
+        humanReviewStatus: "approved_for_lead",
+      }),
+    });
+    assert.equal(createApprovedResponse.response.status, 400);
+    assert.match(createApprovedResponse.payload.error, /Approve For Lead as a separate office action/i);
+
+    const needsInfoBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        title: "Docs needed after source check",
+        humanReviewStatus: "needs_info",
+        humanReviewNote: "Created from missing docs source check.",
+      }),
+    });
+    assert.equal(needsInfoBootstrap.foundOpportunities[0].humanReviewStatus, "needs_info");
+
     const aiReview = await assertOk(fixture.baseUrl, `/api/ai/opportunity-scout/found-opportunities/${opportunity.id}/review`, {
       method: "POST",
       headers: authHeaders(adminLogin.token),
@@ -290,8 +312,9 @@ test("office users can manage Opportunity Scout profiles and found opportunities
       headers: authHeaders(adminLogin.token),
       body: JSON.stringify({ status: "watching", urgencyScore: 70 }),
     });
-    assert.equal(updated.foundOpportunities[0].status, "watching");
-    assert.equal(updated.foundOpportunities[0].urgencyScore, 70);
+    const updatedOpportunity = updated.foundOpportunities.find((entry) => entry.id === opportunity.id);
+    assert.equal(updatedOpportunity.status, "watching");
+    assert.equal(updatedOpportunity.urgencyScore, 70);
 
     const blockedConversion = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
       method: "POST",
@@ -305,8 +328,9 @@ test("office users can manage Opportunity Scout profiles and found opportunities
       headers: authHeaders(adminLogin.token),
       body: JSON.stringify({ humanReviewStatus: "approved_for_lead", humanReviewNote: "Office approved for lead draft." }),
     });
-    assert.equal(approved.foundOpportunities[0].humanReviewStatus, "approved_for_lead");
-    assert.equal(approved.foundOpportunities[0].humanReviewedBy, adminLogin.user.id);
+    const approvedOpportunity = approved.foundOpportunities.find((entry) => entry.id === opportunity.id);
+    assert.equal(approvedOpportunity.humanReviewStatus, "approved_for_lead");
+    assert.equal(approvedOpportunity.humanReviewedBy, adminLogin.user.id);
 
     const converted = await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
       method: "POST",
@@ -332,7 +356,8 @@ test("office users can manage Opportunity Scout profiles and found opportunities
       headers: authHeaders(adminLogin.token),
     });
     assert.equal(scoutPayload.searchProfiles.length, 1);
-    assert.equal(scoutPayload.foundOpportunities.length, 1);
+    assert.equal(scoutPayload.foundOpportunities.length, 2);
+    assert.equal(scoutPayload.foundOpportunities.some((entry) => entry.humanReviewStatus === "needs_info"), true);
   } finally {
     await fixture.stop();
   }
