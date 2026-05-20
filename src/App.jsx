@@ -173,7 +173,7 @@ import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "..
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
-import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SEARCH_PROFILE_STARTERS } from "../shared/opportunityScout.js";
+import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS, OPPORTUNITY_SEARCH_PROFILE_STARTERS, buildOpportunityScoutSourceCheckNote } from "../shared/opportunityScout.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
@@ -25835,14 +25835,20 @@ function CopilotPagePolished({
     markProfileReviewed(profile || { profileId: brief.profileId, cadence: "daily" });
   }
 
-  async function markSourceBriefChecked(brief) {
+  async function markSourceBriefChecked(brief, result = "no_fit") {
     if (!canManageOpportunityScout || !brief?.sourceId) return;
     const source = leadSourceOptions.find((entry) => entry.id === brief.sourceId);
     const checkedAt = todayDateInputValue();
+    const resultOption = OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.find((entry) => entry.id === result) || OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS[0];
     await onMarkLeadSourceChecked?.(brief.sourceId, {
       checkedAt,
       nextCheckAt: calculateNextLeadSourceCheckDate(source?.checkCadence, checkedAt),
-      checkNote: "Daily Job Finder manual source check completed.",
+      checkNote: buildOpportunityScoutSourceCheckNote({
+        result,
+        sourceName: source?.name || brief.title,
+        missingInfoItems: result === "missing_docs" ? ["plans/addenda/date/scope evidence"] : [],
+        note: `${brief.title} checked from AI Office search brief. ${resultOption.description}`,
+      }),
     });
   }
 
@@ -26320,9 +26326,11 @@ function CopilotPagePolished({
                               Mark Reviewed
                             </Button>
                           ) : brief.sourceId ? (
-                            <Button type="button" size="sm" variant="secondary" onClick={() => markSourceBriefChecked(brief)} disabled={!canManageOpportunityScout || busy}>
-                              Mark Checked
-                            </Button>
+                            OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.slice(0, 5).map((result) => (
+                              <Button key={result.id} type="button" size="sm" variant={result.id === "found_work" ? "secondary" : "ghost"} onClick={() => markSourceBriefChecked(brief, result.id)} disabled={!canManageOpportunityScout || busy}>
+                                {result.label}
+                              </Button>
+                            ))
                           ) : null}
                           {brief.url ? <a className="co-ai-scout-link" href={brief.url} target="_blank" rel="noreferrer">Open Source</a> : null}
                         </div>

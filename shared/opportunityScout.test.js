@@ -14,7 +14,9 @@ import {
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
   OPPORTUNITY_SCOUT_GUARDRAILS,
+  OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS,
   OPPORTUNITY_SCOUT_SOURCE_ADAPTERS,
+  buildOpportunityScoutSourceCheckNote,
   classifyOpportunityScoutSourceAccess,
   redactOpportunityScoutText,
   sanitizeOpportunityScoutUrl,
@@ -166,6 +168,24 @@ test("source access classifier stops at login, MFA, CAPTCHA, paywall, and privat
   assert.equal(accessReview.stopReasons.some((reason) => /Robots/i.test(reason)), true);
   assert.equal(accessReview.allowedNextActions.includes("Create a human task"), true);
   assert.equal(accessReview.blockedActions.some((action) => /No login automation/i.test(action)), true);
+});
+
+test("source check notes capture review-first outcomes without creating actions", () => {
+  assert.equal(OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.map((result) => result.id).includes("found_work"), true);
+  assert.equal(OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.map((result) => result.id).includes("needs_human"), true);
+
+  const note = buildOpportunityScoutSourceCheckNote({
+    result: "missing_docs",
+    sourceName: "City bids",
+    missingInfoItems: ["addenda", "plans"],
+    note: "Found possible sidewalk work token=secret but docs were incomplete.",
+  });
+
+  assert.match(note, /Result: Missing Docs/);
+  assert.match(note, /Next: Request or locate documents manually/);
+  assert.match(note, /Missing: addenda, plans/);
+  assert.equal(note.includes("secret"), false);
+  assert.match(note, /no lead, contact, message, or bid was created/i);
 });
 
 test("opportunity scout agent preview rejects unsafe external action payloads", () => {

@@ -161,6 +161,44 @@ export const OPPORTUNITY_SCOUT_AGENT_STOP_REASONS = [
   "bid submission requested",
 ];
 
+export const OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS = [
+  {
+    id: "no_fit",
+    label: "No Fit",
+    tone: "slate",
+    nextAction: "Keep source on cadence",
+    description: "Source was checked and no useful work matched today.",
+  },
+  {
+    id: "found_work",
+    label: "Found Work",
+    tone: "orange",
+    nextAction: "Save found opportunity",
+    description: "A real opportunity was found; save evidence before any lead conversion.",
+  },
+  {
+    id: "needs_human",
+    label: "Needs Human",
+    tone: "amber",
+    nextAction: "Create human review task",
+    description: "Access, terms, missing docs, or unclear details require an office review.",
+  },
+  {
+    id: "duplicate",
+    label: "Possible Duplicate",
+    tone: "amber",
+    nextAction: "Review existing lead/opportunity",
+    description: "The source appears to point at work already in Apex HQ.",
+  },
+  {
+    id: "missing_docs",
+    label: "Missing Docs",
+    tone: "red",
+    nextAction: "Request or locate documents manually",
+    description: "The opportunity may fit, but plans, addenda, date, or scope evidence is missing.",
+  },
+];
+
 const SOURCE_ACCESS_PATTERNS = [
   { id: "login_required", label: "Login required", pattern: /\b(log\s*in|login|sign\s*in|account required|username|password)\b/i },
   { id: "mfa_required", label: "MFA required", pattern: /\b(mfa|multi[-\s]?factor|2fa|two[-\s]?factor|one[-\s]?time code|verification code)\b/i },
@@ -220,6 +258,21 @@ export function classifyOpportunityScoutSourceAccess(payload = {}) {
       "No bid submission",
     ],
   };
+}
+
+export function buildOpportunityScoutSourceCheckNote({ result = "no_fit", sourceName = "", note = "", missingInfoItems = [] } = {}) {
+  const option = OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.find((entry) => entry.id === result) || OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS[0];
+  const missing = normalizeList(missingInfoItems);
+  const details = [
+    `Result: ${option.label}`,
+    `Next: ${option.nextAction}`,
+    sourceName ? `Source: ${collapseSpaces(sourceName)}` : "",
+    missing.length ? `Missing: ${missing.slice(0, 5).join(", ")}` : "",
+    note ? `Note: ${redactOpportunityScoutText(note)}` : "",
+    "Review-first: no lead, contact, message, or bid was created from this check.",
+  ];
+
+  return details.filter(Boolean).join(" | ");
 }
 
 const DEFAULT_TRADES = [
