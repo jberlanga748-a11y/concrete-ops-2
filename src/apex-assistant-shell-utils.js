@@ -178,6 +178,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const changeOrderReviewCommand = resolveAssistantChangeOrderReviewCommand(input, state.commandContext || {});
   if (changeOrderReviewCommand) return changeOrderReviewCommand;
 
+  const leadFollowUpCommand = resolveAssistantLeadFollowUpCommand(input, state.commandContext || {});
+  if (leadFollowUpCommand) return leadFollowUpCommand;
+
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
 
@@ -523,6 +526,47 @@ export function resolveAssistantChangeOrderReviewCommand(input = "", context = {
   };
 }
 
+export function resolveAssistantLeadFollowUpCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasLeadFollowUpIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.leads?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Lead follow-up assistant commands are office review tools. Field users stay blocked from lead, customer outreach, estimating, and pipeline controls.",
+    };
+  }
+
+  const query = extractLeadFollowUpTargetQuery(rawText);
+  const matches = findAssistantLeadFollowUpMatches(query, context);
+  const fallback = {
+    id: "assistant-open-lead-follow-up",
+    type: "lead-follow-up",
+    label: "Open lead follow-up queue",
+    helper: "No exact lead match found. Open Leads and review the follow-up queue manually.",
+  };
+
+  return {
+    type: "lead-follow-up",
+    moduleId: "leads",
+    actionLabel: matches.length === 1 ? "Review lead" : matches.length > 1 ? "Choose lead" : "Open Leads",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for manual lead follow-up review. No email, text, call, estimate, customer conversion, archive, or status change will happen automatically.`
+      : matches.length > 1
+        ? "I found multiple leads that may need follow-up. Choose the right lead before opening the review tools."
+        : "I did not find an exact lead match. Open Leads and review the follow-up queue manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -845,6 +889,13 @@ function hasChangeOrderReviewIntent(text = "") {
   return asksToOpen && mentionsChangeOrder && mentionsReviewQueue;
 }
 
+function hasLeadFollowUpIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsLead = /\b(lead|leads|pipeline|prospect|prospects|customer follow[- ]?up|follow[- ]?up queue|follow[- ]?ups?)\b/.test(text);
+  const mentionsReviewQueue = /\b(follow[- ]?up|due|overdue|stale|waiting|not contacted|next step|needs review|needing review|manual outreach|call|email draft|text draft|estimate ready)\b/.test(text);
+  return asksToOpen && mentionsLead && mentionsReviewQueue;
+}
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -988,6 +1039,18 @@ function extractChangeOrderReviewTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:change order|change orders|scope change|scope changes|field change|field changes|change request|change requests)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|change|order|orders|scope|field|request|requests|for|from|on|at|this|the|requested|needs|pricing|cost)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractLeadFollowUpTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:lead|leads|pipeline|prospect|prospects|customer follow[- ]?up|follow[- ]?up queue|follow[- ]?ups?)\b\s+(?:for|from|on|at|with)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from|with)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:lead|leads|pipeline|prospect|prospects|customer follow[- ]?up|follow[- ]?up queue|follow[- ]?ups?)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|lead|leads|pipeline|prospect|prospects|customer|follow|up|queue|for|from|on|at|with|this|the|due|overdue|stale|waiting|needs)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -1450,6 +1513,86 @@ function findAssistantChangeOrderReviewMatches(query = "", context = {}) {
     }))
     .filter((match) => match.changeOrderRequestId)
     .slice(0, 4);
+}
+
+function findAssistantLeadFollowUpMatches(query = "", context = {}) {
+  const leads = asArray(context.leads).filter((lead) => !lead?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? leads.filter((lead) => targetMatchesWords(leadFollowUpSearchText(lead), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : leads;
+
+  return candidates
+    .map((lead) => ({
+      lead,
+      overdue: leadFollowUpBucket(lead) === "overdue",
+      dueToday: leadFollowUpBucket(lead) === "today",
+      stale: leadFollowUpIsStale(lead),
+      missingNextStep: !String(lead.nextStep || "").trim(),
+      estimateReady: leadFollowUpLooksEstimateReady(lead),
+    }))
+    .sort((left, right) => leadFollowUpPriority(right) - leadFollowUpPriority(left) || leadFollowUpLabel(left.lead).localeCompare(leadFollowUpLabel(right.lead)))
+    .map(({ lead, overdue, dueToday, stale, missingNextStep, estimateReady }) => ({
+      id: `lead-follow-up:${lead.id}`,
+      type: "lead",
+      leadId: lead.id || "",
+      label: leadFollowUpLabel(lead),
+      helper: [
+        overdue ? "follow-up overdue" : dueToday ? "follow-up due today" : stale ? "stale lead" : `status ${lead.status || "new"}`,
+        missingNextStep ? "next step missing" : lead.nextStep || "",
+        estimateReady ? "estimate intent visible" : "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.leadId)
+    .slice(0, 4);
+}
+
+function leadFollowUpPriority(candidate = {}) {
+  return (candidate.overdue ? 30 : 0) + (candidate.dueToday ? 24 : 0) + (candidate.stale ? 12 : 0) + (candidate.missingNextStep ? 8 : 0) + (candidate.estimateReady ? 6 : 0);
+}
+
+function leadFollowUpBucket(lead = {}, today = new Date().toISOString().slice(0, 10)) {
+  const due = String(lead.followUpDueAt || lead.followUpDate || lead.nextFollowUpAt || lead.dueDate || "").slice(0, 10);
+  if (!due) return "none";
+  if (due < today) return "overdue";
+  if (due === today) return "today";
+  return "later";
+}
+
+function leadFollowUpIsStale(lead = {}) {
+  const status = normalizeText(lead.status || "");
+  return ["new", "needs review", "contacted", "waiting", "waiting on response"].includes(status) && !String(lead.followUpDueAt || lead.followUpDate || lead.nextFollowUpAt || "").trim();
+}
+
+function leadFollowUpLooksEstimateReady(lead = {}) {
+  return /\b(estimate|proposal|quote|bid|site visit)\b/.test(normalizeText([lead.status, lead.nextStep, lead.notes, lead.project].filter(Boolean).join(" ")));
+}
+
+function leadFollowUpLabel(lead = {}) {
+  return [
+    lead.customer || lead.customerName || "Lead",
+    lead.project || "",
+    lead.city || lead.location || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function leadFollowUpSearchText(lead = {}) {
+  return normalizeText([
+    lead.id,
+    lead.customer,
+    lead.customerName,
+    lead.project,
+    lead.city,
+    lead.location,
+    lead.address,
+    lead.owner,
+    lead.status,
+    lead.source,
+    lead.nextStep,
+    lead.notes,
+    lead.fitLabel,
+    lead.fitReason,
+  ].filter(Boolean).join(" "));
 }
 
 function changeOrderReviewPriority(candidate = {}) {

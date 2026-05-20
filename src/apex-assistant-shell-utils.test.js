@@ -10,6 +10,7 @@ import {
   resolveAssistantEstimateJobHandoffCommand,
   resolveAssistantEstimatePacketCommand,
   resolveAssistantJobHandoffCommand,
+  resolveAssistantLeadFollowUpCommand,
   resolveAssistantMissingProofCommand,
   resolveAssistantPostPourReviewCommand,
   resolveAssistantPrePourReviewCommand,
@@ -405,6 +406,59 @@ test("assistant routes generic change orders without office review", () => {
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "changeOrders");
+});
+
+test("assistant opens lead follow-up review without write actions", () => {
+  const command = resolveAssistantLeadFollowUpCommand("Review lead follow-up for Westview Warehouse", {
+    permissions: { leads: { canView: true, canManage: true } },
+    leads: [
+      {
+        id: "LEAD-1",
+        customer: "ABC Builders",
+        project: "Westview Warehouse",
+        city: "Salem",
+        status: "Contacted",
+        nextStep: "Call GC about slab walkthrough",
+        followUpDueAt: "2026-05-20",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "lead-follow-up");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].leadId, "LEAD-1");
+  assert.match(command.message, /No email, text, call, estimate, customer conversion, archive, or status change/i);
+});
+
+test("assistant lead follow-up is blocked for field roles", () => {
+  const command = resolveAssistantLeadFollowUpCommand("Open lead follow-ups due today", {
+    permissions: { leads: { canView: false, canManage: false } },
+    leads: [{ id: "LEAD-1", customer: "Hidden Lead", followUpDueAt: "2026-05-20" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes lead follow-up before generic lead navigation", () => {
+  const command = resolveApexAssistantCommand("Open lead follow-up for Westview Warehouse", {
+    commandContext: {
+      permissions: { leads: { canView: true, canManage: true } },
+      leads: [
+        { id: "LEAD-1", customer: "ABC Builders", project: "Westview Warehouse", followUpDueAt: "2026-05-20" },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "lead-follow-up");
+  assert.equal(command.matches[0].leadId, "LEAD-1");
+});
+
+test("assistant keeps generic leads navigation out of follow-up review", () => {
+  const command = resolveApexAssistantCommand("open leads");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "leads");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

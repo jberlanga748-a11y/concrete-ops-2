@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3804,6 +3804,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openChangeOrderReview(choice = {}) {
     const opened = onOpenChangeOrderReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openLeadFollowUp(choice = {}) {
+    const opened = onOpenLeadFollowUp(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -4035,6 +4043,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openChangeOrderReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Change Orders instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "lead-follow-up" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openLeadFollowUp(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the lead follow-up queue. No customer contact happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openLeadFollowUp(response.fallback || {})}>
+                      {response.matches?.length ? "Open Leads instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -39380,6 +39405,19 @@ export default function App() {
     return true;
   }
 
+  function handleOpenAssistantLeadFollowUp(seed = {}) {
+    if (!appState.permissions.leads?.canManage) {
+      setErrorMessage("Lead follow-up assistant actions require an office or estimator role with lead access.");
+      return false;
+    }
+    setLeadFilter("All");
+    setLeadSearch("");
+    setLeadDueFilter(seed.leadId ? "All due dates" : "Due today");
+    if (seed.leadId) navigateToLead(seed.leadId);
+    else setActive("leads");
+    return true;
+  }
+
   function handleOpenAssistantDeliveryTicketReview(seed = {}) {
     if (!appState.permissions.deliveryTickets?.canManageAll) {
       setErrorMessage("Delivery ticket assistant review actions require an office role that can manage delivery ticket proof.");
@@ -42674,6 +42712,7 @@ export default function App() {
         onOpenUploadReview={handleOpenAssistantUploadReview}
         onOpenTimeReview={handleOpenAssistantTimeReview}
         onOpenChangeOrderReview={handleOpenAssistantChangeOrderReview}
+        onOpenLeadFollowUp={handleOpenAssistantLeadFollowUp}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}
