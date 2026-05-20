@@ -11,6 +11,7 @@ import {
   resolveAssistantEstimateDraftCommand,
   resolveAssistantEstimateJobHandoffCommand,
   resolveAssistantEstimatePacketCommand,
+  resolveAssistantImportedDraftReviewCommand,
   resolveAssistantJobHandoffCommand,
   resolveAssistantLeadFollowUpCommand,
   resolveAssistantMissingProofCommand,
@@ -613,6 +614,55 @@ test("assistant keeps generic schedule navigation out of dispatch review", () =>
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "schedule");
+});
+
+test("assistant opens imported draft review without write actions", () => {
+  const command = resolveAssistantImportedDraftReviewCommand("Review imported draft for Westview Warehouse", {
+    permissions: { jobDraftImports: { canView: true, canManage: true, canCreateJob: true } },
+    jobDraftImports: [
+      {
+        id: "DRAFT-1",
+        jobName: "Westview Warehouse",
+        customerName: "ABC Builders",
+        city: "Salem",
+        status: "Needs Review",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "imported-draft-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].importedDraftId, "DRAFT-1");
+  assert.match(command.message, /No package import, customer creation, job creation, draft save, or field handoff will happen automatically/i);
+});
+
+test("assistant imported draft review is blocked for field roles", () => {
+  const command = resolveAssistantImportedDraftReviewCommand("Review imported draft for Westview Warehouse", {
+    permissions: { jobDraftImports: { canView: false, canManage: false, canCreateJob: false } },
+    jobDraftImports: [{ id: "DRAFT-1", jobName: "Westview Warehouse", status: "Needs Review" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes imported draft review before generic imported draft navigation", () => {
+  const command = resolveApexAssistantCommand("Open imported draft review for Westview Warehouse", {
+    commandContext: {
+      permissions: { jobDraftImports: { canView: true, canManage: true } },
+      jobDraftImports: [{ id: "DRAFT-1", jobName: "Westview Warehouse", customerName: "ABC Builders", status: "Needs Review" }],
+    },
+  });
+
+  assert.equal(command.type, "imported-draft-review");
+  assert.equal(command.matches[0].importedDraftId, "DRAFT-1");
+});
+
+test("assistant keeps generic imported drafts navigation out of draft review", () => {
+  const command = resolveApexAssistantCommand("open imported drafts");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "jobDraftImports");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

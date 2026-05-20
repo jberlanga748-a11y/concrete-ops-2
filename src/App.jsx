@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3836,6 +3836,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openScheduleDispatch(choice = {}) {
     const opened = onOpenScheduleDispatch(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openImportedDraftReview(choice = {}) {
+    const opened = onOpenImportedDraftReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -4135,6 +4143,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openScheduleDispatch(response.fallback || {})}>
                       {response.matches?.length ? "Open Schedule instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "imported-draft-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openImportedDraftReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the imported draft review board. No import or job creation happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openImportedDraftReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Imported Drafts instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -39528,6 +39553,16 @@ export default function App() {
     return true;
   }
 
+  function handleOpenAssistantImportedDraftReview(seed = {}) {
+    if (!appState.permissions.jobDraftImports?.canView) {
+      setErrorMessage("Imported draft assistant actions require an office role with imported draft access.");
+      return false;
+    }
+    if (seed.importedDraftId) navigateToImportedDraft(seed.importedDraftId);
+    else setActive("jobDraftImports");
+    return true;
+  }
+
   function handleOpenAssistantDeliveryTicketReview(seed = {}) {
     if (!appState.permissions.deliveryTickets?.canManageAll) {
       setErrorMessage("Delivery ticket assistant review actions require an office role that can manage delivery ticket proof.");
@@ -42812,6 +42847,7 @@ export default function App() {
           leads: appState.permissions.leads?.canView ? appState.leads : [],
           customers: appState.permissions.customers?.canView ? appState.customers : [],
           users: appState.permissions.users?.canView ? appState.users : [],
+          jobDraftImports: appState.permissions.jobDraftImports?.canView ? appState.jobDraftImports : [],
           estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
         }}
         onOpenModule={setActive}
@@ -42827,6 +42863,7 @@ export default function App() {
         onOpenCustomerAccount={handleOpenAssistantCustomerAccount}
         onOpenCrewReadiness={handleOpenAssistantCrewReadiness}
         onOpenScheduleDispatch={handleOpenAssistantScheduleDispatch}
+        onOpenImportedDraftReview={handleOpenAssistantImportedDraftReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}

@@ -21,6 +21,13 @@ const ROUTE_COMMANDS = [
     message: "Open Jobs to review crew assignment, startup readiness, and active work.",
   },
   {
+    id: "jobDraftImports",
+    moduleId: "jobDraftImports",
+    actionLabel: "Open imported drafts",
+    keywords: ["imported draft", "imported drafts", "job draft", "job drafts", "draft package", "draft import"],
+    message: "Open Imported Drafts to review customer match, missing details, and job-readiness before manual job creation.",
+  },
+  {
     id: "schedule",
     moduleId: "schedule",
     actionLabel: "Open schedule",
@@ -203,6 +210,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const scheduleDispatchCommand = resolveAssistantScheduleDispatchCommand(input, state.commandContext || {});
   if (scheduleDispatchCommand) return scheduleDispatchCommand;
+
+  const importedDraftReviewCommand = resolveAssistantImportedDraftReviewCommand(input, state.commandContext || {});
+  if (importedDraftReviewCommand) return importedDraftReviewCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -713,6 +723,47 @@ export function resolveAssistantScheduleDispatchCommand(input = "", context = {}
   };
 }
 
+export function resolveAssistantImportedDraftReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasImportedDraftReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.jobDraftImports?.canView) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Imported draft assistant commands are office review tools. Field users stay blocked from imported draft queues, customer matching, and job creation controls.",
+    };
+  }
+
+  const query = extractImportedDraftReviewTargetQuery(rawText);
+  const matches = findAssistantImportedDraftReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-imported-draft-review",
+    type: "imported-draft-review",
+    label: "Open imported draft board",
+    helper: "No exact imported draft match found. Open Imported Drafts and choose the draft manually.",
+  };
+
+  return {
+    type: "imported-draft-review",
+    moduleId: "jobDraftImports",
+    actionLabel: matches.length === 1 ? "Review imported draft" : matches.length > 1 ? "Choose draft" : "Open Imported Drafts",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for imported draft review. No package import, customer creation, job creation, draft save, or field handoff will happen automatically.`
+      : matches.length > 1
+        ? "I found multiple imported drafts that may need review. Choose the right draft before opening the review board."
+        : "I did not find an exact imported draft match. Open Imported Drafts and review the queue manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -1063,6 +1114,13 @@ function hasScheduleDispatchIntent(text = "") {
   return asksToOpen && mentionsSchedule && mentionsDispatchContext;
 }
 
+function hasImportedDraftReviewIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsImportedDraft = /\b(imported draft|imported drafts|job draft|job drafts|draft package|draft packages|draft import|draft imports|import queue|imported job)\b/.test(text);
+  const mentionsReview = /\b(review|needs review|missing|warning|warnings|customer match|match|readiness|ready|create job|job creation|package|queue)\b/.test(text);
+  return asksToOpen && mentionsImportedDraft && mentionsReview;
+}
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -1254,6 +1312,18 @@ function extractScheduleDispatchTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:schedule|dispatch|operating plan|daily plan|today's plan|todays plan|tomorrow prep|crew board|day plan)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|schedule|dispatch|operating|daily|today|todays|tomorrow|crew|board|plan|for|from|on|at|with|this|the|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractImportedDraftReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:imported draft|imported drafts|job draft|job drafts|draft package|draft packages|draft import|draft imports|imported job)\b\s+(?:for|from|on|at|with)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from|with)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:imported draft|imported drafts|job draft|job drafts|draft package|draft packages|draft import|draft imports|imported job)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|imported|draft|drafts|job|package|packages|import|imports|queue|for|from|on|at|with|this|the|needs)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -1842,6 +1912,79 @@ function findAssistantScheduleDispatchMatches(query = "", context = {}) {
     }))
     .filter((match) => match.jobId)
     .slice(0, 4);
+}
+
+function findAssistantImportedDraftReviewMatches(query = "", context = {}) {
+  const drafts = asArray(context.jobDraftImports).filter((draft) => !draft?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? drafts.filter((draft) => targetMatchesWords(importedDraftSearchText(draft), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : drafts;
+
+  return candidates
+    .map((draft) => ({
+      draft,
+      needsReview: importedDraftNeedsReview(draft),
+      ready: importedDraftLooksReady(draft),
+      created: Boolean(draft.createdJobId),
+      missingCustomer: !String(draft.customerName || draft.customer || "").trim(),
+      missingLocation: !String(draft.city || draft.address || draft.location || "").trim(),
+    }))
+    .sort((left, right) => importedDraftPriority(right) - importedDraftPriority(left) || importedDraftLabel(left.draft).localeCompare(importedDraftLabel(right.draft)))
+    .map(({ draft, needsReview, ready, created, missingCustomer, missingLocation }) => ({
+      id: `imported-draft:${draft.id}`,
+      type: "imported-draft",
+      importedDraftId: draft.id || "",
+      label: importedDraftLabel(draft),
+      helper: [
+        created ? "job already created" : ready ? "ready for review" : needsReview ? "needs review" : `status ${draft.status || draft.importStatus || "imported"}`,
+        missingCustomer ? "customer missing" : "customer context present",
+        missingLocation ? "location missing" : draft.city || draft.location || "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.importedDraftId)
+    .slice(0, 4);
+}
+
+function importedDraftPriority(candidate = {}) {
+  return (candidate.needsReview ? 18 : 0) + (candidate.missingCustomer ? 12 : 0) + (candidate.missingLocation ? 8 : 0) + (candidate.ready ? 6 : 0) - (candidate.created ? 20 : 0);
+}
+
+function importedDraftNeedsReview(draft = {}) {
+  const status = normalizeText(draft.status || draft.importStatus || "");
+  return status.includes("need") || status.includes("review") || asArray(draft.warnings).length > 0 || asArray(draft.matchWarnings).length > 0;
+}
+
+function importedDraftLooksReady(draft = {}) {
+  const status = normalizeText(draft.status || draft.importStatus || "");
+  return status.includes("ready") || status === "imported";
+}
+
+function importedDraftLabel(draft = {}) {
+  return [
+    draft.jobName || draft.projectName || "Imported draft",
+    draft.customerName || draft.customer || "",
+    draft.city || draft.location || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function importedDraftSearchText(draft = {}) {
+  return normalizeText([
+    draft.id,
+    draft.jobName,
+    draft.projectName,
+    draft.customerName,
+    draft.customer,
+    draft.address,
+    draft.city,
+    draft.state,
+    draft.location,
+    draft.serviceType,
+    draft.status,
+    draft.importStatus,
+    draft.customerMatchReason,
+    draft.summary,
+  ].filter(Boolean).join(" "));
 }
 
 function scheduleDispatchPriority(candidate = {}) {
