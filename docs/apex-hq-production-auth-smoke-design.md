@@ -148,6 +148,18 @@ Do not run mutation-capable Opportunity Scout, package toggles, cleanup, public 
 
 Before enabling:
 
+- run the local read-only readiness check:
+
+```powershell
+npm.cmd run verify:production-auth-smoke-readiness
+```
+
+For a read-only production `/api/ready` confirmation in the same report:
+
+```powershell
+npm.cmd run verify:production-auth-smoke-readiness -- --check-live
+```
+
 - production smoke workspace/company approved
 - admin and employee smoke users approved
 - role restrictions verified locally or in a one-time manual production check
@@ -170,3 +182,5 @@ If production auth smoke causes noise or risk:
 ## Production Boundary
 
 This document is a design and approval checklist only. It does not create smoke users, set secrets, enable production auth smoke, change auth logic, change packages, change roles, deploy production, or authorize production monitoring expansion.
+
+The readiness helper is also read-only. It checks workflow guardrails, optional GitHub secret presence by name only, optional `/api/ready`, approved URL posture, and remaining approval blockers. It does not run login, create sessions, dispatch the workflow, write secrets, create users, deploy, touch Fly, or mutate production data.
