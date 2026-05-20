@@ -1,0 +1,288 @@
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function text(value) {
+  return String(value ?? "").trim();
+}
+
+function normalizeStatus(value) {
+  return text(value).toLowerCase().replace(/[_-]/g, " ").replace(/\s+/g, " ");
+}
+
+function activeRecords(records = []) {
+  return asArray(records).filter((record) => !record?.archivedAt);
+}
+
+function countLabel(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function jobName(job = {}) {
+  return text(job.title || job.name || job.projectName || job.customer || "Job");
+}
+
+function isReportNeedingOfficeReview(report = {}) {
+  const status = normalizeStatus(report.status || report.reviewStatus);
+  return ["submitted", "needs review", "needs_review"].includes(status);
+}
+
+function isStartupWatchJob(job = {}) {
+  const startupStatus = normalizeStatus(job.startupStatus || "not started");
+  const status = normalizeStatus(job.status || job.stage);
+  return ["not started", "in progress", "needs review"].includes(startupStatus)
+    || ["planned", "scheduled"].includes(status);
+}
+
+function isFieldOnlyScope(permissions = {}) {
+  return Boolean(
+    permissions?.jobs?.canManageField
+    && !permissions?.jobs?.canManageAll
+    && !permissions?.leads?.canView
+    && !permissions?.aiOffice?.canView
+    && !permissions?.opportunityScout?.canView,
+  );
+}
+
+function canUseAiOfficeAgentCommand(permissions = {}) {
+  if (isFieldOnlyScope(permissions)) return false;
+  return Boolean(
+    permissions?.aiOffice?.canView
+    || permissions?.opportunityScout?.canView
+    || permissions?.leads?.canView
+    || permissions?.jobs?.canManageAll
+    || permissions?.reports?.canReview
+    || permissions?.uploads?.canManageAll,
+  );
+}
+
+function toneForCount(count, { empty = "green", active = "amber", high = "red", highAt = 4 } = {}) {
+  if (!count) return empty;
+  return count >= highAt ? high : active;
+}
+
+export function deriveAiOfficeAgentCommandCenter({
+  permissions = {},
+  stats = {},
+  opportunityScout = {},
+  leads = [],
+  jobs = [],
+  queueItems = [],
+  jobDraftImports = [],
+  dailyReports = [],
+  uploads = [],
+} = {}) {
+  if (!canUseAiOfficeAgentCommand(permissions)) {
+    return {
+      canView: false,
+      modeLabel: "Blocked",
+      headline: "Agent command center unavailable",
+      summary: "Field users stay limited to assigned work and cannot open office agent command surfaces.",
+      workflowCards: [],
+      focusRows: [],
+      guardrails: defaultAgentGuardrails(),
+    };
+  }
+
+  const visibleLeads = activeRecords(leads);
+  const visibleJobs = activeRecords(jobs);
+  const visibleQueueItems = activeRecords(queueItems).filter((item) => !item.done);
+  const visibleDrafts = activeRecords(jobDraftImports);
+  const visibleReports = activeRecords(dailyReports);
+  const visibleUploads = activeRecords(uploads);
+  const scoutStats = opportunityScout?.stats || {};
+  const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
+  const newLeads = visibleLeads.filter((lead) => normalizeStatus(lead.status || "new") === "new");
+  const highPriorityLeads = visibleLeads.filter((lead) => normalizeStatus(lead.priority) === "high");
+  const approvedLeads = visibleLeads.filter((lead) => ["approved", "converted"].includes(normalizeStatus(lead.status)));
+  const blockedQueueItems = visibleQueueItems.filter((item) => normalizeStatus(item.status) === "blocked");
+  const dueQueueItems = visibleQueueItems.filter((item) => normalizeStatus(item.status) === "due today");
+  const startupWatchJobs = visibleJobs.filter(isStartupWatchJob);
+  const reportsNeedingReview = visibleReports.filter(isReportNeedingOfficeReview);
+  const missingUploads = Number(stats.fieldProofGaps || 0) || visibleUploads.filter((upload) => !upload.jobId && !upload.reportId).length;
+  const readyDrafts = visibleDrafts.filter((draft) => ["ready", "needs review", "imported"].includes(normalizeStatus(draft.status || draft.importStatus || "imported")));
+  const readyToBill = visibleJobs.filter((job) => normalizeStatus(job.status || job.stage) === "billing ready").length
+    || Number(stats.jobsReadyToBill || stats.moneyReadyItems || 0);
+
+  const workflowCards = [
+    canViewOpportunityScout ? {
+      id: "opportunity-scout",
+      title: "Opportunity Scout",
+      helper: "Run review-first source checks, inspect found work, and keep Create Lead behind office approval.",
+      icon: "spark",
+      badge: opportunityScout?.readiness?.label || `${countLabel(scoutStats.openFoundOpportunities || 0, "opportunity")} open`,
+      tone: opportunityScout?.readiness?.tone || toneForCount(scoutStats.openFoundOpportunities || scoutStats.checksNeeded || 0, { active: "orange" }),
+      actionLabel: "Open scout",
+      moduleId: "copilot",
+    } : null,
+    permissions?.leads?.canView ? {
+      id: "lead-review",
+      title: "Lead Review Agent",
+      helper: "Prioritize new, high-fit, and approved leads before creating estimates or jobs.",
+      icon: "inbox",
+      badge: `${newLeads.length + highPriorityLeads.length} ready`,
+      tone: toneForCount(newLeads.length + highPriorityLeads.length, { active: "orange", highAt: 6 }),
+      actionLabel: "Open leads",
+      moduleId: "leads",
+    } : null,
+    permissions?.jobs?.canView || permissions?.jobs?.canManageAll ? {
+      id: "job-startup",
+      title: "Job Startup Agent",
+      helper: "Review planned jobs, crew readiness, startup gaps, and imported draft handoffs.",
+      icon: "briefcase",
+      badge: `${startupWatchJobs.length} watching`,
+      tone: toneForCount(startupWatchJobs.length, { active: "amber", highAt: 5 }),
+      actionLabel: "Open jobs",
+      moduleId: "jobs",
+    } : null,
+    permissions?.reports?.canView || permissions?.uploads?.canView ? {
+      id: "proof-closeout",
+      title: "Proof Closeout Agent",
+      helper: "Summarize submitted reports, photo gaps, unlinked uploads, and ready-to-bill blockers.",
+      icon: "clipboard",
+      badge: `${reportsNeedingReview.length + missingUploads} proof items`,
+      tone: toneForCount(reportsNeedingReview.length + missingUploads, { active: "amber", highAt: 5 }),
+      actionLabel: "Open reports",
+      moduleId: "reports",
+    } : null,
+    permissions?.customers?.canView || permissions?.settings?.canView ? {
+      id: "pilot-handoff",
+      title: "Pilot Handoff Agent",
+      helper: "Check customer, job, setup, support, and manual handoff readiness without creating accounts or invites.",
+      icon: "users",
+      badge: permissions?.settings?.canView ? "Setup review" : "Customer review",
+      tone: readyToBill || approvedLeads.length ? "blue" : "slate",
+      actionLabel: permissions?.customers?.canView ? "Open customers" : "Open settings",
+      moduleId: permissions?.customers?.canView ? "customers" : "settings",
+    } : null,
+    permissions?.appHealth?.canView ? {
+      id: "release-readiness",
+      title: "Release Readiness Agent",
+      helper: "Review App Health, audit signals, backup posture, and rollout guardrails before any release decision.",
+      icon: "lock",
+      badge: "Owner gate",
+      tone: blockedQueueItems.length ? "amber" : "green",
+      actionLabel: "Open App Health",
+      moduleId: "appHealth",
+    } : null,
+  ].filter(Boolean);
+
+  const focusRows = [
+    ...blockedQueueItems.slice(0, 2).map((item) => ({
+      id: `queue-${item.id}`,
+      eyebrow: "Blocked office queue",
+      title: item.title || "Queue item",
+      description: item.meta || item.status || "Blocked item needs owner review.",
+      tone: "red",
+      icon: "alert",
+      actionLabel: "Open Command Center",
+      moduleId: "commandCenter",
+      recordType: "queue",
+      record: item,
+    })),
+    ...(canViewOpportunityScout ? asArray(opportunityScout.foundOpportunityQueue).slice(0, 3).map((opportunity) => ({
+      id: `found-${opportunity.id || opportunity.opportunityId}`,
+      eyebrow: opportunity.statusLabel || "Found work",
+      title: opportunity.title || "Found opportunity",
+      description: [opportunity.agency, opportunity.trade, opportunity.bidDueAt ? `Bid due ${opportunity.bidDueAt}` : ""].filter(Boolean).join(" / "),
+      tone: opportunity.tone || "orange",
+      icon: "spark",
+      actionLabel: "Review scout",
+      moduleId: "copilot",
+      recordType: "opportunity",
+      record: opportunity,
+    })) : []),
+    ...reportsNeedingReview.slice(0, 2).map((report) => ({
+      id: `report-${report.id}`,
+      eyebrow: "Report review",
+      title: report.job?.title || report.jobTitle || "Submitted daily report",
+      description: report.workPerformed || report.crewSummary || "Office signoff needed before closeout.",
+      tone: "blue",
+      icon: "clipboard",
+      actionLabel: "Open report",
+      moduleId: "reports",
+      recordType: "report",
+      record: report,
+    })),
+    ...newLeads.slice(0, 2).map((lead) => ({
+      id: `lead-${lead.id}`,
+      eyebrow: lead.priority === "High" ? "High-priority lead" : "New lead",
+      title: lead.customer || lead.project || "Unnamed lead",
+      description: lead.project || lead.nextStep || "Needs first office response.",
+      tone: lead.priority === "High" ? "amber" : "blue",
+      icon: "inbox",
+      actionLabel: "Open lead",
+      moduleId: "leads",
+      recordType: "lead",
+      record: lead,
+    })),
+    ...approvedLeads.slice(0, 2).map((lead) => ({
+      id: `approved-${lead.id}`,
+      eyebrow: "Approved lead",
+      title: lead.customer || lead.project || "Approved lead",
+      description: "Ready for estimate or job workflow after office review.",
+      tone: "green",
+      icon: "check",
+      actionLabel: "Open lead",
+      moduleId: "leads",
+      recordType: "lead",
+      record: lead,
+    })),
+    ...startupWatchJobs.slice(0, 2).map((job) => ({
+      id: `job-${job.id}`,
+      eyebrow: "Startup watch",
+      title: jobName(job),
+      description: job.nextStep || job.startupStatus || "Startup readiness needs office review.",
+      tone: "amber",
+      icon: "briefcase",
+      actionLabel: "Open job",
+      moduleId: "jobs",
+      recordType: "job",
+      record: job,
+    })),
+    ...readyDrafts.slice(0, 1).map((draft) => ({
+      id: `draft-${draft.id}`,
+      eyebrow: "Imported draft",
+      title: draft.customerName || draft.jobName || "Imported job draft",
+      description: draft.customerMatchReason || "Review imported package before manual job creation.",
+      tone: "blue",
+      icon: "database",
+      actionLabel: "Open draft",
+      moduleId: "jobDraftImports",
+      recordType: "draft",
+      record: draft,
+    })),
+  ].slice(0, 9);
+
+  return {
+    canView: true,
+    modeLabel: "Review-first",
+    headline: "Agent Command Center",
+    summary: `${workflowCards.length} review lane${workflowCards.length === 1 ? "" : "s"} are available. Every lane routes into an existing Apex HQ workflow and keeps approval, messages, billing, and record changes manual.`,
+    workflowCards,
+    focusRows,
+    counts: {
+      blockedQueue: blockedQueueItems.length,
+      dueQueue: dueQueueItems.length,
+      newLeads: newLeads.length,
+      highPriorityLeads: highPriorityLeads.length,
+      approvedLeads: approvedLeads.length,
+      startupWatchJobs: startupWatchJobs.length,
+      reportsNeedingReview: reportsNeedingReview.length,
+      missingUploads,
+      readyDrafts: readyDrafts.length,
+      readyToBill,
+      scoutChecksNeeded: scoutStats.checksNeeded || 0,
+      openFoundOpportunities: scoutStats.openFoundOpportunities || 0,
+    },
+    guardrails: defaultAgentGuardrails(),
+  };
+}
+
+function defaultAgentGuardrails() {
+  return [
+    { id: "manual-actions", label: "Manual actions", detail: "No auto-send, approvals, invoice creation, package changes, or job status changes." },
+    { id: "field-safety", label: "Field role boundary", detail: "Field users remain limited to assigned work and cannot open office agent command queues." },
+    { id: "existing-routes", label: "Existing workflows", detail: "Agent lanes route to saved Apex HQ modules instead of bypassing review screens." },
+  ];
+}

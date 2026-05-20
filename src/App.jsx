@@ -4,6 +4,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
+import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
 import {
   activateInvite,
@@ -26337,7 +26338,6 @@ function CopilotPagePolished({
   const blockedQueueItems = openQueueItems.filter((item) => item.status === "Blocked");
   const dueQueueItems = openQueueItems.filter((item) => item.status === "Due today");
   const reportsNeedingReview = visibleReports.filter((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus)).length;
-  const readyDrafts = liveDrafts.filter((draft) => ["Ready", "Needs Review", "Imported"].includes(draft.status || draft.importStatus || "Imported"));
   const pipelineValue = Number(stats.pipelineValue || 0);
 
   function openModule(moduleId) {
@@ -26579,6 +26579,38 @@ function CopilotPagePolished({
     }));
   }
 
+  const agentCommandCenter = useMemo(() => deriveAiOfficeAgentCommandCenter({
+    permissions,
+    stats,
+    opportunityScout,
+    leads: liveLeads,
+    jobs: liveJobs,
+    queueItems: openQueueItems,
+    jobDraftImports: liveDrafts,
+    dailyReports: visibleReports,
+    uploads: visibleUploads,
+  }), [permissions, stats, opportunityScout, liveLeads, liveJobs, openQueueItems, liveDrafts, visibleReports, visibleUploads]);
+
+  function openAgentCommandTarget(target = {}) {
+    if (target.recordType === "lead" && target.record) {
+      openLead(target.record);
+      return;
+    }
+    if (target.recordType === "job" && target.record) {
+      openJob(target.record);
+      return;
+    }
+    if (target.recordType === "draft" && target.record) {
+      openDraft(target.record);
+      return;
+    }
+    if (target.recordType === "report" && target.record) {
+      openReport(target.record);
+      return;
+    }
+    openModule(target.moduleId || "commandCenter");
+  }
+
   const aiKpis = [
     canViewOpportunityScout ? {
       label: "Daily Job Finder",
@@ -26618,126 +26650,15 @@ function CopilotPagePolished({
     },
   ].filter(Boolean);
 
-  const workflowCards = [
-    canViewOpportunityScout ? {
-      title: "Daily Job Finder",
-      helper: "Use search profiles, source checks, and saved found opportunities to decide where the office should look for work today.",
-      icon: "spark",
-      badge: opportunityScout.readiness.label,
-      tone: opportunityScout.readiness.tone,
-      actionLabel: "Open scout",
-      onAction: () => openModule("copilot"),
-    } : null,
-    {
-      title: "Apex Lead Assistant",
-      helper: "Open the lead command board and use Apex HQ AI from the selected lead panel.",
-      icon: "spark",
-      badge: `${newLeads.length + highPriorityLeads.length} ready`,
-      tone: "orange",
-      actionLabel: "Open assistant",
-      onAction: () => openModule("leads"),
-    },
-    {
-      title: "Office Drafts",
-      helper: "Use the follow-up queue to copy email, SMS, call, and voicemail drafts. Apex HQ does not auto-send.",
-      icon: "document",
-      badge: `${dueQueueItems.length + blockedQueueItems.length} queued`,
-      tone: dueQueueItems.length || blockedQueueItems.length ? "amber" : "slate",
-      actionLabel: "Open follow-ups",
-      onAction: () => openModule("leads"),
-    },
-    {
-      title: "Startup Readiness",
-      helper: "Review planned jobs, crew assignment gaps, and startup readiness before field work slips.",
-      icon: "briefcase",
-      badge: `${startupWatchJobs.length} watching`,
-      tone: startupWatchJobs.length ? "amber" : "green",
-      actionLabel: "Open jobs",
-      onAction: () => openModule("jobs"),
-    },
-    {
-      title: "Command Center Review",
-      helper: "Jump to the operational command center for one owner view of follow-ups, jobs, reports, and blockers.",
-      icon: "grid",
-      badge: "Operator",
-      tone: "blue",
-      actionLabel: "Command Center",
-      onAction: () => openModule("commandCenter"),
-    },
-  ].filter(Boolean);
+  const workflowCards = agentCommandCenter.workflowCards.map((card) => ({
+    ...card,
+    onAction: () => openAgentCommandTarget(card),
+  }));
 
-  const focusRows = [
-    ...blockedQueueItems.slice(0, 2).map((item) => ({
-      id: `queue-${item.id}`,
-      eyebrow: "Blocked queue",
-      title: item.title || "Queue item",
-      description: item.meta || item.status || "Blocked item needs owner review.",
-      tone: "red",
-      icon: "alert",
-      actionLabel: "Open dashboard",
-      onAction: () => openModule("dashboard"),
-    })),
-    ...(canViewOpportunityScout ? opportunityScout.foundOpportunityQueue.slice(0, 3).map((opportunity) => ({
-      id: `found-${opportunity.id}`,
-      eyebrow: opportunity.statusLabel,
-      title: opportunity.title,
-      description: [opportunity.agency, opportunity.trade, opportunity.bidDueAt ? `Bid due ${formatDateTime(opportunity.bidDueAt)}` : ""].filter(Boolean).join(" / "),
-      tone: opportunity.tone,
-      icon: "spark",
-      actionLabel: "Review",
-      onAction: () => openModule("copilot"),
-    })) : []),
-    ...(canViewOpportunityScout ? opportunityScout.sourceQueue.slice(0, 2).map((source) => ({
-      id: `source-${source.id}`,
-      eyebrow: source.statusLabel,
-      title: source.name,
-      description: source.recommendedAction,
-      tone: source.tone,
-      icon: "spark",
-      actionLabel: "Open sources",
-      onAction: () => openModule("leads"),
-    })) : []),
-    ...newLeads.slice(0, 2).map((lead) => ({
-      id: `lead-${lead.id}`,
-      eyebrow: "New lead",
-      title: lead.customer || "Unnamed lead",
-      description: lead.project || lead.nextStep || "Needs first office response.",
-      tone: lead.priority === "High" ? "amber" : "blue",
-      icon: "inbox",
-      actionLabel: "Open lead",
-      onAction: () => openLead(lead),
-    })),
-    ...approvedLeads.slice(0, 2).map((lead) => ({
-      id: `approved-${lead.id}`,
-      eyebrow: "Approved lead",
-      title: lead.customer || "Approved lead",
-      description: "Ready for job or estimate workflow from the lead detail panel.",
-      tone: "green",
-      icon: "check",
-      actionLabel: "Open lead",
-      onAction: () => openLead(lead),
-    })),
-    ...startupWatchJobs.slice(0, 2).map((job) => ({
-      id: `job-${job.id}`,
-      eyebrow: "Startup watch",
-      title: jobTitle(job),
-      description: jobNextStep(job),
-      tone: "amber",
-      icon: "briefcase",
-      actionLabel: "Open job",
-      onAction: () => openJob(job),
-    })),
-    ...readyDrafts.slice(0, 1).map((draft) => ({
-      id: `draft-${draft.id}`,
-      eyebrow: "Imported draft",
-      title: draft.customerName || draft.jobName || "Imported job draft",
-      description: draft.customerMatchReason || "Review the imported package before job creation.",
-      tone: "blue",
-      icon: "database",
-      actionLabel: "Open draft",
-      onAction: () => openDraft(draft),
-    })),
-  ].slice(0, 7);
+  const focusRows = agentCommandCenter.focusRows.map((row) => ({
+    ...row,
+    onAction: () => openAgentCommandTarget(row),
+  }));
 
   const reportPreview = visibleReports.find((report) => ["Submitted", "Needs Review"].includes(report.status || report.reviewStatus));
   const nextActions = [
@@ -27531,12 +27452,13 @@ function CopilotPagePolished({
             <div className="co-ai-board-header border-b border-slate-200 bg-white p-4">
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h2>Assistant Action Board</h2>
-                  <p>Use the assistant where Apex HQ already has real saved context: leads, follow-ups, job readiness, and operator review.</p>
+                  <h2>{agentCommandCenter.headline}</h2>
+                  <p>{agentCommandCenter.summary}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Badge tone="amber">{agentCommandCenter.modeLabel}</Badge>
                   <Button type="button" size="sm" variant="secondary" onClick={() => openModule("leads")}>Lead Assistant</Button>
-                  <Button type="button" size="sm" onClick={() => openModule("dashboard")}>Office Queue</Button>
+                  <Button type="button" size="sm" onClick={() => openModule("commandCenter")}>Command Center</Button>
                 </div>
               </div>
             </div>
@@ -27552,6 +27474,14 @@ function CopilotPagePolished({
                   <Badge tone={card.tone === "orange" ? "amber" : card.tone}>{card.badge}</Badge>
                   <span className="co-ai-workflow-action">{card.actionLabel} -&gt;</span>
                 </button>
+              ))}
+            </div>
+            <div className="grid gap-2 border-t border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
+              {agentCommandCenter.guardrails.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{item.detail}</p>
+                </div>
               ))}
             </div>
           </Card>

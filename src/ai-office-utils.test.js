@@ -1,0 +1,91 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils.js";
+
+test("AI Office agent command center builds role-safe review lanes from visible context", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      opportunityScout: { canView: true },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+      reports: { canView: true, canReview: true },
+      uploads: { canView: true, canManageAll: true },
+      customers: { canView: true },
+      settings: { canView: true },
+      appHealth: { canView: true },
+    },
+    stats: { fieldProofGaps: 2, jobsReadyToBill: 1 },
+    opportunityScout: {
+      readiness: { label: "Found work needs review", tone: "red" },
+      stats: { openFoundOpportunities: 2, checksNeeded: 1 },
+      foundOpportunityQueue: [
+        { id: "FO-1", title: "School sidewalk", agency: "Albany SD", trade: "Concrete", statusLabel: "Reviewing", tone: "red" },
+      ],
+    },
+    leads: [
+      { id: "LEAD-1", customer: "ABC Builders", status: "New", priority: "High", project: "Warehouse slab" },
+      { id: "LEAD-2", customer: "Approved GC", status: "Approved" },
+    ],
+    jobs: [{ id: "JOB-1", title: "Westview Warehouse", status: "scheduled", startupStatus: "Needs Review" }],
+    queueItems: [{ id: "Q-1", title: "Blocked proof", status: "Blocked" }],
+    jobDraftImports: [{ id: "DRAFT-1", jobName: "Imported slab", status: "Ready" }],
+    dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Westview Warehouse" }],
+    uploads: [{ id: "UPLOAD-1", fileName: "finish.jpg" }],
+  });
+
+  assert.equal(state.canView, true);
+  assert.equal(state.modeLabel, "Review-first");
+  assert.equal(state.workflowCards.some((card) => card.id === "opportunity-scout"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "release-readiness"), true);
+  assert.equal(state.focusRows[0].id, "queue-Q-1");
+  assert.equal(state.focusRows.some((row) => row.recordType === "report" && row.moduleId === "reports"), true);
+  assert.equal(state.counts.readyToBill, 1);
+  assert.match(state.summary, /routes into an existing Apex HQ workflow/i);
+  assert.equal(state.guardrails.some((item) => /No auto-send/i.test(item.detail)), true);
+});
+
+test("AI Office agent command center blocks field-only users", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: false },
+      opportunityScout: { canView: false },
+      leads: { canView: false },
+      jobs: { canView: true, canManageField: true, canManageAll: false },
+      reports: { canCreate: true, canReview: false },
+      uploads: { canCreate: true, canManageAll: false },
+    },
+    jobs: [{ id: "JOB-1", title: "Assigned job" }],
+  });
+
+  assert.equal(state.canView, false);
+  assert.deepEqual(state.workflowCards, []);
+  assert.deepEqual(state.focusRows, []);
+  assert.match(state.summary, /Field users stay limited/i);
+});
+
+test("AI Office agent command center keeps Premium assistant useful without Opportunity Scout controls", () => {
+  const state = deriveAiOfficeAgentCommandCenter({
+    permissions: {
+      aiOffice: { canView: true },
+      opportunityScout: { canView: false },
+      leads: { canView: true },
+      jobs: { canView: true, canManageAll: true },
+      reports: { canView: true, canReview: true },
+      uploads: { canView: true },
+      support: { canView: true },
+    },
+    leads: [{ id: "LEAD-1", customer: "New GC", status: "New" }],
+    jobs: [{ id: "JOB-1", title: "Startup job", status: "planned" }],
+    dailyReports: [{ id: "REPORT-1", status: "Submitted", jobTitle: "Startup job" }],
+  });
+
+  assert.equal(state.canView, true);
+  assert.equal(state.workflowCards.some((card) => card.id === "opportunity-scout"), false);
+  assert.equal(state.workflowCards.some((card) => card.id === "lead-review"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "job-startup"), true);
+  assert.equal(state.workflowCards.some((card) => card.id === "proof-closeout"), true);
+  assert.equal(state.focusRows.some((row) => row.recordType === "lead"), true);
+});
