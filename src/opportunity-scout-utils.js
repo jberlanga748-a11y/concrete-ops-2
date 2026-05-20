@@ -243,6 +243,40 @@ export function applyOpportunityScoutAgentPreviewToDraft(currentDraft = {}, prev
   return nextDraft;
 }
 
+export function applyOpportunityScoutSourceCheckToDraft(currentDraft = {}, { brief = {}, source = {}, result = "found_work" } = {}) {
+  if (!["found_work", "missing_docs", "needs_human", "duplicate"].includes(result)) return currentDraft;
+  const nextDraft = { ...currentDraft };
+  const setIfEmpty = (key, value) => {
+    const candidate = collapseSpaces(value);
+    if (!candidate || collapseSpaces(nextDraft[key])) return;
+    nextDraft[key] = candidate;
+  };
+
+  setIfEmpty("intakeSourceType", "manual");
+  setIfEmpty("leadSourceId", source.id || brief.sourceId);
+  setIfEmpty("sourceName", source.name || brief.title);
+  setIfEmpty("agency", source.name || brief.title);
+  setIfEmpty("sourceUrl", source.url || brief.url);
+  setIfEmpty("trade", source.tradeFocus || brief.type);
+  setIfEmpty("city", source.city);
+  setIfEmpty("state", source.state);
+  setIfEmpty("title", result === "missing_docs" ? `${brief.title || source.name || "Source"} - docs needed` : `${brief.title || source.name || "Source"} opportunity`);
+  setIfEmpty("scopeSummary", brief.helper || brief.query || source.notes);
+  if (result === "missing_docs") {
+    setIfEmpty("missingInfoItems", "plans/addenda/date/scope evidence");
+  }
+  if (result === "needs_human") {
+    setIfEmpty("riskFlags", "access or terms need human review");
+    setIfEmpty("missingInfoItems", "authorized access review");
+  }
+  if (result === "duplicate") {
+    setIfEmpty("riskFlags", "possible duplicate");
+  }
+  setIfEmpty("reasonToBid", result === "found_work" ? "Source check found possible work for office review." : "");
+
+  return nextDraft;
+}
+
 function buildOpportunityScoutProfileBrief(profile = {}, companySettings = {}) {
   const areas = uniqueTexts([
     ...(Array.isArray(profile.serviceAreas) ? profile.serviceAreas : []),

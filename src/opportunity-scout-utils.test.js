@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyOpportunityScoutAgentPreviewToDraft, buildOpportunityScoutSearchPhrase, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils.js";
+import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSearchPhrase, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils.js";
 
 const TODAY = "2026-05-13";
 
@@ -274,4 +274,37 @@ test("opportunity scout agent preview can fill an unsaved draft without overwrit
 test("opportunity scout agent preview fill is a no-op for blocked previews", () => {
   const draft = { title: "Keep me" };
   assert.equal(applyOpportunityScoutAgentPreviewToDraft(draft, { ok: false }), draft);
+});
+
+test("source check results can prefill found opportunity drafts without saving leads", () => {
+  const draft = applyOpportunityScoutSourceCheckToDraft({
+    title: "Human entered title",
+  }, {
+    result: "missing_docs",
+    brief: {
+      sourceId: "LS-1",
+      title: "City bid page",
+      type: "Public bid portal",
+      helper: "Open city source and verify documents.",
+      url: "https://example.test/bids",
+    },
+    source: {
+      id: "LS-1",
+      name: "City bids",
+      tradeFocus: "concrete",
+      city: "Salem",
+      state: "OR",
+      url: "https://example.test/bids",
+    },
+  });
+
+  assert.equal(draft.title, "Human entered title");
+  assert.equal(draft.leadSourceId, "LS-1");
+  assert.equal(draft.sourceName, "City bids");
+  assert.equal(draft.agency, "City bids");
+  assert.equal(draft.trade, "concrete");
+  assert.equal(draft.city, "Salem");
+  assert.equal(draft.state, "OR");
+  assert.equal(draft.sourceUrl, "https://example.test/bids");
+  assert.match(draft.missingInfoItems, /plans/);
 });

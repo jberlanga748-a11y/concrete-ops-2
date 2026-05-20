@@ -165,7 +165,7 @@ import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calcula
 import { deriveLeadInboxState, deriveLeadListState, deriveLeadPilotWorkflowReadiness, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
-import { applyOpportunityScoutAgentPreviewToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
+import { applyOpportunityScoutAgentPreviewToDraft, applyOpportunityScoutSourceCheckToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { buildEnterpriseTrustReviewPacket, buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
@@ -25840,7 +25840,7 @@ function CopilotPagePolished({
     const source = leadSourceOptions.find((entry) => entry.id === brief.sourceId);
     const checkedAt = todayDateInputValue();
     const resultOption = OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.find((entry) => entry.id === result) || OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS[0];
-    await onMarkLeadSourceChecked?.(brief.sourceId, {
+    const didSave = await onMarkLeadSourceChecked?.(brief.sourceId, {
       checkedAt,
       nextCheckAt: calculateNextLeadSourceCheckDate(source?.checkCadence, checkedAt),
       checkNote: buildOpportunityScoutSourceCheckNote({
@@ -25850,6 +25850,11 @@ function CopilotPagePolished({
         note: `${brief.title} checked from AI Office search brief. ${resultOption.description}`,
       }),
     });
+    if (didSave && ["found_work", "missing_docs", "needs_human", "duplicate"].includes(result)) {
+      setFoundDraft((current) => applyOpportunityScoutSourceCheckToDraft(current, { brief, source, result }));
+      setFoundDraftAgentPreview({ status: "idle", result: null, message: "" });
+      jumpToScoutTarget("scout-found-opportunities", "copilot");
+    }
   }
 
   function setProfileStatus(profile, status) {
