@@ -633,6 +633,64 @@ test("Opportunity Scout blocks lead conversion from blocked source terms", async
   }
 });
 
+test("Opportunity Scout blocks lead conversion when source access still needs human review", async () => {
+  const fixture = await startServer();
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+
+    const profileBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/search-profiles", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Portal source needs access review",
+        sourceAdapterId: "approved_browser_session",
+        sourceAccessStatus: "needs_human",
+        sourceTermsStatus: "human_review_required",
+      }),
+    });
+    const profile = profileBootstrap.opportunitySearchProfiles[0];
+    assert.equal(profile.sourceAccessStatus, "needs_human");
+    assert.equal(profile.sourceTermsStatus, "human_review_required");
+
+    const opportunityBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        searchProfileId: profile.id,
+        title: "Portal source opportunity",
+        agency: "Northwest GC",
+      }),
+    });
+    const opportunity = opportunityBootstrap.foundOpportunities[0];
+
+    await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ humanReviewStatus: "approved_for_lead", humanReviewNote: "Office approval does not clear source access." }),
+    });
+
+    const convertResponse = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers,
+    });
+    assert.equal(convertResponse.response.status, 409);
+    assert.match(convertResponse.payload.error, /Source access requires human review/i);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const savedOpportunity = bootstrap.foundOpportunities.find((entry) => entry.id === opportunity.id);
+    assert.equal(savedOpportunity.convertedLeadId, "");
+    assert.equal(bootstrap.leads.some((lead) => lead.project === "Portal source opportunity"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Basic package users cannot access Opportunity Scout even with lead permissions", async () => {
   const fixture = await startServer();
   try {

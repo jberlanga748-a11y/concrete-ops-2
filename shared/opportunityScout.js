@@ -922,7 +922,10 @@ export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today
   const bidDueDate = dateKey(opportunity.bidDueAt);
   const fitScore = Number(opportunity.fitScore || 0);
   const converted = isConvertedFoundOpportunityToLead(opportunity);
-  const canCreateLead = canConvertFoundOpportunityToLead(opportunity);
+  const sourceAccessBlocked = ["needs_human", "future_review"].includes(sourcePosture?.accessStatus);
+  const sourceTermsBlocked = ["blocked", "human_review_required"].includes(sourcePosture?.termsStatus);
+  const sourceConversionBlocked = Boolean(sourceAccessBlocked || sourceTermsBlocked);
+  const canCreateLead = canConvertFoundOpportunityToLead(opportunity) && !sourceConversionBlocked;
   const highPriority = fitScore >= 75 || Boolean(bidDueDate && bidDueDate <= today);
   const missingInfoItems = Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems.filter(Boolean) : [];
   const duplicateHints = Array.isArray(opportunity.duplicateHints) ? opportunity.duplicateHints.filter(Boolean) : [];
@@ -945,6 +948,10 @@ export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today
   }
   if (sourcePosture?.blocked) {
     reviewWarnings.push("Source terms are blocked; do not use this source for lead creation until resolved.");
+  } else if (sourceAccessBlocked) {
+    reviewWarnings.push("Source access requires human review before Create Lead can unlock.");
+  } else if (sourceTermsBlocked) {
+    reviewWarnings.push("Source terms require human review before Create Lead can unlock.");
   } else if (sourcePosture?.reviewRequired) {
     reviewWarnings.push(`Source use needs review: ${sourcePosture.safeUseLabel || "Human review required"}.`);
   }
@@ -969,7 +976,7 @@ export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today
       blocked: Boolean(sourcePosture.blocked),
       safeUseLabel: sourcePosture.safeUseLabel || (sourcePosture.blocked ? "Blocked source" : sourcePosture.reviewRequired ? "Human review required" : "Clear for review"),
     } : null,
-    approvalRequired: !canCreateLead && !converted,
+    approvalRequired: (!canCreateLead && !converted) || sourceConversionBlocked,
     canCreateLead,
     converted,
     reviewWarnings,

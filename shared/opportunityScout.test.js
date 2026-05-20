@@ -468,7 +468,25 @@ test("lead handoff packet explains create-lead gates and blocked agent actions",
     },
   });
   assert.equal(blockedSource.sourcePosture.blocked, true);
+  assert.equal(blockedSource.canCreateLead, false);
+  assert.equal(blockedSource.approvalRequired, true);
   assert.equal(blockedSource.reviewWarnings.some((warning) => /blocked/i.test(warning)), true);
+
+  const accessReview = buildFoundOpportunityLeadHandoffPacket({
+    title: "Library ramp",
+    humanReviewStatus: "approved_for_lead",
+  }, {
+    sourcePosture: {
+      adapterId: "approved_browser_session",
+      accessStatus: "needs_human",
+      termsStatus: "human_review_required",
+      reviewRequired: true,
+      blocked: false,
+      safeUseLabel: "Human review required",
+    },
+  });
+  assert.equal(accessReview.canCreateLead, false);
+  assert.equal(accessReview.reviewWarnings.some((warning) => /Source access requires human review/i.test(warning)), true);
 
   const approved = buildFoundOpportunityLeadHandoffPacket({
     title: "Library ramp",

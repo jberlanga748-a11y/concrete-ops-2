@@ -9031,6 +9031,12 @@ function validateOpportunityScoutLinks(draft, opportunity, user) {
 function assertOpportunitySourceAllowsLeadConversion(draft, opportunity, user) {
   if (!opportunity.searchProfileId) return;
   const searchProfile = findCompanyScopedRecord(draft.opportunitySearchProfiles || [], opportunity.searchProfileId, user, draft, "Search profile");
+  if (["needs_human", "future_review"].includes(searchProfile.sourceAccessStatus)) {
+    throw new ApiError(409, "Source access requires human review before creating a lead from this Opportunity Scout profile.");
+  }
+  if (searchProfile.sourceTermsStatus === "human_review_required") {
+    throw new ApiError(409, "Source terms require human review before creating a lead from this Opportunity Scout profile.");
+  }
   if (searchProfile.sourceTermsStatus === "blocked") {
     throw new ApiError(409, "Source terms are blocked for this Opportunity Scout profile. Resolve source approval before creating a lead.");
   }

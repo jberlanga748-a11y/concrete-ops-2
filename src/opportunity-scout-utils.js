@@ -364,6 +364,7 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
   const priority = opportunityPriority(opportunity, today);
   const fitScore = Number(opportunity.fitScore || 0);
   const handoff = leadHandoffState(opportunity);
+  const leadPreview = buildFoundOpportunityLeadHandoffPacket(opportunity, { today, sourcePosture });
   const tone = bidBucket === "overdue"
     ? "red"
     : bidBucket === "today" || ["new", "reviewing", "bidding"].includes(normalizeStatus(opportunity.status || "new"))
@@ -400,14 +401,14 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
     humanReviewedAt: opportunity.humanReviewedAt || "",
     assignedEstimatorId: opportunity.assignedEstimatorId || "",
     convertedLeadId: opportunity.convertedLeadId || "",
-    canConvertToLead: canConvertFoundOpportunityToLead(opportunity),
+    canConvertToLead: leadPreview.canCreateLead,
     leadHandoffState: handoff.state,
     leadHandoffLabel: handoff.label,
     leadHandoffHelper: handoff.helper,
     leadHandoffTone: handoff.tone,
     leadHandoffActionLabel: handoff.actionLabel,
     sourcePosture,
-    leadPreview: buildFoundOpportunityLeadHandoffPacket(opportunity, { today, sourcePosture }),
+    leadPreview,
     tone,
     priority,
   };

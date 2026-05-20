@@ -309,6 +309,27 @@ async function run() {
     safeUseLabel: handoffQueueItem.leadPreview.sourcePosture.safeUseLabel,
   });
 
+  const blockedHandoffApproved = await requestJson(options.baseUrl, `/api/opportunity-scout/found-opportunities/${blockedOpportunity.id}`, {
+    method: "PATCH",
+    token: admin.token,
+    body: {
+      humanReviewStatus: "approved_for_lead",
+      humanReviewNote: "Hosted smoke confirms blocked source posture still prevents lead conversion.",
+    },
+  });
+  assertOk(blockedHandoffApproved, "approve blocked source handoff opportunity");
+
+  const blockedSourceConvert = await requestJson(options.baseUrl, `/api/opportunity-scout/found-opportunities/${blockedOpportunity.id}/convert-to-lead`, {
+    method: "POST",
+    token: admin.token,
+  });
+  assertStatus(blockedSourceConvert, 409, "blocked source conversion");
+  checks.push({
+    name: "blocked-source-conversion-rejected",
+    status: blockedSourceConvert.response.status,
+    opportunityId: blockedOpportunity.id,
+  });
+
   const unique = `Smoke Library ADA Ramp ${Date.now()}`;
   const created = await requestJson(options.baseUrl, "/api/opportunity-scout/found-opportunities", {
     method: "POST",

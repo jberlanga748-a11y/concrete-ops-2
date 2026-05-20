@@ -175,6 +175,38 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(publicBrief.sourceReviewRequired, true);
 });
 
+test("opportunity scout keeps Create Lead locked when source access still needs human review", () => {
+  const state = deriveOpportunityScoutState({
+    currentCompanyId: "COMPANY-A",
+    opportunitySearchProfiles: [
+      {
+        id: "OSP-HUMAN",
+        companyId: "COMPANY-A",
+        name: "GC portal review",
+        status: "active",
+        sourceAdapterId: "approved_browser_session",
+        sourceAccessStatus: "needs_human",
+        sourceTermsStatus: "human_review_required",
+      },
+    ],
+    foundOpportunities: [
+      {
+        id: "FO-HUMAN",
+        companyId: "COMPANY-A",
+        searchProfileId: "OSP-HUMAN",
+        title: "Portal sidewalk package",
+        status: "reviewing",
+        humanReviewStatus: "approved_for_lead",
+      },
+    ],
+  }, { today: TODAY });
+
+  const opportunity = state.foundOpportunityQueue.find((entry) => entry.opportunityId === "FO-HUMAN");
+  assert.equal(opportunity.canConvertToLead, false);
+  assert.equal(opportunity.leadPreview.canCreateLead, false);
+  assert.equal(opportunity.leadPreview.reviewWarnings.some((warning) => /Source access requires human review/i.test(warning)), true);
+});
+
 test("opportunity scout search briefs keep both profile and source run cards visible", () => {
   const profiles = Array.from({ length: 5 }, (_, index) => ({
     id: `OSP-${index + 1}`,
