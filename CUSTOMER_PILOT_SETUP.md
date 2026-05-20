@@ -154,6 +154,14 @@ primary_region = "sjc"
   initial_size = "1gb"
 ```
 
+Before creating or deploying the pilot app, run the local pilot config verifier:
+
+```bash
+npm run pilot:verify-config -- --config=fly.customer-acme.toml
+```
+
+The verifier rejects production/demo app names, production/demo volumes, demo seeding, demo package settings, missing `/api/ready` checks, and unsafe data-dir settings. It does not create apps, create volumes, deploy, set secrets, or touch production.
+
 ## 4. Keep Demo Seeding Off
 
 For a customer pilot workspace:
@@ -420,6 +428,7 @@ Do not add production log drains, paid monitoring, production auth smoke, or pro
 fly apps create apex-hq-acme-pilot
 fly volumes create apex_hq_acme_pilot_data --size 1 --region sjc --app apex-hq-acme-pilot
 cp fly.toml fly.customer-acme.toml
+npm run pilot:verify-config -- --config=fly.customer-acme.toml
 fly deploy --config fly.customer-acme.toml
 curl https://apex-hq-acme-pilot.fly.dev/api/ready
 curl https://apex-hq-acme-pilot.fly.dev/api/setup/status

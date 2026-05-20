@@ -50,6 +50,7 @@ jobs:
         timeout-minutes: 10
         run: |
           npm run verify:docs
+          npm run verify:pilot-config
           npm run verify:public-request
           npm run verify:opportunity-scout
           npm run verify:demo
