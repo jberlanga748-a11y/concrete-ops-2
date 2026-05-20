@@ -221,6 +221,7 @@ test("opportunity scout agent preview extracts, scores, dedupes, and stays revie
   assert.equal(preview.agentRunPacket.blockedActions.some((action) => /No bid submission/i.test(action)), true);
   assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].result, "found_work");
   assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].note.includes("secret"), false);
+  assert.equal(JSON.stringify(preview.agentRunPacket).includes("secret"), false);
   assert.match(preview.recommendedNextStep, /duplicate/i);
 });
 

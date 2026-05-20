@@ -109,7 +109,7 @@ export const OPPORTUNITY_SCOUT_SOURCE_ADAPTERS = [
     sourceType: "User-provided text",
     authMode: "user_provided",
     status: "enabled",
-    allowedActions: ["redact secrets", "extract fields", "score fit", "flag missing info"],
+    allowedActions: ["redact credentials", "extract fields", "score fit", "flag missing info"],
   },
   {
     id: "file_metadata",
