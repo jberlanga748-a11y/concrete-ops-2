@@ -193,7 +193,7 @@ import {
   SUPPORT_PILOT_FEEDBACK_WORKFLOW,
 } from "./support-utils";
 import { buildTimeTrackingSupportContext, deriveCrewWeeklySummary, deriveTimeJobCostingReadiness, deriveTimeWorkspace, formatMinutes, timeStatusTone } from "./time-utils";
-import { deriveChecklistItems, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
+import { deriveChecklistItems, deriveToolChecklistJobReadiness, deriveToolChecklistListState, filterToolChecklists, toolChecklistItemStatusLabel, toolChecklistStatusLabel } from "./tool-checklist-utils";
 import { ALLOWED_UPLOAD_TYPES, buildUploadSupportContext, deriveAllowedUploadJobs, deriveUploadDraftFromSelection, deriveUploadListState, filterUploads, findSelectedUpload, gpsStatusLabel, uploadCustomerLabel, uploadJobLabel, uploadTitle, uploadUploaderLabel, validateUploadFile } from "./upload-utils";
 import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOptions, USER_ROLE_OPTIONS } from "./user-utils";
 import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
@@ -20980,6 +20980,7 @@ function JobCommandRailPolished({
   job,
   permissions,
   billingMode = false,
+  toolChecklistBlockerCount = 0,
   disabled,
   saveState,
   onArchive,
@@ -21009,6 +21010,7 @@ function JobCommandRailPolished({
   const missingStart = jobMissingStart(job);
   const startupNeedsReview = jobStartupNeedsReview(job);
   const isBillingReadyJob = normalizeJobStatus(job.status || job.stage) === "billing_ready";
+  const hasToolBlockers = Number(toolChecklistBlockerCount || 0) > 0;
 
   return (
     <div className="co-jobs-right-rail space-y-4">
@@ -21058,6 +21060,7 @@ function JobCommandRailPolished({
           <span data-state={missingCrew ? "needs" : "ready"}>Crew <strong>{missingCrew ? "Needs" : "OK"}</strong></span>
           <span data-state={missingStart ? "needs" : "ready"}>Start <strong>{missingStart ? "Needs" : "OK"}</strong></span>
           <span data-state={startupNeedsReview ? "needs" : "ready"}>Startup <strong>{startupNeedsReview ? "Review" : "OK"}</strong></span>
+          <span data-state={hasToolBlockers ? "needs" : "ready"}>Tools <strong>{hasToolBlockers ? `${toolChecklistBlockerCount} gaps` : "OK"}</strong></span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button type="button" size="sm" onClick={() => onOpenTool("details")}>Edit Job</Button>
@@ -21084,6 +21087,10 @@ function JobCommandRailPolished({
             <StartupStatusBadge status={job.startupStatus || "Not Started"} />
           </div>
           <div className="co-jobs-readiness-row">
+            <span>Tool loadout ready</span>
+            <Badge tone={hasToolBlockers ? "amber" : "green"}>{hasToolBlockers ? `${toolChecklistBlockerCount} gaps` : "OK"}</Badge>
+          </div>
+          <div className="co-jobs-readiness-row">
             <span>Visible to field</span>
             <Badge tone={job.visibleToForeman || job.fieldPlanningVisible ? "green" : "slate"}>{job.visibleToForeman || job.fieldPlanningVisible ? "Yes" : "No"}</Badge>
           </div>
@@ -21104,6 +21111,10 @@ function JobCommandRailPolished({
           <button type="button" className="co-jobs-action-row" onClick={() => onOpenModule?.("deliveryTickets")}>
             <span>Delivery tickets</span>
             <Icon name="clipboard" />
+          </button>
+          <button type="button" className="co-jobs-action-row" onClick={() => onOpenModule?.("toolChecklist")}>
+            <span>Tool checklist</span>
+            <Icon name="layers" />
           </button>
           {job.archivedAt ? (
             <>
@@ -21128,16 +21139,17 @@ function JobCommandRailPolished({
   );
 }
 
-function jobNorthStarTone(job, proofState = {}, safetyCount = 0) {
+function jobNorthStarTone(job, proofState = {}, safetyCount = 0, toolCount = 0) {
   if (safetyCount > 0) return "red";
-  if (jobMissingCrew(job) || jobMissingStart(job) || jobStartupNeedsReview(job) || proofState.missingCount > 0) return "orange";
+  if (toolCount > 0 || jobMissingCrew(job) || jobMissingStart(job) || jobStartupNeedsReview(job) || proofState.missingCount > 0) return "orange";
   if (normalizeJobStatus(job?.status || job?.stage) === "billing_ready") return "green";
   if (normalizeJobStatus(job?.status || job?.stage) === "in_progress") return "blue";
   return "slate";
 }
 
-function jobNorthStarNextAction(job, proofState = {}, safetyCount = 0) {
+function jobNorthStarNextAction(job, proofState = {}, safetyCount = 0, toolCount = 0) {
   if (safetyCount > 0) return "Review safety";
+  if (toolCount > 0) return "Resolve tools";
   if (jobMissingCrew(job)) return "Assign crew";
   if (jobMissingStart(job)) return "Set start";
   if (jobStartupNeedsReview(job)) return "Review startup";
@@ -21163,9 +21175,11 @@ function JobsCommandWorkbench({
   uploadJobIds = new Set(),
   ticketJobIds = new Set(),
   safetyJobIds = new Set(),
+  toolChecklistJobIds = new Set(),
   visibleRowsCount,
   startupReviewCount,
   missingCrewCount,
+  toolBlockerCount,
   activeFieldCount,
   readyToBillCount,
   jobsNextAction,
@@ -21183,33 +21197,39 @@ function JobsCommandWorkbench({
       const bProof = jobNorthStarProofState(b, reportJobIds, uploadJobIds, ticketJobIds);
       const aSafety = safetyJobIds.has(a.id) ? 1 : 0;
       const bSafety = safetyJobIds.has(b.id) ? 1 : 0;
-      const score = (job, proof, safety) => (
+      const aTools = toolChecklistJobIds.has(a.id) ? 1 : 0;
+      const bTools = toolChecklistJobIds.has(b.id) ? 1 : 0;
+      const score = (job, proof, safety, tools) => (
         safety * 40
+        + tools * 34
         + (jobMissingCrew(job) ? 30 : 0)
         + (jobMissingStart(job) ? 24 : 0)
         + (jobStartupNeedsReview(job) ? 18 : 0)
         + proof.missingCount * 6
         + (normalizeJobStatus(job.status || job.stage) === "billing_ready" ? 5 : 0)
       );
-      return score(b, bProof, bSafety) - score(a, aProof, aSafety);
+      return score(b, bProof, bSafety, bTools) - score(a, aProof, aSafety, aTools);
     })
     .slice(0, 5);
   const selectedProof = jobNorthStarProofState(selectedJob, reportJobIds, uploadJobIds, ticketJobIds);
   const selectedSafetyCount = selectedJob?.id && safetyJobIds.has(selectedJob.id) ? 1 : 0;
+  const selectedToolCount = selectedJob?.id && toolChecklistJobIds.has(selectedJob.id) ? 1 : 0;
   const selectedSetupReady = selectedJob && !jobMissingCrew(selectedJob) && !jobMissingStart(selectedJob) && !jobStartupNeedsReview(selectedJob);
-  const selectedFieldReady = selectedJob && selectedSetupReady && (selectedJob.visibleToForeman || selectedJob.fieldPlanningVisible || normalizeJobStatus(selectedJob.status || selectedJob.stage) === "in_progress");
+  const selectedFieldReady = selectedJob && selectedSetupReady && !selectedToolCount && (selectedJob.visibleToForeman || selectedJob.fieldPlanningVisible || normalizeJobStatus(selectedJob.status || selectedJob.stage) === "in_progress");
   const selectedFromEstimate = Boolean(selectedJob?.estimateId || selectedJob?.sourceEstimateId || /Created from approved estimate/i.test(selectedJob?.notes || ""));
   const selectedBillingReady = selectedJob && normalizeJobStatus(selectedJob.status || selectedJob.stage) === "billing_ready";
   const bridgeSteps = [
     { label: "Estimate", value: selectedFromEstimate ? "Linked" : "Manual", state: selectedFromEstimate ? "ready" : "neutral" },
     { label: "Setup", value: selectedSetupReady ? "Ready" : "Needs", state: selectedSetupReady ? "ready" : "needs" },
     { label: "Field handoff", value: selectedFieldReady ? "Visible" : "Prep", state: selectedFieldReady ? "ready" : "needs" },
+    { label: "Tools", value: selectedToolCount ? "Blocked" : "Ready", state: selectedToolCount ? "needs" : "ready" },
     { label: "Proof", value: selectedProof.missingCount === 0 ? "Complete" : `${selectedProof.missingCount} gaps`, state: selectedProof.missingCount === 0 ? "ready" : "needs" },
     { label: "Billing", value: selectedBillingReady ? "Ready" : "Later", state: selectedBillingReady ? "ready" : "neutral" },
   ];
   const priorities = [
     { value: missingCrewCount, label: "crew gaps", tone: missingCrewCount ? "orange" : "green" },
     { value: startupReviewCount, label: "startup reviews", tone: startupReviewCount ? "orange" : "green" },
+    { value: toolBlockerCount, label: "tool blockers", tone: toolBlockerCount ? "orange" : "green" },
     { value: readyToBillCount, label: "ready to bill", tone: readyToBillCount ? "green" : "slate" },
   ];
   const actions = [
@@ -21248,6 +21268,7 @@ function JobsCommandWorkbench({
           <span><strong>{visibleRowsCount}</strong> active jobs</span>
           <span data-tone={missingCrewCount ? "orange" : "green"}><strong>{missingCrewCount}</strong> crew gaps</span>
           <span data-tone={startupReviewCount ? "orange" : "green"}><strong>{startupReviewCount}</strong> startup</span>
+          <span data-tone={toolBlockerCount ? "orange" : "green"}><strong>{toolBlockerCount}</strong> tools</span>
           <span data-tone={activeFieldCount ? "green" : "slate"}><strong>{activeFieldCount}</strong> in field</span>
           <span data-tone={readyToBillCount ? "green" : "slate"}><strong>{readyToBillCount}</strong> ready bill</span>
         </div>
@@ -21260,7 +21281,8 @@ function JobsCommandWorkbench({
             {sortedRows.length > 0 ? sortedRows.map((job) => {
               const proof = jobNorthStarProofState(job, reportJobIds, uploadJobIds, ticketJobIds);
               const safetyCount = job?.id && safetyJobIds.has(job.id) ? 1 : 0;
-              const tone = jobNorthStarTone(job, proof, safetyCount);
+              const toolCount = job?.id && toolChecklistJobIds.has(job.id) ? 1 : 0;
+              const tone = jobNorthStarTone(job, proof, safetyCount, toolCount);
               const selected = job.id === selectedJobId;
               return (
                 <WorkQueueCard
@@ -21271,11 +21293,12 @@ function JobsCommandWorkbench({
                   status={jobStatusLabel(job.status || job.stage)}
                   tone={tone}
                   selected={selected}
-                  actionLabel={jobNorthStarNextAction(job, proof, safetyCount)}
+                  actionLabel={jobNorthStarNextAction(job, proof, safetyCount, toolCount)}
                   onClick={() => onSelectJob?.(job.id)}
                 >
                   <div className="co-jobs-flow-facts">
                     <span>Crew <strong>{jobMissingCrew(job) ? "Needs" : jobDisplayForeman(job)}</strong></span>
+                    <span data-state={toolCount ? "needs" : "ready"}>Tools <strong>{toolCount ? "Blocked" : "Ready"}</strong></span>
                     <span data-state={proof.missingCount ? "needs" : "ready"}>Proof <strong>{proof.missingCount ? `${proof.missingCount} gaps` : "Ready"}</strong></span>
                     <span data-state={safetyCount ? "blocker" : "ready"}>Safety <strong>{safetyCount ? "Review" : "Clear"}</strong></span>
                     <span data-state={normalizeJobStatus(job.status || job.stage) === "billing_ready" ? "ready" : "neutral"}>Billing <strong>{normalizeJobStatus(job.status || job.stage) === "billing_ready" ? "Ready" : "Later"}</strong></span>
@@ -21461,6 +21484,9 @@ function JobsPagePolished({
   const visibleTicketJobIds = new Set(visibleTickets.map(dailyReportRecordJobId).filter(Boolean));
   const visibleSafetyIncidents = normalizeObjectArray(safetyIncidents).filter((incident) => !incident.archivedAt && visibleJobIds.has(dailyReportRecordJobId(incident)));
   const visibleSafetyJobIds = new Set(visibleSafetyIncidents.map(dailyReportRecordJobId).filter(Boolean));
+  const toolChecklistReadiness = useMemo(() => deriveToolChecklistJobReadiness(normalizeObjectArray(toolChecklists), liveJobRows, { maxJobs: liveJobRows.length + 1 }), [liveJobRows, toolChecklists]);
+  const toolChecklistBlockedJobIds = new Set(toolChecklistReadiness.topJobs.filter((job) => job.blockers.length > 0).map((job) => job.jobId));
+  const visibleToolChecklistBlockedJobIds = new Set([...toolChecklistBlockedJobIds].filter((jobId) => visibleJobIds.has(jobId)));
   const visibleProofBlockers = visibleRows.filter((job) => (
     !visibleReportJobIds.has(job.id)
     || !visibleUploadJobIds.has(job.id)
@@ -21479,6 +21505,7 @@ function JobsPagePolished({
   const startupReviewCount = visibleRows.filter(jobStartupNeedsReview).length;
   const missingCrewCount = visibleRows.filter(jobMissingCrew).length;
   const missingStartCount = visibleRows.filter(jobMissingStart).length;
+  const toolBlockerCount = visibleToolChecklistBlockedJobIds.size;
   const activeFieldCount = visibleRows.filter((job) => normalizeJobStatus(job.status || job.stage) === "in_progress").length;
   const canManageJobReadiness = Boolean(permissions?.jobs?.canManageAll);
   const canManageJobAssignments = Boolean(permissions?.jobs?.canManageAssignments);
@@ -21488,8 +21515,8 @@ function JobsPagePolished({
     { label: "Jobs", value: visibleRows.length, helper: "Matching current filters", icon: "briefcase", tone: "blue", actionLabel: "View jobs", onAction: () => setFilter("All") },
     { label: "Startup Review", value: startupReviewCount, helper: "Needs office or field prep", icon: "alert", tone: "orange", actionLabel: "Review startup", onAction: () => setStartupFilter("Needs Review") },
     { label: "Missing Crew", value: missingCrewCount, helper: "No foreman or lead assigned", icon: "users", tone: "amber", actionLabel: crewActionLabel, onAction: () => setForemanFilter("All foremen") },
+    { label: "Tool Blockers", value: toolBlockerCount, helper: "Missing or damaged loadout issues", icon: "layers", tone: toolBlockerCount ? "amber" : "green", actionLabel: "Open tools", onAction: () => setActive("toolChecklist") },
     { label: "Missing Start", value: missingStartCount, helper: "Date not set", icon: "clock", tone: "red", actionLabel: "View unscheduled", onAction: () => setDateFilter("Unscheduled") },
-    { label: "Ready to Bill", value: readyToBillRows.length, helper: "Manual closeout review", icon: "document", tone: "green", actionLabel: "Open queue", onAction: () => setFilter("Billing Ready") },
   ];
   const jobToolTabs = [
     { id: "create", label: "Create Job", count: permissions.jobs.canCreate ? 1 : 0 },
@@ -21543,6 +21570,14 @@ function JobsPagePolished({
       onClick: () => missingCrewCount ? openMatchingJob(jobMissingCrew, canManageJobAssignments ? "crew" : "details") : jumpToJobSection("jobs-operations-board"),
     },
     {
+      label: "Tool blockers",
+      value: toolBlockerCount,
+      helper: toolBlockerCount ? "Missing or damaged loadouts block dispatch" : "Tool loadouts are clear",
+      tone: toolBlockerCount ? "amber" : "green",
+      action: toolBlockerCount ? "Open tools" : "Clear",
+      onClick: () => toolBlockerCount ? setActive("toolChecklist") : jumpToJobSection("jobs-operations-board"),
+    },
+    {
       label: "Missing start",
       value: missingStartCount,
       helper: missingStartCount ? "Jobs need a scheduled start" : "Scheduled starts are set",
@@ -21571,6 +21606,8 @@ function JobsPagePolished({
   ];
   const jobsNextAction = missingCrewCount
     ? `${canManageJobAssignments ? "Assign" : "Review"} crew before release`
+    : toolBlockerCount
+      ? "Resolve tool loadout blockers"
     : missingStartCount
       ? `${canManageJobReadiness ? "Set" : "Review"} missing job start dates`
       : startupReviewCount
@@ -21580,6 +21617,8 @@ function JobsPagePolished({
           : "Jobs board is clear";
   const jobsNextDetail = missingCrewCount
     ? `${missingCrewCount} job${missingCrewCount === 1 ? "" : "s"} need foreman or lead assignment.`
+    : toolBlockerCount
+      ? `${toolBlockerCount} job${toolBlockerCount === 1 ? " has" : "s have"} missing or damaged tool loadout blockers.`
     : missingStartCount
       ? `${missingStartCount} job${missingStartCount === 1 ? "" : "s"} need scheduled starts before the field handoff.`
       : startupReviewCount
@@ -21612,9 +21651,11 @@ function JobsPagePolished({
           uploadJobIds={visibleUploadJobIds}
           ticketJobIds={visibleTicketJobIds}
           safetyJobIds={visibleSafetyJobIds}
+          toolChecklistJobIds={visibleToolChecklistBlockedJobIds}
           visibleRowsCount={visibleRows.length}
           startupReviewCount={startupReviewCount}
           missingCrewCount={missingCrewCount}
+          toolBlockerCount={toolBlockerCount}
           activeFieldCount={activeFieldCount}
           readyToBillCount={readyToBillRows.length}
           jobsNextAction={jobsNextAction}
@@ -21805,6 +21846,7 @@ function JobsPagePolished({
           job={selectedJob}
           permissions={permissions}
           billingMode={isReadyToBillView}
+          toolChecklistBlockerCount={selectedJob?.id && toolChecklistBlockedJobIds.has(selectedJob.id) ? 1 : 0}
           disabled={busy}
           saveState={jobSaveState}
           onArchive={onArchiveJob}
@@ -36012,7 +36054,56 @@ function ToolChecklistTablePolished({ rows, selectedId, onSelect, onOpenChecklis
   );
 }
 
-function ToolChecklistCommandRailPolished({ checklist, selectedItems, permissions, busy, onOpenTool, onSubmitChecklist, onReviewChecklist, onArchiveChecklist, isOfficeWorkspace = false }) {
+function ToolChecklistJobReadinessCard({ readiness }) {
+  if (!readiness) return null;
+
+  return (
+    <Card className="co-toolbox-rail-card p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-700">Dispatch readiness</p>
+          <h3 className="mt-2 text-base font-black leading-tight text-slate-950">{readiness.status}</h3>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{readiness.nextAction} before the crew loadout is dispatch-ready.</p>
+        </div>
+        <Badge tone={readiness.tone}>{readiness.blockedJobs} jobs</Badge>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Missing</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.missingItems}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Damaged</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.damagedItems}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Submitted</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.submittedChecklists}</strong>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {readiness.topJobs.length ? readiness.topJobs.map((job) => (
+          <div key={job.jobId} className="rounded-xl border border-slate-200 bg-white p-2.5">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs font-black text-slate-900">{job.label}</p>
+              <Badge tone={job.tone}>{job.checklists} loadout{job.checklists === 1 ? "" : "s"}</Badge>
+            </div>
+            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-600">
+              {job.blockers.length ? job.blockers.slice(0, 2).join(" / ") : "Tools are listed, issue-free, and reviewed."}
+            </p>
+          </div>
+        )) : (
+          <StateCard title="No active loadouts" description="Job tool readiness will appear here once loadouts are created." tone="slate" />
+        )}
+      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">
+        Review-only. This does not assign crews, change jobs, or notify customers.
+      </p>
+    </Card>
+  );
+}
+
+function ToolChecklistCommandRailPolished({ checklist, selectedItems, jobReadiness, permissions, busy, onOpenTool, onSubmitChecklist, onReviewChecklist, onArchiveChecklist, isOfficeWorkspace = false }) {
   const missingCount = Number(checklist?.missingItemCount || 0);
   const damagedCount = Number(checklist?.damagedItemCount || 0);
   const hasIssues = missingCount > 0 || damagedCount > 0;
@@ -36082,6 +36173,7 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, permission
           </div>
           {permissions.toolChecklist.canManage ? <Button type="button" className="mt-3 w-full" onClick={() => onOpenTool("create")}>Create Checklist</Button> : null}
         </Card>
+        {isOfficeWorkspace ? <ToolChecklistJobReadinessCard readiness={jobReadiness} /> : null}
       </div>
     );
   }
@@ -36115,6 +36207,7 @@ function ToolChecklistCommandRailPolished({ checklist, selectedItems, permission
           </div>
         </Card>
       ) : null}
+      {isOfficeWorkspace ? <ToolChecklistJobReadinessCard readiness={jobReadiness} /> : null}
       <Card className="co-toolbox-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -36566,6 +36659,7 @@ function ToolChecklistPagePolished({
   const toolsRef = useRef(null);
   const statusOptions = ["All", "Draft", "Active", "Submitted", "Reviewed", "Archived"];
   const openIssueCount = filteredRows.reduce((sum, checklist) => sum + Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0), 0);
+  const toolJobReadiness = useMemo(() => deriveToolChecklistJobReadiness(filteredRows, visibleJobs), [filteredRows, visibleJobs]);
   const mobileChecklistPreviewCap = 3;
   const mobileVisibleChecklistCap = showAllMobileChecklists ? filteredRows.length : mobileChecklistPreviewCap;
   const mobileVisibleChecklistCount = Math.min(filteredRows.length, mobileVisibleChecklistCap);
@@ -36844,7 +36938,7 @@ function ToolChecklistPagePolished({
         </div>
 
         {!isFieldToolChecklist ? (
-          <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} isOfficeWorkspace={!isFieldToolChecklist} />
+          <ToolChecklistCommandRailPolished checklist={selectedChecklist} selectedItems={selectedItems} jobReadiness={toolJobReadiness} permissions={permissions} busy={busy} onOpenTool={openTools} onSubmitChecklist={onSubmitChecklist} onReviewChecklist={onReviewChecklist} onArchiveChecklist={onArchiveChecklist} isOfficeWorkspace={!isFieldToolChecklist} />
         ) : null}
       </div>
     </div>
