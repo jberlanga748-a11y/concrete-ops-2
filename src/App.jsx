@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3788,6 +3788,22 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openDeliveryTicketReview(choice = {}) {
     const opened = onOpenDeliveryTicketReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openPrePourReview(choice = {}) {
+    const opened = onOpenPrePourReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openPostPourReview(choice = {}) {
+    const opened = onOpenPostPourReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3961,6 +3977,40 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openDeliveryTicketReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Tickets instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "pre-pour-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openPrePourReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the Pre-Pour review tools. No review action happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openPrePourReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Pre-Pour instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "post-pour-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openPostPourReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the Post-Pour review tools. No review action happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openPostPourReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Post-Pour instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "safety-incident-review" ? (
@@ -29845,6 +29895,8 @@ function PrePourPagePolished({
   onReopenChecklist,
   onArchiveChecklist,
   onOpenSupport,
+  assistantPrePourReviewSeed = null,
+  onAssistantPrePourReviewSeedHandled = () => {},
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [jobFilter, setJobFilter] = useState("All jobs");
@@ -29979,6 +30031,29 @@ function PrePourPagePolished({
     }
     openTool(options.tool || "work");
   }
+
+  useEffect(() => {
+    const seed = assistantPrePourReviewSeed;
+    if (!seed?.nonce || !(permissions.prePour.canReview || permissions.prePour.canManageAll)) return;
+
+    const activeChecklists = checklistRows.filter((checklist) => !checklist?.archivedAt && String(checklist.status || "").toLowerCase() !== "archived");
+    const seededChecklist = seed.checklistId ? activeChecklists.find((checklist) => checklist.id === seed.checklistId) : null;
+    const targetChecklist = seededChecklist
+      || activeChecklists.find((checklist) => String(checklist.status || "").toLowerCase() === "completed")
+      || activeChecklists.find((checklist) => Number(checklist.incompleteItemCount || 0) > 0)
+      || activeChecklists[0]
+      || null;
+
+    setArchiveFilter("Active");
+    setStatusFilter(String(targetChecklist?.status || "").toLowerCase() === "completed" ? "Completed" : "All");
+    setJobFilter("All jobs");
+    setForemanFilter("All foremen");
+    setDateFilter("All dates");
+    setSearch("");
+    if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
+    openTool("work");
+    onAssistantPrePourReviewSeedHandled(seed.nonce);
+  }, [assistantPrePourReviewSeed?.nonce, checklistRows, permissions.prePour.canReview, permissions.prePour.canManageAll]);
 
   function clearFilters() {
     setStatusFilter("All");
@@ -31384,6 +31459,8 @@ function PostPourPagePolished({
   onReopenChecklist,
   onArchiveChecklist,
   onOpenSupport,
+  assistantPostPourReviewSeed = null,
+  onAssistantPostPourReviewSeedHandled = () => {},
   busy,
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
@@ -31519,6 +31596,29 @@ function PostPourPagePolished({
     }
     openTool(options.tool || "work");
   }
+
+  useEffect(() => {
+    const seed = assistantPostPourReviewSeed;
+    if (!seed?.nonce || !(permissions.postPour.canReview || permissions.postPour.canManageAll)) return;
+
+    const activeChecklists = checklistRows.filter((checklist) => !checklist?.archivedAt && String(checklist.status || "").toLowerCase() !== "archived");
+    const seededChecklist = seed.checklistId ? activeChecklists.find((checklist) => checklist.id === seed.checklistId) : null;
+    const targetChecklist = seededChecklist
+      || activeChecklists.find((checklist) => String(checklist.status || "").toLowerCase() === "completed")
+      || activeChecklists.find((checklist) => Number(checklist.incompleteItemCount || 0) > 0)
+      || activeChecklists[0]
+      || null;
+
+    setArchiveFilter("Active");
+    setStatusFilter(String(targetChecklist?.status || "").toLowerCase() === "completed" ? "Completed" : "All");
+    setJobFilter("All jobs");
+    setForemanFilter("All foremen");
+    setDateFilter("All dates");
+    setSearch("");
+    if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
+    openTool("work");
+    onAssistantPostPourReviewSeedHandled(seed.nonce);
+  }, [assistantPostPourReviewSeed?.nonce, checklistRows, permissions.postPour.canReview, permissions.postPour.canManageAll]);
 
   function clearFilters() {
     setStatusFilter("All");
@@ -38773,6 +38873,8 @@ function MainContent(props) {
           onReviewChecklist={props.onReviewPrePourChecklist}
           onReopenChecklist={props.onReopenPrePourChecklist}
           onArchiveChecklist={props.onArchivePrePourChecklist}
+          assistantPrePourReviewSeed={props.assistantPrePourReviewSeed}
+          onAssistantPrePourReviewSeedHandled={props.onAssistantPrePourReviewSeedHandled}
         />
       );
     }
@@ -38788,6 +38890,8 @@ function MainContent(props) {
           onReviewChecklist={props.onReviewPostPourChecklist}
           onReopenChecklist={props.onReopenPostPourChecklist}
           onArchiveChecklist={props.onArchivePostPourChecklist}
+          assistantPostPourReviewSeed={props.assistantPostPourReviewSeed}
+          onAssistantPostPourReviewSeedHandled={props.onAssistantPostPourReviewSeedHandled}
         />
       );
     }
@@ -38925,6 +39029,8 @@ export default function App() {
   const [assistantJobHandoffSeed, setAssistantJobHandoffSeed] = useState(null);
   const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
   const [assistantDeliveryTicketReviewSeed, setAssistantDeliveryTicketReviewSeed] = useState(null);
+  const [assistantPrePourReviewSeed, setAssistantPrePourReviewSeed] = useState(null);
+  const [assistantPostPourReviewSeed, setAssistantPostPourReviewSeed] = useState(null);
   const [assistantSafetyIncidentReviewSeed, setAssistantSafetyIncidentReviewSeed] = useState(null);
   const [assistantToolChecklistReviewSeed, setAssistantToolChecklistReviewSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
@@ -39110,6 +39216,32 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("deliveryTickets");
+    return true;
+  }
+
+  function handleOpenAssistantPrePourReview(seed = {}) {
+    if (!appState.permissions.prePour?.canReview && !appState.permissions.prePour?.canManageAll) {
+      setErrorMessage("Pre-Pour assistant review actions require an office role that can review readiness checklists.");
+      return false;
+    }
+    setAssistantPrePourReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("prePour");
+    return true;
+  }
+
+  function handleOpenAssistantPostPourReview(seed = {}) {
+    if (!appState.permissions.postPour?.canReview && !appState.permissions.postPour?.canManageAll) {
+      setErrorMessage("Post-Pour assistant review actions require an office role that can review closeout checklists.");
+      return false;
+    }
+    setAssistantPostPourReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("postPour");
     return true;
   }
 
@@ -42109,6 +42241,18 @@ export default function App() {
                     setAssistantDeliveryTicketReviewSeed(null);
                   }
                 }}
+                assistantPrePourReviewSeed={assistantPrePourReviewSeed}
+                onAssistantPrePourReviewSeedHandled={(nonce) => {
+                  if (!assistantPrePourReviewSeed || assistantPrePourReviewSeed.nonce === nonce) {
+                    setAssistantPrePourReviewSeed(null);
+                  }
+                }}
+                assistantPostPourReviewSeed={assistantPostPourReviewSeed}
+                onAssistantPostPourReviewSeedHandled={(nonce) => {
+                  if (!assistantPostPourReviewSeed || assistantPostPourReviewSeed.nonce === nonce) {
+                    setAssistantPostPourReviewSeed(null);
+                  }
+                }}
                 assistantSafetyIncidentReviewSeed={assistantSafetyIncidentReviewSeed}
                 onAssistantSafetyIncidentReviewSeedHandled={(nonce) => {
                   if (!assistantSafetyIncidentReviewSeed || assistantSafetyIncidentReviewSeed.nonce === nonce) {
@@ -42340,6 +42484,8 @@ export default function App() {
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
         onOpenReportReview={handleOpenAssistantReportReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
+        onOpenPrePourReview={handleOpenAssistantPrePourReview}
+        onOpenPostPourReview={handleOpenAssistantPostPourReview}
         onOpenSafetyIncidentReview={handleOpenAssistantSafetyIncidentReview}
         onOpenToolChecklistReview={handleOpenAssistantToolChecklistReview}
       />

@@ -158,6 +158,12 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
 
+  const prePourReviewCommand = resolveAssistantPrePourReviewCommand(input, state.commandContext || {});
+  if (prePourReviewCommand) return prePourReviewCommand;
+
+  const postPourReviewCommand = resolveAssistantPostPourReviewCommand(input, state.commandContext || {});
+  if (postPourReviewCommand) return postPourReviewCommand;
+
   const safetyIncidentReviewCommand = resolveAssistantSafetyIncidentReviewCommand(input, state.commandContext || {});
   if (safetyIncidentReviewCommand) return safetyIncidentReviewCommand;
 
@@ -369,6 +375,34 @@ export function resolveAssistantDeliveryTicketReviewCommand(input = "", context 
     matches,
     fallback,
   };
+}
+
+export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
+  return resolveAssistantFieldChecklistReviewCommand(input, context, {
+    kind: "pre-pour",
+    moduleId: "prePour",
+    type: "pre-pour-review",
+    permissionKey: "prePour",
+    recordsKey: "prePourChecklists",
+    label: "Pre-Pour",
+    fallbackLabel: "Open Pre-Pour board",
+    blockedMessage: "Pre-Pour review assistant commands are office readiness-review tools. Field users stay limited to assigned checklist completion and cannot open office review controls.",
+    noWriteMessage: "No Pre-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically.",
+  });
+}
+
+export function resolveAssistantPostPourReviewCommand(input = "", context = {}) {
+  return resolveAssistantFieldChecklistReviewCommand(input, context, {
+    kind: "post-pour",
+    moduleId: "postPour",
+    type: "post-pour-review",
+    permissionKey: "postPour",
+    recordsKey: "postPourChecklists",
+    label: "Post-Pour",
+    fallbackLabel: "Open Post-Pour board",
+    blockedMessage: "Post-Pour review assistant commands are office closeout-review tools. Field users stay limited to assigned checklist completion and cannot open office review controls.",
+    noWriteMessage: "No Post-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically.",
+  });
 }
 
 export function resolveAssistantSafetyIncidentReviewCommand(input = "", context = {}) {
@@ -680,6 +714,15 @@ function hasToolChecklistReviewIntent(text = "") {
   return mentionsToolChecklist && asksForReview && asksToOpen;
 }
 
+function hasFieldChecklistReviewIntent(text = "", kind = "") {
+  const mentionsChecklist = kind === "post-pour"
+    ? /\b(post pour|post-pour|postpour|closeout checklist|closeout checklists|finish checklist|finish checklists)\b/.test(text)
+    : /\b(pre pour|pre-pour|prepour|readiness checklist|readiness checklists|pour readiness)\b/.test(text);
+  const asksForReview = /\b(review|completed|needing review|needs review|need review|office review|queue|ready|closeout|readiness)\b/.test(text);
+  const asksToOpen = /\b(open|show|pull up|check|find|review)\b/.test(text);
+  return mentionsChecklist && asksForReview && asksToOpen;
+}
+
 function canUseMissingProofSummary(permissions = {}) {
   return Boolean(
     permissions?.jobs?.canManageAll
@@ -742,6 +785,21 @@ function extractDeliveryTicketReviewTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:delivery ticket|delivery tickets|concrete ticket|concrete tickets|truck ticket|truck tickets|ticket proof|material ticket|material tickets)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|ticket|tickets|delivery|concrete|truck|material|for|from|this|the|missing|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractFieldChecklistReviewTargetQuery(input = "", kind = "") {
+  const rawText = String(input || "").trim();
+  const subjectPattern = kind === "post-pour"
+    ? "(?:post pour|post-pour|postpour|closeout checklist|closeout checklists|finish checklist|finish checklists)"
+    : "(?:pre pour|pre-pour|prepour|readiness checklist|readiness checklists|pour readiness)";
+  const forMatch = rawText.match(new RegExp(`\\b${subjectPattern}\\b\\s+(?:for|from|on|at)\\s+(.+?)(?:\\s+\\b(?:please|now|today|and)\\b|$)`, "i"));
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(new RegExp(`\\b(?:open|review|show|pull up|check|find)\\b.*\\b${subjectPattern}\\b`, "i"))[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|pre|post|pour|checklist|checklists|readiness|closeout|completed|needs|for|from|this|the)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -815,6 +873,127 @@ function findAssistantSafetyIncidentReviewMatches(query = "", context = {}) {
     }))
     .filter((match) => match.incidentId)
     .slice(0, 4);
+}
+
+function resolveAssistantFieldChecklistReviewCommand(input = "", context = {}, config = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasFieldChecklistReviewIntent(text, config.kind)) return null;
+
+  const permissions = context.permissions || {};
+  const checklistPermissions = permissions?.[config.permissionKey] || {};
+  if (!context.permissions) return null;
+  if (!checklistPermissions.canReview && !checklistPermissions.canManageAll) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: config.blockedMessage,
+    };
+  }
+
+  const query = extractFieldChecklistReviewTargetQuery(rawText, config.kind);
+  const matches = findAssistantFieldChecklistReviewMatches(query, context, config);
+  const fallback = {
+    id: `assistant-open-${config.kind}-review`,
+    type: config.type,
+    label: config.fallbackLabel,
+    helper: `No exact ${config.label} checklist match found. Open the board and choose the checklist manually.`,
+  };
+
+  return {
+    type: config.type,
+    moduleId: config.moduleId,
+    actionLabel: matches.length === 1 ? "Review checklist" : matches.length > 1 ? "Choose checklist" : config.fallbackLabel,
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for ${config.label} office review. ${config.noWriteMessage}`
+      : matches.length > 1
+        ? `I found multiple ${config.label} checklists that may need review. Choose the right checklist before opening the review tools.`
+        : `I did not find an exact ${config.label} checklist match. Open the board and review the queue manually.`,
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
+function findAssistantFieldChecklistReviewMatches(query = "", context = {}, config = {}) {
+  const checklists = asArray(context[config.recordsKey]).filter((checklist) => !checklist?.archivedAt && normalizeText(checklist.status) !== "archived");
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? checklists.filter((checklist) => targetMatchesWords(fieldChecklistSearchText(checklist), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : checklists;
+
+  return candidates
+    .map((checklist) => ({
+      checklist,
+      completed: fieldChecklistNeedsOfficeReview(checklist),
+      openItems: Number(checklist.incompleteItemCount || 0) || fieldChecklistOpenItemCount(checklist),
+      reopened: normalizeText(checklist.status) === "reopened",
+    }))
+    .sort((left, right) => fieldChecklistReviewPriority(right) - fieldChecklistReviewPriority(left) || fieldChecklistLabel(left.checklist, config.label).localeCompare(fieldChecklistLabel(right.checklist, config.label)))
+    .map(({ checklist, completed, openItems, reopened }) => ({
+      id: `${config.kind}:${checklist.id}`,
+      type: config.type,
+      checklistId: checklist.id || "",
+      label: fieldChecklistLabel(checklist, config.label),
+      helper: [
+        completed ? "completed by field, waiting office review" : `status ${checklist.status || "draft"}`,
+        openItems ? `${openItems} open item${openItems === 1 ? "" : "s"}` : "",
+        reopened ? "reopened for field follow-up" : "",
+        fieldChecklistOwner(checklist),
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.checklistId)
+    .slice(0, 4);
+}
+
+function fieldChecklistReviewPriority(candidate = {}) {
+  return (candidate.completed ? 30 : 0) + (candidate.reopened ? 10 : 0) + Number(candidate.openItems || 0) * 2;
+}
+
+function fieldChecklistNeedsOfficeReview(checklist = {}) {
+  return normalizeText(checklist.status) === "completed";
+}
+
+function fieldChecklistOpenItemCount(checklist = {}) {
+  return asArray(checklist.items).filter((item) => normalizeText(item.status) === "unchecked").length;
+}
+
+function fieldChecklistOwner(checklist = {}) {
+  return checklist.assignedForemanName || checklist.job?.foremanAssignment?.userName || checklist.completedByName || checklist.createdByName || checklist.createdBy || "";
+}
+
+function fieldChecklistLabel(checklist = {}, fallback = "Checklist") {
+  return [
+    checklist.job?.title || checklist.jobTitle || fallback,
+    checklist.job?.customer || checklist.customerName || "",
+    checklist.completedByName || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function fieldChecklistSearchText(checklist = {}) {
+  return normalizeText([
+    checklist.id,
+    checklist.notes,
+    checklist.status,
+    checklist.createdByName,
+    checklist.completedByName,
+    checklist.assignedForemanName,
+    checklist.jobTitle,
+    checklist.job?.title,
+    checklist.job?.customer,
+    checklist.job?.customerName,
+    checklist.job?.address,
+    checklist.job?.city,
+    checklist.job?.location,
+    ...asArray(checklist.items).flatMap((item) => [
+      item.label,
+      item.key,
+      item.status,
+      item.notes,
+    ]),
+  ].filter(Boolean).join(" "));
 }
 
 function safetyIncidentReviewPriority(candidate = {}) {

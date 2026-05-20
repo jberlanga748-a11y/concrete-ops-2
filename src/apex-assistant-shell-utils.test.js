@@ -10,6 +10,8 @@ import {
   resolveAssistantEstimatePacketCommand,
   resolveAssistantJobHandoffCommand,
   resolveAssistantMissingProofCommand,
+  resolveAssistantPostPourReviewCommand,
+  resolveAssistantPrePourReviewCommand,
   resolveAssistantReportReviewCommand,
   resolveAssistantSafetyIncidentReviewCommand,
   resolveAssistantToolChecklistReviewCommand,
@@ -282,6 +284,96 @@ test("assistant routes delivery ticket review before generic ticket navigation",
 
   assert.equal(command.type, "delivery-ticket-review");
   assert.equal(command.matches[0].ticketId, "TICKET-1");
+});
+
+test("assistant opens completed pre-pour review without write actions", () => {
+  const command = resolveAssistantPrePourReviewCommand("Review completed pre-pour checklist for Westview Warehouse", {
+    permissions: { prePour: { canView: true, canReview: true, canManageAll: true } },
+    prePourChecklists: [
+      {
+        id: "PRE-1",
+        status: "completed",
+        incompleteItemCount: 0,
+        completedByName: "Luis G.",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+        items: [{ id: "ITEM-1", label: "Base compacted", status: "checked" }],
+      },
+    ],
+  });
+
+  assert.equal(command.type, "pre-pour-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].checklistId, "PRE-1");
+  assert.match(command.message, /No Pre-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically/i);
+});
+
+test("assistant pre-pour review is blocked for field roles", () => {
+  const command = resolveAssistantPrePourReviewCommand("Open pre-pour checklists needing review", {
+    permissions: { prePour: { canView: true, canManage: true, canComplete: true, canReview: false, canManageAll: false } },
+    prePourChecklists: [{ id: "PRE-1", status: "completed", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes pre-pour review before generic checklist navigation", () => {
+  const command = resolveApexAssistantCommand("Open pre-pour checklists needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { prePour: { canView: true, canReview: true, canManageAll: true } },
+      prePourChecklists: [
+        { id: "PRE-1", status: "completed", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "pre-pour-review");
+  assert.equal(command.matches[0].checklistId, "PRE-1");
+});
+
+test("assistant opens completed post-pour review without write actions", () => {
+  const command = resolveAssistantPostPourReviewCommand("Review completed post-pour checklist for Westview Warehouse", {
+    permissions: { postPour: { canView: true, canReview: true, canManageAll: true } },
+    postPourChecklists: [
+      {
+        id: "POST-1",
+        status: "completed",
+        incompleteItemCount: 1,
+        completedByName: "Luis G.",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+        items: [{ id: "ITEM-1", label: "Cleanup complete", status: "unchecked" }],
+      },
+    ],
+  });
+
+  assert.equal(command.type, "post-pour-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].checklistId, "POST-1");
+  assert.match(command.message, /No Post-Pour checklist will be completed, reviewed, reopened, archived, or changed automatically/i);
+});
+
+test("assistant post-pour review is blocked for field roles", () => {
+  const command = resolveAssistantPostPourReviewCommand("Open post-pour checklists needing review", {
+    permissions: { postPour: { canView: true, canManage: true, canComplete: true, canReview: false, canManageAll: false } },
+    postPourChecklists: [{ id: "POST-1", status: "completed", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes post-pour review before generic checklist navigation", () => {
+  const command = resolveApexAssistantCommand("Open post-pour checklists needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { postPour: { canView: true, canReview: true, canManageAll: true } },
+      postPourChecklists: [
+        { id: "POST-1", status: "completed", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "post-pour-review");
+  assert.equal(command.matches[0].checklistId, "POST-1");
 });
 
 test("assistant opens safety incident review without write actions", () => {
