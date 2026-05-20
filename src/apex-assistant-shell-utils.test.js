@@ -18,6 +18,7 @@ import {
   resolveAssistantPrePourReviewCommand,
   resolveAssistantReportReviewCommand,
   resolveAssistantSafetyIncidentReviewCommand,
+  resolveAssistantScheduleDispatchCommand,
   resolveAssistantTimeReviewCommand,
   resolveAssistantToolChecklistReviewCommand,
   resolveAssistantUploadReviewCommand,
@@ -561,6 +562,57 @@ test("assistant keeps generic employees navigation out of crew readiness review"
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "employees");
+});
+
+test("assistant opens schedule dispatch review without write actions", () => {
+  const command = resolveAssistantScheduleDispatchCommand("Review schedule dispatch for Westview Warehouse", {
+    permissions: { jobs: { canView: true, canManageAll: true } },
+    jobs: [
+      {
+        id: "JOB-1",
+        title: "Westview Warehouse",
+        customer: "ABC Builders",
+        city: "Salem",
+        status: "scheduled",
+        scheduledStart: "2026-05-21T07:00",
+        assignedForemanName: "Luis Garcia",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "schedule-dispatch-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].jobId, "JOB-1");
+  assert.match(command.message, /No crew, date, time, job status, field visibility, or customer message will be changed automatically/i);
+});
+
+test("assistant schedule dispatch review is blocked for field roles", () => {
+  const command = resolveAssistantScheduleDispatchCommand("Open schedule dispatch for Westview Warehouse", {
+    permissions: { jobs: { canView: true, canManageField: true, canManageAll: false } },
+    jobs: [{ id: "JOB-1", title: "Westview Warehouse", status: "scheduled" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes schedule dispatch before generic schedule navigation", () => {
+  const command = resolveApexAssistantCommand("Open schedule dispatch for Westview Warehouse", {
+    commandContext: {
+      permissions: { jobs: { canView: true, canManageAll: true } },
+      jobs: [{ id: "JOB-1", title: "Westview Warehouse", status: "scheduled", scheduledStart: "2026-05-21T07:00" }],
+    },
+  });
+
+  assert.equal(command.type, "schedule-dispatch-review");
+  assert.equal(command.matches[0].jobId, "JOB-1");
+});
+
+test("assistant keeps generic schedule navigation out of dispatch review", () => {
+  const command = resolveApexAssistantCommand("open schedule");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "schedule");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

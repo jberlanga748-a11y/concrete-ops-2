@@ -201,6 +201,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const crewReadinessCommand = resolveAssistantCrewReadinessCommand(input, state.commandContext || {});
   if (crewReadinessCommand) return crewReadinessCommand;
 
+  const scheduleDispatchCommand = resolveAssistantScheduleDispatchCommand(input, state.commandContext || {});
+  if (scheduleDispatchCommand) return scheduleDispatchCommand;
+
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
 
@@ -669,6 +672,47 @@ export function resolveAssistantCrewReadinessCommand(input = "", context = {}) {
   };
 }
 
+export function resolveAssistantScheduleDispatchCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasScheduleDispatchIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.jobs?.canManageAll) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Schedule dispatch assistant commands are office coordination tools. Field users stay blocked from company-wide schedule, crew assignment, and dispatch controls.",
+    };
+  }
+
+  const query = extractScheduleDispatchTargetQuery(rawText);
+  const matches = findAssistantScheduleDispatchMatches(query, context);
+  const fallback = {
+    id: "assistant-open-schedule-dispatch",
+    type: "schedule-dispatch-review",
+    label: "Open schedule dispatch board",
+    helper: "No exact scheduled job match found. Open Schedule and review today's operating plan manually.",
+  };
+
+  return {
+    type: "schedule-dispatch-review",
+    moduleId: "schedule",
+    actionLabel: matches.length === 1 ? "Review schedule item" : matches.length > 1 ? "Choose schedule item" : "Open Schedule",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for schedule dispatch review. No crew, date, time, job status, field visibility, or customer message will be changed automatically.`
+      : matches.length > 1
+        ? "I found multiple schedule items that may need dispatch review. Choose the right job before opening the schedule board."
+        : "I did not find an exact scheduled job match. Open Schedule and review the operating plan manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -1012,6 +1056,13 @@ function hasCrewReadinessIntent(text = "") {
   return asksToOpen && mentionsCrew && mentionsReadiness;
 }
 
+function hasScheduleDispatchIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsSchedule = /\b(schedule|dispatch|operating plan|daily plan|today's plan|todays plan|tomorrow prep|tomorrow's prep|crew board|day plan)\b/.test(text);
+  const mentionsDispatchContext = /\b(dispatch|today|tomorrow|crew|crews|foreman|foremen|time|start|starts|scheduled|unassigned|missing crew|missing start|city|location|blocker|blockers|proof|safety|readiness|load|capacity)\b/.test(text);
+  return asksToOpen && mentionsSchedule && mentionsDispatchContext;
+}
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -1191,6 +1242,18 @@ function extractCrewReadinessTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:employee|employees|crew|crews|foreman|foremen|person|people|worker|workers|team member|team members)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|employee|employees|crew|crews|foreman|foremen|person|people|worker|workers|team|member|members|for|from|on|at|with|this|the|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractScheduleDispatchTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:schedule|dispatch|operating plan|daily plan|today's plan|todays plan|tomorrow prep|crew board|day plan)\b\s+(?:for|from|on|at|with)\s+(.+?)(?:\s+\b(?:please|now|today|tomorrow|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from|with)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:schedule|dispatch|operating plan|daily plan|today's plan|todays plan|tomorrow prep|crew board|day plan)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|schedule|dispatch|operating|daily|today|todays|tomorrow|crew|board|plan|for|from|on|at|with|this|the|needs)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -1748,6 +1811,72 @@ function findAssistantCrewReadinessMatches(query = "", context = {}) {
     }))
     .filter((match) => match.userId)
     .slice(0, 4);
+}
+
+function findAssistantScheduleDispatchMatches(query = "", context = {}) {
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? jobs.filter((job) => targetMatchesWords(scheduleDispatchSearchText(job), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : jobs;
+
+  return candidates
+    .map((job) => ({
+      job,
+      missingStart: !String(job.scheduledStart || job.startDate || job.start || "").trim(),
+      missingCrew: !String(job.assignedForemanId || job.assignedForemanName || job.foremanName || job.crew || "").trim(),
+      inProgress: normalizeText(job.status || job.stage) === "in_progress",
+      scheduled: ["scheduled", "planned"].includes(normalizeText(job.status || job.stage)),
+    }))
+    .sort((left, right) => scheduleDispatchPriority(right) - scheduleDispatchPriority(left) || scheduleDispatchLabel(left.job).localeCompare(scheduleDispatchLabel(right.job)))
+    .map(({ job, missingStart, missingCrew, inProgress, scheduled }) => ({
+      id: `schedule-dispatch:${job.id}`,
+      type: "job",
+      jobId: job.id || "",
+      label: scheduleDispatchLabel(job),
+      helper: [
+        inProgress ? "in progress" : scheduled ? "scheduled" : `status ${job.status || job.stage || "job"}`,
+        missingStart ? "start missing" : scheduleDispatchStartLabel(job),
+        missingCrew ? "crew missing" : job.assignedForemanName || job.foremanName || job.crew || "crew ready",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.jobId)
+    .slice(0, 4);
+}
+
+function scheduleDispatchPriority(candidate = {}) {
+  return (candidate.inProgress ? 20 : 0) + (candidate.missingStart ? 12 : 0) + (candidate.missingCrew ? 10 : 0) + (candidate.scheduled ? 6 : 0);
+}
+
+function scheduleDispatchLabel(job = {}) {
+  return [
+    jobTitle(job),
+    job.customer || job.customerName || "",
+    job.city || job.location || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function scheduleDispatchStartLabel(job = {}) {
+  return String(job.scheduledStart || job.startDate || job.start || "").slice(0, 16) || "start ready";
+}
+
+function scheduleDispatchSearchText(job = {}) {
+  return normalizeText([
+    job.id,
+    jobTitle(job),
+    job.customer,
+    job.customerName,
+    job.address,
+    job.city,
+    job.location,
+    job.status,
+    job.stage,
+    job.scheduledStart,
+    job.startDate,
+    job.assignedForemanName,
+    job.foremanName,
+    job.crew,
+  ].filter(Boolean).join(" "));
 }
 
 function crewReadinessPriority(candidate = {}) {
