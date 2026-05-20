@@ -30,7 +30,7 @@ const ROLE_CONFIGS = {
     email: "demo.admin@apexhq.app",
     label: "admin",
     pages: [
-      { slug: "dashboard", path: MODULE_PATHS.dashboard, heading: /dashboard|daily workspace/i },
+      { slug: "dashboard", path: MODULE_PATHS.dashboard, heading: /operations command|dashboard|daily workspace/i },
       { slug: "leads", path: MODULE_PATHS.leads, heading: "Leads" },
       { slug: "jobs", path: MODULE_PATHS.jobs, heading: "Jobs" },
       { slug: "jobs-print-packet", path: MODULE_PATHS.jobs, heading: "Jobs", focusButton: /print job packet/i, optional: true },
