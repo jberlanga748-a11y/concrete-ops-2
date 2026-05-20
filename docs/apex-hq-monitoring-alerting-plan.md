@@ -216,5 +216,6 @@ P3:
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Run the next scheduled local restore drill on Monday, June 1, 2026. Latest local backup/restore drill refresh passed on May 20, 2026.
 - Use `docs/apex-hq-monitoring-upgrade-plan.md` before adding a log drain or dedicated uptime monitoring.
+- Use `npm.cmd run monitor:upgrade-readiness` to validate provider, alert destination, retention, redaction, request-ID search, error alerts, demo-first rollout, and production approval posture before any monitoring/log-drain upgrade.
 - Keep the `APEX_SMOKE_PASSWORD` GitHub Actions secret rotated through `docs/apex-hq-github-actions-smoke-secrets.md`; scheduled demo smoke now includes auth/bootstrap timing.
 - Consider scheduled production auth smoke only after explicit production-safety approval.

@@ -90,7 +90,7 @@ Do not use:
 | Scheduled demo hosted smoke | Built; auth/bootstrap gate configured and passing |
 | Production auth smoke | Manual fail-closed workflow and read-only readiness helper added; secret/users not configured |
 | Production cold-start decision | Documented with read-only timing helper; no config change |
-| Production log drain / dedicated monitor | Planned; not enabled |
+| Production log drain / dedicated monitor | Planned; preflight helper built; not enabled |
 | Public claims scan | Built; scans curated public/source copy for unsupported positive claims |
 | Pilot rehearsal helper | Built; read-only Day 0/3/10 packet generator and validator |
 

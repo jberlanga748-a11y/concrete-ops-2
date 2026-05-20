@@ -170,6 +170,30 @@ No approval needed for:
 - GitHub Actions non-auth readiness checks
 - manual `fly logs --no-tail` inspection during a release check
 
+## Provider Decision Preflight
+
+Before choosing or approving a monitoring/log provider, run the local read-only preflight:
+
+```powershell
+npm.cmd run monitor:upgrade-readiness
+```
+
+That default command should return a no-go until a provider, alert destination, retention window, access owner, redaction posture, request-ID search, error/readiness alerts, and demo-first rollout are selected.
+
+Example demo-first provider trial:
+
+```powershell
+npm.cmd run monitor:upgrade-readiness -- --provider="github-actions" --environment=demo --alert-destination=github-issues --retention-days=14 --access-owner="John" --redaction-confirmed --request-id-search --error-alerts --demo-first --json
+```
+
+Production remains blocked unless `--production-approved` is supplied after explicit production-safety approval:
+
+```powershell
+npm.cmd run monitor:upgrade-readiness -- --provider="<approved provider>" --environment=production --alert-destination=incident-tracker --retention-days=30 --access-owner="<owner>" --redaction-confirmed --request-id-search --error-alerts --demo-first --production-approved --json
+```
+
+The helper does not create log drains, set secrets, configure providers, deploy, touch Fly, or send production logs anywhere.
+
 ## Rollout Plan
 
 Phase 2A:
