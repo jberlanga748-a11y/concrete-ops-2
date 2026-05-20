@@ -26676,6 +26676,12 @@ function CopilotPagePolished({
                             <small><b>Duplicates</b>{foundDraftAgentPreview.result.duplicateHints?.length || 0}</small>
                             <small><b>Access</b>{foundDraftAgentPreview.result.accessReview?.status === "needs_human" ? "Human review required" : "Clear for review"}</small>
                             <small><b>Agent</b>{foundDraftAgentPreview.result.agentRunPacket?.modeLabel || "Review-first"}</small>
+                            {foundDraftAgentPreview.result.agentRunPacket?.sourcePosture ? (
+                              <>
+                                <small><b>Source Use</b>{foundDraftAgentPreview.result.agentRunPacket.sourcePosture.safeUseLabel || "Review"}</small>
+                                <small><b>Source Terms</b>{String(foundDraftAgentPreview.result.agentRunPacket.sourcePosture.termsStatus || "unreviewed").replace(/_/g, " ")}</small>
+                              </>
+                            ) : null}
                             {foundDraftAgentPreview.result.agentRunPacket?.recentSourceOutcomes?.slice(0, 2).map((outcome) => (
                               <small key={`${outcome.sourceName}-${outcome.checkedAt}-${outcome.result}`}><b>Source history</b>{[outcome.label, outcome.sourceName, outcome.nextAction].filter(Boolean).join(" / ")}</small>
                             ))}
