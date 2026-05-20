@@ -1,0 +1,127 @@
+name: Apex HQ Launch Gate Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      check_live:
+        description: "Run a read-only production /api/ready check."
+        required: false
+        default: false
+        type: boolean
+      company:
+        description: "Optional pilot company for customer pilot gate."
+        required: false
+        type: string
+      workflow:
+        description: "Optional one workflow for customer pilot gate."
+        required: false
+        type: string
+      owner:
+        description: "Optional owner/admin for customer pilot gate."
+        required: false
+        type: string
+      first_record:
+        description: "Optional first real lead, estimate, job, or proof item."
+        required: false
+        type: string
+      field_action:
+        description: "Optional first field/proof action."
+        required: false
+        type: string
+      success_one:
+        description: "Optional success criterion 1."
+        required: false
+        type: string
+      success_two:
+        description: "Optional success criterion 2."
+        required: false
+        type: string
+      monitoring_provider:
+        description: "Optional monitoring provider choice."
+        required: false
+        type: string
+      alert_destination:
+        description: "Optional alert destination, such as github-issues."
+        required: false
+        type: string
+
+concurrency:
+  group: launch-gate-status
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        timeout-minutes: 5
+        run: npm ci
+
+      - name: Run launch gate status
+        timeout-minutes: 3
+        env:
+          CHECK_LIVE: ${{ inputs.check_live }}
+          COMPANY: ${{ inputs.company }}
+          PILOT_WORKFLOW: ${{ inputs.workflow }}
+          OWNER: ${{ inputs.owner }}
+          FIRST_RECORD: ${{ inputs.first_record }}
+          FIELD_ACTION: ${{ inputs.field_action }}
+          SUCCESS_ONE: ${{ inputs.success_one }}
+          SUCCESS_TWO: ${{ inputs.success_two }}
+          MONITORING_PROVIDER: ${{ inputs.monitoring_provider }}
+          ALERT_DESTINATION: ${{ inputs.alert_destination }}
+        run: |
+          set -o pipefail
+          args=(--json --skip-gh)
+
+          if [ "$CHECK_LIVE" = "true" ]; then
+            args+=(--check-live)
+          fi
+          if [ -n "$COMPANY" ]; then
+            args+=(--company="$COMPANY")
+          fi
+          if [ -n "$PILOT_WORKFLOW" ]; then
+            args+=(--workflow="$PILOT_WORKFLOW")
+          fi
+          if [ -n "$OWNER" ]; then
+            args+=(--owner="$OWNER")
+          fi
+          if [ -n "$FIRST_RECORD" ]; then
+            args+=(--first-record="$FIRST_RECORD")
+          fi
+          if [ -n "$FIELD_ACTION" ]; then
+            args+=(--field-action="$FIELD_ACTION")
+          fi
+          if [ -n "$SUCCESS_ONE" ]; then
+            args+=(--success="$SUCCESS_ONE")
+          fi
+          if [ -n "$SUCCESS_TWO" ]; then
+            args+=(--success="$SUCCESS_TWO")
+          fi
+          if [ -n "$MONITORING_PROVIDER" ]; then
+            args+=(--provider="$MONITORING_PROVIDER")
+          fi
+          if [ -n "$ALERT_DESTINATION" ]; then
+            args+=(--alert-destination="$ALERT_DESTINATION")
+          fi
+
+          if [ "$MONITORING_PROVIDER" = "github-actions" ] && [ "$ALERT_DESTINATION" = "github-issues" ]; then
+            args+=(--environment=demo --retention-days=14 --access-owner=John --redaction-confirmed --request-id-search --error-alerts --demo-first)
+          fi
+
+          npm run launch:gate-status -- "${args[@]}" | tee launch-gate-status-output.txt
+          node scripts/launch-gate-summary.mjs launch-gate-status-output.txt "Apex HQ launch gate status"
