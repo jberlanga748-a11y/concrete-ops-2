@@ -31,6 +31,10 @@ const ROLE_CONFIGS = {
     email: "demo.admin@apexhq.app",
     viewports: ["desktop", "phone"],
   },
+  foreman: {
+    email: "demo.foreman@apexhq.app",
+    viewports: ["phone"],
+  },
   employee: {
     email: "demo.employee@apexhq.app",
     viewports: ["phone"],
@@ -41,7 +45,7 @@ const DEFAULT_ADMIN_ROUTES = Object.entries(MODULE_PATHS)
   .filter(([id]) => id !== "design")
   .map(([id, routePath]) => ({ id, path: routePath }));
 
-const EMPLOYEE_FORBIDDEN_TEXT = [
+const FIELD_FORBIDDEN_TEXT = [
   /Operations Command/i,
   /Imported Drafts/i,
   /Estimate Studio/i,
@@ -217,7 +221,7 @@ function summarizeIssue(entry) {
 }
 
 async function inspectPage(page, role) {
-  return page.evaluate(({ employeeForbiddenPatterns, roleName }) => {
+  return page.evaluate(({ fieldForbiddenPatterns, roleName }) => {
     const rectOf = (element) => {
       if (!element) return null;
       const rect = element.getBoundingClientRect();
@@ -299,9 +303,10 @@ async function inspectPage(page, role) {
       });
 
     const text = document.body.textContent || "";
-    const forbiddenText = employeeForbiddenPatterns
+    const forbiddenText = fieldForbiddenPatterns
       .filter((pattern) => new RegExp(pattern.source, pattern.flags).test(text))
       .map((pattern) => pattern.source);
+    const fieldRole = ["foreman", "employee"].includes(roleName);
 
     return {
       pathname: window.location.pathname,
@@ -309,10 +314,10 @@ async function inspectPage(page, role) {
       bodyOverflow: document.body.scrollWidth > window.innerWidth + 1,
       assistantOverlaps: interactiveCandidates.filter((candidate) => trigger && candidate && trigger.x < candidate.x + candidate.width && trigger.x + trigger.width > candidate.x && trigger.y < candidate.y + candidate.height && trigger.y + trigger.height > candidate.y),
       clipped: clippedCandidates,
-      forbiddenText: roleName === "employee" ? forbiddenText : [],
+      forbiddenText: fieldRole ? forbiddenText : [],
     };
   }, {
-    employeeForbiddenPatterns: EMPLOYEE_FORBIDDEN_TEXT.map((pattern) => ({ source: pattern.source, flags: pattern.flags })),
+    fieldForbiddenPatterns: FIELD_FORBIDDEN_TEXT.map((pattern) => ({ source: pattern.source, flags: pattern.flags })),
     roleName: role,
   });
 }

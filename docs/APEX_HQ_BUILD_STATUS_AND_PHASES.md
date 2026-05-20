@@ -1,6 +1,6 @@
 # Apex HQ Build Status And Phase Tracker
 
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 
 Purpose: this is the master build-status file for Apex HQ. Use it to prevent loops, avoid rebuilding completed systems, and choose the next phase.
 
@@ -93,6 +93,7 @@ Current state:
 - Full visual route sweep refresh: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run verify:demo`, and `npm.cmd run audit:visual-polish:full` passed with 0 visual failures across admin desktop, admin phone, employee phone, admin tablet, and employee tablet route coverage. Evidence manifests: `ui-audit/visual-polish/2026-05-19T23-41-54-079Z/manifest.json`, `ui-audit/visual-polish/2026-05-19T23-42-19-517Z/manifest.json`, `ui-audit/visual-polish/2026-05-19T23-42-45-192Z/manifest.json`, and `ui-audit/visual-polish/2026-05-19T23-43-10-645Z/manifest.json`.
 - Focused demo walkthrough audit: `npm.cmd run build`, `npm.cmd run verify:roles`, `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`, and local `npm.cmd run audit:demo-desktop:local -- --roles=admin,foreman,employee --viewports=1440x900` passed. The first local run exposed stale audit grammar expecting `Dashboard` for the admin landing page; the audit now accepts the current `Operations Command` heading. Evidence manifest: `ui-audit/demo-desktop/2026-05-20T01-46-48-460Z/manifest.json`.
 - Full visual route sweep wrapper regression coverage: `scripts/visual-polish-full-audit.test.mjs` now verifies the sequential audit order and Windows `cmd.exe` / non-Windows `npm` invocation behavior, and it runs through `npm run verify:demo`.
+- Visual route sweep foreman-phone coverage: `npm.cmd run audit:visual-polish:chromium` now runs through a bounded Node sequencer and includes admin desktop, admin phone, foreman phone, and employee phone slices. `npm.cmd run audit:visual-polish:full` passed with 0 failures across admin desktop/phone/tablet, foreman phone, and employee phone/tablet after starting the local app on port 4000. Evidence manifests: `ui-audit/visual-polish/2026-05-20T02-47-09-847Z/manifest.json`, `ui-audit/visual-polish/2026-05-20T02-47-35-206Z/manifest.json`, `ui-audit/visual-polish/2026-05-20T02-48-00-536Z/manifest.json`, `ui-audit/visual-polish/2026-05-20T02-48-25-860Z/manifest.json`, and `ui-audit/visual-polish/2026-05-20T02-48-51-333Z/manifest.json`.
 - Demo hosted smoke reporting: `.github/workflows/demo-hosted-smoke.yml` now writes a GitHub Actions step summary when auth smoke is skipped because `APEX_SMOKE_PASSWORD` is missing, and writes a success summary when auth/bootstrap smoke runs.
 - Demo hosted smoke reporting verification: manual GitHub Actions dispatch `26127793170` passed on `main`; logs confirmed the non-auth hosted smoke ran and the auth smoke path reported `APEX_SMOKE_PASSWORD is not configured; skipping auth hosted smoke.`
 - Demo hosted smoke summary helper: `scripts/hosted-smoke-summary.mjs` now converts hosted smoke JSON output into a GitHub Actions step-summary table for the non-auth route/health smoke, and regression coverage runs through `npm run verify:demo`.
