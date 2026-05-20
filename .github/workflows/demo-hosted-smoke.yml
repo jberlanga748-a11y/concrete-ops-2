@@ -29,15 +29,18 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        timeout-minutes: 5
         run: npm ci
 
       - name: Run non-auth demo smoke
+        timeout-minutes: 3
         run: |
           set -o pipefail
           npm run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json | tee non-auth-demo-smoke-output.txt
           node scripts/hosted-smoke-summary.mjs non-auth-demo-smoke-output.txt "Demo non-auth hosted smoke"
 
       - name: Run auth demo smoke when configured
+        timeout-minutes: 3
         env:
           APEX_SMOKE_PASSWORD: ${{ secrets.APEX_SMOKE_PASSWORD }}
         run: |
@@ -57,6 +60,7 @@ jobs:
           node scripts/hosted-smoke-summary.mjs auth-demo-smoke-output.txt "Demo auth hosted smoke"
 
       - name: Report demo smoke failure
+        timeout-minutes: 2
         if: ${{ failure() }}
         uses: actions/github-script@v8
         with:
@@ -104,6 +108,7 @@ jobs:
             }
 
       - name: Close recovered demo smoke issue
+        timeout-minutes: 2
         if: ${{ success() }}
         uses: actions/github-script@v8
         with:
