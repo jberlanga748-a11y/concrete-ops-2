@@ -16268,7 +16268,7 @@ function CommandCenterOpsPulseCard({ icon = "grid", title, value, helper, rows =
   );
 }
 
-function FieldOpsAgentSummaryCard({ state, onOpenModule, compact = false }) {
+function FieldOpsAgentSummaryCard({ state, onOpenModule, onOpenItem, compact = false }) {
   if (!state?.canView) return null;
   const items = Array.isArray(state.items) ? state.items.slice(0, compact ? 3 : 5) : [];
   const stats = state.stats || {};
@@ -16276,6 +16276,13 @@ function FieldOpsAgentSummaryCard({ state, onOpenModule, compact = false }) {
   const openModule = (moduleId) => {
     if (!moduleId || typeof onOpenModule !== "function") return;
     onOpenModule(moduleId);
+  };
+  const openItem = (item) => {
+    if (typeof onOpenItem === "function") {
+      onOpenItem(item);
+      return;
+    }
+    openModule(item?.moduleId);
   };
 
   return (
@@ -16304,13 +16311,15 @@ function FieldOpsAgentSummaryCard({ state, onOpenModule, compact = false }) {
           <button
             type="button"
             key={item.id}
-            onClick={() => openModule(item.moduleId)}
+            onClick={() => openItem(item)}
             className="co-focus-ring grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-orange-200 hover:bg-orange-50"
           >
             <span className="min-w-0">
               <span className="block truncate text-sm font-black text-slate-950">{item.title}</span>
               <span className="mt-0.5 block text-xs font-bold leading-5 text-slate-600">{item.description}</span>
-              <span className="mt-1 block text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{item.dueLabel || state.roleScope}</span>
+              <span className="mt-1 block text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+                {[item.contextLabel, item.dueLabel || state.roleScope].filter(Boolean).join(" / ")}
+              </span>
             </span>
             <Badge tone={item.severity === "critical" ? "red" : item.severity === "warning" ? "amber" : "blue"}>{item.actionLabel || "Open"}</Badge>
           </button>
@@ -16404,6 +16413,13 @@ function CommandCenterPage({
 
   function openImportedDraft(draftId) {
     if (draftId) onSelectImportedDraft?.(draftId);
+  }
+
+  function openFieldOpsItem(item = {}) {
+    if (item.relatedJobId || (item.recordType === "job" && item.recordId)) {
+      onSelectJob?.(item.relatedJobId || item.recordId);
+    }
+    openModule(item.moduleId || "jobs");
   }
 
   const canViewAppHealth = Boolean(permissions?.appHealth?.canView);
@@ -16916,7 +16932,7 @@ function CommandCenterPage({
           </div>
 
           <div className="co-command-right-rail grid min-w-0 gap-1.5 xl:grid-cols-3 2xl:grid-cols-1">
-            <FieldOpsAgentSummaryCard state={fieldOpsAgent} onOpenModule={openModule} />
+            <FieldOpsAgentSummaryCard state={fieldOpsAgent} onOpenModule={openModule} onOpenItem={openFieldOpsItem} />
             {canViewWatchtower ? <CommandCenterWatchtowerCard actions={commandCenter.watchtowerActions} queue={commandCenter.watchtowerQueue} onOpenModule={openModule} /> : null}
             {canViewAppHealth ? <CommandCenterOwnerHealthCard onOpenOwnerHealth={openOwnerHealth} /> : null}
 

@@ -92,16 +92,24 @@ function visibleJobsForFieldOps(source = {}, options = {}) {
 }
 
 function normalizeNotificationItem(item = {}) {
+  const recordId = text(item.recordId);
+  const moduleId = text(item.moduleId) || "jobs";
+  const recordType = text(item.recordType) || (recordId ? "record" : "");
   return {
     id: text(item.id),
     type: text(item.type),
     severity: text(item.severity) || "info",
     title: text(item.title) || "Field item needs review",
     description: text(item.description) || "Open the existing workflow and review before taking action.",
-    moduleId: text(item.moduleId) || "jobs",
+    moduleId,
+    openPath: text(item.openPath),
     actionLabel: text(item.actionLabel) || notificationActionLabel(item),
     dueLabel: text(item.dueLabel),
-    recordId: text(item.recordId),
+    recordType,
+    recordId,
+    relatedJobId: recordType === "job" ? recordId : text(item.meta?.jobId || item.jobId),
+    contextLabel: recordType === "job" && recordId ? `Job ${recordId}` : moduleId,
+    meta: item.meta || {},
     reviewOnly: true,
     source: "workflow",
   };
@@ -130,9 +138,13 @@ function buildTimeReviewItems(source = {}, options = {}) {
         "Confirm status before closeout.",
       ].filter(Boolean).join(" - "),
       moduleId: "time",
+      openPath: "/time",
       actionLabel: "Open time",
       dueLabel: entry.clockInAt ? `Started ${dateKey(entry.clockInAt) || "today"}` : "Active",
+      recordType: "time_entry",
       recordId: text(entry.id),
+      relatedJobId: recordJobId(entry),
+      contextLabel: text(entry.userName || entry.employeeName || entry.createdByName) || "Active clock",
       reviewOnly: true,
       source: "time",
     }));
@@ -159,9 +171,13 @@ function buildUploadLocationEvidenceItems(source = {}, options = {}) {
       title: "Photo location evidence not captured",
       description: `${uploadJobLabel(upload, jobsById)} has photo proof, but location metadata is ${gpsStatusLabel(upload).toLowerCase()}.`,
       moduleId: "uploads",
+      openPath: "/uploads",
       actionLabel: "Open uploads",
       dueLabel: "Evidence metadata",
+      recordType: "upload",
       recordId: text(upload.id),
+      relatedJobId: recordJobId(upload),
+      contextLabel: uploadJobLabel(upload, jobsById),
       reviewOnly: true,
       source: "uploads",
     }));

@@ -71,6 +71,17 @@ test("field ops agent summarizes company-wide field risk for owner/admin without
   assert.equal(state.items.some((item) => item.type === "active_clock_review"), true);
   assert.equal(state.items.some((item) => item.type === "photo_location_evidence_missing"), true);
   assert.equal(state.items.every((item) => item.actionLabel && item.moduleId), true);
+  const missingReport = state.items.find((item) => item.type === "daily_report_missing");
+  assert.equal(missingReport.recordType, "job");
+  assert.equal(missingReport.recordId, "J-1");
+  assert.equal(missingReport.relatedJobId, "J-1");
+  assert.equal(missingReport.openPath, "/reports");
+  assert.match(missingReport.contextLabel, /J-1/);
+  const uploadEvidence = state.items.find((item) => item.type === "photo_location_evidence_missing");
+  assert.equal(uploadEvidence.recordType, "upload");
+  assert.equal(uploadEvidence.recordId, "UP-1");
+  assert.equal(uploadEvidence.relatedJobId, "J-1");
+  assert.equal(uploadEvidence.openPath, "/uploads");
 });
 
 test("field ops agent stays assigned-job scoped for field users", () => {
