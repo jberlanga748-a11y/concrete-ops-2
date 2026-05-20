@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3844,6 +3844,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openImportedDraftReview(choice = {}) {
     const opened = onOpenImportedDraftReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openSupportWorkflow(choice = {}) {
+    const opened = onOpenSupportWorkflow(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -4160,6 +4168,16 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openImportedDraftReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Imported Drafts instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "support-workflow-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                      <span className="block text-sm font-black text-white">{response.workflow || "General workspace"}</span>
+                      <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{response.blockerLevel || "Not a blocker"} - copy-only support packet. No ticket or message is sent automatically.</span>
+                    </div>
+                    <Button type="button" size="sm" onClick={() => openSupportWorkflow(response.seed || {})}>
+                      {response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -39563,6 +39581,15 @@ export default function App() {
     return true;
   }
 
+  function handleOpenAssistantSupportWorkflow(seed = {}) {
+    if (!appState.permissions.support?.canView) {
+      setErrorMessage("Support assistant actions require support access.");
+      return false;
+    }
+    openSupportWorkflow(seed);
+    return true;
+  }
+
   function handleOpenAssistantDeliveryTicketReview(seed = {}) {
     if (!appState.permissions.deliveryTickets?.canManageAll) {
       setErrorMessage("Delivery ticket assistant review actions require an office role that can manage delivery ticket proof.");
@@ -42864,6 +42891,7 @@ export default function App() {
         onOpenCrewReadiness={handleOpenAssistantCrewReadiness}
         onOpenScheduleDispatch={handleOpenAssistantScheduleDispatch}
         onOpenImportedDraftReview={handleOpenAssistantImportedDraftReview}
+        onOpenSupportWorkflow={handleOpenAssistantSupportWorkflow}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}

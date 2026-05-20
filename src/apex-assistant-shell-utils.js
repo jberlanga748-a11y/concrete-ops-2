@@ -104,6 +104,13 @@ const ROUTE_COMMANDS = [
     keywords: ["assistant", "ai office", "copilot", "help me"],
     message: "Open Apex Assistant for review-only assistant tools and workspace guidance.",
   },
+  {
+    id: "support",
+    moduleId: "support",
+    actionLabel: "Open support",
+    keywords: ["support", "help", "issue", "problem", "blocked"],
+    message: "Open Support to copy a safe manual handoff packet. Apex HQ will not send or create a ticket automatically.",
+  },
 ];
 
 const DEFAULT_PROMPTS = [
@@ -213,6 +220,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const importedDraftReviewCommand = resolveAssistantImportedDraftReviewCommand(input, state.commandContext || {});
   if (importedDraftReviewCommand) return importedDraftReviewCommand;
+
+  const supportWorkflowCommand = resolveAssistantSupportWorkflowCommand(input, state.commandContext || {});
+  if (supportWorkflowCommand) return supportWorkflowCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -764,6 +774,45 @@ export function resolveAssistantImportedDraftReviewCommand(input = "", context =
   };
 }
 
+export function resolveAssistantSupportWorkflowCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasSupportWorkflowIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.support?.canView) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Support assistant commands require support access. No support packet, ticket, email, text, upload, or escalation is created automatically.",
+    };
+  }
+
+  const workflow = supportWorkflowForText(text, permissions);
+  const blockerLevel = supportBlockerLevelForText(text, permissions);
+  const seed = {
+    workflow,
+    blockerLevel,
+    summary: rawText ? `Assistant prefill: ${rawText}` : "",
+    expected: "Manual support review of the selected Apex HQ workflow.",
+    workaround: "Not captured yet.",
+    followUpNeeded: "Manual support follow-up",
+  };
+
+  return {
+    type: "support-workflow-review",
+    moduleId: "support",
+    actionLabel: "Open Support",
+    message: `${workflow} support context is ready to review. No ticket, email, text, upload, permission change, package change, or escalation will happen automatically.`,
+    commandText: rawText,
+    workflow,
+    blockerLevel,
+    seed,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -1119,6 +1168,13 @@ function hasImportedDraftReviewIntent(text = "") {
   const mentionsImportedDraft = /\b(imported draft|imported drafts|job draft|job drafts|draft package|draft packages|draft import|draft imports|import queue|imported job)\b/.test(text);
   const mentionsReview = /\b(review|needs review|missing|warning|warnings|customer match|match|readiness|ready|create job|job creation|package|queue)\b/.test(text);
   return asksToOpen && mentionsImportedDraft && mentionsReview;
+}
+
+function hasSupportWorkflowIntent(text = "") {
+  const asksForSupport = /\b(open|review|show|pull up|check|find|copy|create|prepare)\b/.test(text)
+    && /\b(support|help|issue|problem|bug|blocked|blocker|not working|can't|cannot|wont|won't)\b/.test(text);
+  const mentionsSupportWorkflow = /\b(login|access|estimate|proposal|job|schedule|field mode|report|upload|photo|proof|billing|ready to bill|permission|role|safety|incident|tool|data|import|setup|onboarding|upgrade|package)\b/.test(text);
+  return asksForSupport && mentionsSupportWorkflow;
 }
 
 function hasSafetyIncidentReviewIntent(text = "") {
@@ -1985,6 +2041,30 @@ function importedDraftSearchText(draft = {}) {
     draft.customerMatchReason,
     draft.summary,
   ].filter(Boolean).join(" "));
+}
+
+function supportWorkflowForText(text = "", permissions = {}) {
+  const isOfficeUser = Boolean(permissions?.settings?.canView || permissions?.users?.canView || permissions?.audit?.canView);
+  const canRequestPackageReview = Boolean(permissions?.settings?.canView && permissions?.users?.canManage);
+  if (/\b(login|access|invite|password|role|roles|permission|permissions)\b/.test(text)) return "Login / access";
+  if (/\b(estimate|estimates|proposal|proposals|quote|bid|packet)\b/.test(text)) return "Estimates / proposals";
+  if (/\b(job|jobs|schedule|dispatch|field mode|assignment|crew|foreman)\b/.test(text)) return "Jobs / schedule";
+  if (/\b(photo|photos|upload|uploads|proof|evidence)\b/.test(text)) return "Photos / uploads";
+  if (/\b(report|reports|daily report|daily reports)\b/.test(text)) return "Daily reports";
+  if (/\b(ticket|tickets|checklist|checklists|pre pour|post pour|delivery)\b/.test(text)) return "Tickets / checklists";
+  if (/\b(safety|incident|incidents|ppe|tool|tools)\b/.test(text)) return "Safety / tools";
+  if (/\b(upgrade|package|billing|ready to bill|ready-to-bill)\b/.test(text)) return canRequestPackageReview ? "Upgrade / package review" : "General workspace";
+  if (/\b(data|import|imports|setup|onboarding)\b/.test(text)) return isOfficeUser ? "Setup / onboarding" : "General workspace";
+  return "General workspace";
+}
+
+function supportBlockerLevelForText(text = "", permissions = {}) {
+  if (/\b(blocking field|field blocked|field work blocked)\b/.test(text)) return "Blocking field work";
+  if (/\b(blocking|blocked|blocker|can't|cannot|not working|wont|won't)\b/.test(text)) {
+    return permissions?.jobs?.canManageField && !permissions?.jobs?.canManageAll ? "Blocking field work" : "Blocking office work";
+  }
+  if (/\b(slow|slowing|friction|stuck)\b/.test(text)) return "Slowing work down";
+  return "Not a blocker";
 }
 
 function scheduleDispatchPriority(candidate = {}) {

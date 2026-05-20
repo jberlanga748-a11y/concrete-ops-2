@@ -20,6 +20,7 @@ import {
   resolveAssistantReportReviewCommand,
   resolveAssistantSafetyIncidentReviewCommand,
   resolveAssistantScheduleDispatchCommand,
+  resolveAssistantSupportWorkflowCommand,
   resolveAssistantTimeReviewCommand,
   resolveAssistantToolChecklistReviewCommand,
   resolveAssistantUploadReviewCommand,
@@ -663,6 +664,54 @@ test("assistant keeps generic imported drafts navigation out of draft review", (
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "jobDraftImports");
+});
+
+test("assistant opens copy-only support workflow context without auto-send", () => {
+  const command = resolveAssistantSupportWorkflowCommand("Prepare support for blocked report uploads", {
+    permissions: {
+      support: { canView: true },
+      reports: { canView: true, canReview: true },
+      uploads: { canView: true },
+      jobs: { canManageAll: true },
+    },
+  });
+
+  assert.equal(command.type, "support-workflow-review");
+  assert.equal(command.moduleId, "support");
+  assert.equal(command.workflow, "Photos / uploads");
+  assert.equal(command.blockerLevel, "Blocking office work");
+  assert.match(command.message, /No ticket, email, text, upload, permission change, package change, or escalation/i);
+  assert.match(command.seed.summary, /Assistant prefill/);
+});
+
+test("assistant support workflow is blocked when support access is absent", () => {
+  const command = resolveAssistantSupportWorkflowCommand("Prepare support for blocked job schedule", {
+    permissions: { support: { canView: false }, jobs: { canManageAll: true } },
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /require support access/i);
+});
+
+test("assistant support workflow keeps field users in field-safe support context", () => {
+  const command = resolveAssistantSupportWorkflowCommand("Prepare support for blocked field job", {
+    permissions: {
+      support: { canView: true },
+      jobs: { canView: true, canManageField: true, canManageAll: false },
+      reports: { canCreate: true },
+    },
+  });
+
+  assert.equal(command.type, "support-workflow-review");
+  assert.equal(command.workflow, "Jobs / schedule");
+  assert.equal(command.blockerLevel, "Blocking field work");
+});
+
+test("assistant keeps generic support navigation out of workflow support", () => {
+  const command = resolveApexAssistantCommand("open support");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "support");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {
