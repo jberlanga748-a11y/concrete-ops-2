@@ -155,6 +155,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const estimatePacketCommand = resolveAssistantEstimatePacketCommand(input, state.commandContext || {});
   if (estimatePacketCommand) return estimatePacketCommand;
 
+  const estimateJobHandoffCommand = resolveAssistantEstimateJobHandoffCommand(input, state.commandContext || {});
+  if (estimateJobHandoffCommand) return estimateJobHandoffCommand;
+
   const estimateDraftCommand = resolveAssistantEstimateDraftCommand(input, state.commandContext || {});
   if (estimateDraftCommand) return estimateDraftCommand;
 
@@ -334,6 +337,54 @@ export function resolveAssistantEstimatePacketCommand(input = "", context = {}) 
   };
 }
 
+export function resolveAssistantEstimateJobHandoffCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasEstimateJobHandoffIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!permissions?.estimates?.canManage || !permissions?.jobs?.canCreate) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Estimate-to-job assistant handoff requires an office role that can manage estimates and create jobs. Field users stay blocked from estimates, pricing, conversion controls, and office-only job setup.",
+    };
+  }
+  if (!permissions?.estimates?.canUseGcPackets) {
+    return {
+      type: "package-blocked",
+      moduleId: "estimates",
+      actionLabel: "Open Estimates",
+      message: "Assistant estimate-to-job handoff is a Premium review workflow. You can still open Estimates and Jobs and convert approved estimates manually where your package allows.",
+    };
+  }
+
+  const query = extractEstimateJobHandoffTargetQuery(rawText);
+  const matches = findAssistantEstimateJobHandoffMatches(query, context);
+  const fallback = {
+    id: "assistant-open-estimate-handoff",
+    type: "estimate-job-handoff",
+    label: "Open approved estimates",
+    helper: "No exact estimate match found. Open Estimates and review approved estimates manually.",
+  };
+
+  return {
+    type: "estimate-job-handoff-review",
+    moduleId: "estimates",
+    actionLabel: matches.length === 1 ? "Review job handoff" : matches.length > 1 ? "Choose estimate" : "Open Estimates",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for a reviewed estimate-to-job handoff. No job, schedule, crew assignment, or customer message will be created automatically.`
+      : matches.length > 1
+        ? "I found multiple estimates. Choose the right approved estimate before opening the reviewed job handoff."
+        : "I did not find an exact approved estimate. Open Estimates and review the handoff checkpoints manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 function resolveBlockedActionCommand(input = "") {
   const rawText = String(input || "").trim();
   if (!rawText) return null;
@@ -355,6 +406,15 @@ function hasEstimateDraftIntent(text = "") {
 function hasEstimatePacketIntent(text = "") {
   return /\b(prepare|open|review|build|assemble|show)\b/.test(text)
     && /\b(gc packet|packet|proposal packet|foreman handoff|field handoff)\b/.test(text);
+}
+
+function hasEstimateJobHandoffIntent(text = "") {
+  const asksForHandoff = /\b(prepare|review|open|start|build|show)\b/.test(text)
+    && /\b(job handoff|job setup|startup|estimate to job|proposal to job|approved estimate)\b/.test(text);
+  const asksForConversion = /\b(convert|create|turn|move)\b/.test(text)
+    && /\b(estimate|proposal|quote|bid)\b/.test(text)
+    && /\b(job|work order|field job)\b/.test(text);
+  return asksForHandoff || asksForConversion;
 }
 
 function hasMissingProofIntent(text = "") {
@@ -545,6 +605,21 @@ function extractEstimatePacketTargetQuery(input = "") {
   return "";
 }
 
+function extractEstimateJobHandoffTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:job handoff|job setup|startup|estimate to job|proposal to job|approved estimate)\b\s+(?:for|from|on)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const convertMatch = rawText.match(/\b(?:convert|create|turn|move)\b[\s\S]*?\b(?:estimate|proposal|quote|bid)\b\s+(?:for|from|on)?\s*(.+?)(?:\s+\b(?:to|into)\b\s+(?:a\s+)?(?:job|work order|field job)|$)/i);
+  if (convertMatch?.[1]) return cleanTargetQuery(convertMatch[1].replace(/\b(this|the|approved)\b/gi, " "));
+
+  const beforeHandoff = rawText.split(/\b(?:prepare|review|open|start|build|show)\b.*\b(?:job handoff|job setup|startup|estimate to job|proposal to job|approved estimate)\b/i)[0] || "";
+  const cleanedBeforeHandoff = cleanTargetQuery(beforeHandoff.replace(/\b(open|pull up|find|estimate|proposal|quote|bid|for|from|this|the|approved)\b/gi, " "));
+  if (cleanedBeforeHandoff) return cleanedBeforeHandoff;
+
+  return "";
+}
+
 function cleanTargetQuery(value = "") {
   return String(value || "")
     .replace(/[:.,;]+$/g, "")
@@ -625,6 +700,40 @@ function findAssistantEstimatePacketMatches(query = "", context = {}) {
     label: [estimate.title || estimate.project || "Estimate", estimate.customerName || estimate.customer?.name || estimate.lead?.customer].filter(Boolean).join(" - "),
     helper: [estimate.status, estimate.number || estimate.estimateNumber, estimate.customer?.city || estimate.city].filter(Boolean).join(" - "),
   })).filter((match) => match.estimateId).slice(0, 4);
+}
+
+function findAssistantEstimateJobHandoffMatches(query = "", context = {}) {
+  const estimates = asArray(context.estimates).filter((estimate) => !estimate?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const visibleCandidates = normalizedQuery
+    ? estimates.filter((estimate) => targetMatchesWords(estimateSearchText(estimate), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : estimates;
+
+  const handoffCandidates = visibleCandidates
+    .map((estimate) => ({
+      estimate,
+      ready: estimateReadyForJobHandoff(estimate),
+      converted: Boolean(estimate?.jobId),
+    }))
+    .sort((left, right) => Number(right.ready) - Number(left.ready) || Number(left.converted) - Number(right.converted));
+
+  return handoffCandidates.map(({ estimate, ready, converted }) => ({
+    id: `estimate-job:${estimate.id}`,
+    type: "estimate",
+    estimateId: estimate.id || "",
+    label: [estimate.title || estimate.project || "Estimate", estimate.customerName || estimate.customer?.name || estimate.lead?.customer].filter(Boolean).join(" - "),
+    helper: converted
+      ? "Already converted to a job. Open for review only."
+      : ready
+        ? "Approved estimate. Review handoff checkpoints before manually converting."
+        : "Not approved yet. Review approval and handoff readiness before conversion.",
+    readyForJobHandoff: ready,
+    converted,
+  })).filter((match) => match.estimateId).slice(0, 4);
+}
+
+function estimateReadyForJobHandoff(estimate = {}) {
+  return normalizeText(estimate.status) === "approved" && !estimate.jobId;
 }
 
 function estimateSearchText(estimate = {}) {

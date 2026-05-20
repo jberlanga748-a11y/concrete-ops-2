@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3756,6 +3756,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openEstimatePacket(choice = {}) {
     const opened = onOpenEstimatePacket(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openEstimateJobHandoff(choice = {}) {
+    const opened = onOpenEstimateJobHandoff(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3895,6 +3903,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       </button>
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openEstimatePacket(response.fallback || {})}>
+                      {response.matches?.length ? "Open Estimates instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "estimate-job-handoff-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openEstimateJobHandoff(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review estimate-to-job handoff. No job is created automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openEstimateJobHandoff(response.fallback || {})}>
                       {response.matches?.length ? "Open Estimates instead" : response.actionLabel}
                     </Button>
                   </div>
@@ -32233,6 +32258,8 @@ function EstimatesPagePolished({
   onAssistantEstimateDraftSeedHandled = () => {},
   assistantEstimatePacketSeed = null,
   onAssistantEstimatePacketSeedHandled = () => {},
+  assistantEstimateJobHandoffSeed = null,
+  onAssistantEstimateJobHandoffSeedHandled = () => {},
   emailSendingConfigured = false,
   companyName = DEFAULT_COMPANY_NAME,
   companyProfile = {},
@@ -32420,6 +32447,33 @@ function EstimatesPagePolished({
     window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
     onAssistantEstimatePacketSeedHandled(seed.nonce);
   }, [assistantEstimatePacketSeed?.nonce, canUseGcPackets, rows]);
+
+  useEffect(() => {
+    const seed = assistantEstimateJobHandoffSeed;
+    if (!seed?.nonce || !canManage) return;
+
+    const targetEstimateId = seed.estimateId && rows.some((estimate) => estimate?.id === seed.estimateId)
+      ? seed.estimateId
+      : rows.find((estimate) => estimate?.status === "approved" && !estimate?.jobId)?.id || rows[0]?.id || "";
+    setEstimateViewMode("browse");
+    if (targetEstimateId) setSelectedEstimateId(targetEstimateId);
+    setStatusFilter(targetEstimateId ? "All" : "Approved");
+    setCustomerFilter("All customers");
+    setLeadFilter("All leads");
+    setCreatorFilter("All creators");
+    setArchiveFilter("Active");
+    setSearch("");
+    setActiveEstimateTool("backup");
+    setShowEstimateTools(true);
+    showCopyFeedback(
+      targetEstimateId
+        ? "Assistant opened the estimate-to-job handoff review. No job was created, scheduled, assigned, or messaged automatically."
+        : "Assistant opened Estimates. Choose an approved estimate before converting anything to a job.",
+      8000,
+    );
+    window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    onAssistantEstimateJobHandoffSeedHandled(seed.nonce);
+  }, [assistantEstimateJobHandoffSeed?.nonce, canManage, rows]);
 
   useEffect(() => {
     const seed = assistantEstimateDraftSeed;
@@ -38374,9 +38428,11 @@ function MainContent(props) {
           initialSelectedEstimateId={props.estimateFocusId}
           assistantEstimateDraftSeed={props.assistantEstimateDraftSeed}
           onAssistantEstimateDraftSeedHandled={props.onAssistantEstimateDraftSeedHandled}
-          assistantEstimatePacketSeed={props.assistantEstimatePacketSeed}
-          onAssistantEstimatePacketSeedHandled={props.onAssistantEstimatePacketSeedHandled}
-        />
+           assistantEstimatePacketSeed={props.assistantEstimatePacketSeed}
+           onAssistantEstimatePacketSeedHandled={props.onAssistantEstimatePacketSeedHandled}
+           assistantEstimateJobHandoffSeed={props.assistantEstimateJobHandoffSeed}
+           onAssistantEstimateJobHandoffSeedHandled={props.onAssistantEstimateJobHandoffSeedHandled}
+         />
       );
     }
     if (active === "jobDraftImports") {
@@ -38593,6 +38649,7 @@ export default function App() {
   const [estimateFocusId, setEstimateFocusId] = useState("");
   const [assistantEstimateDraftSeed, setAssistantEstimateDraftSeed] = useState(null);
   const [assistantEstimatePacketSeed, setAssistantEstimatePacketSeed] = useState(null);
+  const [assistantEstimateJobHandoffSeed, setAssistantEstimateJobHandoffSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -38717,6 +38774,20 @@ export default function App() {
     }
     setEstimateFocusId(seed.estimateId || "");
     setAssistantEstimatePacketSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("estimates");
+    return true;
+  }
+
+  function handleOpenAssistantEstimateJobHandoff(seed = {}) {
+    if (!appState.permissions.estimates?.canManage || !appState.permissions.jobs?.canCreate || !appState.permissions.estimates?.canUseGcPackets) {
+      setErrorMessage("Estimate-to-job assistant handoff requires Premium estimate tools and an office role that can create jobs.");
+      return false;
+    }
+    setEstimateFocusId(seed.estimateId || "");
+    setAssistantEstimateJobHandoffSeed({
       ...seed,
       nonce: Date.now(),
     });
@@ -41670,6 +41741,12 @@ export default function App() {
                     setAssistantEstimatePacketSeed(null);
                   }
                 }}
+                assistantEstimateJobHandoffSeed={assistantEstimateJobHandoffSeed}
+                onAssistantEstimateJobHandoffSeedHandled={(nonce) => {
+                  if (!assistantEstimateJobHandoffSeed || assistantEstimateJobHandoffSeed.nonce === nonce) {
+                    setAssistantEstimateJobHandoffSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -41885,6 +41962,7 @@ export default function App() {
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
+        onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
       />
     </div>
   );

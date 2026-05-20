@@ -5,6 +5,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
   resolveAssistantEstimateDraftCommand,
+  resolveAssistantEstimateJobHandoffCommand,
   resolveAssistantEstimatePacketCommand,
   resolveAssistantMissingProofCommand,
 } from "./apex-assistant-shell-utils.js";
@@ -271,6 +272,57 @@ test("assistant command routes GC packet intent before generic estimate drafts",
 
   assert.equal(command.type, "estimate-packet-review");
   assert.equal(command.matches[0].estimateId, "EST-ABC");
+});
+
+test("assistant opens approved estimate-to-job handoff without creating jobs", () => {
+  const command = resolveAssistantEstimateJobHandoffCommand("Prepare job handoff for Salem warehouse", {
+    permissions: {
+      estimates: { canManage: true, canUseGcPackets: true },
+      jobs: { canCreate: true },
+    },
+    estimates: [
+      {
+        id: "EST-READY",
+        title: "Salem warehouse slab",
+        status: "approved",
+        customerName: "ABC Builders",
+        number: "EST-2025-077",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "estimate-job-handoff-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].estimateId, "EST-READY");
+  assert.equal(command.matches[0].readyForJobHandoff, true);
+  assert.match(command.message, /No job, schedule, crew assignment, or customer message/i);
+});
+
+test("assistant estimate-to-job handoff requires office job creation and premium packet access", () => {
+  const fieldDenied = resolveAssistantEstimateJobHandoffCommand("Convert approved estimate to job", {
+    permissions: { estimates: { canManage: false, canUseGcPackets: false }, jobs: { canCreate: false } },
+  });
+  const packageDenied = resolveAssistantEstimateJobHandoffCommand("Convert approved estimate to job", {
+    permissions: { estimates: { canManage: true, canUseGcPackets: false }, jobs: { canCreate: true } },
+  });
+
+  assert.equal(fieldDenied.type, "blocked-command");
+  assert.match(fieldDenied.message, /Field users stay blocked/i);
+  assert.equal(packageDenied.type, "package-blocked");
+  assert.match(packageDenied.message, /Premium review workflow/i);
+});
+
+test("assistant estimate-to-job handoff does not treat unapproved estimates as ready", () => {
+  const command = resolveAssistantEstimateJobHandoffCommand("Review job setup for West slab", {
+    permissions: { estimates: { canManage: true, canUseGcPackets: true }, jobs: { canCreate: true } },
+    estimates: [
+      { id: "EST-DRAFT", title: "West slab", status: "draft", customerName: "Westview" },
+    ],
+  });
+
+  assert.equal(command.type, "estimate-job-handoff-review");
+  assert.equal(command.matches[0].readyForJobHandoff, false);
+  assert.match(command.matches[0].helper, /Not approved yet/i);
 });
 
 test("assistant blocks unsafe automation language before estimate matching", () => {
