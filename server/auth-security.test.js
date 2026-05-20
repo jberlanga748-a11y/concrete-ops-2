@@ -31,6 +31,48 @@ async function waitForServer(baseUrl, serverOutput) {
   throw new Error(`Auth security test server did not become ready.\n${serverOutput()}`);
 }
 
+function isProcessRunning(child) {
+  return child.exitCode === null && child.signalCode === null;
+}
+
+async function waitForProcessExit(child, timeoutMs) {
+  if (!isProcessRunning(child)) {
+    return true;
+  }
+
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      child.off("exit", onExit);
+      resolve(false);
+    }, timeoutMs);
+
+    function onExit() {
+      clearTimeout(timeoutId);
+      resolve(true);
+    }
+
+    child.once("exit", onExit);
+  });
+}
+
+async function stopServerProcess(child) {
+  if (!isProcessRunning(child)) {
+    return;
+  }
+
+  child.kill("SIGTERM");
+  const stopped = await waitForProcessExit(child, 3000);
+  if (stopped || !isProcessRunning(child)) {
+    return;
+  }
+
+  child.kill("SIGKILL");
+  const killed = await waitForProcessExit(child, 3000);
+  if (!killed && isProcessRunning(child)) {
+    throw new Error(`Auth security test server did not stop cleanly. pid=${child.pid}`);
+  }
+}
+
 async function startServer(extraEnv = {}) {
   const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "apex-hq-auth-security-"));
   const port = createPort();
@@ -59,9 +101,11 @@ async function startServer(extraEnv = {}) {
   await waitForServer(baseUrl, () => output);
 
   async function stop() {
-    server.kill("SIGTERM");
-    await new Promise((resolve) => server.once("exit", resolve));
-    await fs.rm(tempDataDir, { recursive: true, force: true });
+    try {
+      await stopServerProcess(server);
+    } finally {
+      await fs.rm(tempDataDir, { recursive: true, force: true });
+    }
   }
 
   return {
