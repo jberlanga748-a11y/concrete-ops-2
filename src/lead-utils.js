@@ -42,6 +42,11 @@ function hasEstimateIntent(lead = {}) {
   return /\b(estimate|proposal|quote|bid)\b/.test(haystack);
 }
 
+function hasJobProofIntent(lead = {}) {
+  const haystack = [lead.status, lead.nextStep, lead.notes, lead.project].map(toText).join(" ").toLowerCase();
+  return /\b(job|schedule|handoff|photo|proof|report|upload|ready to bill|ready-to-bill)\b/.test(haystack);
+}
+
 function leadScoreLabel(lead = {}) {
   return toText(lead.fitLabel) || (lead.scoredAt || lead.scoreSource ? leadScoreLabelForScore(lead.fitScore) : "");
 }
@@ -100,6 +105,76 @@ export function deriveLeadInboxState(leads = [], options = {}) {
       missingNextStep: items.filter((lead) => hasReason(lead, "Missing Next Step")).length,
       readyForEstimate: items.filter((lead) => hasReason(lead, "Ready for Estimate")).length,
     },
+  };
+}
+
+export function deriveLeadPilotWorkflowReadiness(lead = {}, { customers = [] } = {}) {
+  const status = normalizeLeadStatus(lead.status);
+  const matchedCustomer = customers.find((customer) => customer.id && customer.id === lead.customerId) || null;
+  const hasCustomer = Boolean(toText(lead.customer) || matchedCustomer);
+  const hasProject = Boolean(toText(lead.project));
+  const hasLocation = Boolean(toText(lead.city) || toText(lead.address) || toText(lead.location));
+  const hasNextStep = Boolean(toText(lead.nextStep));
+  const hasFollowUp = Boolean(followUpDateValue(lead));
+  const estimateReady = ["site visit", "estimate sent", "approved"].includes(status) || hasEstimateIntent(lead);
+  const jobProofReady = status === "approved" || hasJobProofIntent(lead);
+
+  const steps = [
+    {
+      id: "customer",
+      label: "Customer",
+      complete: hasCustomer,
+      helper: hasCustomer ? "Contact context is present." : "Add customer or contact name before follow-up.",
+      nextAction: "Add customer/contact",
+    },
+    {
+      id: "project",
+      label: "Project / location",
+      complete: hasProject && hasLocation,
+      helper: hasProject && hasLocation ? "Project and location are visible." : "Add project name and city/jobsite context.",
+      nextAction: "Add project and location",
+    },
+    {
+      id: "follow-up",
+      label: "Follow-up",
+      complete: hasNextStep && hasFollowUp,
+      helper: hasNextStep && hasFollowUp ? "Next action and due date are set." : "Set the next step and follow-up date.",
+      nextAction: "Set next step and date",
+    },
+    {
+      id: "estimate",
+      label: "Estimate handoff",
+      complete: estimateReady,
+      helper: estimateReady ? "Lead is ready to move toward estimate review." : "Capture estimate, quote, proposal, or site-visit intent.",
+      nextAction: "Capture estimate intent",
+    },
+    {
+      id: "job-proof",
+      label: "Job / proof path",
+      complete: jobProofReady,
+      helper: jobProofReady ? "Job setup or proof path is visible." : "Name the first job setup or photo/proof action.",
+      nextAction: "Name first proof action",
+    },
+  ];
+
+  const readyCount = steps.filter((step) => step.complete).length;
+  const nextStep = steps.find((step) => !step.complete) || null;
+  const statusLabel = readyCount === steps.length
+    ? "Pilot-ready"
+    : readyCount >= 3
+      ? "Nearly ready"
+      : "Needs setup";
+
+  return {
+    status: statusLabel,
+    tone: statusLabel === "Pilot-ready" ? "green" : statusLabel === "Nearly ready" ? "amber" : "blue",
+    readyCount,
+    totalCount: steps.length,
+    steps,
+    nextAction: nextStep?.nextAction || "Start workflow",
+    summary: nextStep
+      ? `${readyCount} of ${steps.length} pilot workflow checkpoints are ready. ${nextStep.helper}`
+      : "Lead has enough context for the first lead or estimate to job setup to proof follow-up workflow.",
   };
 }
 

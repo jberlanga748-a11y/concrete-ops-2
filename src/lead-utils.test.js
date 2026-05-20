@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveLeadInboxState, deriveLeadListState, deriveLeadReviewReasons, filterLeads, relatedLeadActivity } from "./lead-utils.js";
+import { deriveLeadInboxState, deriveLeadListState, deriveLeadPilotWorkflowReadiness, deriveLeadReviewReasons, filterLeads, relatedLeadActivity } from "./lead-utils.js";
 
 const LEADS = [
   { id: "L-1", customerId: "C-1", customer: "Megan Carter", city: "Albany", project: "Driveway", status: "New", priority: "High", owner: "Jordan Berl", source: "Website", followUpDueAt: "2026-04-25", nextStep: "Call", notes: "Fast lead", fitScore: 92, fitLabel: "Strong Fit", archivedAt: null },
@@ -54,6 +54,46 @@ test("lead inbox state groups current office review work without archived leads"
   assert.equal(inbox.stats.followUpDue, 3);
   assert.equal(inbox.stats.missingNextStep, 1);
   assert.equal(inbox.stats.readyForEstimate, 2);
+});
+
+test("lead pilot workflow readiness highlights missing first-workflow setup", () => {
+  const readiness = deriveLeadPilotWorkflowReadiness({
+    customer: "M2 Mini",
+    project: "Driveway repair",
+    city: "Salem",
+    status: "New",
+    nextStep: "",
+    followUpDueAt: "",
+    notes: "",
+  });
+
+  assert.equal(readiness.status, "Needs setup");
+  assert.equal(readiness.readyCount, 2);
+  assert.equal(readiness.nextAction, "Set next step and date");
+  assert.deepEqual(
+    readiness.steps.filter((step) => step.complete).map((step) => step.id),
+    ["customer", "project"],
+  );
+});
+
+test("lead pilot workflow readiness marks approved proof path ready", () => {
+  const readiness = deriveLeadPilotWorkflowReadiness({
+    customerId: "C-1",
+    customer: "M2 Mini",
+    project: "Shop slab",
+    city: "Salem",
+    status: "Approved",
+    nextStep: "Create job and capture first proof photo",
+    followUpDueAt: "2026-05-23",
+    notes: "Owner wants job setup and proof follow-up.",
+  }, {
+    customers: [{ id: "C-1", name: "M2 Mini LLC" }],
+  });
+
+  assert.equal(readiness.status, "Pilot-ready");
+  assert.equal(readiness.readyCount, readiness.totalCount);
+  assert.equal(readiness.nextAction, "Start workflow");
+  assert.match(readiness.summary, /enough context/i);
 });
 
 test("related lead data returns customer, activity, and status history", () => {
