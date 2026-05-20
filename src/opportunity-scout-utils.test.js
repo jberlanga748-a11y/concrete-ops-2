@@ -312,5 +312,17 @@ test("source check results can prefill found opportunity drafts without saving l
   assert.equal(draft.city, "Salem");
   assert.equal(draft.state, "OR");
   assert.equal(draft.sourceUrl, "https://example.test/bids");
+  assert.equal(draft.status, "reviewing");
+  assert.equal(draft.humanReviewStatus, "needs_info");
+  assert.match(draft.humanReviewNote, /missing docs source check/i);
   assert.match(draft.missingInfoItems, /plans/);
+
+  const duplicateDraft = applyOpportunityScoutSourceCheckToDraft({}, {
+    result: "duplicate",
+    brief: { title: "City bid page" },
+    source: { name: "City bids" },
+  });
+  assert.equal(duplicateDraft.status, "watching");
+  assert.equal(duplicateDraft.humanReviewStatus, "needs_info");
+  assert.match(duplicateDraft.riskFlags, /possible duplicate/i);
 });

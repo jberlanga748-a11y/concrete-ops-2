@@ -262,6 +262,9 @@ export function applyOpportunityScoutSourceCheckToDraft(currentDraft = {}, { bri
   setIfEmpty("state", source.state);
   setIfEmpty("title", result === "missing_docs" ? `${brief.title || source.name || "Source"} - docs needed` : `${brief.title || source.name || "Source"} opportunity`);
   setIfEmpty("scopeSummary", brief.helper || brief.query || source.notes);
+  setIfEmpty("status", result === "duplicate" ? "watching" : "reviewing");
+  setIfEmpty("humanReviewStatus", result === "found_work" ? "needs_review" : "needs_info");
+  setIfEmpty("humanReviewNote", `Created from ${result.replace(/_/g, " ")} source check. Office review required before lead creation.`);
   if (result === "missing_docs") {
     setIfEmpty("missingInfoItems", "plans/addenda/date/scope evidence");
   }
