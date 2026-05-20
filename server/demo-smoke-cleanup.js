@@ -36,6 +36,8 @@ function buildSmokeArtifactPlan(database) {
     SELECT id
     FROM found_opportunities
     WHERE title LIKE 'Smoke %'
+      OR title LIKE 'Hosted Scout %'
+      OR title LIKE 'Demo QA %'
       OR title LIKE 'Unsafe %'
       OR agency = ?
       OR source_name = ?
@@ -53,7 +55,12 @@ function buildSmokeArtifactPlan(database) {
     SELECT id
     FROM leads
     WHERE source = 'Opportunity Scout'
-      AND (project LIKE 'Smoke %' OR customer = ?)
+      AND (
+        project LIKE 'Smoke %'
+        OR project LIKE 'Hosted Scout %'
+        OR project LIKE 'Demo QA %'
+        OR customer = ?
+      )
   `, [SMOKE_COMPANY_NAME]);
 
   const customerIds = listIds(database, `
@@ -77,14 +84,23 @@ function buildSmokeArtifactPlan(database) {
     SELECT id
     FROM queue_items
     WHERE title LIKE 'Follow up City of Salem Facilities%'
+      OR title LIKE 'Follow up Hosted Scout%'
+      OR title LIKE 'Follow up Demo QA%'
       OR meta LIKE 'Smoke % - Opportunity Scout'
+      OR meta LIKE 'Hosted Scout % - Opportunity Scout'
+      OR meta LIKE 'Demo QA % - Opportunity Scout'
   `);
 
   const activityIds = listIds(database, `
     SELECT id
     FROM activity
     WHERE title LIKE '%Opportunity%'
-      AND (detail LIKE '%Smoke%' OR detail LIKE ?)
+      AND (
+        detail LIKE '%Smoke%'
+        OR detail LIKE '%Hosted Scout%'
+        OR detail LIKE '%Demo QA%'
+        OR detail LIKE ?
+      )
   `, [`%${SMOKE_COMPANY_NAME}%`]);
 
   const leadStatusIds = leadIds.length
@@ -112,6 +128,8 @@ function countRemainingSmokeArtifacts(database) {
       SELECT COUNT(*) AS count
       FROM found_opportunities
       WHERE title LIKE 'Smoke %'
+        OR title LIKE 'Hosted Scout %'
+        OR title LIKE 'Demo QA %'
         OR title LIKE 'Unsafe %'
         OR agency = ?
         OR source_name = ?
@@ -127,7 +145,12 @@ function countRemainingSmokeArtifacts(database) {
       SELECT COUNT(*) AS count
       FROM leads
       WHERE source = 'Opportunity Scout'
-        AND (project LIKE 'Smoke %' OR customer = ?)
+        AND (
+          project LIKE 'Smoke %'
+          OR project LIKE 'Hosted Scout %'
+          OR project LIKE 'Demo QA %'
+          OR customer = ?
+        )
     `, [SMOKE_COMPANY_NAME]),
     customers: countQuery(database, `
       SELECT COUNT(*) AS count
@@ -138,13 +161,22 @@ function countRemainingSmokeArtifacts(database) {
       SELECT COUNT(*) AS count
       FROM queue_items
       WHERE title LIKE 'Follow up City of Salem Facilities%'
+        OR title LIKE 'Follow up Hosted Scout%'
+        OR title LIKE 'Follow up Demo QA%'
         OR meta LIKE 'Smoke % - Opportunity Scout'
+        OR meta LIKE 'Hosted Scout % - Opportunity Scout'
+        OR meta LIKE 'Demo QA % - Opportunity Scout'
     `),
     activity: countQuery(database, `
       SELECT COUNT(*) AS count
       FROM activity
       WHERE title LIKE '%Opportunity%'
-        AND (detail LIKE '%Smoke%' OR detail LIKE ?)
+        AND (
+          detail LIKE '%Smoke%'
+          OR detail LIKE '%Hosted Scout%'
+          OR detail LIKE '%Demo QA%'
+          OR detail LIKE ?
+        )
     `, [`%${SMOKE_COMPANY_NAME}%`]),
   };
 }

@@ -71,6 +71,12 @@ function seedSmokeAndRealRecords(database) {
     "Manual smoke intake",
   );
   database.prepare("INSERT INTO found_opportunities (id, title, agency, source_name) VALUES (?, ?, ?, ?)").run(
+    "FO-HOSTED",
+    "Hosted Scout 1779181434684",
+    "Hosted smoke agency",
+    "Manual smoke intake",
+  );
+  database.prepare("INSERT INTO found_opportunities (id, title, agency, source_name) VALUES (?, ?, ?, ?)").run(
     "FO-REAL",
     "Real school slab",
     "Salem-Keizer",
@@ -98,6 +104,20 @@ function seedSmokeAndRealRecords(database) {
     "C-SMOKE",
   );
   database.prepare("INSERT INTO leads (id, customer, project, source, customer_id) VALUES (?, ?, ?, ?, ?)").run(
+    "L-HOSTED",
+    "Hosted Smoke GC",
+    "Hosted Scout 1779181434684",
+    "Opportunity Scout",
+    "",
+  );
+  database.prepare("INSERT INTO leads (id, customer, project, source, customer_id) VALUES (?, ?, ?, ?, ?)").run(
+    "L-DEMO-QA",
+    "Demo QA Agency",
+    "Demo QA Library ADA Ramp 20260519073052",
+    "Opportunity Scout",
+    "",
+  );
+  database.prepare("INSERT INTO leads (id, customer, project, source, customer_id) VALUES (?, ?, ?, ?, ?)").run(
     "L-REAL",
     "ABC Builders",
     "Warehouse slab",
@@ -105,11 +125,18 @@ function seedSmokeAndRealRecords(database) {
     "C-REAL",
   );
   database.prepare("INSERT INTO lead_status_history (id, lead_id) VALUES (?, ?)").run("LSH-SMOKE", "L-SMOKE");
+  database.prepare("INSERT INTO lead_status_history (id, lead_id) VALUES (?, ?)").run("LSH-HOSTED", "L-HOSTED");
+  database.prepare("INSERT INTO lead_status_history (id, lead_id) VALUES (?, ?)").run("LSH-DEMO-QA", "L-DEMO-QA");
   database.prepare("INSERT INTO lead_status_history (id, lead_id) VALUES (?, ?)").run("LSH-REAL", "L-REAL");
   database.prepare("INSERT INTO queue_items (id, title, meta) VALUES (?, ?, ?)").run(
     "Q-SMOKE",
     "Follow up City of Salem Facilities opportunity",
     "Opportunity Scout smoke conversion",
+  );
+  database.prepare("INSERT INTO queue_items (id, title, meta) VALUES (?, ?, ?)").run(
+    "Q-HOSTED",
+    "Follow up Hosted Scout opportunity",
+    "Hosted Scout 1779181434684 - Opportunity Scout",
   );
   database.prepare("INSERT INTO queue_items (id, title, meta) VALUES (?, ?, ?)").run(
     "Q-REAL",
@@ -120,6 +147,11 @@ function seedSmokeAndRealRecords(database) {
     "A-SMOKE",
     "Opportunity converted to lead",
     "Smoke courthouse slab for City of Salem Facilities",
+  );
+  database.prepare("INSERT INTO activity (id, title, detail) VALUES (?, ?, ?)").run(
+    "A-HOSTED",
+    "Opportunity converted to lead",
+    "Hosted Scout 1779181434684 smoke conversion",
   );
   database.prepare("INSERT INTO activity (id, title, detail) VALUES (?, ?, ?)").run(
     "A-REAL",
@@ -137,13 +169,13 @@ test("demo smoke cleanup dry-run reports matches without deleting records", () =
 
     assert.equal(result.dryRun, true);
     assert.equal(result.matched.opportunitySearchProfiles, 1);
-    assert.equal(result.matched.foundOpportunities, 1);
-    assert.equal(result.matched.leads, 1);
+    assert.equal(result.matched.foundOpportunities, 2);
+    assert.equal(result.matched.leads, 3);
     assert.equal(result.matched.customers, 1);
-    assert.equal(result.matched.queueItems, 1);
-    assert.equal(result.matched.activity, 1);
+    assert.equal(result.matched.queueItems, 2);
+    assert.equal(result.matched.activity, 2);
     assert.equal(result.deleted.leads, 0);
-    assert.equal(count(database, "leads"), 2);
+    assert.equal(count(database, "leads"), 4);
     assert.equal(count(database, "customers"), 2);
   } finally {
     database.close();
@@ -158,13 +190,13 @@ test("demo smoke cleanup apply deletes only smoke artifacts", () => {
     const result = cleanupDemoSmokeArtifacts(database, { apply: true });
 
     assert.equal(result.dryRun, false);
-    assert.equal(result.deleted.foundOpportunities, 1);
+    assert.equal(result.deleted.foundOpportunities, 2);
     assert.equal(result.deleted.opportunitySearchProfiles, 1);
-    assert.equal(result.deleted.leadStatusHistory, 1);
-    assert.equal(result.deleted.leads, 1);
+    assert.equal(result.deleted.leadStatusHistory, 3);
+    assert.equal(result.deleted.leads, 3);
     assert.equal(result.deleted.customers, 1);
-    assert.equal(result.deleted.queueItems, 1);
-    assert.equal(result.deleted.activity, 1);
+    assert.equal(result.deleted.queueItems, 2);
+    assert.equal(result.deleted.activity, 2);
     assert.equal(database.prepare("SELECT id FROM leads").get().id, "L-REAL");
     assert.equal(database.prepare("SELECT id FROM customers").get().id, "C-REAL");
     assert.equal(database.prepare("SELECT id FROM found_opportunities").get().id, "FO-REAL");
@@ -182,7 +214,7 @@ test("demo smoke cleanup preserves smoke-named customer when a real job still re
 
     const result = cleanupDemoSmokeArtifacts(database, { apply: true });
 
-    assert.equal(result.deleted.leads, 1);
+    assert.equal(result.deleted.leads, 3);
     assert.equal(result.deleted.customers, 0);
     assert.equal(database.prepare("SELECT COUNT(*) AS count FROM customers WHERE id = 'C-SMOKE'").get().count, 1);
   } finally {
@@ -202,7 +234,7 @@ test("demo smoke cleanup preserves non-smoke Opportunity Scout queue items", () 
 
     const result = cleanupDemoSmokeArtifacts(database, { apply: true });
 
-    assert.equal(result.deleted.queueItems, 1);
+    assert.equal(result.deleted.queueItems, 2);
     assert.deepEqual(
       database.prepare("SELECT id FROM queue_items ORDER BY id ASC").all().map((row) => row.id),
       ["Q-OPPORTUNITY-REAL", "Q-REAL"],
