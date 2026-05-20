@@ -166,6 +166,17 @@ async function run() {
   assertStatus(unsafeFields, 400, "unsafe field opportunity");
   checks.push({ name: "unsafe-fields-rejected", status: unsafeFields.response.status });
 
+  const createApprovedStatus = await requestJson(options.baseUrl, "/api/opportunity-scout/found-opportunities", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      title: "Unsafe hosted approved-on-create",
+      humanReviewStatus: "approved_for_lead",
+    },
+  });
+  assertStatus(createApprovedStatus, 400, "approved status during opportunity create");
+  checks.push({ name: "approved-status-create-rejected", status: createApprovedStatus.response.status });
+
   const unique = `Smoke Library ADA Ramp ${Date.now()}`;
   const created = await requestJson(options.baseUrl, "/api/opportunity-scout/found-opportunities", {
     method: "POST",
