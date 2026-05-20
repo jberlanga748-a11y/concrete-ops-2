@@ -26156,6 +26156,14 @@ function CopilotPagePolished({
       helper: "Known risks or missing info called out.",
       ready: Boolean(String(foundDraft.riskFlags || "").trim() || String(foundDraft.missingInfoItems || "").trim()),
     },
+    {
+      id: "review-gate",
+      label: "Review gate",
+      helper: foundDraft.humanReviewStatus
+        ? `${foundDraft.humanReviewStatus.replace(/_/g, " ")} - ${foundDraft.humanReviewNote || "office review required before lead creation"}`
+        : "Office approval remains required before lead creation.",
+      ready: true,
+    },
   ];
   const foundDraftReadyCount = foundDraftReviewChecks.filter((check) => check.ready).length;
 
