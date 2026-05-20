@@ -201,7 +201,7 @@ P3:
 ## Phase 1 Follow-Ups
 
 - Watch the scheduled GitHub Actions readiness monitor for false positives during Fly cold starts. Latest current-head manual dispatch: `26141723994` passed on May 20, 2026.
-- Decide whether production should keep at least one Fly machine running.
+- Decide whether production should keep at least one Fly machine running using `docs/apex-hq-production-cold-start-decision.md`. May 20, 2026 read-only check showed a stopped-machine wake at about 5.9s and warm `/api/ready` checks under 0.5s.
 - Watch Docker `/api/ready` health checks during the next demo deploy for false positives during cold start.
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Run the next scheduled local restore drill on Monday, June 1, 2026. Latest local backup/restore drill refresh passed on May 20, 2026.

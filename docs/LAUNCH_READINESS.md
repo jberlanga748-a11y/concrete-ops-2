@@ -44,7 +44,7 @@ Current stage:
 
 - production auth smoke approval and setup using `docs/apex-hq-production-auth-smoke-design.md`
 - production monitoring/log drain decision
-- production min-machine/cold-start decision
+- production min-machine/cold-start approval using `docs/apex-hq-production-cold-start-decision.md`
 - customer-specific pilot environment setup for any real pilot
 - legal review of pilot/customer data docs before wider paid launch
 - pilot onboarding rehearsal with the exact contractor workflow
@@ -88,6 +88,7 @@ Do not use:
 | Scheduled readiness monitor | Built |
 | Scheduled demo hosted smoke | Built; auth/bootstrap gate configured and passing |
 | Production auth smoke design | Designed; not enabled |
+| Production cold-start decision | Documented; no config change |
 | Production log drain / dedicated monitor | Planned; not enabled |
 
 ## Business Launch Checklist

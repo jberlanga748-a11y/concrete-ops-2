@@ -232,5 +232,6 @@ After rollback:
 
 - `DEPLOYMENT.md` examples mention an older volume naming pattern; use `fly.toml` and live Fly state as the source of truth before release.
 - `min_machines_running = 0` allows cold starts. Consider `min_machines_running = 1` if production availability matters more than minimum cost.
+- Production cold-start tradeoff and approval checklist live in `docs/apex-hq-production-cold-start-decision.md`.
 - Docker health checks use `/api/health`, while Fly readiness checks use `/api/ready`. Aligning Docker to readiness is a later hardening task.
 - Vercel previews use shared demo backend data. They are useful but not isolated customer-pilot environments.
