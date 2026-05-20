@@ -19,6 +19,7 @@ import {
   resolveAssistantPostPourReviewCommand,
   resolveAssistantPrePourReviewCommand,
   resolveAssistantReportReviewCommand,
+  resolveAssistantReleaseReadinessCommand,
   resolveAssistantSafetyIncidentReviewCommand,
   resolveAssistantScheduleDispatchCommand,
   resolveAssistantSupportWorkflowCommand,
@@ -802,6 +803,76 @@ test("assistant blocks material ordering before material planning review", () =>
 
   assert.equal(command.type, "blocked-command");
   assert.match(command.message, /will not order materials/i);
+});
+
+test("assistant opens release readiness review without production action", () => {
+  const command = resolveAssistantReleaseReadinessCommand("Review release readiness and app health", {
+    permissions: {
+      appHealth: { canView: true },
+      settings: { canView: true },
+      support: { canView: true },
+      audit: { canView: true },
+    },
+    commandCenter: {
+      stats: { fieldProofGaps: 2, reviewQueueItems: 3, moneyReadyItems: 1 },
+      watchtowerQueue: [{ id: "proof", title: "Proof gap" }],
+      watchtowerActions: [{ id: "report", title: "Report review" }],
+    },
+    auditEvents: [
+      { id: "AUD-1", type: "user_role_updated", summary: "Role changed" },
+      { id: "AUD-2", type: "job_updated", summary: "Job updated" },
+    ],
+    activity: [{ id: "ACT-1" }],
+  });
+
+  assert.equal(command.type, "release-readiness-review");
+  assert.equal(command.moduleId, "appHealth");
+  assert.equal(command.actions.some((action) => action.moduleId === "appHealth"), true);
+  assert.equal(command.actions.some((action) => action.moduleId === "support"), true);
+  assert.equal(command.readinessSummary.some((item) => /does not deploy, roll back, restore backups/i.test(item.detail)), true);
+  assert.match(command.message, /No deploy, rollback, backup restore, package change, support escalation, or production action/i);
+});
+
+test("assistant release readiness is package locked without App Health", () => {
+  const command = resolveAssistantReleaseReadinessCommand("Review release readiness", {
+    permissions: {
+      appHealth: { canView: false },
+      settings: { canView: true },
+      audit: { canView: true },
+    },
+  });
+
+  assert.equal(command.type, "package-blocked");
+  assert.match(command.message, /Premium review tools/i);
+});
+
+test("assistant release readiness is blocked for field users", () => {
+  const command = resolveAssistantReleaseReadinessCommand("Open app health release readiness", {
+    permissions: {
+      appHealth: { canView: false },
+      support: { canView: true },
+      jobs: { canManageField: true },
+    },
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes release readiness before generic app health navigation", () => {
+  const command = resolveApexAssistantCommand("Open app health and review release safety", {
+    commandContext: {
+      permissions: {
+        appHealth: { canView: true },
+        settings: { canView: true },
+        audit: { canView: true },
+      },
+      auditEvents: [{ id: "AUD-1", type: "backup_exported" }],
+    },
+  });
+
+  assert.equal(command.type, "release-readiness-review");
+  assert.equal(command.moduleId, "appHealth");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

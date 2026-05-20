@@ -4296,6 +4296,26 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       ))}
                     </div>
                   </div>
+                ) : response.type === "release-readiness-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.readinessSummary?.length ? (
+                      <div className="grid gap-2">
+                        {response.readinessSummary.map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                            <span className="block text-sm font-black text-white">{item.label}</span>
+                            <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{item.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions || []).map((action) => (
+                        <Button key={action.moduleId} type="button" size="sm" onClick={() => openModule(action.moduleId)}>
+                          {action.actionLabel}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 ) : response.type === "estimate-draft-review" ? (
                   <div className="mt-3 grid gap-2">
                     {response.matches?.length ? response.matches.map((match) => (
@@ -42929,6 +42949,8 @@ export default function App() {
           jobDraftImports: appState.permissions.jobDraftImports?.canView ? appState.jobDraftImports : [],
           estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
           calculatorResults: appState.permissions.calculator?.canUse ? appState.calculatorResults : [],
+          auditEvents: appState.permissions.appHealth?.canView ? appState.auditEvents : [],
+          activity: appState.permissions.appHealth?.canView ? appState.activity : [],
         }}
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}

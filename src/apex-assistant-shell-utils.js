@@ -111,6 +111,13 @@ const ROUTE_COMMANDS = [
     keywords: ["support", "help", "issue", "problem", "blocked"],
     message: "Open Support to copy a safe manual handoff packet. Apex HQ will not send or create a ticket automatically.",
   },
+  {
+    id: "appHealth",
+    moduleId: "appHealth",
+    actionLabel: "Open App Health",
+    keywords: ["app health", "release safety", "release readiness", "backup", "audit"],
+    message: "Open App Health to review owner health, backups, audit activity, and release safety. Nothing deploys or rolls back automatically.",
+  },
 ];
 
 const DEFAULT_PROMPTS = [
@@ -224,6 +231,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const supportWorkflowCommand = resolveAssistantSupportWorkflowCommand(input, state.commandContext || {});
   if (supportWorkflowCommand) return supportWorkflowCommand;
+
+  const releaseReadinessCommand = resolveAssistantReleaseReadinessCommand(input, state.commandContext || {});
+  if (releaseReadinessCommand) return releaseReadinessCommand;
 
   const materialPlanningCommand = resolveAssistantMaterialPlanningCommand(input, state.commandContext || {});
   if (materialPlanningCommand) return materialPlanningCommand;
@@ -882,6 +892,51 @@ export function resolveAssistantMaterialPlanningCommand(input = "", context = {}
   };
 }
 
+export function resolveAssistantReleaseReadinessCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasReleaseReadinessIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+
+  const hasOfficeReadinessAccess = Boolean(permissions?.appHealth?.canView || permissions?.settings?.canView || permissions?.audit?.canView);
+  if (!hasOfficeReadinessAccess) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Release readiness assistant commands are owner/admin office tools. Field users stay blocked from App Health, audit activity, release safety, package readiness, and deployment controls.",
+    };
+  }
+
+  if (!permissions?.appHealth?.canView) {
+    return {
+      type: "package-blocked",
+      moduleId: "appHealth",
+      actionLabel: "Open App Health",
+      message: "App Health and release readiness are Premium review tools. Security, role protection, and company isolation remain active, but this workspace cannot open release-safety controls until a manual package review is approved.",
+    };
+  }
+
+  const readinessSummary = buildAssistantReleaseReadinessSummary(context);
+  const actions = [
+    { moduleId: "appHealth", actionLabel: "Open App Health" },
+    permissions?.support?.canView ? { moduleId: "support", actionLabel: "Open Support" } : null,
+    permissions?.settings?.canView ? { moduleId: "settings", actionLabel: "Open Settings" } : null,
+  ].filter(Boolean);
+
+  return {
+    type: "release-readiness-review",
+    moduleId: "appHealth",
+    actionLabel: "Open App Health",
+    message: "Release readiness context is ready for owner/admin review. No deploy, rollback, backup restore, package change, support escalation, or production action happens automatically.",
+    commandText: rawText,
+    readinessSummary,
+    actions,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -1260,6 +1315,12 @@ function hasMaterialPlanningIntent(text = "") {
   const mentionsMaterialPlan = /\b(material plan|material planning|material review|materials review|quantity review|quantity planning|yardage review|takeoff review|concrete plan|yield plan|pour quantity|pour quantities|concrete quantity|concrete quantities)\b/.test(text);
   const mentionsSource = /\b(estimate|job|ticket|daily report|calculator|takeoff|yards|yardage|concrete|material|materials|quantity|quantities)\b/.test(text);
   return asksForReview && (mentionsMaterialPlan || (/\b(material|materials|takeoff|yardage|quantity|quantities)\b/.test(text) && mentionsSource));
+}
+
+function hasReleaseReadinessIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find|prepare|summarize|run)\b/.test(text);
+  const mentionsReadiness = /\b(app health|owner health|release safety|release readiness|deploy readiness|deployment readiness|rollback|backup|restore drill|audit activity|audit trail|production readiness|demo readiness|launch gate)\b/.test(text);
+  return asksForReview && mentionsReadiness;
 }
 
 function hasSafetyIncidentReviewIntent(text = "") {
@@ -2282,6 +2343,53 @@ function formatAssistantNumber(value = 0) {
   if (!Number.isFinite(parsed)) return "0";
   if (Number.isInteger(parsed)) return String(parsed);
   return parsed.toFixed(1).replace(/\.0$/, "");
+}
+
+function buildAssistantReleaseReadinessSummary(context = {}) {
+  const commandCenter = context.commandCenter || {};
+  const auditEvents = asArray(context.auditEvents);
+  const activity = asArray(context.activity);
+  const stats = commandCenter.stats || {};
+  const fieldProofGaps = Number(stats.fieldProofGaps || 0);
+  const reviewQueueItems = Number(stats.reviewQueueItems || 0);
+  const moneyReadyItems = Number(stats.moneyReadyItems || 0);
+  const watchtowerCount = asArray(commandCenter.watchtowerQueue).length + asArray(commandCenter.watchtowerActions).length;
+  const sensitiveAuditCount = auditEvents.filter((event) => releaseReadinessAuditLooksSensitive(event)).length;
+
+  return [
+    {
+      id: "owner-health",
+      label: "Owner health",
+      detail: "Open App Health to review live health, backup status, install guidance, audit activity, and release safety before any release decision.",
+    },
+    {
+      id: "watchtower",
+      label: "Operational blockers",
+      detail: `${watchtowerCount} Watchtower item${watchtowerCount === 1 ? "" : "s"}, ${fieldProofGaps} proof gap${fieldProofGaps === 1 ? "" : "s"}, and ${reviewQueueItems} review queue item${reviewQueueItems === 1 ? "" : "s"} are visible in the current workspace context.`,
+    },
+    {
+      id: "audit-activity",
+      label: "Audit / activity",
+      detail: `${auditEvents.length} audit event${auditEvents.length === 1 ? "" : "s"} and ${activity.length} activity record${activity.length === 1 ? "" : "s"} are visible; ${sensitiveAuditCount} sensitive owner/admin event${sensitiveAuditCount === 1 ? "" : "s"} may need review.`,
+    },
+    {
+      id: "release-boundary",
+      label: "Release boundary",
+      detail: `${moneyReadyItems} ready-to-bill item${moneyReadyItems === 1 ? "" : "s"} visible. This packet does not deploy, roll back, restore backups, change packages, or touch production.`,
+    },
+  ];
+}
+
+function releaseReadinessAuditLooksSensitive(event = {}) {
+  const text = normalizeText([
+    event.type,
+    event.action,
+    event.entityType,
+    event.summary,
+    event.description,
+    event.message,
+  ].filter(Boolean).join(" "));
+  return /\b(user|role|permission|export|backup|restore|package|billing|settings|company|login|auth)\b/.test(text);
 }
 
 function scheduleDispatchPriority(candidate = {}) {
