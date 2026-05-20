@@ -102,15 +102,17 @@ Important:
 
 ## 3. Create a Customer-Specific Fly Config
 
-Copy the standard production Fly config to a customer-specific file.
+Preferred: generate a customer-specific Fly config locally.
 
 Example:
 
 ```bash
-cp fly.toml fly.customer-acme.toml
+npm run pilot:create-config -- --slug=acme-contracting
 ```
 
-Update these values in `fly.customer-acme.toml`:
+This creates `fly.customer-acme-contracting.toml`, verifies the generated file, and prints the app and volume names. It does not create a Fly app, create a volume, deploy, set secrets, or touch production.
+
+Manual fallback: copy the standard production Fly config to a customer-specific file, then update these values in `fly.customer-acme.toml`:
 
 ```toml
 app = "apex-hq-acme-pilot"
@@ -429,7 +431,7 @@ Do not add production log drains, paid monitoring, production auth smoke, or pro
 ```bash
 fly apps create apex-hq-acme-pilot
 fly volumes create apex_hq_acme_pilot_data --size 1 --region sjc --app apex-hq-acme-pilot
-cp fly.toml fly.customer-acme.toml
+npm run pilot:create-config -- --slug=acme
 npm run pilot:verify-config -- --config=fly.customer-acme.toml
 fly deploy --config fly.customer-acme.toml
 curl https://apex-hq-acme-pilot.fly.dev/api/ready
