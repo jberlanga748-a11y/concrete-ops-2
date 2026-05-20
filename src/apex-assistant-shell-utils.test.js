@@ -1209,7 +1209,12 @@ test("assistant opens approved estimate-to-job handoff without creating jobs", (
         status: "approved",
         customerName: "ABC Builders",
         number: "EST-2025-077",
+        scopeSummary: "Demo and replace warehouse slab.",
+        referenceRows: [{ id: "REF-1" }],
       },
+    ],
+    jobs: [
+      { id: "JOB-OLD", title: "ABC Builders service work", customer: "ABC Builders" },
     ],
   });
 
@@ -1217,6 +1222,9 @@ test("assistant opens approved estimate-to-job handoff without creating jobs", (
   assert.equal(command.matches.length, 1);
   assert.equal(command.matches[0].estimateId, "EST-READY");
   assert.equal(command.matches[0].readyForJobHandoff, true);
+  assert.deepEqual(command.matches[0].reviewWarnings, []);
+  assert.equal(command.handoffSummary.some((item) => /No job, schedule, crew assignment/i.test(item.detail)), true);
+  assert.equal(command.actions.some((action) => action.moduleId === "jobs"), true);
   assert.match(command.message, /No job, schedule, crew assignment, or customer message/i);
 });
 
@@ -1245,6 +1253,9 @@ test("assistant estimate-to-job handoff does not treat unapproved estimates as r
   assert.equal(command.type, "estimate-job-handoff-review");
   assert.equal(command.matches[0].readyForJobHandoff, false);
   assert.match(command.matches[0].helper, /Not approved yet/i);
+  assert.equal(command.matches[0].reviewWarnings.includes("approval review needed"), true);
+  assert.equal(command.matches[0].reviewWarnings.includes("scope/handoff notes missing"), true);
+  assert.equal(command.handoffSummary.some((item) => /still need approval review/i.test(item.detail)), true);
 });
 
 test("assistant blocks unsafe automation language before estimate matching", () => {

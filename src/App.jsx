@@ -4332,6 +4332,16 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                   </div>
                 ) : response.type === "estimate-job-handoff-review" ? (
                   <div className="mt-3 grid gap-2">
+                    {response.handoffSummary?.length ? (
+                      <div className="grid gap-2">
+                        {response.handoffSummary.map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                            <span className="block text-sm font-black text-white">{item.label}</span>
+                            <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{item.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {response.matches?.length ? response.matches.map((match) => (
                       <button
                         key={match.id}
@@ -4341,11 +4351,22 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       >
                         <span className="block text-sm font-black text-white">{match.label}</span>
                         <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review estimate-to-job handoff. No job is created automatically."}</span>
+                        {match.reviewWarnings?.length ? (
+                          <span className="mt-2 flex flex-wrap gap-1">
+                            {match.reviewWarnings.slice(0, 3).map((warning) => (
+                              <span key={warning} className="rounded-lg bg-orange-500/20 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-orange-100">{warning}</span>
+                            ))}
+                          </span>
+                        ) : null}
                       </button>
                     )) : null}
-                    <Button type="button" size="sm" onClick={() => openEstimateJobHandoff(response.fallback || {})}>
-                      {response.matches?.length ? "Open Estimates instead" : response.actionLabel}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions?.length ? response.actions : [response.fallback]).filter(Boolean).map((action) => (
+                        <Button key={action.moduleId || action.id || action.actionLabel} type="button" size="sm" onClick={() => action.moduleId ? openModule(action.moduleId) : openEstimateJobHandoff(response.fallback || {})}>
+                          {action.actionLabel || action.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <Button type="button" size="sm" className="mt-3" onClick={() => openModule(response.moduleId)}>{response.actionLabel}</Button>

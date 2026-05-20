@@ -1120,11 +1120,18 @@ export function resolveAssistantEstimateJobHandoffCommand(input = "", context = 
 
   const query = extractEstimateJobHandoffTargetQuery(rawText);
   const matches = findAssistantEstimateJobHandoffMatches(query, context);
+  const handoffSummary = buildAssistantEstimateJobHandoffSummary(context, matches);
+  const actions = [
+    permissions?.estimates?.canView || permissions?.estimates?.canManage ? { moduleId: "estimates", actionLabel: "Open Estimates" } : null,
+    permissions?.jobs?.canCreate || permissions?.jobs?.canManageAll ? { moduleId: "jobs", actionLabel: "Open Jobs" } : null,
+    permissions?.jobs?.canManageAll ? { moduleId: "schedule", actionLabel: "Open Schedule" } : null,
+  ].filter(Boolean);
   const fallback = {
     id: "assistant-open-estimate-handoff",
     type: "estimate-job-handoff",
     label: "Open approved estimates",
     helper: "No exact estimate match found. Open Estimates and review approved estimates manually.",
+    moduleId: actions[0]?.moduleId || "estimates",
   };
 
   return {
@@ -1139,6 +1146,8 @@ export function resolveAssistantEstimateJobHandoffCommand(input = "", context = 
     commandText: rawText,
     query,
     matches,
+    handoffSummary,
+    actions,
     fallback,
   };
 }
@@ -2964,6 +2973,8 @@ function findAssistantEstimateJobHandoffMatches(query = "", context = {}) {
     id: `estimate-job:${estimate.id}`,
     type: "estimate",
     estimateId: estimate.id || "",
+    customerId: estimate.customerId || estimate.customer?.id || estimate.lead?.customerId || "",
+    leadId: estimate.leadId || estimate.lead?.id || "",
     label: [estimate.title || estimate.project || "Estimate", estimate.customerName || estimate.customer?.name || estimate.lead?.customer].filter(Boolean).join(" - "),
     helper: converted
       ? "Already converted to a job. Open for review only."
@@ -2972,11 +2983,92 @@ function findAssistantEstimateJobHandoffMatches(query = "", context = {}) {
         : "Not approved yet. Review approval and handoff readiness before conversion.",
     readyForJobHandoff: ready,
     converted,
+    reviewWarnings: estimateJobHandoffWarnings(estimate, { ready, converted }),
   })).filter((match) => match.estimateId).slice(0, 4);
 }
 
 function estimateReadyForJobHandoff(estimate = {}) {
   return normalizeText(estimate.status) === "approved" && !estimate.jobId;
+}
+
+function buildAssistantEstimateJobHandoffSummary(context = {}, matches = []) {
+  const estimates = asArray(context.estimates).filter((estimate) => !estimate?.archivedAt);
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const selectedEstimateIds = new Set(matches.map((match) => match.estimateId).filter(Boolean));
+  const selectedEstimates = selectedEstimateIds.size
+    ? estimates.filter((estimate) => selectedEstimateIds.has(estimate.id))
+    : estimates;
+  const approvedReady = selectedEstimates.filter((estimate) => estimateReadyForJobHandoff(estimate)).length;
+  const converted = selectedEstimates.filter((estimate) => Boolean(estimate.jobId)).length;
+  const needsApproval = selectedEstimates.filter((estimate) => !estimateReadyForJobHandoff(estimate) && !estimate.jobId).length;
+  const missingCustomer = selectedEstimates.filter((estimate) => !String(estimate.customerName || estimate.customer?.name || estimate.lead?.customer || "").trim()).length;
+  const missingScope = selectedEstimates.filter((estimate) => !estimateHasHandoffScope(estimate)).length;
+  const possibleJobLinks = selectedEstimates.filter((estimate) => jobs.some((job) => estimateJobLabelsOverlap(estimate, job))).length;
+
+  return [
+    {
+      id: "approval-readiness",
+      label: "Approval readiness",
+      detail: `${approvedReady} approved estimate${approvedReady === 1 ? "" : "s"} ready for manual handoff; ${needsApproval} still need approval review.`,
+    },
+    {
+      id: "job-state",
+      label: "Job state",
+      detail: `${converted} already converted; ${possibleJobLinks} visible job link${possibleJobLinks === 1 ? "" : "s"} may need review before creating anything new.`,
+    },
+    {
+      id: "handoff-context",
+      label: "Handoff context",
+      detail: `${missingCustomer} missing customer context; ${missingScope} missing scope/handoff notes. Review customer, site, scope, exclusions, schedule, crew, material, safety, and access before saving.`,
+    },
+    {
+      id: "review-boundary",
+      label: "Review boundary",
+      detail: "No job, schedule, crew assignment, field visibility, customer message, material order, price approval, or estimate change happens from this assistant packet.",
+    },
+  ];
+}
+
+function estimateJobHandoffWarnings(estimate = {}, { ready = false, converted = false } = {}) {
+  const warnings = [];
+  if (converted) warnings.push("already converted");
+  if (!ready && !converted) warnings.push("approval review needed");
+  if (!String(estimate.customerName || estimate.customer?.name || estimate.lead?.customer || "").trim()) warnings.push("customer context missing");
+  if (!estimateHasHandoffScope(estimate)) warnings.push("scope/handoff notes missing");
+  if (!asArray(estimate.attachments || estimate.references || estimate.referenceRows).length) warnings.push("attachments/references not confirmed");
+  return warnings;
+}
+
+function estimateHasHandoffScope(estimate = {}) {
+  return Boolean(String(
+    estimate.scope
+    || estimate.scopeSummary
+    || estimate.description
+    || estimate.customerNotes
+    || estimate.fieldHandoffNotes
+    || estimate.notes
+    || "",
+  ).trim() || asArray(estimate.items).length);
+}
+
+function estimateJobLabelsOverlap(estimate = {}, job = {}) {
+  const estimateWords = normalizeText([
+    estimate.title,
+    estimate.project,
+    estimate.customerName,
+    estimate.customer?.name,
+    estimate.lead?.customer,
+  ].filter(Boolean).join(" ")).split(" ").filter((word) => word.length > 2);
+  if (!estimateWords.length) return false;
+  const jobText = normalizeText([
+    jobTitle(job),
+    job.customer,
+    job.customerName,
+    job.project,
+    job.address,
+    job.city,
+  ].filter(Boolean).join(" "));
+  return estimateWords.some((word) => jobText.includes(word));
 }
 
 function estimateSearchText(estimate = {}) {
