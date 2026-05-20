@@ -25,6 +25,17 @@ test("launch gate workflow runs launch gate status with summary", async () => {
   assert.match(text, /launch-gate-summary\.mjs/);
 });
 
+test("launch gate workflow forwards complete pilot rehearsal inputs", async () => {
+  const text = await workflowText();
+
+  assert.match(text, /field_lead:/);
+  assert.match(text, /success_three:/);
+  assert.match(text, /start_date:/);
+  assert.match(text, /--field-lead="\$FIELD_LEAD"/);
+  assert.match(text, /--success="\$SUCCESS_THREE"/);
+  assert.match(text, /--start-date="\$START_DATE"/);
+});
+
 test("launch gate workflow does not deploy, set secrets, or run auth smoke", async () => {
   const text = await workflowText();
 

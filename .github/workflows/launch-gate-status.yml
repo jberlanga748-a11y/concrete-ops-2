@@ -20,6 +20,10 @@ on:
         description: "Optional owner/admin for customer pilot gate."
         required: false
         type: string
+      field_lead:
+        description: "Optional field lead or reason field user is not needed."
+        required: false
+        type: string
       first_record:
         description: "Optional first real lead, estimate, job, or proof item."
         required: false
@@ -34,6 +38,14 @@ on:
         type: string
       success_two:
         description: "Optional success criterion 2."
+        required: false
+        type: string
+      success_three:
+        description: "Optional success criterion 3."
+        required: false
+        type: string
+      start_date:
+        description: "Optional pilot start date in YYYY-MM-DD format."
         required: false
         type: string
       monitoring_provider:
@@ -78,10 +90,13 @@ jobs:
           COMPANY: ${{ inputs.company }}
           PILOT_WORKFLOW: ${{ inputs.workflow }}
           OWNER: ${{ inputs.owner }}
+          FIELD_LEAD: ${{ inputs.field_lead }}
           FIRST_RECORD: ${{ inputs.first_record }}
           FIELD_ACTION: ${{ inputs.field_action }}
           SUCCESS_ONE: ${{ inputs.success_one }}
           SUCCESS_TWO: ${{ inputs.success_two }}
+          SUCCESS_THREE: ${{ inputs.success_three }}
+          START_DATE: ${{ inputs.start_date }}
           MONITORING_PROVIDER: ${{ inputs.monitoring_provider }}
           ALERT_DESTINATION: ${{ inputs.alert_destination }}
         run: |
@@ -100,6 +115,9 @@ jobs:
           if [ -n "$OWNER" ]; then
             args+=(--owner="$OWNER")
           fi
+          if [ -n "$FIELD_LEAD" ]; then
+            args+=(--field-lead="$FIELD_LEAD")
+          fi
           if [ -n "$FIRST_RECORD" ]; then
             args+=(--first-record="$FIRST_RECORD")
           fi
@@ -111,6 +129,12 @@ jobs:
           fi
           if [ -n "$SUCCESS_TWO" ]; then
             args+=(--success="$SUCCESS_TWO")
+          fi
+          if [ -n "$SUCCESS_THREE" ]; then
+            args+=(--success="$SUCCESS_THREE")
+          fi
+          if [ -n "$START_DATE" ]; then
+            args+=(--start-date="$START_DATE")
           fi
           if [ -n "$MONITORING_PROVIDER" ]; then
             args+=(--provider="$MONITORING_PROVIDER")
