@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildOpportunityScoutSearchPhrase, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils.js";
+import { applyOpportunityScoutAgentPreviewToDraft, buildOpportunityScoutSearchPhrase, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils.js";
 
 const TODAY = "2026-05-13";
 
@@ -215,4 +215,51 @@ test("opportunity scout source brief gives the office a safe manual run card", (
   assert.match(bidBrief.addLeadPrompt, /Add only real opportunities/i);
   assert.match(relationshipBrief.headline, /relationship source/i);
   assert.match(relationshipBrief.checkFor.join(" "), /human follow-up/i);
+});
+
+test("opportunity scout agent preview can fill an unsaved draft without overwriting human-entered fields", () => {
+  const draft = applyOpportunityScoutAgentPreviewToDraft({
+    title: "Human title",
+    city: "",
+    missingInfoItems: "",
+    reasonToBid: "",
+  }, {
+    ok: true,
+    extractedFields: {
+      title: "Extracted title",
+      agency: "City of Salem",
+      city: "Salem",
+      state: "OR",
+      trade: "concrete",
+      bidDueAt: "2026-06-10T17:00:00.000Z",
+      sourceUrl: "https://example.test/bids/44",
+      scopeSummary: "Concrete ramp replacement.",
+      fileMetadata: [{ name: "bid-invite.pdf" }],
+    },
+    missingInfoItems: ["review owner"],
+    fitReview: {
+      fitScore: 82,
+      fitExplanation: "strong fit: trade/scope captured",
+      fitRisks: ["addenda not confirmed"],
+    },
+    normalizedOpportunity: { intakeSourceType: "pasted_text" },
+  });
+
+  assert.equal(draft.title, "Human title");
+  assert.equal(draft.agency, "City of Salem");
+  assert.equal(draft.city, "Salem");
+  assert.equal(draft.state, "OR");
+  assert.equal(draft.trade, "concrete");
+  assert.equal(draft.bidDueAt, "2026-06-10");
+  assert.equal(draft.sourceUrl, "https://example.test/bids/44");
+  assert.equal(draft.fileMetadata, "bid-invite.pdf");
+  assert.equal(draft.missingInfoItems, "review owner");
+  assert.equal(draft.fitScore, "82");
+  assert.match(draft.reasonToBid, /strong fit/i);
+  assert.match(draft.riskFlags, /addenda/i);
+});
+
+test("opportunity scout agent preview fill is a no-op for blocked previews", () => {
+  const draft = { title: "Keep me" };
+  assert.equal(applyOpportunityScoutAgentPreviewToDraft(draft, { ok: false }), draft);
 });

@@ -222,6 +222,53 @@ function buildFoundOpportunityLeadPreview(opportunity = {}, today = dateKey(new 
   };
 }
 
+function dateInputValue(value) {
+  const key = dateKey(value);
+  return key || "";
+}
+
+function fileMetadataInputValue(files = []) {
+  return asArray(files)
+    .map((file) => collapseSpaces(file?.name || file?.fileName || file?.type || file?.sourceUrl || ""))
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function applyOpportunityScoutAgentPreviewToDraft(currentDraft = {}, preview = {}) {
+  if (!preview?.ok) return currentDraft;
+  const fields = preview.extractedFields || {};
+  const normalized = preview.normalizedOpportunity || {};
+  const fitReview = preview.fitReview || {};
+  const nextDraft = { ...currentDraft };
+  const setIfPreviewHasValue = (key, value, { overwrite = false } = {}) => {
+    const candidate = typeof value === "string" ? value.trim() : value;
+    if (candidate === undefined || candidate === null || candidate === "") return;
+    if (!overwrite && collapseSpaces(nextDraft[key])) return;
+    nextDraft[key] = String(candidate);
+  };
+
+  setIfPreviewHasValue("intakeSourceType", normalized.intakeSourceType || fields.intakeSourceType);
+  setIfPreviewHasValue("title", fields.title || normalized.title);
+  setIfPreviewHasValue("agency", fields.agency || normalized.agency);
+  setIfPreviewHasValue("sourceUrl", fields.sourceUrl || normalized.sourceUrl);
+  setIfPreviewHasValue("trade", fields.trade || normalized.trade);
+  setIfPreviewHasValue("city", fields.city || normalized.city);
+  setIfPreviewHasValue("state", fields.state || normalized.state);
+  setIfPreviewHasValue("scopeSummary", fields.scopeSummary || normalized.scopeSummary);
+  setIfPreviewHasValue("fitScore", fitReview.fitScore || normalized.fitScore);
+  setIfPreviewHasValue("bidDueAt", dateInputValue(fields.bidDueAt || normalized.bidDueAt));
+  setIfPreviewHasValue("fileMetadata", fileMetadataInputValue(fields.fileMetadata || normalized.fileMetadata));
+  setIfPreviewHasValue("missingInfoItems", asArray(preview.missingInfoItems).join(", "), { overwrite: !collapseSpaces(nextDraft.missingInfoItems) });
+  if (!collapseSpaces(nextDraft.reasonToBid) && fitReview.fitExplanation) {
+    nextDraft.reasonToBid = fitReview.fitExplanation;
+  }
+  if (!collapseSpaces(nextDraft.riskFlags) && asArray(fitReview.fitRisks).length) {
+    nextDraft.riskFlags = fitReview.fitRisks.join(", ");
+  }
+
+  return nextDraft;
+}
+
 function buildOpportunityScoutProfileBrief(profile = {}, companySettings = {}) {
   const areas = uniqueTexts([
     ...(Array.isArray(profile.serviceAreas) ? profile.serviceAreas : []),

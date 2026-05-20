@@ -165,7 +165,7 @@ import { JOB_STARTUP_STATUSES, buildStartupSummary, canMarkStartupReady, calcula
 import { deriveLeadInboxState, deriveLeadListState, deriveLeadPilotWorkflowReadiness, relatedLeadActivity } from "./lead-utils";
 import { buildManualOutreachContactPayload, buildManualOutreachDrafts } from "./manual-outreach-drafts";
 import { buildNotificationStateStorageKey, canViewNotificationCenter, deriveNotificationCenterState, extractNotificationStateForCompany, filterNotificationItems, normalizeNotificationState, notificationActionLabel, notificationSeverityTone, notificationTriggerLabel, NOTIFICATION_CENTER_FILTERS } from "./notification-center-utils";
-import { buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
+import { applyOpportunityScoutAgentPreviewToDraft, buildOpportunityScoutSourceBrief, deriveOpportunityScoutState } from "./opportunity-scout-utils";
 import { buildEnterpriseTrustReviewPacket, buildOwnerSupportPacket, deriveAppHealthAuditState, deriveEnterpriseTrustReadinessState, deriveOverallOwnerHealthStatus, formatBytes, healthStatusTone, ownerHealthStatusLabel, ownerHealthWarnings } from "./owner-health-utils";
 import { getReleaseSafetyCommandGroups, getReleaseSafetySections, releaseSafetyStatusTone } from "./release-safety-utils";
 import { DESIGN_COLORS, getButtonToneClass, getCardClass, getStatusToneClass } from "./design-tokens";
@@ -25816,6 +25816,11 @@ function CopilotPagePolished({
     });
   }
 
+  function applyFoundDraftAgentPreview() {
+    if (!canManageOpportunityScout || !foundDraftAgentPreview.result?.ok) return;
+    setFoundDraft((current) => applyOpportunityScoutAgentPreviewToDraft(current, foundDraftAgentPreview.result));
+  }
+
   function markProfileReviewed(profile) {
     if (!canManageOpportunityScout || !profile?.profileId) return;
     onUpdateOpportunitySearchProfile?.(profile.profileId, {
@@ -26548,14 +26553,21 @@ function CopilotPagePolished({
                         <p>{foundDraftAgentPreview.status === "loading" ? "Apex HQ is extracting fields, checking missing info, and checking for duplicate risk without saving anything." : foundDraftAgentPreview.message || foundDraftAgentPreview.result?.recommendedNextStep || "Review the extracted packet before saving found work."}</p>
                       </div>
                       {foundDraftAgentPreview.result?.ok ? (
-                        <div className="co-ai-scout-review-grid">
-                          <small><b>Project</b>{foundDraftAgentPreview.result.extractedFields?.title || "Missing"}</small>
-                          <small><b>Source</b>{foundDraftAgentPreview.result.extractedFields?.sourceUrl ? "Saved link" : "Needs source"}</small>
-                          <small><b>Fit</b>{foundDraftAgentPreview.result.fitReview?.fitLabel || "Review"}</small>
-                          <small><b>Missing</b>{foundDraftAgentPreview.result.missingInfoItems?.length ? foundDraftAgentPreview.result.missingInfoItems.slice(0, 3).join(", ") : "None flagged"}</small>
-                          <small><b>Duplicates</b>{foundDraftAgentPreview.result.duplicateHints?.length || 0}</small>
-                          <small><b>Agent</b>{foundDraftAgentPreview.result.agentRunPacket?.modeLabel || "Review-first"}</small>
-                        </div>
+                        <>
+                          <div className="co-ai-scout-review-grid">
+                            <small><b>Project</b>{foundDraftAgentPreview.result.extractedFields?.title || "Missing"}</small>
+                            <small><b>Source</b>{foundDraftAgentPreview.result.extractedFields?.sourceUrl ? "Saved link" : "Needs source"}</small>
+                            <small><b>Fit</b>{foundDraftAgentPreview.result.fitReview?.fitLabel || "Review"}</small>
+                            <small><b>Missing</b>{foundDraftAgentPreview.result.missingInfoItems?.length ? foundDraftAgentPreview.result.missingInfoItems.slice(0, 3).join(", ") : "None flagged"}</small>
+                            <small><b>Duplicates</b>{foundDraftAgentPreview.result.duplicateHints?.length || 0}</small>
+                            <small><b>Agent</b>{foundDraftAgentPreview.result.agentRunPacket?.modeLabel || "Review-first"}</small>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button type="button" size="sm" variant="secondary" onClick={applyFoundDraftAgentPreview} disabled={!canManageOpportunityScout || busy}>
+                              Use Preview
+                            </Button>
+                          </div>
+                        </>
                       ) : null}
                     </div>
                   ) : null}
