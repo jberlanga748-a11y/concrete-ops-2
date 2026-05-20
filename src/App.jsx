@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3780,6 +3780,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openReportReview(choice = {}) {
     const opened = onOpenReportReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openUploadReview(choice = {}) {
+    const opened = onOpenUploadReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3960,6 +3968,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openReportReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Reports instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "upload-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openUploadReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the photo evidence review tools. No upload changes happen automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openUploadReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Photo Evidence instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -10256,7 +10281,7 @@ function UploadsProofWorkbench({
   );
 }
 
-function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload, onOpenSupport }) {
+function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, sessionToken, busy, errorMessage, onCreateUpload, onUpdateUpload, onArchiveUpload, onOpenSupport, assistantUploadReviewSeed = null, onAssistantUploadReviewSeedHandled = () => {} }) {
   const [filter, setFilter] = useState("Active only");
   const [search, setSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("All jobs");
@@ -10511,6 +10536,29 @@ function UploadsPagePolished({ user, permissions, uploads, jobs, selectedJob, se
     if (targetUpload?.id) setSelectedUploadId(targetUpload.id);
     openTool(options.tool || "details");
   }
+
+  useEffect(() => {
+    const seed = assistantUploadReviewSeed;
+    if (!seed?.nonce || !permissions.uploads.canManageAll) return;
+
+    const targetUpload = seed.uploadId
+      ? safeUploads.find((upload) => upload?.id === seed.uploadId)
+      : safeUploads.find((upload) => !upload?.archivedAt && (!upload.hasGps || !String(upload.caption || upload.notes || "").trim()))
+        || latestVisibleUpload
+        || safeUploads.find((upload) => !upload?.archivedAt)
+        || null;
+
+    setFilter(targetUpload?.archivedAt ? "All uploads" : "Active only");
+    setSearch("");
+    setJobFilter(targetUpload?.jobId || "All jobs");
+    setUploaderFilter("All uploaders");
+    setDateFilter("All dates");
+    const targetHasGps = targetUpload?.hasGps === true || (targetUpload?.latitude != null && targetUpload?.longitude != null);
+    setGpsFilter(targetUpload && !targetHasGps ? "Missing GPS" : "All locations");
+    if (targetUpload?.id) setSelectedUploadId(targetUpload.id);
+    openTool("details");
+    onAssistantUploadReviewSeedHandled(seed.nonce);
+  }, [assistantUploadReviewSeed?.nonce, permissions.uploads.canManageAll, safeUploads, latestVisibleUpload, onAssistantUploadReviewSeedHandled]);
 
   function clearFilters() {
     setFilter("Active only");
@@ -38857,9 +38905,16 @@ function MainContent(props) {
         onAssistantReportReviewSeedHandled={props.onAssistantReportReviewSeedHandled}
       />
     );
-  }
+    }
     if (active === "uploads") {
-      return <UploadsPage {...props} uploads={props.uploads} />;
+      return (
+        <UploadsPage
+          {...props}
+          uploads={props.uploads}
+          assistantUploadReviewSeed={props.assistantUploadReviewSeed}
+          onAssistantUploadReviewSeedHandled={props.onAssistantUploadReviewSeedHandled}
+        />
+      );
     }
     if (active === "prePour") {
       return (
@@ -39028,6 +39083,7 @@ export default function App() {
   const [assistantEstimateJobHandoffSeed, setAssistantEstimateJobHandoffSeed] = useState(null);
   const [assistantJobHandoffSeed, setAssistantJobHandoffSeed] = useState(null);
   const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
+  const [assistantUploadReviewSeed, setAssistantUploadReviewSeed] = useState(null);
   const [assistantDeliveryTicketReviewSeed, setAssistantDeliveryTicketReviewSeed] = useState(null);
   const [assistantPrePourReviewSeed, setAssistantPrePourReviewSeed] = useState(null);
   const [assistantPostPourReviewSeed, setAssistantPostPourReviewSeed] = useState(null);
@@ -39203,6 +39259,19 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("reports");
+    return true;
+  }
+
+  function handleOpenAssistantUploadReview(seed = {}) {
+    if (!appState.permissions.uploads?.canManageAll) {
+      setErrorMessage("Upload proof assistant review actions require an office role that can manage photo evidence.");
+      return false;
+    }
+    setAssistantUploadReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("uploads");
     return true;
   }
 
@@ -42235,6 +42304,12 @@ export default function App() {
                     setAssistantReportReviewSeed(null);
                   }
                 }}
+                assistantUploadReviewSeed={assistantUploadReviewSeed}
+                onAssistantUploadReviewSeedHandled={(nonce) => {
+                  if (!assistantUploadReviewSeed || assistantUploadReviewSeed.nonce === nonce) {
+                    setAssistantUploadReviewSeed(null);
+                  }
+                }}
                 assistantDeliveryTicketReviewSeed={assistantDeliveryTicketReviewSeed}
                 onAssistantDeliveryTicketReviewSeedHandled={(nonce) => {
                   if (!assistantDeliveryTicketReviewSeed || assistantDeliveryTicketReviewSeed.nonce === nonce) {
@@ -42483,6 +42558,7 @@ export default function App() {
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
         onOpenReportReview={handleOpenAssistantReportReview}
+        onOpenUploadReview={handleOpenAssistantUploadReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}

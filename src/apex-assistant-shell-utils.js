@@ -149,6 +149,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     };
   }
 
+  const uploadReviewCommand = resolveAssistantUploadReviewCommand(input, state.commandContext || {});
+  if (uploadReviewCommand) return uploadReviewCommand;
+
   const missingProofCommand = resolveAssistantMissingProofCommand(input, state.commandContext || {});
   if (missingProofCommand) return missingProofCommand;
 
@@ -370,6 +373,47 @@ export function resolveAssistantDeliveryTicketReviewCommand(input = "", context 
       : matches.length > 1
         ? "I found multiple delivery tickets that may need review. Choose the right ticket before opening the ticket console."
         : "I did not find an exact delivery ticket match. Open Delivery Tickets and review the board manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
+export function resolveAssistantUploadReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasUploadReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.uploads?.canManageAll) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Upload proof review assistant commands are office proof-review tools. Field users can capture assigned job photos where allowed, but cannot open office evidence review controls.",
+    };
+  }
+
+  const query = extractUploadReviewTargetQuery(rawText);
+  const matches = findAssistantUploadReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-upload-proof-review",
+    type: "upload-review",
+    label: "Open photo evidence board",
+    helper: "No exact upload match found. Open Photo Evidence and choose the proof item manually.",
+  };
+
+  return {
+    type: "upload-review",
+    moduleId: "uploads",
+    actionLabel: matches.length === 1 ? "Review upload" : matches.length > 1 ? "Choose upload" : "Open Uploads",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for photo proof review. No upload will be edited, archived, linked, approved, billed, sent, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple uploads that may need proof review. Choose the right photo before opening the evidence tools."
+        : "I did not find an exact upload match. Open Photo Evidence and review the proof board manually.",
     commandText: rawText,
     query,
     matches,
@@ -678,6 +722,14 @@ function hasDeliveryTicketReviewIntent(text = "") {
   return asksForReview && mentionsTicket && mentionsReviewQueue;
 }
 
+function hasUploadReviewIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsUpload = /\b(upload|uploads|photo|photos|picture|pictures|image|images|jobsite photo|jobsite photos|photo evidence|evidence)\b/.test(text);
+  const mentionsReviewQueue = /\b(proof review|needs review|needing review|review queue|office review|proof|caption|captions|gps|location|missing context|missing gps|caption gap|caption gaps|latest evidence)\b/.test(text);
+  return asksToOpen && mentionsUpload && mentionsReviewQueue;
+}
+
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -789,6 +841,19 @@ function extractDeliveryTicketReviewTargetQuery(input = "") {
 
   return "";
 }
+
+function extractUploadReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:upload|uploads|photo|photos|picture|pictures|image|images|jobsite photo|jobsite photos|photo evidence|evidence)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:upload|uploads|photo|photos|picture|pictures|image|images|jobsite photo|jobsite photos|photo evidence|evidence)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|upload|uploads|photo|photos|picture|pictures|image|images|jobsite|evidence|proof|for|from|this|the|missing|needs|caption|gps|location)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
 
 function extractFieldChecklistReviewTargetQuery(input = "", kind = "") {
   const rawText = String(input || "").trim();
@@ -1153,6 +1218,84 @@ function findAssistantDeliveryTicketReviewMatches(query = "", context = {}) {
     }))
     .filter((match) => match.ticketId)
     .slice(0, 4);
+}
+
+function findAssistantUploadReviewMatches(query = "", context = {}) {
+  const uploads = asArray(context.uploads).filter((upload) => !upload?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? uploads.filter((upload) => targetMatchesWords(uploadSearchText(upload), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : uploads;
+
+  return candidates
+    .map((upload) => ({
+      upload,
+      missingGps: !uploadHasGps(upload),
+      missingCaption: !String(upload?.caption || upload?.notes || "").trim(),
+      missingJob: !uploadJobId(upload),
+      image: String(upload?.fileType || "").startsWith("image/"),
+    }))
+    .sort((left, right) => uploadReviewPriority(right) - uploadReviewPriority(left) || uploadLabel(left.upload).localeCompare(uploadLabel(right.upload)))
+    .map(({ upload, missingGps, missingCaption, missingJob, image }) => ({
+      id: `upload:${upload.id}`,
+      type: "upload",
+      uploadId: upload.id || "",
+      label: uploadLabel(upload),
+      helper: [
+        image ? "photo evidence" : "file evidence",
+        missingCaption ? "caption context missing" : "caption ready",
+        missingGps ? "GPS context missing" : "GPS captured",
+        missingJob ? "job link missing" : uploadJobTitle(upload),
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.uploadId)
+    .slice(0, 4);
+}
+
+function uploadReviewPriority(candidate = {}) {
+  return (candidate.missingJob ? 20 : 0) + (candidate.missingCaption ? 10 : 0) + (candidate.missingGps ? 6 : 0) + (candidate.image ? 2 : 0);
+}
+
+function uploadHasGps(upload = {}) {
+  return upload?.hasGps === true || (upload.latitude != null && upload.longitude != null);
+}
+
+function uploadJobId(upload = {}) {
+  return upload.jobId || upload.job?.id || "";
+}
+
+function uploadJobTitle(upload = {}) {
+  return upload.job?.title || upload.jobTitle || upload.job?.name || upload.jobId || "job unavailable";
+}
+
+function uploadLabel(upload = {}) {
+  return [
+    upload.caption || upload.fileName || "Photo evidence",
+    uploadJobTitle(upload),
+    upload.uploadedByName || upload.uploadedBy || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function uploadSearchText(upload = {}) {
+  return normalizeText([
+    upload.id,
+    upload.fileName,
+    upload.caption,
+    upload.notes,
+    upload.uploadedByName,
+    upload.uploadedBy,
+    upload.createdByName,
+    upload.createdBy,
+    upload.fileType,
+    upload.locationUnavailableReason,
+    upload.jobTitle,
+    upload.job?.title,
+    upload.job?.customer,
+    upload.job?.customerName,
+    upload.job?.address,
+    upload.job?.city,
+    upload.job?.location,
+  ].filter(Boolean).join(" "));
 }
 
 function deliveryTicketReviewPriority(candidate = {}) {

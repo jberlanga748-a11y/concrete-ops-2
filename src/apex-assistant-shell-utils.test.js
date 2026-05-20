@@ -15,6 +15,7 @@ import {
   resolveAssistantReportReviewCommand,
   resolveAssistantSafetyIncidentReviewCommand,
   resolveAssistantToolChecklistReviewCommand,
+  resolveAssistantUploadReviewCommand,
 } from "./apex-assistant-shell-utils.js";
 
 test("assistant shell is hidden without AI Office permission", () => {
@@ -237,6 +238,67 @@ test("assistant routes submitted report review before generic report navigation"
 
   assert.equal(command.type, "report-review");
   assert.equal(command.matches[0].reportId, "REPORT-1");
+});
+
+test("assistant opens upload proof review without write actions", () => {
+  const command = resolveAssistantUploadReviewCommand("Review photo proof for Westview Warehouse", {
+    permissions: { uploads: { canView: true, canManageAll: true } },
+    uploads: [
+      {
+        id: "UPLOAD-1",
+        fileName: "westview-pour.jpg",
+        caption: "",
+        fileType: "image/jpeg",
+        uploadedByName: "Luis G.",
+        latitude: null,
+        longitude: null,
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+      },
+    ],
+  });
+
+  assert.equal(command.type, "upload-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].uploadId, "UPLOAD-1");
+  assert.match(command.message, /No upload will be edited, archived, linked, approved, billed, sent, or changed automatically/i);
+});
+
+test("assistant upload proof review is blocked for field roles", () => {
+  const command = resolveAssistantUploadReviewCommand("Open upload proof review for Westview Warehouse", {
+    permissions: { uploads: { canView: true, canCreate: true, canManageAll: false } },
+    uploads: [{ id: "UPLOAD-1", fileName: "field-photo.jpg", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users can capture assigned job photos/i);
+});
+
+test("assistant routes upload proof review before generic upload navigation", () => {
+  const command = resolveApexAssistantCommand("Open upload proof review for Westview Warehouse", {
+    commandContext: {
+      permissions: { uploads: { canView: true, canManageAll: true } },
+      uploads: [
+        { id: "UPLOAD-1", fileName: "westview-pour.jpg", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "upload-review");
+  assert.equal(command.matches[0].uploadId, "UPLOAD-1");
+});
+
+test("assistant keeps generic uploads navigation out of office proof review", () => {
+  const command = resolveApexAssistantCommand("open uploads", {
+    commandContext: {
+      permissions: { uploads: { canView: true, canManageAll: true } },
+      uploads: [
+        { id: "UPLOAD-1", fileName: "westview-pour.jpg", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "uploads");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {
