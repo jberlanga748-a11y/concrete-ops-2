@@ -43,7 +43,6 @@ Current stage:
 ## Must Be Tightened Before Wider Launch
 
 - production auth smoke design and approval
-- GitHub `APEX_SMOKE_PASSWORD` secret setup for scheduled demo auth smoke
 - production monitoring/log drain decision
 - production min-machine/cold-start decision
 - customer-specific pilot environment setup for any real pilot
@@ -87,7 +86,7 @@ Do not use:
 | Backup/export verification | Built |
 | Local restore drill verifier | Built |
 | Scheduled readiness monitor | Built |
-| Scheduled demo hosted smoke | Built; auth waits on GitHub secret |
+| Scheduled demo hosted smoke | Built; auth/bootstrap gate configured and passing |
 | Production log drain / dedicated monitor | Planned; not enabled |
 
 ## Business Launch Checklist
@@ -118,8 +117,8 @@ Do not use:
 - pilot offer ready
 - known product limitations stated plainly
 - run `npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json`
-- run auth smoke only when `APEX_SMOKE_PASSWORD` is available
-- use `docs/apex-hq-github-actions-smoke-secrets.md` for scheduled auth smoke setup
+- confirm scheduled demo hosted auth smoke is passing in GitHub Actions
+- use `docs/apex-hq-github-actions-smoke-secrets.md` for scheduled auth smoke secret rotation
 
 ## Pilot Onboarding Checklist
 

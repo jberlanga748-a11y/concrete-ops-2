@@ -206,5 +206,5 @@ P3:
 - Use `docs/apex-hq-incident-notes-log.md` for Phase 1 incident notes until a dedicated tracker exists.
 - Run the next scheduled local restore drill on Monday, June 1, 2026.
 - Use `docs/apex-hq-monitoring-upgrade-plan.md` before adding a log drain or dedicated uptime monitoring.
-- Configure the `APEX_SMOKE_PASSWORD` GitHub Actions secret using `docs/apex-hq-github-actions-smoke-secrets.md` so scheduled demo smoke can include auth/bootstrap timing.
+- Keep the `APEX_SMOKE_PASSWORD` GitHub Actions secret rotated through `docs/apex-hq-github-actions-smoke-secrets.md`; scheduled demo smoke now includes auth/bootstrap timing.
 - Consider scheduled production auth smoke only after explicit production-safety approval.
