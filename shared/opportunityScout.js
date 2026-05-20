@@ -678,6 +678,61 @@ export function isConvertedFoundOpportunityToLead(opportunity = {}) {
     || normalizeOption(opportunity.status, FOUND_OPPORTUNITY_STATUSES, "new") === "converted_to_lead";
 }
 
+function dateKey(value) {
+  const iso = normalizeOpportunityScoutDate(value);
+  return iso ? iso.slice(0, 10) : "";
+}
+
+export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today = dateKey(new Date()) } = {}) {
+  const bidDueDate = dateKey(opportunity.bidDueAt);
+  const fitScore = Number(opportunity.fitScore || 0);
+  const converted = isConvertedFoundOpportunityToLead(opportunity);
+  const canCreateLead = canConvertFoundOpportunityToLead(opportunity);
+  const highPriority = fitScore >= 75 || Boolean(bidDueDate && bidDueDate <= today);
+  const missingInfoItems = Array.isArray(opportunity.missingInfoItems) ? opportunity.missingInfoItems.filter(Boolean) : [];
+  const duplicateHints = Array.isArray(opportunity.duplicateHints) ? opportunity.duplicateHints.filter(Boolean) : [];
+  const notesIncluded = [];
+  const reviewWarnings = [];
+
+  if (opportunity.sourceUrl || opportunity.planUrl) notesIncluded.push("source link");
+  if (opportunity.scopeSummary) notesIncluded.push("scope");
+  if (opportunity.reasonToBid) notesIncluded.push("reason to bid");
+  if (Array.isArray(opportunity.riskFlags) && opportunity.riskFlags.length) notesIncluded.push("risks");
+  if (missingInfoItems.length) {
+    notesIncluded.push("missing info");
+    reviewWarnings.push(`Missing info: ${missingInfoItems.slice(0, 3).join(", ")}`);
+  }
+  if (duplicateHints.length) {
+    reviewWarnings.push(`${duplicateHints.length} possible duplicate${duplicateHints.length === 1 ? "" : "s"} to review`);
+  }
+  if (!canCreateLead && !converted) {
+    reviewWarnings.push("Approve For Lead is required before Create Lead unlocks.");
+  }
+
+  return {
+    customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title || "Customer pending",
+    project: opportunity.title || "Untitled opportunity",
+    city: opportunity.city || "Location pending",
+    priority: highPriority ? "High" : "Normal",
+    source: "Opportunity Scout",
+    followUp: "Due today after conversion",
+    nextStep: opportunity.bidDueAt
+      ? "Review bid date, confirm fit, and qualify the opportunity."
+      : "Qualify the found opportunity and confirm the next bid step.",
+    owner: opportunity.assignedEstimatorId ? "Assigned estimator" : "Current office user",
+    notesIncluded,
+    approvalRequired: !canCreateLead && !converted,
+    canCreateLead,
+    converted,
+    reviewWarnings,
+    blockedActions: [
+      "No automatic customer contact",
+      "No bid submission",
+      "No credential or token storage",
+    ],
+  };
+}
+
 function containsBlockedAutomationPayload(payload = {}) {
   if (payload.autoContact || payload.autoContactCustomer || payload.customerContacted || payload.contactCustomer || payload.submitBid || payload.bidSubmitted || payload.autoSubmitBid) {
     return true;

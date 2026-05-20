@@ -128,12 +128,16 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.foundOpportunityQueue[0].leadPreview.project, "School sidewalk repair");
   assert.equal(state.foundOpportunityQueue[0].leadPreview.city, "Location pending");
   assert.equal(state.foundOpportunityQueue[0].leadPreview.priority, "High");
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.canCreateLead, false);
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.reviewWarnings.some((warning) => /addenda/i.test(warning)), true);
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.blockedActions.some((action) => /No bid submission/i.test(action)), true);
   assert.deepEqual(state.foundOpportunityQueue[0].leadPreview.notesIncluded, ["source link", "scope", "risks", "missing info"]);
   const approvedOpportunity = state.foundOpportunityQueue.find((opportunity) => opportunity.opportunityId === "FO-5");
   assert.equal(approvedOpportunity.canConvertToLead, true);
   assert.equal(approvedOpportunity.leadHandoffState, "approved_for_lead");
   assert.equal(approvedOpportunity.leadHandoffLabel, "Ready to create lead");
   assert.equal(approvedOpportunity.humanReviewStatus, "approved_for_lead");
+  assert.equal(approvedOpportunity.leadPreview.canCreateLead, true);
   assert.equal(approvedOpportunity.duplicateHints.length, 1);
   assert.deepEqual(approvedOpportunity.fileMetadata.map((file) => file.name), ["ramp-screenshot.png"]);
   assert.equal(approvedOpportunity.fitLabel, "strong fit");

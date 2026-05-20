@@ -26666,6 +26666,12 @@ function CopilotPagePolished({
                               <small><b>Notes</b>{opportunity.leadPreview.notesIncluded.length ? opportunity.leadPreview.notesIncluded.join(", ") : "Basic opportunity details"}</small>
                             </div>
                             <p className="co-ai-lead-handoff-next">{opportunity.leadPreview.nextStep}</p>
+                            {opportunity.leadPreview.reviewWarnings?.length ? (
+                              <p className="co-ai-lead-handoff-next">Review gates: {opportunity.leadPreview.reviewWarnings.slice(0, 2).join(" / ")}</p>
+                            ) : null}
+                            {opportunity.leadPreview.blockedActions?.length ? (
+                              <p className="co-ai-lead-handoff-next">Agent will not: {opportunity.leadPreview.blockedActions.join(" / ")}</p>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>

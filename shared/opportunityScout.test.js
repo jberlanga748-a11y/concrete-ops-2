@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   canConvertFoundOpportunityToLead,
+  buildFoundOpportunityLeadHandoffPacket,
   buildOpportunityScoutAgentRunPacket,
   buildOpportunityScoutAgentPreview,
   changedOpportunityFields,
@@ -293,6 +294,37 @@ test("lead conversion helper requires human approval first", () => {
   assert.equal(canConvertFoundOpportunityToLead({ humanReviewStatus: "approved_for_lead", status: "converted_to_lead" }), false);
   assert.equal(isConvertedFoundOpportunityToLead({ status: "converted_to_lead" }), true);
   assert.equal(isConvertedFoundOpportunityToLead({ convertedLeadId: "L-1" }), true);
+});
+
+test("lead handoff packet explains create-lead gates and blocked agent actions", () => {
+  const needsReview = buildFoundOpportunityLeadHandoffPacket({
+    title: "Library ramp",
+    agency: "City of Salem",
+    city: "Salem",
+    fitScore: 81,
+    bidDueAt: "2026-05-13",
+    sourceUrl: "https://example.test/bids/44",
+    scopeSummary: "Concrete ramp replacement.",
+    missingInfoItems: ["addenda"],
+    duplicateHints: [{ opportunityId: "FO-1" }],
+    humanReviewStatus: "needs_review",
+  }, { today: "2026-05-13" });
+
+  assert.equal(needsReview.customer, "City of Salem");
+  assert.equal(needsReview.priority, "High");
+  assert.equal(needsReview.canCreateLead, false);
+  assert.equal(needsReview.approvalRequired, true);
+  assert.equal(needsReview.notesIncluded.includes("source link"), true);
+  assert.equal(needsReview.reviewWarnings.some((warning) => /Approve For Lead/i.test(warning)), true);
+  assert.equal(needsReview.reviewWarnings.some((warning) => /duplicate/i.test(warning)), true);
+  assert.equal(needsReview.blockedActions.some((action) => /No bid submission/i.test(action)), true);
+
+  const approved = buildFoundOpportunityLeadHandoffPacket({
+    title: "Library ramp",
+    humanReviewStatus: "approved_for_lead",
+  });
+  assert.equal(approved.canCreateLead, true);
+  assert.equal(approved.approvalRequired, false);
 });
 
 test("changed fields compare array values safely", () => {

@@ -1,5 +1,5 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
-import { buildOpportunityScoutAgentRunPacket, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead } from "../shared/opportunityScout.js";
+import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -196,32 +196,6 @@ function opportunityPriority(opportunity = {}, today = dateKey(new Date())) {
   return 9;
 }
 
-function buildFoundOpportunityLeadPreview(opportunity = {}, today = dateKey(new Date())) {
-  const bidDueDate = dateKey(opportunity.bidDueAt);
-  const fitScore = Number(opportunity.fitScore || 0);
-  const highPriority = fitScore >= 75 || Boolean(bidDueDate && bidDueDate <= today);
-  const notesIncluded = [];
-  if (opportunity.sourceUrl || opportunity.planUrl) notesIncluded.push("source link");
-  if (opportunity.scopeSummary) notesIncluded.push("scope");
-  if (opportunity.reasonToBid) notesIncluded.push("reason to bid");
-  if (Array.isArray(opportunity.riskFlags) && opportunity.riskFlags.length) notesIncluded.push("risks");
-  if (Array.isArray(opportunity.missingInfoItems) && opportunity.missingInfoItems.length) notesIncluded.push("missing info");
-
-  return {
-    customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title || "Customer pending",
-    project: opportunity.title || "Untitled opportunity",
-    city: opportunity.city || "Location pending",
-    priority: highPriority ? "High" : "Normal",
-    source: "Opportunity Scout",
-    followUp: "Due today after conversion",
-    nextStep: opportunity.bidDueAt
-      ? "Review bid date, confirm fit, and qualify the opportunity."
-      : "Qualify the found opportunity and confirm the next bid step.",
-    owner: opportunity.assignedEstimatorId ? "Assigned estimator" : "Current office user",
-    notesIncluded,
-  };
-}
-
 function dateInputValue(value) {
   const key = dateKey(value);
   return key || "";
@@ -371,7 +345,7 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
     leadHandoffHelper: handoff.helper,
     leadHandoffTone: handoff.tone,
     leadHandoffActionLabel: handoff.actionLabel,
-    leadPreview: buildFoundOpportunityLeadPreview(opportunity, today),
+    leadPreview: buildFoundOpportunityLeadHandoffPacket(opportunity, { today }),
     tone,
     priority,
   };
