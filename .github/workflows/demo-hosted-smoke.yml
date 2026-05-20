@@ -61,7 +61,7 @@ jobs:
 
       - name: Report demo smoke failure
         if: ${{ failure() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const issueTitle = "Apex HQ demo hosted smoke failed";
@@ -108,7 +108,7 @@ jobs:
 
       - name: Close recovered demo smoke issue
         if: ${{ success() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const issueTitle = "Apex HQ demo hosted smoke failed";
