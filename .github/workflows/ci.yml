@@ -47,6 +47,7 @@ jobs:
         run: |
           npm run verify:docs
           npm run verify:public-request
+          npm run verify:opportunity-scout
           npm run verify:demo
 
       - name: Verify server behavior and backup/export tooling

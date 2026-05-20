@@ -27,6 +27,7 @@
     "verify:signup": "node --test --test-concurrency=1 server/signup.test.js server/company-scope.test.js shared/companyScope.test.js",
     "verify:packages": "node --test --test-concurrency=1 shared/packages.test.js shared/packageEntitlements.test.js",
     "verify:entitlements": "node --test --test-concurrency=1 server/package-entitlements.test.js shared/packages.test.js shared/packageEntitlements.test.js src/navigation-utils.test.js",
+    "verify:opportunity-scout": "node --test --test-concurrency=1 server/opportunity-scout.test.js shared/opportunityScout.test.js shared/opportunityScoutAi.test.js src/opportunity-scout-utils.test.js src/navigation-utils.test.js",
     "brief:founder-demo": "node scripts/founder-demo-brief.mjs",
     "verify:founder-demo": "node scripts/founder-demo-readiness.mjs && node --test --test-concurrency=1 scripts/founder-demo-brief.test.mjs && node scripts/founder-demo-brief.mjs --limit=5",
     "verify:field-workspaces": "node --test --test-concurrency=1 src/field-workspace-utils.test.js",
