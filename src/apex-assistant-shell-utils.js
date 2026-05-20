@@ -49,6 +49,13 @@ const ROUTE_COMMANDS = [
     message: "Open Delivery Tickets to review material proof tied to the job and day.",
   },
   {
+    id: "time",
+    moduleId: "time",
+    actionLabel: "Open time",
+    keywords: ["time", "clock", "timesheet", "timesheets"],
+    message: "Open Time to review active clocks, breaks, and role-scoped time entries.",
+  },
+  {
     id: "incidents",
     moduleId: "incidents",
     actionLabel: "Open safety",
@@ -157,6 +164,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const reportReviewCommand = resolveAssistantReportReviewCommand(input, state.commandContext || {});
   if (reportReviewCommand) return reportReviewCommand;
+
+  const timeReviewCommand = resolveAssistantTimeReviewCommand(input, state.commandContext || {});
+  if (timeReviewCommand) return timeReviewCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -414,6 +424,47 @@ export function resolveAssistantUploadReviewCommand(input = "", context = {}) {
       : matches.length > 1
         ? "I found multiple uploads that may need proof review. Choose the right photo before opening the evidence tools."
         : "I did not find an exact upload match. Open Photo Evidence and review the proof board manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
+export function resolveAssistantTimeReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasTimeReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.time?.canViewAll && !permissions?.time?.canCorrect) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Time review assistant commands are office time-review tools. Field users stay limited to their assigned clock, break, and job-safe time workflows.",
+    };
+  }
+
+  const query = extractTimeReviewTargetQuery(rawText);
+  const matches = findAssistantTimeReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-time-review",
+    type: "time-review",
+    label: "Open time board",
+    helper: "No exact time entry match found. Open Time and choose the entry manually.",
+  };
+
+  return {
+    type: "time-review",
+    moduleId: "time",
+    actionLabel: matches.length === 1 ? "Review time" : matches.length > 1 ? "Choose entry" : "Open Time",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for office time review. No time entry will be corrected, clocked out, break-adjusted, approved, exported, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple time entries that may need review. Choose the right entry before opening the time board."
+        : "I did not find an exact time entry match. Open Time and review active clocks or entries manually.",
     commandText: rawText,
     query,
     matches,
@@ -729,6 +780,12 @@ function hasUploadReviewIntent(text = "") {
   return asksToOpen && mentionsUpload && mentionsReviewQueue;
 }
 
+function hasTimeReviewIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsTime = /\b(time|time entry|time entries|timesheet|timesheets|clock|clocks|clocked in|clocked-in|break|breaks)\b/.test(text);
+  const mentionsReviewQueue = /\b(active|on break|break|breaks|review|needs review|needing review|office review|correction|corrections|unlinked|job link|crew time|field time|clocked in|clocked-in)\b/.test(text);
+  return asksToOpen && mentionsTime && mentionsReviewQueue;
+}
 
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
@@ -854,6 +911,17 @@ function extractUploadReviewTargetQuery(input = "") {
   return "";
 }
 
+function extractTimeReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:time|time entry|time entries|timesheet|timesheets|clock|clocks|crew time|field time)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:time|time entry|time entries|timesheet|timesheets|clock|clocks|crew time|field time)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|time|entry|entries|timesheet|timesheets|clock|clocks|crew|field|for|from|on|at|this|the|active|break|breaks|needs|correction)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
 
 function extractFieldChecklistReviewTargetQuery(input = "", kind = "") {
   const rawText = String(input || "").trim();
@@ -1250,6 +1318,90 @@ function findAssistantUploadReviewMatches(query = "", context = {}) {
     }))
     .filter((match) => match.uploadId)
     .slice(0, 4);
+}
+
+function findAssistantTimeReviewMatches(query = "", context = {}) {
+  const entries = asArray(context.timeEntries).filter((entry) => !entry?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? entries.filter((entry) => targetMatchesWords(timeEntrySearchText(entry), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : entries;
+
+  return candidates
+    .map((entry) => ({
+      entry,
+      active: timeEntryIsActive(entry),
+      onBreak: normalizeText(entry.status) === "on_break",
+      unlinked: !timeEntryJobId(entry),
+      missingClockOut: Boolean(entry?.clockInAt && !entry?.clockOutAt),
+    }))
+    .sort((left, right) => timeEntryReviewPriority(right) - timeEntryReviewPriority(left) || timeEntryLabel(left.entry).localeCompare(timeEntryLabel(right.entry)))
+    .map(({ entry, active, onBreak, unlinked, missingClockOut }) => ({
+      id: `time:${entry.id}`,
+      type: "time-entry",
+      timeEntryId: entry.id || "",
+      label: timeEntryLabel(entry),
+      helper: [
+        active ? "active clock" : `status ${entry.status || "completed"}`,
+        onBreak ? "on break" : "",
+        unlinked ? "job link missing" : timeEntryJobTitle(entry),
+        missingClockOut ? "clock-out pending" : "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.timeEntryId)
+    .slice(0, 4);
+}
+
+function timeEntryReviewPriority(candidate = {}) {
+  return (candidate.active ? 20 : 0) + (candidate.onBreak ? 8 : 0) + (candidate.unlinked ? 8 : 0) + (candidate.missingClockOut ? 6 : 0);
+}
+
+function timeEntryIsActive(entry = {}) {
+  const status = normalizeText(entry.status || "completed");
+  return status !== "completed" || Boolean(entry.clockInAt && !entry.clockOutAt);
+}
+
+function timeEntryJobId(entry = {}) {
+  return entry.jobId || entry.job?.id || "";
+}
+
+function timeEntryJobTitle(entry = {}) {
+  return entry.jobTitle || entry.job?.title || entry.job?.name || entry.jobId || "job unavailable";
+}
+
+function timeEntryUserLabel(entry = {}) {
+  return entry.userName || entry.employeeName || entry.createdByName || entry.userEmail || entry.userId || "Field user";
+}
+
+function timeEntryLabel(entry = {}) {
+  return [
+    timeEntryUserLabel(entry),
+    timeEntryJobTitle(entry),
+    entry.clockInAt || entry.createdAt || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function timeEntrySearchText(entry = {}) {
+  return normalizeText([
+    entry.id,
+    entry.status,
+    entry.userName,
+    entry.employeeName,
+    entry.userEmail,
+    entry.userId,
+    entry.userRole,
+    entry.workCategory,
+    entry.notes,
+    entry.clockInAt,
+    entry.clockOutAt,
+    entry.jobTitle,
+    entry.job?.title,
+    entry.job?.customer,
+    entry.job?.customerName,
+    entry.job?.address,
+    entry.job?.city,
+    entry.job?.location,
+  ].filter(Boolean).join(" "));
 }
 
 function uploadReviewPriority(candidate = {}) {

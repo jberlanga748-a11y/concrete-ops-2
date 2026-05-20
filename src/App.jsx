@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3788,6 +3788,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openUploadReview(choice = {}) {
     const opened = onOpenUploadReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openTimeReview(choice = {}) {
+    const opened = onOpenTimeReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3985,6 +3993,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openUploadReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Photo Evidence instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "time-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openTimeReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the time board. No correction or clock action happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openTimeReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Time instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -39275,6 +39300,16 @@ export default function App() {
     return true;
   }
 
+  function handleOpenAssistantTimeReview(seed = {}) {
+    if (!appState.permissions.time?.canViewAll && !appState.permissions.time?.canCorrect) {
+      setErrorMessage("Time assistant review actions require an office role that can review company time.");
+      return false;
+    }
+    if (seed.timeEntryId) setSelectedTimeEntryId(seed.timeEntryId);
+    setActive("time");
+    return true;
+  }
+
   function handleOpenAssistantDeliveryTicketReview(seed = {}) {
     if (!appState.permissions.deliveryTickets?.canManageAll) {
       setErrorMessage("Delivery ticket assistant review actions require an office role that can manage delivery ticket proof.");
@@ -42543,6 +42578,7 @@ export default function App() {
           jobs: appState.permissions.jobs?.canView ? appState.jobs : [],
           dailyReports: appState.permissions.reports?.canView ? appState.dailyReports : [],
           uploads: appState.permissions.uploads?.canView ? appState.uploads : [],
+          timeEntries: appState.permissions.time?.canView ? appState.timeEntries : [],
           deliveryTickets: appState.permissions.deliveryTickets?.canView ? appState.deliveryTickets : [],
           prePourChecklists: appState.permissions.prePour?.canView ? appState.prePourChecklists : [],
           postPourChecklists: appState.permissions.postPour?.canView ? appState.postPourChecklists : [],
@@ -42559,6 +42595,7 @@ export default function App() {
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
         onOpenReportReview={handleOpenAssistantReportReview}
         onOpenUploadReview={handleOpenAssistantUploadReview}
+        onOpenTimeReview={handleOpenAssistantTimeReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}

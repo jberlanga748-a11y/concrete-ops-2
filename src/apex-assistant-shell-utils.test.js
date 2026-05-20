@@ -14,6 +14,7 @@ import {
   resolveAssistantPrePourReviewCommand,
   resolveAssistantReportReviewCommand,
   resolveAssistantSafetyIncidentReviewCommand,
+  resolveAssistantTimeReviewCommand,
   resolveAssistantToolChecklistReviewCommand,
   resolveAssistantUploadReviewCommand,
 } from "./apex-assistant-shell-utils.js";
@@ -299,6 +300,58 @@ test("assistant keeps generic uploads navigation out of office proof review", ()
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "uploads");
+});
+
+test("assistant opens time review without write actions", () => {
+  const command = resolveAssistantTimeReviewCommand("Review active clock for Luis on Westview Warehouse", {
+    permissions: { time: { canViewAll: true, canCorrect: true } },
+    timeEntries: [
+      {
+        id: "TIME-1",
+        status: "active",
+        userName: "Luis G.",
+        userRole: "Foreman",
+        clockInAt: "2026-05-20T07:00:00.000Z",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+      },
+    ],
+  });
+
+  assert.equal(command.type, "time-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].timeEntryId, "TIME-1");
+  assert.match(command.message, /No time entry will be corrected, clocked out, break-adjusted, approved, exported, or changed automatically/i);
+});
+
+test("assistant time review is blocked for field roles", () => {
+  const command = resolveAssistantTimeReviewCommand("Open active clock review", {
+    permissions: { time: { canView: true, canManageOwn: true, canViewAll: false, canCorrect: false } },
+    timeEntries: [{ id: "TIME-1", status: "active", userName: "Field User" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes time review before generic time navigation", () => {
+  const command = resolveApexAssistantCommand("Open active clock review for Westview Warehouse", {
+    commandContext: {
+      permissions: { time: { canViewAll: true, canCorrect: true } },
+      timeEntries: [
+        { id: "TIME-1", status: "active", userName: "Luis G.", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "time-review");
+  assert.equal(command.matches[0].timeEntryId, "TIME-1");
+});
+
+test("assistant routes generic time navigation without office review", () => {
+  const command = resolveApexAssistantCommand("open time");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "time");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {
