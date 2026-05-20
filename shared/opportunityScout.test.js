@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   canConvertFoundOpportunityToLead,
+  buildOpportunityScoutAgentRunPacket,
   changedOpportunityFields,
   deriveFoundOpportunityMissingInfoItems,
   extractOpportunityFieldsFromIntake,
@@ -11,6 +12,7 @@ import {
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
   OPPORTUNITY_SCOUT_GUARDRAILS,
+  OPPORTUNITY_SCOUT_SOURCE_ADAPTERS,
   redactOpportunityScoutText,
   sanitizeOpportunityScoutUrl,
   OPPORTUNITY_SEARCH_PROFILE_STARTERS,
@@ -58,6 +60,57 @@ test("search profile starters are safe editable daily scout presets", () => {
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.every((starter) => Array.isArray(starter.trades) && starter.trades.length > 0), true);
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "public-bid-scan"), true);
   assert.equal(OPPORTUNITY_SEARCH_PROFILE_STARTERS.some((starter) => starter.id === "relationship-follow-up"), true);
+});
+
+test("opportunity scout agent run packet exposes source adapters and review-first stop rules", () => {
+  const packet = buildOpportunityScoutAgentRunPacket({
+    searchProfile: {
+      name: "Public concrete scan",
+      trades: ["concrete"],
+      serviceAreas: ["Salem"],
+      sourceTypes: ["City/county/school bid page", "Plan room"],
+    },
+    leadSource: {
+      name: "City bid page",
+      type: "Public bid portal",
+      url: "https://example.test/bids",
+    },
+    foundOpportunity: {
+      title: "Library ramp",
+      intakeSourceType: "pasted_text",
+      duplicateHints: [{ opportunityId: "FO-1" }],
+      humanReviewStatus: "needs_review",
+    },
+    companySettings: { serviceArea: "Salem Oregon" },
+  });
+
+  assert.equal(packet.mode, "review_first");
+  assert.equal(packet.primaryAdapterId, "pasted_text");
+  assert.equal(packet.adapters.some((adapter) => adapter.id === "pasted_text"), true);
+  assert.equal(packet.adapters.some((adapter) => adapter.id === "approved_browser_session"), true);
+  assert.equal(packet.steps.some((step) => /CAPTCHA/i.test(step)), true);
+  assert.equal(packet.blockedActions.some((action) => /No bid submission/i.test(action)), true);
+  assert.equal(packet.humanTasks.some((task) => /Approve For Lead/i.test(task)), true);
+  assert.equal(packet.humanTasks.some((task) => /duplicate/i.test(task)), true);
+});
+
+test("opportunity scout agent packet marks private or future adapters as human-required", () => {
+  const packet = buildOpportunityScoutAgentRunPacket({
+    searchProfile: {
+      name: "API and inbox scan",
+      sourceTypes: ["Official API", "Email ingestion"],
+    },
+    leadSource: {
+      name: "GC portal",
+      type: "Private portal",
+    },
+  });
+
+  assert.equal(OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.some((adapter) => adapter.id === "official_api"), true);
+  assert.equal(packet.adapters.some((adapter) => adapter.status === "future_review"), true);
+  assert.equal(packet.adapters.some((adapter) => adapter.status === "human_required"), true);
+  assert.equal(packet.humanTasks.some((task) => /authorized/i.test(task)), true);
+  assert.equal(packet.safeNextAction, "Run the manual source brief and save a found opportunity draft.");
 });
 
 test("found opportunities normalize scores, dates, risks, and contact fields", () => {

@@ -21,6 +21,9 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.stats.activeSources, 2);
   assert.equal(state.stats.checksNeeded, 2);
   assert.equal(state.dailyJobFinder.label, "Daily Job Finder");
+  assert.equal(state.agentRunPacket.mode, "review_first");
+  assert.equal(state.agentRunPacket.adapters.some((adapter) => adapter.id === "public_web" || adapter.id === "approved_browser_session"), true);
+  assert.equal(state.agentRunPacket.blockedActions.some((action) => /No credential/i.test(action)), true);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").value, 2);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").targetId, "scout-search-briefs");
   assert.deepEqual(state.dailyRunSteps.map((step) => step.id), [
@@ -102,6 +105,8 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.openFoundOpportunities, 3);
   assert.equal(state.stats.dueBidOpportunities, 1);
   assert.equal(state.dailyJobFinder.headline, "Review Found Work");
+  assert.equal(state.agentRunPacket.safeNextAction, "Review saved opportunity and decide Approve For Lead or Skip.");
+  assert.equal(state.agentRunPacket.humanTasks.some((task) => /Approve For Lead/i.test(task)), true);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").value, 3);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").tone, "red");
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);

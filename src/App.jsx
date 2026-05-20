@@ -25670,6 +25670,7 @@ function CopilotPagePolished({
     contactHistory,
   }, { today }), [companySettings, contactHistory, currentCompanyId, foundOpportunities, leadSources, leads, opportunitySearchProfiles, today]);
   const dailyJobFinder = opportunityScout.dailyJobFinder;
+  const scoutAgent = opportunityScout.agentRunPacket || {};
 
   const newLeads = liveLeads.filter((lead) => lead.status === "New");
   const highPriorityLeads = liveLeads.filter((lead) => lead.priority === "High");
@@ -26216,6 +26217,25 @@ function CopilotPagePolished({
                     <em>{opportunityScout.stats.checksNeeded}</em>
                     <span>Checks due</span>
                   </div>
+                </div>
+                <div className="co-ai-scout-runbook">
+                  <span>Opportunity Scout Agent</span>
+                  <button type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={scoutAgent.humanTasks?.length ? "amber" : "green"} onClick={() => jumpToScoutTarget("scout-found-opportunities", "copilot")}>
+                    <em>{scoutAgent.adapters?.length || 0}</em>
+                    <strong>{scoutAgent.modeLabel || "Review-first agent"}</strong>
+                    <p>{scoutAgent.summary || "Agent run packet is ready for office review."}</p>
+                    <small>{scoutAgent.safeNextAction || "Review found work"}</small>
+                  </button>
+                  <div className="co-ai-scout-checks">
+                    {(scoutAgent.adapters || []).slice(0, 3).map((adapter) => (
+                      <small key={adapter.id}>{adapter.label}: {adapter.status.replace(/_/g, " ")}</small>
+                    ))}
+                  </div>
+                  {scoutAgent.humanTasks?.length ? (
+                    <div className="co-ai-scout-checks">
+                      {scoutAgent.humanTasks.slice(0, 3).map((task) => <small key={task}>{task}</small>)}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="co-ai-scout-runbook">
                   <span>Today&apos;s scout run</span>

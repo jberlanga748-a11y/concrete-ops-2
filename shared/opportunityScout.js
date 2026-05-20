@@ -90,6 +90,77 @@ export const OPPORTUNITY_SCOUT_GUARDRAILS = [
   "Lead drafts require human approval",
 ];
 
+export const OPPORTUNITY_SCOUT_SOURCE_ADAPTERS = [
+  {
+    id: "manual",
+    label: "Manual task",
+    sourceType: "Manual human-in-the-loop",
+    authMode: "none",
+    status: "enabled",
+    allowedActions: ["capture source notes", "extract fields", "save review draft"],
+  },
+  {
+    id: "pasted_text",
+    label: "Pasted text",
+    sourceType: "User-provided text",
+    authMode: "user_provided",
+    status: "enabled",
+    allowedActions: ["redact secrets", "extract fields", "score fit", "flag missing info"],
+  },
+  {
+    id: "file_metadata",
+    label: "File metadata",
+    sourceType: "User-uploaded file notes",
+    authMode: "user_provided",
+    status: "enabled",
+    allowedActions: ["store file names", "store evidence notes", "flag missing attachments"],
+  },
+  {
+    id: "public_web",
+    label: "Public web source",
+    sourceType: "Public web",
+    authMode: "public_only",
+    status: "manual_review",
+    allowedActions: ["prepare search brief", "open source for human review", "save public evidence"],
+  },
+  {
+    id: "official_api",
+    label: "Official API",
+    sourceType: "Official API",
+    authMode: "approved_api_key_or_oauth",
+    status: "future_review",
+    allowedActions: ["plan integration after security review"],
+  },
+  {
+    id: "email_ingestion",
+    label: "Email ingestion",
+    sourceType: "Forwarded or connected email",
+    authMode: "forwarded_email_or_oauth",
+    status: "future_review",
+    allowedActions: ["ingest forwarded invite after user action"],
+  },
+  {
+    id: "approved_browser_session",
+    label: "Approved browser session",
+    sourceType: "User-authorized browser",
+    authMode: "user_session",
+    status: "human_required",
+    allowedActions: ["assist inside authorized session", "stop at access controls"],
+  },
+];
+
+export const OPPORTUNITY_SCOUT_AGENT_STOP_REASONS = [
+  "login required",
+  "MFA required",
+  "CAPTCHA present",
+  "paywall or subscription required",
+  "robots.txt or source terms disallow automation",
+  "private portal credentials requested",
+  "unclear source authorization",
+  "customer contact requested",
+  "bid submission requested",
+];
+
 const DEFAULT_TRADES = [
   "concrete",
   "fencing",
@@ -286,6 +357,119 @@ function normalizeFileMetadata(value) {
       notes: redactOpportunityScoutText(source.notes || source.description || ""),
     };
   }).filter((entry) => entry.name || entry.type || entry.sourceUrl || entry.notes);
+}
+
+function adapterForSourceText(value) {
+  const normalized = collapseSpaces(value).toLowerCase();
+  if (!normalized) return "manual";
+  if (/pasted|paste|email excerpt|text/.test(normalized)) return "pasted_text";
+  if (/file|pdf|screenshot|attachment|upload/.test(normalized)) return "file_metadata";
+  if (/api/.test(normalized)) return "official_api";
+  if (/gmail|outlook|email|inbox/.test(normalized)) return "email_ingestion";
+  if (/browser|portal|plan room|gc portal|approved session/.test(normalized)) return "approved_browser_session";
+  if (/public|city|county|school|procurement|bid page|rfp|website|web/.test(normalized)) return "public_web";
+  return "manual";
+}
+
+function adapterById(adapterId) {
+  return OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.find((adapter) => adapter.id === adapterId) || OPPORTUNITY_SCOUT_SOURCE_ADAPTERS[0];
+}
+
+export function buildOpportunityScoutAgentRunPacket({
+  searchProfile = {},
+  leadSource = {},
+  foundOpportunity = {},
+  intakeSourceType = "",
+  companySettings = {},
+} = {}) {
+  const opportunity = foundOpportunity || {};
+  const profile = searchProfile || {};
+  const source = leadSource || {};
+  const sourceClues = [
+    intakeSourceType,
+    opportunity.intakeSourceType,
+    ...(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []),
+    source.type,
+    source.name,
+    source.url ? "public web" : "",
+  ].filter(Boolean);
+  const selectedAdapterIds = [...new Set((sourceClues.length ? sourceClues : ["manual"]).map(adapterForSourceText))];
+  const adapters = selectedAdapterIds.map((adapterId) => adapterById(adapterId));
+  const primaryAdapter = adapters[0] || adapterById("manual");
+  const sourceNeedsHuman = adapters.some((adapter) => ["human_required", "future_review"].includes(adapter.status));
+  const hasReadyOpportunity = Boolean(opportunity.id || opportunity.title);
+  const missing = deriveFoundOpportunityMissingInfoItems(opportunity);
+  const humanTasks = [];
+
+  if (sourceNeedsHuman) {
+    humanTasks.push("Confirm access is authorized before using this source.");
+  }
+  if (!hasReadyOpportunity) {
+    humanTasks.push("Run the search brief manually and paste only real opportunity evidence.");
+  }
+  if (missing.length) {
+    humanTasks.push(`Resolve missing info: ${missing.slice(0, 4).join(", ")}.`);
+  }
+  if (opportunity.duplicateHints?.length) {
+    humanTasks.push("Review duplicate hints before creating another lead.");
+  }
+  if (!opportunity.humanReviewStatus || opportunity.humanReviewStatus === "needs_review") {
+    humanTasks.push("Approve For Lead must stay separate from Create Lead.");
+  }
+
+  const profileSummary = [
+    profile.name,
+    normalizeList(profile.trades || []).slice(0, 2).join(", "),
+    normalizeList(profile.serviceAreas || []).slice(0, 2).join(", "),
+  ].filter(Boolean).join(" / ");
+  const sourceSummary = [
+    source.name,
+    source.type,
+    source.url ? "URL saved" : "",
+  ].filter(Boolean).join(" / ");
+  const companySummary = collapseSpaces(companySettings.serviceArea || companySettings.businessAddress || companySettings.companyName);
+
+  return {
+    mode: "review_first",
+    modeLabel: "Review-first agent",
+    primaryAdapterId: primaryAdapter.id,
+    primaryAdapterLabel: primaryAdapter.label,
+    summary: hasReadyOpportunity
+      ? "Agent can review saved evidence, explain fit, and prepare a human-approved lead handoff."
+      : "Agent can plan the source check and normalize user-provided evidence after a human verifies access.",
+    profileSummary,
+    sourceSummary,
+    companySummary,
+    adapters: adapters.map((adapter) => ({
+      id: adapter.id,
+      label: adapter.label,
+      sourceType: adapter.sourceType,
+      authMode: adapter.authMode,
+      status: adapter.status,
+      allowedActions: adapter.allowedActions,
+    })),
+    steps: [
+      "Choose an approved source adapter.",
+      "Stop if login, MFA, CAPTCHA, paywall, robots.txt, or unclear access appears.",
+      "Extract project, location, trade, due date, contact, scope, source URL, and attachments.",
+      "Redact credentials, tokens, cookies, and signed URLs before saving evidence.",
+      "Score fit and flag missing information or duplicate risk.",
+      "Save found opportunity for human review.",
+      "Create Lead only after Approve For Lead.",
+    ],
+    humanTasks: [...new Set(humanTasks)].slice(0, 6),
+    blockedActions: [
+      "No private portal scraping",
+      "No login automation",
+      "No CAPTCHA/MFA/paywall bypass",
+      "No credential or token storage",
+      "No customer/GC/agency contact",
+      "No bid submission",
+    ],
+    safeNextAction: hasReadyOpportunity
+      ? "Review saved opportunity and decide Approve For Lead or Skip."
+      : "Run the manual source brief and save a found opportunity draft.",
+  };
 }
 
 export function deriveFoundOpportunityMissingInfoItems(opportunity = {}) {

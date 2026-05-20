@@ -1,5 +1,5 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
-import { canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead } from "../shared/opportunityScout.js";
+import { buildOpportunityScoutAgentRunPacket, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -875,10 +875,17 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     missingInfoLeads,
     highFitLeads,
   });
+  const agentRunPacket = buildOpportunityScoutAgentRunPacket({
+    searchProfile: dueProfiles[0] || profileQueue[0] || activeProfiles[0] || {},
+    leadSource: sourceQueue[0] || activeSources[0] || {},
+    foundOpportunity: openFoundOpportunityQueue[0] || {},
+    companySettings,
+  });
 
   return {
     today,
     readiness,
+    agentRunPacket,
     dailyJobFinder,
     dailyRunSteps,
     qualityChecks,
