@@ -5,6 +5,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
   resolveAssistantChangeOrderReviewCommand,
+  resolveAssistantCustomerAccountCommand,
   resolveAssistantDeliveryTicketReviewCommand,
   resolveAssistantEstimateDraftCommand,
   resolveAssistantEstimateJobHandoffCommand,
@@ -459,6 +460,56 @@ test("assistant keeps generic leads navigation out of follow-up review", () => {
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "leads");
+});
+
+test("assistant opens customer account review without write actions", () => {
+  const command = resolveAssistantCustomerAccountCommand("Review customer account for ABC Builders", {
+    permissions: { customers: { canView: true, canManage: true } },
+    customers: [
+      {
+        id: "CUST-1",
+        name: "ABC Builders",
+        city: "Salem",
+        status: "Active",
+        email: "ops@abc.test",
+        phone: "555-0100",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "customer-account-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].customerId, "CUST-1");
+  assert.match(command.message, /No customer record will be edited, archived, converted, messaged, billed, or changed automatically/i);
+});
+
+test("assistant customer account review is blocked for field roles", () => {
+  const command = resolveAssistantCustomerAccountCommand("Open customer account for ABC Builders", {
+    permissions: { customers: { canView: false, canManage: false } },
+    customers: [{ id: "CUST-1", name: "ABC Builders" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes customer account review before generic customer navigation", () => {
+  const command = resolveApexAssistantCommand("Open customer account for ABC Builders", {
+    commandContext: {
+      permissions: { customers: { canView: true, canManage: true } },
+      customers: [{ id: "CUST-1", name: "ABC Builders", city: "Salem", status: "Active" }],
+    },
+  });
+
+  assert.equal(command.type, "customer-account-review");
+  assert.equal(command.matches[0].customerId, "CUST-1");
+});
+
+test("assistant keeps generic customers navigation out of account review", () => {
+  const command = resolveApexAssistantCommand("open customers");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "customers");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

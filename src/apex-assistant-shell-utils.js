@@ -35,6 +35,13 @@ const ROUTE_COMMANDS = [
     message: "Open Leads to review follow-ups, stale leads, and customer next steps.",
   },
   {
+    id: "customers",
+    moduleId: "customers",
+    actionLabel: "Open customers",
+    keywords: ["customer", "customers", "account", "accounts", "client", "clients"],
+    message: "Open Customers to review account records, linked jobs, estimates, and manual follow-up context.",
+  },
+  {
     id: "estimates",
     moduleId: "estimates",
     actionLabel: "Open estimates",
@@ -180,6 +187,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const leadFollowUpCommand = resolveAssistantLeadFollowUpCommand(input, state.commandContext || {});
   if (leadFollowUpCommand) return leadFollowUpCommand;
+
+  const customerAccountCommand = resolveAssistantCustomerAccountCommand(input, state.commandContext || {});
+  if (customerAccountCommand) return customerAccountCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -567,6 +577,47 @@ export function resolveAssistantLeadFollowUpCommand(input = "", context = {}) {
   };
 }
 
+export function resolveAssistantCustomerAccountCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasCustomerAccountIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.customers?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Customer account assistant commands are office review tools. Field users stay blocked from customer records, outreach context, billing context, and account controls.",
+    };
+  }
+
+  const query = extractCustomerAccountTargetQuery(rawText);
+  const matches = findAssistantCustomerAccountMatches(query, context);
+  const fallback = {
+    id: "assistant-open-customer-account",
+    type: "customer-account-review",
+    label: "Open customer account board",
+    helper: "No exact customer match found. Open Customers and choose the account manually.",
+  };
+
+  return {
+    type: "customer-account-review",
+    moduleId: "customers",
+    actionLabel: matches.length === 1 ? "Review customer" : matches.length > 1 ? "Choose customer" : "Open Customers",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for customer account review. No customer record will be edited, archived, converted, messaged, billed, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple customer accounts that may need review. Choose the right account before opening the customer command record."
+        : "I did not find an exact customer match. Open Customers and review the account board manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -896,6 +947,13 @@ function hasLeadFollowUpIntent(text = "") {
   return asksToOpen && mentionsLead && mentionsReviewQueue;
 }
 
+function hasCustomerAccountIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsCustomer = /\b(customer|customers|customer account|customer accounts|account|accounts|client|clients)\b/.test(text);
+  const mentionsAccountReview = /\b(account|record|records|profile|follow[- ]?up|jobs?|estimates?|pipeline|ready[- ]?to[- ]?bill|billing|contact|history|review|relationship)\b/.test(text);
+  return asksToOpen && mentionsCustomer && mentionsAccountReview;
+}
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -1051,6 +1109,18 @@ function extractLeadFollowUpTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:lead|leads|pipeline|prospect|prospects|customer follow[- ]?up|follow[- ]?up queue|follow[- ]?ups?)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|lead|leads|pipeline|prospect|prospects|customer|follow|up|queue|for|from|on|at|with|this|the|due|overdue|stale|waiting|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractCustomerAccountTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:customer account|customer accounts|customer|customers|account|accounts|client|clients)\b\s+(?:for|from|on|at|with)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from|with)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:customer account|customer accounts|customer|customers|account|accounts|client|clients)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|customer|customers|account|accounts|client|clients|record|records|profile|for|from|on|at|with|this|the|needs)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -1545,6 +1615,65 @@ function findAssistantLeadFollowUpMatches(query = "", context = {}) {
     }))
     .filter((match) => match.leadId)
     .slice(0, 4);
+}
+
+function findAssistantCustomerAccountMatches(query = "", context = {}) {
+  const customers = asArray(context.customers).filter((customer) => !customer?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? customers.filter((customer) => targetMatchesWords(customerAccountSearchText(customer), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : customers;
+
+  return candidates
+    .map((customer) => ({
+      customer,
+      missingContact: !String(customer.phone || "").trim() || !String(customer.email || "").trim(),
+      missingLocation: !String(customer.city || customer.serviceArea || customer.address || "").trim(),
+      active: normalizeText(customer.status || "active") === "active",
+      prospect: normalizeText(customer.status || "") === "prospect",
+    }))
+    .sort((left, right) => customerAccountPriority(right) - customerAccountPriority(left) || customerAccountLabel(left.customer).localeCompare(customerAccountLabel(right.customer)))
+    .map(({ customer, missingContact, missingLocation, active, prospect }) => ({
+      id: `customer-account:${customer.id}`,
+      type: "customer",
+      customerId: customer.id || "",
+      label: customerAccountLabel(customer),
+      helper: [
+        active ? "active account" : prospect ? "prospect account" : `status ${customer.status || "account"}`,
+        missingContact ? "contact missing" : "contact ready",
+        missingLocation ? "location missing" : customer.city || customer.serviceArea || "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.customerId)
+    .slice(0, 4);
+}
+
+function customerAccountPriority(candidate = {}) {
+  return (candidate.missingContact ? 12 : 0) + (candidate.missingLocation ? 6 : 0) + (candidate.active ? 4 : 0) + (candidate.prospect ? 2 : 0);
+}
+
+function customerAccountLabel(customer = {}) {
+  return [
+    customer.name || customer.company || "Customer",
+    customer.city || customer.serviceArea || "",
+    customer.status || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function customerAccountSearchText(customer = {}) {
+  return normalizeText([
+    customer.id,
+    customer.name,
+    customer.company,
+    customer.city,
+    customer.serviceArea,
+    customer.address,
+    customer.phone,
+    customer.email,
+    customer.status,
+    customer.owner,
+    customer.notes,
+  ].filter(Boolean).join(" "));
 }
 
 function leadFollowUpPriority(candidate = {}) {
