@@ -7981,6 +7981,107 @@ textarea {
   overflow: hidden;
 }
 
+.co-estimates-branding-card {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.co-estimates-branding-head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.co-estimates-branding-logo {
+  display: grid;
+  height: 3rem;
+  width: 3rem;
+  place-items: center;
+  border: 1px solid rgba(249, 115, 22, 0.42);
+  border-radius: 0.64rem;
+  background:
+    linear-gradient(135deg, rgba(249, 115, 22, 0.98), rgba(234, 88, 12, 0.96));
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  box-shadow: 0 16px 28px -22px rgba(249, 115, 22, 0.72);
+}
+
+.co-estimates-branding-head p {
+  color: #f97316;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-estimates-branding-head strong {
+  display: block;
+  margin-top: 0.28rem;
+  color: #07111f;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.co-estimates-branding-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.co-estimates-branding-grid span {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 0.52rem;
+  background: #f8fafc;
+  padding: 0.5rem 0.56rem;
+}
+
+.co-estimates-branding-grid em {
+  color: #64748b;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.co-estimates-branding-grid strong {
+  color: #07111f;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.co-estimates-branding-contact {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.co-estimates-branding-contact span {
+  max-width: 100%;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  padding: 0.34rem 0.48rem;
+}
+
 .co-estimates-total-spotlight {
   margin-top: 0.85rem;
   border: 1px solid rgba(15, 23, 42, 0.72);
@@ -35318,6 +35419,10 @@ textarea {
     color: #f8fafc !important;
   }
 
+  .co-estimates-right-rail .co-estimates-branding-head p {
+    color: #fdba74 !important;
+  }
+
   .co-estimates-right-rail .co-section-accent p,
   .co-estimates-right-rail .text-slate-400,
   .co-estimates-right-rail .text-slate-500,
@@ -35331,6 +35436,21 @@ textarea {
   .co-estimates-right-rail .co-estimates-summary-facts,
   .co-estimates-right-rail .co-estimates-action-row {
     border-color: rgba(148, 163, 184, 0.2) !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-branding-grid span {
+    border-color: rgba(148, 163, 184, 0.2) !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-branding-grid em {
+    color: #94a3b8 !important;
+  }
+
+  .co-estimates-right-rail .co-estimates-branding-contact span {
+    border-color: rgba(249, 115, 22, 0.26) !important;
+    background: rgba(249, 115, 22, 0.12) !important;
+    color: #fed7aa !important;
   }
 
   .co-estimates-right-rail .co-estimates-total-spotlight {
@@ -37169,13 +37289,13 @@ button.co-work-queue-card:hover:not(:disabled) {
   }
 
   .co-estimate-studio-workbench .co-estimates-main-board {
-    max-height: 31rem;
+    max-height: 38rem;
     overflow: auto !important;
   }
 
   .co-estimate-proposal-workbench {
-    max-height: 31rem;
-    overflow: auto;
+    max-height: 38rem;
+    overflow: visible;
   }
 }
 

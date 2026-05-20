@@ -8,6 +8,10 @@ import { deriveEstimatePrintModel } from "../shared/estimatePrint.js";
 
 const COLORS = {
   navy: "#0f2a44",
+  navyDark: "#07111f",
+  orange: "#f97316",
+  orangeSoft: "#fff7ed",
+  orangeDark: "#9a3412",
   blue: "#2563eb",
   blueSoft: "#eaf2ff",
   border: "#d7e1ee",
@@ -122,34 +126,40 @@ function drawHeader(doc, { companyName, companyProfile }) {
   const headerTop = PAGE_MARGIN;
   const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
 
-  doc.roundedRect(PAGE_MARGIN, headerTop, 48, 48, 10).fill(COLORS.blue);
+  doc.roundedRect(PAGE_MARGIN, headerTop, CONTENT_WIDTH, 86, 14).fill(COLORS.navyDark);
+  doc
+    .rect(PAGE_MARGIN, headerTop + 82, CONTENT_WIDTH, 4)
+    .fill(COLORS.orange);
+
+  doc.roundedRect(PAGE_MARGIN + 18, headerTop + 18, 48, 48, 10).fill(COLORS.orange);
   doc
     .font("Helvetica-Bold")
     .fontSize(17)
     .fillColor(COLORS.white)
-    .text(initials, PAGE_MARGIN, headerTop + 15, { width: 48, align: "center" });
+    .text(initials, PAGE_MARGIN + 18, headerTop + 33, { width: 48, align: "center" });
 
   doc
     .font("Helvetica-Bold")
     .fontSize(18)
-    .fillColor(COLORS.navy)
-    .text(cleanText(companyName, "Apex HQ Workspace"), PAGE_MARGIN + 62, headerTop + 2, { width: 246 });
+    .fillColor(COLORS.white)
+    .text(cleanText(companyName, "Apex HQ Workspace"), PAGE_MARGIN + 78, headerTop + 18, { width: 238 });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(8)
+    .fillColor("#fed7aa")
+    .text("CONTRACTOR PROPOSAL PACKET", PAGE_MARGIN + 78, headerTop + 43, {
+      width: 238,
+      characterSpacing: 0.8,
+    });
 
   const profile = profileLines(companyProfile);
   doc
     .font("Helvetica")
     .fontSize(8.5)
-    .fillColor(COLORS.slate);
+    .fillColor("#dbeafe");
   profile.forEach((line, index) => {
-    doc.text(line, PAGE_MARGIN + 318, headerTop + 2 + (index * 10.5), { width: 210, align: "right" });
+    doc.text(line, PAGE_MARGIN + 318, headerTop + 18 + (index * 10.5), { width: 190, align: "right" });
   });
-
-  doc
-    .moveTo(PAGE_MARGIN, headerTop + 64)
-    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, headerTop + 64)
-    .strokeColor(COLORS.border)
-    .lineWidth(1)
-    .stroke();
 
   const details = profileDetailLines(companyProfile);
   if (details.length > 0) {
@@ -157,7 +167,7 @@ function drawHeader(doc, { companyName, companyProfile }) {
       .font("Helvetica")
       .fontSize(7.5)
       .fillColor(COLORS.slate)
-      .text(details.join("  |  "), PAGE_MARGIN, headerTop + 72, {
+      .text(details.join("  |  "), PAGE_MARGIN, headerTop + 96, {
         width: CONTENT_WIDTH,
         align: "center",
         lineGap: 2,
@@ -166,22 +176,35 @@ function drawHeader(doc, { companyName, companyProfile }) {
     return;
   }
 
-  doc.y = headerTop + 88;
+  doc.y = headerTop + 106;
 }
 
 function drawProposalIntro(doc, { estimate, customerName, projectName }) {
   const top = doc.y;
-  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 90, 14).fill(COLORS.slateSoft).strokeColor(COLORS.border).stroke();
+  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 104, 14).fill(COLORS.slateSoft).strokeColor(COLORS.border).stroke();
   doc
     .font("Helvetica-Bold")
-    .fontSize(19)
-    .fillColor(COLORS.navy)
-    .text("Estimate / Proposal", PAGE_MARGIN + 20, top + 18, { width: 292 });
+    .fontSize(8)
+    .fillColor(COLORS.orangeDark)
+    .text("Estimate / Proposal", PAGE_MARGIN + 20, top + 16, { width: 292, characterSpacing: 0.8 });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(20)
+    .fillColor(COLORS.navyDark)
+    .text("Professional Proposal", PAGE_MARGIN + 20, top + 32, { width: 292 });
   doc
     .font("Helvetica")
     .fontSize(10)
     .fillColor(COLORS.slate)
-    .text(cleanText(estimate.title, "Customer Estimate"), PAGE_MARGIN + 20, top + 44, { width: 292 });
+    .text(cleanText(estimate.title, "Customer Estimate"), PAGE_MARGIN + 20, top + 60, { width: 292 });
+
+  doc
+    .roundedRect(PAGE_MARGIN + 20, top + 80, 148, 16, 8)
+    .fill(COLORS.orangeSoft)
+    .strokeColor("#fed7aa")
+    .lineWidth(0.6)
+    .stroke();
+  doc.font("Helvetica-Bold").fontSize(7.2).fillColor(COLORS.orangeDark).text("Review scope, exclusions, and terms before approval", PAGE_MARGIN + 28, top + 85, { width: 132 });
 
   const dateText = estimate.createdAt ? new Date(estimate.createdAt).toLocaleDateString("en-US") : "Not dated";
   const statusText = cleanText(estimate.status, "draft");
@@ -191,7 +214,7 @@ function drawProposalIntro(doc, { estimate, customerName, projectName }) {
   doc.font("Helvetica").fontSize(10).fillColor(COLORS.slateDark).text(projectName, PAGE_MARGIN + 330, top + 58, { width: 170 });
   doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.slate).text(`Date: ${dateText}   Status: ${statusText}`, PAGE_MARGIN + 330, top + 74, { width: 170 });
 
-  doc.y = top + 106;
+  doc.y = top + 120;
 }
 
 function drawTextSection(doc, title, text) {
@@ -371,11 +394,11 @@ function drawTotals(doc, totals, options = {}) {
   });
 
   const totalY = y + (rows.length * 21) + 7;
-  doc.roundedRect(x, totalY, boxWidth, 38, 9).fill(COLORS.navy);
+  doc.roundedRect(x, totalY, boxWidth, 38, 9).fill(COLORS.navyDark);
   doc
     .font("Helvetica-Bold")
     .fontSize(10)
-    .fillColor(COLORS.blueSoft)
+    .fillColor("#fed7aa")
     .text("BASE ESTIMATE TOTAL", x + 14, totalY + 12, { width: 118 });
   doc
     .font("Helvetica-Bold")
@@ -392,11 +415,11 @@ function drawTotals(doc, totals, options = {}) {
       .text("Selected options total", x + 12, nextY + 5, { width: 118 });
     doc.text(options.selectedOptionsTotalLabel, x + 126, nextY + 5, { width: 120, align: "right" });
     nextY += 27;
-    doc.roundedRect(x, nextY, boxWidth, 34, 9).fill(COLORS.blue);
+    doc.roundedRect(x, nextY, boxWidth, 34, 9).fill(COLORS.orange);
     doc
       .font("Helvetica-Bold")
       .fontSize(9.5)
-      .fillColor(COLORS.blueSoft)
+      .fillColor(COLORS.orangeSoft)
       .text("TOTAL WITH SELECTED OPTIONS", x + 14, nextY + 11, { width: 140 });
     doc
       .font("Helvetica-Bold")
@@ -424,10 +447,11 @@ function drawAcceptanceBlock(doc) {
 function drawFooter(doc, { printPacketFooter, printPacketDisclaimer }) {
   const footerY = doc.page.height - 56;
   doc.moveTo(PAGE_MARGIN, footerY - 10).lineTo(PAGE_MARGIN + CONTENT_WIDTH, footerY - 10).strokeColor(COLORS.border).lineWidth(0.8).stroke();
+  doc.moveTo(PAGE_MARGIN, footerY - 7).lineTo(PAGE_MARGIN + 64, footerY - 7).strokeColor(COLORS.orange).lineWidth(1.4).stroke();
   doc.font("Helvetica").fontSize(7.5).fillColor(COLORS.slate);
   const footer = cleanText(printPacketFooter || "Generated by Apex HQ for estimate review and customer follow-up.");
   const disclaimer = cleanText(printPacketDisclaimer);
-  doc.text([footer, disclaimer, "Generated by Apex HQ"].filter(Boolean).join("  |  "), PAGE_MARGIN, footerY, {
+  doc.text([footer, disclaimer, "Generated by Apex HQ proposal packet"].filter(Boolean).join("  |  "), PAGE_MARGIN, footerY, {
     width: CONTENT_WIDTH,
     align: "center",
   });

@@ -1525,8 +1525,8 @@ function EstimateProposalWorkbench({
     preview.scopeSummary || "Scope is pending office review.",
   ];
   const inclusionItems = estimateStudioListItems(sections?.inclusions, [
-    "Concrete labor and standard equipment",
-    "Form, place, finish, and cleanup",
+    "Crew labor, materials, and standard equipment",
+    "Layout, installation, finish work, and cleanup",
     "Office-reviewed customer proposal",
   ]);
   const exclusionItems = estimateStudioListItems(sections?.exclusions, [
@@ -1549,10 +1549,10 @@ function EstimateProposalWorkbench({
             <h2>{estimateDisplayTitle(preview)}</h2>
             <StatusBadge status={estimateStatusLabel(preview.status)} />
           </div>
-          <p>{customerLabel} · {preview.jobId ? "Converted job" : estimateDisplayLead(preview)}</p>
+          <p>{customerLabel} / {preview.jobId ? "Converted job" : estimateDisplayLead(preview)}</p>
         </div>
         <div className="co-estimate-proposal-total">
-          <span>Estimate Total</span>
+          <span>Proposal Total</span>
           <strong>{totalLabel}</strong>
           <em>Base {formatEstimateCurrency(totals?.grandTotal || 0)}</em>
         </div>
@@ -32592,6 +32592,10 @@ function estimateDisplayTotal(estimate) {
   return Number(estimate?.grandTotal ?? estimate?.total ?? 0) || 0;
 }
 
+function estimateRailProfileLine(...values) {
+  return values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
+}
+
 function EstimatesTablePolished({ rows, selectedId, onSelect, maxRows = 6 }) {
   const visibleRows = rows.slice(0, maxRows);
 
@@ -32696,6 +32700,8 @@ function EstimateCommandRailPolished({
   preview,
   totals,
   optionTotals,
+  companyName = DEFAULT_COMPANY_NAME,
+  companyProfile = {},
   canManage,
   canUseAiRoughNotes = false,
   canUseGcPackets = false,
@@ -32734,13 +32740,54 @@ function EstimateCommandRailPolished({
   }
 
   const jobHandoffReadiness = deriveEstimateJobHandoffReadiness(preview || estimate);
+  const logoInitials = resolveWorkspaceLogoInitials({ companySettings: companyProfile, companyName });
+  const profileContact = [
+    estimateRailProfileLine(companyProfile.businessPhone),
+    estimateRailProfileLine(companyProfile.businessEmail),
+    estimateRailProfileLine(companyProfile.website),
+  ].filter(Boolean);
+  const projectLocation = estimateRailProfileLine(preview?.lead?.location, preview?.customer?.address, companyProfile.serviceArea, companyProfile.businessAddress);
+  const proposalValidity = estimateRailProfileLine(companyProfile.printPacketFooter, "Valid for 30 days unless noted in proposal terms.");
 
   return (
     <div className="co-estimates-right-rail space-y-4">
+      <Card className="co-estimates-rail-card co-estimates-branding-card p-4">
+        <div className="co-estimates-branding-head">
+          <span className="co-estimates-branding-logo">{logoInitials}</span>
+          <span className="min-w-0">
+            <p>Company Branding</p>
+            <strong>{companyName || DEFAULT_COMPANY_NAME}</strong>
+          </span>
+        </div>
+        <div className="co-estimates-branding-grid">
+          <span>
+            <em>Customer</em>
+            <strong>{estimateDisplayCustomer(preview || estimate)}</strong>
+          </span>
+          <span>
+            <em>Project</em>
+            <strong>{estimateDisplayLead(preview || estimate)}</strong>
+          </span>
+          <span>
+            <em>Location</em>
+            <strong>{projectLocation || "Confirm jobsite before send"}</strong>
+          </span>
+          <span>
+            <em>Proposal terms</em>
+            <strong>{proposalValidity}</strong>
+          </span>
+        </div>
+        {profileContact.length > 0 ? (
+          <div className="co-estimates-branding-contact">
+            {profileContact.map((line) => <span key={line}>{line}</span>)}
+          </div>
+        ) : null}
+      </Card>
+
       <Card className="co-estimates-rail-card co-estimates-selected-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Estimate Studio Summary</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Proposal Summary</p>
             <h3 className="mt-2 break-words text-xl font-black text-slate-950">{estimateDisplayTitle(estimate)}</h3>
             <p className="mt-1 break-words text-xs font-bold text-slate-500">{estimateDisplayCustomer(estimate)}</p>
           </div>
@@ -32749,7 +32796,7 @@ function EstimateCommandRailPolished({
         <div className="co-estimates-total-spotlight">
           <p>Estimate total</p>
           <strong>{formatEstimateCurrency(optionTotals.totalWithSelectedOptions)}</strong>
-          <span>Base {formatEstimateCurrency(totals.grandTotal)} + selected options {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}</span>
+          <span>Base {formatEstimateCurrency(totals.grandTotal)} + selected options {formatEstimateCurrency(optionTotals.selectedOptionsTotal)}. Review before manual send.</span>
         </div>
         <div className="co-estimates-summary-facts mt-4 grid gap-2 text-sm font-bold text-slate-700">
           <p><span className="text-slate-400">Base total:</span> {formatEstimateCurrency(totals.grandTotal)}</p>
@@ -32982,12 +33029,12 @@ function EstimatesPagePolished({
     actionLabel: estimateStatusLabel(estimate.status),
   }));
   const estimatePacketTiles = [
-    { label: "Cover Page", icon: "document", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
+    { label: "Branded Cover", icon: "document", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
     { label: "Scope", icon: "clipboard", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
     { label: "Line Items", icon: "document", onClick: () => openEstimateTool("edit"), disabled: !selectedEstimate },
     { label: "Exclusions", icon: "alert", onClick: () => openEstimateTool("sections"), disabled: !selectedEstimate },
-    { label: "Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
-    { label: "Pricing Summary", icon: "briefcase", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
+    { label: "Photo Backup", icon: "clipboard", onClick: () => openEstimateTool("backup"), disabled: !selectedEstimate },
+    { label: "Price Summary", icon: "briefcase", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate },
     { label: "Field Handoff", icon: "users", onClick: () => openEstimateTool("packet"), disabled: !selectedEstimate || !canUseGcPackets },
   ];
   const estimateAssistantActions = [
@@ -33435,6 +33482,8 @@ function EstimatesPagePolished({
             preview={detailEstimatePreview}
             totals={detailTotals}
             optionTotals={detailOptionTotals}
+            companyName={companyName}
+            companyProfile={companyProfile}
             canManage={canManage}
             canUseAiRoughNotes={canUseAiRoughNotes}
             canUseGcPackets={canUseGcPackets}
