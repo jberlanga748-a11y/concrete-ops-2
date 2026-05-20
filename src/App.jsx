@@ -173,7 +173,7 @@ import { canCapturePilotFeedback, canRequestPackageReview, canViewJob } from "..
 import { LEAD_SCORE_LABELS, leadScoreTone } from "../shared/leadScoring.js";
 import { missingInfoTone } from "../shared/leadMissingInfo.js";
 import { calculateNextLeadSourceCheckDate, createLeadSourceDraft, createLeadSourceDraftFromStarter, deriveDailySourceCheckState, deriveLeadSourceListState, leadSourceLocation, LEAD_SOURCE_CADENCE_OPTIONS, LEAD_SOURCE_STARTERS, LEAD_SOURCE_TYPE_OPTIONS, validateLeadSourcePayload } from "../shared/leadSources.js";
-import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS, OPPORTUNITY_SEARCH_PROFILE_STARTERS, buildOpportunityScoutSourceCheckNote } from "../shared/opportunityScout.js";
+import { OPPORTUNITY_INTAKE_SOURCE_TYPES, OPPORTUNITY_SCOUT_SOURCE_ADAPTERS, OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS, OPPORTUNITY_SEARCH_PROFILE_STARTERS, OPPORTUNITY_SOURCE_ACCESS_STATUSES, OPPORTUNITY_SOURCE_TERMS_STATUSES, buildOpportunityScoutSourceCheckNote } from "../shared/opportunityScout.js";
 import { buildManagedSetupSupportContext, deriveFirstOwnerOnboardingState, deriveManagedCompanySetupState } from "../shared/managedCompanySetup.js";
 import { packageReadinessSummary } from "../shared/packages.js";
 import { canAccessModule, canAccessWorkspaceModule, getDashboardShortcuts, getDefaultModuleId, getVisibleNavGroups, getWorkspaceModuleLock, resolveDashboardShortcut } from "./navigation-utils";
@@ -627,6 +627,10 @@ const INITIAL_OPPORTUNITY_SEARCH_PROFILE_FORM = {
   serviceAreas: "",
   radiusMiles: "40",
   sourceTypes: "",
+  sourceAdapterId: "",
+  sourceAccessStatus: "",
+  sourceTermsStatus: "",
+  sourcePolicyNote: "",
   keywords: "",
   excludedKeywords: "",
   cadence: "daily",
@@ -25763,6 +25767,10 @@ function CopilotPagePolished({
       serviceAreas: (starter.serviceAreas || []).join(", "),
       radiusMiles: String(starter.radiusMiles || current.radiusMiles || "40"),
       sourceTypes: (starter.sourceTypes || []).join(", "),
+      sourceAdapterId: "",
+      sourceAccessStatus: "",
+      sourceTermsStatus: "",
+      sourcePolicyNote: "",
       keywords: (starter.keywords || []).join(", "),
       excludedKeywords: (starter.excludedKeywords || []).join(", "),
       cadence: starter.cadence || current.cadence || "daily",
@@ -26338,6 +26346,14 @@ function CopilotPagePolished({
                           <code>{brief.query}</code>
                           <em>{brief.location}</em>
                           <p>{brief.helper}</p>
+                          {brief.sourceAdapterId || brief.sourceTermsStatus ? (
+                            <div className="co-ai-scout-checks">
+                              <small>Adapter: {(brief.sourceAdapterId || "manual").replace(/_/g, " ")}</small>
+                              <small>Access: {(brief.sourceAccessStatus || "clear_for_review").replace(/_/g, " ")}</small>
+                              <small>Terms: {(brief.sourceTermsStatus || "unreviewed").replace(/_/g, " ")}</small>
+                              {brief.sourceReviewRequired ? <small>Human source review required before recurring checks.</small> : null}
+                            </div>
+                          ) : null}
                           {brief.checkFor?.length ? (
                             <div className="co-ai-scout-checks">
                               {brief.checkFor.map((item) => <small key={item}>{item}</small>)}
@@ -26345,7 +26361,7 @@ function CopilotPagePolished({
                           ) : null}
                         </div>
                         <div className="co-ai-scout-brief-actions">
-                          <Badge tone={brief.tone}>{brief.url ? "URL saved" : "Manual"}</Badge>
+                          <Badge tone={brief.sourceReviewRequired ? "amber" : brief.tone}>{brief.sourceReviewRequired ? "Review source" : brief.url ? "URL saved" : "Manual"}</Badge>
                           <Button type="button" size="sm" variant="secondary" onClick={() => copyScoutQuery(brief)}>
                             {copiedScoutBriefId === brief.id ? "Copied" : "Copy Search"}
                           </Button>
@@ -26419,6 +26435,37 @@ function CopilotPagePolished({
                       <span>Source Types</span>
                       <input value={profileDraft.sourceTypes} onChange={(event) => updateProfileDraft("sourceTypes", event.target.value)} placeholder="plan room, city bids, GC portals" />
                     </label>
+                    <label>
+                      <span>Source Adapter</span>
+                      <select value={profileDraft.sourceAdapterId} onChange={(event) => updateProfileDraft("sourceAdapterId", event.target.value)}>
+                        <option value="">Auto from source type</option>
+                        {OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.map((adapter) => (
+                          <option key={adapter.id} value={adapter.id}>{adapter.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Access Status</span>
+                      <select value={profileDraft.sourceAccessStatus} onChange={(event) => updateProfileDraft("sourceAccessStatus", event.target.value)}>
+                        <option value="">Auto from adapter</option>
+                        {OPPORTUNITY_SOURCE_ACCESS_STATUSES.map((status) => (
+                          <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Terms Status</span>
+                      <select value={profileDraft.sourceTermsStatus} onChange={(event) => updateProfileDraft("sourceTermsStatus", event.target.value)}>
+                        <option value="">Auto from adapter</option>
+                        {OPPORTUNITY_SOURCE_TERMS_STATUSES.map((status) => (
+                          <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="md:col-span-2">
+                      <span>Source Policy Note</span>
+                      <textarea value={profileDraft.sourcePolicyNote} onChange={(event) => updateProfileDraft("sourcePolicyNote", event.target.value)} placeholder="Public terms, authorized access notes, or human review requirement. Do not paste passwords, tokens, cookies, or portal secrets." rows={2} />
+                    </label>
                   </div>
                   <div className="co-ai-scout-form-footer">
                     <span>Profiles guide manual research. Apex HQ does not auto-bid or auto-contact customers.</span>
@@ -26437,6 +26484,12 @@ function CopilotPagePolished({
                           <Badge tone={profile.tone}>{profile.statusLabel}</Badge>
                         </div>
                         <p>{[profile.trades.slice(0, 3).join(", "), profile.serviceAreas.slice(0, 2).join(", "), `${profile.cadence} cadence`].filter(Boolean).join(" / ")}</p>
+                        <div className="co-ai-scout-checks">
+                          <small>Adapter: {(profile.sourceAdapterId || "manual").replace(/_/g, " ")}</small>
+                          <small>Access: {(profile.sourceAccessStatus || "clear_for_review").replace(/_/g, " ")}</small>
+                          <small>Terms: {(profile.sourceTermsStatus || "unreviewed").replace(/_/g, " ")}</small>
+                          {profile.sourceReviewRequired ? <small>Human source review required before recurring checks.</small> : null}
+                        </div>
                         <code>{profile.query}</code>
                       </div>
                       <div className="co-ai-scout-record-actions">
