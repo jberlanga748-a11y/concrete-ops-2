@@ -26458,6 +26458,9 @@ function CopilotPagePolished({
                               {aiPlanResult.qualificationChecklist?.slice(0, 2).map((item) => (
                                 <small key={item}><b>Check</b>{item}</small>
                               ))}
+                              {aiPlanResult.riskFilters?.slice(0, 2).map((item) => (
+                                <small key={item}><b>Risk</b>{item}</small>
+                              ))}
                             </div>
                           )}
                         </div>
