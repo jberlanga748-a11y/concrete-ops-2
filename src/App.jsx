@@ -26413,13 +26413,13 @@ function CopilotPagePolished({
                         </Button>
                       </div>
                       {aiPlan?.status === "ready" ? (
-                        <div className="co-ai-scout-review" data-state={aiPlanResult.configured === false ? "not-configured" : "ready"}>
+                        <div className="co-ai-scout-review" data-state={aiPlanResult.configured === false && !aiPlanResult.localFallback ? "not-configured" : "ready"}>
                           <div>
                             <span>AI Search Plan</span>
-                            <strong>{aiPlanResult.configured === false ? "Server AI needed" : "Daily plan ready"}</strong>
-                            <p>{aiPlanResult.configured === false ? "Apex HQ AI is not enabled on this server yet. The profile can still be run manually from the search brief." : (aiPlanResult.nextOfficeStep || aiPlanResult.searchSummary || "Use this plan to run the profile manually and save real matches.")}</p>
+                            <strong>{aiPlanResult.localFallback ? "Local scout plan ready" : aiPlanResult.configured === false ? "Server AI needed" : "Daily plan ready"}</strong>
+                            <p>{aiPlanResult.configured === false && !aiPlanResult.localFallback ? "Apex HQ AI is not enabled on this server yet. The profile can still be run manually from the search brief." : (aiPlanResult.nextOfficeStep || aiPlanResult.searchSummary || "Use this plan to run the profile manually and save real matches.")}</p>
                           </div>
-                          {aiPlanResult.configured === false ? null : (
+                          {aiPlanResult.configured === false && !aiPlanResult.localFallback ? null : (
                             <div className="co-ai-scout-review-grid">
                               {aiPlanResult.searchQueries?.slice(0, 3).map((item) => (
                                 <small key={item}><b>Search</b>{item}</small>

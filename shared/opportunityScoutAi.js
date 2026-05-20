@@ -236,6 +236,7 @@ function searchPlanDefaults(configured = true) {
   return {
     ok: true,
     configured,
+    localFallback: false,
     searchSummary: "",
     prioritySources: [],
     searchQueries: [],
@@ -252,6 +253,59 @@ export function notConfiguredOpportunitySearchPlanResponse() {
   };
 }
 
+function joinParts(values = []) {
+  return values.map((value) => text(value, 160)).filter(Boolean).join(" ");
+}
+
+export function buildLocalOpportunitySearchPlanResponse(context = {}) {
+  const profile = context.searchProfile || {};
+  const company = context.company || {};
+  const leadSources = Array.isArray(context.leadSources) ? context.leadSources : [];
+  const trades = arrayText(profile.trades, 4);
+  const areas = arrayText(profile.serviceAreas, 4);
+  const keywords = arrayText(profile.keywords, 4);
+  const sourceTypes = arrayText(profile.sourceTypes, 4);
+  const excludedKeywords = arrayText(profile.excludedKeywords, 4);
+  const fallbackArea = areas[0] || company.serviceArea || "local service area";
+  const fallbackTrade = trades[0] || "contractor work";
+  const fallbackKeyword = keywords[0] || "bid invite";
+  const fallbackSource = sourceTypes[0] || "public bid sources";
+  const namedSources = leadSources.map((source) => text(source.name, 160)).filter(Boolean).slice(0, 4);
+  const prioritySources = namedSources.length
+    ? namedSources
+    : sourceTypes.length
+      ? sourceTypes
+      : ["Saved public bid pages", "Known GC or builder sources", "Manual relationship follow-ups"];
+  const searchQueries = [
+    joinParts([fallbackArea, fallbackTrade, fallbackKeyword, "RFP bid invite"]),
+    joinParts([fallbackArea, fallbackSource, fallbackTrade, "plan room addenda"]),
+    joinParts([company.name, fallbackTrade, "upcoming project opportunity"]),
+    keywords.length > 1 ? joinParts([fallbackArea, keywords.slice(0, 3).join(" "), "contractor bid"]) : "",
+  ].filter(Boolean);
+
+  return sanitizeOpportunitySearchPlanResponse({
+    ...searchPlanDefaults(false),
+    localFallback: true,
+    message: "OpenAI is not configured, so Apex HQ generated a deterministic review-only plan from saved profile and source data.",
+    searchSummary: `Manual scout plan for ${profile.name || fallbackTrade}: check saved sources for ${fallbackTrade} work in ${fallbackArea}.`,
+    prioritySources,
+    searchQueries,
+    qualificationChecklist: [
+      "Confirm bid due date, walk-through date, addenda, and plan access.",
+      "Confirm trade, scope, service area, required forms, and estimator owner.",
+      "Save source URL, file names, screenshots, or notes as evidence before review.",
+      "Create a lead only after Approve For Lead; do not contact or submit bids from the scout.",
+    ],
+    riskFilters: [
+      ...excludedKeywords.map((item) => `Exclude: ${item}`),
+      "Stop for login, MFA, CAPTCHA, paywall, private portal, or unclear source authorization.",
+      "Reject credential/token payloads and any auto-contact or bid-submission request.",
+      "Flag out-of-area, missing due date, missing scope, duplicate, or no decision-maker details.",
+    ],
+    nextOfficeStep: "Open the saved sources manually, paste real evidence into Found Opportunities, then review missing info before approval.",
+  });
+}
+
 export function unavailableOpportunitySearchPlanResponse(message = "Opportunity Scout AI search planning is temporarily unavailable. Try again later.") {
   return {
     ...searchPlanDefaults(true),
@@ -263,6 +317,9 @@ export function unavailableOpportunitySearchPlanResponse(message = "Opportunity 
 export function sanitizeOpportunitySearchPlanResponse(payload = {}) {
   return {
     ...searchPlanDefaults(true),
+    configured: payload.configured !== undefined ? Boolean(payload.configured) : true,
+    localFallback: Boolean(payload.localFallback),
+    message: text(payload.message, 300),
     searchSummary: text(payload.searchSummary, 900),
     prioritySources: arrayText(payload.prioritySources),
     searchQueries: arrayText(payload.searchQueries),
@@ -394,7 +451,7 @@ export async function generateOpportunitySearchPlan({
   timeoutMs = 20000,
 } = {}) {
   if (!text(apiKey, 200)) {
-    return notConfiguredOpportunitySearchPlanResponse();
+    return buildLocalOpportunitySearchPlanResponse(context);
   }
   if (typeof fetchImpl !== "function") {
     return unavailableOpportunitySearchPlanResponse("Opportunity Scout AI cannot run because fetch is unavailable.");

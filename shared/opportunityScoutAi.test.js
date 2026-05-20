@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildOpportunityAssistantContext,
   buildOpportunityAssistantOpenAiRequest,
+  buildLocalOpportunitySearchPlanResponse,
   buildOpportunitySearchPlanContext,
   buildOpportunitySearchPlanOpenAiRequest,
   generateOpportunityAssistantReview,
@@ -163,15 +164,50 @@ test("opportunity search plan sanitizes output", () => {
   assert.equal(Object.hasOwn(result, "unexpected"), false);
 });
 
-test("opportunity search plan returns configured false without an API key", async () => {
+test("local opportunity search plan fallback is deterministic and review-only", () => {
+  const result = buildLocalOpportunitySearchPlanResponse(buildOpportunitySearchPlanContext({
+    searchProfile: {
+      name: "Daily public scan",
+      trades: ["concrete"],
+      serviceAreas: ["Salem"],
+      sourceTypes: ["City bid page"],
+      keywords: ["sidewalk", "ADA"],
+      excludedKeywords: ["roofing"],
+    },
+    leadSources: [
+      { name: "City bids", type: "Public bid portal" },
+    ],
+    companySettings: { companyName: "Apex HQ", serviceArea: "Salem Oregon" },
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.configured, false);
+  assert.equal(result.localFallback, true);
+  assert.equal(result.prioritySources[0], "City bids");
+  assert.match(result.searchQueries.join(" "), /Salem concrete sidewalk/i);
+  assert.match(result.qualificationChecklist.join(" "), /Create a lead only after Approve For Lead/i);
+  assert.match(result.riskFilters.join(" "), /CAPTCHA/i);
+  assert.match(result.riskFilters.join(" "), /Exclude: roofing/i);
+});
+
+test("opportunity search plan returns a local review-only plan without an API key", async () => {
   const result = await generateOpportunitySearchPlan({
-    context: buildOpportunitySearchPlanContext({ searchProfile: { name: "Daily scan" } }),
+    context: buildOpportunitySearchPlanContext({
+      searchProfile: {
+        name: "Daily scan",
+        trades: ["concrete"],
+        serviceAreas: ["Albany"],
+        keywords: ["sidewalk"],
+      },
+    }),
     apiKey: "",
   });
 
   assert.equal(result.ok, true);
   assert.equal(result.configured, false);
-  assert.match(result.message, /OPENAI_API_KEY/);
+  assert.equal(result.localFallback, true);
+  assert.match(result.searchSummary, /Daily scan/);
+  assert.match(result.nextOfficeStep, /paste real evidence/i);
 });
 
 test("opportunity search plan uses mocked OpenAI response without real calls", async () => {

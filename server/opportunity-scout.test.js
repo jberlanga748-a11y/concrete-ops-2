@@ -225,7 +225,10 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     });
     assert.equal(searchPlan.ok, true);
     assert.equal(searchPlan.configured, false);
-    assert.match(searchPlan.message, /OPENAI_API_KEY/);
+    assert.equal(searchPlan.localFallback, true);
+    assert.match(searchPlan.searchSummary, /Daily public work/);
+    assert.match(searchPlan.searchQueries.join(" "), /Albany concrete sidewalk/i);
+    assert.match(searchPlan.qualificationChecklist.join(" "), /Approve For Lead/i);
 
     const opportunityBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
       method: "POST",
