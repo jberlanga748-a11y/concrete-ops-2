@@ -26771,6 +26771,9 @@ function CopilotPagePolished({
                               <small><b>City</b>{opportunity.leadPreview.city}</small>
                               <small><b>Priority</b>{opportunity.leadPreview.priority}</small>
                               <small><b>Source</b>{opportunity.leadPreview.source}</small>
+                              {opportunity.leadPreview.sourcePosture ? (
+                                <small><b>Source Use</b>{opportunity.leadPreview.sourcePosture.safeUseLabel}</small>
+                              ) : null}
                               <small><b>Follow-up</b>{opportunity.leadPreview.followUp}</small>
                               <small><b>Owner</b>{opportunity.leadPreview.owner}</small>
                               <small><b>Notes</b>{opportunity.leadPreview.notesIncluded.length ? opportunity.leadPreview.notesIncluded.join(", ") : "Basic opportunity details"}</small>

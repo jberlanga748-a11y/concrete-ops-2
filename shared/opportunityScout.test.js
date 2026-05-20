@@ -454,6 +454,22 @@ test("lead handoff packet explains create-lead gates and blocked agent actions",
   assert.equal(needsReview.reviewWarnings.some((warning) => /duplicate/i.test(warning)), true);
   assert.equal(needsReview.blockedActions.some((action) => /No bid submission/i.test(action)), true);
 
+  const blockedSource = buildFoundOpportunityLeadHandoffPacket({
+    title: "Library ramp",
+    humanReviewStatus: "approved_for_lead",
+  }, {
+    sourcePosture: {
+      adapterId: "public_web",
+      accessStatus: "clear_for_review",
+      termsStatus: "blocked",
+      reviewRequired: true,
+      blocked: true,
+      safeUseLabel: "Blocked source",
+    },
+  });
+  assert.equal(blockedSource.sourcePosture.blocked, true);
+  assert.equal(blockedSource.reviewWarnings.some((warning) => /blocked/i.test(warning)), true);
+
   const approved = buildFoundOpportunityLeadHandoffPacket({
     title: "Library ramp",
     humanReviewStatus: "approved_for_lead",

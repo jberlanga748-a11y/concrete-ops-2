@@ -918,7 +918,7 @@ function dateKey(value) {
   return iso ? iso.slice(0, 10) : "";
 }
 
-export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today = dateKey(new Date()) } = {}) {
+export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today = dateKey(new Date()), sourcePosture = null } = {}) {
   const bidDueDate = dateKey(opportunity.bidDueAt);
   const fitScore = Number(opportunity.fitScore || 0);
   const converted = isConvertedFoundOpportunityToLead(opportunity);
@@ -943,6 +943,11 @@ export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today
   if (!canCreateLead && !converted) {
     reviewWarnings.push("Approve For Lead is required before Create Lead unlocks.");
   }
+  if (sourcePosture?.blocked) {
+    reviewWarnings.push("Source terms are blocked; do not use this source for lead creation until resolved.");
+  } else if (sourcePosture?.reviewRequired) {
+    reviewWarnings.push(`Source use needs review: ${sourcePosture.safeUseLabel || "Human review required"}.`);
+  }
 
   return {
     customer: opportunity.agency || opportunity.contactName || opportunity.sourceName || opportunity.title || "Customer pending",
@@ -956,6 +961,14 @@ export function buildFoundOpportunityLeadHandoffPacket(opportunity = {}, { today
       : "Qualify the found opportunity and confirm the next bid step.",
     owner: opportunity.assignedEstimatorId ? "Assigned estimator" : "Current office user",
     notesIncluded,
+    sourcePosture: sourcePosture ? {
+      adapterId: sourcePosture.adapterId || "manual",
+      accessStatus: sourcePosture.accessStatus || "clear_for_review",
+      termsStatus: sourcePosture.termsStatus || "unreviewed",
+      reviewRequired: Boolean(sourcePosture.reviewRequired),
+      blocked: Boolean(sourcePosture.blocked),
+      safeUseLabel: sourcePosture.safeUseLabel || (sourcePosture.blocked ? "Blocked source" : sourcePosture.reviewRequired ? "Human review required" : "Clear for review"),
+    } : null,
     approvalRequired: !canCreateLead && !converted,
     canCreateLead,
     converted,

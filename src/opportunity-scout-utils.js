@@ -342,7 +342,24 @@ function buildSearchProfileQueue(profile = {}, companySettings = {}, today = dat
   };
 }
 
-function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date())) {
+function buildSourcePostureSummary(profile = null) {
+  if (!profile) return null;
+  const sourceAccessStatus = profile.sourceAccessStatus || "clear_for_review";
+  const sourceTermsStatus = profile.sourceTermsStatus || "unreviewed";
+  const blocked = sourceTermsStatus === "blocked";
+  const reviewRequired = ["needs_human", "future_review"].includes(sourceAccessStatus)
+    || ["unreviewed", "human_review_required", "blocked"].includes(sourceTermsStatus);
+  return {
+    adapterId: profile.sourceAdapterId || "manual",
+    accessStatus: sourceAccessStatus,
+    termsStatus: sourceTermsStatus,
+    reviewRequired,
+    blocked,
+    safeUseLabel: blocked ? "Blocked source" : reviewRequired ? "Human review required" : "Clear for review",
+  };
+}
+
+function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()), sourcePosture = null) {
   const bidBucket = dateBucket(opportunity.bidDueAt, today);
   const priority = opportunityPriority(opportunity, today);
   const fitScore = Number(opportunity.fitScore || 0);
@@ -389,7 +406,8 @@ function buildFoundOpportunityQueue(opportunity = {}, today = dateKey(new Date()
     leadHandoffHelper: handoff.helper,
     leadHandoffTone: handoff.tone,
     leadHandoffActionLabel: handoff.actionLabel,
-    leadPreview: buildFoundOpportunityLeadHandoffPacket(opportunity, { today }),
+    sourcePosture,
+    leadPreview: buildFoundOpportunityLeadHandoffPacket(opportunity, { today, sourcePosture }),
     tone,
     priority,
   };
@@ -902,12 +920,13 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
   const profileQueue = searchProfiles
     .map((entry) => buildSearchProfileQueue(entry, companySettings, today))
     .sort((left, right) => left.priority - right.priority || dateSortValue(left.nextRunAt).localeCompare(dateSortValue(right.nextRunAt)) || left.name.localeCompare(right.name));
+  const profilePostureById = new Map(profileQueue.map((profile) => [profile.profileId, buildSourcePostureSummary(profile)]));
   const openFoundOpportunityQueue = openFoundOpportunities
-    .map((entry) => buildFoundOpportunityQueue(entry, today))
+    .map((entry) => buildFoundOpportunityQueue(entry, today, profilePostureById.get(entry.searchProfileId) || null))
     .sort((left, right) => left.priority - right.priority || dateSortValue(left.bidDueAt).localeCompare(dateSortValue(right.bidDueAt)) || Number(right.fitScore || 0) - Number(left.fitScore || 0));
   const foundOpportunityQueue = [
     ...openFoundOpportunityQueue,
-    ...convertedLeadHandoffs.map((entry) => buildFoundOpportunityQueue(entry, today)),
+    ...convertedLeadHandoffs.map((entry) => buildFoundOpportunityQueue(entry, today, profilePostureById.get(entry.searchProfileId) || null)),
   ];
   const checkQueue = [...dailyCheck.overdueSources, ...dailyCheck.dueTodaySources].map((entry) => buildSourceQueue(entry, companySettings));
   const fallbackSources = activeSources

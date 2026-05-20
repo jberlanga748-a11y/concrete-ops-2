@@ -100,7 +100,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
       { id: "OSP-3", companyId: "COMPANY-B", name: "Other company scan", status: "active" },
     ],
     foundOpportunities: [
-      { id: "FO-1", companyId: "COMPANY-A", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, sourceUrl: "https://example.test/bid", scopeSummary: "Sidewalk replacement with ADA ramp repair.", riskFlags: ["prevailing wage"], missingInfoItems: ["addenda"] },
+      { id: "FO-1", companyId: "COMPANY-A", searchProfileId: "OSP-1", title: "School sidewalk repair", agency: "Albany School District", status: "reviewing", trade: "Concrete", fitScore: 84, bidDueAt: TODAY, sourceUrl: "https://example.test/bid", scopeSummary: "Sidewalk replacement with ADA ramp repair.", riskFlags: ["prevailing wage"], missingInfoItems: ["addenda"] },
       { id: "FO-5", companyId: "COMPANY-A", title: "Approved ramp repair", status: "reviewing", humanReviewStatus: "approved_for_lead", duplicateHints: [{ opportunityId: "FO-1", confidence: "medium", reasons: ["same agency"] }], fileMetadata: [{ name: "ramp-screenshot.png" }], fitLabel: "strong fit", fitExplanation: "strong fit: source proof saved" },
       { id: "FO-6", companyId: "COMPANY-A", title: "Converted city ramp", status: "converted_to_lead", convertedLeadId: "L-99", updatedAt: "2026-05-12T10:00:00.000Z" },
       { id: "FO-2", companyId: "COMPANY-A", title: "Skipped job", status: "skipped", fitScore: 95 },
@@ -139,8 +139,11 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.foundOpportunityQueue[0].leadPreview.project, "School sidewalk repair");
   assert.equal(state.foundOpportunityQueue[0].leadPreview.city, "Location pending");
   assert.equal(state.foundOpportunityQueue[0].leadPreview.priority, "High");
+  assert.equal(state.foundOpportunityQueue[0].sourcePosture.safeUseLabel, "Human review required");
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.sourcePosture.termsStatus, "unreviewed");
   assert.equal(state.foundOpportunityQueue[0].leadPreview.canCreateLead, false);
   assert.equal(state.foundOpportunityQueue[0].leadPreview.reviewWarnings.some((warning) => /addenda/i.test(warning)), true);
+  assert.equal(state.foundOpportunityQueue[0].leadPreview.reviewWarnings.some((warning) => /Source use needs review/i.test(warning)), true);
   assert.equal(state.foundOpportunityQueue[0].leadPreview.blockedActions.some((action) => /No bid submission/i.test(action)), true);
   assert.deepEqual(state.foundOpportunityQueue[0].leadPreview.notesIncluded, ["source link", "scope", "risks", "missing info"]);
   const approvedOpportunity = state.foundOpportunityQueue.find((opportunity) => opportunity.opportunityId === "FO-5");
