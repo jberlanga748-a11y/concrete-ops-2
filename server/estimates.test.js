@@ -378,22 +378,22 @@ test("configured estimate email sends before marking estimate sent", async () =>
     assert.deepEqual(request.body.to, ["proposal-recipient@example.test"]);
     assert.equal(request.body.from, "Apex HQ <estimates@example.test>");
     assert.equal(request.body.reply_to, "office@example.test");
-    assert.equal(request.body.subject, "Estimate for Driveway replacement estimate");
+    assert.equal(request.body.subject, "Estimate for Cedar fence replacement estimate");
     assert.match(request.body.text, /Hi Martinez Residence,/);
-    assert.match(request.body.text, /Attached is your estimate for Driveway replacement estimate\./);
+    assert.match(request.body.text, /Attached is your estimate for Cedar fence replacement estimate\./);
     assert.match(request.body.text, /Please reply to this email if you have any questions or would like to move forward\./);
     assert.doesNotMatch(request.body.text, /Total estimate: \$2,837\.50/);
     assert.doesNotMatch(request.body.text, /Concrete placement/);
     assert.doesNotMatch(request.body.text, /Office-only pricing assumptions/);
     assert.equal(request.body.attachments.length, 1);
-    assert.equal(request.body.attachments[0].filename, "Estimate-Martinez-Residence-Driveway-replacement-estimate.pdf");
+    assert.equal(request.body.attachments[0].filename, "Estimate-Martinez-Residence-Cedar-fence-replacement-estimate.pdf");
     const pdfBuffer = Buffer.from(request.body.attachments[0].content, "base64");
     const pdfText = pdfBuffer.toString("latin1");
     const decodedText = extractPdfText(pdfBuffer);
     assert.match(pdfText, /%PDF-1\.3/);
     assert.match(decodedText, /Apex HQ Workspace/);
     assert.match(decodedText, /Martinez Residence/);
-    assert.match(decodedText, /Driveway replacement estimate/);
+    assert.match(decodedText, /Cedar fence replacement estimate/);
     assert.match(decodedText, /Concrete placement/);
     assert.match(decodedText, /BASE ESTIMATE TOTAL/);
     assert.match(decodedText, /\$2,837\.50/);
@@ -402,14 +402,14 @@ test("configured estimate email sends before marking estimate sent", async () =>
 
     assert.equal(sentState.emailSend.sentTo, "proposal-recipient@example.test");
     assert.equal(sentState.emailSend.providerMessageId, "msg_test_123");
-    assert.equal(sentState.emailSend.attachmentFilename, "Estimate-Martinez-Residence-Driveway-replacement-estimate.pdf");
+    assert.equal(sentState.emailSend.attachmentFilename, "Estimate-Martinez-Residence-Cedar-fence-replacement-estimate.pdf");
     const sentEstimate = sentState.estimates.find((entry) => entry.id === estimate.id);
     assert.equal(sentEstimate.status, "sent");
     assert.ok(sentEstimate.sentAt);
     assert.equal(sentEstimate.sentBy, officeBootstrap.user.id);
     assert.equal(sentEstimate.customerEmail, "proposal-recipient@example.test");
     assert.equal(sentEstimate.sentTo, "proposal-recipient@example.test");
-    assert.equal(sentEstimate.emailSubject, "Estimate for Driveway replacement estimate");
+    assert.equal(sentEstimate.emailSubject, "Estimate for Cedar fence replacement estimate");
     assert.equal(sentEstimate.providerMessageId, "msg_test_123");
   } finally {
     await fixture.stop();

@@ -14,10 +14,12 @@ import {
 import { buildPrintDocumentHtml, deriveEstimatePrintPacket } from "./print-packets.js";
 
 test("estimate template starters are static editable starters with blank prices", () => {
-  assert.equal(ESTIMATE_TEMPLATE_STARTERS.length, 8);
-  assert.equal(ESTIMATE_LINE_ITEM_STARTERS.length, 12);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.length, 11);
+  assert.equal(ESTIMATE_LINE_ITEM_STARTERS.length, 17);
   assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Concrete Flatwork"), true);
   assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "ADA Ramp"), true);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Fence Install"), true);
+  assert.equal(ESTIMATE_TEMPLATE_STARTERS.some((template) => template.title === "Gate Repair / Replacement"), true);
 
   ESTIMATE_LINE_ITEM_STARTERS.forEach((starter) => {
     assert.equal(starter.unitPrice, "");
@@ -28,6 +30,11 @@ test("estimate template starters are static editable starters with blank prices"
   const driveway = normalizeEstimateTemplateStarter(ESTIMATE_TEMPLATE_STARTERS.find((template) => template.id === "driveway-approach"));
   assert.equal(driveway.title, "Driveway / Approach");
   assert.equal(driveway.lineItems.every((item) => item.unitPrice === ""), true);
+
+  const fence = normalizeEstimateTemplateStarter(ESTIMATE_TEMPLATE_STARTERS.find((template) => template.id === "fence-install"));
+  assert.equal(fence.title, "Fence Install");
+  assert.equal(fence.lineItems.every((item) => item.unitPrice === ""), true);
+  assert.match(fence.sections.scopeOfWork, /set posts/);
 });
 
 test("applying a template fills existing estimate fields without adding schema fields", () => {
@@ -113,6 +120,18 @@ test("rough notes line item suggestions extract workable starter rows without pr
   assert.equal(items.some((item) => item.description === "Finish / cleanup"), true);
   assert.equal(items.every((item) => item.unitPrice === ""), true);
   assert.equal(items.some((item) => item.quantity === 500 && item.unit === "sf"), true);
+});
+
+test("rough notes line item suggestions support fence and gate work without pricing guesses", () => {
+  const items = buildEstimateLineItemsFromRoughNotes("180 lf cedar privacy fence, set posts, 2 gates with latch hardware, stain allowance, haul off old fence");
+
+  assert.equal(items.length >= 4, true);
+  assert.equal(items.some((item) => item.description === "Fence panels / rails"), true);
+  assert.equal(items.some((item) => item.description === "Fence post setting"), true);
+  assert.equal(items.some((item) => item.description === "Gate / hardware"), true);
+  assert.equal(items.some((item) => item.description === "Stain / seal allowance"), true);
+  assert.equal(items.every((item) => item.unitPrice === ""), true);
+  assert.equal(items.some((item) => item.quantity === 180 && item.unit === "lf"), true);
 });
 
 test("blank rough notes do not invent line items", () => {

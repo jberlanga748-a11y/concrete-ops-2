@@ -549,7 +549,7 @@ function ageDemoWalkthroughDates(sqliteFile) {
       "2026-04-25T07:30",
       "2026-04-25T16:30",
       STALE_DEMO_WALKTHROUGH_TIMESTAMP,
-      "Martinez Driveway Replacement",
+      "Martinez Cedar Fence Replacement",
     );
   } finally {
     database.close();
@@ -645,7 +645,7 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     });
     assert.ok(adminBootstrap.customers.some((customer) => customer.name === "Martinez Residence"));
     assert.ok(adminBootstrap.leads.some((lead) => lead.source === "public_request_form"));
-    assert.ok(adminBootstrap.leads.some((lead) => lead.project === "Stamped patio quote" && lead.city === "Keizer"));
+    assert.ok(adminBootstrap.leads.some((lead) => lead.project === "Gate repair quote" && lead.city === "Keizer"));
     assert.ok(adminBootstrap.estimates.some((estimate) => estimate.jobId === "DEMO-J-2201" && estimate.status === "approved"));
     assert.ok(adminBootstrap.jobs.some((job) => job.id === "DEMO-J-2201"));
     assert.equal(adminBootstrap.companySettings.companyName, "Apex HQ Demo Company");
@@ -661,10 +661,10 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     assert.equal(adminBootstrap.permissions.reports.canViewAdvanced, true);
     assert.equal(adminBootstrap.permissions.opportunityScout.canView, false);
     assert.ok(adminBootstrap.dailyReports.some((report) => report.id === "DEMO-DR-DEMO-003" && report.status === "submitted"));
-    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Forms set before pour"));
-    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Rebar inspection photo"));
-    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Finished broom finish"));
-    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Delivery ticket photo"));
+    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Posts set before rails"));
+    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Utility locate and post layout photo"));
+    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Finished gate alignment"));
+    assert.ok(adminBootstrap.uploads.some((upload) => upload.caption === "Material ticket photo"));
     const demoUpload = adminBootstrap.uploads.find((upload) => upload.id === "DEMO-UPL-DEMO-002") || adminBootstrap.uploads[0];
     assert.ok(demoUpload);
     const demoUploadContent = await fetch(`${fixture.baseUrl}${demoUpload.contentUrl}`, {
@@ -672,7 +672,7 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     });
     assert.equal(demoUploadContent.ok, true);
     assert.equal(String(demoUploadContent.headers.get("content-type") || "").startsWith("image/"), true);
-    assert.ok(adminBootstrap.safetyIncidents.some((incident) => incident.status === "open" && /wet slab edge/i.test(incident.title)));
+    assert.ok(adminBootstrap.safetyIncidents.some((incident) => incident.status === "open" && /open post holes/i.test(incident.title)));
     assert.ok(adminBootstrap.safetyIncidents.some((incident) => incident.status === "reviewed" && incident.type === "near_miss"));
     assert.ok(adminBootstrap.safetyIncidents.some((incident) => incident.status === "resolved"));
     assert.ok(adminBootstrap.safetyPolicies.some((policy) => policy.title === "Morning PPE check"));
@@ -684,8 +684,8 @@ test("demo mode seeds fake users and the full office-to-field workflow story", a
     assert.ok(adminBootstrap.prePourChecklists.length > 0);
     assert.ok(adminBootstrap.postPourChecklists.length > 0);
     assert.ok(adminBootstrap.changeOrderRequests.length > 0);
-    assert.ok(adminBootstrap.deliveryTickets.some((ticket) => ticket.ticketNumber === "DRV-18857"));
-    assert.ok(adminBootstrap.deliveryTickets.some((ticket) => ticket.ticketNumber === "ADA-22019"));
+    assert.ok(adminBootstrap.deliveryTickets.some((ticket) => ticket.ticketNumber === "FNC-18857"));
+    assert.ok(adminBootstrap.deliveryTickets.some((ticket) => ticket.ticketNumber === "PRV-22019"));
 
     const foremanLogin = await login(fixture.baseUrl, {
       email: "demo.foreman@apexhq.app",
@@ -924,7 +924,7 @@ test("restarting the demo app does not keep growing seeded demo records", async 
     const refreshedAcknowledgment = bootstrap.safetyAcknowledgments.find((acknowledgment) => acknowledgment.id === "DEMO-SA-DEMO-001");
     const refreshedIncident = bootstrap.safetyIncidents.find((incident) => incident.id === "DEMO-SI-DEMO-001");
     const refreshedToolChecklist = bootstrap.toolChecklists.find((checklist) => checklist.id === "DEMO-TC-DEMO-001");
-    const refreshedFieldJob = bootstrap.jobs.find((job) => job.title === "Martinez Driveway Replacement");
+    const refreshedFieldJob = bootstrap.jobs.find((job) => job.title === "Martinez Cedar Fence Replacement");
     const todayKey = localDateKey();
     assert.ok(refreshedSafetyPolicy);
     assert.ok(refreshedPpeItem);
@@ -1294,12 +1294,12 @@ test("demo users only see the clean demo story even when an existing database co
     assert.equal(demoBootstrap.activity.some((item) => item.title === "riley" || item.detail === "gfsghyrh"), false);
 
     assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Martinez Residence"));
-    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Keizer Patio Project"));
+    assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Keizer Gate Project"));
     assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Valley View Apartments"));
     assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Salem Dental Office"));
     assert.ok(demoBootstrap.customers.some((customer) => customer.name === "Northwest Storage Yard"));
-    assert.ok(demoBootstrap.leads.some((lead) => lead.project === "Driveway replacement estimate"));
-    assert.ok(demoBootstrap.jobs.some((job) => job.title === "Martinez Driveway Replacement"));
+    assert.ok(demoBootstrap.leads.some((lead) => lead.project === "Cedar fence replacement estimate"));
+    assert.ok(demoBootstrap.jobs.some((job) => job.title === "Martinez Cedar Fence Replacement"));
 
     const demoOpsLogin = await login(demoServer.baseUrl, {
       email: "demo.ops@apexhq.app",
