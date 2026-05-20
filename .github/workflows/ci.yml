@@ -30,20 +30,24 @@ jobs:
         run: npm ci
 
       - name: Check whitespace
+        timeout-minutes: 2
         run: git diff --check
 
       - name: Verify auth and signup safety
+        timeout-minutes: 8
         run: |
           npm run verify:auth
           npm run verify:signup
 
       - name: Verify tenant, role, and package safety
+        timeout-minutes: 10
         run: |
           npm run verify:users
           npm run verify:roles
           npm run verify:entitlements
 
       - name: Verify public intake and demo safety
+        timeout-minutes: 10
         run: |
           npm run verify:docs
           npm run verify:public-request
@@ -51,10 +55,12 @@ jobs:
           npm run verify:demo
 
       - name: Verify server behavior and backup/export tooling
+        timeout-minutes: 10
         run: |
           npm run verify:server
           npm run verify:backup
           npm run verify:restore
 
       - name: Build frontend
+        timeout-minutes: 5
         run: npm run build
