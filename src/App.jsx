@@ -26301,6 +26301,21 @@ function CopilotPagePolished({
                     </button>
                   ))}
                 </div>
+                <div className="co-ai-scout-runbook">
+                  <span>Recent source outcomes</span>
+                  {opportunityScout.recentSourceCheckOutcomes.length ? opportunityScout.recentSourceCheckOutcomes.map((outcome) => (
+                    <button key={outcome.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={outcome.tone} onClick={() => jumpToScoutTarget(outcome.result === "found_work" ? "scout-found-opportunities" : "scout-search-briefs", "copilot")}>
+                      <em>{outcome.label}</em>
+                      <strong>{outcome.sourceName}</strong>
+                      <p>{[outcome.checkedAt, outcome.note || outcome.missingInfo || outcome.nextAction].filter(Boolean).join(" / ")}</p>
+                      <small>{outcome.nextAction}</small>
+                    </button>
+                  )) : (
+                    <div className="co-ai-scout-checks">
+                      <small>Source outcomes appear after the office records No Fit, Found Work, Needs Human, Duplicate, or Missing Docs.</small>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div id="scout-search-briefs" className="co-ai-scout-briefs" tabIndex={-1}>

@@ -10,7 +10,7 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
     currentCompanyId: "COMPANY-A",
     companySettings: { serviceArea: "Albany Oregon", companyName: "Apex HQ" },
     leadSources: [
-      { id: "LS-1", companyId: "COMPANY-A", name: "Oregon plan room", type: "Plan room", tradeFocus: "commercial concrete", serviceArea: "Willamette Valley", status: "Active", nextCheckAt: "2026-05-10" },
+      { id: "LS-1", companyId: "COMPANY-A", name: "Oregon plan room", type: "Plan room", tradeFocus: "commercial concrete", serviceArea: "Willamette Valley", status: "Active", nextCheckAt: "2026-05-10", notes: "[2026-05-12 source check] Result: Found Work | Next: Save found opportunity | Source: Oregon plan room | Note: ADA ramp RFP found. | Review-first: no lead, contact, message, or bid was created from this check." },
       { id: "LS-2", companyId: "COMPANY-A", name: "City bid page", type: "City/county/school bid page", tradeFocus: "sidewalk bids", city: "Salem", state: "OR", status: "Active", nextCheckAt: TODAY },
       { id: "LS-3", companyId: "COMPANY-A", name: "Inactive source", status: "Inactive", nextCheckAt: TODAY },
       { id: "LS-4", companyId: "COMPANY-B", name: "Other company source", status: "Active", nextCheckAt: TODAY },
@@ -39,6 +39,10 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-source-checks").value, 2);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-source-checks").tone, "red");
   assert.deepEqual(state.sourceQueue.map((source) => source.sourceId), ["LS-1", "LS-2"]);
+  assert.equal(state.recentSourceCheckOutcomes.length, 1);
+  assert.equal(state.recentSourceCheckOutcomes[0].result, "found_work");
+  assert.equal(state.recentSourceCheckOutcomes[0].sourceName, "Oregon plan room");
+  assert.equal(state.stats.foundWorkSourceCheckOutcomes, 1);
   assert.match(state.searchBriefs[0].query, /commercial concrete/i);
   assert.equal(state.sourceQueue.some((source) => source.name === "Other company source"), false);
 });

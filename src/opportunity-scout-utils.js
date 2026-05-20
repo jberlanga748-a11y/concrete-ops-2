@@ -1,5 +1,5 @@
 import { deriveDailySourceCheckState, leadSourceLocation } from "../shared/leadSources.js";
-import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead } from "../shared/opportunityScout.js";
+import { buildFoundOpportunityLeadHandoffPacket, buildOpportunityScoutAgentRunPacket, canConvertFoundOpportunityToLead, isConvertedFoundOpportunityToLead, parseOpportunityScoutSourceCheckOutcomes } from "../shared/opportunityScout.js";
 
 const CLOSED_LEAD_STATUSES = new Set([
   "approved",
@@ -907,6 +907,10 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     .map((entry) => buildSourceQueue(entry, companySettings));
   const sourceQueue = (checkQueue.length ? checkQueue : fallbackSources)
     .sort((left, right) => left.priority - right.priority || left.name.localeCompare(right.name));
+  const recentSourceCheckOutcomes = activeSources
+    .flatMap((source) => parseOpportunityScoutSourceCheckOutcomes(source))
+    .sort((left, right) => dateSortValue(right.checkedAt).localeCompare(dateSortValue(left.checkedAt)) || left.sourceName.localeCompare(right.sourceName))
+    .slice(0, 6);
   const profileBriefs = profileQueue.filter((entry) => normalizeStatus(entry.status) === "active").slice(0, 4).map((entry) => ({
     id: `profile-brief-${entry.id}`,
     profileId: entry.profileId,
@@ -1075,6 +1079,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     profileQueue: profileQueue.slice(0, 6),
     foundOpportunityQueue: foundOpportunityQueue.slice(0, 8),
     sourceQueue,
+    recentSourceCheckOutcomes,
     searchBriefs,
     leadQueue: leadQueue.slice(0, 6),
     actionPlan,
@@ -1095,6 +1100,8 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
       dueBidOpportunities: dueBidOpportunities.length,
       overdueSourceChecks: dailyCheck.stats.overdue,
       dueSourceChecks: dailyCheck.stats.dueToday,
+      recentSourceCheckOutcomes: recentSourceCheckOutcomes.length,
+      foundWorkSourceCheckOutcomes: recentSourceCheckOutcomes.filter((outcome) => outcome.result === "found_work").length,
       checksNeeded: dailyCheck.stats.checksNeeded + dueProfiles.length,
       openLeads: openLeads.length,
       highFitLeads: highFitLeads.length,

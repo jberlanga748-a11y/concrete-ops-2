@@ -18,6 +18,7 @@ import {
   OPPORTUNITY_SCOUT_SOURCE_ADAPTERS,
   buildOpportunityScoutSourceCheckNote,
   classifyOpportunityScoutSourceAccess,
+  parseOpportunityScoutSourceCheckOutcomes,
   redactOpportunityScoutText,
   sanitizeOpportunityScoutUrl,
   OPPORTUNITY_SEARCH_PROFILE_STARTERS,
@@ -186,6 +187,29 @@ test("source check notes capture review-first outcomes without creating actions"
   assert.match(note, /Missing: addenda, plans/);
   assert.equal(note.includes("secret"), false);
   assert.match(note, /no lead, contact, message, or bid was created/i);
+});
+
+test("source check outcome parser exposes recent review-first source history", () => {
+  const note = buildOpportunityScoutSourceCheckNote({
+    result: "found_work",
+    sourceName: "City bids",
+    note: "Sidewalk RFP found for office review.",
+  });
+  const outcomes = parseOpportunityScoutSourceCheckOutcomes({
+    id: "LS-1",
+    name: "City bids",
+    notes: `[2026-05-20 source check] ${note}\nExisting unrelated source note.`,
+  });
+
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].sourceId, "LS-1");
+  assert.equal(outcomes[0].sourceName, "City bids");
+  assert.equal(outcomes[0].checkedAt, "2026-05-20");
+  assert.equal(outcomes[0].result, "found_work");
+  assert.equal(outcomes[0].label, "Found Work");
+  assert.equal(outcomes[0].tone, "orange");
+  assert.equal(outcomes[0].reviewOnly, true);
+  assert.match(outcomes[0].note, /Sidewalk RFP/);
 });
 
 test("opportunity scout agent preview rejects unsafe external action payloads", () => {

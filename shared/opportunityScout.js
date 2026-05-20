@@ -275,6 +275,42 @@ export function buildOpportunityScoutSourceCheckNote({ result = "no_fit", source
   return details.filter(Boolean).join(" | ");
 }
 
+function parseSourceCheckLine(line = "", source = {}, index = 0) {
+  const match = String(line || "").match(/^\[(\d{4}-\d{2}-\d{2}) source check\]\s*(.+)$/i);
+  if (!match) return null;
+  const [, checkedAt, body] = match;
+  const fields = {};
+  body.split("|").forEach((part) => {
+    const [rawKey, ...rest] = part.split(":");
+    const key = collapseSpaces(rawKey).toLowerCase();
+    const value = collapseSpaces(rest.join(":"));
+    if (key && value) fields[key] = value;
+  });
+  const resultLabel = fields.result || "";
+  const option = OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.find((entry) => entry.label.toLowerCase() === resultLabel.toLowerCase());
+  if (!option) return null;
+
+  return {
+    id: `${source.id || fields.source || "source"}-${checkedAt}-${index}`,
+    sourceId: source.id || "",
+    sourceName: fields.source || source.name || "Lead source",
+    checkedAt,
+    result: option.id,
+    label: option.label,
+    tone: option.tone,
+    nextAction: fields.next || option.nextAction,
+    missingInfo: fields.missing || "",
+    note: fields.note || "",
+    reviewOnly: /no lead, contact, message, or bid was created/i.test(body),
+  };
+}
+
+export function parseOpportunityScoutSourceCheckOutcomes(source = {}) {
+  return text(source.notes).split(/\r?\n/)
+    .map((line, index) => parseSourceCheckLine(line, source, index))
+    .filter(Boolean);
+}
+
 const DEFAULT_TRADES = [
   "concrete",
   "fencing",
