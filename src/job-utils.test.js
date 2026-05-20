@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveJobListState, filterJobs, jobStatusLabel, matchesJobDateFilter, normalizeJobStatus } from "./job-utils.js";
+import { deriveJobListState, deriveJobPilotHandoffReadiness, filterJobs, jobStatusLabel, matchesJobDateFilter, normalizeJobStatus } from "./job-utils.js";
 
 const FIXTURE_JOBS = [
   {
@@ -79,6 +79,48 @@ test("job list helpers tolerate missing job arrays", () => {
   assert.deepEqual(state.filteredJobs, []);
   assert.deepEqual(state.customerOptions, []);
   assert.deepEqual(state.foremanOptions, []);
+});
+
+test("job pilot handoff readiness highlights missing field workflow setup", () => {
+  const readiness = deriveJobPilotHandoffReadiness({
+    title: "M2 Mini slab",
+    customer: "M2 Mini",
+    status: "planned",
+    scheduledStart: "2026-05-22T07:00",
+    address: "Salem, OR",
+    scopeSummary: "",
+    assignedForemanId: "",
+    fieldPlanningVisible: false,
+    notes: "",
+    safetyNotes: "",
+  });
+
+  assert.equal(readiness.status, "Needs handoff");
+  assert.equal(readiness.readyCount, 2);
+  assert.equal(readiness.nextAction, "Add scope");
+  assert.deepEqual(
+    readiness.steps.filter((step) => step.complete).map((step) => step.id),
+    ["schedule", "location"],
+  );
+});
+
+test("job pilot handoff readiness marks proof-ready jobs ready", () => {
+  const readiness = deriveJobPilotHandoffReadiness({
+    title: "Shop slab",
+    status: "field_complete",
+    scheduledStart: "2026-05-22T07:00",
+    address: "123 Jobsite Rd",
+    scopeSummary: "Prep and pour shop slab.",
+    assignedForemanId: "U-FOREMAN",
+    fieldPlanningVisible: true,
+    notes: "Upload closeout proof and ticket before owner follow-up.",
+    safetyNotes: "Review access and PPE before pour.",
+  });
+
+  assert.equal(readiness.status, "Field-ready");
+  assert.equal(readiness.readyCount, readiness.totalCount);
+  assert.equal(readiness.nextAction, "Start field work");
+  assert.match(readiness.summary, /enough context/i);
 });
 
 test("job date helpers support This Week", () => {

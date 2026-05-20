@@ -10,6 +10,10 @@ const LEGACY_STATUS_MAP = {
   complete: "completed",
 };
 
+function toText(value) {
+  return String(value || "").trim();
+}
+
 export function normalizeJobStatus(status) {
   const normalized = String(status || "").trim().toLowerCase();
   return LEGACY_STATUS_MAP[normalized] || normalized || "scheduled";
@@ -164,5 +168,112 @@ export function deriveJobListState(jobs, filters = {}, users = []) {
     filteredJobs,
     customerOptions,
     foremanOptions,
+  };
+}
+
+function hasJobHandoffIntent(job = {}) {
+  const haystack = [
+    job.nextStep,
+    job.scopeSummary,
+    job.fieldNotes,
+    job.notes,
+    job.prePourChecklist?.statusLabel,
+    job.postPourChecklist?.statusLabel,
+  ].map(toText).join(" ").toLowerCase();
+
+  return /\b(handoff|field|crew|foreman|photo|proof|report|upload|ticket|checklist|ready to bill|ready-to-bill)\b/.test(haystack);
+}
+
+function hasAssignedCrew(job = {}) {
+  return Boolean(
+    toText(job.assignedForemanId)
+      || toText(job.crew)
+      || Number(job.crewSizeNeeded || 0) > 0
+      || (Array.isArray(job.assignments) && job.assignments.length > 0),
+  );
+}
+
+export function deriveJobPilotHandoffReadiness(job = {}) {
+  const normalizedStatus = normalizeJobStatus(job.status || job.stage);
+  const proofReadyStatuses = new Set(["field_complete", "completed", "billing_ready", "closed"]);
+  const fieldStartedStatuses = new Set(["in_progress", "field_complete", "completed", "billing_ready", "closed"]);
+  const hasLocation = Boolean(toText(job.address) || toText(job.city) || toText(job.location));
+  const hasSchedule = Boolean(toText(job.scheduledStart));
+  const hasScope = Boolean(toText(job.scopeSummary));
+  const hasCrew = hasAssignedCrew(job);
+  const fieldVisible = Boolean(job.fieldPlanningVisible || job.visibleToForeman || toText(job.fieldNotes) || fieldStartedStatuses.has(normalizedStatus));
+  const proofPath = proofReadyStatuses.has(normalizedStatus) || hasJobHandoffIntent(job);
+  const safetyContext = Boolean(toText(job.safetyNotes) || job.prePourChecklist?.statusLabel || fieldStartedStatuses.has(normalizedStatus));
+
+  const steps = [
+    {
+      id: "schedule",
+      label: "Schedule",
+      complete: hasSchedule,
+      helper: hasSchedule ? "Start time is set for dispatch." : "Set the scheduled start before field handoff.",
+      nextAction: "Set schedule",
+    },
+    {
+      id: "location",
+      label: "Jobsite",
+      complete: hasLocation,
+      helper: hasLocation ? "Jobsite location is visible." : "Add address, city, or site location.",
+      nextAction: "Add jobsite",
+    },
+    {
+      id: "scope",
+      label: "Scope",
+      complete: hasScope,
+      helper: hasScope ? "Scope summary is ready for office and field review." : "Add the concrete scope summary.",
+      nextAction: "Add scope",
+    },
+    {
+      id: "crew",
+      label: "Crew",
+      complete: hasCrew,
+      helper: hasCrew ? "Crew or foreman assignment context is present." : "Assign a foreman, crew, or crew size.",
+      nextAction: "Assign crew",
+    },
+    {
+      id: "field-handoff",
+      label: "Field handoff",
+      complete: fieldVisible,
+      helper: fieldVisible ? "Field-facing planning context is visible." : "Add field notes or make planning visible to foreman.",
+      nextAction: "Prepare field handoff",
+    },
+    {
+      id: "proof",
+      label: "Proof path",
+      complete: proofPath,
+      helper: proofPath ? "Photo/report/proof path is visible." : "Name the first photo, report, ticket, or proof action.",
+      nextAction: "Name proof action",
+    },
+    {
+      id: "safety",
+      label: "Safety",
+      complete: safetyContext,
+      helper: safetyContext ? "Safety or pre-pour context is present." : "Add safety notes or pre-pour context.",
+      nextAction: "Add safety context",
+    },
+  ];
+
+  const readyCount = steps.filter((step) => step.complete).length;
+  const nextStep = steps.find((step) => !step.complete) || null;
+  const statusLabel = readyCount === steps.length
+    ? "Field-ready"
+    : readyCount >= 5
+      ? "Nearly ready"
+      : "Needs handoff";
+
+  return {
+    status: statusLabel,
+    tone: statusLabel === "Field-ready" ? "green" : statusLabel === "Nearly ready" ? "amber" : "blue",
+    readyCount,
+    totalCount: steps.length,
+    steps,
+    nextAction: nextStep?.nextAction || "Start field work",
+    summary: nextStep
+      ? `${readyCount} of ${steps.length} field handoff checkpoints are ready. ${nextStep.helper}`
+      : "Job has enough context for schedule, field handoff, proof capture, and owner follow-up.",
   };
 }
