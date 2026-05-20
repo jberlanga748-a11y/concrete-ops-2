@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3764,6 +3764,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openEstimateJobHandoff(choice = {}) {
     const opened = onOpenEstimateJobHandoff(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openJobHandoff(choice = {}) {
+    const opened = onOpenJobHandoff(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3871,6 +3879,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                         </Button>
                       ))}
                     </div>
+                  </div>
+                ) : response.type === "job-handoff-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openJobHandoff(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open startup checklist and job packet review. No job changes happen automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openJobHandoff(response.fallback || {})}>
+                      {response.matches?.length ? "Open Jobs instead" : response.actionLabel}
+                    </Button>
                   </div>
                 ) : response.type === "estimate-draft-review" ? (
                   <div className="mt-3 grid gap-2">
@@ -21507,6 +21532,8 @@ function JobsPagePolished({
   onStartBreak,
   onEndBreak,
   onPrintJobPacket,
+  assistantJobHandoffSeed = null,
+  onAssistantJobHandoffSeedHandled = () => {},
 }) {
   const isFieldWorkspace = !permissions.jobs.canManageAll && !permissions.leads.canView;
 
@@ -21652,6 +21679,24 @@ function JobsPagePolished({
     }
     jumpToJobSection("jobs-operations-board");
   }
+
+  useEffect(() => {
+    const seed = assistantJobHandoffSeed;
+    if (!seed?.nonce || !permissions?.jobs?.canManageAll) return;
+
+    const targetJobId = seed.jobId && liveJobRows.some((job) => job?.id === seed.jobId)
+      ? seed.jobId
+      : liveJobRows.find(jobStartupNeedsReview)?.id || liveJobRows[0]?.id || "";
+    setFilter("All");
+    setCustomerFilter("All customers");
+    setForemanFilter("All foremen");
+    setDateFilter("All dates");
+    setStartupFilter("All startup");
+    setSearch("");
+    if (targetJobId) onSelectJob(targetJobId);
+    openJobTool(targetJobId ? "startup" : "details");
+    onAssistantJobHandoffSeedHandled(seed.nonce);
+  }, [assistantJobHandoffSeed?.nonce, liveJobRows, permissions?.jobs?.canManageAll]);
 
   function jumpToJobSection(sectionId) {
     if (typeof document === "undefined") return;
@@ -38469,6 +38514,8 @@ function MainContent(props) {
         setDateFilter={props.setJobDateFilter}
         startupFilter={props.jobStartupFilter}
         setStartupFilter={props.setJobStartupFilter}
+        assistantJobHandoffSeed={props.assistantJobHandoffSeed}
+        onAssistantJobHandoffSeedHandled={props.onAssistantJobHandoffSeedHandled}
       />
     );
   }
@@ -38650,6 +38697,7 @@ export default function App() {
   const [assistantEstimateDraftSeed, setAssistantEstimateDraftSeed] = useState(null);
   const [assistantEstimatePacketSeed, setAssistantEstimatePacketSeed] = useState(null);
   const [assistantEstimateJobHandoffSeed, setAssistantEstimateJobHandoffSeed] = useState(null);
+  const [assistantJobHandoffSeed, setAssistantJobHandoffSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -38792,6 +38840,20 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("estimates");
+    return true;
+  }
+
+  function handleOpenAssistantJobHandoff(seed = {}) {
+    if (!appState.permissions.jobs?.canManageAll) {
+      setErrorMessage("Foreman handoff assistant actions require an office role that can manage job startup readiness.");
+      return false;
+    }
+    if (seed.jobId) setSelectedJobId(seed.jobId);
+    setAssistantJobHandoffSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("jobs");
     return true;
   }
 
@@ -41747,6 +41809,12 @@ export default function App() {
                     setAssistantEstimateJobHandoffSeed(null);
                   }
                 }}
+                assistantJobHandoffSeed={assistantJobHandoffSeed}
+                onAssistantJobHandoffSeedHandled={(nonce) => {
+                  if (!assistantJobHandoffSeed || assistantJobHandoffSeed.nonce === nonce) {
+                    setAssistantJobHandoffSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -41963,6 +42031,7 @@ export default function App() {
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
+        onOpenJobHandoff={handleOpenAssistantJobHandoff}
       />
     </div>
   );

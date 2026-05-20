@@ -152,6 +152,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const missingProofCommand = resolveAssistantMissingProofCommand(input, state.commandContext || {});
   if (missingProofCommand) return missingProofCommand;
 
+  const jobHandoffCommand = resolveAssistantJobHandoffCommand(input, state.commandContext || {});
+  if (jobHandoffCommand) return jobHandoffCommand;
+
   const estimatePacketCommand = resolveAssistantEstimatePacketCommand(input, state.commandContext || {});
   if (estimatePacketCommand) return estimatePacketCommand;
 
@@ -231,6 +234,46 @@ export function resolveAssistantMissingProofCommand(input = "", context = {}) {
     },
     items,
     actions: actions.length ? actions : [{ moduleId: "jobs", actionLabel: "Open job" }],
+  };
+}
+
+export function resolveAssistantJobHandoffCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasJobHandoffIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!permissions?.jobs?.canManageAll) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Foreman handoff and job startup assistant commands are office review tools. Field users stay limited to assigned job workflows and cannot open office-only startup controls.",
+    };
+  }
+
+  const query = extractJobHandoffTargetQuery(rawText);
+  const matches = findAssistantJobHandoffMatches(query, context);
+  const fallback = {
+    id: "assistant-open-job-handoff",
+    type: "job-handoff",
+    label: "Open Jobs startup review",
+    helper: "No exact job match found. Open Jobs and choose the startup checklist manually.",
+  };
+
+  return {
+    type: "job-handoff-review",
+    moduleId: "jobs",
+    actionLabel: matches.length === 1 ? "Review startup" : matches.length > 1 ? "Choose job" : "Open Jobs",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for foreman handoff review. No schedule, crew assignment, field visibility, or customer message will change automatically.`
+      : matches.length > 1
+        ? "I found multiple possible jobs. Choose the right job before opening the startup handoff review."
+        : "I did not find an exact job match. Open Jobs and review startup readiness manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
   };
 }
 
@@ -403,6 +446,14 @@ function hasEstimateDraftIntent(text = "") {
     && /\b(estimate|proposal|quote|bid|gc packet)\b/.test(text);
 }
 
+function hasJobHandoffIntent(text = "") {
+  const mentionsJobHandoff = /\b(foreman handoff|field handoff|job packet|startup checklist|startup review|job startup|ready for field|release to field)\b/.test(text);
+  const mentionsJobContext = /\b(job|jobs|crew|foreman|field|startup|handoff|packet)\b/.test(text);
+  const asksForReview = /\b(prepare|review|open|show|build|start|check|pull up)\b/.test(text);
+  const explicitlyEstimate = /\b(gc packet|proposal packet|estimate packet|estimate|proposal|quote|bid)\b/.test(text);
+  return asksForReview && mentionsJobHandoff && mentionsJobContext && !explicitlyEstimate;
+}
+
 function hasEstimatePacketIntent(text = "") {
   return /\b(prepare|open|review|build|assemble|show)\b/.test(text)
     && /\b(gc packet|packet|proposal packet|foreman handoff|field handoff)\b/.test(text);
@@ -455,6 +506,18 @@ function extractMissingProofTargetQuery(input = "") {
   return "";
 }
 
+function extractJobHandoffTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:foreman handoff|field handoff|job packet|startup checklist|startup review|job startup|ready for field|release to field)\b\s+(?:for|from|on)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:prepare|review|open|show|build|start|check|pull up)\b.*\b(?:foreman handoff|field handoff|job packet|startup checklist|startup review|job startup|ready for field|release to field)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|job|project|for|from|this|the)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
 function findProofTargetJob(jobs = [], query = "") {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return null;
@@ -468,6 +531,70 @@ function findProofTargetJob(jobs = [], query = "") {
     job.city,
     job.status,
   ].filter(Boolean).join(" ")), words)) || null;
+}
+
+function findAssistantJobHandoffMatches(query = "", context = {}) {
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? jobs.filter((job) => targetMatchesWords(jobSearchText(job), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : jobs;
+
+  return candidates
+    .map((job) => ({
+      job,
+      needsStartup: jobNeedsStartupReview(job),
+      needsCrew: jobMissingCrewForAssistant(job),
+      needsStart: !job?.scheduledStart,
+    }))
+    .sort((left, right) => jobHandoffPriority(right) - jobHandoffPriority(left) || jobTitle(left.job).localeCompare(jobTitle(right.job)))
+    .map(({ job, needsStartup, needsCrew, needsStart }) => ({
+      id: `job:${job.id}`,
+      type: "job",
+      jobId: job.id || "",
+      label: [jobTitle(job), job.customer || job.customerName].filter(Boolean).join(" - "),
+      helper: [
+        needsStartup ? "startup needs review" : "startup ready or already underway",
+        needsCrew ? "crew missing" : "",
+        needsStart ? "start date missing" : "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.jobId)
+    .slice(0, 4);
+}
+
+function jobHandoffPriority(candidate = {}) {
+  return (candidate.needsStartup ? 20 : 0) + (candidate.needsCrew ? 10 : 0) + (candidate.needsStart ? 6 : 0);
+}
+
+function jobNeedsStartupReview(job = {}) {
+  const status = normalizeText(job.startupStatus || "Not Started");
+  return ["not started", "in progress", "needs review"].includes(status);
+}
+
+function jobMissingCrewForAssistant(job = {}) {
+  return !(
+    job.assignedForemanId
+    || job.assignedUserId
+    || job.crew
+    || (Array.isArray(job.assignments) && job.assignments.some((assignment) => !assignment?.removedAt))
+  );
+}
+
+function jobSearchText(job = {}) {
+  return normalizeText([
+    jobTitle(job),
+    job.customer,
+    job.customerName,
+    job.address,
+    job.city,
+    job.location,
+    job.siteContact,
+    job.scopeSummary,
+    job.status,
+    job.stage,
+    job.nextStep,
+  ].filter(Boolean).join(" "));
 }
 
 function chooseMostActionableProofJob(jobs = [], commandCenter = {}) {

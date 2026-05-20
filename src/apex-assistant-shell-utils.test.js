@@ -7,6 +7,7 @@ import {
   resolveAssistantEstimateDraftCommand,
   resolveAssistantEstimateJobHandoffCommand,
   resolveAssistantEstimatePacketCommand,
+  resolveAssistantJobHandoffCommand,
   resolveAssistantMissingProofCommand,
 } from "./apex-assistant-shell-utils.js";
 
@@ -153,6 +154,49 @@ test("assistant missing proof summary is blocked for field roles", () => {
 
   assert.equal(command.type, "blocked-command");
   assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant opens job startup handoff for visible office jobs without write actions", () => {
+  const command = resolveAssistantJobHandoffCommand("Prepare foreman handoff for Westview Warehouse", {
+    permissions: { jobs: { canManageAll: true } },
+    jobs: [
+      {
+        id: "JOB-1",
+        title: "Westview Warehouse",
+        customer: "ABC Builders",
+        startupStatus: "Needs Review",
+        scheduledStart: "",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "job-handoff-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].jobId, "JOB-1");
+  assert.match(command.message, /No schedule, crew assignment, field visibility, or customer message/i);
+});
+
+test("assistant job startup handoff is blocked for field roles", () => {
+  const command = resolveAssistantJobHandoffCommand("Open startup checklist for Westview Warehouse", {
+    permissions: { jobs: { canManageAll: false, canManageField: true } },
+    jobs: [{ id: "JOB-1", title: "Westview Warehouse" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes plain foreman handoff to Jobs before estimate packet tools", () => {
+  const command = resolveApexAssistantCommand("Prepare foreman handoff for Westview Warehouse", {
+    commandContext: {
+      permissions: { jobs: { canManageAll: true }, estimates: { canView: true, canUseGcPackets: true } },
+      jobs: [{ id: "JOB-1", title: "Westview Warehouse", startupStatus: "Needs Review" }],
+      estimates: [{ id: "EST-1", title: "Westview Warehouse estimate", status: "approved" }],
+    },
+  });
+
+  assert.equal(command.type, "job-handoff-review");
+  assert.equal(command.matches[0].jobId, "JOB-1");
 });
 
 test("assistant classifies lead to estimate rough-note commands with a review match", () => {
