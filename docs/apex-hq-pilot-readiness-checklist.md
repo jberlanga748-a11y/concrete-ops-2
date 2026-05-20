@@ -67,6 +67,14 @@ Confirm workflow:
 
 Run the non-destructive manual pilot smoke test in `docs/MANUAL_PILOT_SMOKE_TEST.md`.
 
+Before creating or handing off a customer pilot app, run the local non-deploying preflight:
+
+```powershell
+npm.cmd run verify:pilot-readiness
+```
+
+This bundles docs drift, customer pilot config safety, role gates, backup/export, restore drill, and frontend build checks.
+
 Confirm the monthly restore drill is scheduled. The current Phase 1 cadence lives in `docs/apex-hq-restore-runbook.md`; the next scheduled local restore drill is Monday, June 1, 2026.
 
 For demo rehearsal, the current automated smoke gates are:

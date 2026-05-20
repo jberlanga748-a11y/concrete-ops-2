@@ -16,6 +16,7 @@
     "verify:restore": "node scripts/restore-drill.mjs",
     "verify:docs": "node scripts/docs-drift-check.mjs",
     "verify:pilot-config": "node --test --test-concurrency=1 scripts/verify-pilot-config.test.mjs scripts/create-pilot-config.test.mjs && node scripts/verify-pilot-config.mjs --all --json",
+    "verify:pilot-readiness": "npm run verify:docs && npm run verify:pilot-config && npm run verify:roles && npm run verify:backup && npm run verify:restore && npm run build",
     "verify:exports": "node --test --test-concurrency=1 server/data-export.test.js",
     "verify:customers": "node --test --test-concurrency=1 server/customer-api.test.js src/app-routing.test.js src/customer-utils.test.js src/customer-filter-layout.test.js src/contact-history-utils.test.js",
     "verify:jobs": "node --test --test-concurrency=1 server/jobs-workflow.test.js src/job-utils.test.js shared/jobStartup.test.js src/command-center-utils.test.js src/field-ops-agent-utils.test.js src/apex-assistant-shell-utils.test.js src/app-routing.test.js",

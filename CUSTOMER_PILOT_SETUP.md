@@ -29,6 +29,14 @@ Before you hand a pilot to a contractor, confirm all of these are true:
 - support severity owner is known
 - manual pilot smoke has passed before real customer workflow use
 
+Run the local pilot readiness preflight before creating or handing off a customer pilot:
+
+```bash
+npm run verify:pilot-readiness
+```
+
+This is local-only. It checks docs drift, pilot config safety, role gates, backup/export, restore drill, and frontend build. It does not create Fly apps, create volumes, deploy, set secrets, or touch production.
+
 ## Goal
 
 Create a clean customer-specific workspace that:
@@ -438,7 +446,13 @@ curl https://apex-hq-acme-pilot.fly.dev/api/ready
 curl https://apex-hq-acme-pilot.fly.dev/api/setup/status
 ```
 
-Then run the manual pilot smoke from `docs/MANUAL_PILOT_SMOKE_TEST.md`.
+Then run:
+
+```bash
+npm run verify:pilot-readiness
+```
+
+After the local preflight passes, run the manual pilot smoke from `docs/MANUAL_PILOT_SMOKE_TEST.md`.
 
 ## Final Rule
 
