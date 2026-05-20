@@ -12,6 +12,7 @@ import {
   resolveAssistantMissingProofCommand,
   resolveAssistantReportReviewCommand,
   resolveAssistantSafetyIncidentReviewCommand,
+  resolveAssistantToolChecklistReviewCommand,
 } from "./apex-assistant-shell-utils.js";
 
 test("assistant shell is hidden without AI Office permission", () => {
@@ -340,6 +341,70 @@ test("assistant keeps generic safety navigation out of office incident review", 
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "incidents");
+});
+
+test("assistant opens tool checklist review without write actions", () => {
+  const command = resolveAssistantToolChecklistReviewCommand("Review submitted tool checklist for Westview Warehouse", {
+    permissions: { toolChecklist: { canUse: true, canReview: true, canManageAll: true } },
+    toolChecklists: [
+      {
+        id: "TC-1",
+        title: "Pour day loadout",
+        status: "submitted",
+        missingItemCount: 1,
+        damagedItemCount: 1,
+        assignedForemanName: "Luis G.",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+        items: [
+          { id: "ITEM-1", name: "Bull float", status: "missing" },
+          { id: "ITEM-2", name: "Screed", status: "damaged" },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(command.type, "tool-checklist-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].checklistId, "TC-1");
+  assert.match(command.message, /No checklist will be submitted, reviewed, archived, toggled, or changed automatically/i);
+});
+
+test("assistant tool checklist review is blocked for field roles", () => {
+  const command = resolveAssistantToolChecklistReviewCommand("Open submitted tool checklists needing review", {
+    permissions: { toolChecklist: { canUse: true, canContribute: true, canReview: false, canManageAll: false, canManage: false } },
+    toolChecklists: [{ id: "TC-1", title: "Field loadout", status: "submitted", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes tool checklist review before generic checklist navigation", () => {
+  const command = resolveApexAssistantCommand("Open tool checklists needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { toolChecklist: { canUse: true, canReview: true, canManageAll: true } },
+      toolChecklists: [
+        { id: "TC-1", title: "Pour day loadout", status: "submitted", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "tool-checklist-review");
+  assert.equal(command.matches[0].checklistId, "TC-1");
+});
+
+test("assistant keeps generic tools navigation out of office checklist review", () => {
+  const command = resolveApexAssistantCommand("open tools", {
+    commandContext: {
+      permissions: { toolChecklist: { canUse: true, canContribute: true, canReview: false, canManageAll: false } },
+      toolChecklists: [
+        { id: "TC-1", title: "Pour day loadout", status: "submitted", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "toolChecklist");
 });
 
 test("assistant routes plain foreman handoff to Jobs before estimate packet tools", () => {

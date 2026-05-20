@@ -161,6 +161,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const safetyIncidentReviewCommand = resolveAssistantSafetyIncidentReviewCommand(input, state.commandContext || {});
   if (safetyIncidentReviewCommand) return safetyIncidentReviewCommand;
 
+  const toolChecklistReviewCommand = resolveAssistantToolChecklistReviewCommand(input, state.commandContext || {});
+  if (toolChecklistReviewCommand) return toolChecklistReviewCommand;
+
   const jobHandoffCommand = resolveAssistantJobHandoffCommand(input, state.commandContext || {});
   if (jobHandoffCommand) return jobHandoffCommand;
 
@@ -409,6 +412,47 @@ export function resolveAssistantSafetyIncidentReviewCommand(input = "", context 
   };
 }
 
+export function resolveAssistantToolChecklistReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasToolChecklistReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.toolChecklist?.canReview && !permissions?.toolChecklist?.canManageAll && !permissions?.toolChecklist?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Tool checklist review assistant commands are office loadout-review tools. Field users stay limited to assigned checklist updates and cannot open office review controls.",
+    };
+  }
+
+  const query = extractToolChecklistReviewTargetQuery(rawText);
+  const matches = findAssistantToolChecklistReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-tool-checklist-review",
+    type: "tool-checklist-review",
+    label: "Open tool checklist board",
+    helper: "No exact checklist match found. Open Tool Checklist and choose the loadout manually.",
+  };
+
+  return {
+    type: "tool-checklist-review",
+    moduleId: "toolChecklist",
+    actionLabel: matches.length === 1 ? "Review loadout" : matches.length > 1 ? "Choose loadout" : "Open Tools",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for tool checklist review. No checklist will be submitted, reviewed, archived, toggled, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple tool checklists that may need review. Choose the right loadout before opening the checklist tools."
+        : "I did not find an exact tool checklist match. Open Tool Checklist and review the board manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantEstimateDraftCommand(input = "", context = {}) {
   const rawText = String(input || "").trim();
   const text = normalizeText(rawText);
@@ -629,6 +673,13 @@ function hasMissingProofIntent(text = "") {
   return (mentionsProof && asksForSummary) || (/\b(missing|needed|need)\b/.test(text) && mentionsFieldRecord);
 }
 
+function hasToolChecklistReviewIntent(text = "") {
+  const mentionsToolChecklist = /\b(tool checklist|tool checklists|tool loadout|tool loadouts|loadout|loadouts|job tools|missing tools|damaged tools|tool issues)\b/.test(text);
+  const asksForReview = /\b(review|submitted|needing review|needs review|need review|office review|queue|missing|damaged|issue|issues|blocker|blockers|ready)\b/.test(text);
+  const asksToOpen = /\b(open|show|pull up|check|find|review)\b/.test(text);
+  return mentionsToolChecklist && asksForReview && asksToOpen;
+}
+
 function canUseMissingProofSummary(permissions = {}) {
   return Boolean(
     permissions?.jobs?.canManageAll
@@ -703,6 +754,18 @@ function extractSafetyIncidentReviewTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|safety|incident|incidents|hazard|hazards|near|miss|injury|injuries|property|damage|for|from|this|the|open|unresolved|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractToolChecklistReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:tool checklist|tool checklists|tool loadout|tool loadouts|loadout|loadouts|missing tools|damaged tools|tool issues)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:tool checklist|tool checklists|tool loadout|tool loadouts|loadout|loadouts|missing tools|damaged tools|tool issues)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|tool|tools|checklist|checklists|loadout|loadouts|missing|damaged|issue|issues|for|from|this|the|submitted|needs)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -792,6 +855,94 @@ function safetyIncidentSearchText(incident = {}) {
     incident.job?.address,
     incident.job?.city,
     incident.job?.location,
+  ].filter(Boolean).join(" "));
+}
+
+function findAssistantToolChecklistReviewMatches(query = "", context = {}) {
+  const checklists = asArray(context.toolChecklists).filter((checklist) => !checklist?.archivedAt && normalizeText(checklist.status) !== "archived");
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? checklists.filter((checklist) => targetMatchesWords(toolChecklistSearchText(checklist), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : checklists;
+
+  return candidates
+    .map((checklist) => ({
+      checklist,
+      submitted: toolChecklistNeedsOfficeReview(checklist),
+      issues: toolChecklistIssueCount(checklist),
+      empty: toolChecklistItemCount(checklist) === 0,
+    }))
+    .sort((left, right) => toolChecklistReviewPriority(right) - toolChecklistReviewPriority(left) || toolChecklistLabel(left.checklist).localeCompare(toolChecklistLabel(right.checklist)))
+    .map(({ checklist, submitted, issues, empty }) => ({
+      id: `tool-checklist:${checklist.id}`,
+      type: "tool-checklist",
+      checklistId: checklist.id || "",
+      label: toolChecklistLabel(checklist),
+      helper: [
+        submitted ? "submitted for office review" : `status ${checklist.status || "draft"}`,
+        issues ? `${issues} missing or damaged item${issues === 1 ? "" : "s"}` : "",
+        empty ? "no items listed" : "",
+        toolChecklistForeman(checklist),
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.checklistId)
+    .slice(0, 4);
+}
+
+function toolChecklistReviewPriority(candidate = {}) {
+  return (candidate.submitted ? 20 : 0) + Number(candidate.issues || 0) * 4 + (candidate.empty ? 3 : 0);
+}
+
+function toolChecklistNeedsOfficeReview(checklist = {}) {
+  return normalizeText(checklist.status) === "submitted";
+}
+
+function toolChecklistIssueCount(checklist = {}) {
+  const items = asArray(checklist.items);
+  const itemIssues = items.filter((item) => ["missing", "damaged"].includes(normalizeText(item.status))).length;
+  return Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0) || itemIssues;
+}
+
+function toolChecklistItemCount(checklist = {}) {
+  return asArray(checklist.items).filter((item) => !item?.archivedAt).length;
+}
+
+function toolChecklistForeman(checklist = {}) {
+  return checklist.assignedForemanName || checklist.job?.foremanAssignment?.userName || checklist.createdByName || checklist.createdBy || "";
+}
+
+function toolChecklistLabel(checklist = {}) {
+  return [
+    checklist.title || "Tool checklist",
+    jobTitle(checklist.job || { title: checklist.jobTitle, id: checklist.jobId }),
+    checklist.job?.customer || checklist.customerName || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function toolChecklistSearchText(checklist = {}) {
+  return normalizeText([
+    checklist.id,
+    checklist.title,
+    checklist.notes,
+    checklist.status,
+    checklist.createdByName,
+    checklist.createdBy,
+    checklist.assignedForemanName,
+    checklist.jobTitle,
+    checklist.job?.title,
+    checklist.job?.customer,
+    checklist.job?.customerName,
+    checklist.job?.address,
+    checklist.job?.city,
+    checklist.job?.location,
+    ...asArray(checklist.items).flatMap((item) => [
+      item.name,
+      item.category,
+      item.status,
+      item.notes,
+      item.missingNotes,
+      item.damagedNotes,
+    ]),
   ].filter(Boolean).join(" "));
 }
 

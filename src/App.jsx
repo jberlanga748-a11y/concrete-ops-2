@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenSafetyIncidentReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3796,6 +3796,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openSafetyIncidentReview(choice = {}) {
     const opened = onOpenSafetyIncidentReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openToolChecklistReview(choice = {}) {
+    const opened = onOpenToolChecklistReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3970,6 +3978,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openSafetyIncidentReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Safety instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "tool-checklist-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openToolChecklistReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the tool checklist review drawer. No review or checklist update happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openToolChecklistReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Tools instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "estimate-draft-review" ? (
@@ -37224,6 +37249,8 @@ function ToolChecklistPagePolished({
   onSubmitChecklist,
   onReviewChecklist,
   onArchiveChecklist,
+  assistantToolChecklistReviewSeed = null,
+  onAssistantToolChecklistReviewSeedHandled = () => {},
 }) {
   const [showTools, setShowTools] = useState(false);
   const [toolTab, setToolTab] = useState("items");
@@ -37284,6 +37311,29 @@ function ToolChecklistPagePolished({
     if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
     openTools(options.tool || "items");
   }
+
+  useEffect(() => {
+    const seed = assistantToolChecklistReviewSeed;
+    if (!seed?.nonce || !(permissions.toolChecklist.canReview || permissions.toolChecklist.canManageAll || permissions.toolChecklist.canManage)) return;
+
+    const activeChecklists = checklistRows.filter((checklist) => !checklist?.archivedAt && String(checklist.status || "").toLowerCase() !== "archived");
+    const seededChecklist = seed.checklistId ? activeChecklists.find((checklist) => checklist.id === seed.checklistId) : null;
+    const targetChecklist = seededChecklist
+      || activeChecklists.find((checklist) => String(checklist.status || "").toLowerCase() === "submitted")
+      || activeChecklists.find((checklist) => Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0) > 0)
+      || activeChecklists[0]
+      || null;
+
+    setArchiveFilter("Active");
+    setStatusFilter(String(targetChecklist?.status || "").toLowerCase() === "submitted" ? "Submitted" : "All");
+    setIssueFilter(Number(targetChecklist?.missingItemCount || 0) + Number(targetChecklist?.damagedItemCount || 0) > 0 ? "Missing or damaged" : "All items");
+    setJobFilter("All jobs");
+    setForemanFilter("All foremen");
+    setSearch("");
+    if (targetChecklist?.id) setSelectedChecklistId(targetChecklist.id);
+    openTools("detail");
+    onAssistantToolChecklistReviewSeedHandled(seed.nonce);
+  }, [assistantToolChecklistReviewSeed?.nonce, checklistRows, permissions.toolChecklist.canReview, permissions.toolChecklist.canManageAll, permissions.toolChecklist.canManage]);
 
   const issueChecklist = filteredRows.find((checklist) => Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0) > 0)
     || checklistRows.find((checklist) => Number(checklist.missingItemCount || 0) + Number(checklist.damagedItemCount || 0) > 0);
@@ -37530,6 +37580,8 @@ function ToolChecklistPage({
   onSubmitChecklist,
   onReviewChecklist,
   onArchiveChecklist,
+  assistantToolChecklistReviewSeed = null,
+  onAssistantToolChecklistReviewSeedHandled = () => {},
   busy,
 }) {
   const [statusFilter, setStatusFilter] = useState("All");
@@ -37629,6 +37681,8 @@ function ToolChecklistPage({
       onSubmitChecklist={onSubmitChecklist}
       onReviewChecklist={onReviewChecklist}
       onArchiveChecklist={onArchiveChecklist}
+      assistantToolChecklistReviewSeed={assistantToolChecklistReviewSeed}
+      onAssistantToolChecklistReviewSeedHandled={onAssistantToolChecklistReviewSeedHandled}
     />
   );
 
@@ -38872,6 +38926,7 @@ export default function App() {
   const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
   const [assistantDeliveryTicketReviewSeed, setAssistantDeliveryTicketReviewSeed] = useState(null);
   const [assistantSafetyIncidentReviewSeed, setAssistantSafetyIncidentReviewSeed] = useState(null);
+  const [assistantToolChecklistReviewSeed, setAssistantToolChecklistReviewSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -39068,6 +39123,19 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("incidents");
+    return true;
+  }
+
+  function handleOpenAssistantToolChecklistReview(seed = {}) {
+    if (!appState.permissions.toolChecklist?.canReview && !appState.permissions.toolChecklist?.canManageAll && !appState.permissions.toolChecklist?.canManage) {
+      setErrorMessage("Tool checklist assistant review actions require an office role that can review loadouts.");
+      return false;
+    }
+    setAssistantToolChecklistReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("toolChecklist");
     return true;
   }
 
@@ -42047,6 +42115,12 @@ export default function App() {
                     setAssistantSafetyIncidentReviewSeed(null);
                   }
                 }}
+                assistantToolChecklistReviewSeed={assistantToolChecklistReviewSeed}
+                onAssistantToolChecklistReviewSeedHandled={(nonce) => {
+                  if (!assistantToolChecklistReviewSeed || assistantToolChecklistReviewSeed.nonce === nonce) {
+                    setAssistantToolChecklistReviewSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -42267,6 +42341,7 @@ export default function App() {
         onOpenReportReview={handleOpenAssistantReportReview}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenSafetyIncidentReview={handleOpenAssistantSafetyIncidentReview}
+        onOpenToolChecklistReview={handleOpenAssistantToolChecklistReview}
       />
     </div>
   );
