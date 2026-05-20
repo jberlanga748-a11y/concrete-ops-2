@@ -17,6 +17,7 @@ Already in place:
 - `npm.cmd run smoke:hosted` records `/api/ready`, login, and bootstrap timing
 - `docs/apex-hq-incident-notes-log.md` stores Phase 1 incident notes
 - `docs/apex-hq-github-actions-smoke-secrets.md` defines demo auth smoke secret setup
+- `docs/apex-hq-production-auth-smoke-design.md` defines the approval-ready production auth smoke plan without enabling it
 
 This is enough for founder-led demos and controlled early pilots. It is not enough for many customers, formal uptime commitments, or hands-off production operations.
 
@@ -87,7 +88,7 @@ Defer until later:
 - customer-facing status page
 - formal SLA dashboard
 - real-time on-call rotation
-- production auth smoke without a dedicated smoke user and approval
+- production auth smoke without following `docs/apex-hq-production-auth-smoke-design.md`
 
 ## Fly Log Commands
 

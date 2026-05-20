@@ -176,7 +176,7 @@ Required post-deploy checks:
 - no repeated 5xx errors in Fly logs
 - setup status is live mode, not demo mode
 
-Before adding production log drains, uptime vendors, or production auth smoke, follow `docs/apex-hq-monitoring-upgrade-plan.md` and get explicit production-safety approval.
+Before adding production log drains, uptime vendors, or production auth smoke, follow `docs/apex-hq-monitoring-upgrade-plan.md`, use `docs/apex-hq-production-auth-smoke-design.md` for the auth-smoke approval checklist, and get explicit production-safety approval.
 
 ## Rollback Triggers
 

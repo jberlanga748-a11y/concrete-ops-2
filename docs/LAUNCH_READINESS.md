@@ -42,7 +42,7 @@ Current stage:
 
 ## Must Be Tightened Before Wider Launch
 
-- production auth smoke design and approval
+- production auth smoke approval and setup using `docs/apex-hq-production-auth-smoke-design.md`
 - production monitoring/log drain decision
 - production min-machine/cold-start decision
 - customer-specific pilot environment setup for any real pilot
@@ -87,6 +87,7 @@ Do not use:
 | Local restore drill verifier | Built |
 | Scheduled readiness monitor | Built |
 | Scheduled demo hosted smoke | Built; auth/bootstrap gate configured and passing |
+| Production auth smoke design | Designed; not enabled |
 | Production log drain / dedicated monitor | Planned; not enabled |
 
 ## Business Launch Checklist
