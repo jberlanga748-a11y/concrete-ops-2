@@ -1058,6 +1058,7 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     leadSource: sourceQueue[0] || activeSources[0] || {},
     foundOpportunity: openFoundOpportunityQueue[0] || {},
     companySettings,
+    recentSourceCheckOutcomes,
   });
   const humanTaskQueue = buildOpportunityScoutHumanTaskQueue({
     agentRunPacket,

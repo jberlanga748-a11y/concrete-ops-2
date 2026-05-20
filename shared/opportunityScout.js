@@ -531,6 +531,7 @@ export function buildOpportunityScoutAgentRunPacket({
   foundOpportunity = {},
   intakeSourceType = "",
   companySettings = {},
+  recentSourceCheckOutcomes = [],
 } = {}) {
   const opportunity = foundOpportunity || {};
   const profile = searchProfile || {};
@@ -578,6 +579,22 @@ export function buildOpportunityScoutAgentRunPacket({
     source.url ? "URL saved" : "",
   ].filter(Boolean).join(" / ");
   const companySummary = collapseSpaces(companySettings.serviceArea || companySettings.businessAddress || companySettings.companyName);
+  const recentSourceOutcomes = (Array.isArray(recentSourceCheckOutcomes) ? recentSourceCheckOutcomes : [])
+    .slice(0, 6)
+    .map((outcome) => {
+      const result = text(outcome.result || outcome.resultId);
+      const option = OPPORTUNITY_SCOUT_SOURCE_CHECK_RESULTS.find((entry) => entry.id === result || entry.label.toLowerCase() === text(outcome.label).toLowerCase());
+      return {
+        sourceName: collapseSpaces(outcome.sourceName || source.name || "Lead source"),
+        checkedAt: text(outcome.checkedAt),
+        result: option?.id || result || "no_fit",
+        label: option?.label || collapseSpaces(outcome.label || "Source Check"),
+        tone: option?.tone || outcome.tone || "slate",
+        nextAction: collapseSpaces(outcome.nextAction || option?.nextAction || "Review source outcome"),
+        missingInfo: collapseSpaces(outcome.missingInfo || outcome.missing || ""),
+        note: redactOpportunityScoutText(outcome.note || ""),
+      };
+    });
 
   return {
     mode: "review_first",
@@ -590,6 +607,7 @@ export function buildOpportunityScoutAgentRunPacket({
     profileSummary,
     sourceSummary,
     companySummary,
+    recentSourceOutcomes,
     adapters: adapters.map((adapter) => ({
       id: adapter.id,
       label: adapter.label,

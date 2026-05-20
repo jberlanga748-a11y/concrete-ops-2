@@ -88,6 +88,17 @@ test("opportunity scout agent run packet exposes source adapters and review-firs
       humanReviewStatus: "needs_review",
     },
     companySettings: { serviceArea: "Salem Oregon" },
+    recentSourceCheckOutcomes: [
+      {
+        sourceName: "City bid page",
+        checkedAt: "2026-05-20",
+        result: "missing_docs",
+        label: "Missing Docs",
+        nextAction: "Request or locate documents manually",
+        missingInfo: "plans",
+        note: "Plans not posted yet token=secret.",
+      },
+    ],
   });
 
   assert.equal(packet.mode, "review_first");
@@ -98,6 +109,9 @@ test("opportunity scout agent run packet exposes source adapters and review-firs
   assert.equal(packet.blockedActions.some((action) => /No bid submission/i.test(action)), true);
   assert.equal(packet.humanTasks.some((task) => /Approve For Lead/i.test(task)), true);
   assert.equal(packet.humanTasks.some((task) => /duplicate/i.test(task)), true);
+  assert.equal(packet.recentSourceOutcomes.length, 1);
+  assert.equal(packet.recentSourceOutcomes[0].result, "missing_docs");
+  assert.equal(packet.recentSourceOutcomes[0].note.includes("secret"), false);
 });
 
 test("opportunity scout agent packet marks private or future adapters as human-required", () => {

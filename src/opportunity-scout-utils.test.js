@@ -43,6 +43,8 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.recentSourceCheckOutcomes[0].result, "found_work");
   assert.equal(state.recentSourceCheckOutcomes[0].sourceName, "Oregon plan room");
   assert.equal(state.stats.foundWorkSourceCheckOutcomes, 1);
+  assert.equal(state.agentRunPacket.recentSourceOutcomes[0].result, "found_work");
+  assert.equal(state.agentRunPacket.recentSourceOutcomes[0].sourceName, "Oregon plan room");
   assert.match(state.searchBriefs[0].query, /commercial concrete/i);
   assert.equal(state.sourceQueue.some((source) => source.name === "Other company source"), false);
 });
