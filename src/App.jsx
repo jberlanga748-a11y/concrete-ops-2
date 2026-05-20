@@ -73,6 +73,7 @@ import {
   logout,
   markLeadSourceChecked,
   planOpportunitySearchWithAi,
+  previewOpportunityScoutAgent,
   resetWorkspace,
   requestPasswordReset,
   resendUserInvite,
@@ -25638,6 +25639,7 @@ function CopilotPagePolished({
   onUpdateOpportunitySearchProfile,
   onMarkLeadSourceChecked,
   onPlanOpportunitySearchWithAi,
+  onPreviewOpportunityScoutAgent,
   onCreateFoundOpportunity,
   onUpdateFoundOpportunity,
   onConvertFoundOpportunityToLead,
@@ -25654,6 +25656,7 @@ function CopilotPagePolished({
   const [foundDraft, setFoundDraft] = useState(INITIAL_FOUND_OPPORTUNITY_FORM);
   const [profileAiPlans, setProfileAiPlans] = useState({});
   const [opportunityAiReviews, setOpportunityAiReviews] = useState({});
+  const [foundDraftAgentPreview, setFoundDraftAgentPreview] = useState({ status: "idle", result: null, message: "" });
   const [copiedScoutBriefId, setCopiedScoutBriefId] = useState("");
   const canViewOpportunityScout = Boolean(permissions?.opportunityScout?.canView);
   const canManageOpportunityScout = Boolean(permissions?.opportunityScout?.canManage);
@@ -25770,6 +25773,7 @@ function CopilotPagePolished({
 
   function updateFoundDraft(field, value) {
     setFoundDraft((current) => ({ ...current, [field]: value }));
+    setFoundDraftAgentPreview((current) => (current.status === "idle" ? current : { status: "idle", result: null, message: "" }));
   }
 
   async function submitProfileDraft(event) {
@@ -25782,16 +25786,34 @@ function CopilotPagePolished({
   async function submitFoundDraft(event) {
     event.preventDefault();
     if (!canManageOpportunityScout || (!foundDraft.title.trim() && !foundDraft.intakeText.trim())) return;
+    const ok = await onCreateFoundOpportunity?.(buildFoundDraftPayload());
+    if (ok) {
+      setFoundDraft(INITIAL_FOUND_OPPORTUNITY_FORM);
+      setFoundDraftAgentPreview({ status: "idle", result: null, message: "" });
+    }
+  }
+
+  function buildFoundDraftPayload() {
     const selectedSource = leadSourceOptions.find((source) => source.id === foundDraft.leadSourceId);
-    const ok = await onCreateFoundOpportunity?.({
+    return {
       ...foundDraft,
       sourceName: foundDraft.sourceName || selectedSource?.name || "",
       bidDueAt: foundDraft.bidDueAt ? `${foundDraft.bidDueAt}T17:00:00` : "",
       fileMetadata: foundDraft.fileMetadata
         ? foundDraft.fileMetadata.split("\n").map((name) => ({ name: name.trim() })).filter((entry) => entry.name)
         : [],
+    };
+  }
+
+  async function previewFoundDraftWithAgent() {
+    if (!canManageOpportunityScout || (!foundDraft.title.trim() && !foundDraft.intakeText.trim())) return;
+    setFoundDraftAgentPreview({ status: "loading", result: null, message: "" });
+    const result = await onPreviewOpportunityScoutAgent?.(buildFoundDraftPayload());
+    setFoundDraftAgentPreview({
+      status: result?.ok === false ? "error" : "ready",
+      result,
+      message: result?.message || "",
     });
-    if (ok) setFoundDraft(INITIAL_FOUND_OPPORTUNITY_FORM);
   }
 
   function markProfileReviewed(profile) {
@@ -26518,8 +26540,30 @@ function CopilotPagePolished({
                       ))}
                     </div>
                   </div>
+                  {foundDraftAgentPreview.status !== "idle" ? (
+                    <div className="co-ai-scout-review" data-state={foundDraftAgentPreview.status === "error" ? "error" : "ready"}>
+                      <div>
+                        <span>Agent Preview</span>
+                        <strong>{foundDraftAgentPreview.status === "loading" ? "Reviewing draft..." : foundDraftAgentPreview.status === "error" ? "Preview blocked" : "Review packet ready"}</strong>
+                        <p>{foundDraftAgentPreview.status === "loading" ? "Apex HQ is extracting fields, checking missing info, and checking for duplicate risk without saving anything." : foundDraftAgentPreview.message || foundDraftAgentPreview.result?.recommendedNextStep || "Review the extracted packet before saving found work."}</p>
+                      </div>
+                      {foundDraftAgentPreview.result?.ok ? (
+                        <div className="co-ai-scout-review-grid">
+                          <small><b>Project</b>{foundDraftAgentPreview.result.extractedFields?.title || "Missing"}</small>
+                          <small><b>Source</b>{foundDraftAgentPreview.result.extractedFields?.sourceUrl ? "Saved link" : "Needs source"}</small>
+                          <small><b>Fit</b>{foundDraftAgentPreview.result.fitReview?.fitLabel || "Review"}</small>
+                          <small><b>Missing</b>{foundDraftAgentPreview.result.missingInfoItems?.length ? foundDraftAgentPreview.result.missingInfoItems.slice(0, 3).join(", ") : "None flagged"}</small>
+                          <small><b>Duplicates</b>{foundDraftAgentPreview.result.duplicateHints?.length || 0}</small>
+                          <small><b>Agent</b>{foundDraftAgentPreview.result.agentRunPacket?.modeLabel || "Review-first"}</small>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="co-ai-scout-form-footer">
                     <span>Manual review only. Save found work, run AI Review, then create a lead only after office approval.</span>
+                    <Button type="button" size="sm" variant="secondary" onClick={previewFoundDraftWithAgent} disabled={!canManageOpportunityScout || busy || foundDraftAgentPreview.status === "loading" || (!foundDraft.title.trim() && !foundDraft.intakeText.trim())}>
+                      {foundDraftAgentPreview.status === "loading" ? "Previewing..." : "Agent Preview"}
+                    </Button>
                     <Button type="submit" size="sm" disabled={!canManageOpportunityScout || busy || (!foundDraft.title.trim() && !foundDraft.intakeText.trim())}>Save Opportunity</Button>
                   </div>
                 </form>
@@ -39664,6 +39708,22 @@ export default function App() {
     }
   }
 
+  async function handlePreviewOpportunityScoutAgent(payload) {
+    if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return { ok: false, message: "Not allowed." };
+    setBusy(true);
+    try {
+      const result = await previewOpportunityScoutAgent(sessionToken, payload);
+      setErrorMessage("");
+      return result;
+    } catch (error) {
+      if (error.status === 401) clearSession();
+      setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateFoundOpportunity(payload) {
     if (!sessionToken || !appState.permissions.opportunityScout?.canManage) return false;
     setBusy(true);
@@ -41453,6 +41513,7 @@ export default function App() {
                 onCreateOpportunitySearchProfile={handleCreateOpportunitySearchProfile}
                 onUpdateOpportunitySearchProfile={handleUpdateOpportunitySearchProfile}
                 onPlanOpportunitySearchWithAi={handlePlanOpportunitySearchWithAi}
+                onPreviewOpportunityScoutAgent={handlePreviewOpportunityScoutAgent}
                 onCreateFoundOpportunity={handleCreateFoundOpportunity}
                 onUpdateFoundOpportunity={handleUpdateFoundOpportunity}
                 onConvertFoundOpportunityToLead={handleConvertFoundOpportunityToLead}

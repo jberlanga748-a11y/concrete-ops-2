@@ -366,6 +366,94 @@ test("Opportunity Scout manual intake redacts secrets, derives missing info, and
   }
 });
 
+test("Opportunity Scout agent preview is review-only and does not persist found work", async () => {
+  const fixture = await startServer();
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+
+    const before = await assertOk(fixture.baseUrl, "/api/opportunity-scout", { headers });
+    assert.equal(before.foundOpportunities.length, 0);
+
+    const preview = await assertOk(fixture.baseUrl, "/api/ai/opportunity-scout/agent-preview", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        intakeSourceType: "pasted_text",
+        intakeText: `
+          Project: Library ADA concrete ramp
+          Agency: City of Salem
+          Location: Salem, OR
+          Bid due: June 10 2026
+          Scope: Concrete ramp replacement and sidewalk repair
+          https://example.com/rfp/44?token=secret-token
+        `,
+      }),
+    });
+
+    assert.equal(preview.ok, true);
+    assert.equal(preview.extractedFields.title, "Library ADA concrete ramp");
+    assert.equal(preview.extractedFields.sourceUrl.includes("secret-token"), false);
+    assert.equal(preview.agentRunPacket.mode, "review_first");
+    assert.equal(preview.agentRunPacket.blockedActions.some((action) => /No bid submission/i.test(action)), true);
+    assert.match(preview.recommendedNextStep, /Save/);
+
+    const after = await assertOk(fixture.baseUrl, "/api/opportunity-scout", { headers });
+    assert.equal(after.foundOpportunities.length, 0);
+  } finally {
+    await fixture.stop();
+  }
+});
+
+test("Opportunity Scout agent preview rejects unsafe payloads and field users", async () => {
+  const fixture = await startServer();
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+    insertUser(fixture.sqliteFile, createUserRecord({
+      id: "U-FIELD-SCOUT-PREVIEW-BLOCKED",
+      email: "field.scout.preview@apexhq.app",
+      password: "apexdemo123",
+      name: "Field Scout Preview Blocked",
+      role: "Foreman",
+    }));
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const fieldLogin = await login(fixture.baseUrl, {
+      email: "field.scout.preview@apexhq.app",
+      password: "apexdemo123",
+    });
+
+    const unsafe = await requestJson(fixture.baseUrl, "/api/ai/opportunity-scout/agent-preview", {
+      method: "POST",
+      headers: authHeaders(adminLogin.token),
+      body: JSON.stringify({
+        title: "Unsafe portal bid",
+        notes: "Automatically contact the owner and submit our bid.",
+        token: "portal-token",
+      }),
+    });
+    assert.equal(unsafe.response.status, 400);
+    assert.match(unsafe.payload.error, /cannot contact customers/i);
+    assert.match(unsafe.payload.error, /cannot store credentials/i);
+
+    const fieldResponse = await requestJson(fixture.baseUrl, "/api/ai/opportunity-scout/agent-preview", {
+      method: "POST",
+      headers: authHeaders(fieldLogin.token),
+      body: JSON.stringify({ title: "Field should not preview this" }),
+    });
+    assert.equal(fieldResponse.response.status, 403);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Opportunity Scout rejects auto-contact, bid submission, and credential payloads", async () => {
   const fixture = await startServer();
   try {

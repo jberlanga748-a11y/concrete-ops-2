@@ -203,6 +203,10 @@ export function planOpportunitySearchWithAi(token, id) {
   return request(`/api/ai/opportunity-scout/search-profiles/${id}/search-plan`, { method: "POST", token });
 }
 
+export function previewOpportunityScoutAgent(token, payload) {
+  return request("/api/ai/opportunity-scout/agent-preview", { method: "POST", token, body: payload });
+}
+
 export function createFoundOpportunity(token, payload) {
   return request("/api/opportunity-scout/found-opportunities", { method: "POST", token, body: payload });
 }

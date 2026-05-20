@@ -472,6 +472,75 @@ export function buildOpportunityScoutAgentRunPacket({
   };
 }
 
+export function buildOpportunityScoutAgentPreview(payload = {}, {
+  existingOpportunities = [],
+  searchProfile = null,
+  leadSource = null,
+  companySettings = {},
+  id = "FO-PREVIEW",
+  changedAt = new Date().toISOString(),
+  createdBy = "",
+} = {}) {
+  const errors = validateFoundOpportunityPayload(payload);
+  if (errors.length > 0) {
+    return {
+      ok: false,
+      mode: "review_first_agent_preview",
+      errors,
+      blockedActions: [
+        "No customer/GC/agency contact",
+        "No bid submission",
+        "No credential or token storage",
+      ],
+    };
+  }
+
+  const normalizedOpportunity = normalizeFoundOpportunityPayload(payload, {
+    id,
+    changedAt,
+    createdBy,
+  });
+  normalizedOpportunity.duplicateHints = findDuplicateFoundOpportunities(normalizedOpportunity, existingOpportunities);
+  const agentRunPacket = buildOpportunityScoutAgentRunPacket({
+    searchProfile,
+    leadSource,
+    foundOpportunity: normalizedOpportunity,
+    intakeSourceType: normalizedOpportunity.intakeSourceType,
+    companySettings,
+  });
+  const missingInfoItems = deriveFoundOpportunityMissingInfoItems(normalizedOpportunity);
+  const fitReview = deriveFoundOpportunityFitReview(normalizedOpportunity, companySettings);
+
+  return {
+    ok: true,
+    mode: "review_first_agent_preview",
+    normalizedOpportunity,
+    extractedFields: {
+      title: normalizedOpportunity.title,
+      agency: normalizedOpportunity.agency,
+      city: normalizedOpportunity.city,
+      state: normalizedOpportunity.state,
+      trade: normalizedOpportunity.trade,
+      bidDueAt: normalizedOpportunity.bidDueAt,
+      contactName: normalizedOpportunity.contactName,
+      contactEmail: normalizedOpportunity.contactEmail,
+      contactPhone: normalizedOpportunity.contactPhone,
+      sourceUrl: normalizedOpportunity.sourceUrl,
+      scopeSummary: normalizedOpportunity.scopeSummary,
+      fileMetadata: normalizedOpportunity.fileMetadata,
+    },
+    missingInfoItems,
+    duplicateHints: normalizedOpportunity.duplicateHints,
+    fitReview,
+    agentRunPacket,
+    recommendedNextStep: normalizedOpportunity.duplicateHints.length
+      ? "Review duplicate hints before saving this opportunity."
+      : missingInfoItems.length
+        ? "Save as review draft only after confirming the missing source, scope, date, location, contact, or owner details."
+        : "Save the found opportunity for human review. Approve For Lead remains a separate step.",
+  };
+}
+
 export function deriveFoundOpportunityMissingInfoItems(opportunity = {}) {
   const missing = [];
   if (!text(opportunity.sourceUrl) && !text(opportunity.planUrl) && !text(opportunity.sourceName) && !text(opportunity.agency) && !text(opportunity.leadSourceId) && !(opportunity.fileMetadata || []).length) {

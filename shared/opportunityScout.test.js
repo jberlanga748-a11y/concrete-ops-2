@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   canConvertFoundOpportunityToLead,
   buildOpportunityScoutAgentRunPacket,
+  buildOpportunityScoutAgentPreview,
   changedOpportunityFields,
   deriveFoundOpportunityMissingInfoItems,
   extractOpportunityFieldsFromIntake,
@@ -111,6 +112,52 @@ test("opportunity scout agent packet marks private or future adapters as human-r
   assert.equal(packet.adapters.some((adapter) => adapter.status === "human_required"), true);
   assert.equal(packet.humanTasks.some((task) => /authorized/i.test(task)), true);
   assert.equal(packet.safeNextAction, "Run the manual source brief and save a found opportunity draft.");
+});
+
+test("opportunity scout agent preview extracts, scores, dedupes, and stays review-only", () => {
+  const preview = buildOpportunityScoutAgentPreview({
+    intakeSourceType: "pasted_text",
+    intakeText: `
+      Project: Library ADA ramp
+      Agency: City of Salem
+      Location: Salem, OR
+      Bid due: June 10 2026
+      Contact: bids@example.com
+      Scope: Concrete ramp replacement and sidewalk repair.
+      https://example.test/bids/44?token=secret
+    `,
+  }, {
+    existingOpportunities: [
+      { id: "FO-1", title: "Library ADA ramp", agency: "City of Salem" },
+    ],
+    searchProfile: { name: "Public bid scan", sourceTypes: ["City/county/school bid page"] },
+    leadSource: { name: "City bids", type: "Public bid portal" },
+    companySettings: { serviceArea: "Salem Oregon" },
+    createdBy: "U-1",
+  });
+
+  assert.equal(preview.ok, true);
+  assert.equal(preview.mode, "review_first_agent_preview");
+  assert.equal(preview.extractedFields.title, "Library ADA ramp");
+  assert.equal(preview.extractedFields.agency, "City of Salem");
+  assert.equal(preview.extractedFields.sourceUrl.includes("secret"), false);
+  assert.equal(preview.duplicateHints[0].opportunityId, "FO-1");
+  assert.equal(preview.fitReview.fitScore > 0, true);
+  assert.equal(preview.agentRunPacket.blockedActions.some((action) => /No bid submission/i.test(action)), true);
+  assert.match(preview.recommendedNextStep, /duplicate/i);
+});
+
+test("opportunity scout agent preview rejects unsafe external action payloads", () => {
+  const preview = buildOpportunityScoutAgentPreview({
+    title: "Unsafe portal bid",
+    notes: "Automatically contact the owner and submit our bid.",
+    token: "portal-token",
+  });
+
+  assert.equal(preview.ok, false);
+  assert.equal(preview.errors.some((error) => /cannot contact customers/i.test(error)), true);
+  assert.equal(preview.errors.some((error) => /cannot store credentials/i.test(error)), true);
+  assert.equal(preview.blockedActions.some((action) => /No credential/i.test(action)), true);
 });
 
 test("found opportunities normalize scores, dates, risks, and contact fields", () => {

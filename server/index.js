@@ -55,6 +55,7 @@ import {
 } from "../shared/leadSources.js";
 import {
   canConvertFoundOpportunityToLead,
+  buildOpportunityScoutAgentPreview,
   changedOpportunityFields,
   findDuplicateFoundOpportunities,
   normalizeFoundOpportunityPayload,
@@ -9160,6 +9161,33 @@ app.post("/api/ai/opportunity-scout/search-profiles/:id/search-plan", requireAut
   });
 
   return res.json(result);
+}));
+
+app.post("/api/ai/opportunity-scout/agent-preview", requireAuth, asyncRoute(async (req, res) => {
+  assertCanManageLeads(req.auth.user);
+  const state = await readFeatureScopedState(req, FEATURE_KEYS.LEAD_JOB_FINDER, "Opportunity Scout");
+  const payload = req.body || {};
+  const searchProfile = payload.searchProfileId
+    ? findCompanyScopedRecord(state.opportunitySearchProfiles || [], payload.searchProfileId, req.auth.user, state, "Search profile")
+    : null;
+  const leadSource = payload.leadSourceId
+    ? findCompanyScopedRecord(state.leadSources || [], payload.leadSourceId, req.auth.user, state, "Lead source")
+    : null;
+  const preview = buildOpportunityScoutAgentPreview(payload, {
+    existingOpportunities: visibleFoundOpportunitiesForUser(state, req.auth.user),
+    searchProfile,
+    leadSource,
+    companySettings: companySettingsForState(state, req.auth.user),
+    createdBy: req.auth.user.id,
+  });
+  if (!preview.ok) {
+    throw new ApiError(400, preview.errors.join(" "));
+  }
+
+  res.json({
+    ...preview,
+    requestId: res.locals.requestId,
+  });
 }));
 
 app.post("/api/opportunity-scout/found-opportunities", requireAuth, asyncRoute(async (req, res) => {
