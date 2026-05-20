@@ -26,6 +26,14 @@ test("opportunity assistant context keeps only safe opportunity fields", () => {
       riskFlags: ["prevailing wage"],
       privateToken: "secret",
     },
+    searchProfile: {
+      name: "Blocked source review",
+      sourceAdapterId: "public_web",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "blocked",
+      sourcePolicyNote: "Terms prohibit saved evidence. token=secret",
+      notes: "Office note password=secret",
+    },
     companySettings: { companyName: "Apex HQ", serviceArea: "Albany Oregon" },
   });
 
@@ -33,6 +41,10 @@ test("opportunity assistant context keeps only safe opportunity fields", () => {
   assert.equal(context.opportunity.fitScore, 84);
   assert.deepEqual(context.opportunity.riskFlags, ["prevailing wage"]);
   assert.equal(Object.hasOwn(context.opportunity, "privateToken"), false);
+  assert.equal(context.searchProfile.sourceAdapterId, "public_web");
+  assert.equal(context.searchProfile.sourceTermsStatus, "blocked");
+  assert.equal(context.searchProfile.sourcePolicyNote.includes("secret"), false);
+  assert.equal(context.searchProfile.notes.includes("secret"), false);
   assert.equal(context.company.name, "Apex HQ");
 });
 
@@ -46,6 +58,7 @@ test("opportunity assistant request uses strict JSON and review-only instruction
   assert.equal(request.response_format.json_schema.strict, true);
   assert.match(request.messages[0].content, /Do not send messages/i);
   assert.match(request.messages[0].content, /do not approve bids/i);
+  assert.match(request.messages[0].content, /sourceAdapterId/i);
 });
 
 test("opportunity assistant sanitizes AI output", () => {
