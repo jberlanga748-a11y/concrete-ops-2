@@ -56,3 +56,51 @@ test("production auth smoke decision blocks unapproved URLs", () => {
   assert.equal(decision.go, false);
   assert.ok(decision.blockers.some((blocker) => blocker.includes("not approved")));
 });
+
+test("production auth smoke decision stays no-go until approvals are recorded", () => {
+  const decision = buildReadinessDecision({
+    workflow: { ok: true, checks: [] },
+    secret: { checked: true, present: true, error: "" },
+    live: { checked: true, ok: true, error: "" },
+    baseUrl: "https://app.apexhq.online",
+  });
+
+  assert.equal(decision.go, false);
+  assert.ok(decision.blockers.some((blocker) => blocker.includes("smoke workspace/users")));
+  assert.ok(decision.blockers.some((blocker) => blocker.includes("Production-safety approval")));
+  assert.ok(decision.blockers.some((blocker) => blocker.includes("PRODUCTION_AUTH_SMOKE_APPROVED")));
+});
+
+test("production auth smoke decision stays no-go when secret presence is skipped", () => {
+  const decision = buildReadinessDecision({
+    workflow: { ok: true, checks: [] },
+    secret: { checked: false, present: false, error: "" },
+    live: { checked: true, ok: true, error: "" },
+    baseUrl: "https://app.apexhq.online",
+    approvals: {
+      smokeUsersApproved: true,
+      productionSafetyApproved: true,
+      dispatchConfirmation: "PRODUCTION_AUTH_SMOKE_APPROVED",
+    },
+  });
+
+  assert.equal(decision.go, false);
+  assert.ok(decision.blockers.some((blocker) => blocker.includes("secret presence was not checked")));
+});
+
+test("production auth smoke decision can go green after secret, health, approvals, and confirmation", () => {
+  const decision = buildReadinessDecision({
+    workflow: { ok: true, checks: [] },
+    secret: { checked: true, present: true, error: "" },
+    live: { checked: true, ok: true, error: "" },
+    baseUrl: "https://app.apexhq.online",
+    approvals: {
+      smokeUsersApproved: true,
+      productionSafetyApproved: true,
+      dispatchConfirmation: "PRODUCTION_AUTH_SMOKE_APPROVED",
+    },
+  });
+
+  assert.equal(decision.go, true);
+  assert.deepEqual(decision.blockers, []);
+});

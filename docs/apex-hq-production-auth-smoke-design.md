@@ -160,6 +160,16 @@ For a read-only production `/api/ready` confirmation in the same report:
 npm.cmd run verify:production-auth-smoke-readiness -- --check-live
 ```
 
+- After the smoke workspace/users, production-safety approval, and manual dispatch approval are recorded, the read-only readiness check can be run in its final gate form:
+
+```powershell
+npm.cmd run verify:production-auth-smoke-readiness -- --check-live --smoke-users-approved --production-safety-approved --dispatch-confirmation=PRODUCTION_AUTH_SMOKE_APPROVED
+```
+
+The approval flags only record that the operator has completed those external gates. They do not create users, set secrets, dispatch the workflow, authenticate, deploy, or mutate production.
+
+Do not use `--skip-gh` for the final approval gate. Production auth readiness must verify that `APEX_PRODUCTION_SMOKE_PASSWORD` exists by name before the manual workflow is dispatched.
+
 - production smoke workspace/company approved
 - admin and employee smoke users approved
 - role restrictions verified locally or in a one-time manual production check

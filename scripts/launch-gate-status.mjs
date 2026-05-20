@@ -19,6 +19,10 @@ Options:
   --skip-gh                     Skip GitHub secret presence check.
   --base-url=<url>              Production URL for readiness checks.
   --repo=<owner/repo>           GitHub repo for secret presence check.
+  --smoke-users-approved        Record that dedicated synthetic production smoke users/workspace were approved.
+  --production-safety-approved  Record that production-safety approval was captured before auth smoke.
+  --dispatch-confirmation=<phrase>
+                                Must equal PRODUCTION_AUTH_SMOKE_APPROVED before production auth readiness can go green.
 
 Pilot rehearsal options:
   --company=<name>
@@ -56,6 +60,9 @@ function parseArgs(argv) {
       baseUrl: "https://app.apexhq.online",
       skipGh: false,
       checkLive: false,
+      smokeUsersApproved: false,
+      productionSafetyApproved: false,
+      dispatchConfirmation: "",
     },
     monitoring: {
       provider: "",
@@ -86,6 +93,8 @@ function parseArgs(argv) {
     if (arg === "--json") options.json = true;
     if (arg === "--skip-gh") options.productionAuth.skipGh = true;
     if (arg === "--check-live") options.productionAuth.checkLive = true;
+    if (arg === "--smoke-users-approved") options.productionAuth.smokeUsersApproved = true;
+    if (arg === "--production-safety-approved") options.productionAuth.productionSafetyApproved = true;
     if (arg === "--redaction-confirmed") options.monitoring.redactionConfirmed = true;
     if (arg === "--request-id-search") options.monitoring.requestIdSearch = true;
     if (arg === "--error-alerts") options.monitoring.errorAlerts = true;
@@ -94,6 +103,7 @@ function parseArgs(argv) {
 
     if (arg.startsWith("--repo=")) options.productionAuth.repo = valueAfterEquals(arg);
     if (arg.startsWith("--base-url=")) options.productionAuth.baseUrl = valueAfterEquals(arg).replace(/\/+$/, "");
+    if (arg.startsWith("--dispatch-confirmation=")) options.productionAuth.dispatchConfirmation = valueAfterEquals(arg);
 
     if (arg.startsWith("--provider=")) options.monitoring.provider = valueAfterEquals(arg);
     if (arg.startsWith("--environment=")) options.monitoring.environment = valueAfterEquals(arg);

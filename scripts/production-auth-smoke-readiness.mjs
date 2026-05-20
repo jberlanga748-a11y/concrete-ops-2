@@ -31,6 +31,11 @@ Options:
   --base-url=<url>          Production URL to validate, default https://app.apexhq.online.
   --skip-gh                Do not call gh secret list.
   --check-live             Read-only GET /api/ready check against the selected base URL.
+  --smoke-users-approved   Record that dedicated synthetic production smoke users/workspace were approved.
+  --production-safety-approved
+                           Record that production-safety approval was captured before auth smoke.
+  --dispatch-confirmation=<phrase>
+                           Must equal PRODUCTION_AUTH_SMOKE_APPROVED before readiness can go green.
   --json                   Print full JSON report.
   --help
 
@@ -45,6 +50,9 @@ function parseArgs(argv) {
     baseUrl: "https://app.apexhq.online",
     skipGh: false,
     checkLive: false,
+    smokeUsersApproved: false,
+    productionSafetyApproved: false,
+    dispatchConfirmation: "",
     json: false,
     help: false,
   };
@@ -53,9 +61,12 @@ function parseArgs(argv) {
     if (arg === "--help" || arg === "-h") options.help = true;
     if (arg === "--skip-gh") options.skipGh = true;
     if (arg === "--check-live") options.checkLive = true;
+    if (arg === "--smoke-users-approved") options.smokeUsersApproved = true;
+    if (arg === "--production-safety-approved") options.productionSafetyApproved = true;
     if (arg === "--json") options.json = true;
     if (arg.startsWith("--repo=")) options.repo = valueAfterEquals(arg);
     if (arg.startsWith("--base-url=")) options.baseUrl = valueAfterEquals(arg).replace(/\/+$/, "");
+    if (arg.startsWith("--dispatch-confirmation=")) options.dispatchConfirmation = valueAfterEquals(arg);
   }
 
   return options;
@@ -134,9 +145,11 @@ export function buildReadinessDecision({
   secret = { checked: false, present: false, error: "" },
   live = { checked: false, ok: false, error: "" },
   baseUrl = "https://app.apexhq.online",
+  approvals = {},
 } = {}) {
   const blockers = [];
   const warnings = [];
+  const dispatchConfirmed = approvals.dispatchConfirmation === "PRODUCTION_AUTH_SMOKE_APPROVED";
 
   if (!workflow.ok) {
     for (const check of workflow.checks.filter((item) => !item.ok)) {
@@ -149,7 +162,7 @@ export function buildReadinessDecision({
   }
 
   if (!secret.checked) {
-    warnings.push("GitHub production smoke secret presence was not checked.");
+    blockers.push("GitHub production smoke secret presence was not checked.");
   } else if (!secret.present) {
     blockers.push(`${REQUIRED_SECRET} is not configured in GitHub repository secrets.`);
   }
@@ -162,8 +175,17 @@ export function buildReadinessDecision({
     blockers.push(`Production readiness endpoint is not healthy: ${live.error || "unknown error"}`);
   }
 
-  blockers.push("Dedicated production smoke workspace/users still require explicit production-safety approval before first auth smoke.");
-  blockers.push("Manual workflow dispatch still requires the exact PRODUCTION_AUTH_SMOKE_APPROVED confirmation.");
+  if (!approvals.smokeUsersApproved) {
+    blockers.push("Dedicated synthetic production smoke workspace/users are not approved for first auth smoke.");
+  }
+
+  if (!approvals.productionSafetyApproved) {
+    blockers.push("Production-safety approval is not recorded for first production auth smoke.");
+  }
+
+  if (!dispatchConfirmed) {
+    blockers.push("Manual workflow dispatch still requires the exact PRODUCTION_AUTH_SMOKE_APPROVED confirmation.");
+  }
 
   return {
     go: blockers.length === 0,
@@ -268,7 +290,12 @@ export async function runProductionAuthSmokeReadiness(options = {}) {
   const workflow = inspectProductionAuthWorkflow(workflowText);
   const secret = options.skipGh ? { checked: false, present: false, error: "" } : await checkSecretPresence(options.repo);
   const live = options.checkLive ? await checkReadyEndpoint(options.baseUrl) : { checked: false, ok: false, error: "" };
-  const decision = buildReadinessDecision({ workflow, secret, live, baseUrl: options.baseUrl });
+  const approvals = {
+    smokeUsersApproved: Boolean(options.smokeUsersApproved),
+    productionSafetyApproved: Boolean(options.productionSafetyApproved),
+    dispatchConfirmation: options.dispatchConfirmation || "",
+  };
+  const decision = buildReadinessDecision({ workflow, secret, live, baseUrl: options.baseUrl, approvals });
 
   return {
     ok: workflow.ok && (!live.checked || live.ok),
@@ -283,6 +310,11 @@ export async function runProductionAuthSmokeReadiness(options = {}) {
       error: secret.error || "",
     },
     live,
+    approvals: {
+      smokeUsersApproved: approvals.smokeUsersApproved,
+      productionSafetyApproved: approvals.productionSafetyApproved,
+      dispatchConfirmationMatched: approvals.dispatchConfirmation === "PRODUCTION_AUTH_SMOKE_APPROVED",
+    },
     decision,
   };
 }
@@ -296,6 +328,9 @@ function printHumanReport(report) {
   if (report.live.checked) {
     console.log(`- /api/ready: ${report.live.ok ? "PASS" : "FAIL"} (${report.live.durationMs}ms)`);
   }
+  console.log(`- Smoke users approved: ${report.approvals.smokeUsersApproved ? "yes" : "no"}`);
+  console.log(`- Production-safety approved: ${report.approvals.productionSafetyApproved ? "yes" : "no"}`);
+  console.log(`- Dispatch confirmation matched: ${report.approvals.dispatchConfirmationMatched ? "yes" : "no"}`);
   console.log(`- Ready for production auth smoke: ${report.readyForAuthSmoke ? "GO" : "NO-GO"}`);
 
   if (report.decision.blockers.length) {
