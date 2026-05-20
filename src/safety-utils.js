@@ -20,6 +20,14 @@ function safetyIncidentDateLabel(incident = {}) {
   return String(incident?.updatedAt || incident?.reviewedAt || incident?.resolvedAt || incident?.createdAt || "").slice(0, 10) || "No date";
 }
 
+function recordJobId(record = {}) {
+  return String(record?.jobId || record?.job?.id || "").trim();
+}
+
+function jobLabel(job = {}, fallback = "General safety concern") {
+  return String(job?.title || job?.label || job?.job || job?.jobTitle || job?.customer || fallback).trim() || fallback;
+}
+
 function safetyIncidentSupportScopeLabel(user = {}, permissions = {}) {
   if (permissions?.safety?.canManage || permissions?.safety?.canReviewIncidents) return "all visible company safety incidents";
   if (permissions?.safety?.canSubmitIncidents) return "assigned or submitted field safety incidents";
@@ -145,6 +153,85 @@ export function deriveAcknowledgmentState(acknowledgments = [], userId = "") {
     latest,
     count: rows.length,
     hasAcknowledged: Boolean(latest),
+  };
+}
+
+export function deriveSafetyJobCloseoutReadiness(incidents = [], jobs = [], { maxJobs = 4 } = {}) {
+  const safeIncidents = Array.isArray(incidents) ? incidents : [];
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const jobMap = new Map(safeJobs.map((job) => [String(job?.id || "").trim(), job]));
+  const jobSummaries = new Map();
+  let generalOpen = 0;
+  let openCount = 0;
+  let highSeverityCount = 0;
+  let missingActionCount = 0;
+
+  safeIncidents.forEach((incident) => {
+    const status = String(incident?.status || "open").trim().toLowerCase();
+    if (incident?.archivedAt || status === "archived" || status === "resolved") return;
+
+    const severity = String(incident?.severity || "low").trim().toLowerCase();
+    const jobId = recordJobId(incident);
+    const isHigh = ["critical", "high"].includes(severity);
+    const missingAction = !String(incident?.immediateAction || "").trim();
+    openCount += 1;
+    if (isHigh) highSeverityCount += 1;
+    if (missingAction) missingActionCount += 1;
+    if (!jobId) {
+      generalOpen += 1;
+      return;
+    }
+
+    const job = jobMap.get(jobId) || incident?.job || {};
+    const summary = jobSummaries.get(jobId) || {
+      jobId,
+      label: incident?.jobTitle || jobLabel(job, jobId),
+      openCount: 0,
+      highSeverityCount: 0,
+      missingActionCount: 0,
+      reviewedCount: 0,
+      blockers: [],
+      tone: "slate",
+    };
+    summary.openCount += 1;
+    if (isHigh) summary.highSeverityCount += 1;
+    if (missingAction) summary.missingActionCount += 1;
+    if (status === "reviewed") summary.reviewedCount += 1;
+    jobSummaries.set(jobId, summary);
+  });
+
+  const jobsWithBlockers = Array.from(jobSummaries.values()).map((summary) => {
+    if (summary.highSeverityCount) summary.blockers.push(`${summary.highSeverityCount} high severity`);
+    if (summary.missingActionCount) summary.blockers.push(`${summary.missingActionCount} missing immediate action`);
+    if (summary.openCount) summary.blockers.push(`${summary.openCount} open follow-up`);
+    return {
+      ...summary,
+      tone: summary.highSeverityCount ? "red" : summary.missingActionCount ? "amber" : "blue",
+    };
+  }).sort((left, right) => right.highSeverityCount - left.highSeverityCount || right.missingActionCount - left.missingActionCount || right.openCount - left.openCount || left.label.localeCompare(right.label));
+
+  return {
+    openCount,
+    highSeverityCount,
+    missingActionCount,
+    generalOpen,
+    blockedJobs: jobsWithBlockers.length,
+    topJobs: jobsWithBlockers.slice(0, maxJobs),
+    status: highSeverityCount
+      ? "Safety blocking closeout"
+      : missingActionCount
+        ? "Safety action needed"
+        : openCount
+          ? "Safety follow-up open"
+          : "Safety clear",
+    tone: highSeverityCount ? "red" : missingActionCount ? "amber" : openCount ? "blue" : "green",
+    nextAction: highSeverityCount
+      ? "Resolve severe incidents"
+      : missingActionCount
+        ? "Log immediate actions"
+        : openCount
+          ? "Review open safety follow-up"
+          : "No safety blocker",
   };
 }
 

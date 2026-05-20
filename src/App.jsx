@@ -180,7 +180,7 @@ import { buildPostPourSupportContext, derivePostPourChecklistListState, derivePo
 import { buildPrePourSupportContext, derivePrePourChecklistListState, derivePrePourItems, filterPrePourChecklists, prePourChecklistStatusLabel, prePourItemStatusLabel, summarizePrePourChecklist } from "./pre-pour-utils";
 import { deriveDailyReportPrintPacket, deriveEstimateForemanHandoffPacket, deriveEstimatePrintPacket, deriveJobPrintPacket, openPrintDocument } from "./print-packets";
 import { buildDailyReportsSupportContext, deriveAdvancedReportSummary, deriveDailyReportListState, filterDailyReports, reportStatusLabel } from "./report-utils";
-import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
+import { buildSafetyIncidentSupportContext, deriveAcknowledgmentState, deriveActivePpeItems, deriveSafetyIncidentListState, deriveSafetyJobCloseoutReadiness, deriveSafetyWorkspaceJobs, deriveVisibleSafetyPolicies, filterSafetyIncidents } from "./safety-utils";
 import {
   buildPilotFeedbackPacket,
   buildSupportPacket,
@@ -11021,7 +11021,56 @@ function SafetyIncidentsTablePolished({ rows, selectedId, onSelect, onOpenDetail
   );
 }
 
-function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, isOfficeWorkspace, busy, onOpenTool, onReview, onResolve, onArchive }) {
+function SafetyCloseoutReadinessCard({ readiness }) {
+  if (!readiness) return null;
+
+  return (
+    <Card className="co-incidents-rail-card p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-orange-700">Safety closeout</p>
+          <h3 className="mt-2 text-base font-black leading-tight text-slate-950">{readiness.status}</h3>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{readiness.nextAction} before the job is treated as closeout-ready.</p>
+        </div>
+        <Badge tone={readiness.tone}>{readiness.blockedJobs} jobs</Badge>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Open</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.openCount}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Severe</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.highSeverityCount}</strong>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">General</span>
+          <strong className="mt-1 block text-sm font-black text-slate-950">{readiness.generalOpen}</strong>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {readiness.topJobs.length ? readiness.topJobs.map((job) => (
+          <div key={job.jobId} className="rounded-xl border border-slate-200 bg-white p-2.5">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs font-black text-slate-900">{job.label}</p>
+              <Badge tone={job.tone}>{job.openCount} open</Badge>
+            </div>
+            <p className="mt-1 text-[11px] font-bold leading-4 text-slate-600">
+              {job.blockers.slice(0, 2).join(" / ")}
+            </p>
+          </div>
+        )) : (
+          <StateCard title="Safety clear" description="No visible unresolved safety incident is blocking closeout." tone="green" />
+        )}
+      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">
+        Review-only. This does not notify customers, change job status, or create safety automation.
+      </p>
+    </Card>
+  );
+}
+
+function SafetyIncidentCommandRailPolished({ incident, closeoutReadiness, canSubmit, canReview, isOfficeWorkspace, busy, onOpenTool, onReview, onResolve, onArchive }) {
   const railClassName = `co-incidents-right-rail space-y-4${isOfficeWorkspace ? " co-incidents-office-assistant" : ""}`;
   const assistantPriorities = incident ? [
     {
@@ -11079,6 +11128,7 @@ function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, isO
             </div>
           </Card>
         ) : null}
+        {isOfficeWorkspace ? <SafetyCloseoutReadinessCard readiness={closeoutReadiness} /> : null}
         <Card className="co-incidents-rail-card p-4">
           <SectionHeader title="Incident Console" description="Select a safety item or submit a new field concern." />
           <div className="co-incidents-empty-rail">
@@ -11122,6 +11172,7 @@ function SafetyIncidentCommandRailPolished({ incident, canSubmit, canReview, isO
           </div>
         </Card>
       ) : null}
+      {isOfficeWorkspace ? <SafetyCloseoutReadinessCard readiness={closeoutReadiness} /> : null}
       <Card className="co-incidents-rail-card p-4">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -11377,6 +11428,7 @@ function SafetyIncidentsPagePolished({
   const highSeverity = visibleIncidents.filter((incident) => ["high", "critical"].includes(String(incident.severity || "").toLowerCase())).length;
   const reviewNeeded = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "open").length;
   const resolvedCount = visibleIncidents.filter((incident) => String(incident.status || "").toLowerCase() === "resolved").length;
+  const safetyCloseoutReadiness = useMemo(() => deriveSafetyJobCloseoutReadiness(allIncidents, allowedJobs), [allIncidents, allowedJobs]);
   const canOpenSafetySupport = canAccessWorkspaceModule("support", user, companySettings, permissions);
   const incidentKpis = [
     { label: "Visible Incidents", value: visibleIncidents.length, helper: "Matching current filters", icon: "alert", tone: "orange" },
@@ -11675,7 +11727,7 @@ function SafetyIncidentsPagePolished({
         </div>
 
         {canManage ? (
-          <SafetyIncidentCommandRailPolished incident={selectedIncident} canSubmit={canSubmitIncidents} canReview={canReview} isOfficeWorkspace={canManage} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
+          <SafetyIncidentCommandRailPolished incident={selectedIncident} closeoutReadiness={safetyCloseoutReadiness} canSubmit={canSubmitIncidents} canReview={canReview} isOfficeWorkspace={canManage} busy={busy} onOpenTool={openTools} onReview={onReviewSafetyIncident} onResolve={onResolveSafetyIncident} onArchive={onArchiveSafetyIncident} />
         ) : null}
       </div>
     </div>

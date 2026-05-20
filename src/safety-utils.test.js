@@ -5,6 +5,7 @@ import {
   buildSafetyIncidentSupportContext,
   deriveAcknowledgmentState,
   deriveActivePpeItems,
+  deriveSafetyJobCloseoutReadiness,
   deriveSafetyIncidentListState,
   deriveSafetyWorkspaceJobs,
   deriveVisibleSafetyPolicies,
@@ -61,6 +62,38 @@ test("deriveAcknowledgmentState reports latest acknowledgment for the current us
   assert.equal(state.hasAcknowledged, true);
   assert.equal(state.count, 1);
   assert.equal(state.latest?.id, "A-2");
+});
+
+test("deriveSafetyJobCloseoutReadiness groups open safety blockers by job", () => {
+  const readiness = deriveSafetyJobCloseoutReadiness([
+    { id: "SI-1", jobId: "J-1", status: "open", severity: "high", immediateAction: "", job: { title: "Westview Warehouse" } },
+    { id: "SI-2", jobId: "J-1", status: "reviewed", severity: "medium", immediateAction: "Barricaded edge." },
+    { id: "SI-3", jobId: "J-2", status: "resolved", severity: "critical", immediateAction: "Resolved." },
+    { id: "SI-4", status: "open", severity: "low", immediateAction: "Foreman notified." },
+  ], [
+    { id: "J-1", title: "Westview Warehouse" },
+    { id: "J-2", title: "Maple Ridge" },
+  ]);
+
+  assert.equal(readiness.status, "Safety blocking closeout");
+  assert.equal(readiness.blockedJobs, 1);
+  assert.equal(readiness.highSeverityCount, 1);
+  assert.equal(readiness.missingActionCount, 1);
+  assert.equal(readiness.generalOpen, 1);
+  assert.equal(readiness.topJobs[0].label, "Westview Warehouse");
+  assert.match(readiness.topJobs[0].blockers.join(" "), /high severity/);
+});
+
+test("deriveSafetyJobCloseoutReadiness returns clear state when incidents are closed", () => {
+  const readiness = deriveSafetyJobCloseoutReadiness([
+    { id: "SI-1", jobId: "J-1", status: "resolved", severity: "high", immediateAction: "Resolved." },
+    { id: "SI-2", jobId: "J-2", status: "archived", severity: "critical", immediateAction: "" },
+  ], [{ id: "J-1", title: "Westview Warehouse" }]);
+
+  assert.equal(readiness.status, "Safety clear");
+  assert.equal(readiness.tone, "green");
+  assert.equal(readiness.blockedJobs, 0);
+  assert.deepEqual(readiness.topJobs, []);
 });
 
 test("buildSafetyIncidentSupportContext summarizes owner admin incident scope without automation", () => {
