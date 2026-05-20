@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3749,6 +3749,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
     };
     const started = onStartEstimateDraft(payload);
     if (started !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openEstimatePacket(choice = {}) {
+    const opened = onOpenEstimatePacket(choice);
+    if (opened !== false) {
       setOpen(false);
       setResponse(null);
     }
@@ -3871,6 +3879,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => startEstimateDraft(response.fallback || {})}>
                       {response.matches?.length ? "Start clean new draft instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "estimate-packet-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openEstimatePacket(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open packet tools for review. No send or print happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openEstimatePacket(response.fallback || {})}>
+                      {response.matches?.length ? "Open Estimates instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : (
@@ -32206,6 +32231,8 @@ function EstimatesPagePolished({
   initialSelectedEstimateId = "",
   assistantEstimateDraftSeed = null,
   onAssistantEstimateDraftSeedHandled = () => {},
+  assistantEstimatePacketSeed = null,
+  onAssistantEstimatePacketSeedHandled = () => {},
   emailSendingConfigured = false,
   companyName = DEFAULT_COMPANY_NAME,
   companyProfile = {},
@@ -32366,6 +32393,33 @@ function EstimatesPagePolished({
       setSelectedEstimateId(initialSelectedEstimateId);
     }
   }, [initialSelectedEstimateId, rows]);
+
+  useEffect(() => {
+    const seed = assistantEstimatePacketSeed;
+    if (!seed?.nonce || !canUseGcPackets) return;
+
+    const targetEstimateId = seed.estimateId && rows.some((estimate) => estimate?.id === seed.estimateId)
+      ? seed.estimateId
+      : rows[0]?.id || "";
+    setEstimateViewMode("browse");
+    if (targetEstimateId) setSelectedEstimateId(targetEstimateId);
+    setStatusFilter("All");
+    setCustomerFilter("All customers");
+    setLeadFilter("All leads");
+    setCreatorFilter("All creators");
+    setArchiveFilter("Active");
+    setSearch("");
+    setActiveEstimateTool("packet");
+    setShowEstimateTools(true);
+    showCopyFeedback(
+      targetEstimateId
+        ? "Assistant opened GC packet tools for review. Nothing was sent, printed, or approved automatically."
+        : "Assistant opened Estimates. Choose an estimate, then review the packet tools manually.",
+      7000,
+    );
+    window.setTimeout(() => newEstimateRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+    onAssistantEstimatePacketSeedHandled(seed.nonce);
+  }, [assistantEstimatePacketSeed?.nonce, canUseGcPackets, rows]);
 
   useEffect(() => {
     const seed = assistantEstimateDraftSeed;
@@ -38320,6 +38374,8 @@ function MainContent(props) {
           initialSelectedEstimateId={props.estimateFocusId}
           assistantEstimateDraftSeed={props.assistantEstimateDraftSeed}
           onAssistantEstimateDraftSeedHandled={props.onAssistantEstimateDraftSeedHandled}
+          assistantEstimatePacketSeed={props.assistantEstimatePacketSeed}
+          onAssistantEstimatePacketSeedHandled={props.onAssistantEstimatePacketSeedHandled}
         />
       );
     }
@@ -38536,6 +38592,7 @@ export default function App() {
   const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
   const [estimateFocusId, setEstimateFocusId] = useState("");
   const [assistantEstimateDraftSeed, setAssistantEstimateDraftSeed] = useState(null);
+  const [assistantEstimatePacketSeed, setAssistantEstimatePacketSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -38646,6 +38703,20 @@ export default function App() {
     }
     setEstimateFocusId("");
     setAssistantEstimateDraftSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("estimates");
+    return true;
+  }
+
+  function handleOpenAssistantEstimatePacket(seed = {}) {
+    if (!appState.permissions.estimates?.canView || !appState.permissions.estimates?.canUseGcPackets) {
+      setErrorMessage("GC packet assistant actions require office estimate access and GC packet tools.");
+      return false;
+    }
+    setEstimateFocusId(seed.estimateId || "");
+    setAssistantEstimatePacketSeed({
       ...seed,
       nonce: Date.now(),
     });
@@ -41593,6 +41664,12 @@ export default function App() {
                     setAssistantEstimateDraftSeed(null);
                   }
                 }}
+                assistantEstimatePacketSeed={assistantEstimatePacketSeed}
+                onAssistantEstimatePacketSeedHandled={(nonce) => {
+                  if (!assistantEstimatePacketSeed || assistantEstimatePacketSeed.nonce === nonce) {
+                    setAssistantEstimatePacketSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -41803,9 +41880,11 @@ export default function App() {
           toolChecklists: appState.permissions.toolChecklist?.canUse ? appState.toolChecklists : [],
           leads: appState.permissions.leads?.canView ? appState.leads : [],
           customers: appState.permissions.customers?.canView ? appState.customers : [],
+          estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
         }}
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}
+        onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
       />
     </div>
   );

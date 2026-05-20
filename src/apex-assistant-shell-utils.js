@@ -152,6 +152,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const missingProofCommand = resolveAssistantMissingProofCommand(input, state.commandContext || {});
   if (missingProofCommand) return missingProofCommand;
 
+  const estimatePacketCommand = resolveAssistantEstimatePacketCommand(input, state.commandContext || {});
+  if (estimatePacketCommand) return estimatePacketCommand;
+
   const estimateDraftCommand = resolveAssistantEstimateDraftCommand(input, state.commandContext || {});
   if (estimateDraftCommand) return estimateDraftCommand;
 
@@ -283,6 +286,54 @@ export function resolveAssistantEstimateDraftCommand(input = "", context = {}) {
   };
 }
 
+export function resolveAssistantEstimatePacketCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasEstimatePacketIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!permissions?.estimates?.canView) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "GC packet prep requires an office or estimator role with estimate access. Field roles stay blocked from proposals, pricing, and packets.",
+    };
+  }
+  if (!permissions?.estimates?.canUseGcPackets) {
+    return {
+      type: "package-blocked",
+      moduleId: "estimates",
+      actionLabel: "Open Estimates",
+      message: "GC packet prep is available in packages with GC packet tools. You can still open Estimates and review standard proposal details.",
+    };
+  }
+
+  const query = extractEstimatePacketTargetQuery(rawText);
+  const matches = findAssistantEstimatePacketMatches(query, context);
+  const fallback = {
+    id: "assistant-open-estimate-packets",
+    type: "estimate-packets",
+    label: "Open packet tools",
+    helper: "No exact estimate match found. Open Estimates and choose the packet manually.",
+  };
+
+  return {
+    type: "estimate-packet-review",
+    moduleId: "estimates",
+    actionLabel: matches.length === 1 ? "Review packet" : matches.length > 1 ? "Choose estimate" : "Open Estimates",
+    message: matches.length === 1
+      ? `I found ${matches[0].label}. Open the GC packet tools for review; nothing will be sent or printed automatically.`
+      : matches.length > 1
+        ? "I found multiple possible estimates. Choose the right packet before opening Estimates."
+        : "I did not find an exact estimate match. Open Estimates and choose the packet manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 function resolveBlockedActionCommand(input = "") {
   const rawText = String(input || "").trim();
   if (!rawText) return null;
@@ -299,6 +350,11 @@ function resolveBlockedActionCommand(input = "") {
 function hasEstimateDraftIntent(text = "") {
   return /\b(start|create|build|make|draft|prepare|open)\b/.test(text)
     && /\b(estimate|proposal|quote|bid|gc packet)\b/.test(text);
+}
+
+function hasEstimatePacketIntent(text = "") {
+  return /\b(prepare|open|review|build|assemble|show)\b/.test(text)
+    && /\b(gc packet|packet|proposal packet|foreman handoff|field handoff)\b/.test(text);
 }
 
 function hasMissingProofIntent(text = "") {
@@ -477,6 +533,18 @@ function extractEstimateTargetQuery(input = "") {
   return "";
 }
 
+function extractEstimatePacketTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:gc packet|packet|proposal packet|foreman handoff|field handoff)\b\s+(?:for|from|on)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforePacket = rawText.split(/\b(?:prepare|open|review|build|assemble|show)\b.*\b(?:gc packet|packet|proposal packet|foreman handoff|field handoff)\b/i)[0] || "";
+  const cleanedBeforePacket = cleanTargetQuery(beforePacket.replace(/\b(open|pull up|find|estimate|proposal|quote|bid|for|from|this|the)\b/gi, " "));
+  if (cleanedBeforePacket) return cleanedBeforePacket;
+
+  return "";
+}
+
 function cleanTargetQuery(value = "") {
   return String(value || "")
     .replace(/[:.,;]+$/g, "")
@@ -541,6 +609,40 @@ function findAssistantEstimateMatches(query = "", context = {}) {
   });
 
   return dedupeAssistantMatches(matches).slice(0, 4);
+}
+
+function findAssistantEstimatePacketMatches(query = "", context = {}) {
+  const estimates = asArray(context.estimates).filter((estimate) => !estimate?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? estimates.filter((estimate) => targetMatchesWords(estimateSearchText(estimate), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : estimates.slice(0, 1);
+
+  return candidates.map((estimate) => ({
+    id: `estimate:${estimate.id}`,
+    type: "estimate",
+    estimateId: estimate.id || "",
+    label: [estimate.title || estimate.project || "Estimate", estimate.customerName || estimate.customer?.name || estimate.lead?.customer].filter(Boolean).join(" - "),
+    helper: [estimate.status, estimate.number || estimate.estimateNumber, estimate.customer?.city || estimate.city].filter(Boolean).join(" - "),
+  })).filter((match) => match.estimateId).slice(0, 4);
+}
+
+function estimateSearchText(estimate = {}) {
+  return normalizeText([
+    estimate.title,
+    estimate.project,
+    estimate.number,
+    estimate.estimateNumber,
+    estimate.status,
+    estimate.customerName,
+    estimate.customer?.name,
+    estimate.customer?.company,
+    estimate.customer?.city,
+    estimate.lead?.customer,
+    estimate.lead?.project,
+    estimate.lead?.city,
+    estimate.city,
+  ].filter(Boolean).join(" "));
 }
 
 function targetMatchesWords(haystack = "", words = []) {

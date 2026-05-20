@@ -5,6 +5,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
   resolveAssistantEstimateDraftCommand,
+  resolveAssistantEstimatePacketCommand,
   resolveAssistantMissingProofCommand,
 } from "./apex-assistant-shell-utils.js";
 
@@ -221,6 +222,55 @@ test("assistant estimate command blocks field or ungated rough-note access", () 
   assert.match(fieldDenied.message, /Field roles stay blocked/i);
   assert.equal(packageDenied.type, "package-blocked");
   assert.match(packageDenied.message, /Premium AI Rough Notes/i);
+});
+
+test("assistant opens GC packet tools for a visible estimate without write actions", () => {
+  const command = resolveAssistantEstimatePacketCommand("Prepare GC packet for Salem warehouse", {
+    permissions: {
+      estimates: { canView: true, canUseGcPackets: true },
+    },
+    estimates: [
+      {
+        id: "EST-1",
+        title: "Salem warehouse slab",
+        status: "draft",
+        customerName: "ABC Builders",
+        number: "EST-2025-041",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "estimate-packet-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].estimateId, "EST-1");
+  assert.match(command.message, /nothing will be sent or printed automatically/i);
+});
+
+test("assistant GC packet command requires estimate access and package tools", () => {
+  const fieldDenied = resolveAssistantEstimatePacketCommand("Prepare GC packet for Salem warehouse", {
+    permissions: { estimates: { canView: false, canUseGcPackets: false } },
+  });
+  const packageDenied = resolveAssistantEstimatePacketCommand("Prepare GC packet for Salem warehouse", {
+    permissions: { estimates: { canView: true, canUseGcPackets: false } },
+  });
+
+  assert.equal(fieldDenied.type, "blocked-command");
+  assert.match(fieldDenied.message, /Field roles stay blocked/i);
+  assert.equal(packageDenied.type, "package-blocked");
+  assert.match(packageDenied.message, /GC packet prep is available/i);
+});
+
+test("assistant command routes GC packet intent before generic estimate drafts", () => {
+  const command = resolveApexAssistantCommand("Prepare GC packet for ABC Builders", {
+    commandContext: {
+      permissions: { estimates: { canView: true, canManage: true, canUseAiRoughNotes: true, canUseGcPackets: true } },
+      estimates: [{ id: "EST-ABC", title: "ABC Builders warehouse", customerName: "ABC Builders" }],
+      leads: [{ id: "LEAD-ABC", customer: "ABC Builders", project: "Warehouse" }],
+    },
+  });
+
+  assert.equal(command.type, "estimate-packet-review");
+  assert.equal(command.matches[0].estimateId, "EST-ABC");
 });
 
 test("assistant blocks unsafe automation language before estimate matching", () => {
