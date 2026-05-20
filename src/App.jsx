@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3772,6 +3772,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openJobHandoff(choice = {}) {
     const opened = onOpenJobHandoff(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openReportReview(choice = {}) {
+    const opened = onOpenReportReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3895,6 +3903,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openJobHandoff(response.fallback || {})}>
                       {response.matches?.length ? "Open Jobs instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "report-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openReportReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the report review drawer. No approval happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openReportReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Reports instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "estimate-draft-review" ? (
@@ -14168,6 +14193,8 @@ function ReportsPagePolished({
   onOpenSupport,
   busy,
   reportRouteRequested,
+  assistantReportReviewSeed = null,
+  onAssistantReportReviewSeedHandled = () => {},
 }) {
   const canView = permissions.reports.canView;
   const canCreate = permissions.reports.canCreate;
@@ -14278,6 +14305,24 @@ function ReportsPagePolished({
     }
     openReportTool("details");
   }
+
+  useEffect(() => {
+    const seed = assistantReportReviewSeed;
+    if (!seed?.nonce || !canReviewActions) return;
+
+    const liveReports = normalizeObjectArray(reports).filter((report) => !report.archivedAt);
+    const targetReportId = seed.reportId && liveReports.some((report) => report?.id === seed.reportId)
+      ? seed.reportId
+      : liveReports.find(dailyReportNeedsReview)?.id || liveReports[0]?.id || "";
+    setFilter(targetReportId && liveReports.find((report) => report.id === targetReportId)?.status === "submitted" ? "Submitted" : "All");
+    setJobFilter("All jobs");
+    setCreatorFilter("All creators");
+    setDateFilter("All dates");
+    setSearch("");
+    if (targetReportId) onSelectReport(targetReportId);
+    openReportTool("details");
+    onAssistantReportReviewSeedHandled(seed.nonce);
+  }, [assistantReportReviewSeed?.nonce, canReviewActions, reports]);
 
   function openAdvancedReportItem(item) {
     if (item?.filter) {
@@ -38547,6 +38592,8 @@ function MainContent(props) {
         onReviewReport={props.onReviewReport}
         onReopenReport={props.onReopenReport}
         onArchiveReport={props.onArchiveReport}
+        assistantReportReviewSeed={props.assistantReportReviewSeed}
+        onAssistantReportReviewSeedHandled={props.onAssistantReportReviewSeedHandled}
       />
     );
   }
@@ -38698,6 +38745,7 @@ export default function App() {
   const [assistantEstimatePacketSeed, setAssistantEstimatePacketSeed] = useState(null);
   const [assistantEstimateJobHandoffSeed, setAssistantEstimateJobHandoffSeed] = useState(null);
   const [assistantJobHandoffSeed, setAssistantJobHandoffSeed] = useState(null);
+  const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -38854,6 +38902,20 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("jobs");
+    return true;
+  }
+
+  function handleOpenAssistantReportReview(seed = {}) {
+    if (!appState.permissions.reports?.canReview && !appState.permissions.reports?.canManageAll) {
+      setErrorMessage("Daily report review assistant actions require an office role that can review reports.");
+      return false;
+    }
+    if (seed.reportId) setSelectedReportId(seed.reportId);
+    setAssistantReportReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("reports");
     return true;
   }
 
@@ -41815,6 +41877,12 @@ export default function App() {
                     setAssistantJobHandoffSeed(null);
                   }
                 }}
+                assistantReportReviewSeed={assistantReportReviewSeed}
+                onAssistantReportReviewSeedHandled={(nonce) => {
+                  if (!assistantReportReviewSeed || assistantReportReviewSeed.nonce === nonce) {
+                    setAssistantReportReviewSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -42032,6 +42100,7 @@ export default function App() {
         onOpenEstimatePacket={handleOpenAssistantEstimatePacket}
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
+        onOpenReportReview={handleOpenAssistantReportReview}
       />
     </div>
   );

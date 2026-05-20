@@ -9,6 +9,7 @@ import {
   resolveAssistantEstimatePacketCommand,
   resolveAssistantJobHandoffCommand,
   resolveAssistantMissingProofCommand,
+  resolveAssistantReportReviewCommand,
 } from "./apex-assistant-shell-utils.js";
 
 test("assistant shell is hidden without AI Office permission", () => {
@@ -184,6 +185,53 @@ test("assistant job startup handoff is blocked for field roles", () => {
 
   assert.equal(command.type, "blocked-command");
   assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant opens submitted daily report review without write actions", () => {
+  const command = resolveAssistantReportReviewCommand("Review submitted report for Westview Warehouse", {
+    permissions: { reports: { canReview: true, canManageAll: true } },
+    dailyReports: [
+      {
+        id: "REPORT-1",
+        status: "submitted",
+        reportDate: "2026-05-20",
+        createdByName: "Luis G.",
+        workPerformed: "Formed sidewalk",
+        crewSummary: "3 crew",
+        weather: "Clear",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+      },
+    ],
+  });
+
+  assert.equal(command.type, "report-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].reportId, "REPORT-1");
+  assert.match(command.message, /No report will be approved, reopened, archived, printed, or changed automatically/i);
+});
+
+test("assistant daily report review is blocked for field roles", () => {
+  const command = resolveAssistantReportReviewCommand("Open reports needing review", {
+    permissions: { reports: { canCreate: true, canReview: false, canManageAll: false } },
+    dailyReports: [{ id: "REPORT-1", status: "submitted", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users can create assigned job reports/i);
+});
+
+test("assistant routes submitted report review before generic report navigation", () => {
+  const command = resolveApexAssistantCommand("Open submitted reports needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { reports: { canReview: true, canManageAll: true } },
+      dailyReports: [
+        { id: "REPORT-1", status: "submitted", reportDate: "2026-05-20", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "report-review");
+  assert.equal(command.matches[0].reportId, "REPORT-1");
 });
 
 test("assistant routes plain foreman handoff to Jobs before estimate packet tools", () => {

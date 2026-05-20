@@ -152,6 +152,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const missingProofCommand = resolveAssistantMissingProofCommand(input, state.commandContext || {});
   if (missingProofCommand) return missingProofCommand;
 
+  const reportReviewCommand = resolveAssistantReportReviewCommand(input, state.commandContext || {});
+  if (reportReviewCommand) return reportReviewCommand;
+
   const jobHandoffCommand = resolveAssistantJobHandoffCommand(input, state.commandContext || {});
   if (jobHandoffCommand) return jobHandoffCommand;
 
@@ -270,6 +273,47 @@ export function resolveAssistantJobHandoffCommand(input = "", context = {}) {
       : matches.length > 1
         ? "I found multiple possible jobs. Choose the right job before opening the startup handoff review."
         : "I did not find an exact job match. Open Jobs and review startup readiness manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
+export function resolveAssistantReportReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasReportReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.reports?.canReview && !permissions?.reports?.canManageAll) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Daily report review assistant commands are office review tools. Field users can create assigned job reports where allowed, but cannot open office signoff queues.",
+    };
+  }
+
+  const query = extractReportReviewTargetQuery(rawText);
+  const matches = findAssistantReportReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-report-review",
+    type: "report-review",
+    label: "Open submitted report queue",
+    helper: "No exact report match found. Open Daily Reports and choose the submitted report manually.",
+  };
+
+  return {
+    type: "report-review",
+    moduleId: "reports",
+    actionLabel: matches.length === 1 ? "Review report" : matches.length > 1 ? "Choose report" : "Open Reports",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for daily report review. No report will be approved, reopened, archived, printed, or changed automatically.`
+      : matches.length > 1
+        ? "I found multiple reports that may need review. Choose the right report before opening the review drawer."
+        : "I did not find an exact submitted report match. Open Daily Reports and review the queue manually.",
     commandText: rawText,
     query,
     matches,
@@ -454,6 +498,13 @@ function hasJobHandoffIntent(text = "") {
   return asksForReview && mentionsJobHandoff && mentionsJobContext && !explicitlyEstimate;
 }
 
+function hasReportReviewIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsReport = /\b(report|reports|daily report|daily reports|field report|field reports)\b/.test(text);
+  const mentionsReviewQueue = /\b(submitted|needs review|needing review|review queue|office review|signoff|sign-off|closeout review|ready for review)\b/.test(text);
+  return asksForReview && mentionsReport && mentionsReviewQueue;
+}
+
 function hasEstimatePacketIntent(text = "") {
   return /\b(prepare|open|review|build|assemble|show)\b/.test(text)
     && /\b(gc packet|packet|proposal packet|foreman handoff|field handoff)\b/.test(text);
@@ -518,6 +569,18 @@ function extractJobHandoffTargetQuery(input = "") {
   return "";
 }
 
+function extractReportReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:report|reports|daily report|daily reports|field report|field reports|review queue|office review)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:report|reports|daily report|daily reports|field report|field reports)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|report|reports|daily|field|for|from|this|the|submitted|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
 function findProofTargetJob(jobs = [], query = "") {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return null;
@@ -531,6 +594,71 @@ function findProofTargetJob(jobs = [], query = "") {
     job.city,
     job.status,
   ].filter(Boolean).join(" ")), words)) || null;
+}
+
+function findAssistantReportReviewMatches(query = "", context = {}) {
+  const reports = asArray(context.dailyReports).filter((report) => !report?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? reports.filter((report) => targetMatchesWords(reportSearchText(report), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : reports;
+
+  return candidates
+    .map((report) => ({
+      report,
+      submitted: reportNeedsOfficeReview(report),
+      missingBasics: reportMissingBasics(report),
+    }))
+    .sort((left, right) => reportReviewPriority(right) - reportReviewPriority(left) || reportLabel(left.report).localeCompare(reportLabel(right.report)))
+    .map(({ report, submitted, missingBasics }) => ({
+      id: `report:${report.id}`,
+      type: "report",
+      reportId: report.id || "",
+      label: reportLabel(report),
+      helper: [
+        submitted ? "submitted for office review" : `status ${report.status || "draft"}`,
+        missingBasics ? "missing basics" : "",
+        report.reportDate || "",
+        report.createdByName || report.createdBy || "",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.reportId)
+    .slice(0, 4);
+}
+
+function reportReviewPriority(candidate = {}) {
+  return (candidate.submitted ? 20 : 0) + (candidate.missingBasics ? 6 : 0);
+}
+
+function reportNeedsOfficeReview(report = {}) {
+  return normalizeText(report.status) === "submitted";
+}
+
+function reportMissingBasics(report = {}) {
+  return !report.workPerformed || !report.crewSummary || !report.weather;
+}
+
+function reportLabel(report = {}) {
+  return [jobTitle(report.job), report.reportDate || report.createdAt, report.createdByName || report.createdBy].filter(Boolean).join(" - ") || report.id || "Daily report";
+}
+
+function reportSearchText(report = {}) {
+  return normalizeText([
+    report.id,
+    report.status,
+    report.reportDate,
+    report.createdByName,
+    report.createdBy,
+    report.workPerformed,
+    report.crewSummary,
+    report.weather,
+    report.job?.title,
+    report.job?.customer,
+    report.job?.customerName,
+    report.job?.address,
+    report.job?.city,
+    report.job?.location,
+  ].filter(Boolean).join(" "));
 }
 
 function findAssistantJobHandoffMatches(query = "", context = {}) {
