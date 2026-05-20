@@ -95,6 +95,7 @@ test("opportunity scout agent run packet exposes source adapters and review-firs
       name: "Public concrete scan",
       sourceAdapterId: "public_web",
       sourceTermsStatus: "unreviewed",
+      sourcePolicyNote: "Check public terms before recurring checks. token=secret",
       trades: ["concrete"],
       serviceAreas: ["Salem"],
       sourceTypes: ["City/county/school bid page", "Plan room"],
@@ -126,6 +127,11 @@ test("opportunity scout agent run packet exposes source adapters and review-firs
 
   assert.equal(packet.mode, "review_first");
   assert.equal(packet.primaryAdapterId, "pasted_text");
+  assert.equal(packet.sourcePosture.adapterId, "public_web");
+  assert.equal(packet.sourcePosture.termsStatus, "unreviewed");
+  assert.equal(packet.sourcePosture.reviewRequired, true);
+  assert.equal(packet.sourcePosture.safeUseLabel, "Human review required");
+  assert.equal(packet.sourcePosture.policyNote.includes("secret"), false);
   assert.equal(packet.adapters.some((adapter) => adapter.id === "pasted_text"), true);
   assert.equal(packet.adapters.some((adapter) => adapter.id === "approved_browser_session"), true);
   assert.equal(packet.steps.some((step) => /CAPTCHA/i.test(step)), true);
@@ -155,6 +161,23 @@ test("opportunity scout agent packet marks private or future adapters as human-r
   assert.equal(packet.adapters.some((adapter) => adapter.status === "human_required"), true);
   assert.equal(packet.humanTasks.some((task) => /authorized/i.test(task)), true);
   assert.equal(packet.safeNextAction, "Run the manual source brief and save a found opportunity draft.");
+});
+
+test("opportunity scout agent packet marks blocked source posture", () => {
+  const packet = buildOpportunityScoutAgentRunPacket({
+    searchProfile: {
+      name: "Blocked source",
+      sourceAdapterId: "public_web",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "blocked",
+      sourcePolicyNote: "Terms prohibit reuse. api_key=secret",
+    },
+  });
+
+  assert.equal(packet.sourcePosture.blocked, true);
+  assert.equal(packet.sourcePosture.safeUseLabel, "Blocked source");
+  assert.equal(packet.humanTasks.some((task) => /blocked/i.test(task)), true);
+  assert.equal(JSON.stringify(packet).includes("secret"), false);
 });
 
 test("opportunity scout agent preview extracts, scores, dedupes, and stays review-only", () => {

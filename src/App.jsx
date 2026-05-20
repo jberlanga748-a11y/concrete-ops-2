@@ -26285,6 +26285,13 @@ function CopilotPagePolished({
                       <small key={adapter.id}>{adapter.label}: {adapter.status.replace(/_/g, " ")}</small>
                     ))}
                   </div>
+                  {scoutAgent.sourcePosture ? (
+                    <div className="co-ai-scout-checks">
+                      <small>Source use: {scoutAgent.sourcePosture.safeUseLabel}</small>
+                      <small>Access: {String(scoutAgent.sourcePosture.accessStatus || "clear_for_review").replace(/_/g, " ")}</small>
+                      <small>Terms: {String(scoutAgent.sourcePosture.termsStatus || "unreviewed").replace(/_/g, " ")}</small>
+                    </div>
+                  ) : null}
                   {scoutAgent.humanTasks?.length ? (
                     <div className="co-ai-scout-checks">
                       {scoutAgent.humanTasks.slice(0, 3).map((task) => <small key={task}>{task}</small>)}

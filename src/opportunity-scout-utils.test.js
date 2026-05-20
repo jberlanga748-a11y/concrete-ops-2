@@ -23,6 +23,8 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.dailyJobFinder.label, "Daily Job Finder");
   assert.equal(state.agentRunPacket.mode, "review_first");
   assert.equal(state.agentRunPacket.adapters.some((adapter) => adapter.id === "public_web" || adapter.id === "approved_browser_session"), true);
+  assert.equal(state.agentRunPacket.sourcePosture.reviewRequired, true);
+  assert.equal(state.agentRunPacket.sourcePosture.safeUseLabel, "Human review required");
   assert.equal(state.agentRunPacket.blockedActions.some((action) => /No credential/i.test(action)), true);
   assert.equal(state.humanTaskQueue.some((task) => task.id === "source-LS-1" && task.tone === "red"), true);
   assert.equal(state.humanTaskQueue.some((task) => task.id === "source-LS-2" && task.actionLabel === "Check source"), true);
@@ -115,6 +117,9 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.stats.dueBidOpportunities, 1);
   assert.equal(state.dailyJobFinder.headline, "Review Found Work");
   assert.equal(state.agentRunPacket.safeNextAction, "Review saved opportunity and decide Approve For Lead or Skip.");
+  assert.equal(state.agentRunPacket.sourcePosture.adapterId, "public_web");
+  assert.equal(state.agentRunPacket.sourcePosture.termsStatus, "unreviewed");
+  assert.equal(state.agentRunPacket.sourcePosture.reviewRequired, true);
   assert.equal(state.agentRunPacket.humanTasks.some((task) => /Approve For Lead/i.test(task)), true);
   assert.equal(state.humanTaskQueue[0].id, "missing-FO-1");
   assert.equal(state.humanTaskQueue.some((task) => task.id === "profile-OSP-1"), true);

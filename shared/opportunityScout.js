@@ -583,17 +583,26 @@ export function buildOpportunityScoutAgentRunPacket({
   const selectedAdapterIds = [...new Set((sourceClues.length ? sourceClues : ["manual"]).map(adapterForSourceText))];
   const adapters = selectedAdapterIds.map((adapterId) => adapterById(adapterId));
   const primaryAdapter = adapters[0] || adapterById("manual");
+  const postureAdapterId = normalizeOption(profile.sourceAdapterId, OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.map((adapter) => adapter.id), "") || primaryAdapter.id;
+  const sourceAccessStatus = inferSourceAccessStatus(postureAdapterId, profile.sourceAccessStatus);
+  const sourceTermsStatus = inferSourceTermsStatus(postureAdapterId, profile.sourceTermsStatus);
+  const sourceReviewRequired = ["needs_human", "future_review"].includes(sourceAccessStatus)
+    || ["unreviewed", "human_review_required", "blocked"].includes(sourceTermsStatus);
+  const sourceBlocked = sourceTermsStatus === "blocked";
+  const sourcePolicyNote = collapseSpaces(redactOpportunityScoutText(profile.sourcePolicyNote || "")).slice(0, 500);
   const sourceNeedsHuman = adapters.some((adapter) => ["human_required", "future_review"].includes(adapter.status))
-    || ["needs_human", "future_review"].includes(profile.sourceAccessStatus)
-    || ["human_review_required", "blocked"].includes(profile.sourceTermsStatus);
+    || ["needs_human", "future_review"].includes(sourceAccessStatus)
+    || ["human_review_required", "blocked"].includes(sourceTermsStatus);
   const hasReadyOpportunity = Boolean(opportunity.id || opportunity.title);
   const missing = deriveFoundOpportunityMissingInfoItems(opportunity);
   const humanTasks = [];
 
-  if (sourceNeedsHuman) {
+  if (sourceBlocked) {
+    humanTasks.push("Source terms are blocked; do not use this source for search, ingestion, or lead creation.");
+  } else if (sourceNeedsHuman) {
     humanTasks.push("Confirm access is authorized before using this source.");
   }
-  if (profile.sourceTermsStatus === "unreviewed") {
+  if (sourceTermsStatus === "unreviewed") {
     humanTasks.push("Review source terms before recurring checks.");
   }
   if (!hasReadyOpportunity) {
@@ -642,6 +651,19 @@ export function buildOpportunityScoutAgentRunPacket({
     modeLabel: "Review-first agent",
     primaryAdapterId: primaryAdapter.id,
     primaryAdapterLabel: primaryAdapter.label,
+    sourcePosture: {
+      adapterId: postureAdapterId,
+      accessStatus: sourceAccessStatus,
+      termsStatus: sourceTermsStatus,
+      reviewRequired: sourceReviewRequired,
+      blocked: sourceBlocked,
+      policyNote: sourcePolicyNote,
+      safeUseLabel: sourceBlocked
+        ? "Blocked source"
+        : sourceReviewRequired
+          ? "Human review required"
+          : "Clear for review",
+    },
     summary: hasReadyOpportunity
       ? "Agent can review saved evidence, explain fit, and prepare a human-approved lead handoff."
       : "Agent can plan the source check and normalize user-provided evidence after a human verifies access.",
