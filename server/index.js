@@ -9028,6 +9028,14 @@ function validateOpportunityScoutLinks(draft, opportunity, user) {
   }
 }
 
+function assertOpportunitySourceAllowsLeadConversion(draft, opportunity, user) {
+  if (!opportunity.searchProfileId) return;
+  const searchProfile = findCompanyScopedRecord(draft.opportunitySearchProfiles || [], opportunity.searchProfileId, user, draft, "Search profile");
+  if (searchProfile.sourceTermsStatus === "blocked") {
+    throw new ApiError(409, "Source terms are blocked for this Opportunity Scout profile. Resolve source approval before creating a lead.");
+  }
+}
+
 function dateOnlyFromDateTime(value) {
   if (!value) return "";
   const normalized = String(value).trim();
@@ -9303,6 +9311,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
     if (!canConvertFoundOpportunityToLead(opportunity)) {
       throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
     }
+    assertOpportunitySourceAllowsLeadConversion(draft, opportunity, req.auth.user);
 
     const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
     const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);

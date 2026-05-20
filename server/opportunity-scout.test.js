@@ -573,6 +573,66 @@ test("Opportunity Scout rejects auto-contact, bid submission, and credential pay
   }
 });
 
+test("Opportunity Scout blocks lead conversion from blocked source terms", async () => {
+  const fixture = await startServer();
+  try {
+    setCompanyPackage(fixture.sqliteFile, PACKAGE_IDS.ELITE);
+
+    const adminLogin = await login(fixture.baseUrl, {
+      email: "demo.ops@apexhq.app",
+      password: "apexdemo123",
+    });
+    const headers = authHeaders(adminLogin.token);
+
+    const profileBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/search-profiles", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Blocked source terms profile",
+        sourceAdapterId: "public_web",
+        sourceAccessStatus: "clear_for_review",
+        sourceTermsStatus: "blocked",
+        sourcePolicyNote: "Terms prohibit saved evidence. token=secret",
+      }),
+    });
+    const profile = profileBootstrap.opportunitySearchProfiles[0];
+    assert.equal(profile.sourceTermsStatus, "blocked");
+    assert.equal(profile.sourcePolicyNote.includes("secret"), false);
+
+    const opportunityBootstrap = await assertOk(fixture.baseUrl, "/api/opportunity-scout/found-opportunities", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        searchProfileId: profile.id,
+        title: "Blocked source opportunity",
+        agency: "City of Salem",
+        humanReviewStatus: "needs_review",
+      }),
+    });
+    const opportunity = opportunityBootstrap.foundOpportunities[0];
+
+    await assertOk(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ humanReviewStatus: "approved_for_lead", humanReviewNote: "Office approval should not override blocked terms." }),
+    });
+
+    const convertResponse = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
+      method: "POST",
+      headers,
+    });
+    assert.equal(convertResponse.response.status, 409);
+    assert.match(convertResponse.payload.error, /Source terms are blocked/i);
+
+    const bootstrap = await assertOk(fixture.baseUrl, "/api/bootstrap", { headers });
+    const savedOpportunity = bootstrap.foundOpportunities.find((entry) => entry.id === opportunity.id);
+    assert.equal(savedOpportunity.convertedLeadId, "");
+    assert.equal(bootstrap.leads.some((lead) => lead.project === "Blocked source opportunity"), false);
+  } finally {
+    await fixture.stop();
+  }
+});
+
 test("Basic package users cannot access Opportunity Scout even with lead permissions", async () => {
   const fixture = await startServer();
   try {
