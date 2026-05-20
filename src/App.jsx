@@ -26657,6 +26657,7 @@ function CopilotPagePolished({
                         </div>
                         {opportunity.fitExplanation ? <em>{opportunity.fitExplanation}</em> : null}
                         {opportunity.reasonToBid ? <em>{opportunity.reasonToBid}</em> : null}
+                        {opportunity.humanReviewNote ? <em>Review note: {opportunity.humanReviewNote}</em> : null}
                         {opportunity.sourceUrl || opportunity.scopeSummary || opportunity.riskFlags.length || opportunity.missingInfoItems.length || opportunity.fileMetadata.length ? (
                           <div className="co-ai-found-evidence-grid">
                             {opportunity.sourceUrl ? (
