@@ -255,6 +255,7 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.match(searchPlan.searchQueries.join(" "), /Albany concrete sidewalk/i);
     assert.match(searchPlan.qualificationChecklist.join(" "), /Approve For Lead/i);
     assert.match(searchPlan.nextOfficeStep, /recent Found Work/i);
+    assert.match(searchPlan.riskFilters.join(" "), /Source terms are unreviewed/i);
     assert.match(searchPlan.riskFilters.join(" "), /Recent source outcome: Public bid portals was Missing Docs/i);
     assert.equal(JSON.stringify(searchPlan).includes("secret"), false);
 

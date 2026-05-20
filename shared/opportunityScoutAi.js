@@ -259,6 +259,33 @@ function joinParts(values = []) {
   return values.map((value) => text(value, 160)).filter(Boolean).join(" ");
 }
 
+function sourcePostureRiskFilters(profile = {}) {
+  const adapterId = text(profile.sourceAdapterId, 100);
+  const accessStatus = text(profile.sourceAccessStatus, 100);
+  const termsStatus = text(profile.sourceTermsStatus, 100);
+  const risks = [];
+
+  if (accessStatus === "needs_human") {
+    risks.push("Source access needs human authorization review before opening, ingesting, or saving evidence.");
+  } else if (accessStatus === "future_review") {
+    risks.push("Source access is future-review only; do not use this source until a human-approved integration exists.");
+  }
+
+  if (termsStatus === "unreviewed") {
+    risks.push("Source terms are unreviewed; confirm allowed use before recurring checks or saved evidence.");
+  } else if (termsStatus === "human_review_required") {
+    risks.push("Source terms require human review; stop until owner/admin confirms approved use.");
+  } else if (termsStatus === "blocked") {
+    risks.push("Source terms are blocked; do not use this source for search, ingestion, or lead creation.");
+  }
+
+  if (["approved_browser_session", "official_api", "email_ingestion"].includes(adapterId)) {
+    risks.push(`Source adapter ${adapterId.replace(/_/g, " ")} requires approved user authorization; no login automation, token storage, or credential capture.`);
+  }
+
+  return risks;
+}
+
 export function buildLocalOpportunitySearchPlanResponse(context = {}) {
   const profile = context.searchProfile || {};
   const company = context.company || {};
@@ -305,6 +332,7 @@ export function buildLocalOpportunitySearchPlanResponse(context = {}) {
     ],
     riskFilters: [
       ...excludedKeywords.map((item) => `Exclude: ${item}`),
+      ...sourcePostureRiskFilters(profile),
       ...recentSourceOutcomes.filter((outcome) => ["missing_docs", "needs_human", "duplicate"].includes(outcome.result)).slice(0, 3).map((outcome) => `Recent source outcome: ${outcome.sourceName} was ${outcome.label}; ${outcome.nextAction}.`),
       "Stop for login, MFA, CAPTCHA, paywall, private portal, or unclear source authorization.",
       "Reject credential/token payloads and any auto-contact or bid-submission request.",
@@ -367,10 +395,14 @@ export function buildOpportunitySearchPlanContext({
       trades: arrayText(searchProfile.trades),
       serviceAreas: arrayText(searchProfile.serviceAreas),
       sourceTypes: arrayText(searchProfile.sourceTypes),
+      sourceAdapterId: text(searchProfile.sourceAdapterId, 100),
+      sourceAccessStatus: text(searchProfile.sourceAccessStatus, 100),
+      sourceTermsStatus: text(searchProfile.sourceTermsStatus, 100),
+      sourcePolicyNote: text(redactOpportunityScoutText(searchProfile.sourcePolicyNote || ""), 700),
       keywords: arrayText(searchProfile.keywords),
       excludedKeywords: arrayText(searchProfile.excludedKeywords),
       cadence: text(searchProfile.cadence, 80),
-      notes: text(searchProfile.notes, 1200),
+      notes: text(redactOpportunityScoutText(searchProfile.notes || ""), 1200),
       lastRunAt: text(searchProfile.lastRunAt, 100),
       nextRunAt: text(searchProfile.nextRunAt, 100),
     },
@@ -446,6 +478,7 @@ export function buildOpportunitySearchPlanOpenAiRequest(context, model = OPPORTU
           "You are an office-only Opportunity Scout planning assistant for Apex HQ.",
           "Generate a review-only daily search plan for a contractor office based on saved sources and search profile settings.",
           "Do not browse the web, do not create leads, do not contact customers, do not bid work, and do not promise price or schedule.",
+          "Respect sourceAdapterId, sourceAccessStatus, sourceTermsStatus, and sourcePolicyNote as hard planning constraints; blocked or human-review sources must become risk filters, not action items.",
           "Keep the output practical for a human office manager to run manually.",
           "Return only JSON matching the provided schema.",
         ].join(" "),

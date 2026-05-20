@@ -119,7 +119,12 @@ test("opportunity search plan context strips unsafe profile and source fields", 
       id: "OSP-1",
       name: "Daily public scan",
       trades: ["concrete"],
+      sourceAdapterId: "public_web",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "unreviewed",
+      sourcePolicyNote: "Public terms require review. token=secret",
       keywords: ["sidewalk"],
+      notes: "Office note password=secret",
       secretToken: "hidden",
     },
     leadSources: [{
@@ -134,6 +139,10 @@ test("opportunity search plan context strips unsafe profile and source fields", 
 
   assert.equal(context.searchProfile.name, "Daily public scan");
   assert.equal(Object.hasOwn(context.searchProfile, "secretToken"), false);
+  assert.equal(context.searchProfile.sourceAdapterId, "public_web");
+  assert.equal(context.searchProfile.sourceTermsStatus, "unreviewed");
+  assert.equal(context.searchProfile.sourcePolicyNote.includes("secret"), false);
+  assert.equal(context.searchProfile.notes.includes("secret"), false);
   assert.equal(context.leadSources[0].url, "https://example.com/bids");
   assert.equal(Object.hasOwn(context.leadSources[0], "privateKey"), false);
   assert.equal(context.recentSourceOutcomes[0].result, "missing_docs");
@@ -149,6 +158,7 @@ test("opportunity search plan request is strict and manual-only", () => {
   assert.equal(request.response_format.json_schema.strict, true);
   assert.match(request.messages[0].content, /Do not browse the web/i);
   assert.match(request.messages[0].content, /do not create leads/i);
+  assert.match(request.messages[0].content, /sourceAdapterId/i);
 });
 
 test("opportunity search plan sanitizes output", () => {
@@ -174,6 +184,9 @@ test("local opportunity search plan fallback is deterministic and review-only", 
       trades: ["concrete"],
       serviceAreas: ["Salem"],
       sourceTypes: ["City bid page"],
+      sourceAdapterId: "approved_browser_session",
+      sourceAccessStatus: "needs_human",
+      sourceTermsStatus: "human_review_required",
       keywords: ["sidewalk", "ADA"],
       excludedKeywords: ["roofing"],
     },
@@ -196,7 +209,27 @@ test("local opportunity search plan fallback is deterministic and review-only", 
   assert.match(result.qualificationChecklist.join(" "), /Create a lead only after Approve For Lead/i);
   assert.match(result.riskFilters.join(" "), /CAPTCHA/i);
   assert.match(result.riskFilters.join(" "), /Exclude: roofing/i);
+  assert.match(result.riskFilters.join(" "), /human authorization review/i);
+  assert.match(result.riskFilters.join(" "), /Source terms require human review/i);
+  assert.match(result.riskFilters.join(" "), /no login automation/i);
   assert.match(result.nextOfficeStep, /recent Found Work/i);
+});
+
+test("local opportunity search plan blocks source terms marked blocked", () => {
+  const result = buildLocalOpportunitySearchPlanResponse(buildOpportunitySearchPlanContext({
+    searchProfile: {
+      name: "Blocked portal",
+      sourceAdapterId: "public_web",
+      sourceAccessStatus: "clear_for_review",
+      sourceTermsStatus: "blocked",
+      sourcePolicyNote: "Terms prohibit saved evidence. api_key=secret",
+      trades: ["concrete"],
+      serviceAreas: ["Salem"],
+    },
+  }));
+
+  assert.match(result.riskFilters.join(" "), /Source terms are blocked/i);
+  assert.equal(JSON.stringify(result).includes("secret"), false);
 });
 
 test("opportunity search plan returns a local review-only plan without an API key", async () => {
