@@ -126,6 +126,7 @@ test("opportunity search plan context strips unsafe profile and source fields", 
       name: "Public portal",
       type: "Plan room",
       url: "https://example.com/bids",
+      notes: "[2026-05-20 source check] Result: Missing Docs | Next: Request or locate documents manually | Source: Public portal | Note: Plans missing token=secret.",
       privateKey: "hidden",
     }],
     companySettings: { companyName: "Apex HQ", serviceArea: "Albany Oregon" },
@@ -135,6 +136,8 @@ test("opportunity search plan context strips unsafe profile and source fields", 
   assert.equal(Object.hasOwn(context.searchProfile, "secretToken"), false);
   assert.equal(context.leadSources[0].url, "https://example.com/bids");
   assert.equal(Object.hasOwn(context.leadSources[0], "privateKey"), false);
+  assert.equal(context.recentSourceOutcomes[0].result, "missing_docs");
+  assert.equal(context.recentSourceOutcomes[0].note.includes("secret"), false);
 });
 
 test("opportunity search plan request is strict and manual-only", () => {
@@ -176,6 +179,11 @@ test("local opportunity search plan fallback is deterministic and review-only", 
     },
     leadSources: [
       { name: "City bids", type: "Public bid portal" },
+      {
+        name: "County bids",
+        type: "Public bid portal",
+        notes: "[2026-05-20 source check] Result: Found Work | Next: Save found opportunity | Source: County bids | Note: ADA ramp packet found.",
+      },
     ],
     companySettings: { companyName: "Apex HQ", serviceArea: "Salem Oregon" },
   }));
@@ -183,11 +191,12 @@ test("local opportunity search plan fallback is deterministic and review-only", 
   assert.equal(result.ok, true);
   assert.equal(result.configured, false);
   assert.equal(result.localFallback, true);
-  assert.equal(result.prioritySources[0], "City bids");
+  assert.equal(result.prioritySources[0], "County bids");
   assert.match(result.searchQueries.join(" "), /Salem concrete sidewalk/i);
   assert.match(result.qualificationChecklist.join(" "), /Create a lead only after Approve For Lead/i);
   assert.match(result.riskFilters.join(" "), /CAPTCHA/i);
   assert.match(result.riskFilters.join(" "), /Exclude: roofing/i);
+  assert.match(result.nextOfficeStep, /recent Found Work/i);
 });
 
 test("opportunity search plan returns a local review-only plan without an API key", async () => {

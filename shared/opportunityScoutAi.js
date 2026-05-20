@@ -1,3 +1,5 @@
+import { parseOpportunityScoutSourceCheckOutcomes, redactOpportunityScoutText } from "./opportunityScout.js";
+
 export const OPPORTUNITY_ASSISTANT_DEFAULT_MODEL = "gpt-4o-mini";
 export const OPPORTUNITY_ASSISTANT_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -261,6 +263,7 @@ export function buildLocalOpportunitySearchPlanResponse(context = {}) {
   const profile = context.searchProfile || {};
   const company = context.company || {};
   const leadSources = Array.isArray(context.leadSources) ? context.leadSources : [];
+  const recentSourceOutcomes = Array.isArray(context.recentSourceOutcomes) ? context.recentSourceOutcomes : [];
   const trades = arrayText(profile.trades, 4);
   const areas = arrayText(profile.serviceAreas, 4);
   const keywords = arrayText(profile.keywords, 4);
@@ -271,8 +274,12 @@ export function buildLocalOpportunitySearchPlanResponse(context = {}) {
   const fallbackKeyword = keywords[0] || "bid invite";
   const fallbackSource = sourceTypes[0] || "public bid sources";
   const namedSources = leadSources.map((source) => text(source.name, 160)).filter(Boolean).slice(0, 4);
+  const recentActionableSources = recentSourceOutcomes
+    .filter((outcome) => ["found_work", "missing_docs", "needs_human"].includes(outcome.result))
+    .map((outcome) => text(outcome.sourceName, 160))
+    .filter(Boolean);
   const prioritySources = namedSources.length
-    ? namedSources
+    ? [...new Set([...recentActionableSources, ...namedSources])].slice(0, 4)
     : sourceTypes.length
       ? sourceTypes
       : ["Saved public bid pages", "Known GC or builder sources", "Manual relationship follow-ups"];
@@ -298,11 +305,14 @@ export function buildLocalOpportunitySearchPlanResponse(context = {}) {
     ],
     riskFilters: [
       ...excludedKeywords.map((item) => `Exclude: ${item}`),
+      ...recentSourceOutcomes.filter((outcome) => ["missing_docs", "needs_human", "duplicate"].includes(outcome.result)).slice(0, 3).map((outcome) => `Recent source outcome: ${outcome.sourceName} was ${outcome.label}; ${outcome.nextAction}.`),
       "Stop for login, MFA, CAPTCHA, paywall, private portal, or unclear source authorization.",
       "Reject credential/token payloads and any auto-contact or bid-submission request.",
       "Flag out-of-area, missing due date, missing scope, duplicate, or no decision-maker details.",
     ],
-    nextOfficeStep: "Open the saved sources manually, paste real evidence into Found Opportunities, then review missing info before approval.",
+    nextOfficeStep: recentSourceOutcomes.some((outcome) => outcome.result === "found_work")
+      ? "Start with recent Found Work outcomes, paste real evidence into Found Opportunities, then review missing info before approval."
+      : "Open the saved sources manually, paste real evidence into Found Opportunities, then review missing info before approval.",
   });
 }
 
@@ -333,7 +343,23 @@ export function buildOpportunitySearchPlanContext({
   searchProfile = {},
   leadSources = [],
   companySettings = {},
+  recentSourceOutcomes = null,
 } = {}) {
+  const safeRecentSourceOutcomes = (Array.isArray(recentSourceOutcomes)
+    ? recentSourceOutcomes
+    : (Array.isArray(leadSources) ? leadSources : []).flatMap((source) => parseOpportunityScoutSourceCheckOutcomes(source)))
+    .slice(0, 6)
+    .map((outcome) => ({
+      sourceName: text(outcome.sourceName, 220),
+      checkedAt: text(outcome.checkedAt, 100),
+      result: text(outcome.result || outcome.resultId, 80),
+      label: text(outcome.label, 120),
+      tone: text(outcome.tone, 80),
+      nextAction: text(outcome.nextAction, 260),
+      missingInfo: text(outcome.missingInfo || outcome.missing, 260),
+      note: text(redactOpportunityScoutText(outcome.note || ""), 500),
+    }));
+
   return {
     searchProfile: {
       id: text(searchProfile.id, 80),
@@ -364,6 +390,7 @@ export function buildOpportunitySearchPlanContext({
       licenseText: text(companySettings.licenseText, 220),
       website: text(companySettings.website, 220),
     },
+    recentSourceOutcomes: safeRecentSourceOutcomes,
   };
 }
 
