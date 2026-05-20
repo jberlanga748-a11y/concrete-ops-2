@@ -155,6 +155,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
   const reportReviewCommand = resolveAssistantReportReviewCommand(input, state.commandContext || {});
   if (reportReviewCommand) return reportReviewCommand;
 
+  const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
+  if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
+
   const jobHandoffCommand = resolveAssistantJobHandoffCommand(input, state.commandContext || {});
   if (jobHandoffCommand) return jobHandoffCommand;
 
@@ -314,6 +317,47 @@ export function resolveAssistantReportReviewCommand(input = "", context = {}) {
       : matches.length > 1
         ? "I found multiple reports that may need review. Choose the right report before opening the review drawer."
         : "I did not find an exact submitted report match. Open Daily Reports and review the queue manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
+export function resolveAssistantDeliveryTicketReviewCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasDeliveryTicketReviewIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.deliveryTickets?.canManageAll) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Delivery ticket review assistant commands are office proof-review tools. Field users stay limited to assigned ticket capture and job-safe delivery records.",
+    };
+  }
+
+  const query = extractDeliveryTicketReviewTargetQuery(rawText);
+  const matches = findAssistantDeliveryTicketReviewMatches(query, context);
+  const fallback = {
+    id: "assistant-open-delivery-ticket-review",
+    type: "delivery-ticket-review",
+    label: "Open delivery ticket board",
+    helper: "No exact delivery ticket match found. Open Delivery Tickets and choose the ticket manually.",
+  };
+
+  return {
+    type: "delivery-ticket-review",
+    moduleId: "deliveryTickets",
+    actionLabel: matches.length === 1 ? "Review ticket" : matches.length > 1 ? "Choose ticket" : "Open Tickets",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for delivery ticket review. No ticket will be saved, archived, linked, billed, or sent automatically.`
+      : matches.length > 1
+        ? "I found multiple delivery tickets that may need review. Choose the right ticket before opening the ticket console."
+        : "I did not find an exact delivery ticket match. Open Delivery Tickets and review the board manually.",
     commandText: rawText,
     query,
     matches,
@@ -505,6 +549,13 @@ function hasReportReviewIntent(text = "") {
   return asksForReview && mentionsReport && mentionsReviewQueue;
 }
 
+function hasDeliveryTicketReviewIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsTicket = /\b(delivery ticket|delivery tickets|concrete ticket|concrete tickets|truck ticket|truck tickets|ticket proof|material ticket|material tickets)\b/.test(text);
+  const mentionsReviewQueue = /\b(missing|needs review|needing review|review|proof|photo|report link|daily report|yardage|supplier|truck|closeout|ready)\b/.test(text);
+  return asksForReview && mentionsTicket && mentionsReviewQueue;
+}
+
 function hasEstimatePacketIntent(text = "") {
   return /\b(prepare|open|review|build|assemble|show)\b/.test(text)
     && /\b(gc packet|packet|proposal packet|foreman handoff|field handoff)\b/.test(text);
@@ -581,6 +632,18 @@ function extractReportReviewTargetQuery(input = "") {
   return "";
 }
 
+function extractDeliveryTicketReviewTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:delivery ticket|delivery tickets|concrete ticket|concrete tickets|truck ticket|truck tickets|ticket proof|material ticket|material tickets)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:delivery ticket|delivery tickets|concrete ticket|concrete tickets|truck ticket|truck tickets|ticket proof|material ticket|material tickets)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|ticket|tickets|delivery|concrete|truck|material|for|from|this|the|missing|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
 function findProofTargetJob(jobs = [], query = "") {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return null;
@@ -594,6 +657,72 @@ function findProofTargetJob(jobs = [], query = "") {
     job.city,
     job.status,
   ].filter(Boolean).join(" ")), words)) || null;
+}
+
+function findAssistantDeliveryTicketReviewMatches(query = "", context = {}) {
+  const tickets = asArray(context.deliveryTickets).filter((ticket) => !ticket?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? tickets.filter((ticket) => targetMatchesWords(deliveryTicketSearchText(ticket), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : tickets;
+
+  return candidates
+    .map((ticket) => ({
+      ticket,
+      missingBasics: deliveryTicketMissingBasics(ticket),
+      missingPhoto: !ticket?.ticketUploadId,
+      missingReport: !ticket?.reportId,
+    }))
+    .sort((left, right) => deliveryTicketReviewPriority(right) - deliveryTicketReviewPriority(left) || deliveryTicketLabel(left.ticket).localeCompare(deliveryTicketLabel(right.ticket)))
+    .map(({ ticket, missingBasics, missingPhoto, missingReport }) => ({
+      id: `delivery-ticket:${ticket.id}`,
+      type: "delivery-ticket",
+      ticketId: ticket.id || "",
+      label: deliveryTicketLabel(ticket),
+      helper: [
+        missingBasics ? "basics missing" : "basics ready",
+        missingPhoto ? "photo missing" : "photo linked",
+        missingReport ? "report link missing" : "report linked",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.ticketId)
+    .slice(0, 4);
+}
+
+function deliveryTicketReviewPriority(candidate = {}) {
+  return (candidate.missingBasics ? 20 : 0) + (candidate.missingPhoto ? 10 : 0) + (candidate.missingReport ? 6 : 0);
+}
+
+function deliveryTicketMissingBasics(ticket = {}) {
+  return !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0);
+}
+
+function deliveryTicketLabel(ticket = {}) {
+  return [
+    ticket.ticketNumber || ticket.truckNumber || ticket.supplier || "Delivery ticket",
+    jobTitle(ticket.job),
+    ticket.supplier,
+  ].filter(Boolean).join(" - ");
+}
+
+function deliveryTicketSearchText(ticket = {}) {
+  return normalizeText([
+    ticket.id,
+    ticket.ticketNumber,
+    ticket.truckNumber,
+    ticket.supplier,
+    ticket.mixNotes,
+    ticket.notes,
+    ticket.createdByName,
+    ticket.createdBy,
+    ticket.report?.reportDate,
+    ticket.job?.title,
+    ticket.job?.customer,
+    ticket.job?.customerName,
+    ticket.job?.address,
+    ticket.job?.city,
+    ticket.job?.location,
+  ].filter(Boolean).join(" "));
 }
 
 function findAssistantReportReviewMatches(query = "", context = {}) {

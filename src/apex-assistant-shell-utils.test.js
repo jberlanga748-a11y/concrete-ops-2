@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
+  resolveAssistantDeliveryTicketReviewCommand,
   resolveAssistantEstimateDraftCommand,
   resolveAssistantEstimateJobHandoffCommand,
   resolveAssistantEstimatePacketCommand,
@@ -232,6 +233,53 @@ test("assistant routes submitted report review before generic report navigation"
 
   assert.equal(command.type, "report-review");
   assert.equal(command.matches[0].reportId, "REPORT-1");
+});
+
+test("assistant opens delivery ticket review without write actions", () => {
+  const command = resolveAssistantDeliveryTicketReviewCommand("Review delivery ticket for Westview Warehouse", {
+    permissions: { deliveryTickets: { canManageAll: true } },
+    deliveryTickets: [
+      {
+        id: "TICKET-1",
+        ticketNumber: "CT-204",
+        supplier: "Salem Ready Mix",
+        truckNumber: "TR-8",
+        yardsDelivered: 8,
+        ticketUploadId: "",
+        reportId: "",
+        job: { id: "JOB-1", title: "Westview Warehouse", customer: "ABC Builders" },
+      },
+    ],
+  });
+
+  assert.equal(command.type, "delivery-ticket-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].ticketId, "TICKET-1");
+  assert.match(command.message, /No ticket will be saved, archived, linked, billed, or sent automatically/i);
+});
+
+test("assistant delivery ticket review is blocked for field roles", () => {
+  const command = resolveAssistantDeliveryTicketReviewCommand("Open delivery tickets needing review", {
+    permissions: { deliveryTickets: { canView: true, canCreate: true, canEditOwn: true, canManageAll: false } },
+    deliveryTickets: [{ id: "TICKET-1", ticketNumber: "CT-204", job: { title: "Field Job" } }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant routes delivery ticket review before generic ticket navigation", () => {
+  const command = resolveApexAssistantCommand("Open delivery tickets needing review for Westview Warehouse", {
+    commandContext: {
+      permissions: { deliveryTickets: { canManageAll: true } },
+      deliveryTickets: [
+        { id: "TICKET-1", ticketNumber: "CT-204", job: { title: "Westview Warehouse" } },
+      ],
+    },
+  });
+
+  assert.equal(command.type, "delivery-ticket-review");
+  assert.equal(command.matches[0].ticketId, "TICKET-1");
 });
 
 test("assistant routes plain foreman handoff to Jobs before estimate packet tools", () => {

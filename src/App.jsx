@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenDeliveryTicketReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3780,6 +3780,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openReportReview(choice = {}) {
     const opened = onOpenReportReview(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openDeliveryTicketReview(choice = {}) {
+    const opened = onOpenDeliveryTicketReview(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -3920,6 +3928,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openReportReview(response.fallback || {})}>
                       {response.matches?.length ? "Open Reports instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "delivery-ticket-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openDeliveryTicketReview(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the delivery ticket console. No save or archive happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openDeliveryTicketReview(response.fallback || {})}>
+                      {response.matches?.length ? "Open Tickets instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "estimate-draft-review" ? (
@@ -35203,6 +35228,8 @@ function DeliveryTicketsPagePolished({
   onUpdateTicket,
   onArchiveTicket,
   onOpenSupport,
+  assistantDeliveryTicketReviewSeed = null,
+  onAssistantDeliveryTicketReviewSeedHandled = () => {},
 }) {
   const [jobFilter, setJobFilter] = useState("All jobs");
   const [supplierFilter, setSupplierFilter] = useState("All suppliers");
@@ -35398,6 +35425,29 @@ function DeliveryTicketsPagePolished({
     if (targetTicket?.id) setSelectedTicketId(targetTicket.id);
     openTool(options.tool || "details");
   }
+
+  useEffect(() => {
+    const seed = assistantDeliveryTicketReviewSeed;
+    if (!seed?.nonce || !canManageAll) return;
+
+    const activeTicketRows = ticketRows.filter((ticket) => !ticket.archivedAt);
+    const targetTicketId = seed.ticketId && activeTicketRows.some((ticket) => ticket?.id === seed.ticketId)
+      ? seed.ticketId
+      : activeTicketRows.find((ticket) => !ticket.supplier || !ticket.truckNumber || !ticket.ticketNumber || !Number(ticket.yardsDelivered || 0))?.id
+        || activeTicketRows.find((ticket) => !ticket.ticketUploadId || !ticket.reportId)?.id
+        || activeTicketRows[0]?.id
+        || "";
+
+    setArchiveFilter("Active");
+    setJobFilter("All jobs");
+    setSupplierFilter("All suppliers");
+    setCreatorFilter("All creators");
+    setDateFilter("All dates");
+    setSearch("");
+    if (targetTicketId) setSelectedTicketId(targetTicketId);
+    openTool("details");
+    onAssistantDeliveryTicketReviewSeedHandled(seed.nonce);
+  }, [assistantDeliveryTicketReviewSeed?.nonce, canManageAll, ticketRows]);
 
   function clearFilters() {
     setJobFilter("All jobs");
@@ -38672,7 +38722,17 @@ function MainContent(props) {
     return <ChangeOrdersPage {...props} changeOrderRequests={props.changeOrderRequests} onCreateRequest={props.onCreateChangeOrderRequest} onUpdateRequest={props.onUpdateChangeOrderRequest} onArchiveRequest={props.onArchiveChangeOrderRequest} />;
   }
   if (active === "deliveryTickets") {
-    return <DeliveryTicketsPage {...props} deliveryTickets={props.deliveryTickets} onCreateTicket={props.onCreateDeliveryTicket} onUpdateTicket={props.onUpdateDeliveryTicket} onArchiveTicket={props.onArchiveDeliveryTicket} />;
+    return (
+      <DeliveryTicketsPage
+        {...props}
+        deliveryTickets={props.deliveryTickets}
+        onCreateTicket={props.onCreateDeliveryTicket}
+        onUpdateTicket={props.onUpdateDeliveryTicket}
+        onArchiveTicket={props.onArchiveDeliveryTicket}
+        assistantDeliveryTicketReviewSeed={props.assistantDeliveryTicketReviewSeed}
+        onAssistantDeliveryTicketReviewSeedHandled={props.onAssistantDeliveryTicketReviewSeedHandled}
+      />
+    );
   }
   if (active === "design") return <DesignSystemPage />;
   if (active === "copilot") return <CopilotPage {...props} />;
@@ -38746,6 +38806,7 @@ export default function App() {
   const [assistantEstimateJobHandoffSeed, setAssistantEstimateJobHandoffSeed] = useState(null);
   const [assistantJobHandoffSeed, setAssistantJobHandoffSeed] = useState(null);
   const [assistantReportReviewSeed, setAssistantReportReviewSeed] = useState(null);
+  const [assistantDeliveryTicketReviewSeed, setAssistantDeliveryTicketReviewSeed] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(INITIAL_CUSTOMER_FORM);
   const [createUserDraft, setCreateUserDraft] = useState(INITIAL_USER_FORM);
   const [userEditDraft, setUserEditDraft] = useState(INITIAL_USER_FORM);
@@ -38916,6 +38977,19 @@ export default function App() {
       nonce: Date.now(),
     });
     setActive("reports");
+    return true;
+  }
+
+  function handleOpenAssistantDeliveryTicketReview(seed = {}) {
+    if (!appState.permissions.deliveryTickets?.canManageAll) {
+      setErrorMessage("Delivery ticket assistant review actions require an office role that can manage delivery ticket proof.");
+      return false;
+    }
+    setAssistantDeliveryTicketReviewSeed({
+      ...seed,
+      nonce: Date.now(),
+    });
+    setActive("deliveryTickets");
     return true;
   }
 
@@ -41883,6 +41957,12 @@ export default function App() {
                     setAssistantReportReviewSeed(null);
                   }
                 }}
+                assistantDeliveryTicketReviewSeed={assistantDeliveryTicketReviewSeed}
+                onAssistantDeliveryTicketReviewSeedHandled={(nonce) => {
+                  if (!assistantDeliveryTicketReviewSeed || assistantDeliveryTicketReviewSeed.nonce === nonce) {
+                    setAssistantDeliveryTicketReviewSeed(null);
+                  }
+                }}
                 relatedRecords={customerRelated}
                 customerRouteRequested={Boolean(routeState.customerId)}
                 leadFilter={leadFilter}
@@ -42101,6 +42181,7 @@ export default function App() {
         onOpenEstimateJobHandoff={handleOpenAssistantEstimateJobHandoff}
         onOpenJobHandoff={handleOpenAssistantJobHandoff}
         onOpenReportReview={handleOpenAssistantReportReview}
+        onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
       />
     </div>
   );
