@@ -30,6 +30,14 @@ const forbidden = [
     pattern: /Latest source-control tooling commit tracked:/i,
     message: "Use git/GitHub HEAD for source-control-only state instead of self-staling commit labels.",
   },
+  {
+    pattern: /^\s*-\s*Machine is running\s*$/i,
+    message: "Production Fly machines may auto-stop when idle; do not claim the machine is always running.",
+  },
+  {
+    pattern: /Docker health checks use `\/api\/health`|Docker health checks use \/api\/health|Aligning Docker to readiness is a later hardening task/i,
+    message: "Docker health checks now target /api/ready; do not reintroduce stale healthcheck alignment wording.",
+  },
 ];
 
 const allowedRootFiles = new Set([
