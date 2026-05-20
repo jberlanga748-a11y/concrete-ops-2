@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import process from "node:process";
 
+import { deriveOpportunityScoutState } from "../src/opportunity-scout-utils.js";
+
 const DEFAULT_BASE_URL = "https://concrete-ops-demo.fly.dev/";
 const DEFAULT_PASSWORD_ENV = "APEX_SMOKE_PASSWORD";
 const PRODUCTION_HOSTS = new Set(["app.apexhq.online", "concrete-ops-2.fly.dev"]);
@@ -254,6 +256,57 @@ async function run() {
     status: agentPreview.response.status,
     safeUseLabel: sourcePosture.safeUseLabel,
     blocked: sourcePosture.blocked,
+  });
+
+  const blockedHandoffTitle = `Smoke Blocked Source Handoff ${Date.now()}`;
+  const blockedHandoff = await requestJson(options.baseUrl, "/api/opportunity-scout/found-opportunities", {
+    method: "POST",
+    token: admin.token,
+    body: {
+      searchProfileId: searchProfile.id,
+      intakeSourceType: "pasted_text",
+      intakeText: `Project: ${blockedHandoffTitle}\nAgency: City of Salem Facilities\nLocation: Salem, OR\nScope: concrete sidewalk repair`,
+      title: blockedHandoffTitle,
+      agency: "City of Salem Facilities",
+      sourceName: "Manual smoke intake",
+      sourceUrl: "https://example.com/public-rfp/blocked-source-handoff",
+      city: "Salem",
+      state: "OR",
+      trade: "Concrete",
+      fitScore: 80,
+      reasonToBid: "Source posture smoke should keep blocked terms visible in lead handoff.",
+    },
+  });
+  assertOk(blockedHandoff, "create blocked source handoff opportunity");
+  const blockedOpportunity = blockedHandoff.payload?.foundOpportunities?.find((entry) => entry.title === blockedHandoffTitle);
+  if (!blockedOpportunity?.id) throw new Error("Created blocked-source handoff opportunity was not returned.");
+
+  const postureBootstrap = await requestJson(options.baseUrl, "/api/bootstrap", { token: admin.token });
+  assertOk(postureBootstrap, "source posture bootstrap");
+  const scoutState = deriveOpportunityScoutState({
+    currentCompanyId: postureBootstrap.payload?.currentCompanyId || postureBootstrap.payload?.user?.companyId || admin.user?.companyId,
+    companySettings: postureBootstrap.payload?.companySettings || {},
+    leadSources: postureBootstrap.payload?.leadSources || [],
+    opportunitySearchProfiles: postureBootstrap.payload?.opportunitySearchProfiles || [],
+    foundOpportunities: postureBootstrap.payload?.foundOpportunities || [],
+    leads: postureBootstrap.payload?.leads || [],
+    contactHistory: postureBootstrap.payload?.contactHistory || [],
+  });
+  const handoffQueueItem = scoutState.foundOpportunityQueue.find((entry) => entry.title === blockedHandoffTitle);
+  if (!handoffQueueItem?.leadPreview?.sourcePosture?.blocked || handoffQueueItem.leadPreview.sourcePosture.safeUseLabel !== "Blocked source") {
+    throw new Error(`Blocked source posture did not carry into lead handoff: ${JSON.stringify(handoffQueueItem?.leadPreview?.sourcePosture)}`);
+  }
+  if (!handoffQueueItem.leadPreview.reviewWarnings?.some((warning) => /blocked/i.test(warning))) {
+    throw new Error(`Blocked source handoff did not include a blocked-source warning: ${JSON.stringify(handoffQueueItem.leadPreview)}`);
+  }
+  if (JSON.stringify(handoffQueueItem).includes("secret")) {
+    throw new Error("Blocked source handoff leaked a secret.");
+  }
+  checks.push({
+    name: "source-posture-lead-handoff",
+    status: blockedHandoff.response.status,
+    opportunityId: blockedOpportunity.id,
+    safeUseLabel: handoffQueueItem.leadPreview.sourcePosture.safeUseLabel,
   });
 
   const unique = `Smoke Library ADA Ramp ${Date.now()}`;
