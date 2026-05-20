@@ -354,6 +354,12 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     assert.equal(createdLead.project, "School sidewalk repair");
     assert.equal(createdLead.priority, "High");
     assert.match(createdLead.notes, /Source: Opportunity Scout/);
+    assert.match(createdLead.notes, /Search profile: Daily public work/);
+    assert.match(createdLead.notes, /Source adapter: public_web/);
+    assert.match(createdLead.notes, /Source access: clear_for_review/);
+    assert.match(createdLead.notes, /Source terms: unreviewed/);
+    assert.match(createdLead.notes, /Source policy note: Public source terms need office review/);
+    assert.equal(createdLead.notes.includes("secret"), false);
 
     const duplicateConversion = await requestJson(fixture.baseUrl, `/api/opportunity-scout/found-opportunities/${opportunity.id}/convert-to-lead`, {
       method: "POST",

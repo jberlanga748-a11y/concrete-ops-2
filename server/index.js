@@ -9029,7 +9029,7 @@ function validateOpportunityScoutLinks(draft, opportunity, user) {
 }
 
 function assertOpportunitySourceAllowsLeadConversion(draft, opportunity, user) {
-  if (!opportunity.searchProfileId) return;
+  if (!opportunity.searchProfileId) return null;
   const searchProfile = findCompanyScopedRecord(draft.opportunitySearchProfiles || [], opportunity.searchProfileId, user, draft, "Search profile");
   if (["needs_human", "future_review"].includes(searchProfile.sourceAccessStatus)) {
     throw new ApiError(409, "Source access requires human review before creating a lead from this Opportunity Scout profile.");
@@ -9040,6 +9040,7 @@ function assertOpportunitySourceAllowsLeadConversion(draft, opportunity, user) {
   if (searchProfile.sourceTermsStatus === "blocked") {
     throw new ApiError(409, "Source terms are blocked for this Opportunity Scout profile. Resolve source approval before creating a lead.");
   }
+  return searchProfile;
 }
 
 function dateOnlyFromDateTime(value) {
@@ -9051,10 +9052,15 @@ function dateOnlyFromDateTime(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
-function buildOpportunityLeadNotes(opportunity) {
+function buildOpportunityLeadNotes(opportunity, searchProfile = null) {
   return [
     `Source: Opportunity Scout`,
     `Found opportunity: ${opportunity.title}`,
+    searchProfile?.name ? `Search profile: ${searchProfile.name}` : "",
+    searchProfile?.sourceAdapterId ? `Source adapter: ${searchProfile.sourceAdapterId}` : "",
+    searchProfile?.sourceAccessStatus ? `Source access: ${searchProfile.sourceAccessStatus}` : "",
+    searchProfile?.sourceTermsStatus ? `Source terms: ${searchProfile.sourceTermsStatus}` : "",
+    searchProfile?.sourcePolicyNote ? `Source policy note: ${searchProfile.sourcePolicyNote}` : "",
     opportunity.intakeSourceType ? `Intake type: ${opportunity.intakeSourceType}` : "",
     opportunity.humanReviewStatus ? `Human review: ${opportunity.humanReviewStatus}` : "",
     opportunity.fitExplanation ? `Fit review: ${opportunity.fitExplanation}` : "",
@@ -9317,7 +9323,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
     if (!canConvertFoundOpportunityToLead(opportunity)) {
       throw new ApiError(409, "A human owner, admin, or estimator must approve this opportunity for lead conversion first.");
     }
-    assertOpportunitySourceAllowsLeadConversion(draft, opportunity, req.auth.user);
+    const searchProfile = assertOpportunitySourceAllowsLeadConversion(draft, opportunity, req.auth.user);
 
     const bidDueDate = dateOnlyFromDateTime(opportunity.bidDueAt);
     const shouldPrioritize = Number(opportunity.fitScore || 0) >= 75 || Boolean(bidDueDate && bidDueDate <= followUpDueAt);
@@ -9332,7 +9338,7 @@ app.post("/api/opportunity-scout/found-opportunities/:id/convert-to-lead", requi
       source: "Opportunity Scout",
       followUpDueAt,
       nextStep: opportunity.bidDueAt ? "Review bid date, confirm fit, and qualify the opportunity." : "Qualify the found opportunity and confirm the next bid step.",
-      notes: buildOpportunityLeadNotes(opportunity),
+      notes: buildOpportunityLeadNotes(opportunity, searchProfile),
       phone: opportunity.contactPhone || "",
       email: opportunity.contactEmail || "",
       company: opportunity.agency || "",
