@@ -2598,24 +2598,140 @@ function ensureDemoCompanySettingsInDatabase(database, companySettings, changedA
 }
 
 function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
+  const updateCustomer = database.prepare(`
+    UPDATE customers
+    SET name = ?,
+        company = ?,
+        phone = ?,
+        email = ?,
+        city = ?,
+        service_area = ?,
+        status = ?,
+        notes = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
   const updateLead = database.prepare(`
     UPDATE leads
-    SET follow_up_due_at = ?,
+    SET customer_id = ?,
+        customer = ?,
+        city = ?,
+        project = ?,
+        status = ?,
+        priority = ?,
+        value = ?,
+        owner = ?,
+        owner_id = ?,
         age = ?,
+        source = ?,
+        follow_up_due_at = ?,
+        next_step = ?,
+        notes = ?,
         updated_at = ?
     WHERE id = ?
   `);
   const updateJob = database.prepare(`
     UPDATE jobs
-    SET scheduled_start = ?,
+    SET customer_id = ?,
+        lead_id = ?,
+        title = ?,
+        job = ?,
+        customer = ?,
+        address = ?,
+        site_contact = ?,
+        scope_summary = ?,
+        scheduled_start = ?,
         scheduled_end = ?,
+        estimated_duration = ?,
+        crew_size_needed = ?,
+        equipment_notes = ?,
+        safety_notes = ?,
+        material_notes = ?,
+        field_notes = ?,
+        assigned_foreman_id = ?,
+        assigned_user_id = ?,
+        field_planning_visible = ?,
+        visible_to_foreman = ?,
+        status = ?,
+        stage = ?,
+        crew = ?,
+        next_step = ?,
+        next_step_v2 = ?,
         due = ?,
+        progress = ?,
+        notes = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateEstimate = database.prepare(`
+    UPDATE estimates
+    SET customer_id = ?,
+        lead_id = ?,
+        job_id = ?,
+        title = ?,
+        status = ?,
+        scope_summary = ?,
+        internal_notes = ?,
+        customer_notes = ?,
+        subtotal = ?,
+        tax_rate = ?,
+        tax_total = ?,
+        fees_total = ?,
+        grand_total = ?,
+        sent_at = ?,
+        approved_at = ?,
+        rejected_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateEstimateItem = database.prepare(`
+    UPDATE estimate_items
+    SET estimate_id = ?,
+        description = ?,
+        quantity = ?,
+        unit = ?,
+        unit_price = ?,
+        line_total = ?,
+        sort_order = ?,
         updated_at = ?
     WHERE id = ?
   `);
   const updateSafetyPolicy = database.prepare(`
     UPDATE safety_policies
-    SET created_at = ?,
+    SET title = ?,
+        body = ?,
+        category = ?,
+        status = ?,
+        created_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateUpload = database.prepare(`
+    UPDATE uploads
+    SET file_name = ?,
+        file_type = ?,
+        file_size = ?,
+        storage_path = ?,
+        caption = ?,
+        notes = ?,
+        taken_at = ?,
+        uploaded_at = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const updateDeliveryTicket = database.prepare(`
+    UPDATE delivery_tickets
+    SET supplier = ?,
+        truck_number = ?,
+        ticket_number = ?,
+        yards_delivered = ?,
+        arrival_time = ?,
+        discharge_time = ?,
+        mix_notes = ?,
+        psi = ?,
+        slump = ?,
+        ticket_upload_id = ?,
+        notes = ?,
         updated_at = ?
     WHERE id = ?
   `);
@@ -2655,10 +2771,38 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
   `);
   let updated = 0;
 
+  for (const customer of demoSeed.customers || []) {
+    const result = updateCustomer.run(
+      customer.name || "",
+      customer.company || "",
+      customer.phone || "",
+      customer.email || "",
+      customer.city || "",
+      customer.serviceArea || "",
+      customer.status || "Active",
+      customer.notes || "",
+      customer.updatedAt || isoNow(),
+      customer.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
   for (const lead of demoSeed.leads || []) {
     const result = updateLead.run(
-      lead.followUpDueAt || "",
+      lead.customerId || null,
+      lead.customer || "",
+      lead.city || "",
+      lead.project || "",
+      lead.status || "",
+      lead.priority || "",
+      lead.value ?? 0,
+      lead.owner || "",
+      lead.ownerId || null,
       lead.age || "",
+      lead.source || "",
+      lead.followUpDueAt || "",
+      lead.nextStep || "",
+      lead.notes || "",
       lead.updatedAt || isoNow(),
       lead.id,
     );
@@ -2667,11 +2811,75 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
 
   for (const job of demoSeed.jobs || []) {
     const result = updateJob.run(
+      job.customerId || null,
+      job.leadId || null,
+      job.title || job.job || "",
+      job.job || job.title || "",
+      job.customer || "",
+      job.address || "",
+      job.siteContact || "",
+      job.scopeSummary || "",
       job.scheduledStart || "",
       job.scheduledEnd || "",
+      job.estimatedDuration || "",
+      job.crewSizeNeeded || 0,
+      job.equipmentNotes || "",
+      job.safetyNotes || "",
+      job.materialNotes || "",
+      job.fieldNotes || "",
+      job.assignedForemanId || "",
+      job.assignedUserId || "",
+      job.fieldPlanningVisible ? 1 : 0,
+      job.visibleToForeman ? 1 : 0,
+      job.status || "scheduled",
+      job.stage || jobStatusLabel(job.status),
+      job.crew || "",
+      job.next || job.nextStep || "",
+      job.nextStep || job.next || "",
       job.due || "",
+      job.progress || 0,
+      job.notes || "",
       job.updatedAt || isoNow(),
       job.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const estimate of demoSeed.estimates || []) {
+    const result = updateEstimate.run(
+      estimate.customerId || null,
+      estimate.leadId || null,
+      estimate.jobId || null,
+      estimate.title || "",
+      estimate.status || "draft",
+      estimate.scopeSummary || "",
+      estimate.internalNotes || "",
+      estimate.customerNotes || "",
+      estimate.subtotal ?? 0,
+      estimate.taxRate ?? null,
+      estimate.taxTotal ?? null,
+      estimate.feesTotal ?? null,
+      estimate.grandTotal ?? 0,
+      estimate.sentAt || null,
+      estimate.approvedAt || null,
+      estimate.rejectedAt || null,
+      estimate.updatedAt || isoNow(),
+      estimate.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const item of demoSeed.estimateItems || []) {
+    const result = updateEstimateItem.run(
+      item.estimateId || "",
+      item.description || "",
+      item.quantity ?? 0,
+      item.unit || "",
+      item.unitPrice ?? 0,
+      item.lineTotal ?? 0,
+      item.sortOrder ?? 0,
+      item.updatedAt || isoNow(),
+      item.id,
     );
     updated += Number(result.changes || 0);
   }
@@ -2679,9 +2887,48 @@ function refreshDemoWalkthroughDatesInDatabase(database, demoSeed) {
   for (const policy of demoSeed.safetyPolicies || []) {
     const createdAt = policy.createdAt || isoNow();
     const result = updateSafetyPolicy.run(
+      policy.title || "",
+      policy.body || "",
+      policy.category || "",
+      policy.status || "active",
       createdAt,
       policy.updatedAt || createdAt,
       policy.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const upload of demoSeed.uploads || []) {
+    const result = updateUpload.run(
+      upload.fileName || "",
+      upload.fileType || "",
+      upload.fileSize || 0,
+      upload.storagePath || "",
+      upload.caption || "",
+      upload.notes || "",
+      upload.takenAt || null,
+      upload.uploadedAt || upload.createdAt || isoNow(),
+      upload.updatedAt || upload.createdAt || isoNow(),
+      upload.id,
+    );
+    updated += Number(result.changes || 0);
+  }
+
+  for (const ticket of demoSeed.deliveryTickets || []) {
+    const result = updateDeliveryTicket.run(
+      ticket.supplier || "",
+      ticket.truckNumber || "",
+      ticket.ticketNumber || "",
+      ticket.yardsDelivered || 0,
+      ticket.arrivalTime || "",
+      ticket.dischargeTime || "",
+      ticket.mixNotes || "",
+      ticket.psi || null,
+      ticket.slump || null,
+      ticket.ticketUploadId || null,
+      ticket.notes || "",
+      ticket.updatedAt || ticket.createdAt || isoNow(),
+      ticket.id,
     );
     updated += Number(result.changes || 0);
   }
