@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import {
@@ -24,8 +25,13 @@ test("chromium visual polish audit includes both field phone roles", () => {
   ]);
 });
 
+test("tablet visual polish audit includes foreman field leadership coverage", () => {
+  const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(packageJson.scripts["audit:visual-polish:tablet"], /--roles=admin,foreman,employee/);
+});
+
 test("visual polish audit step timeout is bounded", () => {
-  assert.equal(DEFAULT_VISUAL_AUDIT_STEP_TIMEOUT_MS, 180_000);
+  assert.equal(DEFAULT_VISUAL_AUDIT_STEP_TIMEOUT_MS, 300_000);
 });
 
 test("full visual polish audit uses cmd.exe on Windows to avoid PowerShell policy", () => {

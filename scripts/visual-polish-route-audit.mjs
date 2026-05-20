@@ -15,6 +15,8 @@ const LOGIN_BUTTON_NAME = /enter workspace/i;
 const BROWSER_LAUNCH_TIMEOUT_MS = 20000;
 const LOGIN_TIMEOUT_MS = 20000;
 const ROUTE_AUDIT_TIMEOUT_MS = 20000;
+const ROUTES_PER_BROWSER_SESSION = 5;
+const RETRYABLE_ROUTE_FAILURE = /timed out|Target page|context or browser has been closed/i;
 const BROWSER_LAUNCH_OPTIONS = [
   { label: "chromium", options: {} },
   { label: "msedge", options: { channel: "msedge" } },
@@ -164,12 +166,29 @@ async function settlePage(page) {
   await page.waitForLoadState("networkidle", { timeout: NETWORK_IDLE_TIMEOUT_MS }).catch(() => {});
 }
 
-function withTimeout(promise, timeoutMs, label) {
+function withTimeout(promise, timeoutMs, label, { onTimeout } = {}) {
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    timeoutId = setTimeout(async () => {
+      await onTimeout?.();
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
   });
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
+async function closeWithTimeout(resource, label, timeoutMs = 5000) {
+  if (!resource?.close) return;
+  let timeoutId;
+  await Promise.race([
+    resource.close().catch(() => {}),
+    new Promise((resolve) => {
+      timeoutId = setTimeout(() => {
+        console.warn(`${label} close timed out after ${timeoutMs}ms; continuing audit.`);
+        resolve();
+      }, timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timeoutId));
 }
 
 function isNavigationAbort(errorText = "") {
@@ -323,14 +342,47 @@ async function inspectPage(page, role) {
 }
 
 async function auditRoute(browser, storageState, options, role, viewportName, spec, runDir) {
-  const context = await browser.newContext({
-    baseURL: options.baseUrl,
-    storageState,
-    viewport: VIEWPORTS[viewportName],
-  });
+  let context;
+  try {
+    context = await withTimeout(
+      browser.newContext({
+        baseURL: options.baseUrl,
+        storageState,
+        viewport: VIEWPORTS[viewportName],
+      }),
+      ROUTE_AUDIT_TIMEOUT_MS,
+      `${role} ${viewportName} ${spec.path} context`,
+    );
+  } catch (error) {
+    return {
+      role,
+      viewport: viewportName,
+      route: spec.path,
+      routeId: spec.id,
+      pathname: "",
+      h1: "",
+      status: "failed",
+      failures: [`Route audit failed: ${error?.message || String(error)}`],
+    };
+  }
   context.setDefaultTimeout(10000);
   context.setDefaultNavigationTimeout(15000);
-  const page = await context.newPage();
+  let page;
+  try {
+    page = await withTimeout(context.newPage(), ROUTE_AUDIT_TIMEOUT_MS, `${role} ${viewportName} ${spec.path} page`);
+  } catch (error) {
+    await closeWithTimeout(context, `${role} ${viewportName} ${spec.path} context`);
+    return {
+      role,
+      viewport: viewportName,
+      route: spec.path,
+      routeId: spec.id,
+      pathname: "",
+      h1: "",
+      status: "failed",
+      failures: [`Route audit failed: ${error?.message || String(error)}`],
+    };
+  }
   const consoleMessages = [];
   const failedRequests = [];
   page.on("console", (message) => {
@@ -354,7 +406,9 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
       }
       await settlePage(page);
       inspection = await inspectPage(page, role);
-    })(), ROUTE_AUDIT_TIMEOUT_MS, `${role} ${viewportName} ${spec.path} audit`);
+    })(), ROUTE_AUDIT_TIMEOUT_MS, `${role} ${viewportName} ${spec.path} audit`, {
+      onTimeout: () => closeWithTimeout(context, `${role} ${viewportName} ${spec.path} context`),
+    });
   } catch (error) {
     auditError = error?.message || String(error);
   }
@@ -377,7 +431,7 @@ async function auditRoute(browser, storageState, options, role, viewportName, sp
     await page.screenshot({ path: screenshotPath, fullPage: false, animations: "disabled", caret: "hide" }).catch(() => {});
   }
 
-  await context.close().catch(() => {});
+  await closeWithTimeout(context, `${role} ${viewportName} ${spec.path} context`);
   return {
     role,
     viewport: viewportName,
@@ -412,6 +466,10 @@ async function launchBrowser(options) {
   throw lastError;
 }
 
+function isRetryableRouteFailure(result) {
+  return result?.status === "failed" && result.failures?.some((failure) => RETRYABLE_ROUTE_FAILURE.test(failure));
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -428,18 +486,44 @@ async function main() {
   for (const role of options.roles) {
     const viewports = options.viewports.length > 0 ? options.viewports : ROLE_CONFIGS[role].viewports;
     for (const viewportName of viewports) {
-      const { browser, browserName } = await launchBrowser(options);
-      console.log(`Browser: ${browserName} (${role} ${viewportName})`);
+      let browser;
+      let routesInSession = ROUTES_PER_BROWSER_SESSION;
+      let storageState;
+      let loginBrowser;
       try {
-        const storageState = await login(browser, options, role, viewportName);
+        const loginLaunch = await launchBrowser(options);
+        loginBrowser = loginLaunch.browser;
+        console.log(`Browser: ${loginLaunch.browserName} (${role} ${viewportName} login)`);
+        storageState = await login(loginBrowser, options, role, viewportName);
+        await closeWithTimeout(loginBrowser, `${role} ${viewportName} login browser`);
+        loginBrowser = null;
+
         for (const spec of specs) {
-          const result = await auditRoute(browser, storageState, options, role, viewportName, spec, runDir);
+          if (!browser || routesInSession >= ROUTES_PER_BROWSER_SESSION) {
+            if (browser) await closeWithTimeout(browser, `${role} ${viewportName} browser`);
+            const launched = await launchBrowser(options);
+            browser = launched.browser;
+            routesInSession = 0;
+            console.log(`Browser: ${launched.browserName} (${role} ${viewportName})`);
+          }
+          let result = await auditRoute(browser, storageState, options, role, viewportName, spec, runDir);
+          if (isRetryableRouteFailure(result)) {
+            console.warn(`[retry] ${role} ${viewportName} ${spec.path}: ${result.failures.join("; ")}`);
+            await closeWithTimeout(browser, `${role} ${viewportName} browser`);
+            const launched = await launchBrowser(options);
+            browser = launched.browser;
+            routesInSession = 0;
+            console.log(`Browser: ${launched.browserName} (${role} ${viewportName} retry)`);
+            result = await auditRoute(browser, storageState, options, role, viewportName, spec, runDir);
+          }
+          routesInSession += 1;
           results.push(result);
           const marker = result.status === "passed" ? "pass" : "fail";
           console.log(`[${marker}] ${role} ${viewportName} ${spec.path}`);
         }
       } finally {
-        await browser.close().catch(() => {});
+        if (loginBrowser) await closeWithTimeout(loginBrowser, `${role} ${viewportName} login browser`);
+        if (browser) await closeWithTimeout(browser, `${role} ${viewportName} browser`);
       }
     }
   }

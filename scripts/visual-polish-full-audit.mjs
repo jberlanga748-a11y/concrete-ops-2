@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
-export const DEFAULT_VISUAL_AUDIT_STEP_TIMEOUT_MS = 180_000;
+export const DEFAULT_VISUAL_AUDIT_STEP_TIMEOUT_MS = 300_000;
 
 export const visualPolishFullAuditCommands = [
   ["run", "audit:visual-polish:chromium"],
@@ -21,12 +21,31 @@ export function resolveNpmInvocation(args, platform = process.platform) {
 }
 
 function terminateProcessTree(child) {
-  if (!child?.pid) return;
-  if (process.platform === "win32") {
-    spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore", shell: false });
-    return;
-  }
-  child.kill("SIGTERM");
+  return new Promise((resolve) => {
+    if (!child?.pid) {
+      resolve();
+      return;
+    }
+
+    if (process.platform === "win32") {
+      const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+        stdio: "ignore",
+        shell: false,
+        windowsHide: true,
+      });
+      const cleanupTimeout = setTimeout(resolve, 5_000);
+      const finish = () => {
+        clearTimeout(cleanupTimeout);
+        resolve();
+      };
+      killer.on("error", finish);
+      killer.on("exit", finish);
+      return;
+    }
+
+    child.kill("SIGTERM");
+    resolve();
+  });
 }
 
 export function runVisualPolishCommand(args, { timeoutMs = DEFAULT_VISUAL_AUDIT_STEP_TIMEOUT_MS } = {}) {
@@ -41,10 +60,10 @@ export function runVisualPolishCommand(args, { timeoutMs = DEFAULT_VISUAL_AUDIT_
       shell: false,
     });
 
-    const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       if (settled) return;
       settled = true;
-      terminateProcessTree(child);
+      await terminateProcessTree(child);
       reject(new Error(`${npmCommand} ${args.join(" ")} timed out after ${timeoutMs}ms.`));
     }, timeoutMs);
 
@@ -74,7 +93,7 @@ export async function runVisualPolishCommandSequence(commands, options = {}) {
 }
 
 export async function runVisualPolishFullAudit() {
-  await runVisualPolishCommandSequence(visualPolishFullAuditCommands, { timeoutMs: 420_000 });
+  await runVisualPolishCommandSequence(visualPolishFullAuditCommands, { timeoutMs: 600_000 });
 }
 
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

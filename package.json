@@ -59,7 +59,7 @@
     "audit:visual-polish:chromium:admin-phone": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=admin --viewports=phone",
     "audit:visual-polish:chromium:foreman-phone": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=foreman --viewports=phone",
     "audit:visual-polish:chromium:employee-phone": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=employee --viewports=phone",
-    "audit:visual-polish:tablet": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=admin,employee --viewports=tablet",
+    "audit:visual-polish:tablet": "node scripts/visual-polish-route-audit.mjs --browser=chromium --roles=admin,foreman,employee --viewports=tablet",
     "audit:public-site": "node scripts/public-site-ui-audit.mjs"
   },
   "dependencies": {
