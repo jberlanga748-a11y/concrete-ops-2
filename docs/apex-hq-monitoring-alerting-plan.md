@@ -120,6 +120,16 @@ This is not pager-grade monitoring. It is enough for Phase 1 pilot-readiness unt
 
 The Phase 2 upgrade path for log drains, dedicated uptime monitoring, alert routing, and approval gates lives in `docs/apex-hq-monitoring-upgrade-plan.md`.
 
+## Local Timing Evidence
+
+Use the read-only timing helper when checking readiness latency before a demo, pilot handoff, or cold-start decision:
+
+```powershell
+npm.cmd run monitor:readiness -- --base-url=https://app.apexhq.online --samples=3 --delay-ms=500 --json
+```
+
+The helper only performs GET requests against `/api/health` and `/api/ready`; it does not authenticate, mutate data, deploy, change Fly config, read secrets, export data, or run cleanup.
+
 ## Alert Thresholds
 
 Create an incident note in `docs/apex-hq-incident-notes-log.md` when:

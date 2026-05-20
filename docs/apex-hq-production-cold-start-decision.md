@@ -34,7 +34,27 @@ May 20, 2026 read-only production check:
 - After wake, `fly checks list -a concrete-ops-2` reported the service check passing with ready/database ok.
 - Warm production `/api/ready` checks completed in about `386ms` to `459ms`.
 
+May 20, 2026 follow-up warm production check:
+
+- `fly status -a concrete-ops-2` showed machine `148e06e2b53d68`, version `579`, started with `1 total, 1 passing` check.
+- `fly checks list -a concrete-ops-2` reported `/api/ready` passing with ready/database ok.
+- `npm.cmd run monitor:readiness -- --base-url=https://app.apexhq.online --samples=3 --delay-ms=500 --json` returned:
+  - `/api/health`: first `549ms`, min `29ms`, max `549ms`, average `204ms`
+  - `/api/ready`: first `43ms`, min `31ms`, max `43ms`, average `36ms`
+
 This is acceptable for founder-led demos and low-traffic controlled pilots when the operator expects occasional cold starts. It is not a good default once customers rely on Apex HQ during active jobs.
+
+## Repeatable Read-Only Check
+
+Use the local timing helper before deciding whether cold starts are causing customer-facing friction:
+
+```powershell
+npm.cmd run monitor:readiness -- --base-url=https://app.apexhq.online --samples=3 --delay-ms=500 --json
+fly status -a concrete-ops-2
+fly checks list -a concrete-ops-2
+```
+
+This check only performs GET requests against `/api/health` and `/api/ready`; it does not log in, deploy, change Fly scale, touch secrets, mutate data, export records, or run cleanup.
 
 ## Decision Options
 
