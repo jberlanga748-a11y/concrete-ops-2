@@ -26575,6 +26575,7 @@ function CopilotPagePolished({
                             <small><b>Fit</b>{foundDraftAgentPreview.result.fitReview?.fitLabel || "Review"}</small>
                             <small><b>Missing</b>{foundDraftAgentPreview.result.missingInfoItems?.length ? foundDraftAgentPreview.result.missingInfoItems.slice(0, 3).join(", ") : "None flagged"}</small>
                             <small><b>Duplicates</b>{foundDraftAgentPreview.result.duplicateHints?.length || 0}</small>
+                            <small><b>Access</b>{foundDraftAgentPreview.result.accessReview?.status === "needs_human" ? "Human review required" : "Clear for review"}</small>
                             <small><b>Agent</b>{foundDraftAgentPreview.result.agentRunPacket?.modeLabel || "Review-first"}</small>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">

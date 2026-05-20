@@ -15,6 +15,7 @@ import {
   normalizeOpportunitySearchProfilePayload,
   OPPORTUNITY_SCOUT_GUARDRAILS,
   OPPORTUNITY_SCOUT_SOURCE_ADAPTERS,
+  classifyOpportunityScoutSourceAccess,
   redactOpportunityScoutText,
   sanitizeOpportunityScoutUrl,
   OPPORTUNITY_SEARCH_PROFILE_STARTERS,
@@ -144,8 +145,27 @@ test("opportunity scout agent preview extracts, scores, dedupes, and stays revie
   assert.equal(preview.extractedFields.sourceUrl.includes("secret"), false);
   assert.equal(preview.duplicateHints[0].opportunityId, "FO-1");
   assert.equal(preview.fitReview.fitScore > 0, true);
+  assert.equal(preview.accessReview.status, "clear_for_review");
   assert.equal(preview.agentRunPacket.blockedActions.some((action) => /No bid submission/i.test(action)), true);
   assert.match(preview.recommendedNextStep, /duplicate/i);
+});
+
+test("source access classifier stops at login, MFA, CAPTCHA, paywall, and private access", () => {
+  const accessReview = classifyOpportunityScoutSourceAccess({
+    sourceType: "GC portal",
+    intakeText: "Plan room login requires MFA and CAPTCHA before seeing docs.",
+    notes: "Subscription required. Do not scrape.",
+  });
+
+  assert.equal(accessReview.status, "needs_human");
+  assert.equal(accessReview.stopReasons.some((reason) => /Login/i.test(reason)), true);
+  assert.equal(accessReview.stopReasons.some((reason) => /MFA/i.test(reason)), true);
+  assert.equal(accessReview.stopReasons.some((reason) => /CAPTCHA/i.test(reason)), true);
+  assert.equal(accessReview.stopReasons.some((reason) => /Paywall/i.test(reason)), true);
+  assert.equal(accessReview.stopReasons.some((reason) => /Private portal/i.test(reason)), true);
+  assert.equal(accessReview.stopReasons.some((reason) => /Robots/i.test(reason)), true);
+  assert.equal(accessReview.allowedNextActions.includes("Create a human task"), true);
+  assert.equal(accessReview.blockedActions.some((action) => /No login automation/i.test(action)), true);
 });
 
 test("opportunity scout agent preview rejects unsafe external action payloads", () => {

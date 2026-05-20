@@ -161,6 +161,67 @@ export const OPPORTUNITY_SCOUT_AGENT_STOP_REASONS = [
   "bid submission requested",
 ];
 
+const SOURCE_ACCESS_PATTERNS = [
+  { id: "login_required", label: "Login required", pattern: /\b(log\s*in|login|sign\s*in|account required|username|password)\b/i },
+  { id: "mfa_required", label: "MFA required", pattern: /\b(mfa|multi[-\s]?factor|2fa|two[-\s]?factor|one[-\s]?time code|verification code)\b/i },
+  { id: "captcha_present", label: "CAPTCHA present", pattern: /\b(captcha|recaptcha|hcaptcha|verify you are human)\b/i },
+  { id: "paywall_required", label: "Paywall or subscription required", pattern: /\b(paywall|subscription required|paid account|members only|purchase access)\b/i },
+  { id: "private_portal", label: "Private portal access", pattern: /\b(private portal|plan room login|gc portal|restricted documents|restricted access)\b/i },
+  { id: "robots_or_terms", label: "Robots or terms review required", pattern: /\b(robots\.txt|terms prohibit|terms disallow|do not scrape|automation blocked)\b/i },
+  { id: "external_contact", label: "External contact requested", pattern: /\b(contact|email|text|call)\s+(the\s+)?(customer|owner|agency|gc|general contractor|client)\b/i },
+  { id: "bid_submission", label: "Bid submission requested", pattern: /\b(submit|send|place|file)\s+(our\s+|the\s+|a\s+)?bid\b/i },
+];
+
+export function classifyOpportunityScoutSourceAccess(payload = {}) {
+  const haystack = [
+    payload.sourceType,
+    payload.authMode,
+    payload.intakeSourceType,
+    payload.sourceUrl,
+    payload.planUrl,
+    payload.sourceName,
+    payload.notes,
+    payload.intakeText,
+    payload.scopeSummary,
+    payload.humanReviewNote,
+  ].map(text).filter(Boolean).join(" ");
+  const stopReasons = [];
+
+  SOURCE_ACCESS_PATTERNS.forEach((entry) => {
+    if (entry.pattern.test(haystack)) {
+      stopReasons.push(entry.label);
+    }
+  });
+
+  for (const key of BLOCKED_CREDENTIAL_KEYS) {
+    if (Object.hasOwn(payload || {}, key) && text(payload[key])) {
+      stopReasons.push("Credential or token payload blocked");
+      break;
+    }
+  }
+
+  const uniqueStopReasons = [...new Set(stopReasons)];
+  const needsHuman = uniqueStopReasons.length > 0;
+
+  return {
+    status: needsHuman ? "needs_human" : "clear_for_review",
+    stopReasons: uniqueStopReasons,
+    humanTasks: needsHuman
+      ? uniqueStopReasons.map((reason) => `${reason}: stop and ask an authorized office user to review access before saving or converting.`)
+      : [],
+    allowedNextActions: needsHuman
+      ? ["Create a human task", "Save only user-provided non-secret notes", "Ask for authorized review"]
+      : ["Extract user-provided evidence", "Flag missing info", "Score fit", "Save review draft"],
+    blockedActions: [
+      "No login automation",
+      "No CAPTCHA/MFA/paywall bypass",
+      "No credential or token storage",
+      "No customer contact",
+      "No bid submission",
+    ],
+  };
+}
+
 const DEFAULT_TRADES = [
   "concrete",
   "fencing",
@@ -510,11 +571,13 @@ export function buildOpportunityScoutAgentPreview(payload = {}, {
   });
   const missingInfoItems = deriveFoundOpportunityMissingInfoItems(normalizedOpportunity);
   const fitReview = deriveFoundOpportunityFitReview(normalizedOpportunity, companySettings);
+  const accessReview = classifyOpportunityScoutSourceAccess(payload);
 
   return {
     ok: true,
     mode: "review_first_agent_preview",
     normalizedOpportunity,
+    accessReview,
     extractedFields: {
       title: normalizedOpportunity.title,
       agency: normalizedOpportunity.agency,
