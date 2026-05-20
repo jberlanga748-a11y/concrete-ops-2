@@ -550,6 +550,125 @@ function buildLeadQueue(leads = [], today = dateKey(new Date())) {
     .sort((left, right) => left.priority - right.priority || Number(right.fitScore || 0) - Number(left.fitScore || 0));
 }
 
+function buildOpportunityScoutHumanTaskQueue({
+  agentRunPacket = {},
+  dueProfiles = [],
+  sourceQueue = [],
+  foundOpportunityQueue = [],
+  dueLeads = [],
+  missingInfoLeads = [],
+} = {}) {
+  const tasks = [];
+  const addTask = (task) => {
+    if (!task?.id || tasks.some((entry) => entry.id === task.id)) return;
+    tasks.push(task);
+  };
+
+  dueProfiles.slice(0, 3).forEach((profile) => {
+    addTask({
+      id: `profile-${profile.profileId || profile.id}`,
+      label: profile.statusLabel || "Search profile due",
+      title: profile.name || "Search profile",
+      helper: profile.recommendedAction || "Run this saved profile manually and save only real opportunities.",
+      actionLabel: "Run profile",
+      tone: profile.tone || "orange",
+      moduleId: "copilot",
+      targetId: "scout-search-briefs",
+      priority: profile.tone === "red" ? 10 : 20,
+    });
+  });
+
+  sourceQueue.filter((source) => ["red", "orange"].includes(source.tone)).slice(0, 3).forEach((source) => {
+    addTask({
+      id: `source-${source.sourceId || source.id}`,
+      label: source.statusLabel || "Source check due",
+      title: source.name || "Lead source",
+      helper: source.recommendedAction || "Open the saved source and record the review result.",
+      actionLabel: source.url ? "Open source" : "Check source",
+      tone: source.tone || "orange",
+      moduleId: "copilot",
+      targetId: "scout-search-briefs",
+      priority: source.tone === "red" ? 15 : 25,
+    });
+  });
+
+  foundOpportunityQueue.slice(0, 5).forEach((opportunity) => {
+    if (opportunity.duplicateHints?.length) {
+      addTask({
+        id: `duplicate-${opportunity.opportunityId || opportunity.id}`,
+        label: "Duplicate review",
+        title: opportunity.title,
+        helper: `${opportunity.duplicateHints.length} possible duplicate${opportunity.duplicateHints.length === 1 ? "" : "s"} before a lead is created.`,
+        actionLabel: "Review duplicate",
+        tone: "amber",
+        moduleId: "copilot",
+        targetId: "scout-found-opportunities",
+        priority: 30,
+      });
+    }
+
+    if (opportunity.missingInfoItems?.length) {
+      addTask({
+        id: `missing-${opportunity.opportunityId || opportunity.id}`,
+        label: "Missing info",
+        title: opportunity.title,
+        helper: opportunity.missingInfoItems.slice(0, 3).join(", "),
+        actionLabel: "Fill details",
+        tone: opportunity.bidBucket === "overdue" || opportunity.bidBucket === "today" ? "red" : "amber",
+        moduleId: "copilot",
+        targetId: "scout-found-opportunities",
+        priority: opportunity.bidBucket === "overdue" ? 5 : opportunity.bidBucket === "today" ? 12 : 35,
+      });
+    }
+
+    if (!opportunity.convertedLeadId && !opportunity.canConvertToLead && opportunity.humanReviewStatus === "needs_review") {
+      addTask({
+        id: `approval-${opportunity.opportunityId || opportunity.id}`,
+        label: "Approval gate",
+        title: opportunity.title,
+        helper: "Approve For Lead or skip before Create Lead can unlock.",
+        actionLabel: "Review handoff",
+        tone: opportunity.tone || "orange",
+        moduleId: "copilot",
+        targetId: "scout-found-opportunities",
+        priority: opportunity.bidBucket === "overdue" ? 8 : 40,
+      });
+    }
+  });
+
+  if (tasks.length && agentRunPacket.humanTasks?.length) {
+    addTask({
+      id: "agent-stop-rules",
+      label: "Agent stop rules",
+      title: agentRunPacket.modeLabel || "Review-first agent",
+      helper: agentRunPacket.humanTasks.slice(0, 2).join(" "),
+      actionLabel: "Review agent packet",
+      tone: "amber",
+      moduleId: "copilot",
+      targetId: "scout-found-opportunities",
+      priority: 45,
+    });
+  }
+
+  if (dueLeads.length || missingInfoLeads.length) {
+    addTask({
+      id: "lead-followup-cleanup",
+      label: "Lead cleanup",
+      title: "Open lead follow-up",
+      helper: `${countLabel(dueLeads.length, "due follow-up")} / ${countLabel(missingInfoLeads.length, "missing-info lead")}.`,
+      actionLabel: "Open leads",
+      tone: dueLeads.length ? "orange" : "amber",
+      moduleId: "leads",
+      targetId: "",
+      priority: 55,
+    });
+  }
+
+  return tasks
+    .sort((left, right) => left.priority - right.priority || left.title.localeCompare(right.title))
+    .slice(0, 6);
+}
+
 function buildDailyScoutRunSteps({
   dueProfiles = [],
   dailyCheck = {},
@@ -928,11 +1047,20 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     foundOpportunity: openFoundOpportunityQueue[0] || {},
     companySettings,
   });
+  const humanTaskQueue = buildOpportunityScoutHumanTaskQueue({
+    agentRunPacket,
+    dueProfiles,
+    sourceQueue,
+    foundOpportunityQueue: openFoundOpportunityQueue,
+    dueLeads,
+    missingInfoLeads,
+  });
 
   return {
     today,
     readiness,
     agentRunPacket,
+    humanTaskQueue,
     dailyJobFinder,
     dailyRunSteps,
     qualityChecks,

@@ -24,6 +24,8 @@ test("opportunity scout builds a daily source queue from due and overdue lead so
   assert.equal(state.agentRunPacket.mode, "review_first");
   assert.equal(state.agentRunPacket.adapters.some((adapter) => adapter.id === "public_web" || adapter.id === "approved_browser_session"), true);
   assert.equal(state.agentRunPacket.blockedActions.some((action) => /No credential/i.test(action)), true);
+  assert.equal(state.humanTaskQueue.some((task) => task.id === "source-LS-1" && task.tone === "red"), true);
+  assert.equal(state.humanTaskQueue.some((task) => task.id === "source-LS-2" && task.actionLabel === "Check source"), true);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").value, 2);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "find-work").targetId, "scout-search-briefs");
   assert.deepEqual(state.dailyRunSteps.map((step) => step.id), [
@@ -50,6 +52,7 @@ test("opportunity scout does not invent opportunities when no lead sources exist
   assert.equal(state.readiness.label, "Source setup needed");
   assert.equal(state.stats.activeSources, 0);
   assert.deepEqual(state.sourceQueue, []);
+  assert.deepEqual(state.humanTaskQueue, []);
   assert.deepEqual(state.searchBriefs, []);
   assert.equal(state.guardrails.externalSearch, false);
   assert.equal(state.guardrails.autoCreateLeads, false);
@@ -107,6 +110,11 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.dailyJobFinder.headline, "Review Found Work");
   assert.equal(state.agentRunPacket.safeNextAction, "Review saved opportunity and decide Approve For Lead or Skip.");
   assert.equal(state.agentRunPacket.humanTasks.some((task) => /Approve For Lead/i.test(task)), true);
+  assert.equal(state.humanTaskQueue[0].id, "missing-FO-1");
+  assert.equal(state.humanTaskQueue.some((task) => task.id === "profile-OSP-1"), true);
+  assert.equal(state.humanTaskQueue.some((task) => task.id === "duplicate-FO-5"), true);
+  assert.equal(state.humanTaskQueue.some((task) => task.id === "approval-FO-4"), true);
+  assert.equal(state.humanTaskQueue.some((task) => /Approve For Lead/i.test(task.helper)), true);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").value, 3);
   assert.equal(state.dailyJobFinder.focusLanes.find((lane) => lane.id === "qualify-work").tone, "red");
   assert.equal(state.dailyRunSteps.find((step) => step.id === "run-profiles").value, 1);

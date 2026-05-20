@@ -26265,6 +26265,21 @@ function CopilotPagePolished({
                   ) : null}
                 </div>
                 <div className="co-ai-scout-runbook">
+                  <span>Human Task Queue</span>
+                  {opportunityScout.humanTaskQueue.length ? opportunityScout.humanTaskQueue.map((task) => (
+                    <button key={task.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={task.tone} onClick={() => jumpToScoutTarget(task.targetId, task.moduleId)}>
+                      <em>{task.label}</em>
+                      <strong>{task.title}</strong>
+                      <p>{task.helper}</p>
+                      <small>{task.actionLabel}</small>
+                    </button>
+                  )) : (
+                    <div className="co-ai-scout-checks">
+                      <small>No agent handoff tasks are blocking Opportunity Scout right now.</small>
+                    </div>
+                  )}
+                </div>
+                <div className="co-ai-scout-runbook">
                   <span>Today&apos;s scout run</span>
                   {opportunityScout.dailyRunSteps.map((step) => (
                     <button key={step.id} type="button" className="co-ai-scout-run-step co-focus-ring" data-tone={step.tone} onClick={() => jumpToScoutTarget(step.targetId, step.moduleId)}>
