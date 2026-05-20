@@ -4265,6 +4265,37 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       {response.matches?.length ? "Open Tools instead" : response.actionLabel}
                     </Button>
                   </div>
+                ) : response.type === "material-planning-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.sourceSummary?.length ? (
+                      <div className="grid gap-2">
+                        {response.sourceSummary.map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.08] p-3">
+                            <span className="block text-sm font-black text-white">{item.label}</span>
+                            <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{item.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openModule(match.moduleId || response.moduleId)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Review material planning context. No order, vendor message, or record change happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {(response.actions?.length ? response.actions : [response.fallback]).filter(Boolean).map((action) => (
+                        <Button key={action.moduleId || action.id || action.actionLabel} type="button" size="sm" onClick={() => openModule(action.moduleId || response.moduleId)}>
+                          {action.actionLabel || action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 ) : response.type === "estimate-draft-review" ? (
                   <div className="mt-3 grid gap-2">
                     {response.matches?.length ? response.matches.map((match) => (
@@ -42876,6 +42907,7 @@ export default function App() {
           users: appState.permissions.users?.canView ? appState.users : [],
           jobDraftImports: appState.permissions.jobDraftImports?.canView ? appState.jobDraftImports : [],
           estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
+          calculatorResults: appState.permissions.calculator?.canUse ? appState.calculatorResults : [],
         }}
         onOpenModule={setActive}
         onStartEstimateDraft={handleStartAssistantEstimateDraft}

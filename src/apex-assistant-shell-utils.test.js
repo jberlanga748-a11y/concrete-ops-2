@@ -14,6 +14,7 @@ import {
   resolveAssistantImportedDraftReviewCommand,
   resolveAssistantJobHandoffCommand,
   resolveAssistantLeadFollowUpCommand,
+  resolveAssistantMaterialPlanningCommand,
   resolveAssistantMissingProofCommand,
   resolveAssistantPostPourReviewCommand,
   resolveAssistantPrePourReviewCommand,
@@ -712,6 +713,95 @@ test("assistant keeps generic support navigation out of workflow support", () =>
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "support");
+});
+
+test("assistant opens material planning review packet without ordering", () => {
+  const command = resolveAssistantMaterialPlanningCommand("Review material plan for Westview Warehouse", {
+    permissions: {
+      estimates: { canView: true, canUseGcPackets: true },
+      jobs: { canManageAll: true },
+      calculator: { canUse: true },
+      deliveryTickets: { canView: true },
+      reports: { canView: true },
+    },
+    estimates: [
+      {
+        id: "EST-1",
+        title: "Westview Warehouse slab",
+        status: "approved",
+        customerName: "ABC Builders",
+        items: [{ id: "ITEM-1" }],
+        takeoffRows: [{ id: "TO-1" }],
+      },
+    ],
+    jobs: [
+      {
+        id: "JOB-1",
+        title: "Westview Warehouse",
+        customer: "ABC Builders",
+        materialNotes: "4000 PSI mix, confirm sawcut timing.",
+        calculatorResults: [{ id: "CALC-1" }],
+      },
+    ],
+    deliveryTickets: [
+      { id: "TICKET-1", jobId: "JOB-1", yardsDelivered: 8, supplier: "Ready Mix", truckNumber: "12", ticketNumber: "445" },
+      { id: "TICKET-2", jobId: "JOB-1", yardsDelivered: 0 },
+    ],
+    dailyReports: [
+      { id: "REPORT-1", jobId: "JOB-1", concretePoured: true, yardsPoured: 8 },
+    ],
+    calculatorResults: [{ id: "CALC-1" }],
+  });
+
+  assert.equal(command.type, "material-planning-review");
+  assert.equal(command.matches.length, 2);
+  assert.equal(command.actions.some((action) => action.moduleId === "calculator"), true);
+  assert.equal(command.sourceSummary.some((item) => /Delivery proof/i.test(item.label)), true);
+  assert.match(command.message, /No order, supplier message, purchase order, job conversion, price approval, or record change/i);
+});
+
+test("assistant material planning is blocked for field users", () => {
+  const command = resolveAssistantMaterialPlanningCommand("Review material plan for today", {
+    permissions: {
+      estimates: { canView: false, canUseGcPackets: false },
+      jobs: { canManageAll: false, canManageField: true },
+      calculator: { canUse: true },
+    },
+    jobs: [{ id: "JOB-1", title: "Assigned Field Job" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay limited/i);
+});
+
+test("assistant material planning is package locked without premium packet tools", () => {
+  const command = resolveAssistantMaterialPlanningCommand("Review material planning for Westview", {
+    permissions: {
+      estimates: { canView: true, canUseGcPackets: false },
+      jobs: { canManageAll: true },
+      calculator: { canUse: true },
+    },
+    estimates: [{ id: "EST-1", title: "Westview" }],
+  });
+
+  assert.equal(command.type, "package-blocked");
+  assert.match(command.message, /Premium review workflow/i);
+});
+
+test("assistant blocks material ordering before material planning review", () => {
+  const command = resolveApexAssistantCommand("Order concrete materials for Westview Warehouse", {
+    commandContext: {
+      permissions: {
+        estimates: { canView: true, canUseGcPackets: true },
+        jobs: { canManageAll: true },
+        calculator: { canUse: true },
+      },
+      jobs: [{ id: "JOB-1", title: "Westview Warehouse" }],
+    },
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /will not order materials/i);
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

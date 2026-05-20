@@ -117,6 +117,7 @@ const DEFAULT_PROMPTS = [
   "What needs attention?",
   "Summarize missing proof",
   "Start estimate from rough notes",
+  "Review material plan",
   "Open reports needing review",
   "Show job blockers",
 ];
@@ -223,6 +224,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const supportWorkflowCommand = resolveAssistantSupportWorkflowCommand(input, state.commandContext || {});
   if (supportWorkflowCommand) return supportWorkflowCommand;
+
+  const materialPlanningCommand = resolveAssistantMaterialPlanningCommand(input, state.commandContext || {});
+  if (materialPlanningCommand) return materialPlanningCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -813,6 +817,71 @@ export function resolveAssistantSupportWorkflowCommand(input = "", context = {})
   };
 }
 
+export function resolveAssistantMaterialPlanningCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasMaterialPlanningIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+
+  const hasOfficeMaterialAccess = Boolean(
+    permissions?.estimates?.canView
+    || permissions?.estimates?.canManage
+    || permissions?.jobs?.canManageAll,
+  );
+  if (!hasOfficeMaterialAccess) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Material planning assistant commands are office review tools. Field users stay limited to assigned job notes, reports, tickets, photos, and calculators without office planning or pricing controls.",
+    };
+  }
+
+  if (!permissions?.estimates?.canUseGcPackets) {
+    return {
+      type: "package-blocked",
+      moduleId: "estimates",
+      actionLabel: "Open Estimates",
+      message: "Assistant material planning is a Premium review workflow. You can still use existing calculator, job notes, reports, and delivery tickets manually where your package allows.",
+    };
+  }
+
+  const query = extractMaterialPlanningTargetQuery(rawText);
+  const matches = findAssistantMaterialPlanningMatches(query, context);
+  const sourceSummary = buildAssistantMaterialPlanningSourceSummary(context, matches);
+  const actions = [
+    permissions?.calculator?.canUse ? { moduleId: "calculator", actionLabel: "Open Calculator" } : null,
+    permissions?.estimates?.canView ? { moduleId: "estimates", actionLabel: "Open Estimates" } : null,
+    permissions?.deliveryTickets?.canView ? { moduleId: "deliveryTickets", actionLabel: "Open Tickets" } : null,
+    permissions?.reports?.canView ? { moduleId: "reports", actionLabel: "Open Reports" } : null,
+  ].filter(Boolean);
+
+  return {
+    type: "material-planning-review",
+    moduleId: actions[0]?.moduleId || "calculator",
+    actionLabel: matches.length === 1 ? "Review material packet" : matches.length > 1 ? "Choose source" : actions[0]?.actionLabel || "Open Calculator",
+    message: matches.length === 1
+      ? `${matches[0].label} has a review-only material planning packet. No order, supplier message, purchase order, job conversion, price approval, or record change will happen automatically.`
+      : matches.length > 1
+        ? "I found multiple visible material-planning sources. Choose the right estimate or job before reviewing quantities and proof. No order, supplier message, purchase order, job conversion, price approval, or record change will happen automatically."
+        : "Material planning context is ready for manual review. Open the existing calculator, estimates, tickets, or reports; no ordering or record changes happen automatically.",
+    commandText: rawText,
+    query,
+    matches,
+    sourceSummary,
+    actions,
+    fallback: {
+      id: "assistant-open-material-planning",
+      type: "material-planning-review",
+      label: actions[0]?.actionLabel || "Open Calculator",
+      helper: "Open existing material tools and review quantities manually.",
+      moduleId: actions[0]?.moduleId || "calculator",
+    },
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -1175,6 +1244,13 @@ function hasSupportWorkflowIntent(text = "") {
     && /\b(support|help|issue|problem|bug|blocked|blocker|not working|can't|cannot|wont|won't)\b/.test(text);
   const mentionsSupportWorkflow = /\b(login|access|estimate|proposal|job|schedule|field mode|report|upload|photo|proof|billing|ready to bill|permission|role|safety|incident|tool|data|import|setup|onboarding|upgrade|package)\b/.test(text);
   return asksForSupport && mentionsSupportWorkflow;
+}
+
+function hasMaterialPlanningIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find|prepare|build|summarize|plan|calculate)\b/.test(text);
+  const mentionsMaterialPlan = /\b(material plan|material planning|material review|materials review|quantity review|quantity planning|yardage review|takeoff review|concrete plan|yield plan|pour quantity|pour quantities|concrete quantity|concrete quantities)\b/.test(text);
+  const mentionsSource = /\b(estimate|job|ticket|daily report|calculator|takeoff|yards|yardage|concrete|material|materials|quantity|quantities)\b/.test(text);
+  return asksForReview && (mentionsMaterialPlan || (/\b(material|materials|takeoff|yardage|quantity|quantities)\b/.test(text) && mentionsSource));
 }
 
 function hasSafetyIncidentReviewIntent(text = "") {
@@ -2065,6 +2141,138 @@ function supportBlockerLevelForText(text = "", permissions = {}) {
   }
   if (/\b(slow|slowing|friction|stuck)\b/.test(text)) return "Slowing work down";
   return "Not a blocker";
+}
+
+function extractMaterialPlanningTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:material plan|material planning|material review|materials review|quantity review|quantity planning|yardage review|takeoff review|concrete plan|yield plan|pour quantity|pour quantities|concrete quantity|concrete quantities)\b\s+(?:for|from|on|at)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1]);
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find|prepare|build|summarize|plan|calculate)\b.*\b(?:material|materials|quantity|quantities|yardage|takeoff|concrete)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|prepare|build|summarize|plan|calculate|material|materials|quantity|quantities|yardage|takeoff|concrete|for|from|this|the)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function findAssistantMaterialPlanningMatches(query = "", context = {}) {
+  const normalizedQuery = normalizeText(query);
+  const words = normalizedQuery.split(" ").filter((word) => word.length > 1);
+  const estimates = asArray(context.estimates).filter((estimate) => !estimate?.archivedAt);
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const estimateCandidates = normalizedQuery
+    ? estimates.filter((estimate) => targetMatchesWords(estimateSearchText(estimate), words))
+    : estimates;
+  const jobCandidates = normalizedQuery
+    ? jobs.filter((job) => targetMatchesWords(materialPlanningJobSearchText(job), words))
+    : jobs;
+
+  const matches = []
+    .concat(estimateCandidates.map((estimate) => {
+      const takeoffRows = asArray(estimate.takeoffRows || estimate.takeoffBackup || estimate.takeoffBackupRows);
+      const itemCount = asArray(estimate.items).length;
+      const hasBackupNotes = Boolean(String(estimate.internalNotes || estimate.backupNotes || estimate.notes || "").trim());
+      return {
+        id: `material-estimate:${estimate.id}`,
+        type: "estimate",
+        estimateId: estimate.id || "",
+        moduleId: "estimates",
+        label: [estimate.title || estimate.project || "Estimate", estimate.customerName || estimate.customer?.name || estimate.lead?.customer].filter(Boolean).join(" - "),
+        helper: [
+          estimate.status || "estimate",
+          takeoffRows.length ? `${takeoffRows.length} takeoff row${takeoffRows.length === 1 ? "" : "s"}` : `${itemCount} line item${itemCount === 1 ? "" : "s"}`,
+          hasBackupNotes ? "backup notes present" : "backup notes need review",
+        ].filter(Boolean).join(" - "),
+      };
+    }))
+    .concat(jobCandidates.map((job) => {
+      const calculationCount = asArray(job.calculatorResults).length;
+      const hasMaterialNotes = Boolean(String(job.materialNotes || "").trim());
+      return {
+        id: `material-job:${job.id}`,
+        type: "job",
+        jobId: job.id || "",
+        moduleId: "jobs",
+        label: [jobTitle(job), job.customer || job.customerName || "", job.city || job.location || ""].filter(Boolean).join(" - "),
+        helper: [
+          job.status || job.stage || "job",
+          hasMaterialNotes ? "material notes present" : "material notes missing",
+          calculationCount ? `${calculationCount} saved calculation${calculationCount === 1 ? "" : "s"}` : "calculator backup needed",
+        ].filter(Boolean).join(" - "),
+      };
+    }));
+
+  return dedupeAssistantMatches(matches)
+    .sort((left, right) => materialPlanningPriority(right) - materialPlanningPriority(left) || left.label.localeCompare(right.label))
+    .slice(0, 4);
+}
+
+function buildAssistantMaterialPlanningSourceSummary(context = {}, matches = []) {
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const estimates = asArray(context.estimates).filter((estimate) => !estimate?.archivedAt);
+  const tickets = asArray(context.deliveryTickets).filter((ticket) => !ticket?.archivedAt);
+  const reports = asArray(context.dailyReports).filter((report) => !report?.archivedAt);
+  const calculatorResults = asArray(context.calculatorResults);
+  const ticketsMissingBasics = tickets.filter((ticket) => deliveryTicketMissingBasics(ticket)).length;
+  const ticketsMissingProof = tickets.filter((ticket) => !ticket.ticketUploadId || !ticket.reportId).length;
+  const reportsWithConcrete = reports.filter((report) => Boolean(report.concretePoured)).length;
+  const yardsPoured = reports.reduce((sum, report) => sum + Number(report.yardsPoured || 0), 0);
+  const yardsDelivered = tickets.reduce((sum, ticket) => sum + Number(ticket.yardsDelivered || 0), 0);
+
+  return [
+    {
+      id: "material-sources",
+      label: "Visible sources",
+      detail: `${matches.length || estimates.length + jobs.length} estimate/job source${(matches.length || estimates.length + jobs.length) === 1 ? "" : "s"} available for manual material review.`,
+    },
+    {
+      id: "calculator-backup",
+      label: "Calculator backup",
+      detail: calculatorResults.length ? `${calculatorResults.length} saved calculator result${calculatorResults.length === 1 ? "" : "s"} visible.` : "No saved calculator result is selected; use Calculator for quantity backup.",
+    },
+    {
+      id: "ticket-proof",
+      label: "Delivery proof",
+      detail: `${formatAssistantNumber(yardsDelivered)} yd delivered in visible tickets; ${ticketsMissingBasics + ticketsMissingProof} ticket proof gap${ticketsMissingBasics + ticketsMissingProof === 1 ? "" : "s"} may need review.`,
+    },
+    {
+      id: "report-pour-notes",
+      label: "Daily report pour notes",
+      detail: `${reportsWithConcrete} concrete report${reportsWithConcrete === 1 ? "" : "s"} with ${formatAssistantNumber(yardsPoured)} yd poured in visible daily reports.`,
+    },
+  ];
+}
+
+function materialPlanningPriority(match = {}) {
+  const helper = normalizeText(match.helper || "");
+  return (match.type === "estimate" ? 8 : 0)
+    + (helper.includes("missing") || helper.includes("needed") ? 10 : 0)
+    + (helper.includes("takeoff") ? 6 : 0)
+    + (helper.includes("calculation") ? 4 : 0);
+}
+
+function materialPlanningJobSearchText(job = {}) {
+  return normalizeText([
+    job.id,
+    jobTitle(job),
+    job.customer,
+    job.customerName,
+    job.address,
+    job.city,
+    job.location,
+    job.status,
+    job.stage,
+    job.materialNotes,
+    job.scopeSummary,
+    job.fieldNotes,
+  ].filter(Boolean).join(" "));
+}
+
+function formatAssistantNumber(value = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "0";
+  if (Number.isInteger(parsed)) return String(parsed);
+  return parsed.toFixed(1).replace(/\.0$/, "");
 }
 
 function scheduleDispatchPriority(candidate = {}) {
