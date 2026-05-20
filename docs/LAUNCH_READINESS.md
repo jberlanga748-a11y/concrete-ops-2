@@ -46,7 +46,7 @@ Current stage:
 - production monitoring/log drain decision
 - production min-machine/cold-start approval using `docs/apex-hq-production-cold-start-decision.md`
 - customer-specific pilot environment setup for any real pilot
-- legal review of pilot/customer data docs before wider paid launch
+- legal review of pilot/customer data docs before wider paid launch using `docs/apex-hq-legal-review-prep-checklist.md`
 - pilot onboarding rehearsal with the exact contractor workflow
 - real Day 0, Day 3, and Day 10 pilot operating cadence
 - public claims review
@@ -81,6 +81,7 @@ Do not use:
 | User invite / activation UX | Built |
 | Formal support intake process | Built for Phase 1 pilots |
 | Pilot terms / data handling drafts | Drafted / legal review needed |
+| Legal review prep checklist | Prepared; not legal advice |
 | App health page | Built |
 | Rollback checklist | Built |
 | Backup/export verification | Built |
@@ -228,3 +229,4 @@ Minimum support intake lives in `docs/apex-hq-support-intake-process.md` and sho
 - Monitoring plan: `docs/apex-hq-monitoring-alerting-plan.md`
 - Monitoring upgrade plan: `docs/apex-hq-monitoring-upgrade-plan.md`
 - Demo smoke secret setup: `docs/apex-hq-github-actions-smoke-secrets.md`
+- Legal review prep: `docs/apex-hq-legal-review-prep-checklist.md`
