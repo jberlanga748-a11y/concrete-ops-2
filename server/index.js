@@ -60,6 +60,7 @@ import {
   findDuplicateFoundOpportunities,
   normalizeFoundOpportunityPayload,
   normalizeOpportunitySearchProfilePayload,
+  parseOpportunityScoutSourceCheckOutcomes,
   validateFoundOpportunityPayload,
   validateOpportunitySearchProfilePayload,
 } from "../shared/opportunityScout.js";
@@ -9178,6 +9179,7 @@ app.post("/api/ai/opportunity-scout/agent-preview", requireAuth, asyncRoute(asyn
     searchProfile,
     leadSource,
     companySettings: companySettingsForState(state, req.auth.user),
+    recentSourceCheckOutcomes: leadSource ? parseOpportunityScoutSourceCheckOutcomes(leadSource) : [],
     createdBy: req.auth.user.id,
   });
   if (!preview.ok) {

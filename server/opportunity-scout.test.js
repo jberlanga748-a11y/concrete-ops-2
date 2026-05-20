@@ -403,10 +403,32 @@ test("Opportunity Scout agent preview is review-only and does not persist found 
     const before = await assertOk(fixture.baseUrl, "/api/opportunity-scout", { headers });
     assert.equal(before.foundOpportunities.length, 0);
 
+    const sourceBootstrap = await assertOk(fixture.baseUrl, "/api/lead-sources", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "City bids",
+        type: "Public bid portal",
+        serviceArea: "Salem",
+        tradeFocus: "Concrete",
+        checkCadence: "Daily",
+      }),
+    });
+    const leadSource = sourceBootstrap.leadSources[0];
+    await assertOk(fixture.baseUrl, `/api/lead-sources/${leadSource.id}/check`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        checkedAt: "2026-05-20",
+        checkNote: "Result: Found Work | Next: Save found opportunity | Source: City bids | Note: Library ramp token=secret.",
+      }),
+    });
+
     const preview = await assertOk(fixture.baseUrl, "/api/ai/opportunity-scout/agent-preview", {
       method: "POST",
       headers,
       body: JSON.stringify({
+        leadSourceId: leadSource.id,
         intakeSourceType: "pasted_text",
         intakeText: `
           Project: Library ADA concrete ramp
@@ -424,6 +446,8 @@ test("Opportunity Scout agent preview is review-only and does not persist found 
     assert.equal(preview.extractedFields.sourceUrl.includes("secret-token"), false);
     assert.equal(preview.agentRunPacket.mode, "review_first");
     assert.equal(preview.agentRunPacket.blockedActions.some((action) => /No bid submission/i.test(action)), true);
+    assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].result, "found_work");
+    assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].note.includes("secret"), false);
     assert.match(preview.recommendedNextStep, /Save/);
 
     const after = await assertOk(fixture.baseUrl, "/api/opportunity-scout", { headers });

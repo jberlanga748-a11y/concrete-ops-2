@@ -152,6 +152,14 @@ test("opportunity scout agent preview extracts, scores, dedupes, and stays revie
     searchProfile: { name: "Public bid scan", sourceTypes: ["City/county/school bid page"] },
     leadSource: { name: "City bids", type: "Public bid portal" },
     companySettings: { serviceArea: "Salem Oregon" },
+    recentSourceCheckOutcomes: [{
+      sourceName: "City bids",
+      checkedAt: "2026-05-20",
+      result: "found_work",
+      label: "Found Work",
+      nextAction: "Save found opportunity",
+      note: "Sidewalk packet token=secret.",
+    }],
     createdBy: "U-1",
   });
 
@@ -164,6 +172,8 @@ test("opportunity scout agent preview extracts, scores, dedupes, and stays revie
   assert.equal(preview.fitReview.fitScore > 0, true);
   assert.equal(preview.accessReview.status, "clear_for_review");
   assert.equal(preview.agentRunPacket.blockedActions.some((action) => /No bid submission/i.test(action)), true);
+  assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].result, "found_work");
+  assert.equal(preview.agentRunPacket.recentSourceOutcomes[0].note.includes("secret"), false);
   assert.match(preview.recommendedNextStep, /duplicate/i);
 });
 

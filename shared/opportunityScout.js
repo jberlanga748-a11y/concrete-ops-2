@@ -648,6 +648,7 @@ export function buildOpportunityScoutAgentPreview(payload = {}, {
   id = "FO-PREVIEW",
   changedAt = new Date().toISOString(),
   createdBy = "",
+  recentSourceCheckOutcomes = [],
 } = {}) {
   const errors = validateFoundOpportunityPayload(payload);
   if (errors.length > 0) {
@@ -675,6 +676,7 @@ export function buildOpportunityScoutAgentPreview(payload = {}, {
     foundOpportunity: normalizedOpportunity,
     intakeSourceType: normalizedOpportunity.intakeSourceType,
     companySettings,
+    recentSourceCheckOutcomes,
   });
   const missingInfoItems = deriveFoundOpportunityMissingInfoItems(normalizedOpportunity);
   const fitReview = deriveFoundOpportunityFitReview(normalizedOpportunity, companySettings);
