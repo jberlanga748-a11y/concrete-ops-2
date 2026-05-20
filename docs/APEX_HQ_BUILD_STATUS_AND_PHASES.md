@@ -101,8 +101,10 @@ Current state:
 - Demo hosted smoke issue reporting: `.github/workflows/demo-hosted-smoke.yml` now opens or updates a GitHub issue when scheduled/manual demo hosted smoke fails, includes immediate Fly/demo triage commands, and closes the issue after a recovered successful run. This changes workflow alerting only; no production config, app code, secrets, or deploy behavior changed.
 - Demo hosted smoke issue reporting verification: manual GitHub Actions dispatch `26130655785` passed on `main`; logs confirmed the non-auth summary helper ran, auth smoke skipped safely without `APEX_SMOKE_PASSWORD`, and the recovered-issue close step ran without finding an open failure issue.
 - Monitoring plan sync: `docs/apex-hq-monitoring-alerting-plan.md` now documents demo hosted smoke summary output plus the `Apex HQ demo hosted smoke failed` issue open/update/recovery behavior.
+- Demo hosted smoke current-head verification: manual GitHub Actions dispatch `26133699849` passed on `main` at commit `93619f5`; logs confirmed non-auth health/route smoke ran against `https://concrete-ops-demo.fly.dev`, auth smoke skipped safely because `APEX_SMOKE_PASSWORD` is not configured, and recovered-issue close handling ran.
 - Readiness monitor reporting: `.github/workflows/readiness-monitor.yml` now writes a GitHub Actions step summary table with endpoint, attempt, HTTP status, duration, and ready/error state for each production readiness check without changing endpoint targets, issue behavior, production config, or secrets.
 - Readiness monitor reporting verification: manual GitHub Actions dispatch `26128221109` passed on `main`; logs confirmed both production readiness endpoints passed after the summary-writing workflow update.
+- Readiness monitor current-head verification: scheduled GitHub Actions run `26133125331` passed on `main` at commit `93619f5`; logs confirmed both production readiness endpoints passed without opening a failure issue.
 
 ## Latest Released App State
 
