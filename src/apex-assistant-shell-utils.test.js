@@ -5,6 +5,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
   resolveAssistantChangeOrderReviewCommand,
+  resolveAssistantCrewReadinessCommand,
   resolveAssistantCustomerAccountCommand,
   resolveAssistantDeliveryTicketReviewCommand,
   resolveAssistantEstimateDraftCommand,
@@ -510,6 +511,56 @@ test("assistant keeps generic customers navigation out of account review", () =>
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "customers");
+});
+
+test("assistant opens crew readiness review without write actions", () => {
+  const command = resolveAssistantCrewReadinessCommand("Review crew readiness for Luis Garcia", {
+    permissions: { users: { canView: true, canManage: true } },
+    users: [
+      {
+        id: "USER-1",
+        name: "Luis Garcia",
+        role: "Employee",
+        status: "active",
+        email: "luis@example.test",
+        phone: "555-0101",
+      },
+    ],
+  });
+
+  assert.equal(command.type, "crew-readiness-review");
+  assert.equal(command.matches.length, 1);
+  assert.equal(command.matches[0].userId, "USER-1");
+  assert.match(command.message, /No role, invite, job assignment, time entry, safety record, or employee profile will be changed automatically/i);
+});
+
+test("assistant crew readiness review is blocked for field roles", () => {
+  const command = resolveAssistantCrewReadinessCommand("Open crew readiness for Luis Garcia", {
+    permissions: { users: { canView: false, canManage: false } },
+    users: [{ id: "USER-1", name: "Luis Garcia", role: "Employee" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes crew readiness before generic employee navigation", () => {
+  const command = resolveApexAssistantCommand("Open crew readiness for Luis Garcia", {
+    commandContext: {
+      permissions: { users: { canView: true, canManage: true } },
+      users: [{ id: "USER-1", name: "Luis Garcia", role: "Employee", status: "active" }],
+    },
+  });
+
+  assert.equal(command.type, "crew-readiness-review");
+  assert.equal(command.matches[0].userId, "USER-1");
+});
+
+test("assistant keeps generic employees navigation out of crew readiness review", () => {
+  const command = resolveApexAssistantCommand("open employees");
+
+  assert.equal(command.type, "route");
+  assert.equal(command.moduleId, "employees");
 });
 
 test("assistant opens delivery ticket review without write actions", () => {

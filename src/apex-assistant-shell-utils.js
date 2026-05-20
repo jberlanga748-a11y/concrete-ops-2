@@ -42,6 +42,13 @@ const ROUTE_COMMANDS = [
     message: "Open Customers to review account records, linked jobs, estimates, and manual follow-up context.",
   },
   {
+    id: "employees",
+    moduleId: "employees",
+    actionLabel: "Open employees",
+    keywords: ["employee", "employees", "crew", "crews", "foreman", "foremen", "people"],
+    message: "Open Employees to review crew readiness, assignments, time, proof, and safety context.",
+  },
+  {
     id: "estimates",
     moduleId: "estimates",
     actionLabel: "Open estimates",
@@ -190,6 +197,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const customerAccountCommand = resolveAssistantCustomerAccountCommand(input, state.commandContext || {});
   if (customerAccountCommand) return customerAccountCommand;
+
+  const crewReadinessCommand = resolveAssistantCrewReadinessCommand(input, state.commandContext || {});
+  if (crewReadinessCommand) return crewReadinessCommand;
 
   const deliveryTicketReviewCommand = resolveAssistantDeliveryTicketReviewCommand(input, state.commandContext || {});
   if (deliveryTicketReviewCommand) return deliveryTicketReviewCommand;
@@ -618,6 +628,47 @@ export function resolveAssistantCustomerAccountCommand(input = "", context = {})
   };
 }
 
+export function resolveAssistantCrewReadinessCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasCrewReadinessIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+  if (!permissions?.users?.canManage) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Crew readiness assistant commands are office review tools. Field users stay blocked from employee records, role controls, invite controls, and company-wide crew visibility.",
+    };
+  }
+
+  const query = extractCrewReadinessTargetQuery(rawText);
+  const matches = findAssistantCrewReadinessMatches(query, context);
+  const fallback = {
+    id: "assistant-open-crew-readiness",
+    type: "crew-readiness-review",
+    label: "Open crew readiness board",
+    helper: "No exact crew member match found. Open Employees and choose the record manually.",
+  };
+
+  return {
+    type: "crew-readiness-review",
+    moduleId: "employees",
+    actionLabel: matches.length === 1 ? "Review crew member" : matches.length > 1 ? "Choose crew member" : "Open Employees",
+    message: matches.length === 1
+      ? `${matches[0].label} is ready for crew readiness review. No role, invite, job assignment, time entry, safety record, or employee profile will be changed automatically.`
+      : matches.length > 1
+        ? "I found multiple crew or employee records that may need review. Choose the right record before opening the crew readiness board."
+        : "I did not find an exact crew member match. Open Employees and review the crew readiness board manually.",
+    commandText: rawText,
+    query,
+    matches,
+    fallback,
+  };
+}
+
 export function resolveAssistantPrePourReviewCommand(input = "", context = {}) {
   return resolveAssistantFieldChecklistReviewCommand(input, context, {
     kind: "pre-pour",
@@ -954,6 +1005,13 @@ function hasCustomerAccountIntent(text = "") {
   return asksToOpen && mentionsCustomer && mentionsAccountReview;
 }
 
+function hasCrewReadinessIntent(text = "") {
+  const asksToOpen = /\b(open|review|show|pull up|check|find)\b/.test(text);
+  const mentionsCrew = /\b(employee|employees|crew|crews|foreman|foremen|person|people|worker|workers|team member|team members)\b/.test(text);
+  const mentionsReadiness = /\b(readiness|ready|assignment|assignments|assigned|active job|active jobs|time|clock|proof|report|reports|upload|uploads|safety|incident|incidents|training|invite|role|roles|field crew|workload|availability)\b/.test(text);
+  return asksToOpen && mentionsCrew && mentionsReadiness;
+}
+
 function hasSafetyIncidentReviewIntent(text = "") {
   const asksForReview = /\b(open|review|show|pull up|check|find)\b/.test(text);
   const mentionsSafety = /\b(safety|incident|incidents|hazard|hazards|near miss|near misses|injury|injuries|property damage)\b/.test(text);
@@ -1121,6 +1179,18 @@ function extractCustomerAccountTargetQuery(input = "") {
 
   const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:customer account|customer accounts|customer|customers|account|accounts|client|clients)\b/i)[0] || "";
   const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|customer|customers|account|accounts|client|clients|record|records|profile|for|from|on|at|with|this|the|needs)\b/gi, " "));
+  if (cleanedBeforeIntent) return cleanedBeforeIntent;
+
+  return "";
+}
+
+function extractCrewReadinessTargetQuery(input = "") {
+  const rawText = String(input || "").trim();
+  const forMatch = rawText.match(/\b(?:employee|employees|crew|crews|foreman|foremen|person|people|worker|workers|team member|team members)\b\s+(?:for|from|on|at|with)\s+(.+?)(?:\s+\b(?:please|now|today|and)\b|$)/i);
+  if (forMatch?.[1]) return cleanTargetQuery(forMatch[1].replace(/\b(on|at|for|from|with)\b/gi, " "));
+
+  const beforeIntent = rawText.split(/\b(?:open|review|show|pull up|check|find)\b.*\b(?:employee|employees|crew|crews|foreman|foremen|person|people|worker|workers|team member|team members)\b/i)[0] || "";
+  const cleanedBeforeIntent = cleanTargetQuery(beforeIntent.replace(/\b(open|pull up|find|review|employee|employees|crew|crews|foreman|foremen|person|people|worker|workers|team|member|members|for|from|on|at|with|this|the|needs)\b/gi, " "));
   if (cleanedBeforeIntent) return cleanedBeforeIntent;
 
   return "";
@@ -1646,6 +1716,69 @@ function findAssistantCustomerAccountMatches(query = "", context = {}) {
     }))
     .filter((match) => match.customerId)
     .slice(0, 4);
+}
+
+function findAssistantCrewReadinessMatches(query = "", context = {}) {
+  const users = asArray(context.users).filter((user) => !user?.archivedAt);
+  const normalizedQuery = normalizeText(query);
+  const candidates = normalizedQuery
+    ? users.filter((user) => targetMatchesWords(crewReadinessSearchText(user), normalizedQuery.split(" ").filter((word) => word.length > 1)))
+    : users;
+
+  return candidates
+    .map((user) => ({
+      user,
+      fieldRole: crewReadinessIsFieldRole(user),
+      inactive: normalizeText(user.status || "active") !== "active",
+      missingContact: !String(user.email || "").trim() || !String(user.phone || "").trim(),
+      missingRole: !String(user.role || "").trim(),
+    }))
+    .sort((left, right) => crewReadinessPriority(right) - crewReadinessPriority(left) || crewReadinessLabel(left.user).localeCompare(crewReadinessLabel(right.user)))
+    .map(({ user, fieldRole, inactive, missingContact, missingRole }) => ({
+      id: `crew-readiness:${user.id}`,
+      type: "user",
+      userId: user.id || "",
+      label: crewReadinessLabel(user),
+      helper: [
+        fieldRole ? "field crew" : "office team",
+        inactive ? `status ${user.status || "inactive"}` : "active",
+        missingRole ? "role missing" : user.role || "",
+        missingContact ? "contact missing" : "contact ready",
+      ].filter(Boolean).join(" - "),
+    }))
+    .filter((match) => match.userId)
+    .slice(0, 4);
+}
+
+function crewReadinessPriority(candidate = {}) {
+  return (candidate.inactive ? 16 : 0) + (candidate.missingRole ? 12 : 0) + (candidate.missingContact ? 8 : 0) + (candidate.fieldRole ? 4 : 0);
+}
+
+function crewReadinessIsFieldRole(user = {}) {
+  return /\b(foreman|employee|field)\b/.test(normalizeText(user.role || user.accessGroup || ""));
+}
+
+function crewReadinessLabel(user = {}) {
+  return [
+    user.name || user.email || "Team member",
+    user.role || "",
+    user.status || "",
+  ].filter(Boolean).join(" - ");
+}
+
+function crewReadinessSearchText(user = {}) {
+  return normalizeText([
+    user.id,
+    user.name,
+    user.email,
+    user.phone,
+    user.role,
+    user.status,
+    user.accessGroup,
+    user.crew,
+    user.trade,
+    user.title,
+  ].filter(Boolean).join(" "));
 }
 
 function customerAccountPriority(candidate = {}) {

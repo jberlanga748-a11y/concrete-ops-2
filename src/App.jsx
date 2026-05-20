@@ -3716,7 +3716,7 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -3820,6 +3820,14 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
 
   function openCustomerAccount(choice = {}) {
     const opened = onOpenCustomerAccount(choice);
+    if (opened !== false) {
+      setOpen(false);
+      setResponse(null);
+    }
+  }
+
+  function openCrewReadiness(choice = {}) {
+    const opened = onOpenCrewReadiness(choice);
     if (opened !== false) {
       setOpen(false);
       setResponse(null);
@@ -4085,6 +4093,23 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                     )) : null}
                     <Button type="button" size="sm" onClick={() => openCustomerAccount(response.fallback || {})}>
                       {response.matches?.length ? "Open Customers instead" : response.actionLabel}
+                    </Button>
+                  </div>
+                ) : response.type === "crew-readiness-review" ? (
+                  <div className="mt-3 grid gap-2">
+                    {response.matches?.length ? response.matches.map((match) => (
+                      <button
+                        key={match.id}
+                        type="button"
+                        onClick={() => openCrewReadiness(match)}
+                        className="co-focus-ring rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-left transition hover:border-orange-300/60 hover:bg-orange-500/20"
+                      >
+                        <span className="block text-sm font-black text-white">{match.label}</span>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-300">{match.helper || "Open the crew readiness board. No assignment, invite, role, or time action happens automatically."}</span>
+                      </button>
+                    )) : null}
+                    <Button type="button" size="sm" onClick={() => openCrewReadiness(response.fallback || {})}>
+                      {response.matches?.length ? "Open Employees instead" : response.actionLabel}
                     </Button>
                   </div>
                 ) : response.type === "delivery-ticket-review" ? (
@@ -39455,6 +39480,19 @@ export default function App() {
     return true;
   }
 
+  function handleOpenAssistantCrewReadiness(seed = {}) {
+    if (!appState.permissions.users?.canManage) {
+      setErrorMessage("Crew readiness assistant actions require an office role that can manage employee records.");
+      return false;
+    }
+    setUserRoleFilter("All roles");
+    setUserStatusFilter("active");
+    setUserSearch("");
+    if (seed.userId) setSelectedUserId(seed.userId);
+    setActive("employees");
+    return true;
+  }
+
   function handleOpenAssistantDeliveryTicketReview(seed = {}) {
     if (!appState.permissions.deliveryTickets?.canManageAll) {
       setErrorMessage("Delivery ticket assistant review actions require an office role that can manage delivery ticket proof.");
@@ -42738,6 +42776,7 @@ export default function App() {
           toolChecklists: appState.permissions.toolChecklist?.canUse ? appState.toolChecklists : [],
           leads: appState.permissions.leads?.canView ? appState.leads : [],
           customers: appState.permissions.customers?.canView ? appState.customers : [],
+          users: appState.permissions.users?.canView ? appState.users : [],
           estimates: appState.permissions.estimates?.canView ? appState.estimates : [],
         }}
         onOpenModule={setActive}
@@ -42751,6 +42790,7 @@ export default function App() {
         onOpenChangeOrderReview={handleOpenAssistantChangeOrderReview}
         onOpenLeadFollowUp={handleOpenAssistantLeadFollowUp}
         onOpenCustomerAccount={handleOpenAssistantCustomerAccount}
+        onOpenCrewReadiness={handleOpenAssistantCrewReadiness}
         onOpenDeliveryTicketReview={handleOpenAssistantDeliveryTicketReview}
         onOpenPrePourReview={handleOpenAssistantPrePourReview}
         onOpenPostPourReview={handleOpenAssistantPostPourReview}
