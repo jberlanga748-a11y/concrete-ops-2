@@ -311,6 +311,8 @@ function buildSearchProfileQueue(profile = {}, companySettings = {}, today = dat
   const needsRun = profileNeedsRun(profile, today);
   const runBucket = dateBucket(profile.nextRunAt, today);
   const tone = statusTone(profile.status || "active");
+  const sourceAccessStatus = profile.sourceAccessStatus || "clear_for_review";
+  const sourceTermsStatus = profile.sourceTermsStatus || "unreviewed";
   return {
     id: profile.id || profile.name,
     profileId: profile.id || "",
@@ -322,6 +324,11 @@ function buildSearchProfileQueue(profile = {}, companySettings = {}, today = dat
     serviceAreas: Array.isArray(profile.serviceAreas) ? profile.serviceAreas : [],
     sourceTypes: Array.isArray(profile.sourceTypes) ? profile.sourceTypes : [],
     keywords: Array.isArray(profile.keywords) ? profile.keywords : [],
+    sourceAdapterId: profile.sourceAdapterId || "manual",
+    sourceAccessStatus,
+    sourceTermsStatus,
+    sourcePolicyNote: profile.sourcePolicyNote || "",
+    sourceReviewRequired: ["needs_human", "future_review"].includes(sourceAccessStatus) || ["human_review_required", "blocked", "unreviewed"].includes(sourceTermsStatus),
     nextRunAt: profile.nextRunAt || "",
     lastRunAt: profile.lastRunAt || "",
     query: brief.query,
@@ -925,6 +932,10 @@ export function deriveOpportunityScoutState(source = {}, options = {}) {
     checkFor: entry.checkFor,
     resultPrompt: entry.resultPrompt,
     addLeadPrompt: entry.addLeadPrompt,
+    sourceAdapterId: entry.sourceAdapterId,
+    sourceAccessStatus: entry.sourceAccessStatus,
+    sourceTermsStatus: entry.sourceTermsStatus,
+    sourceReviewRequired: entry.sourceReviewRequired,
     url: "",
     tone: entry.tone,
   }));

@@ -2,6 +2,10 @@ export const OPPORTUNITY_SEARCH_PROFILE_STATUSES = ["active", "paused", "archive
 
 export const OPPORTUNITY_SEARCH_CADENCES = ["manual", "daily", "weekly", "monthly"];
 
+export const OPPORTUNITY_SOURCE_ACCESS_STATUSES = ["clear_for_review", "needs_human", "future_review"];
+
+export const OPPORTUNITY_SOURCE_TERMS_STATUSES = ["unreviewed", "public_allowed", "human_review_required", "blocked"];
+
 export const OPPORTUNITY_SEARCH_PROFILE_STARTERS = [
   {
     id: "public-bid-scan",
@@ -512,17 +516,48 @@ function normalizeFileMetadata(value) {
 function adapterForSourceText(value) {
   const normalized = collapseSpaces(value).toLowerCase();
   if (!normalized) return "manual";
+  const exactAdapter = OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.find((adapter) => adapter.id === normalized);
+  if (exactAdapter) return exactAdapter.id;
   if (/pasted|paste|email excerpt|text/.test(normalized)) return "pasted_text";
   if (/file|pdf|screenshot|attachment|upload/.test(normalized)) return "file_metadata";
   if (/api/.test(normalized)) return "official_api";
   if (/gmail|outlook|email|inbox/.test(normalized)) return "email_ingestion";
-  if (/browser|portal|plan room|gc portal|approved session/.test(normalized)) return "approved_browser_session";
   if (/public|city|county|school|procurement|bid page|rfp|website|web/.test(normalized)) return "public_web";
+  if (/browser|portal|plan room|gc portal|approved session/.test(normalized)) return "approved_browser_session";
   return "manual";
 }
 
 function adapterById(adapterId) {
   return OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.find((adapter) => adapter.id === adapterId) || OPPORTUNITY_SCOUT_SOURCE_ADAPTERS[0];
+}
+
+function inferSourceAdapterId(payload = {}) {
+  const explicit = collapseSpaces(payload.sourceAdapterId || payload.adapterId).toLowerCase();
+  if (OPPORTUNITY_SCOUT_SOURCE_ADAPTERS.some((adapter) => adapter.id === explicit)) return explicit;
+  const clues = [
+    ...(Array.isArray(payload.sourceTypes) ? payload.sourceTypes : normalizeList(payload.sourceTypes || "")),
+    payload.name,
+    payload.notes,
+  ].filter(Boolean);
+  return adapterForSourceText(clues.join(" "));
+}
+
+function inferSourceAccessStatus(adapterId = "", supplied = "") {
+  const suppliedStatus = normalizeOption(supplied, OPPORTUNITY_SOURCE_ACCESS_STATUSES, "");
+  if (suppliedStatus) return suppliedStatus;
+  const adapter = adapterById(adapterId);
+  if (adapter.status === "future_review") return "future_review";
+  if (adapter.status === "human_required") return "needs_human";
+  return "clear_for_review";
+}
+
+function inferSourceTermsStatus(adapterId = "", supplied = "") {
+  const suppliedStatus = normalizeOption(supplied, OPPORTUNITY_SOURCE_TERMS_STATUSES, "");
+  if (suppliedStatus) return suppliedStatus;
+  const adapter = adapterById(adapterId);
+  if (["official_api", "email_ingestion", "approved_browser_session"].includes(adapter.id)) return "human_review_required";
+  if (adapter.id === "public_web") return "unreviewed";
+  return "public_allowed";
 }
 
 export function buildOpportunityScoutAgentRunPacket({
@@ -539,6 +574,7 @@ export function buildOpportunityScoutAgentRunPacket({
   const sourceClues = [
     intakeSourceType,
     opportunity.intakeSourceType,
+    profile.sourceAdapterId,
     ...(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []),
     source.type,
     source.name,
@@ -547,13 +583,18 @@ export function buildOpportunityScoutAgentRunPacket({
   const selectedAdapterIds = [...new Set((sourceClues.length ? sourceClues : ["manual"]).map(adapterForSourceText))];
   const adapters = selectedAdapterIds.map((adapterId) => adapterById(adapterId));
   const primaryAdapter = adapters[0] || adapterById("manual");
-  const sourceNeedsHuman = adapters.some((adapter) => ["human_required", "future_review"].includes(adapter.status));
+  const sourceNeedsHuman = adapters.some((adapter) => ["human_required", "future_review"].includes(adapter.status))
+    || ["needs_human", "future_review"].includes(profile.sourceAccessStatus)
+    || ["human_review_required", "blocked"].includes(profile.sourceTermsStatus);
   const hasReadyOpportunity = Boolean(opportunity.id || opportunity.title);
   const missing = deriveFoundOpportunityMissingInfoItems(opportunity);
   const humanTasks = [];
 
   if (sourceNeedsHuman) {
     humanTasks.push("Confirm access is authorized before using this source.");
+  }
+  if (profile.sourceTermsStatus === "unreviewed") {
+    humanTasks.push("Review source terms before recurring checks.");
   }
   if (!hasReadyOpportunity) {
     humanTasks.push("Run the search brief manually and paste only real opportunity evidence.");
@@ -947,6 +988,7 @@ export function normalizeOpportunitySearchProfilePayload(payload = {}, {
   const source = existing || {};
   const pick = (key, fallback = "") => (Object.hasOwn(payload || {}, key) ? payload[key] : source[key] ?? fallback);
   const status = normalizeOption(pick("status", "active"), OPPORTUNITY_SEARCH_PROFILE_STATUSES, "active");
+  const sourceAdapterId = inferSourceAdapterId({ ...source, ...payload });
 
   return {
     id: source.id || id,
@@ -956,6 +998,10 @@ export function normalizeOpportunitySearchProfilePayload(payload = {}, {
     serviceAreas: normalizeList(pick("serviceAreas", source.serviceAreas || [])),
     radiusMiles: normalizeNonNegativeNumber(pick("radiusMiles", source.radiusMiles || 0)),
     sourceTypes: normalizeList(pick("sourceTypes", source.sourceTypes || [])),
+    sourceAdapterId,
+    sourceAccessStatus: inferSourceAccessStatus(sourceAdapterId, pick("sourceAccessStatus", source.sourceAccessStatus || "")),
+    sourceTermsStatus: inferSourceTermsStatus(sourceAdapterId, pick("sourceTermsStatus", source.sourceTermsStatus || "")),
+    sourcePolicyNote: redactOpportunityScoutText(pick("sourcePolicyNote", source.sourcePolicyNote || "")),
     keywords: normalizeList(pick("keywords", source.keywords || [])),
     excludedKeywords: normalizeList(pick("excludedKeywords", source.excludedKeywords || [])),
     cadence: normalizeOption(pick("cadence", "daily"), OPPORTUNITY_SEARCH_CADENCES, "daily"),

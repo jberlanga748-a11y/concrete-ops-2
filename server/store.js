@@ -5363,6 +5363,10 @@ const MIGRATIONS = [
             service_areas TEXT NOT NULL,
             radius_miles INTEGER NOT NULL,
             source_types TEXT NOT NULL,
+            source_adapter_id TEXT NOT NULL DEFAULT 'manual',
+            source_access_status TEXT NOT NULL DEFAULT 'clear_for_review',
+            source_terms_status TEXT NOT NULL DEFAULT 'unreviewed',
+            source_policy_note TEXT NOT NULL DEFAULT '',
             keywords TEXT NOT NULL,
             excluded_keywords TEXT NOT NULL,
             cadence TEXT NOT NULL,
@@ -5565,6 +5569,27 @@ const MIGRATIONS = [
         }
       },
     },
+    {
+      version: 49,
+      description: "Persist Opportunity Scout source adapter review posture.",
+      up(database) {
+        const columns = [
+          ["source_adapter_id", "TEXT NOT NULL DEFAULT 'manual'"],
+          ["source_access_status", "TEXT NOT NULL DEFAULT 'clear_for_review'"],
+          ["source_terms_status", "TEXT NOT NULL DEFAULT 'unreviewed'"],
+          ["source_policy_note", "TEXT NOT NULL DEFAULT ''"],
+        ];
+
+        for (const [column, definition] of columns) {
+          if (!columnExists(database, "opportunity_search_profiles", column)) {
+            database.exec(`
+              ALTER TABLE opportunity_search_profiles
+              ADD COLUMN ${column} ${definition};
+            `);
+          }
+        }
+      },
+    },
   ];
 
 function runInTransaction(database, work) {
@@ -5634,8 +5659,8 @@ function writeStateToDb(state) {
   `);
 
   const insertOpportunitySearchProfile = database.prepare(`
-    INSERT INTO opportunity_search_profiles (id, sort_index, company_id, name, trades, service_areas, radius_miles, source_types, keywords, excluded_keywords, cadence, status, notes, last_run_at, next_run_at, created_by, created_at, updated_at, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO opportunity_search_profiles (id, sort_index, company_id, name, trades, service_areas, radius_miles, source_types, source_adapter_id, source_access_status, source_terms_status, source_policy_note, keywords, excluded_keywords, cadence, status, notes, last_run_at, next_run_at, created_by, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertFoundOpportunity = database.prepare(`
@@ -5971,6 +5996,10 @@ function writeStateToDb(state) {
         JSON.stringify(Array.isArray(profile.serviceAreas) ? profile.serviceAreas : []),
         Number(profile.radiusMiles || 0),
         JSON.stringify(Array.isArray(profile.sourceTypes) ? profile.sourceTypes : []),
+        profile.sourceAdapterId || "manual",
+        profile.sourceAccessStatus || "clear_for_review",
+        profile.sourceTermsStatus || "unreviewed",
+        profile.sourcePolicyNote || "",
         JSON.stringify(Array.isArray(profile.keywords) ? profile.keywords : []),
         JSON.stringify(Array.isArray(profile.excludedKeywords) ? profile.excludedKeywords : []),
         profile.cadence || "daily",
@@ -6717,6 +6746,7 @@ function readTableState() {
 
   const opportunitySearchProfiles = database.prepare(`
     SELECT id, company_id AS companyId, name, trades, service_areas AS serviceAreas, radius_miles AS radiusMiles, source_types AS sourceTypes,
+           source_adapter_id AS sourceAdapterId, source_access_status AS sourceAccessStatus, source_terms_status AS sourceTermsStatus, source_policy_note AS sourcePolicyNote,
            keywords, excluded_keywords AS excludedKeywords, cadence, status, notes, last_run_at AS lastRunAt, next_run_at AS nextRunAt,
            created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt, archived_at AS archivedAt
     FROM opportunity_search_profiles

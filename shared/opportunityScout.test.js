@@ -33,6 +33,7 @@ test("search profiles normalize arrays, cadence, and status safely", () => {
     serviceAreas: ["Albany", " Corvallis "],
     radiusMiles: "35",
     sourceTypes: ["Public bid portal"],
+    sourcePolicyNote: "Check robots.txt and public terms before recurring source checks. token=secret",
     keywords: "sidewalk, ada ramp",
     excludedKeywords: ["roofing"],
     cadence: "Daily",
@@ -48,9 +49,29 @@ test("search profiles normalize arrays, cadence, and status safely", () => {
   assert.deepEqual(profile.trades, ["Concrete", "fencing"]);
   assert.deepEqual(profile.serviceAreas, ["Albany", "Corvallis"]);
   assert.equal(profile.radiusMiles, 35);
+  assert.equal(profile.sourceAdapterId, "public_web");
+  assert.equal(profile.sourceAccessStatus, "clear_for_review");
+  assert.equal(profile.sourceTermsStatus, "unreviewed");
+  assert.equal(profile.sourcePolicyNote.includes("secret"), false);
   assert.equal(profile.cadence, "daily");
   assert.equal(profile.status, "active");
   assert.equal(profile.createdBy, "U-1");
+});
+
+test("search profiles preserve explicit source adapter review posture", () => {
+  const profile = normalizeOpportunitySearchProfilePayload({
+    name: "GC portal review",
+    sourceAdapterId: "approved_browser_session",
+    sourceTypes: ["GC portal", "Plan room"],
+    sourceAccessStatus: "needs_human",
+    sourceTermsStatus: "human_review_required",
+    sourcePolicyNote: "Authorized user must open the portal. Do not store password=secret.",
+  });
+
+  assert.equal(profile.sourceAdapterId, "approved_browser_session");
+  assert.equal(profile.sourceAccessStatus, "needs_human");
+  assert.equal(profile.sourceTermsStatus, "human_review_required");
+  assert.equal(profile.sourcePolicyNote.includes("secret"), false);
 });
 
 test("search profile validation requires a name and rejects negative radius", () => {
@@ -72,6 +93,8 @@ test("opportunity scout agent run packet exposes source adapters and review-firs
   const packet = buildOpportunityScoutAgentRunPacket({
     searchProfile: {
       name: "Public concrete scan",
+      sourceAdapterId: "public_web",
+      sourceTermsStatus: "unreviewed",
       trades: ["concrete"],
       serviceAreas: ["Salem"],
       sourceTypes: ["City/county/school bid page", "Plan room"],
@@ -108,6 +131,7 @@ test("opportunity scout agent run packet exposes source adapters and review-firs
   assert.equal(packet.steps.some((step) => /CAPTCHA/i.test(step)), true);
   assert.equal(packet.blockedActions.some((action) => /No bid submission/i.test(action)), true);
   assert.equal(packet.humanTasks.some((task) => /Approve For Lead/i.test(task)), true);
+  assert.equal(packet.humanTasks.some((task) => /source terms/i.test(task)), true);
   assert.equal(packet.humanTasks.some((task) => /duplicate/i.test(task)), true);
   assert.equal(packet.recentSourceOutcomes.length, 1);
   assert.equal(packet.recentSourceOutcomes[0].result, "missing_docs");

@@ -228,6 +228,10 @@ test("office users can manage Opportunity Scout profiles and found opportunities
         serviceAreas: ["Albany", "Corvallis"],
         radiusMiles: 40,
         sourceTypes: ["Public bid portal"],
+        sourceAdapterId: "public_web",
+        sourceAccessStatus: "clear_for_review",
+        sourceTermsStatus: "unreviewed",
+        sourcePolicyNote: "Public source terms need office review. token=secret",
         keywords: ["sidewalk", "ADA"],
         cadence: "daily",
       }),
@@ -235,6 +239,10 @@ test("office users can manage Opportunity Scout profiles and found opportunities
     const profile = profileBootstrap.opportunitySearchProfiles[0];
     assert.equal(profile.name, "Daily public work");
     assert.equal(profile.companyId, adminLogin.user.companyId);
+    assert.equal(profile.sourceAdapterId, "public_web");
+    assert.equal(profile.sourceAccessStatus, "clear_for_review");
+    assert.equal(profile.sourceTermsStatus, "unreviewed");
+    assert.equal(profile.sourcePolicyNote.includes("secret"), false);
 
     const searchPlan = await assertOk(fixture.baseUrl, `/api/ai/opportunity-scout/search-profiles/${profile.id}/search-plan`, {
       method: "POST",

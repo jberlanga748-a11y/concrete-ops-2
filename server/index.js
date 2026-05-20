@@ -9097,7 +9097,7 @@ app.post("/api/opportunity-scout/search-profiles", requireAuth, asyncRoute(async
       summary: "Opportunity search profile added",
       detail: profile.name,
       actor: req.auth.user,
-      changedFields: ["name", "trades", "serviceAreas", "cadence", "status"],
+      changedFields: ["name", "trades", "serviceAreas", "sourceTypes", "sourceAdapterId", "sourceAccessStatus", "sourceTermsStatus", "cadence", "status"],
     });
     return draft;
   });
@@ -9139,7 +9139,7 @@ app.patch("/api/opportunity-scout/search-profiles/:id", requireAuth, asyncRoute(
       summary: "Opportunity search profile updated",
       detail: profile.name,
       actor: req.auth.user,
-      changedFields: changedOpportunityFields(previous, profile, ["name", "trades", "serviceAreas", "radiusMiles", "sourceTypes", "keywords", "excludedKeywords", "cadence", "status", "notes", "lastRunAt", "nextRunAt"]),
+      changedFields: changedOpportunityFields(previous, profile, ["name", "trades", "serviceAreas", "radiusMiles", "sourceTypes", "sourceAdapterId", "sourceAccessStatus", "sourceTermsStatus", "sourcePolicyNote", "keywords", "excludedKeywords", "cadence", "status", "notes", "lastRunAt", "nextRunAt"]),
     });
     return draft;
   });

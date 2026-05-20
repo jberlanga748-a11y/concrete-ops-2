@@ -93,7 +93,7 @@ test("opportunity scout includes saved search profiles and found opportunities",
     currentCompanyId: "COMPANY-A",
     companySettings: { serviceArea: "Albany Oregon" },
     opportunitySearchProfiles: [
-      { id: "OSP-1", companyId: "COMPANY-A", name: "Daily bid scan", status: "active", cadence: "daily", trades: ["concrete"], serviceAreas: ["Albany"], keywords: ["sidewalk"], lastRunAt: "", nextRunAt: TODAY },
+      { id: "OSP-1", companyId: "COMPANY-A", name: "Daily bid scan", status: "active", cadence: "daily", trades: ["concrete"], serviceAreas: ["Albany"], keywords: ["sidewalk"], sourceAdapterId: "public_web", sourceAccessStatus: "clear_for_review", sourceTermsStatus: "unreviewed", lastRunAt: "", nextRunAt: TODAY },
       { id: "OSP-2", companyId: "COMPANY-A", name: "Paused scan", status: "paused", cadence: "weekly", trades: ["siding"] },
       { id: "OSP-3", companyId: "COMPANY-B", name: "Other company scan", status: "active" },
     ],
@@ -157,7 +157,14 @@ test("opportunity scout includes saved search profiles and found opportunities",
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").value, 5);
   assert.equal(state.qualityChecks.find((check) => check.id === "qa-opportunity-quality").targetId, "scout-found-opportunities");
   assert.equal(state.profileQueue.some((profile) => profile.profileId === "OSP-3"), false);
-  assert.equal(state.searchBriefs.some((brief) => brief.profileId === "OSP-1"), true);
+  const publicProfile = state.profileQueue.find((profile) => profile.profileId === "OSP-1");
+  assert.equal(publicProfile.sourceAdapterId, "public_web");
+  assert.equal(publicProfile.sourceTermsStatus, "unreviewed");
+  assert.equal(publicProfile.sourceReviewRequired, true);
+  const publicBrief = state.searchBriefs.find((brief) => brief.profileId === "OSP-1");
+  assert.equal(Boolean(publicBrief), true);
+  assert.equal(publicBrief.sourceAdapterId, "public_web");
+  assert.equal(publicBrief.sourceReviewRequired, true);
 });
 
 test("opportunity scout search briefs keep both profile and source run cards visible", () => {
