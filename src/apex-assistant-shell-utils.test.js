@@ -16,6 +16,7 @@ import {
   resolveAssistantLeadFollowUpCommand,
   resolveAssistantMaterialPlanningCommand,
   resolveAssistantMissingProofCommand,
+  resolveAssistantPilotHandoffReadinessCommand,
   resolveAssistantPostPourReviewCommand,
   resolveAssistantPrePourReviewCommand,
   resolveAssistantReportReviewCommand,
@@ -714,6 +715,71 @@ test("assistant keeps generic support navigation out of workflow support", () =>
 
   assert.equal(command.type, "route");
   assert.equal(command.moduleId, "support");
+});
+
+test("assistant opens pilot handoff readiness without customer or production actions", () => {
+  const command = resolveAssistantPilotHandoffReadinessCommand("Review pilot handoff readiness", {
+    permissions: {
+      customers: { canView: true, canManage: true },
+      jobs: { canView: true, canManageAll: true },
+      users: { canManage: true },
+      settings: { canView: true },
+      support: { canView: true },
+    },
+    customers: [
+      { id: "CUST-1", name: "ABC Builders", status: "active", phone: "555-0100", email: "ops@example.com" },
+      { id: "CUST-2", name: "GC Prospect", status: "prospect", phone: "", email: "" },
+    ],
+    jobs: [
+      { id: "JOB-1", title: "Westview Warehouse", status: "scheduled", scheduledStart: "2026-05-20", crew: "Luis" },
+      { id: "JOB-2", title: "Maple Ridge", status: "active" },
+    ],
+    leads: [{ id: "LEAD-1" }],
+    users: [
+      { id: "USER-1", name: "Luis G.", role: "foreman" },
+      { id: "USER-2", name: "Jason M.", role: "admin" },
+    ],
+    commandCenter: { stats: { fieldProofGaps: 2, reviewQueueItems: 1 } },
+  });
+
+  assert.equal(command.type, "pilot-handoff-readiness");
+  assert.equal(command.moduleId, "customers");
+  assert.equal(command.actions.map((action) => action.moduleId).join(","), "customers,jobs,settings,support");
+  assert.equal(command.readinessSummary.length, 4);
+  assert.equal(command.readinessSummary.some((item) => /missing contact detail/i.test(item.detail)), true);
+  assert.equal(command.readinessSummary.some((item) => /does not create accounts, invite users, contact customers/i.test(item.detail)), true);
+  assert.match(command.message, /No customer login, invite, message, support ticket, package change, account creation, demo reset, or production action/i);
+});
+
+test("assistant pilot handoff readiness is blocked for field users", () => {
+  const command = resolveAssistantPilotHandoffReadinessCommand("Review pilot handoff readiness", {
+    permissions: {
+      customers: { canView: false, canManage: false },
+      jobs: { canView: true, canManageField: true, canManageAll: false },
+      support: { canView: true },
+      settings: { canView: false },
+    },
+    customers: [{ id: "CUST-1", name: "ABC Builders" }],
+  });
+
+  assert.equal(command.type, "blocked-command");
+  assert.match(command.message, /Field users stay blocked/i);
+});
+
+test("assistant routes pilot handoff readiness before generic customer navigation", () => {
+  const command = resolveApexAssistantCommand("Review customer handoff readiness for pilot kickoff", {
+    commandContext: {
+      permissions: {
+        customers: { canView: true, canManage: true },
+        jobs: { canView: true, canManageAll: true },
+        settings: { canView: true },
+      },
+      customers: [{ id: "CUST-1", name: "ABC Builders", status: "active" }],
+    },
+  });
+
+  assert.equal(command.type, "pilot-handoff-readiness");
+  assert.equal(command.moduleId, "customers");
 });
 
 test("assistant opens material planning review packet without ordering", () => {

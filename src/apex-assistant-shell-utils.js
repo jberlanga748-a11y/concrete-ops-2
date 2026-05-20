@@ -125,6 +125,7 @@ const DEFAULT_PROMPTS = [
   "Summarize missing proof",
   "Start estimate from rough notes",
   "Review material plan",
+  "Review pilot handoff",
   "Open reports needing review",
   "Show job blockers",
 ];
@@ -216,6 +217,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const leadFollowUpCommand = resolveAssistantLeadFollowUpCommand(input, state.commandContext || {});
   if (leadFollowUpCommand) return leadFollowUpCommand;
+
+  const pilotHandoffCommand = resolveAssistantPilotHandoffReadinessCommand(input, state.commandContext || {});
+  if (pilotHandoffCommand) return pilotHandoffCommand;
 
   const customerAccountCommand = resolveAssistantCustomerAccountCommand(input, state.commandContext || {});
   if (customerAccountCommand) return customerAccountCommand;
@@ -827,6 +831,57 @@ export function resolveAssistantSupportWorkflowCommand(input = "", context = {})
   };
 }
 
+export function resolveAssistantPilotHandoffReadinessCommand(input = "", context = {}) {
+  const rawText = String(input || "").trim();
+  const text = normalizeText(rawText);
+  if (!hasPilotHandoffReadinessIntent(text)) return null;
+
+  const permissions = context.permissions || {};
+  if (!context.permissions) return null;
+
+  const fieldOnlyScope = Boolean(
+    permissions?.jobs?.canManageField
+    && !permissions?.jobs?.canManageAll
+    && !permissions?.settings?.canView
+    && !permissions?.customers?.canManage
+    && !permissions?.users?.canManage,
+  );
+  const hasOfficeHandoffAccess = Boolean(
+    permissions?.settings?.canView
+    || permissions?.support?.canView
+    || permissions?.customers?.canManage
+    || permissions?.jobs?.canManageAll
+    || permissions?.users?.canManage,
+  );
+
+  if (fieldOnlyScope || !hasOfficeHandoffAccess) {
+    return {
+      type: "blocked-command",
+      moduleId: "commandCenter",
+      actionLabel: "Open Command Center",
+      message: "Pilot handoff readiness is an owner/admin office review tool. Field users stay blocked from setup, customer handoff, package, support, invite, and company-wide job readiness controls.",
+    };
+  }
+
+  const readinessSummary = buildAssistantPilotHandoffReadinessSummary(context);
+  const actions = [
+    permissions?.customers?.canView ? { moduleId: "customers", actionLabel: "Open Customers" } : null,
+    permissions?.jobs?.canView || permissions?.jobs?.canManageAll ? { moduleId: "jobs", actionLabel: "Open Jobs" } : null,
+    permissions?.settings?.canView ? { moduleId: "settings", actionLabel: "Open Settings" } : null,
+    permissions?.support?.canView ? { moduleId: "support", actionLabel: "Open Support" } : null,
+  ].filter(Boolean);
+
+  return {
+    type: "pilot-handoff-readiness",
+    moduleId: actions[0]?.moduleId || "commandCenter",
+    actionLabel: actions[0]?.actionLabel || "Open Command Center",
+    message: "Pilot handoff readiness is ready for manual review. No customer login, invite, message, support ticket, package change, account creation, demo reset, or production action happens automatically.",
+    commandText: rawText,
+    readinessSummary,
+    actions,
+  };
+}
+
 export function resolveAssistantMaterialPlanningCommand(input = "", context = {}) {
   const rawText = String(input || "").trim();
   const text = normalizeText(rawText);
@@ -1308,6 +1363,13 @@ function hasSupportWorkflowIntent(text = "") {
     && /\b(support|help|issue|problem|bug|blocked|blocker|not working|can't|cannot|wont|won't)\b/.test(text);
   const mentionsSupportWorkflow = /\b(login|access|estimate|proposal|job|schedule|field mode|report|upload|photo|proof|billing|ready to bill|permission|role|safety|incident|tool|data|import|setup|onboarding|upgrade|package)\b/.test(text);
   return asksForSupport && mentionsSupportWorkflow;
+}
+
+function hasPilotHandoffReadinessIntent(text = "") {
+  const asksForReview = /\b(open|review|show|pull up|check|find|prepare|summarize|run)\b/.test(text);
+  const mentionsPilot = /\b(pilot|customer handoff|customer onboarding|onboarding handoff|kickoff|day 0|day zero|day 3|day three|day 10|day ten|guided demo handoff|demo handoff|pilot readiness|handoff readiness)\b/.test(text);
+  const mentionsReadiness = /\b(readiness|handoff|onboarding|kickoff|go live|go-live|setup|customer|pilot)\b/.test(text);
+  return asksForReview && mentionsPilot && mentionsReadiness;
 }
 
 function hasMaterialPlanningIntent(text = "") {
@@ -2376,6 +2438,50 @@ function buildAssistantReleaseReadinessSummary(context = {}) {
       id: "release-boundary",
       label: "Release boundary",
       detail: `${moneyReadyItems} ready-to-bill item${moneyReadyItems === 1 ? "" : "s"} visible. This packet does not deploy, roll back, restore backups, change packages, or touch production.`,
+    },
+  ];
+}
+
+function buildAssistantPilotHandoffReadinessSummary(context = {}) {
+  const permissions = context.permissions || {};
+  const commandCenter = context.commandCenter || {};
+  const customers = asArray(context.customers).filter((customer) => !customer?.archivedAt);
+  const jobs = asArray(context.jobs).filter((job) => !job?.archivedAt);
+  const leads = asArray(context.leads).filter((lead) => !lead?.archivedAt);
+  const users = asArray(context.users).filter((user) => !user?.archivedAt);
+  const stats = commandCenter.stats || {};
+  const activeCustomers = customers.filter((customer) => normalizeText(customer.status || "active") === "active").length;
+  const prospectCustomers = customers.filter((customer) => normalizeText(customer.status || "") === "prospect").length;
+  const customersMissingContact = customers.filter((customer) => !String(customer.phone || "").trim() || !String(customer.email || "").trim()).length;
+  const activeJobs = jobs.filter((job) => !["completed", "closed", "archived"].includes(normalizeText(job.status || job.stage))).length;
+  const startupGaps = jobs.filter((job) => !String(job.scheduledStart || job.startDate || job.assignedForemanId || job.assignedForemanName || job.crew || "").trim()).length;
+  const fieldUsers = users.filter((user) => crewReadinessIsFieldRole(user)).length;
+  const setupAccess = [
+    permissions?.settings?.canView ? "Settings" : "",
+    permissions?.users?.canManage ? "Employees" : "",
+    permissions?.support?.canView ? "Support" : "",
+  ].filter(Boolean);
+
+  return [
+    {
+      id: "customer-records",
+      label: "Customer records",
+      detail: `${customers.length} visible customer record${customers.length === 1 ? "" : "s"} with ${activeCustomers} active, ${prospectCustomers} prospect, and ${customersMissingContact} missing contact detail${customersMissingContact === 1 ? "" : "s"}.`,
+    },
+    {
+      id: "job-readiness",
+      label: "Job readiness",
+      detail: `${activeJobs} active job${activeJobs === 1 ? "" : "s"}, ${startupGaps} startup detail gap${startupGaps === 1 ? "" : "s"}, ${Number(stats.fieldProofGaps || 0)} proof gap${Number(stats.fieldProofGaps || 0) === 1 ? "" : "s"}, and ${Number(stats.reviewQueueItems || 0)} review item${Number(stats.reviewQueueItems || 0) === 1 ? "" : "s"} are visible before pilot handoff.`,
+    },
+    {
+      id: "team-setup",
+      label: "Team / setup",
+      detail: `${fieldUsers} field user${fieldUsers === 1 ? "" : "s"} are visible. ${setupAccess.length ? `${setupAccess.join(", ")} access is available for manual setup review.` : "Setup access is limited in this visible context."}`,
+    },
+    {
+      id: "pilot-boundary",
+      label: "Pilot boundary",
+      detail: `${leads.length} lead${leads.length === 1 ? "" : "s"} are visible. This packet does not create accounts, invite users, contact customers, open support tickets, change packages, reset demos, or touch production.`,
     },
   ];
 }
