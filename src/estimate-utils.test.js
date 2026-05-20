@@ -10,6 +10,7 @@ import {
   calculateEstimateLineTotal,
   calculateEstimateOptionTotals,
   calculateEstimateTotals,
+  deriveEstimateJobHandoffReadiness,
   deriveEstimateListState,
   deriveEstimateProposalSections,
   estimateCustomerEmail,
@@ -294,6 +295,55 @@ test("selected option totals stay separate from base estimate total", () => {
     selectedOptionsTotal: 1000,
     totalWithSelectedOptions: 3100,
   });
+});
+
+test("estimate job handoff readiness highlights missing approval and field packet", () => {
+  const readiness = deriveEstimateJobHandoffReadiness({
+    status: "sent",
+    customer: { name: "M2 Mini LLC", email: "owner@example.test" },
+    scopeSummary: "Scope of Work:\nPour shop slab.",
+    items: [{ description: "Concrete placement", quantity: 1, unitPrice: 2400 }],
+  });
+
+  assert.equal(readiness.status, "Proposal review");
+  assert.equal(readiness.readyForJob, false);
+  assert.equal(readiness.nextAction, "Mark approved");
+  assert.deepEqual(
+    readiness.steps.filter((step) => step.complete).map((step) => step.id),
+    ["customer", "scope", "pricing"],
+  );
+});
+
+test("estimate job handoff readiness marks approved estimates ready before conversion", () => {
+  const readiness = deriveEstimateJobHandoffReadiness(mergeEstimateProposalSections({
+    status: "approved",
+    customer: { name: "M2 Mini LLC", email: "owner@example.test" },
+    items: [{ description: "Concrete placement", quantity: 1, unitPrice: 2400 }],
+    internalNotes: "Foreman handoff: capture photo proof and delivery ticket before owner follow-up.",
+  }, {
+    scopeOfWork: "Pour shop slab.",
+    inclusions: "Concrete, formwork, cleanup.",
+  }));
+
+  assert.equal(readiness.status, "Ready for job setup");
+  assert.equal(readiness.readyForJob, true);
+  assert.equal(readiness.nextAction, "Convert to job");
+  assert.equal(readiness.steps.find((step) => step.id === "field-handoff").complete, true);
+});
+
+test("estimate job handoff readiness treats converted estimates as complete", () => {
+  const readiness = deriveEstimateJobHandoffReadiness({
+    status: "approved",
+    jobId: "J-100",
+    customer: { name: "M2 Mini LLC", email: "owner@example.test" },
+    scopeSummary: "Pour shop slab.",
+    items: [{ description: "Concrete placement", quantity: 1, unitPrice: 2400 }],
+    internalNotes: "Foreman handoff ready.",
+  });
+
+  assert.equal(readiness.status, "Converted to job");
+  assert.equal(readiness.converted, true);
+  assert.equal(readiness.steps.find((step) => step.id === "job").complete, true);
 });
 
 test("estimate copy helpers include customer-facing pricing content without internal notes", () => {

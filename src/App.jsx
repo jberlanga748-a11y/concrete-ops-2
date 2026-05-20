@@ -152,7 +152,7 @@ import { buildDeliveryTicketSupportContext, deliveryTicketTitle, deriveDeliveryT
 import { createEmptyReferenceAttachmentRow, createEmptySovRow, createEmptyTakeoffRow, deriveEstimateBackup, mergeEstimateBackup } from "./estimate-backup-utils";
 import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils";
 import { addEstimateSentSnapshot, deriveEstimateSentSnapshots, getEstimateVisibleInternalNotes, mergeEstimateGcPacketLite, mergeEstimateOfficeInternalNotes } from "./estimate-snapshot-utils";
-import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
+import { buildEstimateCopyText, buildEstimateCustomerMessage, buildEstimateDraftFromLead, calculateEstimateLineTotal, calculateEstimateOptionTotals, calculateEstimateTotals, deriveEstimateJobHandoffReadiness, deriveEstimateListState, deriveEstimateProposalSections, estimateCustomerEmail, estimateStatusLabel, filterEstimates, formatEstimateCurrency, getEstimateFromLeadReadiness, mergeEstimateProposalSections } from "./estimate-utils";
 import { ESTIMATE_LINE_ITEM_STARTERS, ESTIMATE_TEMPLATE_STARTERS, addEstimateLineItemStarter, buildEstimateLineItemsFromRoughNotes, applyEstimateTemplateStarter } from "./estimate-template-utils";
 import { buildCustomerPortalPreviewPacket, deriveCustomerPortalPreviewState } from "./customer-portal-preview-utils";
 import { deriveFieldOpsAgentState } from "./field-ops-agent-utils";
@@ -31640,6 +31640,8 @@ function EstimateCommandRailPolished({
     );
   }
 
+  const jobHandoffReadiness = deriveEstimateJobHandoffReadiness(preview || estimate);
+
   return (
     <div className="co-estimates-right-rail space-y-4">
       <Card className="co-estimates-rail-card co-estimates-selected-card p-4">
@@ -31663,6 +31665,7 @@ function EstimateCommandRailPolished({
           <p><span className="text-slate-400">Lead:</span> {estimateDisplayLead(estimate)}</p>
           <p><span className="text-slate-400">Job:</span> {estimate.jobId ? "Converted" : "Not converted yet"}</p>
         </div>
+        <EstimateJobHandoffReadinessCard readiness={jobHandoffReadiness} />
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button type="button" size="sm" onClick={onSave} disabled={!canManage || detailSaveDisabled}>Save</Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("edit")}>Edit</Button>
@@ -31714,6 +31717,37 @@ function EstimateCommandRailPolished({
           {canUseGcPackets ? <Button type="button" size="sm" variant="secondary" onClick={() => onOpenTool("packet")}>Packet</Button> : null}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function EstimateJobHandoffReadinessCard({ readiness }) {
+  if (!readiness) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/70 p-3">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-700">Estimate to job handoff</p>
+          <p className="mt-1 text-sm font-black text-slate-950">{readiness.status}</p>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-600">{readiness.summary}</p>
+        </div>
+        <Badge tone={readiness.tone}>{readiness.readyCount} / {readiness.totalCount}</Badge>
+      </div>
+      <div className="mt-3 grid gap-1.5">
+        {readiness.steps.map((step) => (
+          <div key={step.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-orange-100 bg-white px-2.5 py-2">
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-black text-slate-900">{step.label}</span>
+              <span className="block text-[11px] font-bold leading-4 text-slate-500">{step.helper}</span>
+            </span>
+            <Badge tone={step.complete ? "green" : "amber"}>{step.complete ? "Ready" : "Needed"}</Badge>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-slate-500">
+        Review-only. This card does not create jobs, send proposals, assign crews, or change pricing.
+      </p>
     </div>
   );
 }

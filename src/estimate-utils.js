@@ -1,4 +1,7 @@
 export { buildEstimateCustomerMessage, buildEstimateEmailSubject, estimateCustomerEmail } from "../shared/estimate-email.js";
+import { estimateCustomerEmail } from "../shared/estimate-email.js";
+import { deriveEstimateBackup } from "./estimate-backup-utils.js";
+import { deriveEstimateGcPacketLite } from "./estimate-gc-packet-utils.js";
 
 function roundCurrency(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
@@ -51,6 +54,10 @@ export function calculateEstimateTotals(items = [], { taxRate = null, feesTotal 
 
 function normalizeSearch(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function rowsHaveContent(rows = []) {
+  return Array.isArray(rows) && rows.some((row) => Object.values(row || {}).some((value) => textValue(value)));
 }
 
 function textValue(value) {
@@ -344,6 +351,105 @@ export function calculateEstimateOptionTotals(estimate = {}) {
     baseTotal: baseTotals.grandTotal,
     selectedOptionsTotal: roundCurrency(selectedOptionsTotal),
     totalWithSelectedOptions: roundCurrency(baseTotals.grandTotal + selectedOptionsTotal),
+  };
+}
+
+export function deriveEstimateJobHandoffReadiness(estimate = {}) {
+  const status = String(estimate?.status || "draft").trim().toLowerCase();
+  const sections = deriveEstimateProposalSections(estimate);
+  const totals = calculateEstimateTotals(estimate?.items, {
+    taxRate: estimate?.taxRate,
+    feesTotal: estimate?.feesTotal,
+  });
+  const backup = deriveEstimateBackup(estimate);
+  const gcPacketLite = deriveEstimateGcPacketLite(estimate);
+  const hasCustomer = Boolean(textValue(estimate?.customer?.name) || textValue(estimate?.customerId));
+  const hasContact = Boolean(estimateCustomerEmail(estimate) || textValue(estimate?.customer?.phone) || textValue(estimate?.customerPhone));
+  const hasScope = Boolean(textBlock(sections.scopeOfWork || estimate?.scopeSummary));
+  const hasPricing = Array.isArray(estimate?.items) && estimate.items.length > 0 && totals.grandTotal > 0;
+  const hasApproval = Boolean(textValue(estimate?.jobId)) || status === "approved";
+  const hasBackup = Boolean(
+    textBlock(backup.notes)
+      || rowsHaveContent(backup.sovRows)
+      || rowsHaveContent(backup.takeoffRows)
+      || rowsHaveContent(backup.referenceRows),
+  );
+  const hasPacketNotes = Boolean(
+    textBlock(gcPacketLite.scheduleNotes)
+      || textBlock(gcPacketLite.gcReviewNotes)
+      || textBlock(gcPacketLite.internalPacketNotes)
+      || /\b(field|foreman|handoff|crew|schedule|proof|photo|ticket|report)\b/i.test(textBlock(estimate?.internalNotes)),
+  );
+  const hasFieldHandoff = hasPacketNotes || hasBackup;
+  const converted = Boolean(textValue(estimate?.jobId));
+
+  const steps = [
+    {
+      id: "customer",
+      label: "Customer",
+      complete: hasCustomer && hasContact,
+      helper: hasCustomer && hasContact ? "Customer and contact path are set." : "Link the customer and add email or phone before handoff.",
+      nextAction: "Add customer contact",
+    },
+    {
+      id: "scope",
+      label: "Scope",
+      complete: hasScope,
+      helper: hasScope ? "Scope of work is ready for job setup." : "Add proposal scope before converting.",
+      nextAction: "Add scope",
+    },
+    {
+      id: "pricing",
+      label: "Pricing",
+      complete: hasPricing,
+      helper: hasPricing ? "Estimate has priced line items and total." : "Add priced line items before approval.",
+      nextAction: "Finish pricing",
+    },
+    {
+      id: "approval",
+      label: "Approval",
+      complete: hasApproval,
+      helper: hasApproval ? "Proposal is approved or already converted." : "Mark approved only after customer review.",
+      nextAction: "Mark approved",
+    },
+    {
+      id: "field-handoff",
+      label: "Field handoff",
+      complete: hasFieldHandoff,
+      helper: hasFieldHandoff ? "Job startup backup or foreman handoff notes are present." : "Add takeoff backup, references, schedule notes, or foreman handoff context.",
+      nextAction: "Prepare handoff packet",
+    },
+    {
+      id: "job",
+      label: "Job",
+      complete: converted,
+      helper: converted ? "Estimate has been converted to a job." : "Convert only after approval and handoff review.",
+      nextAction: "Convert to job",
+    },
+  ];
+  const readyCount = steps.filter((step) => step.complete).length;
+  const nextStep = steps.find((step) => !step.complete) || null;
+  const readyForJob = hasCustomer && hasScope && hasPricing && hasApproval && hasFieldHandoff && !converted;
+  const statusLabel = converted
+    ? "Converted to job"
+    : readyForJob
+      ? "Ready for job setup"
+      : hasApproval
+        ? "Approval needs handoff"
+        : "Proposal review";
+
+  return {
+    status: statusLabel,
+    tone: converted || readyForJob ? "green" : hasApproval ? "amber" : "blue",
+    readyCount,
+    totalCount: steps.length,
+    steps,
+    nextAction: nextStep?.nextAction || "Open job",
+    readyForJob,
+    converted,
+    summary: nextStep
+      ? `${readyCount} of ${steps.length} estimate-to-job checkpoints are ready. ${nextStep.helper}`
+      : "Estimate has completed the proposal-to-job handoff path.",
   };
 }
 
