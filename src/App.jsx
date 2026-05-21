@@ -159,6 +159,7 @@ import {
   validatePublicDemoInterestDraft,
 } from "./public-website-utils";
 import { buildCustomerPath, buildImportedJobDraftPath, buildJobPath, buildLeadPath, buildReportPath, getModulePath, normalizePathname, parseAppPath } from "./app-routing";
+import { APP_NAME, DEFAULT_COMPANY_NAME, DEMO_COMPANY_NAME, DEFAULT_LOGO_INITIALS, normalizeVisibleBrandName, resolveWorkspaceLogoInitials, sanitizeLogoInitials } from "./brand-utils";
 import { buildCalculatorCopyText, calculateConcreteResult, calculateTakeoffResult, calculatorTypeLabel, CALCULATOR_MODE_OPTIONS, CALCULATOR_TYPES, createTakeoffSection, formatCubicFeet, formatCubicYards, summarizeTakeoffSection, WASTE_OPTIONS } from "./calculator-utils";
 import { changeOrderStatusLabel, deriveChangeOrderListState, filterChangeOrderRequests } from "./change-order-utils";
 import { deriveCommandCenterState } from "./command-center-utils";
@@ -226,10 +227,6 @@ import { deriveUserListState, getCrewAssignmentOptions, getForemanAssignmentOpti
 import { DEFAULT_ESTIMATE_PACKET_PRESET_ID, ESTIMATE_PACKET_PRESETS, ESTIMATE_PACKET_SECTION_DEFS, INTERNAL_REVIEW_PACKET_PRESET_ID, getEstimatePacketPreset, resolveEstimatePacketSettings } from "../shared/estimatePacketPresets.js";
 import { CONTACT_HISTORY_DIRECTIONS, CONTACT_HISTORY_METHODS, CONTACT_HISTORY_OUTCOMES } from "../shared/contactHistory.js";
 
-const APP_NAME = "Apex HQ";
-const DEFAULT_COMPANY_NAME = "Apex HQ Workspace";
-const DEMO_COMPANY_NAME = "Apex HQ Demo Company";
-const DEFAULT_LOGO_INITIALS = "AH";
 const APEX_BRAND_ASSETS = {
   loginLogo: "/brand/apex-login-logo.png",
   loginIcon: "/brand/apex-login-icon.png",
@@ -465,50 +462,6 @@ function resolveWorkspaceCompanyName({ currentCompany, companySettings, user, de
 
   if (explicitCompanyName) return normalizeVisibleBrandName(explicitCompanyName);
   return demoMode ? DEMO_COMPANY_NAME : DEFAULT_COMPANY_NAME;
-}
-
-function legacyBrandPhrase(...parts) {
-  return parts.join(" ");
-}
-
-function sanitizeLogoInitials(value) {
-  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
-}
-
-function normalizeVisibleBrandName(value) {
-  const trimmed = String(value ?? "").trim();
-  const legacyBrandNames = new Map([
-    [legacyBrandPhrase("Concrete", "Ops"), APP_NAME],
-    [legacyBrandPhrase("Concrete", "Ops", "2"), APP_NAME],
-    [legacyBrandPhrase("Concrete", "Ops", "Workspace"), DEFAULT_COMPANY_NAME],
-    [legacyBrandPhrase("Concrete", "Ops", "Demo", "Company"), DEMO_COMPANY_NAME],
-  ]);
-  return legacyBrandNames.get(trimmed) || trimmed;
-}
-
-function deriveLogoInitialsFromCompanyName(companyName) {
-  const words = String(companyName ?? "").trim().split(/\s+/).filter(Boolean);
-  if (words.length >= 2) {
-    return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
-  }
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
-  return "";
-}
-
-function resolveWorkspaceLogoInitials({ companySettings, companyName } = {}) {
-  const explicitLogoInitials = sanitizeLogoInitials(companySettings?.logoInitials);
-  if (explicitLogoInitials) {
-    const normalizedCompanyName = normalizeVisibleBrandName(companyName || companySettings?.companyName);
-    if (explicitLogoInitials === "CO" && [APP_NAME, DEFAULT_COMPANY_NAME, DEMO_COMPANY_NAME].includes(normalizedCompanyName)) {
-      return DEFAULT_LOGO_INITIALS;
-    }
-    return explicitLogoInitials;
-  }
-
-  const derivedInitials = sanitizeLogoInitials(deriveLogoInitialsFromCompanyName(companyName));
-  return derivedInitials || DEFAULT_LOGO_INITIALS;
 }
 
 function normalizeAccentColor(value) {
