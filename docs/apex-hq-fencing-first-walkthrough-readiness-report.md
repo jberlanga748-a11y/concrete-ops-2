@@ -2,9 +2,15 @@
 
 Date: 2026-05-21
 
-Latest evidence refresh: 2026-05-21T09:23:40Z
+Latest evidence refresh: 2026-05-21T09:59:17Z
 
 Target environment: `https://concrete-ops-demo.fly.dev`
+
+Latest demo deployment:
+
+- Fly demo version: `130`
+- Fly demo image: `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`
+- Latest pushed commit at refresh: `2a59644`
 
 Status: guided walkthrough GO, controlled pilot GO with supervision, public launch NO-GO.
 
@@ -67,6 +73,8 @@ Checked:
 
 Auth smoke was intentionally skipped for this refresh because the preflight ran without `--allow-auth`.
 
+Latest auth-smoke note: local authenticated hosted smoke remains blocked because `APEX_SMOKE_PASSWORD` is not set in the current shell. Skip-auth hosted smoke passed against the demo app after the v130 deploy.
+
 ## Browser Evidence
 
 Admin desktop route audit:
@@ -105,6 +113,7 @@ npm.cmd run audit:visual-polish -- --base-url=https://concrete-ops-demo.fly.dev 
 npm.cmd run audit:visual-polish -- --base-url=https://concrete-ops-demo.fly.dev --browser=chromium --roles=admin --viewports=tablet --routes=/estimates,/jobs,/schedule --output-dir=ui-audit/fencing-first-walkthrough
 npm.cmd run audit:visual-polish -- --base-url=https://concrete-ops-demo.fly.dev --browser=chromium --roles=employee --viewports=phone --routes=/jobs,/reports,/uploads,/time,/estimates,/leads,/settings --output-dir=ui-audit/fencing-first-walkthrough
 npm.cmd run verify:first-user-pilot-packet
+npm.cmd run verify:pilot-readiness
 npm.cmd run verify:roles
 ```
 
@@ -126,6 +135,33 @@ Result: PASS.
 - Confirm pilot terms/customer data expectations before outside login.
 - Keep the contractor's current system as backup.
 - Do not promise custom fencing features, guaranteed leads, automatic bidding, payments, payroll, or public launch readiness.
+
+## Latest Full Pilot Readiness Gate
+
+Command:
+
+```powershell
+npm.cmd run verify:pilot-readiness
+```
+
+Result: PASS on 2026-05-21T09:59Z.
+
+Covered:
+
+- docs drift and public claims checks
+- customer pilot config safety
+- pilot rehearsal helpers
+- first-user packet tests
+- fencing preflight, intake, check-in, setup approval, and config dry-run tests
+- role and permission tests
+- backup/export verification
+- local restore drill
+- production build
+
+Backup/restore artifacts from the latest local readiness run:
+
+- backup verification: `app-data-20260521-095905Z.sqlite` and `app-data-20260521-095905Z.json`
+- restore drill: `app-data-20260521-095906Z.sqlite` and `app-data-20260521-095906Z.json`
 
 ## Recommendation
 

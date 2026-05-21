@@ -69,14 +69,15 @@ npm.cmd run verify:pilot-readiness
 ## Latest Evidence
 
 - Fly demo target: `https://concrete-ops-demo.fly.dev`
-- Latest walkthrough evidence refresh: `2026-05-21T09:23:40Z`
+- Latest walkthrough evidence refresh: `2026-05-21T09:59:17Z`
+- Latest Fly demo deploy evidence: v130, image `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`, pushed commit `2a59644`
 - Admin desktop manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-09-399Z/manifest.json`
 - Admin tablet manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-21-902Z/manifest.json`
 - Employee phone manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-28-771Z/manifest.json`
-- Local Fly demo auth smoke readiness: skip-auth smoke PASS, local auth smoke NO-GO because `APEX_SMOKE_PASSWORD` is missing in the current shell
+- Local Fly demo auth smoke readiness: skip-auth smoke PASS after v130 deploy, local auth smoke NO-GO because `APEX_SMOKE_PASSWORD` is missing in the current shell
 - GitHub scheduled demo smoke: latest observed run `26207043659` passed on 2026-05-21T05:19:24Z and ran auth/bootstrap smoke
 - Known P3 visual backlog: desktop `/leads` long fencing text wrap polish resolved; no open visual backlog from the latest walkthrough route audit
-- Latest local pilot readiness gate: `npm.cmd run verify:pilot-readiness` passed on 2026-05-21T09:25Z with docs, pilot config, rehearsal, fencing gates, roles, backup export, restore drill, and build. Backup verification produced `app-data-20260521-092512Z.sqlite` / `.json`.
+- Latest local pilot readiness gate: `npm.cmd run verify:pilot-readiness` passed on 2026-05-21T09:59Z with docs, pilot config, rehearsal, fencing gates, roles, backup export, restore drill, and build. Backup verification produced `app-data-20260521-095905Z.sqlite` / `.json`; restore drill used `app-data-20260521-095906Z.sqlite` / `.json`.
 
 ## Hard Stops
 
