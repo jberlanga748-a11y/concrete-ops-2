@@ -7,11 +7,14 @@ import {
   Card,
   CommandPageFrame,
   EstimateStudioShell,
+  FilterBar,
   Icon,
   PageHeader,
   ProposalTotalCard,
   SectionHeader,
+  SelectField,
   StatCard,
+  StateCard,
   StatusBadge,
   WorkQueueCard,
 } from "./app-shell-components";
@@ -2182,28 +2185,6 @@ function EstimatePacketSettingsPanel({
   );
 }
 
-function FilterBar({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
-  return (
-    <div className="co-filter-bar flex min-w-0 max-w-full flex-col gap-3 overflow-hidden border-b border-slate-200 bg-slate-50/80 p-3 md:flex-row md:items-center md:justify-between">
-      <div className="scrollbar-none -mx-1 flex min-w-0 max-w-full gap-2 overflow-x-auto overflow-y-hidden px-1 pb-1">
-        {filters.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => setActive(filter)}
-            className={`shrink-0 rounded-lg px-3 py-2 text-xs font-black ${active === filter ? "bg-blue-700 text-white shadow-sm shadow-blue-700/20" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-orange-50 hover:text-orange-700 hover:ring-orange-200"}`}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
-      <div className="min-w-0 w-full md:w-72">
-        <input className="field-input w-full" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={placeholder} />
-      </div>
-    </div>
-  );
-}
-
 function CustomerFilterHeader({ filters, active, setActive, search, setSearch, placeholder = "Search..." }) {
   const layout = getCustomerFilterLayoutClasses();
 
@@ -2233,17 +2214,6 @@ function InputField({ label, ...props }) {
     <label className="field-label">
       <span>{label}</span>
       <input className="field-input" {...props} />
-    </label>
-  );
-}
-
-function SelectField({ label, children, ...props }) {
-  return (
-    <label className="field-label">
-      <span>{label}</span>
-      <select className="field-input" {...props}>
-        {children}
-      </select>
     </label>
   );
 }
@@ -5355,23 +5325,6 @@ function JobStartupChecklistCard({ job, onFieldChange, disabled }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function StateCard({ title, description, tone = "blue" }) {
-  const tones = {
-    blue: "border-blue-200 bg-white text-slate-600",
-    amber: "border-amber-200 bg-amber-50 text-amber-800",
-    green: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    red: "border-red-200 bg-red-50 text-red-700",
-    slate: "border-slate-200 bg-white text-slate-600",
-  };
-
-  return (
-    <div className={`co-state-card min-w-0 max-w-full rounded-xl border p-4 text-center shadow-[0_14px_34px_-30px_rgba(7,17,31,0.5)] sm:p-5 ${tones[tone] || tones.blue}`}>
-      <p className="font-black text-slate-950">{title}</p>
-      <p className="mt-2 break-words text-sm font-bold">{description}</p>
     </div>
   );
 }

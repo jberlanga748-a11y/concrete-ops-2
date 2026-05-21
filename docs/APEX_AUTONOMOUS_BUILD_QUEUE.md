@@ -84,12 +84,13 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Estimate route component architecture extraction | Done; estimate display helpers, polished estimate table, and job handoff readiness card moved out of `App.jsx` with build, role, estimate, route, and browser audits passing | `1eeefee` |
 | 2026-05-21 | P3 | Estimate command rail architecture extraction | Done; the branded proposal/action/tools rail moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `d92a5bd` |
 | 2026-05-21 | P3 | Shared brand utility architecture extraction | Done; Apex brand constants, visible-name normalization, and logo-initial helpers moved into `src/brand-utils.js` with tests, build, role, estimate, route, and browser audits passing | `ff3f0dd` |
+| 2026-05-21 | P3 | Shared form primitive architecture extraction | Done; FilterBar, SelectField, and StateCard moved into the shared shell module with build, role, estimate, route, and browser audits passing | pending |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P3 | Continue estimate route module extraction | Ready | `App.jsx` is still a monolith; the next safe architecture gain is moving the estimate workbench or route shell only if it can keep existing props and handlers intact | Extract only presentational components with existing props; no auth, package, data, or action changes | build, estimate verification, route tests, browser `/estimates` audit | Stop if state/action wiring or permission gates must move |
+| P3 | Continue route module extraction | Ready | `App.jsx` is still a monolith; shared primitives are now separated enough to move feature route chunks more safely | Extract one presentational route chunk with existing props; no auth, package, data, or action changes | build, targeted verifier, route tests, browser audit | Stop if state/action wiring or permission gates must move |
 | P2 | Local demo auth smoke rerun when secret is available | Blocked | Would prove login/bootstrap from the local operator shell | Run only; no docs unless evidence changes | hosted auth smoke | Blocked until `APEX_SMOKE_PASSWORD` is present locally |
 
 ## Blocked / Needs Human Input
@@ -104,4 +105,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is continuing the `/estimates` route module extraction only if the next component can move without pulling route state, permissions, package gates, data flow, or business logic. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is continuing route module extraction one presentational chunk at a time now that shared shell, brand, and form primitives are separated. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
