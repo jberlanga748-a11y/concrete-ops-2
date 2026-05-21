@@ -24,7 +24,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
 } from "./apex-assistant-shell-utils";
-import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory } from "./agent-action-proposal-utils";
+import { buildAgentActionProposal, deriveAgentActionProposalAuditHistory, normalizeAgentActionProposalAuditEvent } from "./agent-action-proposal-utils";
 import { deriveAiOfficeAgentCommandCenter } from "./ai-office-utils";
 import { DEFAULT_APP_PERMISSIONS, mergePermissionScope, normalizeAppPermissions } from "./app-state-utils";
 import {
@@ -96,6 +96,7 @@ import {
   markLeadSourceChecked,
   planOpportunitySearchWithAi,
   previewOpportunityScoutAgent,
+  recordAgentActionProposalAudit,
   resetWorkspace,
   requestPasswordReset,
   resendUserInvite,
@@ -2300,11 +2301,12 @@ function NotificationCenterButton({ source = {}, permissions = {}, user = null, 
   );
 }
 
-function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {} }) {
+function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandContext = {}, onOpenModule = () => {}, onStartEstimateDraft = () => {}, onOpenEstimatePacket = () => {}, onOpenEstimateJobHandoff = () => {}, onOpenJobHandoff = () => {}, onOpenReportReview = () => {}, onOpenUploadReview = () => {}, onOpenTimeReview = () => {}, onOpenChangeOrderReview = () => {}, onOpenLeadFollowUp = () => {}, onOpenCustomerAccount = () => {}, onOpenCrewReadiness = () => {}, onOpenScheduleDispatch = () => {}, onOpenImportedDraftReview = () => {}, onOpenSupportWorkflow = () => {}, onOpenDeliveryTicketReview = () => {}, onOpenPrePourReview = () => {}, onOpenPostPourReview = () => {}, onOpenSafetyIncidentReview = () => {}, onOpenToolChecklistReview = () => {}, onRecordAgentProposalAudit = async () => null }) {
   const assistantState = useMemo(() => deriveApexAssistantShellState({ permissions, commandCenter }), [commandCenter, permissions]);
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState(null);
+  const [auditRecordState, setAuditRecordState] = useState({ proposalId: "", status: "idle", message: "" });
   const actionProposal = useMemo(() => (
     response ? buildAgentActionProposal(response, { permissions }) : null
   ), [permissions, response]);
@@ -2314,6 +2316,21 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
       limit: 4,
     })
   ), [commandContext.auditEvents, permissions.audit?.canView]);
+  const proposalAlreadyRecorded = Boolean(actionProposal?.id && (
+    auditRecordState.proposalId === actionProposal.id && auditRecordState.status === "recorded"
+    || proposalAuditHistory.some((event) => event.proposalId === actionProposal.id)
+  ));
+  const canRecordProposalAudit = Boolean(
+    actionProposal
+    && permissions.audit?.canView
+    && actionProposal.approvalRequired
+    && !proposalAlreadyRecorded
+    && auditRecordState.status !== "saving",
+  );
+
+  useEffect(() => {
+    setAuditRecordState({ proposalId: actionProposal?.id || "", status: "idle", message: "" });
+  }, [actionProposal?.id]);
 
   if (!assistantState.canView) return null;
 
@@ -2332,6 +2349,29 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
   function handleSubmit(event) {
     event.preventDefault();
     runPrompt(prompt);
+  }
+
+  async function recordCurrentProposalAudit() {
+    if (!actionProposal || !permissions.audit?.canView || auditRecordState.status === "saving") return;
+    const payload = normalizeAgentActionProposalAuditEvent(actionProposal, {
+      actor: commandContext.user,
+      sourceRoute: commandContext.currentRoute,
+      sourceModule: actionProposal.targetModuleId,
+      prompt: actionProposal.proof?.commandText || "",
+      response: actionProposal.proof?.message || response?.message || "",
+      status: actionProposal.status,
+    });
+    setAuditRecordState({ proposalId: actionProposal.id, status: "saving", message: "Recording review-first audit..." });
+    try {
+      await onRecordAgentProposalAudit(payload);
+      setAuditRecordState({ proposalId: actionProposal.id, status: "recorded", message: "Recorded to the audit trail." });
+    } catch (error) {
+      setAuditRecordState({
+        proposalId: actionProposal.id,
+        status: "error",
+        message: error?.message || "Could not record this proposal audit.",
+      });
+    }
   }
 
   function startEstimateDraft(choice = {}) {
@@ -2576,6 +2616,32 @@ function ApexAssistantShell({ permissions = {}, commandCenter = {}, commandConte
                       </Badge>
                     </div>
                     <p className="mt-2 text-xs font-bold leading-5 text-slate-300">{actionProposal.allowedNextStep}</p>
+                    {permissions.audit?.canView ? (
+                      <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.05] p-2">
+                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Manual audit record</p>
+                            <p className="mt-1 text-xs font-bold leading-5 text-slate-300">
+                              Records this review-first packet only. No approval, draft, send, conversion, or field update is created.
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={proposalAlreadyRecorded ? "secondary" : "primary"}
+                            disabled={!canRecordProposalAudit}
+                            onClick={recordCurrentProposalAudit}
+                          >
+                            {auditRecordState.status === "saving" ? "Recording..." : proposalAlreadyRecorded ? "Recorded" : "Record audit"}
+                          </Button>
+                        </div>
+                        {auditRecordState.message ? (
+                          <p className={`mt-2 text-[11px] font-bold leading-4 ${auditRecordState.status === "error" ? "text-red-100" : "text-blue-100"}`}>
+                            {auditRecordState.message}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <div className="rounded-xl border border-white/10 bg-white/[0.06] p-2">
                         <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Review checklist</span>
@@ -40654,6 +40720,24 @@ export default function App() {
     runMutation(() => deleteQueueItem(sessionToken, taskId));
   }
 
+  async function handleRecordAgentProposalAudit(payload) {
+    if (!sessionToken || !appState.permissions.audit?.canView) {
+      throw new Error("You do not have permission to record agent proposal audits.");
+    }
+    const result = await recordAgentActionProposalAudit(sessionToken, payload);
+    const auditEvent = result?.auditEvent;
+    if (auditEvent?.id) {
+      setAppState((current) => ({
+        ...current,
+        auditEvents: [
+          auditEvent,
+          ...current.auditEvents.filter((event) => event.id !== auditEvent.id),
+        ],
+      }));
+    }
+    return auditEvent;
+  }
+
   function handleReset() {
     if (!window.confirm("Reset the workspace to the seeded demo data?")) return;
     runMutation(() => resetWorkspace(sessionToken));
@@ -41150,6 +41234,8 @@ export default function App() {
         permissions={appState.permissions}
         commandCenter={assistantCommandCenter}
         commandContext={{
+          user: appState.user,
+          currentRoute: active ? `/${active}` : "/command-center",
           permissions: appState.permissions,
           commandCenter: assistantCommandCenter,
           jobs: appState.permissions.jobs?.canView ? appState.jobs : [],
@@ -41191,6 +41277,7 @@ export default function App() {
         onOpenPostPourReview={handleOpenAssistantPostPourReview}
         onOpenSafetyIncidentReview={handleOpenAssistantSafetyIncidentReview}
         onOpenToolChecklistReview={handleOpenAssistantToolChecklistReview}
+        onRecordAgentProposalAudit={handleRecordAgentProposalAudit}
       />
     </div>
   );

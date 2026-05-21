@@ -103,6 +103,10 @@ export function updateNotificationState(token, payload) {
   return request("/api/auth/me/notification-state", { method: "PATCH", token, body: payload });
 }
 
+export function recordAgentActionProposalAudit(token, payload) {
+  return request("/api/agent-action-proposals/audit", { method: "POST", token, body: payload });
+}
+
 export function updateCompanySettings(token, payload) {
   return request("/api/settings/company", { method: "PATCH", token, body: payload });
 }
