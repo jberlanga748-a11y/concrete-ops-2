@@ -84,11 +84,11 @@ npm.cmd run launch:gate-status -- --json
 ## Latest Evidence
 
 - Fly demo target: `https://concrete-ops-demo.fly.dev`
-- Latest walkthrough evidence refresh: `2026-05-21T09:59:17Z`
+- Latest walkthrough evidence refresh: `2026-05-21T11:03:46Z`
 - Latest Fly demo deploy evidence: v130, image `registry.fly.io/concrete-ops-demo:deployment-01KS4Z90RCA1G8RCBKSQQDEE2F`, pushed commit `2a59644`
-- Admin desktop manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-09-399Z/manifest.json`
-- Admin tablet manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-21-902Z/manifest.json`
-- Employee phone manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T09-23-28-771Z/manifest.json`
+- Admin desktop manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T11-03-15-095Z/manifest.json`
+- Admin tablet manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T11-03-27-566Z/manifest.json`
+- Employee phone manifest: `ui-audit/fencing-first-walkthrough/2026-05-21T11-03-34-729Z/manifest.json`
 - Local Fly demo auth smoke readiness: skip-auth smoke PASS after v130 deploy, local auth smoke NO-GO because `APEX_SMOKE_PASSWORD` is missing in the current shell
 - GitHub scheduled demo smoke: latest observed run `26207043659` passed on 2026-05-21T05:19:24Z and ran auth/bootstrap smoke
 - Known P3 visual backlog: desktop `/leads` long fencing text wrap polish resolved; no open visual backlog from the latest walkthrough route audit
@@ -108,6 +108,7 @@ npm.cmd run launch:gate-status -- --json
 - Latest core workflow verification: `npm.cmd run verify:leads`, `npm.cmd run verify:jobs`, `npm.cmd run verify:daily-reports`, `npm.cmd run verify:uploads`, and `npm.cmd run verify:estimates` passed on 2026-05-21. This refreshed the lead/opportunity, job, daily report, upload/proof, and estimate/proposal workflow tests. A parallel `verify:leads` attempt had one AI lead assistant test-server readiness timeout, then the same command passed fully when rerun alone.
 - Latest field/support verification: `npm.cmd run verify:time`, `npm.cmd run verify:safety`, `npm.cmd run verify:tool-checklist`, `npm.cmd run verify:delivery-tickets`, `npm.cmd run verify:pre-pour`, `npm.cmd run verify:post-pour`, `npm.cmd run verify:change-orders`, `npm.cmd run verify:customers`, and `npm.cmd run verify:users` passed on 2026-05-21. A first Tool Checklist attempt had a test-server readiness timeout, then passed fully when rerun alone before the remaining checks continued.
 - Latest SaaS safety verification: `npm.cmd run verify:packages`, `npm.cmd run verify:entitlements`, `npm.cmd run verify:auth`, `npm.cmd run verify:exports`, `npm.cmd run verify:backup`, `npm.cmd run verify:restore`, `npm.cmd run verify:server`, and `npm.cmd run build` passed on 2026-05-21. Backup verification produced `app-data-20260521-105842Z.sqlite` / `.json`; the restore drill used the same backup pair and returned database `ok`. Local server smoke also logged login at 26ms and bootstrap at 6ms or less during the checked path.
+- Latest fencing walkthrough preflight: `npm.cmd run pilot:fencing-preflight -- --run --json` passed against `https://concrete-ops-demo.fly.dev` on 2026-05-21T11:03Z. Fly demo `/api/ready`, first-user packet validation, hosted skip-auth route smoke, admin desktop audit, admin tablet audit, employee phone field/restricted-route audit, and role tests all passed. The preflight decision remained guided walkthrough `GO`, friendly validation `GO with supervision`, public launch `NO-GO`, and production deploy `NO-GO unless explicitly approved through backup-first release`.
 
 ## Hard Stops
 
