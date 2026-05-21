@@ -61,7 +61,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P1 | Estimate Studio proposal branding strip | Done; selected `/estimates` workbench now shows company identity, contact, service area, license/insurance, date, and terms from existing settings | `7d0bd05` |
 | 2026-05-21 | P2 | Fly demo Estimate Studio branding deploy | Done; backup-first demo deploy to `concrete-ops-demo` v129 plus hosted smoke and deployed `/estimates` audits passed | `878dc7e` |
 | 2026-05-21 | P1 | Estimate PDF proposal header polish | Done; customer-facing PDF intro now shows prepared-for, project, status, proposal date, and valid-through fields while internal notes stay hidden | `dac22c7` |
-| 2026-05-21 | P2 | Fly demo Estimate PDF header deploy | Done; backup-first demo deploy to `concrete-ops-demo` v130 plus `/api/ready` and hosted skip-auth smoke passed | `pending` |
+| 2026-05-21 | P2 | Fly demo Estimate PDF header deploy | Done; backup-first demo deploy to `concrete-ops-demo` v130 plus `/api/ready` and hosted skip-auth smoke passed | `405ff68` |
 
 ## Active Queue
 
