@@ -5,6 +5,7 @@ import {
   deriveApexAssistantShellState,
   resolveApexAssistantCommand,
   resolveAssistantNextBestActionsCommand,
+  resolveAssistantWorkflowDraftPrepCommand,
   resolveAssistantChangeOrderReviewCommand,
   resolveAssistantCrewReadinessCommand,
   resolveAssistantCustomerAccountCommand,
@@ -154,6 +155,36 @@ test("assistant command routes explicit next best action prompts to ranked actio
 
   assert.equal(command.type, "next-best-actions");
   assert.equal(command.actions.some((action) => action.moduleId === "reports"), true);
+});
+
+test("assistant prepares workflow draft packet without saving or sending", () => {
+  const command = resolveAssistantWorkflowDraftPrepCommand("prepare next action draft packet", {
+    permissions: {
+      reports: { canView: true },
+      uploads: { canView: true },
+    },
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+  });
+
+  assert.equal(command.type, "workflow-draft-prep");
+  assert.equal(command.moduleId, "reports");
+  assert.match(command.message, /Nothing is saved/i);
+  assert.ok(command.draftPacket.blockedActions.some((item) => /No customer email/i.test(item)));
+});
+
+test("assistant command routes draft packet prompts before next-action listing", () => {
+  const command = resolveApexAssistantCommand("build next action review packet", {
+    commandContext: {
+      permissions: {
+        reports: { canView: true },
+      },
+      dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    },
+  });
+
+  assert.equal(command.type, "workflow-draft-prep");
+  assert.equal(command.actionLabel, "Open reports");
 });
 
 test("empty assistant command starts with highest watchtower action", () => {

@@ -177,6 +177,78 @@ export function deriveAgentNextBestActions(context = {}, { limit = 5 } = {}) {
   };
 }
 
+export function deriveAgentWorkflowDraftPrep(context = {}, { actionId = "" } = {}) {
+  const nextActions = context?.actions && context?.mode === "review_first_next_actions"
+    ? context
+    : deriveAgentNextBestActions(context, { limit: 5 });
+  const selected = asArray(nextActions.actions).find((action) => action.id === actionId)
+    || asArray(nextActions.actions)[0]
+    || null;
+
+  if (!selected) {
+    return {
+      mode: "review_first_workflow_draft_prep",
+      generatedAt: new Date().toISOString(),
+      title: "No workflow draft packet available",
+      summary: "No visible workflow records are available for a draft prep packet.",
+      target: null,
+      items: [],
+      blockedActions: [
+        "No record creation or update",
+        "No customer contact",
+        "No approval, conversion, scheduling, invoicing, payment, role, package, or field update",
+      ],
+      safetyBoundary: "Draft prep only. Nothing is saved or sent.",
+    };
+  }
+
+  const supportLabels = asArray(selected.supportingRecords)
+    .map((record) => text(record.label))
+    .filter(Boolean);
+
+  return {
+    mode: "review_first_workflow_draft_prep",
+    generatedAt: new Date().toISOString(),
+    title: `${selected.title} draft packet`,
+    summary: `Prepare review notes for ${selected.actionLabel}. This packet is for human review before opening the normal workflow.`,
+    target: {
+      id: selected.id,
+      moduleId: selected.moduleId,
+      actionLabel: selected.actionLabel,
+      title: selected.title,
+      tone: selected.tone,
+    },
+    items: [
+      {
+        id: "context",
+        label: "Context to review",
+        detail: selected.reason,
+      },
+      {
+        id: "records",
+        label: "Visible supporting records",
+        detail: supportLabels.length ? supportLabels.join(", ") : "No specific supporting record was selected from the visible workflow context.",
+      },
+      {
+        id: "human-step",
+        label: "Human next step",
+        detail: selected.reviewLabel,
+      },
+      {
+        id: "safe-output",
+        label: "Safe assistant output",
+        detail: "A review note packet only. Use the existing Apex HQ screen to inspect and decide.",
+      },
+    ],
+    blockedActions: [
+      selected.blockedAutomation,
+      "No customer email, text, call, notification, bid submission, or proposal send",
+      "No approval, conversion, scheduling, invoicing, payment, role, package, or field update",
+    ],
+    safetyBoundary: "Draft prep only. Nothing is saved, sent, approved, converted, scheduled, invoiced, or changed.",
+  };
+}
+
 export function deriveAgentWorkflowContext(context = {}) {
   const permissions = context.permissions || {};
   const leads = visibleRecords(context, "leads", Boolean(permissions?.leads?.canView));
@@ -344,4 +416,8 @@ export function hasAgentWorkflowContextIntent(input = "") {
 
 export function hasAgentNextBestActionsIntent(input = "") {
   return /\b(next best action|next best actions|what should (we|i) do next|what should (we|i) do now|where should (we|i) start|rank(ed)? actions|agent action queue)\b/.test(normalize(input));
+}
+
+export function hasAgentWorkflowDraftPrepIntent(input = "") {
+  return /\b(prepare|build|draft|make)\b.*\b(next action|next best action|workflow packet|review packet|draft packet|action packet)\b/.test(normalize(input));
 }

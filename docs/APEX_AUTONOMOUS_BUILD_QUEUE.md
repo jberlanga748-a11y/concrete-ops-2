@@ -37,6 +37,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 | Date | Priority | Task | Result | Commit |
 | --- | --- | --- | --- | --- |
+| 2026-05-21 | P1 | Agent Workflow Draft Prep v1 | Done; Apex Assistant can prepare a review-only draft packet from the top next-best action using the existing Agent Action Proposal UI, with no saved records, sends, approvals, conversions, scheduling, invoices, package changes, or field updates | This commit |
 | 2026-05-21 | P1 | Agent Next Best Action Queue v1 | Done; Apex Assistant now turns visible workflow context into ranked, review-first next action suggestions with route buttons and explicit blocked automation boundaries | This commit |
 | 2026-05-21 | P1 | Agent Workflow Context v1 | Done; Apex Assistant now has a permission-scoped read-only workflow context summary across visible leads, estimates, jobs, proof, customers, employees, safety, change orders, and imports with no mutation or customer-contact behavior | This commit |
 | 2026-05-21 | P3 | Customer related records card extraction | Done; customer linked leads/jobs/activity/contact-history card wrapper now lives in the customer route component module without changing record selection, rendering callbacks, permissions, or data flow | This commit |
@@ -137,4 +138,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Next safe build action is Agent Workflow Draft Prep v1: let the assistant produce a review-only draft packet for one selected next-best action without saving, sending, approving, converting, scheduling, or mutating records. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.
+Next safe build action is Agent Daily Ops Brief v1: generate a review-only daily operations brief from workflow context, next-best actions, and draft-prep boundaries without saving, sending, approving, converting, scheduling, or mutating records. Human-input tasks remain blocked until real pilot details or smoke secrets are provided.

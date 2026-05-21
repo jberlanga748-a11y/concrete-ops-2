@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   deriveAgentNextBestActions,
   deriveAgentWorkflowContext,
+  deriveAgentWorkflowDraftPrep,
   hasAgentNextBestActionsIntent,
   hasAgentWorkflowContextIntent,
+  hasAgentWorkflowDraftPrepIntent,
 } from "./agent-workflow-context-utils.js";
 
 test("agent workflow context summarizes visible office workflow areas", () => {
@@ -136,4 +138,28 @@ test("agent next best actions intent recognizes ranked operator prompts", () => 
   assert.equal(hasAgentNextBestActionsIntent("show next best actions"), true);
   assert.equal(hasAgentNextBestActionsIntent("what should we do now"), true);
   assert.equal(hasAgentNextBestActionsIntent("summarize workflow context"), false);
+});
+
+test("agent workflow draft prep creates a review-only packet for the top action", () => {
+  const packet = deriveAgentWorkflowDraftPrep({
+    user: { role: "Administrator" },
+    permissions: {
+      reports: { canView: true },
+      uploads: { canView: true },
+    },
+    dailyReports: [{ id: "DR-1", title: "Daily", status: "Submitted" }],
+    uploads: [{ id: "UP-1", title: "Photos", status: "Needs Review" }],
+  });
+
+  assert.equal(packet.mode, "review_first_workflow_draft_prep");
+  assert.equal(packet.target.moduleId, "reports");
+  assert.ok(packet.items.some((item) => item.id === "safe-output"));
+  assert.ok(packet.blockedActions.some((item) => /No customer email/i.test(item)));
+  assert.match(packet.safetyBoundary, /Nothing is saved/i);
+});
+
+test("agent workflow draft prep intent recognizes packet prompts", () => {
+  assert.equal(hasAgentWorkflowDraftPrepIntent("prepare next action draft packet"), true);
+  assert.equal(hasAgentWorkflowDraftPrepIntent("build workflow packet"), true);
+  assert.equal(hasAgentWorkflowDraftPrepIntent("show next best actions"), false);
 });

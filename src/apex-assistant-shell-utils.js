@@ -1,8 +1,10 @@
 import {
   deriveAgentNextBestActions,
   deriveAgentWorkflowContext,
+  deriveAgentWorkflowDraftPrep,
   hasAgentNextBestActionsIntent,
   hasAgentWorkflowContextIntent,
+  hasAgentWorkflowDraftPrepIntent,
 } from "./agent-workflow-context-utils.js";
 
 const ROUTE_COMMANDS = [
@@ -130,6 +132,7 @@ const ROUTE_COMMANDS = [
 const DEFAULT_PROMPTS = [
   "What needs attention?",
   "Show next best actions",
+  "Prepare next action draft packet",
   "Summarize workflow context",
   "Summarize missing proof",
   "Review daily closeout",
@@ -192,6 +195,9 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
 
   const blocked = resolveBlockedActionCommand(input);
   if (blocked) return blocked;
+
+  const workflowDraftPrepCommand = resolveAssistantWorkflowDraftPrepCommand(input, state.commandContext || {});
+  if (workflowDraftPrepCommand) return workflowDraftPrepCommand;
 
   const nextBestActionsCommand = resolveAssistantNextBestActionsCommand(input, state.commandContext || {});
   if (nextBestActionsCommand) return nextBestActionsCommand;
@@ -303,6 +309,23 @@ export function resolveApexAssistantCommand(input = "", state = {}) {
     moduleId: "commandCenter",
     actionLabel: "Open Command Center",
     message: "I can route you to Apex HQ workflows and summarize Watchtower items. I will not create, send, approve, or edit records automatically in this phase.",
+  };
+}
+
+export function resolveAssistantWorkflowDraftPrepCommand(input = "", context = {}) {
+  if (!hasAgentWorkflowDraftPrepIntent(input)) return null;
+  const workflowContext = context.agentWorkflowContext || deriveAgentWorkflowContext(context);
+  const draftPacket = deriveAgentWorkflowDraftPrep(workflowContext);
+  const target = draftPacket.target || {};
+
+  return {
+    type: "workflow-draft-prep",
+    moduleId: target.moduleId || "commandCenter",
+    actionLabel: target.actionLabel || "Open Command Center",
+    message: `${draftPacket.summary} ${draftPacket.safetyBoundary}`,
+    commandText: String(input || "").trim(),
+    draftPacket,
+    actions: target.moduleId ? [{ moduleId: target.moduleId, actionLabel: target.actionLabel }] : [],
   };
 }
 

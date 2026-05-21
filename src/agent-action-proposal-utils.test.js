@@ -65,6 +65,39 @@ test("agent action proposal exposes estimate draft prep without saving a draft",
   assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
 });
 
+test("agent action proposal exposes workflow draft prep as review-only output", () => {
+  const proposal = buildAgentActionProposal({
+    type: "workflow-draft-prep",
+    moduleId: "reports",
+    actionLabel: "Open reports",
+    message: "Prepare review notes. Nothing is saved.",
+    draftPacket: {
+      title: "Close proof gaps draft packet",
+      summary: "Prepare review notes for Open reports.",
+      target: { id: "next-proof", moduleId: "reports", actionLabel: "Open reports", title: "Close proof gaps" },
+      items: [
+        { label: "Context to review", detail: "Daily report submitted." },
+        { label: "Human next step", detail: "Open reports and review proof." },
+      ],
+      blockedActions: ["No customer email, text, call, notification, bid submission, or proposal send"],
+      safetyBoundary: "Draft prep only. Nothing is saved, sent, approved, converted, scheduled, invoiced, or changed.",
+    },
+  }, {
+    permissions: {
+      aiOffice: { canView: true },
+      reports: { canView: true },
+    },
+  });
+
+  assert.equal(proposal.status, "needs_human_review");
+  assert.equal(proposal.typeLabel, "Workflow draft prep");
+  assert.equal(proposal.draftPrep.length, 1);
+  assert.equal(proposal.draftPrep[0].prepType, "Workflow draft prep");
+  assert.match(proposal.draftPrep[0].safeOutput, /does not save/i);
+  assert.ok(proposal.draftPrep[0].warnings.some((item) => /No customer email/i.test(item)));
+  assert.equal(validateAgentActionProposalSafety(proposal).ok, true);
+});
+
 test("agent action proposal treats package-locked assistant results as blocked", () => {
   const proposal = buildAgentActionProposal({
     type: "package-blocked",

@@ -33,6 +33,7 @@ const TYPE_LABELS = Object.freeze({
   "tool-checklist-review": "Tool checklist review",
   "material-planning-review": "Material planning review",
   "release-readiness-review": "Release readiness review",
+  "workflow-draft-prep": "Workflow draft prep",
   "pilot-handoff-readiness": "Pilot handoff review",
   "estimate-draft-review": "Estimate draft review",
   "estimate-packet-review": "Estimate packet review",
@@ -208,6 +209,21 @@ function buildAgentDraftPrep(response = {}) {
       safeOutput: "Support context can be reviewed and copied manually.",
       reviewLabel: "No ticket, upload, permission change, escalation, email, or text is created automatically.",
       warnings: [],
+    }];
+  }
+
+  if (response.type === "workflow-draft-prep") {
+    const packet = response.draftPacket || {};
+    const target = packet.target || {};
+    return [{
+      id: text(target.id || "workflow-draft-prep"),
+      prepType: "Workflow draft prep",
+      label: text(packet.title || target.title || "Workflow draft packet"),
+      helper: text(packet.summary || "Review the next action packet before opening the workflow."),
+      safeOutput: "Review note packet only. The assistant does not save records or send anything.",
+      reviewLabel: text(packet.safetyBoundary || "No records are changed from this assistant packet."),
+      fields: asArray(packet.items).map((item) => `${text(item.label)}: ${text(item.detail)}`).filter(Boolean).slice(0, 4),
+      warnings: asArray(packet.blockedActions).slice(0, 4),
     }];
   }
 
