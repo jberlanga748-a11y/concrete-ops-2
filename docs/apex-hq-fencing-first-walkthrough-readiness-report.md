@@ -95,6 +95,7 @@ Screenshot capture:
 ## Verification Commands
 
 ```powershell
+npm.cmd run pilot:fencing-preflight -- --run --json
 Invoke-RestMethod https://concrete-ops-demo.fly.dev/api/ready
 npm.cmd run pilot:first-user-packet -- --company="First Friendly Fencing Contractor" --trade="fencing" --workflow="lead / opportunity -> estimate -> job -> schedule -> field proof -> report/upload -> ready-to-bill review" --owner="Owner/admin to confirm" --field-lead="First field lead to confirm" --first-record="First active fence lead or estimate" --field-action="Upload one fence jobsite photo and complete one proof item" --success="Owner can see lead, estimate, job, schedule, proof, and next follow-up in one place" --success="One field user can complete one phone action without seeing office pricing or settings" --success="Owner can decide by Day 3 whether the workflow is useful enough for a 14-day founder pilot" --write
 npm.cmd run smoke:hosted -- --base-url=https://concrete-ops-demo.fly.dev --skip-auth --json
@@ -104,6 +105,8 @@ npm.cmd run audit:visual-polish -- --base-url=https://concrete-ops-demo.fly.dev 
 npm.cmd run verify:first-user-pilot-packet
 npm.cmd run verify:roles
 ```
+
+Use the first command as the repeatable one-command preflight before the live walkthrough. The remaining commands are the expanded manual sequence for inspection or troubleshooting.
 
 ## Role And Permission Result
 
