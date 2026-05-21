@@ -1,6 +1,6 @@
-import { Badge, Button, Card, Icon, SectionHeader, StatusBadge } from "./app-shell-components";
+import { Badge, Button, Card, FilterBar, Icon, SectionHeader, SelectField, StateCard, StatusBadge } from "./app-shell-components";
 import { DEFAULT_COMPANY_NAME, resolveWorkspaceLogoInitials } from "./brand-utils";
-import { deriveEstimateJobHandoffReadiness, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils";
+import { calculateEstimateLineTotal, deriveEstimateJobHandoffReadiness, estimateCustomerEmail, estimateStatusLabel, formatEstimateCurrency } from "./estimate-utils";
 
 export function estimateDisplayTitle(estimate) {
   return estimate?.title || "Estimate draft";
@@ -130,6 +130,309 @@ export function EstimatesTablePolished({ rows, selectedId, onSelect, maxRows = 6
         </div>
       </div>
     </>
+  );
+}
+
+function estimateStudioListItems(value, fallback = []) {
+  const rawItems = Array.isArray(value) ? value : String(value || "").split(/\n|;|,/);
+  const items = rawItems
+    .map((item) => String(item || "").replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : fallback;
+}
+
+function estimateStudioTakeoffCards(backup = {}, estimate = {}) {
+  const references = Array.isArray(backup.referenceRows) ? backup.referenceRows : [];
+  const takeoffs = Array.isArray(backup.takeoffRows) ? backup.takeoffRows : [];
+  const cards = [
+    ...references.slice(0, 2).map((row, index) => ({
+      id: `reference-${index}`,
+      type: row.referenceType || "Reference",
+      title: row.fileName || row.source || "Jobsite reference",
+      meta: row.source || row.notes || "Office review",
+      tone: "photo",
+    })),
+    ...takeoffs.slice(0, 2).map((row, index) => ({
+      id: `takeoff-${index}`,
+      type: row.unit ? `${row.quantity || ""} ${row.unit}`.trim() : "Takeoff",
+      title: row.item || "Takeoff item",
+      meta: row.source || row.estimatorNote || "Estimator backup",
+      tone: "takeoff",
+    })),
+  ];
+
+  if (cards.length > 0) return cards.slice(0, 3);
+
+  return [
+    {
+      id: "site-photo-placeholder",
+      type: "Site photo",
+      title: estimate?.lead?.project || estimate?.title || "Jobsite photo",
+      meta: "Demo preview",
+      tone: "photo",
+    },
+    {
+      id: "takeoff-placeholder",
+      type: "Takeoff",
+      title: "Plan / measured scope",
+      meta: estimate?.scopeSummary ? "Scope linked" : "Add takeoff backup",
+      tone: "takeoff",
+    },
+    {
+      id: "add-photo-placeholder",
+      type: "Add photo",
+      title: "Upload reference",
+      meta: "Use SOV / Backup",
+      tone: "empty",
+    },
+  ];
+}
+
+export function EstimateProposalWorkbench({
+  estimate,
+  preview,
+  totals,
+  optionTotals,
+  sections,
+  backup,
+  companyName = DEFAULT_COMPANY_NAME,
+  companyProfile = {},
+  canManage,
+  filteredRows = [],
+  rows = [],
+  listState = {},
+  statusFilter = "All",
+  customerFilter = "All customers",
+  leadFilter = "All leads",
+  creatorFilter = "All creators",
+  archiveFilter = "Active",
+  search = "",
+  selectedId = "",
+  visibleEstimateRowCap = 6,
+  onSelect,
+  onOpenTool,
+  onFocusNewEstimate,
+  onStatusFilter,
+  onSearch,
+  onCustomerFilter,
+  onLeadFilter,
+  onCreatorFilter,
+  onArchiveFilter,
+  onShowMore,
+  onShowLess,
+  onClearFilters,
+}) {
+  if (!estimate || !preview) {
+    return (
+      <Card className="co-estimate-proposal-workbench co-estimate-proposal-workbench--empty">
+        <div className="co-estimate-proposal-empty">
+          <Icon name="quote" className="h-6 w-6" />
+          <h2>Select an estimate option</h2>
+          <p>Choose a proposal from the option rail to review scope, takeoff, inclusions, exclusions, packet sections, and send-ready actions.</p>
+          {canManage ? <Button type="button" onClick={onFocusNewEstimate}>Create Estimate</Button> : null}
+        </div>
+      </Card>
+    );
+  }
+
+  const scopeFallback = [
+    preview.scopeSummary || "Scope is pending office review.",
+  ];
+  const inclusionItems = estimateStudioListItems(sections?.inclusions, [
+    "Crew labor, materials, and standard equipment",
+    "Layout, installation, finish work, and cleanup",
+    "Office-reviewed customer proposal",
+  ]);
+  const exclusionItems = estimateStudioListItems(sections?.exclusions, [
+    "Permits and inspection fees",
+    "Engineering, design, or utility relocation",
+    "Hidden conditions outside reviewed scope",
+  ]);
+  const scopeItems = estimateStudioListItems(sections?.scopeOfWork, scopeFallback).slice(0, 3);
+  const photoTakeoffCards = estimateStudioTakeoffCards(backup, preview);
+  const topLineItems = Array.isArray(preview.items) ? preview.items.filter((item) => item?.description || item?.name).slice(0, 3) : [];
+  const customerLabel = estimateDisplayCustomer(preview);
+  const totalLabel = formatEstimateCurrency(optionTotals?.totalWithSelectedOptions ?? totals?.grandTotal ?? estimateDisplayTotal(preview));
+  const logoInitials = resolveWorkspaceLogoInitials({ companySettings: companyProfile, companyName });
+  const contractorContact = [
+    estimateRailProfileLine(companyProfile.businessPhone),
+    estimateRailProfileLine(companyProfile.businessEmail),
+    estimateRailProfileLine(companyProfile.website),
+  ].filter(Boolean);
+  const serviceLine = estimateRailProfileLine(companyProfile.serviceArea, companyProfile.businessAddress);
+  const licenseLine = estimateRailProfileLine(companyProfile.licenseText, "License / insurance details pending");
+  const validityLine = estimateRailProfileLine(companyProfile.printPacketFooter, "Valid for 30 days unless noted in proposal terms.");
+  const proposalDate = preview?.createdAt ? new Date(preview.createdAt).toLocaleDateString("en-US") : "Review date pending";
+
+  return (
+    <Card className="co-estimate-proposal-workbench">
+      <div className="co-estimate-proposal-head">
+        <div className="min-w-0">
+          <p className="co-estimate-proposal-eyebrow">Selected Proposal</p>
+          <div className="co-estimate-proposal-title-row">
+            <h2>{estimateDisplayTitle(preview)}</h2>
+            <StatusBadge status={estimateStatusLabel(preview.status)} />
+          </div>
+          <p>{customerLabel} / {preview.jobId ? "Converted job" : estimateDisplayLead(preview)}</p>
+        </div>
+        <div className="co-estimate-proposal-total">
+          <span>Proposal Total</span>
+          <strong>{totalLabel}</strong>
+          <em>Base {formatEstimateCurrency(totals?.grandTotal || 0)}</em>
+        </div>
+      </div>
+
+      <div className="co-estimate-proposal-brand-strip" aria-label="Proposal identity">
+        <div className="co-estimate-proposal-brand-main">
+          <span>{logoInitials}</span>
+          <div>
+            <em>Prepared by</em>
+            <strong>{companyName || DEFAULT_COMPANY_NAME}</strong>
+            <p>{contractorContact.length > 0 ? contractorContact.join(" / ") : "Add phone, email, or website in Settings branding."}</p>
+          </div>
+        </div>
+        <div>
+          <em>Service Area</em>
+          <strong>{serviceLine || "Confirm service area"}</strong>
+        </div>
+        <div>
+          <em>License / Insurance</em>
+          <strong>{licenseLine}</strong>
+        </div>
+        <div>
+          <em>Proposal Date</em>
+          <strong>{proposalDate}</strong>
+        </div>
+        <div>
+          <em>Terms</em>
+          <strong>{validityLine}</strong>
+        </div>
+      </div>
+
+      <div className="co-estimate-proposal-media" aria-label="Jobsite photos and takeoff preview">
+        <div className="co-estimate-proposal-media-head">
+          <span>Jobsite Photos & Takeoff</span>
+          <button type="button" onClick={() => onOpenTool?.("backup")}>Open backup</button>
+        </div>
+        <div className="co-estimate-proposal-media-grid">
+          {photoTakeoffCards.map((card) => (
+            <button key={card.id} type="button" className={`co-estimate-proposal-thumb co-estimate-proposal-thumb--${card.tone}`} onClick={() => onOpenTool?.("backup")}>
+              <span>{card.type}</span>
+              <strong>{card.title}</strong>
+              <em>{card.meta}</em>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="co-estimate-proposal-scope">
+        <div className="co-estimate-proposal-section-head">
+          <span>Scope of Work</span>
+          <button type="button" onClick={() => onOpenTool?.("sections")}>Edit sections</button>
+        </div>
+        <div className="co-estimate-proposal-scope-copy">
+          {scopeItems.map((item) => <p key={item}>{item}</p>)}
+        </div>
+        {topLineItems.length > 0 ? (
+          <div className="co-estimate-proposal-line-items">
+            {topLineItems.map((item, index) => (
+              <div key={`${item.id || item.description || item.name}-${index}`}>
+                <span>{item.description || item.name}</span>
+                <strong>{formatEstimateCurrency(calculateEstimateLineTotal(item))}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="co-estimate-proposal-inclusions-grid">
+        <section>
+          <div className="co-estimate-proposal-section-head">
+            <span>Inclusions</span>
+          </div>
+          <ul className="co-estimate-proposal-check-list">
+            {inclusionItems.slice(0, 5).map((item) => (
+              <li key={item}><Icon name="check" /> <span>{item}</span></li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <div className="co-estimate-proposal-section-head">
+            <span>Exclusions</span>
+          </div>
+          <ul className="co-estimate-proposal-warning-list">
+            {exclusionItems.slice(0, 5).map((item) => (
+              <li key={item}><Icon name="alert" /> <span>{item}</span></li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      <details className="co-estimate-proposal-browse">
+        <summary>
+          <span>Browse all estimates</span>
+          <em>{filteredRows.length} matching</em>
+        </summary>
+        <FilterBar filters={["All", "Draft", "Sent", "Approved", "Rejected", "Archived"]} active={statusFilter} setActive={onStatusFilter} search={search} setSearch={onSearch} placeholder="Search title, customer, notes, or line items..." />
+        <details className="co-estimates-advanced-filters border-b border-slate-200 bg-white">
+          <summary>
+            <span>Advanced filters</span>
+            <span>{[customerFilter !== "All customers" ? customerFilter : "", leadFilter !== "All leads" ? leadFilter : "", creatorFilter !== "All creators" ? creatorFilter : "", archiveFilter !== "Active" ? archiveFilter : ""].filter(Boolean).length || "Customer, lead, creator, archive"}</span>
+          </summary>
+          <div className="co-office-filter-grid co-estimates-filter-grid grid gap-3 p-3 md:grid-cols-4">
+            <SelectField label="Customer" value={customerFilter} onChange={(event) => onCustomerFilter?.(event.target.value)}>
+              {(listState.customerOptions || []).map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <SelectField label="Lead" value={leadFilter} onChange={(event) => onLeadFilter?.(event.target.value)}>
+              {(listState.leadOptions || []).map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <SelectField label="Created by" value={creatorFilter} onChange={(event) => onCreatorFilter?.(event.target.value)}>
+              {(listState.creatorOptions || []).map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+            <SelectField label="Archive view" value={archiveFilter} onChange={(event) => onArchiveFilter?.(event.target.value)}>
+              {["Active", "Archived", "All"].map((option) => <option key={option}>{option}</option>)}
+            </SelectField>
+          </div>
+        </details>
+        <div className="co-estimates-board-header border-b border-slate-200 bg-white p-4">
+          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-sm font-black uppercase tracking-[0.04em] text-slate-950">Proposal Queue</h3>
+              <p className="mt-1 text-sm font-bold leading-5 text-slate-600">Use this list when you need the full estimate board.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={() => onStatusFilter?.("All")}>All estimates</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => onStatusFilter?.("Draft")}>Drafts</Button>
+              {canManage ? <Button type="button" size="sm" onClick={onFocusNewEstimate}>Create Estimate</Button> : null}
+            </div>
+          </div>
+        </div>
+        {filteredRows.length === 0 ? (
+          <div className="p-5">
+            <StateCard title="No estimates match this view" description="Create a proposal from a customer or lead, or clear filters to bring older work back into view." tone="blue" />
+          </div>
+        ) : (
+          <EstimatesTablePolished
+            rows={filteredRows}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            maxRows={visibleEstimateRowCap}
+          />
+        )}
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3">
+          <p className="text-sm font-bold text-slate-600">Showing {Math.min(filteredRows.length, visibleEstimateRowCap)} of {rows.length} estimates</p>
+          <div className="co-estimates-board-footer-actions">
+            {filteredRows.length > visibleEstimateRowCap ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onShowMore}>Show more</Button>
+            ) : null}
+            {visibleEstimateRowCap > 6 ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onShowLess}>Show less</Button>
+            ) : null}
+            <Button type="button" size="sm" variant="secondary" onClick={onClearFilters}>Clear filters</Button>
+          </div>
+        </div>
+      </details>
+    </Card>
   );
 }
 
