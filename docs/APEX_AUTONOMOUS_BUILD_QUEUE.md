@@ -49,12 +49,15 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Fencing demo screenshot manifest refresh | Done; Fly demo preflight, admin desktop/tablet audits, employee phone audit, hosted smoke, and roles passed | `bf56464` |
 | 2026-05-21 | P4 | First-pilot support severity quick card | Done; P0-P3 pilot triage card added without SLA/legal/security/pricing claims | `f91e3e2` |
 | 2026-05-21 | P1 | Customer pilot config approval dry-run | Done; in-memory customer pilot config verification and approval-only setup plan added | `7b91e90` |
+| 2026-05-21 | P2 | Fly demo auth-smoke readiness check | Done; Fly demo readiness and skip-auth smoke passed; local auth smoke blocked by missing local `APEX_SMOKE_PASSWORD` | `f807df7` |
 
 ## Active Queue
 
 | Priority | Task | Status | Why It Matters | Safe Scope | Verification | Stop / Approval Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| P2 | Fly demo auth-smoke readiness check | Ready | Confirms whether demo auth smoke can run from the current environment without printing secrets | Read-only presence check and skip-auth fallback only | hosted smoke skip-auth, docs check | Stop before reading or setting secret values |
+| P4 | Fencing pilot artifact index | Ready | Gives the builder and business chat one clean map of the pilot gates, docs, scripts, reports, and stop points | Docs only | docs check, build | Stop before changing claims or adding customer details |
+| P2 | GitHub Actions demo smoke evidence pointer refresh | Ready | Makes the latest local vs scheduled demo smoke status easier to compare | Docs only; no workflow dispatch, no secrets | docs check | Stop before reading or setting secret values |
+| P3 | Pilot route audit P3 backlog extraction | Ready | Turns the known screenshot-only long-text issue into a scoped backlog item instead of random polish | Docs only unless approved | docs check | Stop before UI edits |
 
 ## Blocked / Needs Human Input
 
@@ -68,4 +71,4 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 
 ## Next Recommended Task
 
-Run the Fly demo auth-smoke readiness check next, using skip-auth fallback if `APEX_SMOKE_PASSWORD` is unavailable and without printing or changing secrets.
+Create the fencing pilot artifact index next so the pilot gates and proof are easy to navigate before any outside login or customer-specific setup.
