@@ -95,7 +95,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P3 | Estimate rough notes helper architecture extraction | Done; rough-notes UI moved into the estimate route component module and shared rough-notes helpers moved into a tested utility module with build, role, estimate, route, and browser audits passing | `2f726e8` |
 | 2026-05-21 | P3 | Estimate sent history card architecture extraction | Done; sent proposal history card moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `d9254d2` |
 | 2026-05-21 | P3 | Estimate packet settings panel architecture extraction | Done; packet settings panel moved into the estimate route component module with build, role, estimate, route, and browser audits passing | `f801eeb` |
-| 2026-05-21 | P3 | Customer filter header architecture extraction | Done; customer filter header moved into a customer route component module with build, role, customer, route, and browser audits passing | pending |
+| 2026-05-21 | P3 | Customer filter header architecture extraction | Done; customer filter header moved into a customer route component module with build, role, customer, route, and browser audits passing | `b63367b` |
 
 ## Active Queue
 
