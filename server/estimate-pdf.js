@@ -122,6 +122,21 @@ function profileDetailLines(companyProfile = {}) {
   ].map((value) => cleanText(value)).filter(Boolean);
 }
 
+function formatPdfDate(value, fallback = "Not dated") {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleDateString("en-US");
+}
+
+function validThroughDate(value) {
+  if (!value) return "See proposal terms";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "See proposal terms";
+  date.setDate(date.getDate() + 30);
+  return date.toLocaleDateString("en-US");
+}
+
 function drawHeader(doc, { companyName, companyProfile }) {
   const headerTop = PAGE_MARGIN;
   const initials = cleanText(companyProfile.logoInitials || companyName.slice(0, 2) || "CO").slice(0, 3).toUpperCase();
@@ -181,7 +196,7 @@ function drawHeader(doc, { companyName, companyProfile }) {
 
 function drawProposalIntro(doc, { estimate, customerName, projectName }) {
   const top = doc.y;
-  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 104, 14).fill(COLORS.slateSoft).strokeColor(COLORS.border).stroke();
+  doc.roundedRect(PAGE_MARGIN, top, CONTENT_WIDTH, 132, 14).fill(COLORS.slateSoft).strokeColor(COLORS.border).stroke();
   doc
     .font("Helvetica-Bold")
     .fontSize(8)
@@ -198,23 +213,41 @@ function drawProposalIntro(doc, { estimate, customerName, projectName }) {
     .fillColor(COLORS.slate)
     .text(cleanText(estimate.title, "Customer Estimate"), PAGE_MARGIN + 20, top + 60, { width: 292 });
 
-  doc
-    .roundedRect(PAGE_MARGIN + 20, top + 80, 148, 16, 8)
+  const badgeY = top + 84;
+  doc.roundedRect(PAGE_MARGIN + 20, badgeY, 174, 18, 9)
     .fill(COLORS.orangeSoft)
     .strokeColor("#fed7aa")
     .lineWidth(0.6)
     .stroke();
-  doc.font("Helvetica-Bold").fontSize(7.2).fillColor(COLORS.orangeDark).text("Review scope, exclusions, and terms before approval", PAGE_MARGIN + 28, top + 85, { width: 132 });
+  doc.font("Helvetica-Bold").fontSize(7.2).fillColor(COLORS.orangeDark).text("Review scope, exclusions, and terms before approval", PAGE_MARGIN + 30, badgeY + 6, { width: 154 });
 
-  const dateText = estimate.createdAt ? new Date(estimate.createdAt).toLocaleDateString("en-US") : "Not dated";
+  const dateText = formatPdfDate(estimate.createdAt);
+  const validText = validThroughDate(estimate.createdAt);
   const statusText = cleanText(estimate.status, "draft");
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.slate).text("CUSTOMER", PAGE_MARGIN + 330, top + 16, { width: 170 });
-  doc.font("Helvetica").fontSize(10).fillColor(COLORS.slateDark).text(customerName, PAGE_MARGIN + 330, top + 28, { width: 170 });
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.slate).text("PROJECT", PAGE_MARGIN + 330, top + 46, { width: 170 });
-  doc.font("Helvetica").fontSize(10).fillColor(COLORS.slateDark).text(projectName, PAGE_MARGIN + 330, top + 58, { width: 170 });
-  doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.slate).text(`Date: ${dateText}   Status: ${statusText}`, PAGE_MARGIN + 330, top + 74, { width: 170 });
+  const detailCards = [
+    ["PREPARED FOR", customerName],
+    ["PROJECT", projectName],
+    ["STATUS", statusText],
+    ["PROPOSAL DATE", dateText],
+    ["VALID THROUGH", validText],
+  ];
+  const cardWidth = 94;
+  const cardGap = 6;
+  const detailTop = top + 16;
+  const detailX = PAGE_MARGIN + 322;
 
-  doc.y = top + 120;
+  detailCards.forEach(([label, value], index) => {
+    const y = detailTop + (index * 21.5);
+    doc.roundedRect(detailX, y, cardWidth + 86, 17, 5)
+      .fill(index % 2 === 0 ? COLORS.white : COLORS.orangeSoft)
+      .strokeColor(index % 2 === 0 ? COLORS.border : "#fed7aa")
+      .lineWidth(0.45)
+      .stroke();
+    doc.font("Helvetica-Bold").fontSize(6.2).fillColor(COLORS.slate).text(label, detailX + 8, y + 5, { width: cardWidth - cardGap });
+    doc.font("Helvetica-Bold").fontSize(7.4).fillColor(COLORS.slateDark).text(cleanText(value, "Pending"), detailX + cardWidth + 2, y + 4.5, { width: 76, align: "right" });
+  });
+
+  doc.y = top + 148;
 }
 
 function drawTextSection(doc, title, text) {

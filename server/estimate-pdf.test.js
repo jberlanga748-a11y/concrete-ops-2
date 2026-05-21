@@ -5,6 +5,7 @@ import { buildEstimatePdfAttachment, buildEstimatePdfBuffer, buildEstimatePdfFil
 
 const estimate = {
   title: "Martinez Driveway Proposal",
+  createdAt: "2026-05-01T12:00:00.000Z",
   scopeSummary: [
     "Scope of Work:",
     "Replace cracked driveway panels and restore broom-finish apron.",
@@ -110,6 +111,12 @@ test("estimate PDF attachment includes customer-facing proposal details only", a
   assert.match(decodedText, /Professional Proposal/);
   assert.match(decodedText, /CONTRACTOR PROPOSAL PACKET/);
   assert.match(decodedText, /Review scope, exclusions, and terms before approval/);
+  assert.match(decodedText, /PREPARED FOR/);
+  assert.match(decodedText, /STATUS/);
+  assert.match(decodedText, /PROPOSAL DATE/);
+  assert.match(decodedText, /5\/1\/2026/);
+  assert.match(decodedText, /VALID THROUGH/);
+  assert.match(decodedText, /5\/31\/2026/);
   assert.match(decodedText, /Martinez Driveway Proposal/);
   assert.match(decodedText, /Martinez Residence/);
   assert.match(decodedText, /Driveway replacement estimate/);

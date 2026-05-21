@@ -60,6 +60,7 @@ Purpose: keep Apex HQ autonomous build work focused on pilot-ready SaaS outcomes
 | 2026-05-21 | P2 | Demo smoke automation verification | Done; local `verify:demo` passed Fly demo smoke planner, cleanup, package setter, visual audit, and production-auth workflow tests | `b38bdaf` |
 | 2026-05-21 | P1 | Estimate Studio proposal branding strip | Done; selected `/estimates` workbench now shows company identity, contact, service area, license/insurance, date, and terms from existing settings | `7d0bd05` |
 | 2026-05-21 | P2 | Fly demo Estimate Studio branding deploy | Done; backup-first demo deploy to `concrete-ops-demo` v129 plus hosted smoke and deployed `/estimates` audits passed | `878dc7e` |
+| 2026-05-21 | P1 | Estimate PDF proposal header polish | Done; customer-facing PDF intro now shows prepared-for, project, status, proposal date, and valid-through fields while internal notes stay hidden | `pending` |
 
 ## Active Queue
 

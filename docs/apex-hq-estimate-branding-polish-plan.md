@@ -309,3 +309,21 @@ Demo deployment evidence:
 - deployed admin desktop `/estimates`: `ui-audit/estimate-branding-demo-smoke/2026-05-21T09-35-06-952Z/manifest.json`
 - deployed admin tablet `/estimates`: `ui-audit/estimate-branding-demo-smoke/2026-05-21T09-35-06-920Z/manifest.json`
 - deployed employee phone `/estimates`: `ui-audit/estimate-branding-demo-smoke/2026-05-21T09-35-06-923Z/manifest.json`
+
+## Completed PDF Proposal Header Pass
+
+Completed on 2026-05-21:
+
+- strengthened the customer-facing PDF proposal intro with prepared-for, project, status, proposal date, and valid-through cells
+- kept the dark branded header, orange accent, company identity, contact, service area, and license/insurance text
+- preserved estimate math, send behavior, filenames, package gates, and internal-review packet controls
+- extended PDF tests to prove the new customer-facing proposal identity fields render
+- confirmed internal notes, GC strategy, SOV backup, and sent-history data remain hidden from customer-facing output
+
+Verification:
+
+- `node --test --test-concurrency=1 server/estimate-pdf.test.js`
+- `npm.cmd run verify:estimates`
+- `npm.cmd run verify:roles`
+- `npm.cmd run build`
+- `git diff --check`
